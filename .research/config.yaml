@@ -99,3 +99,27 @@ data_scale_thresholds:
   medium_mb: 100      # Files >= 100MB: polars recommended
   large_gb: 1         # Files >= 1GB: polars lazy frames REQUIRED
   massive_gb: 10      # Files >= 10GB: pyarrow + chunked processing REQUIRED
+
+# Multi-language execution
+execution:
+  supported_runtimes: [python, r, bash, nextflow, snakemake, julia]
+  container_engine: "docker"
+  container_fallback: "conda"
+  executor_log: ".research/cache/execution_log.jsonl"
+
+# Domain registries
+registries:
+  domain_registry: ".research/domains/domain_registry.json"
+  tool_registry: ".research/domains/tool_registry.json"
+  assumption_registry: ".research/domains/assumption_registry.json"
+
+# Container configuration
+containers:
+  base_image: "research-copilot-base:latest"
+  domain_images_dir: "environment/domains"
+  shared_volumes:
+    - "inputs"
+    - "data"
+    - "scripts"
+    - "reports"
+  cache_dir: ".research/cache/containers"
