@@ -1,0 +1,46 @@
+{
+  "schema_version": "2.0.0",
+  "title": "",
+  "researcher": "",
+  "institution": "",
+  "domain": "",
+  "questions": [
+    {
+      "text": "",
+      "type": "descriptive|comparative|associational|causal|predictive|exploratory",
+      "hypothesis": "",
+      "outcome": "",
+      "predictor": "",
+      "covariates": [],
+      "files": [],
+      "prep": "",
+      "prior": ""
+    }
+  ],
+  "data": [
+    {
+      "description": "",
+      "format": "csv|tsv|parquet|xlsx|sav|dta|sas7bdat",
+      "path": "inputs/data/raw/",
+      "estimated_rows": null,
+      "variables": [],
+      "notes": ""
+    }
+  ],
+  "context": {
+    "user_findings": [],
+    "prior_research": "",
+    "theoretical_framework": ""
+  },
+  "constraints": {
+    "target_output": "journal_article|report|presentation|policy_brief",
+    "target_venue": "",
+    "timeline": "",
+    "ethics_notes": ""
+  },
+  "metadata": {
+    "created": "",
+    "last_updated": "",
+    "version": 1
+  }
+}

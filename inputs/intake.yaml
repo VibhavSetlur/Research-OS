@@ -1,0 +1,52 @@
+# Research Intake Form — YAML Format
+# Alternative to intake.md for cleaner complex project specifications
+
+schema_version: "2.0.0"
+
+project:
+  title: ""
+  researcher: ""
+  institution: ""
+  domain: ""  # Match with .research/domains/*.yaml
+
+questions:
+  - text: ""
+    type: descriptive  # descriptive|comparative|associational|causal|predictive|exploratory
+    hypothesis: ""
+    outcome: ""
+    predictor: ""
+    covariates: []
+    files: []
+    prep: ""
+    prior: ""
+
+  # Add more questions as needed:
+  # - text: ""
+  #   type: ""
+  #   hypothesis: ""
+  #   outcome: ""
+  #   predictor: ""
+
+data:
+  - description: ""
+    format: csv  # csv|tsv|parquet|xlsx|sav|dta|sas7bdat
+    path: "inputs/data/raw/"
+    estimated_rows: null
+    variables: []
+    notes: ""
+
+context:
+  user_findings: []
+  prior_research: ""
+  theoretical_framework: ""
+
+constraints:
+  target_output: journal_article  # journal_article|report|presentation|policy_brief
+  target_venue: ""
+  timeline: ""
+  ethics_notes: ""
+
+metadata:
+  created: ""
+  last_updated: ""
+  version: 1
