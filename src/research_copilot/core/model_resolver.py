@@ -344,3 +344,177 @@ def print_availability_report(config: Optional[dict] = None) -> str:
 
 if __name__ == "__main__":
     print(print_availability_report())
+
+
+# ---------------------------------------------------------------------------
+# Item 11 — Auto-Fallback Model Routing (Cascade)
+# ---------------------------------------------------------------------------
+# Try the cheapest model first (local ollama).  If Pydantic validation fails
+# 3 times, automatically escalate to a cloud API model for that node, logging
+# the fallback in the state ledger so every methodological deviation is
+# traceable.
+# ---------------------------------------------------------------------------
+
+_OLLAMA_DEFAULT = "ollama/llama3"
+
+# Ordered API fallback cascade — first available key wins.
+_API_FALLBACK_CASCADE = [
+    {"provider": "google", "model": "gemini-2.5-flash",  "api_key_env": "GOOGLE_API_KEY"},
+    {"provider": "openai", "model": "gpt-4o-mini",       "api_key_env": "OPENAI_API_KEY"},
+    {"provider": "anthropic", "model": "claude-haiku-3", "api_key_env": "ANTHROPIC_API_KEY"},
+]
+
+
+def _first_available_api_model() -> Optional[dict]:
+    """Return the first API model whose key is present in the environment."""
+    for m in _API_FALLBACK_CASCADE:
+        if _check_api_key(m["api_key_env"]):
+            return m
+    return None
+
+
+def cascade_resolve(
+    task_name: str,
+    call_model: "Callable[[str, str], str]",  # (model_id, prompt) -> raw_json
+    prompt: str,
+    schema: "Optional[Any]" = None,
+    max_local_retries: int = 3,
+    node_id: Optional[str] = None,
+    config: Optional[dict] = None,
+) -> dict:
+    """Resolve a model call with automatic cheap-to-expensive cascade.
+
+    Execution order:
+      1. Try ``ollama/<local_model>`` up to *max_local_retries* times.
+      2. If every local attempt fails Pydantic validation, escalate to the
+         first available API model (gemini → gpt-4o-mini → claude-haiku).
+      3. Log every fallback in the active experiment's ``decisions.yaml``.
+
+    Args:
+        task_name:         Task / agent name used to look up the task model.
+        call_model:        Callable ``(model_id, prompt) -> raw_json_string``.
+                           ``model_id`` is a string like ``"ollama/llama3"``
+                           or ``"google/gemini-2.5-flash"``.
+        prompt:            The prompt to send.
+        schema:            Optional Pydantic model class for output validation.
+        max_local_retries: Times to retry the local model before escalating.
+        node_id:           DAG node ID for logging.
+        config:            Optional pre-loaded models config.
+
+    Returns:
+        Dict with keys: raw_output, model_used, fallback_used, validated (if
+        schema provided).
+
+    Raises:
+        RuntimeError: If all models in the cascade are exhausted.
+    """
+    from research_copilot.assets.schemas.validator import validate_with_retry
+
+    # Determine the local model to try first.
+    if config is None:
+        config = _load_models_config()
+
+    task_cfg = (config.get("models") or {}).get(task_name) or {}
+    local_provider = task_cfg.get("provider", "")
+    local_model    = task_cfg.get("model", "")
+
+    if local_provider and local_provider.lower() in ("ollama", "local"):
+        local_model_id = f"ollama/{local_model}"
+    elif _check_api_key(task_cfg.get("api_key_env", "")):
+        local_model_id = f"{local_provider}/{local_model}"
+    else:
+        local_model_id = _OLLAMA_DEFAULT
+
+    prefix = f"[{node_id or task_name}] "
+    last_error: Optional[Exception] = None
+    validated_output: Optional[dict] = None
+
+    # ── Phase 1: local / cheap model ─────────────────────────────────────────
+    for attempt in range(max_local_retries):
+        try:
+            raw = call_model(local_model_id, prompt)
+
+            if schema is not None:
+                instance = validate_with_retry(
+                    raw_json=raw,
+                    schema=schema,
+                    call_llm=lambda p: call_model(local_model_id, p),
+                    base_prompt=prompt,
+                    max_retries=0,  # single attempt here; outer loop handles retries
+                    node_id=node_id,
+                )
+                validated_output = instance.model_dump()
+
+            import logging as _logging
+            _logging.getLogger("research.model_resolver").info(
+                "%sLocal model '%s' succeeded on attempt %d.",
+                prefix, local_model_id, attempt + 1,
+            )
+            return {
+                "raw_output": raw,
+                "model_used": local_model_id,
+                "fallback_used": False,
+                "validated": validated_output,
+            }
+
+        except Exception as exc:
+            last_error = exc
+            import logging as _logging
+            _logging.getLogger("research.model_resolver").warning(
+                "%sLocal attempt %d/%d failed: %s",
+                prefix, attempt + 1, max_local_retries, exc,
+            )
+
+    # ── Phase 2: API fallback cascade ─────────────────────────────────────────
+    api_model = _first_available_api_model()
+    if api_model is None:
+        raise RuntimeError(
+            f"{prefix}All {max_local_retries} local attempts failed and no API key "
+            f"is available for fallback. Last error: {last_error}"
+        )
+
+    api_model_id = f"{api_model['provider']}/{api_model['model']}"
+    fallback_msg = (
+        f"Auto-fallback: {local_model_id} failed {max_local_retries}× for "
+        f"node '{node_id or task_name}' → escalating to {api_model_id}."
+    )
+
+    import warnings as _warnings
+    _warnings.warn(fallback_msg)
+    import logging as _logging
+    _logging.getLogger("research.model_resolver").warning("%s%s", prefix, fallback_msg)
+
+    # Log the fallback to the decisions ledger.
+    _log_model_fallback(
+        task_name,
+        {"provider": local_model_id.split("/")[0], "model": local_model_id.split("/")[-1]},
+        api_model,
+        fallback_msg,
+    )
+
+    try:
+        raw = call_model(api_model_id, prompt)
+        if schema is not None:
+            instance = validate_with_retry(
+                raw_json=raw,
+                schema=schema,
+                call_llm=lambda p: call_model(api_model_id, p),
+                base_prompt=prompt,
+                node_id=node_id,
+            )
+            validated_output = instance.model_dump()
+
+        return {
+            "raw_output": raw,
+            "model_used": api_model_id,
+            "fallback_used": True,
+            "fallback_from": local_model_id,
+            "validated": validated_output,
+        }
+
+    except Exception as exc:
+        raise RuntimeError(
+            f"{prefix}Both local ({local_model_id}) and API ({api_model_id}) "
+            f"models failed. Last error: {exc}"
+        ) from exc
+

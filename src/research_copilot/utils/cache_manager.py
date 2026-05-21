@@ -416,6 +416,78 @@ def main():
 
     parser.print_help()
 
+def setup_vss_db(db_path: Path):
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    try:
+        import sqlite_vss
+        conn.enable_load_extension(True)
+        sqlite_vss.load(conn)
+    except Exception:
+        pass
+    
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT,
+            content TEXT,
+            embedding JSON
+        )
+    ''')
+    conn.commit()
+    return conn
+
+def ingest_file(filepath: Path, db_path: Path):
+    print(f"Ingesting {filepath}...")
+    content = ""
+    if filepath.suffix == '.csv':
+        try:
+            content = filepath.read_text()
+        except UnicodeDecodeError:
+            pass
+    elif filepath.suffix == '.pdf':
+        try:
+            import PyPDF2
+            with open(filepath, "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                content = " ".join([p.extract_text() for p in reader.pages if p.extract_text()])
+        except ImportError:
+            content = "PyPDF2 not installed"
+    else:
+        try:
+            content = filepath.read_text()
+        except UnicodeDecodeError:
+            content = "Binary file"
+
+    print("Generating embeddings...")
+    try:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+        embedding = model.encode(content[:5000]).tolist()
+    except Exception:
+        print("SentenceTransformer not found, using dummy embeddings")
+        embedding = [0.0] * 384
+    
+    conn = setup_vss_db(db_path)
+    conn.execute('INSERT INTO documents (filename, content, embedding) VALUES (?, ?, ?)',
+                 (filepath.name, content[:5000], json.dumps(embedding)))
+    conn.commit()
+    print(f"Successfully ingested {filepath.name} into vector database.")
+
+def cmd_ingest(args):
+    filepath = Path(args.file)
+    if not filepath.exists():
+        print("File not found")
+        return
+    from research_copilot.utils.common import find_project_root
+    root = find_project_root()
+    if not root:
+        print("Not in a project root")
+        return
+    db_path = root / ".research" / "cache" / "vss.sqlite"
+    ingest_file(filepath, db_path)
+
+
 
 if __name__ == "__main__":
     main()

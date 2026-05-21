@@ -23,6 +23,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+class CitationNotFoundError(Exception):
+    def __init__(self, message, identifier):
+        super().__init__(message)
+        self.identifier = identifier
+
+class CitationRetractedError(Exception):
+    def __init__(self, message, identifier):
+        super().__init__(message)
+        self.identifier = identifier
+
 
 from research_copilot.utils.common import find_project_root, save_json_atomic, now_iso
 
@@ -517,6 +527,69 @@ def print_report_summary(report: dict) -> None:
         print(f"    Pass 3 (retraction):{p3['status']}")
         print()
 
+
+def replace_with_verified(citation: dict) -> dict:
+    """Run verification and fetch canonical BibTeX."""
+    res = verify_citation(citation)
+    status = res["overall_status"]
+    identifier = citation.get("identifier")
+    
+    if status == "retracted":
+        raise CitationRetractedError(f"Citation retracted: {res['pass_3'].get('retraction_reason')}", identifier)
+    if status in ("unverified", "not_found"):
+        raise CitationNotFoundError("Citation could not be verified", identifier)
+    
+    id_type = citation.get("identifier_type")
+    bibtex = ""
+    if id_type == "doi":
+        bibtex = url_get(f"https://api.crossref.org/works/{identifier}/transform/application/x-bibtex")
+    
+    if not bibtex:
+        title = res["pass_1"].get("title", citation.get("title", "Unknown Title"))
+        year = res["pass_1"].get("year", citation.get("year", "Unknown Year"))
+        authors = " and ".join(res["pass_1"].get("authors", [citation.get("author", "Unknown Author")]))
+        key = f"ref_{str(identifier).replace('/', '_').replace('.', '_')}" if identifier else "ref_unknown"
+        bibtex = f"@article{{{key},\n  title={{{title}}},\n  author={{{authors}}},\n  year={{{year}}},\n  url={{{identifier}}}\n}}"
+
+    return {
+        "status": "replaced",
+        "bibtex": bibtex,
+        "doi": identifier if id_type == "doi" else None,
+        "verified_title": res["pass_1"].get("title"),
+        "verified_year": res["pass_1"].get("year"),
+    }
+
+def build_verified_bibliography(citations: list[dict], output_bib: Path, delay: float = 0.5) -> dict:
+    replaced = 0
+    failed = 0
+    retracted = 0
+    bib_entries = []
+
+    for cit in citations:
+        try:
+            res = replace_with_verified(cit)
+            bib_entries.append(res["bibtex"])
+            replaced += 1
+        except CitationRetractedError:
+            retracted += 1
+            failed += 1
+        except CitationNotFoundError:
+            failed += 1
+        except Exception:
+            failed += 1
+        time.sleep(delay)
+
+    output_bib.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_bib, "w") as f:
+        f.write("\n\n".join(filter(None, bib_entries)))
+    
+    return {
+        "total": len(citations),
+        "replaced": replaced,
+        "failed": failed,
+        "retracted": retracted,
+        "bib_path": str(output_bib)
+    }
 
 # ── CLI ──────────────────────────────────────────────────────────────────
 

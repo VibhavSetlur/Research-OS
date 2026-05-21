@@ -34,6 +34,7 @@ dependencies = [
     "scipy>=1.10",
     "matplotlib>=3.7",
     "seaborn>=0.12",
+    "rank-bm25>=0.2",
     "habanero>=1.2",
     "semanticscholar>=0.3",
     "metapub>=0.5",

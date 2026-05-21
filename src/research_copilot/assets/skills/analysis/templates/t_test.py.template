@@ -1,0 +1,54 @@
+# [rcp-template: t_test]
+# Variables: INPUT_FILE, GROUP_COL, VALUE_COL, OUTPUT_FILE, ALTERNATIVE
+# The LLM fills in only these variables — never writes raw scipy calls.
+import json
+import pandas as pd
+from scipy import stats
+
+df = pd.read_csv("{{INPUT_FILE}}")
+group_col = "{{GROUP_COL}}"
+value_col = "{{VALUE_COL}}"
+alternative = "{{ALTERNATIVE}}"  # 'two-sided', 'less', 'greater'
+output_file = "{{OUTPUT_FILE}}"
+
+groups = df[group_col].dropna().unique()
+if len(groups) < 2:
+    raise ValueError(f"Need at least 2 groups in '{group_col}', found: {groups}")
+
+a = df.loc[df[group_col] == groups[0], value_col].dropna()
+b = df.loc[df[group_col] == groups[1], value_col].dropna()
+
+t_stat, p_val = stats.ttest_ind(a, b, equal_var=False, alternative=alternative)
+
+# Cohen's d effect size
+pooled_std = ((a.std() ** 2 + b.std() ** 2) / 2) ** 0.5
+cohens_d = (a.mean() - b.mean()) / pooled_std if pooled_std > 0 else 0.0
+
+# 95% CI for mean difference (Welch)
+se = ((a.var() / len(a)) + (b.var() / len(b))) ** 0.5
+df_welch = (se ** 4) / (
+    ((a.var() / len(a)) ** 2 / (len(a) - 1)) + ((b.var() / len(b)) ** 2 / (len(b) - 1))
+)
+ci_margin = stats.t.ppf(0.975, df_welch) * se
+mean_diff = a.mean() - b.mean()
+ci = [round(mean_diff - ci_margin, 4), round(mean_diff + ci_margin, 4)]
+
+result = {
+    "test": "Welch t-test",
+    "group_a": str(groups[0]),
+    "group_b": str(groups[1]),
+    "n_a": int(len(a)),
+    "n_b": int(len(b)),
+    "mean_a": round(float(a.mean()), 4),
+    "mean_b": round(float(b.mean()), 4),
+    "t_statistic": round(float(t_stat), 4),
+    "p_value": float(p_val),
+    "cohens_d": round(float(cohens_d), 4),
+    "ci_95": ci,
+    "alternative": alternative,
+}
+
+print(json.dumps(result, indent=2))
+with open(output_file, "w") as f:
+    json.dump(result, f, indent=2)
+print(f"saved to {output_file}")

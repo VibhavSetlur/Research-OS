@@ -2,16 +2,50 @@
 
 Provides safe wrappers to run Python, R, bash, Nextflow, Snakemake, or Julia
 jobs. Records stdout/stderr, duration, exit codes, and optional container used.
+
+Pandas masking: every Python execution is prefixed with a safety preamble that
+caps DataFrame display rows to 10, preventing accidental context-window blowouts
+from large DataFrames printed to stdout.
 """
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 import subprocess
+import tempfile
 import time
 import shutil
 import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Data Pointer Injection — Pandas Display Masking
+# ---------------------------------------------------------------------------
+# This preamble is prepended to every Python script before execution.
+# It enforces safe display limits so agents never accidentally dump a full
+# DataFrame to stdout and blow up the context window.
+# Agents are instructed (via their system prompts) to:
+#   - Save data to files and output only the path.
+#   - Use .info() or .shape instead of printing DataFrames.
+# ---------------------------------------------------------------------------
+PANDAS_DISPLAY_PREAMBLE = """# [rcp-injected safety preamble — do not remove]
+try:
+    import pandas as pd
+    pd.options.display.max_rows = 10
+    pd.options.display.max_columns = 20
+    pd.options.display.max_colwidth = 80
+    pd.options.mode.chained_assignment = None  # silence SettingWithCopyWarning
+except ImportError:
+    pass
+# [end preamble]
+"""
+
+DATA_POINTER_SYSTEM_HINT = (
+    "IMPORTANT: Do NOT print DataFrames or large arrays to stdout. "
+    "Instead: (1) save data to a file and print only the file path, "
+    "(2) use df.info() or df.shape to describe data, "
+    "(3) print only scalar metrics or summary statistics."
+)
 
 try:
     import yaml
@@ -124,6 +158,27 @@ class ResearchExecutor:
         self._update_dag(result, metadata)
         return result
 
+    def _inject_preamble(self, script_path: str) -> str:
+        """Prepend PANDAS_DISPLAY_PREAMBLE to *script_path* and return a temp file path.
+
+        The caller is responsible for deleting the temp file after execution.
+        """
+        try:
+            with open(script_path) as f:
+                original = f.read()
+        except OSError:
+            return script_path  # can't read — skip injection, run original
+
+        fd, tmp_path = tempfile.mkstemp(suffix=".py", prefix="rcp_exec_")
+        try:
+            with open(fd, "w") as f:
+                f.write(PANDAS_DISPLAY_PREAMBLE + original)
+        except Exception:
+            import os
+            os.unlink(tmp_path)
+            return script_path
+        return tmp_path
+
     def run_python(
         self,
         script_path: str,
@@ -138,12 +193,19 @@ class ResearchExecutor:
         tool_ids: Optional[List[str]] = None,
         domain: Optional[str] = None,
     ) -> ExecutionResult:
-        cmd = [sys.executable, script_path] + (args or [])
+        import os
+        wrapped_path = self._inject_preamble(script_path)
+        cmd = [sys.executable, wrapped_path] + (args or [])
         cmd = self._wrap_container(container, cmd)
         res = self._run(cmd, timeout=timeout, tool_ids=tool_ids, domain=domain)
         res.runtime = "python"
-        res.script_path = script_path
+        res.script_path = script_path  # report original path, not temp
         res.container_used = container
+        if wrapped_path != script_path:
+            try:
+                os.unlink(wrapped_path)
+            except OSError:
+                pass
         return self._post_process(res, {
             "input_files": input_files or [],
             "output_files": output_files or [],
@@ -311,6 +373,209 @@ class ResearchExecutor:
         if runtime == "bash":
             return shutil.which("bash") is not None
         return False
+
+
+# ---------------------------------------------------------------------------
+# Template-Based Execution (Item 7)
+# ---------------------------------------------------------------------------
+# LLMs hallucinate complex library syntax. Instead of asking them to write
+# code from scratch, skill templates embed {{PLACEHOLDER}} variables.
+# The LLM's only job is to output a JSON dict of variable values.
+# The TemplateExecutor maps the JSON → template, generates the script, and
+# runs it — guaranteeing syntactically correct code every time.
+# ---------------------------------------------------------------------------
+
+import re as _re
+import os as _os
+
+
+class TemplateExecutor:
+    """Fill-in-the-blanks template execution engine.
+
+    Templates are ``.py.template`` files containing ``{{VARIABLE}}``
+    placeholders.  The LLM outputs a JSON dict of variable values; this class
+    renders the template and executes the resulting Python script.
+
+    Template search order (first match wins):
+      1. ``<project_root>/.research/templates/``  (user overrides)
+      2. ``<assets_dir>/skills/<category>/templates/``  (bundled)
+      3. Any absolute path passed directly.
+
+    Example template file (``t_test.py.template``)::
+
+        import pandas as pd
+        from scipy import stats
+
+        df = pd.read_csv("{{INPUT_FILE}}")
+        group_col = "{{GROUP_COL}}"
+        value_col = "{{VALUE_COL}}"
+        groups = df[group_col].unique()
+        a = df.loc[df[group_col] == groups[0], value_col]
+        b = df.loc[df[group_col] == groups[1], value_col]
+        t, p = stats.ttest_ind(a, b, equal_var=False)
+        print(f"t={t:.4f}, p={p:.4f}")
+
+    Example LLM JSON output::
+
+        {
+            "INPUT_FILE": "data/clean.csv",
+            "GROUP_COL": "treatment",
+            "VALUE_COL": "score"
+        }
+    """
+
+    PLACEHOLDER_RE = _re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+
+    def __init__(self, root: Optional[Path] = None):
+        self.root = root or _find_project_root()
+        self._executor = ResearchExecutor(root=self.root)
+
+    # ------------------------------------------------------------------
+    # Template discovery
+    # ------------------------------------------------------------------
+
+    def _find_template(self, template_name: str) -> Path:
+        """Locate a ``.py.template`` file by name.
+
+        Args:
+            template_name: Bare name (e.g. ``t_test``) or absolute path.
+
+        Returns:
+            Path to the template file.
+
+        Raises:
+            FileNotFoundError: If the template cannot be found.
+        """
+        # Direct absolute/relative path.
+        p = Path(template_name)
+        if p.exists():
+            return p
+
+        # Normalise — add extension if missing.
+        name = template_name if template_name.endswith(".py.template") else f"{template_name}.py.template"
+
+        # 1. User override templates.
+        user_dir = self.root / ".research" / "templates"
+        candidate = user_dir / name
+        if candidate.exists():
+            return candidate
+
+        # 2. Bundled assets under skills/**/templates/.
+        assets_dir = Path(__file__).parent.parent / "assets" / "skills"
+        for tmpl in assets_dir.rglob(name):
+            return tmpl
+
+        raise FileNotFoundError(
+            f"Template '{template_name}' not found.  "
+            f"Searched: {user_dir}, {assets_dir}/**/templates/"
+        )
+
+    # ------------------------------------------------------------------
+    # Rendering
+    # ------------------------------------------------------------------
+
+    def render(self, template_name: str, variables: Dict[str, Any]) -> str:
+        """Render a template by substituting ``{{VARIABLE}}`` placeholders.
+
+        Args:
+            template_name: Template file name or path.
+            variables:     Dict mapping placeholder names to values.
+
+        Returns:
+            Rendered Python source code string.
+
+        Raises:
+            ValueError: If required placeholders are missing from *variables*.
+        """
+        tmpl_path = self._find_template(template_name)
+        source = tmpl_path.read_text()
+
+        # Check for missing variables.
+        required = set(self.PLACEHOLDER_RE.findall(source))
+        provided = {k.upper() for k in variables}
+        missing = required - provided
+        if missing:
+            raise ValueError(
+                f"Template '{template_name}' requires variables not provided: {missing}"
+            )
+
+        # Substitute all placeholders.
+        def _sub(match: _re.Match) -> str:
+            key = match.group(1)
+            val = variables.get(key) or variables.get(key.lower(), "")
+            return str(val)
+
+        return self.PLACEHOLDER_RE.sub(_sub, source)
+
+    # ------------------------------------------------------------------
+    # Execute
+    # ------------------------------------------------------------------
+
+    def execute_template(
+        self,
+        template_name: str,
+        variables: Dict[str, Any],
+        *,
+        timeout: Optional[int] = 300,
+        node_id: Optional[str] = None,
+        input_files: Optional[List[str]] = None,
+        output_files: Optional[List[str]] = None,
+    ) -> "ExecutionResult":
+        """Render *template_name* with *variables* and execute the result.
+
+        Args:
+            template_name: Template identifier (name or path).
+            variables:     JSON-sourced variable dict from the LLM.
+            timeout:       Subprocess timeout in seconds.
+            node_id:       DAG node ID for logging.
+            input_files:   Input files for DAG tracking.
+            output_files:  Output files for DAG tracking.
+
+        Returns:
+            ExecutionResult from the subprocess run.
+        """
+        rendered = self.render(template_name, variables)
+
+        fd, tmp_path = tempfile.mkstemp(suffix=".py", prefix="rcp_tmpl_")
+        try:
+            with _os.fdopen(fd, "w") as f:
+                f.write(rendered)
+
+            result = self._executor.run_python(
+                script_path=tmp_path,
+                timeout=timeout,
+                node_id=node_id,
+                input_files=input_files or [],
+                output_files=output_files or [],
+            )
+        finally:
+            try:
+                _os.unlink(tmp_path)
+            except OSError:
+                pass
+
+        result.script_path = f"<template:{template_name}>"
+        return result
+
+    def list_templates(self) -> List[Dict[str, str]]:
+        """Return all discoverable templates with their paths and placeholders."""
+        results: List[Dict[str, str]] = []
+        search_dirs: List[Path] = [
+            self.root / ".research" / "templates",
+            Path(__file__).parent.parent / "assets" / "skills",
+        ]
+        for d in search_dirs:
+            if not d.exists():
+                continue
+            for tmpl in sorted(d.rglob("*.py.template")):
+                source = tmpl.read_text()
+                placeholders = sorted(set(self.PLACEHOLDER_RE.findall(source)))
+                results.append({
+                    "name": tmpl.stem.replace(".py", ""),
+                    "path": str(tmpl),
+                    "placeholders": ", ".join(placeholders),
+                })
+        return results
 
 
 if __name__ == "__main__":

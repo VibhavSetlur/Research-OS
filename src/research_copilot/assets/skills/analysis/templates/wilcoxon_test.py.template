@@ -1,0 +1,44 @@
+# [rcp-template: wilcoxon_test]
+# Variables: INPUT_FILE, GROUP_COL, VALUE_COL, OUTPUT_FILE, ALTERNATIVE
+# Non-parametric alternative to the t-test when normality is violated.
+import json
+import pandas as pd
+from scipy import stats
+
+df = pd.read_csv("{{INPUT_FILE}}")
+group_col = "{{GROUP_COL}}"
+value_col = "{{VALUE_COL}}"
+alternative = "{{ALTERNATIVE}}"  # 'two-sided', 'less', 'greater'
+output_file = "{{OUTPUT_FILE}}"
+
+groups = df[group_col].dropna().unique()
+if len(groups) < 2:
+    raise ValueError(f"Need at least 2 groups in '{group_col}', found: {groups}")
+
+a = df.loc[df[group_col] == groups[0], value_col].dropna()
+b = df.loc[df[group_col] == groups[1], value_col].dropna()
+
+stat, p_val = stats.mannwhitneyu(a, b, alternative=alternative)
+
+# Rank-biserial correlation (effect size for Mann-Whitney U)
+n1, n2 = len(a), len(b)
+r_rb = 1 - (2 * stat) / (n1 * n2)
+
+result = {
+    "test": "Mann-Whitney U (Wilcoxon rank-sum)",
+    "group_a": str(groups[0]),
+    "group_b": str(groups[1]),
+    "n_a": int(n1),
+    "n_b": int(n2),
+    "median_a": round(float(a.median()), 4),
+    "median_b": round(float(b.median()), 4),
+    "u_statistic": float(stat),
+    "p_value": float(p_val),
+    "rank_biserial_r": round(float(r_rb), 4),
+    "alternative": alternative,
+}
+
+print(json.dumps(result, indent=2))
+with open(output_file, "w") as f:
+    json.dump(result, f, indent=2)
+print(f"saved to {output_file}")

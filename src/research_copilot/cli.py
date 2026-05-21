@@ -20,8 +20,12 @@ from research_copilot.project_ops import (
     scaffold_minimal_workspace,
 )
 from research_copilot.utils.asset_manager import AssetManager
+from research_copilot.utils.manuscript_compiler import cmd_compile, ManuscriptCompiler
 
-DEPTH_CHOICES = ("exploratory", "academic", "publication")
+# All valid depth values — quick/standard/deep are user-facing aliases;
+
+# exploratory/academic/publication are the canonical internal names.
+DEPTH_CHOICES = ("quick", "exploratory", "standard", "academic", "deep", "publication")
 
 
 def _project_root() -> Path:
@@ -290,6 +294,37 @@ def cmd_save_artifact(args: argparse.Namespace) -> None:
     print(f"Metadata {result['metadata']}")
 
 
+def cmd_trace(args: argparse.Namespace) -> None:
+    from research_copilot.utils.auto_debug import trace_node
+    trace_node(args.node_id, _project_root())
+
+def cmd_ingest(args: argparse.Namespace) -> None:
+    from research_copilot.utils.cache_manager import cmd_ingest as _ingest
+    _ingest(args)
+
+def cmd_compress(args: argparse.Namespace) -> None:
+    """Compress the state ledger using a local LLM to free context window space."""
+    try:
+        from research_copilot.core.state_ledger import ResearchLedger
+
+        root = _project_root()
+        ledger = ResearchLedger(root / "03_synthesis" / "state_ledger.json")
+        result = ledger.compress_ledger(model=args.model, dry_run=args.dry_run)
+
+        print("=" * 60)
+        print("LEDGER COMPRESSION SUMMARY")
+        print("=" * 60)
+        print(f"Nodes compressed : {result['compressed_nodes']}")
+        print(f"Original chars   : {result['original_chars']:,}")
+        print(f"Compressed chars : {result['compressed_chars']:,}")
+        print(f"Context savings  : ~{result['savings_pct']}%")
+        if args.dry_run:
+            print("\n[DRY RUN] No changes written.")
+    except Exception as e:
+        print(f"Compress error: {e}")
+        sys.exit(1)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="rcp",
@@ -312,6 +347,30 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("scan", help="Scan inputs and build research map")
     sub.add_parser("setup", help="Verify package assets and local overrides")
     sub.add_parser("status", help="Show clean workspace status")
+
+    p_compress = sub.add_parser(
+        "compress",
+        help="Compress state ledger via local LLM to reclaim context window space",
+    )
+    p_compress.add_argument(
+        "--model",
+        default="ollama/llama3",
+        help="Local model to use (format: ollama/<model_name>). Default: ollama/llama3",
+    )
+    p_compress.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview compressed outputs without saving changes",
+    )
+
+    p_compile = sub.add_parser("compile", help="Map-reduce manuscript sections into PDF/HTML via Pandoc")
+    p_compile.add_argument("--formats", default="pdf,html", help="Comma-separated formats (e.g., pdf,html)")
+
+    p_trace = sub.add_parser("trace", help="Trace node execution sequence")
+    p_trace.add_argument("node_id", help="Node ID to trace")
+
+    p_ingest = sub.add_parser("ingest", help="Ingest a file into local vector database")
+    p_ingest.add_argument("file", help="File to ingest (pdf/csv/txt)")
 
     p_agent = sub.add_parser("agent", help="Show a specific agent")
     p_agent.add_argument("name")
@@ -366,12 +425,17 @@ def main() -> None:
         "scan": cmd_scan,
         "setup": cmd_setup,
         "status": cmd_status,
+        "compress": cmd_compress,
         "agent": cmd_agents,
         "agents": lambda a: cmd_agents(argparse.Namespace(name=None)),
         "skill": cmd_skills,
         "skills": lambda a: cmd_skills(argparse.Namespace(name=None)),
         "workflow": cmd_workflow,
         "intent": cmd_intent,
+        "trace": cmd_trace,
+        "compile": cmd_compile,
+        "trace": cmd_trace,
+        "ingest": cmd_ingest,
         "branch": cmd_branch,
         "branches": cmd_branches,
         "log-decision": cmd_log_decision,

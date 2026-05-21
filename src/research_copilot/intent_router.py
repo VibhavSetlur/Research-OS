@@ -112,27 +112,38 @@ NULL_SPACE_KEYWORDS = {
 }
 
 DEPTH_PROFILES = {
+    "quick": {
+        "description": "Zero-shot fast path — routes directly to zero_shot_analyst. No DAG.",
+        "exclude_skills": {
+            "bayesian_modeling", "bayesian_analysis", "causal_inference", "power_analysis",
+            "mixed_effects", "survival_analysis", "reviewer2_critic", "audit_claim_trace",
+            "audit_reproducibility", "audit_statistical_reporting", "replication",
+            "sensitivity_analysis", "cross_validation",
+        },
+        "exclude_agents": {
+            "reviewer2_critic", "replication_validator", "audit_validate",
+            "methodology_scout", "literature_deep",
+        },
+        "exclude_steps": {
+            "reviewer2", "audit", "robustness", "validate", "finalize",
+            "literature_search", "method_selection",
+        },
+        "quality_gates": False,
+        "prompt_constraint": (
+            "Answer directly using descriptive stats and simple charts. "
+            "Do not run adversarial audits or multi-step DAG workflows."
+        ),
+    },
     "exploratory": {
         "description": "Fast first-pass analysis for orientation and simple plots.",
         "exclude_skills": {
-            "bayesian_modeling",
-            "bayesian_analysis",
-            "causal_inference",
-            "power_analysis",
-            "mixed_effects",
-            "survival_analysis",
-            "reviewer2_critic",
-            "audit_claim_trace",
-            "audit_reproducibility",
-            "audit_statistical_reporting",
-            "replication",
-            "sensitivity_analysis",
-            "cross_validation",
+            "bayesian_modeling", "bayesian_analysis", "causal_inference", "power_analysis",
+            "mixed_effects", "survival_analysis", "reviewer2_critic", "audit_claim_trace",
+            "audit_reproducibility", "audit_statistical_reporting", "replication",
+            "sensitivity_analysis", "cross_validation",
         },
         "exclude_agents": {
-            "reviewer2_critic",
-            "replication_validator",
-            "audit_validate",
+            "reviewer2_critic", "replication_validator", "audit_validate",
             "methodology_scout",
         },
         "exclude_steps": {"reviewer2", "audit", "robustness", "validate", "finalize"},
@@ -153,6 +164,17 @@ DEPTH_PROFILES = {
             "but keep the workflow proportional to the question."
         ),
     },
+    "standard": {
+        "description": "Alias for 'academic' — balanced workflow with method checks.",
+        "exclude_skills": set(),
+        "exclude_agents": set(),
+        "exclude_steps": set(),
+        "quality_gates": True,
+        "prompt_constraint": (
+            "Use appropriate methodological checks and report uncertainty, "
+            "but keep the workflow proportional to the question."
+        ),
+    },
     "publication": {
         "description": "Full rigor workflow for publication-ready outputs.",
         "exclude_skills": set(),
@@ -164,6 +186,27 @@ DEPTH_PROFILES = {
             "and publication-grade reporting."
         ),
     },
+    "deep": {
+        "description": "Alias for 'publication' — full rigor with Critic, Reviewer2, and Methodology Scout.",
+        "exclude_skills": set(),
+        "exclude_agents": set(),
+        "exclude_steps": set(),
+        "quality_gates": True,
+        "prompt_constraint": (
+            "Run full validation, adversarial critique, Reviewer2, Methodology Scout, "
+            "provenance checks, and publication-grade reporting."
+        ),
+    },
+}
+
+# Canonical depth aliases: normalise user-facing names to internal keys
+_DEPTH_ALIASES: Dict[str, str] = {
+    "quick": "quick",
+    "standard": "standard",
+    "deep": "deep",
+    "exploratory": "exploratory",
+    "academic": "academic",
+    "publication": "publication",
 }
 
 
@@ -252,8 +295,8 @@ class IntentRouter:
         primary = classification["primary_intent"]
         profile = DEPTH_PROFILES[depth]
 
-        if depth == "exploratory":
-            # Zero-Shot Fast Path
+        if depth in ("quick", "exploratory"):
+            # Zero-Shot Fast Path — bypass DAG entirely
             null_space = set(INTENT_CATEGORIES.keys()) - {"exploratory"}
             return {
                 "classification": classification,
@@ -297,7 +340,7 @@ class IntentRouter:
         ]
         workflow_steps = [s for s in workflow_steps if s not in profile["exclude_steps"]]
 
-        if depth == "publication":
+        if depth in ("publication", "deep"):
             for agent in ("replication_validator", "reviewer2_critic", "audit_validate"):
                 if agent not in agents:
                     agents.append(agent)
@@ -331,11 +374,12 @@ class IntentRouter:
     @staticmethod
     def _normalize_depth(depth: str) -> str:
         depth = (depth or "academic").strip().lower()
-        if depth not in DEPTH_PROFILES:
-            raise ValueError(
-                f"Unsupported depth '{depth}'. Use one of: {', '.join(DEPTH_PROFILES)}"
-            )
-        return depth
+        if depth in _DEPTH_ALIASES:
+            return _DEPTH_ALIASES[depth]
+        raise ValueError(
+            f"Unsupported depth '{depth}'. Use one of: "
+            f"{', '.join(sorted(_DEPTH_ALIASES))}"
+        )
 
     @staticmethod
     def _is_excluded_by_depth(name: str, exclusions: Set[str]) -> bool:

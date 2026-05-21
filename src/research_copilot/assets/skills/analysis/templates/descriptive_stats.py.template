@@ -1,0 +1,30 @@
+# [rcp-template: descriptive_stats]
+# Variables: INPUT_FILE, COLUMNS, OUTPUT_FILE
+# COLUMNS: comma-separated column names, or "all" for all numeric columns
+import json
+import pandas as pd
+
+df = pd.read_csv("{{INPUT_FILE}}")
+columns_spec = "{{COLUMNS}}"
+output_file = "{{OUTPUT_FILE}}"
+
+if columns_spec.strip().lower() == "all":
+    cols = df.select_dtypes(include="number").columns.tolist()
+else:
+    cols = [c.strip() for c in columns_spec.split(",")]
+
+desc = df[cols].describe(percentiles=[0.25, 0.5, 0.75]).round(4)
+
+result = {
+    "columns": cols,
+    "n": int(df.shape[0]),
+    "stats": desc.to_dict(),
+    "missing": {c: int(df[c].isna().sum()) for c in cols},
+    "skewness": {c: round(float(df[c].skew()), 4) for c in cols},
+    "kurtosis": {c: round(float(df[c].kurtosis()), 4) for c in cols},
+}
+
+print(json.dumps(result, indent=2))
+with open(output_file, "w") as f:
+    json.dump(result, f, indent=2)
+print(f"saved to {output_file}")

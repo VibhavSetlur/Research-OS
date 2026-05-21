@@ -399,6 +399,39 @@ def main():
 
     sys.exit(0 if result["success"] else 1)
 
+def trace_node(node_id: str, root: Path) -> None:
+    ledger_path = root / "03_synthesis" / "state_ledger.json"
+    if not ledger_path.exists():
+        print("Ledger not found")
+        return
+    with open(ledger_path) as f:
+        ledger = json.load(f)
+    
+    node_entries = [e for e in ledger.get("history", []) if e.get("node_id") == node_id]
+    if not node_entries:
+        print(f"No execution history found for node: {node_id}")
+        return
+
+    print("=" * 60)
+    print(f"TRACE FOR NODE: {node_id}")
+    print("=" * 60)
+    for idx, entry in enumerate(node_entries):
+        print(f"\n--- EXECUTION ATTEMPT {idx+1} ---")
+        print(f"Status: {entry.get('status')}")
+        if entry.get("prompt"):
+            print("\n[PROMPT]")
+            p = entry.get("prompt")
+            print(p[:500] + "..." if len(p) > 500 else p)
+        if entry.get("raw_json"):
+            print("\n[RAW JSON OUTPUT]")
+            print(entry.get("raw_json"))
+        if entry.get("stderr"):
+            print("\n[STDERR]")
+            print(entry.get("stderr"))
+        if entry.get("error_context"):
+            print("\n[ERROR CONTEXT]")
+            print(entry.get("error_context"))
+
 
 if __name__ == "__main__":
     main()

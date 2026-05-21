@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 """
 Research Copilot Skill Indexer
-Parses all Markdown files in .research/skills/ and generates a lightweight search index
-at .research/cache/skill_index.json.
+
+Parses all Markdown files in the skills directory and generates a lightweight
+JSON keyword index at .research/cache/skill_index.json.
+
+The index is used for fast keyword filtering; full BM25 semantic search is
+provided by research_copilot.utils.context7_lookup.search_skills().
+
+Search priority:
+  1. .research/skills/  (user local overrides)
+  2. src/research_copilot/assets/skills/  (bundled package skills)
 """
 
 import os
@@ -10,7 +18,7 @@ import sys
 import json
 import re
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # A basic list of stop words to filter out when generating keywords
 STOP_WORDS = {
@@ -59,70 +67,97 @@ def extract_keywords(title: str, purpose: str, category: str, content: str) -> L
     return unique_keywords[:25]  # Limit to top 25 keywords per skill
 
 
+def _find_skills_dirs(project_root: Path) -> List[Path]:
+    """Return ordered list of skills directories to index.
+
+    Local user overrides (``<root>/.research/skills``) take precedence.
+    The bundled package assets (``src/research_copilot/assets/skills``) are
+    included as a fallback so the index always covers the full skill set.
+    """
+    dirs: List[Path] = []
+
+    # 1. User local overrides
+    local = project_root / ".research" / "skills"
+    if local.exists():
+        dirs.append(local)
+
+    # 2. Bundled package assets
+    here = Path(__file__).parent
+    bundled = here.parent / "assets" / "skills"
+    if bundled.exists() and bundled not in dirs:
+        dirs.append(bundled)
+
+    return dirs
+
+
 def build_index(project_root: Path) -> Path:
-    skills_dir = project_root / ".research" / "skills"
     cache_dir = project_root / ".research" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     index_path = cache_dir / "skill_index.json"
 
-    if not skills_dir.exists():
-        print(f"ERROR: Skills directory not found: {skills_dir}")
+    skills_dirs = _find_skills_dirs(project_root)
+    if not skills_dirs:
+        print("ERROR: No skills directories found.")
         sys.exit(1)
 
-    skills_index = {"skills": []}
+    skills_index: Dict[str, Any] = {"skills": []}
+    seen_stems: set = set()
 
-    for md_file in sorted(skills_dir.rglob("*.md")):
-        if md_file.name == "SKILL_TEMPLATE.md":
-            continue
+    for skills_dir in skills_dirs:
+        for md_file in sorted(skills_dir.rglob("*.md")):
+            if md_file.name in ("SKILL_TEMPLATE.md",) or md_file.stem in seen_stems:
+                continue
+            seen_stems.add(md_file.stem)
 
-        try:
-            with open(md_file, "r") as f:
-                content = f.read()
+            try:
+                with open(md_file, "r") as f:
+                    content = f.read()
 
-            lines = content.split("\n")
-            
-            # Extract Title (First H1 heading)
-            title = md_file.stem.replace("_", " ").title()
-            for line in lines:
-                if line.startswith("# "):
-                    title = line[2:].strip()
-                    break
+                lines = content.split("\n")
 
-            # Extract Purpose (under ## Purpose heading)
-            purpose = ""
-            for i, line in enumerate(lines):
-                if line.strip() == "## Purpose":
-                    # Grab the next non-empty lines
-                    purpose_lines = []
-                    for next_line in lines[i+1:]:
-                        if next_line.startswith("## ") or next_line.startswith("---"):
-                            break
-                        if next_line.strip():
-                            purpose_lines.append(next_line.strip())
-                    purpose = " ".join(purpose_lines)
-                    break
+                # Extract Title (First H1 heading)
+                title = md_file.stem.replace("_", " ").title()
+                for line in lines:
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
 
-            # Fallback if no Purpose section found
-            if not purpose:
-                purpose = f"Methodology and instructions for {title.lower()}."
+                # Extract Purpose (under ## Purpose heading)
+                purpose = ""
+                for i, line in enumerate(lines):
+                    if line.strip() == "## Purpose":
+                        purpose_lines = []
+                        for next_line in lines[i + 1:]:
+                            if next_line.startswith("## ") or next_line.startswith("---"):
+                                break
+                            if next_line.strip():
+                                purpose_lines.append(next_line.strip())
+                        purpose = " ".join(purpose_lines)
+                        break
 
-            category = md_file.parent.name
-            relative_path = md_file.relative_to(project_root)
+                if not purpose:
+                    purpose = f"Methodology and instructions for {title.lower()}."
 
-            keywords = extract_keywords(title, purpose, category, content)
+                category = md_file.parent.name
+                # Make path relative to project root if possible, otherwise use absolute
+                try:
+                    relative_path = md_file.relative_to(project_root)
+                except ValueError:
+                    relative_path = md_file
 
-            skill_entry = {
-                "id": md_file.stem,
-                "title": title,
-                "category": category,
-                "description": purpose,
-                "keywords": keywords,
-                "path": str(relative_path)
-            }
-            skills_index["skills"].append(skill_entry)
+                keywords = extract_keywords(title, purpose, category, content)
 
-        except Exception as e:
-            print(f"WARNING: Failed to parse skill file {md_file.name}: {e}")
+                skills_index["skills"].append({
+                    "id": md_file.stem,
+                    "title": title,
+                    "category": category,
+                    "description": purpose,
+                    "keywords": keywords,
+                    "path": str(relative_path),
+                })
+
+            except Exception as e:
+                print(f"WARNING: Failed to parse skill file {md_file.name}: {e}")
 
     with open(index_path, "w") as f:
         json.dump(skills_index, f, indent=2)

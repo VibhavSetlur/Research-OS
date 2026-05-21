@@ -252,6 +252,35 @@ def main():
         print(f"ERROR: Failed to save combined results: {e}")
         sys.exit(1)
 
+    # Item 18: LLM-based Parallel Execution Synthesis
+    print("=" * 60)
+    print("LLM-BASED PARALLEL SYNTHESIS")
+    print("=" * 60)
+    try:
+        from research_copilot.core.model_resolver import cascade_resolve
+        prompt = (
+            "Analyze the following synthesized parallel execution results and any detected conflicts. "
+            "Determine the 'Winning Branch' (task_id) that produced the most robust, well-supported findings. "
+            "Explain your reasoning and state the winning branch.\n\n"
+            f"Results: {json.dumps(combined_payload, indent=2)}"
+        )
+        synthesis_decision = cascade_resolve(prompt, model="google/gemini-pro", temperature=0.2)
+        print("Synthesis Decision:\n", synthesis_decision)
+        
+        # Output to ledger via log_decision
+        from research_copilot.project_ops import log_decision, current_branch, find_project_root
+        root = find_project_root()
+        log_decision(
+            context="Parallel execution synthesis. Need to select winning exploratory branch.",
+            selected="LLM selected best branch based on empirical results.",
+            rationale=synthesis_decision,
+            branch_id=current_branch(root),
+            root=root
+        )
+        print(f"Synthesis decision logged to experiment ledger.")
+    except Exception as e:
+        print(f"WARNING: LLM synthesis failed: {e}")
+
     # 4. Update research map and manifest if requested
     if args.research_map:
         map_path = Path(args.research_map)

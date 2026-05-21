@@ -1,0 +1,54 @@
+# [rcp-template: ols_regression]
+# Variables: INPUT_FILE, TARGET_COL, FEATURE_COLS, OUTPUT_FILE
+# FEATURE_COLS must be a comma-separated list e.g. "age,income,bmi"
+import json
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+df = pd.read_csv("{{INPUT_FILE}}")
+target_col = "{{TARGET_COL}}"
+feature_cols = [c.strip() for c in "{{FEATURE_COLS}}".split(",")]
+output_file = "{{OUTPUT_FILE}}"
+
+X = df[feature_cols].dropna()
+y = df.loc[X.index, target_col]
+X_const = sm.add_constant(X)
+
+model = sm.OLS(y, X_const).fit()
+
+# VIF for multicollinearity check
+vif = {
+    feature_cols[i]: round(
+        variance_inflation_factor(X.values, i), 3
+    )
+    for i in range(len(feature_cols))
+}
+
+result = {
+    "test": "OLS Regression",
+    "target": target_col,
+    "features": feature_cols,
+    "n": int(model.nobs),
+    "r_squared": round(float(model.rsquared), 4),
+    "adj_r_squared": round(float(model.rsquared_adj), 4),
+    "f_statistic": round(float(model.fvalue), 4),
+    "f_p_value": float(model.f_pvalue),
+    "aic": round(float(model.aic), 2),
+    "bic": round(float(model.bic), 2),
+    "coefficients": {
+        k: {
+            "coef": round(float(v), 4),
+            "p_value": float(model.pvalues[k]),
+            "ci_95": [round(float(model.conf_int().loc[k, 0]), 4),
+                      round(float(model.conf_int().loc[k, 1]), 4)],
+        }
+        for k, v in model.params.items()
+    },
+    "vif": vif,
+}
+
+print(json.dumps(result, indent=2))
+with open(output_file, "w") as f:
+    json.dump(result, f, indent=2)
+print(f"saved to {output_file}")
