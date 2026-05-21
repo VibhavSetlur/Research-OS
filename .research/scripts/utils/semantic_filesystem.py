@@ -1,29 +1,24 @@
 #!/usr/bin/env python3
-"""Semantic File System Hook — enforces rigorous artifact taxonomy.
+"""Semantic File System Hook — enforces experiment-driven artifact taxonomy.
 
 Post-generation hook that forces every AI-generated artifact into a strict,
 immutable directory structure. Ensures data lineage and methodological
 decisions are instantly auditable.
 
 Taxonomy:
-  inputs/data/raw/        — Immutable raw data (AI never modifies)
-  inputs/data/derived/    — User-provided derived data
-  inputs/metadata/        — Data dictionaries, codebooks
-  inputs/literature/      — User-provided papers
+  00_inputs/raw_data/     — Immutable raw data (AI never modifies after ingest)
+  00_inputs/literature/   — User-provided papers and literature cache exports
 
-  docs/decisions/         — Why the AI chose specific covariates/methods
-  docs/methods/           — Methodological documentation
-  docs/assumptions/       — Statistical assumption checks & results
+  01_workspace/scratchpad/    — Random thoughts, links, and triage queue
+  01_workspace/lab_notebook.md — Append-only chronological notebook
 
-  scripts/01_ingest/      — Data ingestion scripts
-  scripts/02_eda/         — Exploratory data analysis
-  scripts/03_models/      — Statistical models
-  scripts/04_outputs/     — Report generation
+  02_experiments/<exp>/scripts/             — Experiment scripts
+  02_experiments/<exp>/outputs/figures/     — Figures plus .meta.yaml sidecars
+  02_experiments/<exp>/outputs/tables/      — Tables plus .meta.yaml sidecars
+  02_experiments/<exp>/outputs/artifacts/   — Models/data chunks plus .meta.yaml sidecars
+  02_experiments/<exp>/decisions.yaml       — Experiment assumption ledger
 
-  reports/figures/        — Generated plots (by question)
-  reports/tables/         — Generated tables (by question)
-  reports/manuscript/     — Draft paper sections
-  reports/rebuttal_memos/ — Reviewer 2 responses
+  03_synthesis/           — Manuscript, final figures, global methods, audit
 
 Usage (as interceptor):
     from semantic_filesystem import enforce_semantic_taxonomy
@@ -33,6 +28,7 @@ Usage (as interceptor):
 import json
 import logging
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -42,103 +38,97 @@ logger = logging.getLogger("research.semantic_filesystem")
 SEMANTIC_TAXONOMY = {
     "raw_data": {
         "pattern": r".*\.(csv|parquet|tsv|json|feather|arrow|xlsx|sav|dta)$",
-        "destination": "inputs/data/raw/",
+        "destination": "00_inputs/raw_data/",
         "writable": False,
         "description": "Immutable raw data — AI never modifies",
     },
     "derived_data": {
         "pattern": r".*\.(csv|parquet|tsv|json|feather|arrow)$",
-        "destination": "inputs/data/derived/",
+        "destination": "02_experiments/{experiment_id}/outputs/artifacts/",
         "writable": True,
         "description": "User-provided derived data",
     },
     "metadata": {
         "pattern": r".*(metadata|codebook|dictionary|schema).*\.(json|yaml|csv|md)$",
-        "destination": "inputs/metadata/",
+        "destination": "00_inputs/",
         "writable": True,
         "description": "Data dictionaries and codebooks",
     },
     "decision_doc": {
         "pattern": r".*(decision|rationale|choice|why).*\.(md|json)$",
-        "destination": "docs/decisions/",
+        "destination": "02_experiments/{experiment_id}/",
         "writable": True,
         "description": "Methodological decisions with rationale",
     },
     "method_doc": {
         "pattern": r".*(method|methodology|approach).*\.(md|json)$",
-        "destination": "docs/methods/",
+        "destination": "03_synthesis/",
         "writable": True,
         "description": "Methodological documentation",
     },
     "assumption_doc": {
         "pattern": r".*(assumption|assumptions|diagnostic).*\.(md|json|csv)$",
-        "destination": "docs/assumptions/",
+        "destination": "02_experiments/{experiment_id}/outputs/analysis/",
         "writable": True,
         "description": "Statistical assumption checks",
     },
     "ingest_script": {
         "pattern": r"01_.*\.(py|R|jl)$",
-        "destination": "scripts/01_ingest/",
+        "destination": "02_experiments/{experiment_id}/scripts/",
         "writable": True,
         "description": "Data ingestion scripts",
     },
     "eda_script": {
         "pattern": r"02_.*\.(py|R|jl)$",
-        "destination": "scripts/02_eda/",
+        "destination": "02_experiments/{experiment_id}/scripts/",
         "writable": True,
         "description": "Exploratory data analysis scripts",
     },
     "model_script": {
         "pattern": r"03_.*\.(py|R|jl)$",
-        "destination": "scripts/03_models/",
+        "destination": "02_experiments/{experiment_id}/scripts/",
         "writable": True,
         "description": "Statistical model scripts",
     },
     "output_script": {
         "pattern": r"04_.*\.(py|R|jl)$",
-        "destination": "scripts/04_outputs/",
+        "destination": "02_experiments/{experiment_id}/scripts/",
         "writable": True,
         "description": "Report generation scripts",
     },
     "figure": {
         "pattern": r".*\.(png|pdf|svg|jpg|jpeg)$",
-        "destination": "reports/figures/",
+        "destination": "02_experiments/{experiment_id}/outputs/figures/",
         "writable": True,
         "description": "Generated figures",
     },
     "table": {
         "pattern": r".*table.*\.(md|tex|csv|xlsx)$",
-        "destination": "reports/tables/",
+        "destination": "02_experiments/{experiment_id}/outputs/tables/",
         "writable": True,
         "description": "Generated tables",
     },
     "manuscript": {
         "pattern": r".*(manuscript|draft|section|paper).*\.(md|tex|docx)$",
-        "destination": "reports/manuscript/",
+        "destination": "03_synthesis/manuscript/",
         "writable": True,
         "description": "Draft manuscript sections",
     },
     "rebuttal": {
         "pattern": r".*(rebuttal|response|reviewer).*\.(md|json)$",
-        "destination": "reports/rebuttal_memos/",
+        "destination": "03_synthesis/audit/",
         "writable": True,
         "description": "Reviewer 2 rebuttal memos",
     },
     "interpretation": {
         "pattern": r".*\.interpret\.md$",
-        "destination": "docs/decisions/",
+        "destination": "02_experiments/{experiment_id}/outputs/figures/",
         "writable": True,
         "description": "Auto-generated figure interpretations",
     },
 }
 
-BRANCH_AWARE_DIRS = [
-    "reports/figures/",
-    "reports/tables/",
-    "reports/analysis/",
-    "reports/manuscript/",
-    "scripts/03_models/",
-]
+OUTPUT_CATEGORIES_REQUIRING_SIDECAR = {"figure", "table", "derived_data", "assumption_doc"}
 
 
 class SemanticFilesystemEnforcer:
@@ -176,16 +166,16 @@ class SemanticFilesystemEnforcer:
 
         if content_type:
             if "image" in content_type:
-                return "figure", "reports/figures/"
+                return "figure", "02_experiments/{experiment_id}/outputs/figures/"
             if "table" in content_type or "csv" in content_type:
-                return "table", "reports/tables/"
+                return "table", "02_experiments/{experiment_id}/outputs/tables/"
 
-        return "unknown", "reports/"
+        return "unknown", "02_experiments/{experiment_id}/outputs/artifacts/"
 
     def resolve_path(
         self,
         filename: str,
-        branch_id: str = "main",
+        branch_id: str = "exp_001_baseline",
         question_id: str = "",
         content_type: str = "",
     ) -> Path:
@@ -209,16 +199,59 @@ class SemanticFilesystemEnforcer:
                 f"AI cannot write to {rule['destination']}"
             )
 
-        dest = self.root / base_dest
+        dest_template = base_dest.format(experiment_id=branch_id)
+        dest = self.root / dest_template
 
-        if base_dest in BRANCH_AWARE_DIRS and branch_id != "main":
-            dest = dest / branch_id
-
-        if question_id and base_dest in ("reports/figures/", "reports/tables/", "reports/analysis/"):
+        if question_id and "/outputs/" in dest_template:
             dest = dest / question_id
 
         dest.mkdir(parents=True, exist_ok=True)
         return dest / filename
+
+    def write_sidecar_metadata(
+        self,
+        file_path: Path,
+        *,
+        generated_by: str,
+        source_script: str,
+        input_files: Optional[list[str]] = None,
+        decisions_applied: Optional[list[str]] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Path:
+        """Write `<artifact>.meta.yaml` next to a generated output.
+
+        The sidecar is required for experiment outputs so a future reader can
+        recover agent, script, input hashes, and local decision lineage.
+        """
+        file_path = Path(file_path)
+        input_files = input_files or []
+        decisions_applied = decisions_applied or []
+        extra = extra or {}
+        data_hashes = {}
+        for item in input_files:
+            path = self.root / item if not Path(item).is_absolute() else Path(item)
+            if path.exists() and path.is_file():
+                data_hashes[item] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+        meta_path = file_path.with_name(f"{file_path.stem}.meta.yaml")
+        lines = [
+            f"generated_by: \"{generated_by}\"",
+            f"timestamp: \"{datetime.now(timezone.utc).isoformat()}\"",
+            f"source_script: \"{source_script}\"",
+            "input_files:",
+        ]
+        lines.extend(f"  - \"{item}\"" for item in input_files)
+        lines.append("data_hashes:")
+        if data_hashes:
+            lines.extend(f"  \"{k}\": \"{v}\"" for k, v in data_hashes.items())
+        else:
+            lines.append("  {}")
+        lines.append("decisions_applied:")
+        lines.extend(f"  - \"{item}\"" for item in decisions_applied)
+        for key, value in extra.items():
+            lines.append(f"{key}: {json.dumps(value)}")
+        meta_path.write_text("\n".join(lines) + "\n")
+        return meta_path
 
     def validate_artifact(
         self,
@@ -256,6 +289,12 @@ class SemanticFilesystemEnforcer:
 
         if metadata:
             result["metadata"] = metadata
+
+        if result["category"] in OUTPUT_CATEGORIES_REQUIRING_SIDECAR:
+            sidecar = Path(file_path).with_name(f"{Path(file_path).stem}.meta.yaml")
+            if not sidecar.exists():
+                result["valid"] = False
+                result["warnings"].append(f"Missing sidecar provenance file: {sidecar}")
 
         return result
 

@@ -8,17 +8,11 @@ branching:
   enabled: true
   auto_scaffold: true
   branch_dirs:
-    - reports/figures
-    - reports/tables
-    - reports/analysis
-    - reports/manuscript
-    - reports/audit
-    - scripts/models
-    - scripts/analysis
-    - data/02_processed
-    - data/03_analytical
-    - docs/decisions
-    - docs/iterations
+    - 02_experiments/{branch}/scripts
+    - 02_experiments/{branch}/outputs/figures
+    - 02_experiments/{branch}/outputs/tables
+    - 02_experiments/{branch}/outputs/artifacts
+    - 02_experiments/{branch}/outputs/analysis
 
 # Intent routing (token optimization)
 intent_routing:
@@ -45,7 +39,7 @@ semantic_filesystem:
 interpretative_coupling:
   enabled: true
   auto_generate: true
-  output_dir: "docs/decisions/"
+  output_dir: "02_experiments/{active_experiment}/decisions/"
 
 default_workflow: "quick_exploratory"
 
@@ -57,11 +51,20 @@ multi_agent:
   budget_warning_pct: 0.80
   budget_hard_limit_usd: 50.00
 
-# Input paths (user-provided, never modified by AI)
+# Input paths (user-provided, never modified by AI after ingest)
 intake_path: "inputs/intake.md"
 data_raw: "inputs/data/raw"
 context_dir: "inputs/context"
 papers_dir: "inputs/papers"
+canonical_inputs_dir: "00_inputs"
+canonical_raw_data: "00_inputs/raw_data"
+canonical_literature: "00_inputs/literature"
+canonical_intake_manifest: "00_inputs/intake_manifest.yaml"
+
+# Workspace paths (human-AI interaction)
+workspace_dir: "01_workspace"
+scratchpad_dir: "01_workspace/scratchpad"
+lab_notebook: "01_workspace/lab_notebook.md"
 
 # CLI cache (internal working files, stored in .research/)
 cache_dir: ".research/cache"
@@ -69,61 +72,51 @@ cache_research_map: ".research/cache/research_map.json"
 cache_followups: ".research/cache/follow_up_questions.md"
 cache_scan_result: ".research/cache/scan_result.json"
 
-# Documentation paths (created by AI during init)
-docs_dir: "docs"
-research_log: "docs/research_log.md"
-methodology: "docs/methodology.md"
-changelog: "docs/changelog.md"
-manifest: "docs/manifest.json"
-data_lineage: "docs/data_lineage.json"
-iterations_dir: "docs/iterations"
-decisions_dir: "docs/decisions"
-dead_ends_dir: "docs/dead_ends"
-quality_gates_dir: "docs/quality_gates"
+# Experiment and synthesis paths (created by AI during init)
+experiments_dir: "02_experiments"
+active_experiment: "exp_001_baseline"
+baseline_experiment: "02_experiments/exp_001_baseline"
+baseline_scripts: "02_experiments/exp_001_baseline/scripts"
+baseline_outputs: "02_experiments/exp_001_baseline/outputs"
+baseline_figures: "02_experiments/exp_001_baseline/outputs/figures"
+baseline_tables: "02_experiments/exp_001_baseline/outputs/tables"
+baseline_artifacts: "02_experiments/exp_001_baseline/outputs/artifacts"
+baseline_analysis: "02_experiments/exp_001_baseline/outputs/analysis"
+baseline_decisions: "02_experiments/exp_001_baseline/decisions.yaml"
 
-# Report paths (created by AI during init)
-reports_dir: "reports"
-reports_baseline: "reports/baseline"
-reports_literature: "reports/literature"
-reports_analysis: "reports/analysis"
-reports_figures: "reports/figures"
-reports_tables: "reports/tables"
-reports_dashboards: "reports/dashboards"
-reports_manuscript: "reports/manuscript"
-reports_audit: "reports/audit"
-reports_summary: "reports/summary"
+synthesis_dir: "03_synthesis"
+manifest: "03_synthesis/manifest.json"
+global_methods: "03_synthesis/global_methods.md"
+manuscript_dir: "03_synthesis/manuscript"
+final_figures: "03_synthesis/final_figures"
+quality_gates_dir: "03_synthesis/quality_gates"
+data_lineage: "03_synthesis/data_lineage.json"
 
-# Data pipeline paths (created by AI during init)
-data_dir: "data"
-data_ingested: "data/01_ingested"
-data_processed: "data/02_processed"
-data_analytical: "data/03_analytical"
-
-# Script paths (system scripts in .research/, user scripts in scripts/)
-scripts_dir: "scripts"
+# Script paths (system scripts in .research/, experiment scripts in 02_experiments/*/scripts/)
+scripts_dir: "02_experiments/exp_001_baseline/scripts"
 system_scripts: ".research/scripts"
 system_scripts_utils: ".research/scripts/utils"
 
 # File paths (where AI writes final outputs)
-research_map: "reports/baseline/research_map.json"
-follow_up_questions: "reports/baseline/follow_up_questions.md"
-literature_corpus: "reports/literature/literature_corpus.json"
-evidence_matrix: "reports/literature/evidence_matrix.md"
-gap_analysis: "reports/literature/gap_analysis.md"
-prisma_flow: "reports/literature/prisma_flow.json"
-bibliography: "reports/literature/bibliography.bib"
-preregistration_dir: "reports/literature"
-analysis_plan: "reports/analysis/analysis_plan.md"
-full_audit: "reports/audit/full_audit_report.md"
-manuscript_findings: "reports/manuscript/research_findings.md"
-key_findings: "reports/summary/key_findings.md"
-executive_summary: "reports/summary/executive_summary.md"
-layman_summary: "reports/summary/layman_summary.md"
-reviewer2_critique: "reports/audit/reviewer2_critique.md"
-dag_viewer: "reports/dashboards/dag_viewer.html"
+research_map: "02_experiments/exp_001_baseline/outputs/analysis/research_map.json"
+follow_up_questions: "01_workspace/scratchpad/follow_up_questions.md"
+literature_corpus: "00_inputs/literature/literature_corpus.json"
+evidence_matrix: "00_inputs/literature/evidence_matrix.md"
+gap_analysis: "00_inputs/literature/gap_analysis.md"
+prisma_flow: "00_inputs/literature/prisma_flow.json"
+bibliography: "00_inputs/literature/bibliography.bib"
+preregistration_dir: "03_synthesis"
+analysis_plan: "02_experiments/exp_001_baseline/outputs/analysis/analysis_plan.md"
+full_audit: "03_synthesis/audit/full_audit_report.md"
+manuscript_findings: "03_synthesis/manuscript/research_findings.md"
+key_findings: "03_synthesis/key_findings.md"
+executive_summary: "03_synthesis/executive_summary.md"
+layman_summary: "03_synthesis/layman_summary.md"
+reviewer2_critique: "03_synthesis/audit/reviewer2_critique.md"
+dag_viewer: "03_synthesis/dashboards/dag_viewer.html"
 
 # Iteration tracking
-iteration_registry: "docs/iterations/registry.json"
+iteration_registry: "03_synthesis/iteration_registry.json"
 
 # Workflow
 dag_json: ".research/workflow_dag.json"
@@ -176,8 +169,10 @@ containers:
   base_image: "research-copilot-base:latest"
   domain_images_dir: "environment/domains"
   shared_volumes:
-    - "inputs"
-    - "data"
+    - "00_inputs"
+    - "01_workspace"
+    - "02_experiments"
+    - "03_synthesis"
     - "scripts"
     - "reports"
   cache_dir: ".research/cache/containers"

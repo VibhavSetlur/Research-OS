@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Branch Workspace Scaffolding — auto-creates branch-specific directory structures.
+"""Experiment branch scaffolding — auto-creates self-contained experiment workspaces.
 
-When a new research branch is created, this module scaffolds the full directory
-structure under branch-specific prefixes so parallel execution across branches
-never overwrites core findings.
+When a new research branch is created, this module scaffolds a full directory
+under 02_experiments/<experiment_id>/ so scripts, outputs, artifacts, and
+decisions travel together.
 
 Usage:
     from branch_scaffold import BranchScaffold
@@ -20,18 +20,13 @@ from typing import Optional
 
 logger = logging.getLogger("research.branch_scaffold")
 
-BRANCH_DIRS = [
-    ("reports", "figures"),
-    ("reports", "tables"),
-    ("reports", "analysis"),
-    ("reports", "manuscript"),
-    ("reports", "audit"),
-    ("scripts", "models"),
-    ("scripts", "analysis"),
-    ("data", "02_processed"),
-    ("data", "03_analytical"),
-    ("docs", "decisions"),
-    ("docs", "iterations"),
+EXPERIMENT_SUBDIRS = [
+    "scripts",
+    "outputs",
+    "outputs/figures",
+    "outputs/tables",
+    "outputs/artifacts",
+    "outputs/analysis",
 ]
 
 
@@ -64,17 +59,37 @@ class BranchScaffold:
         Returns:
             Dict of created directories
         """
-        prefix = branch_id
         created = {}
+        exp_root = self.root / "02_experiments" / branch_id
 
-        for base, subdir in BRANCH_DIRS:
-            dir_path = self.root / base / subdir / prefix
+        for subdir in EXPERIMENT_SUBDIRS:
+            dir_path = exp_root / subdir
             dir_path.mkdir(parents=True, exist_ok=True)
-            created[f"{base}/{subdir}/{prefix}"] = str(dir_path)
+            created[f"02_experiments/{branch_id}/{subdir}"] = str(dir_path)
 
             readme = dir_path / "README.md"
             if not readme.exists():
-                self._write_readme(readme, branch_id, hypothesis, f"{base}/{subdir}")
+                self._write_readme(readme, branch_id, hypothesis, subdir)
+
+        decisions = exp_root / "decisions.yaml"
+        if not decisions.exists():
+            decisions.write_text(
+                "schema_version: '1.0'\n"
+                f"experiment_id: {branch_id}\n"
+                "parent_experiment: main\n"
+                f"created: {datetime.now(timezone.utc).isoformat()}\n"
+                "decisions:\n"
+                "  decision_001:\n"
+                f"    date: {datetime.now(timezone.utc).date().isoformat()}\n"
+                "    context: Experiment branch created.\n"
+                "    options_considered:\n"
+                "      - Queue the idea for later\n"
+                "      - Create an isolated experiment branch\n"
+                "    selected: Create an isolated experiment branch\n"
+                f"    rationale: {hypothesis or 'Exploratory branch'}\n"
+                "    linked_literature: []\n"
+            )
+            created[f"02_experiments/{branch_id}/decisions.yaml"] = str(decisions)
 
         self._write_branch_manifest(branch_id, hypothesis, created)
         self._update_root_manifests(branch_id)
@@ -90,15 +105,15 @@ class BranchScaffold:
 **Created**: {datetime.now(timezone.utc).isoformat()}
 **Parent**: main
 
-This directory contains {category} outputs specific to the `{branch_id}` branch.
-These are isolated from the main workflow to enable parallel exploration.
+This directory contains `{category}` files specific to the `{branch_id}` experiment.
+The experiment is isolated so divergent hypotheses never overwrite each other.
 
 ## Merge Protocol
 When this branch is merged into main:
-1. Review all outputs in this directory
-2. Synthesize findings into the main `{category}` directory
-3. Update the main manuscript with branch-specific results
-4. This directory is preserved (never deleted) for auditability
+1. Review outputs and sibling `.meta.yaml` files
+2. Promote selected outputs into `03_synthesis/`
+3. Synthesize decisions into `03_synthesis/global_methods.md`
+4. Preserve this experiment directory for auditability
 """
         path.write_text(content)
 
@@ -114,8 +129,7 @@ When this branch is merged into main:
             "merge_status": None,
         }
 
-        docs_dir = self.root / "docs"
-        branch_manifest_dir = docs_dir / "branches"
+        branch_manifest_dir = self.root / "03_synthesis" / "branches"
         branch_manifest_dir.mkdir(parents=True, exist_ok=True)
 
         manifest_path = branch_manifest_dir / f"{branch_id}_manifest.json"
@@ -123,8 +137,8 @@ When this branch is merged into main:
             json.dump(manifest, f, indent=2)
 
     def _update_root_manifests(self, branch_id: str):
-        """Update the root docs/manifest.json with branch information."""
-        manifest_path = self.root / "docs" / "manifest.json"
+        """Update the root 03_synthesis/manifest.json with branch information."""
+        manifest_path = self.root / "03_synthesis" / "manifest.json"
         if not manifest_path.exists():
             return
 
@@ -149,13 +163,12 @@ When this branch is merged into main:
         Returns:
             Dict mapping category to directory path
         """
-        prefix = branch_id
         result = {}
 
-        for base, subdir in BRANCH_DIRS:
-            dir_path = self.root / base / subdir / prefix
+        for subdir in EXPERIMENT_SUBDIRS:
+            dir_path = self.root / "02_experiments" / branch_id / subdir
             if dir_path.exists():
-                result[f"{base}/{subdir}"] = str(dir_path)
+                result[subdir] = str(dir_path)
 
         return result
 
@@ -163,10 +176,10 @@ When this branch is merged into main:
         """List all branch workspaces that exist on disk."""
         branches = []
 
-        reports_figures = self.root / "reports" / "figures"
-        if reports_figures.exists():
-            for d in reports_figures.iterdir():
-                if d.is_dir() and d.name != "main":
+        experiments = self.root / "02_experiments"
+        if experiments.exists():
+            for d in experiments.iterdir():
+                if d.is_dir():
                     branches.append(d.name)
 
         return sorted(set(branches))
@@ -183,19 +196,19 @@ When this branch is merged into main:
         """
         affected = {}
 
-        for base, subdir in BRANCH_DIRS:
-            dir_path = self.root / base / subdir / branch_id
+        for subdir in EXPERIMENT_SUBDIRS:
+            dir_path = self.root / "02_experiments" / branch_id / subdir
             if dir_path.exists():
                 if dry_run:
                     files = list(dir_path.rglob("*"))
-                    affected[f"{base}/{subdir}/{branch_id}"] = {
+                    affected[f"02_experiments/{branch_id}/{subdir}"] = {
                         "path": str(dir_path),
                         "file_count": len([f for f in files if f.is_file()]),
                         "action": "would_remove",
                     }
                 else:
                     shutil.rmtree(dir_path)
-                    affected[f"{base}/{subdir}/{branch_id}"] = {
+                    affected[f"02_experiments/{branch_id}/{subdir}"] = {
                         "path": str(dir_path),
                         "action": "removed",
                     }

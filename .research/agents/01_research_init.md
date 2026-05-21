@@ -11,13 +11,13 @@ composes:
   - "detect_outliers"
   - "compute_hashes"
 produces:
-  - "docs/manifest.json"
-  - "docs/research_log.md"
-  - "docs/methodology.md"
-  - "docs/changelog.md"
-  - "docs/iterations/registry.json"
-  - "reports/baseline/research_map.json"
-  - "reports/baseline/follow_up_questions.md"
+  - "03_synthesis/manifest.json"
+  - "01_workspace/lab_notebook.md"
+  - "03_synthesis/global_methods.md"
+  - "03_synthesis/iteration_registry.json"
+  - "02_experiments/exp_001_baseline/decisions.yaml"
+  - "02_experiments/exp_001_baseline/outputs/analysis/research_map.json"
+  - "01_workspace/scratchpad/follow_up_questions.md"
   - "README.md (in every subdirectory)"
 max_iterations: 1
 ---
@@ -25,7 +25,7 @@ max_iterations: 1
 # Agent: Research Init
 
 ## Purpose
-Read the user's intake, scan their raw data, create the COMPLETE project directory structure with documentation in every folder, build a research map, and assess feasibility. This is the ONLY agent that creates the project structure. All subsequent agents work within it.
+Read the user's intake, scan their raw data, create the COMPLETE experiment-driven project directory structure with documentation in every folder, build a research map, and assess feasibility. This is the ONLY agent that creates the base project structure. All subsequent agents work inside `02_experiments/<experiment_id>/` branches and promote final artifacts to `03_synthesis/`.
 
 ---
 
@@ -64,24 +64,24 @@ If intake is empty or has no questions: generate follow-up questions and stop. D
 
 ### Step 5: Create Full Directory Structure
 Run: `python .research/research.py init-dirs`
-This creates ALL directories with README.md in each, plus manifest.json, research_log.md, methodology.md, changelog.md, and the iteration registry.
+This creates ALL directories with README.md in each, plus `03_synthesis/manifest.json`, `01_workspace/lab_notebook.md`, `03_synthesis/global_methods.md`, `03_synthesis/iteration_registry.json`, and baseline `02_experiments/exp_001_baseline/decisions.yaml`.
 
 ### Step 6: Customize Documentation
 After init-dirs creates the base structure, customize the files with project-specific content:
 
-**Update docs/README.md** with actual project title, researcher, institution, domain, question count, and list each research question.
+**Update 03_synthesis/README.md** with actual project title, researcher, institution, domain, question count, and list each research question.
 
-**Update docs/research_log.md** with the first entry documenting what you found during scan.
+**Update 01_workspace/lab_notebook.md** with the first entry documenting what you found during scan.
 
-**Update docs/methodology.md** with the methods appropriate for each question type.
+**Update 03_synthesis/global_methods.md** with the methods appropriate for each question type only after experiment decisions exist.
 
-**Update docs/changelog.md** with the initial setup entry.
+**Update 02_experiments/exp_001_baseline/decisions.yaml** with the initial setup decision and any setup tradeoffs.
 
-**Update docs/manifest.json** with actual project info from intake.
+**Update 03_synthesis/manifest.json** with actual project info from intake.
 
-**Update docs/iterations/registry.json** with the first iteration.
+**Update 03_synthesis/iteration_registry.json** with the first iteration.
 
-**Update reports/baseline/research_map.json** with the full research map including:
+**Update 02_experiments/exp_001_baseline/outputs/analysis/research_map.json** with the full research map including:
 - All questions with variable mappings
 - Data file profiles
 - Feasibility assessment
@@ -100,7 +100,7 @@ For each research question:
 **stop**: no data, questions unanswerable, > 80% missing on outcomes
 
 ### Step 9: Follow-Up (only if needed)
-If critical info is missing, write `reports/baseline/follow_up_questions.md`.
+If critical info is missing, write `01_workspace/scratchpad/follow_up_questions.md`.
 
 ---
 
@@ -109,12 +109,12 @@ If critical info is missing, write `reports/baseline/follow_up_questions.md`.
 - [ ] CLI scan executed
 - [ ] Intake parsed (or flagged)
 - [ ] All data files profiled
-- [ ] Full directory structure created via init-dirs (docs/, reports/, data/, scripts/)
+- [ ] Full directory structure created via init-dirs (`00_inputs/`, `01_workspace/`, `02_experiments/`, `03_synthesis/`)
 - [ ] README.md in EVERY subdirectory with project-specific content
 - [ ] manifest.json created and customized
-- [ ] research_log.md created with first entry
-- [ ] methodology.md created
-- [ ] changelog.md created
+- [ ] lab_notebook.md created with first entry
+- [ ] global_methods.md created
+- [ ] baseline experiment decisions.yaml created
 - [ ] iteration registry created
 - [ ] Each question mapped to actual data columns
 - [ ] Data preparation needs identified

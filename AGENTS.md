@@ -11,36 +11,34 @@ You are a research assistant using the Research Copilot system.
 - Config: `.research/config.yaml`
 - System scripts: `.research/scripts/` and `.research/scripts/utils/`
 - Environment: `environment/` — requirements.txt, setup scripts
-- User data: `inputs/` — user provides, AI never modifies
+- Legacy user intake: `inputs/` — user provides; during ingest, canonical immutable copies are registered in `00_inputs/`
 - User intake: `inputs/intake.md`
 
 ## Output Structure (created by AI during research_init)
-The template starts with ONLY `.research/`, `inputs/`, `environment/`, and `AGENTS.md`. The `research_init` agent creates:
+The template starts with ONLY `.research/`, `inputs/`, `environment/`, and `AGENTS.md`. The `research_init` agent creates an experiment-driven structure:
 
 ```
-docs/                    # Research documentation
-  research_log.md        # Chronological log of ALL decisions
-  methodology.md         # Methods used and WHY
-  changelog.md           # What changed between iterations
-  manifest.json          # Machine-readable directory registry
-  iterations/            # Each research iteration documented
-  decisions/             # Key methodological decisions with rationale
-  dead_ends/             # Approaches tried and abandoned
-reports/                 # Analysis outputs
-  baseline/              # Initial research map, follow-ups
-  literature/            # Literature corpus, evidence matrix
-  analysis/              # Results by question (q1/, q2/, etc.)
-  figures/               # Generated plots
-  tables/                # Generated tables
-  dashboards/            # Interactive summaries
-  manuscript/            # Draft paper sections
-  audit/                 # Audit reports
-  summary/               # Key findings, executive summary
-data/                    # Processed data pipeline
-  01_ingested/           # Cleaned raw data
-  02_processed/          # Transformed data
-  03_analytical/         # Analysis-ready datasets
-scripts/                 # USER'S analysis scripts (numbered: 01_, 02_, 03_...)
+00_inputs/                # IMMUTABLE canonical inputs after ingest
+  raw_data/               # Raw data hashes are recorded before use
+  literature/             # Original PDFs plus extracted literature indexes
+  intake_manifest.yaml
+01_workspace/             # Human-AI messy zone
+  scratchpad/             # Random notes, links, queued ideas, half-baked drops
+  lab_notebook.md         # Append-only chronological log of thoughts and AI actions
+02_experiments/           # Core engine: isolated hypothesis branches
+  exp_001_baseline/
+    scripts/              # Numbered scripts scoped to this experiment
+    outputs/
+      figures/
+      tables/
+      artifacts/          # Serialized models, clean data chunks, diagnostics
+      analysis/
+    decisions.yaml        # Local assumption and decision ledger
+03_synthesis/             # Final destination
+  manuscript/
+  final_figures/
+  global_methods.md       # Generated from experiment decisions.yaml files
+  manifest.json
 ```
 
 ## CLI Commands
@@ -85,7 +83,7 @@ Always use `python .research/research.py <command>`:
 Run agents in this order:
 1. `research_init` — parse intake, scan data, CREATE FULL DIRECTORY STRUCTURE, build research map
 2. `literature_deep` — expand literature, build evidence matrix
-3. `method_route` — select analysis methods
+3. `method_route` — select analysis methods and attach method decisions to the active experiment ledger
 4. `generate_preregistration` — create OSF-compatible pre-registration document
 5. `data_scaffold` — build validated data pipeline
 6. `execute_analysis` — run analysis, compare to literature
@@ -107,24 +105,32 @@ At ANY point, the user can request iteration. Use `research_iterate` agent:
 Each iteration:
 1. Gets a unique ID (001, 002, 003...)
 2. Documents what was tried, why, results, decision
-3. Updates docs/iterations/, manifest.json, research_log.md
+3. Creates or updates a self-contained experiment under `02_experiments/`
 4. NEVER deletes previous iterations
-5. Updates README.md in affected directories
+5. Updates `01_workspace/lab_notebook.md`, `03_synthesis/manifest.json`, and the affected experiment `decisions.yaml`
+
+## Random Jumps & Scratchpad Interceptor
+When the user introduces a mid-workflow thought, link, file, or question, do NOT immediately run code. Read the `ideation_evaluator` skill and triage the thought first:
+- `log_only`: append to `01_workspace/lab_notebook.md`
+- `queue_later`: append to `01_workspace/scratchpad/queued_ideas.md`
+- `branch_now`: propose `exp_<NNN>_<slug>` and ask whether to pause the active experiment and branch
+- `intake_gap`: ask for the missing information
 
 ## Directory Management Rules
 1. `research_init` creates the FULL directory structure — no pre-existing output dirs
 2. Every directory has a README.md with project-specific content
 3. README.md files are updated whenever the directory's contents change
-4. `docs/manifest.json` tracks the entire structure — update it when creating/modifying dirs
+4. `03_synthesis/manifest.json` tracks the entire structure — update it when creating/modifying dirs
 5. Never delete previous iterations, decisions, or dead ends
-6. Research log is append-only
-7. Scripts are numbered in execution order (01_, 02_, 03_...) in `scripts/`
-8. Data pipeline stages are numbered (01_ingested, 02_processed, 03_analytical)
-9. Figures/tables are numbered and organized by question (q1/, q2/, etc.)
+6. `01_workspace/lab_notebook.md` is append-only
+7. Scripts are numbered in execution order (01_, 02_, 03_...) inside the active experiment `scripts/`
+8. Processed/analytical data products live as artifacts under the active experiment unless promoted to synthesis
+9. Figures/tables are organized inside the experiment that generated them
 10. System scripts are in `.research/scripts/` — do NOT modify these
-11. Iteration scripts use `_ITER<XXX>` branching — NEVER overwrite prior scripts
+11. Iteration scripts use new experiment branches or `_ITER<XXX>` suffixes — NEVER overwrite prior scripts
 12. Execution DAG (`.research/cache/execution_dag.json`) tracks all script runs
 13. Context Transfer Memoranda (CTMs) are generated at 90% token budget — read them when resuming
+14. Every generated output in `02_experiments/*/outputs/` MUST have a sibling `.meta.yaml`
 
 ## Rules
 1. Read agent instructions with `research agent <name>` before executing
@@ -137,17 +143,17 @@ Each iteration:
 8. Organize results by research question, not by statistical method
 9. Keep the user informed at every step
 10. Ask follow-up questions when information is missing
-11. Document EVERY decision in docs/decisions/ or docs/research_log.md
-12. Dead ends are valuable — document them in docs/dead_ends/
+11. Document EVERY decision in the active experiment `decisions.yaml` or `01_workspace/lab_notebook.md`
+12. Dead ends are valuable — document them in the active experiment decisions ledger and lab notebook
 
 ## Reproducibility Rules
 1. ALWAYS check environment is active before running any code
 2. ALWAYS run `.research/scripts/00_environment_check.py` to verify environment
-3. ALWAYS record data lineage in `docs/data_lineage.json` after every transformation
+3. ALWAYS record data lineage in `03_synthesis/data_lineage.json` after every transformation
 4. ALWAYS compute SHA-256 hashes for raw data files
 5. NEVER modify raw data files — only create new processed versions
 6. ALWAYS pin package versions in `environment/requirements.txt`
-7. Scripts MUST be numbered in execution order (01_, 02_, 03_...) in `scripts/`
+7. Scripts MUST be numbered in execution order (01_, 02_, 03_...) in the active experiment `scripts/`
 8. Data pipeline MUST be reproducible: raw data + scripts = analytical data
 9. NEVER overwrite analysis scripts during iterations — use `_ITER<XXX>` branching
 10. ALWAYS register script executions in the execution DAG (`.research/cache/execution_dag.json`)
@@ -158,8 +164,8 @@ Each iteration:
 1. ALWAYS run quality gate check (`research validate <phase>`) before moving to next phase
 2. NEVER proceed if a quality gate FAILS — fix the issue first
 3. ALL checks in a gate must pass (warnings are noted but don't block)
-4. Gate results are recorded in `docs/quality_gates/`
-5. Failed gates are documented in docs/research_log.md with remediation steps
+4. Gate results are recorded in `03_synthesis/quality_gates/`
+5. Failed gates are documented in `01_workspace/lab_notebook.md` with remediation steps
 
 ## Visualization Rules
 1. ALWAYS read `viz_design_system` skill before creating ANY figure or dashboard
@@ -175,7 +181,8 @@ Each iteration:
 11. Dashboard main app ≤200 lines — all logic in component files
 12. ALWAYS apply theme module (viz_theme.py) — no manual styling
 13. MINIMALIST DESIGN: Remove top/right spines, use subtle grid lines (alpha ≤ 0.2), no decorative elements
-14. INTERPRETATIVE COUPLING: Every figure MUST have an accompanying `.interpret.md` file in docs/decisions/
+14. INTERPRETATIVE COUPLING: Every figure MUST have an accompanying `.interpret.md` file and sibling `.meta.yaml` in the active experiment
+15. SIDECAR PROVENANCE: Every output file MUST have `<stem>.meta.yaml` next to it with `generated_by`, `timestamp`, `source_script`, `data_hashes`, and `decisions_applied`
 
 ## First Steps
 1. Run `research setup` — verify all system files are in place
@@ -195,8 +202,8 @@ research branch hypothesis_B --hypothesis "Bayesian approach to the primary mode
 ```
 This creates:
 - A new branch in the state ledger
-- Scaffolded directories: `reports/figures/hypothesis_B/`, `scripts/models/hypothesis_B/`, etc.
-- Branch-specific README.md files in each directory
+- A self-contained experiment directory under `02_experiments/hypothesis_B/`
+- Experiment-specific `scripts/`, `outputs/`, `outputs/artifacts/`, and `decisions.yaml`
 
 ### Branch Workflow
 1. `research branch <name>` — Create and switch to new branch
@@ -244,13 +251,13 @@ Every AI-generated artifact is forced into a rigorous taxonomy:
 
 | Category | Pattern | Destination |
 |----------|---------|-------------|
-| raw_data | *.csv, *.parquet | inputs/data/raw/ (immutable) |
-| decision_doc | *decision*.md | docs/decisions/ |
-| ingest_script | 01_*.py | scripts/01_ingest/ |
-| eda_script | 02_*.py | scripts/02_eda/ |
-| model_script | 03_*.py | scripts/03_models/ |
-| figure | *.png, *.pdf | reports/figures/ |
-| manuscript | *manuscript*.md | reports/manuscript/ |
+| raw_data | *.csv, *.parquet | 00_inputs/raw_data/ (immutable after ingest) |
+| scratch_note | *.md, *.txt, links | 01_workspace/scratchpad/ |
+| decision_ledger | decisions.yaml | 02_experiments/<exp>/decisions.yaml |
+| script | 01_*.py, 02_*.py, 03_*.py | 02_experiments/<exp>/scripts/ |
+| figure | *.png, *.pdf | 02_experiments/<exp>/outputs/figures/ |
+| artifact | *.pkl, *.parquet, diagnostics | 02_experiments/<exp>/outputs/artifacts/ |
+| manuscript | *manuscript*.md | 03_synthesis/manuscript/ |
 
 ### Usage
 ```bash
@@ -259,7 +266,6 @@ research taxonomy  # Show full taxonomy
 
 ## Interpretative Coupling
 Every figure MUST have an accompanying `.interpret.md` file:
-- Auto-generated in `docs/decisions/`
+- Auto-generated beside the figure in the active experiment and referenced from `decisions.yaml`
 - Contains visual description, statistical interpretation, key takeaways, caveats
 - Ensures users receive curated visual evidence, not just charts
-
