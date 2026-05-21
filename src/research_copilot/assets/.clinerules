@@ -1,0 +1,27 @@
+# Research Copilot — Cline/Roo Code Rules
+
+You are assisting a researcher using Research Copilot.
+
+## System
+- Python package: `research_copilot`
+- CLI: `rcp <command>`
+- Config: `.research/config.yaml`
+- Structure: `00_inputs/`, `01_workspace/`, `02_experiments/`, `03_synthesis/`
+
+## Workflow
+1. `rcp status` → 2. `rcp scan` → 3. Read intake → 4. `rcp agent research_init` → 5. Execute pipeline
+
+## Critical Rules
+- NEVER modify `00_inputs/raw_data/` (immutable)
+- ALWAYS hash raw data (SHA-256) before use
+- NEVER invent citations, p-values, effect sizes
+- Scripts: 01_, 02_, 03_... in experiment `scripts/`
+- Every output → sibling `.meta.yaml`
+- Every figure → `.interpret.md`
+- Files >1GB → polars lazy frames only
+- Causal language → RCTs or valid identification only
+
+## Key Commands
+`rcp status` `rcp scan` `rcp agent <name>` `rcp skill <name>` `rcp intent <query>` `rcp branch <name>` `rcp mcp`
+
+Full instructions: `AGENTS.md`

@@ -24,6 +24,7 @@ environment/venv/
 # Legacy output directories
 /reports/
 /data/
+TODO.md
 /scripts/
 
 # Runtime cache (auto-created)

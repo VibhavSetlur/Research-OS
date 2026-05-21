@@ -242,6 +242,26 @@ def scaffold_minimal_workspace(root: Path, project_name: str) -> None:
     state["branches"]["exp_001_baseline"]["input_data_hashes"] = compute_input_hashes(root)
     save_state(root, state)
 
+    _copy_ai_rules_to_project(root)
+
+
+def _copy_ai_rules_to_project(root: Path) -> None:
+    """Copy AI agent rules files from package assets to the project root."""
+    try:
+        import importlib.resources as importlib_resources
+    except ImportError:
+        import importlib_resources  # type: ignore[no-redef]
+
+    assets = ["AGENTS.md", ".cursorrules", ".clinerules"]
+    for asset_name in assets:
+        try:
+            asset_path = importlib_resources.files("research_copilot.assets") / asset_name
+            dest = root / asset_name
+            if not dest.exists():
+                dest.write_text(asset_path.read_text(encoding="utf-8"), encoding="utf-8")
+        except Exception:
+            pass
+
 
 def create_experiment_branch(
     name: str,
