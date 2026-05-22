@@ -1,32 +1,26 @@
-# Research OS v3.0
+# Research OS (Pre-Release Build)
 
-> **A publication-grade Research Guidance Engine for Agentic AI.**
+A Guidance Engine for Autonomous Research Workflows via the Model Context Protocol (MCP).
 
-Research OS transforms any MCP-capable LLM into a rigorous, protocol-following researcher. Rather than providing rigid "tools" that execute hidden analysis (like a black-box t-test), Research OS provides **Guidance Protocols**—structured YAML decision trees that guide the AI on *how* to do research properly, leaving the execution up to transparent, auditable python code.
+## Overview
+Research OS is an MCP server designed to manage and guide LLM agents (like Cursor, Windsurf, or custom scripts) through rigorous, reproducible academic research workflows.
 
-## 🧭 The "Hands, Eyes, Memory" Philosophy
+It enforces:
+- **Immutability** of raw data and literature.
+- **Methodological provenance** via strict append-only decision logging.
+- **Isolated experimentation** via state branching.
+- **Reproducible data pipelines** with built-in profiling and sampling.
 
-1. **Hands**: Minimal OS-level MCP tools (`sys.file.*`, `tool.python.exec`, `sys.branch.*`). The AI writes its own scripts.
-2. **Eyes**: Context gathering through `tool.search.*`, `sys.guidance.get`, and `tool.web.scrape`.
-3. **Memory**: Immutable state tracking in `.os_state/`, with branching, checkpoints, and sidecar JSON provenance logs.
+## Quick Start
+1. Install dependencies: `pip install .`
+2. Start the MCP server: `python -m research_os.server`
+3. In your MCP client (Cursor/Windsurf), scaffold your first project:
+   `sys.workspace.scaffold {"project_name": "My Study"}`
+4. Consult the `RESEARCHER_GUIDE.md` for full details.
 
-## 📁 Workspace Architecture
-
-Research OS enforces a publication-ready directory structure instantly via `sys.workspace.scaffold`:
-
-```text
-├── .os_state/       # Immutable state, checkpoints, and ledger
-├── docs/            # Hypotheses, glossary, research questions
-├── environment/     # requirements.txt, Dockerfiles
-├── inputs/          # Raw data, literature, context
-├── synthesis/       # Paper drafts, final bibliography
-└── workspace/       # Active experimentation (scripts, figures, data)
+## Development
+To run the tests:
+```bash
+pip install -e ".[dev]"
+pytest tests/
 ```
-
-## 🚀 Getting Started
-
-See [QUICKSTART.md](QUICKSTART.md) to initialize your first project.
-For deep-dives into how the AI uses the system, see the `docs/` folder:
-- [Guidance System](docs/GUIDANCE_SYSTEM.md)
-- [Researcher Guide](docs/RESEARCHER_GUIDE.md)
-- [AI Integration](docs/AI_INTEGRATION.md)

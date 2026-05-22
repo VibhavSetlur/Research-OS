@@ -1,23 +1,14 @@
 name: evidence_synthesis
-description: "Protocol for extracting claims from papers, assessing evidence strength, and creating an evidence matrix."
-conditions:
-  apply_when: "Literature has been identified and downloaded, and findings need to be synthesized to support the research."
+version: 1.0.0
+description: Synthesize evidence from multiple sources.
+schema_version: "1.0"
 steps:
-  - id: step_1_claim_extraction
-    prompt: "Read paper abstracts or full texts to extract core claims relevant to the research question."
-    tools:
-      - "tool.literature.download"
-      - "tool.web.scrape"
-    expected_output: "List of raw claims linked to citation keys."
-  - id: step_2_strength_assessment
-    prompt: "Assess the strength of the extracted claims based on reported p-values, effect sizes, sample sizes, and study design."
-    expected_output: "Claims annotated with strength metrics."
-  - id: step_3_evidence_matrix
-    prompt: "Construct an evidence matrix comparing claims across different papers, identifying consensus, contradictions, and gaps."
-    expected_output: "Markdown table (Evidence Matrix)."
-checkpoints:
-  - "Ensure that all API calls (e.g., `semanticscholar`) used to fetch paper details are logged."
-  - "Flag contradictory evidence explicitly rather than smoothing it over."
-outputs:
-  format: "Evidence matrix markdown file."
-  destination: "workspace/data/derived/evidence_matrix.md"
+  - id: extract_data
+    name: "Extract Data"
+    description: "Pull relevant data points from screened literature."
+  - id: analyze_bias
+    name: "Analyze Bias"
+    description: "Assess risk of bias in included studies."
+  - id: synthesize_findings
+    name: "Synthesize Findings"
+    description: "Combine findings into a coherent narrative or meta-analysis."

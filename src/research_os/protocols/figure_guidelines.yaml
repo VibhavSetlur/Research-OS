@@ -1,20 +1,14 @@
 name: figure_guidelines
-description: "Best practices for generating publication-ready figures."
-conditions:
-  apply_when: "The AI needs to visualize data or results."
-steps:
-  - id: step_1_chart_selection
-    prompt: "Select the appropriate chart type based on the data and message (e.g., forest plots for meta-analysis, DAGs for causal structures, violin plots for distributions)."
-    expected_output: "Selected chart type."
-  - id: step_2_styling_parameters
-    prompt: "Define styling parameters: Use colorblind-friendly palettes (e.g., viridis, cividis), ensure high resolution (300 DPI), and include clear labels/legends."
-    expected_output: "Styling configuration dictionary."
-  - id: step_3_code_generation
-    prompt: "Generate the Python code using `matplotlib`, `seaborn`, or `plotly` applying the styling parameters."
-    expected_output: "Python script to generate the figure."
-checkpoints:
-  - "Do not generate figures directly via an internal tool; write and execute the code so it is reproducible."
-  - "Ensure all axes are labeled with units where applicable."
-outputs:
-  format: "Python script and resulting image file."
-  destination: "workspace/figures/"
+version: 1.0.0
+description: Guidelines for creating publication-ready figures.
+schema_version: "1.0"
+guidelines:
+  - id: resolution
+    name: "Resolution"
+    description: "All figures must be at least 300 DPI."
+  - id: colors
+    name: "Color Palette"
+    description: "Use colorblind-friendly palettes (e.g., viridis)."
+  - id: labels
+    name: "Labels"
+    description: "Ensure all axes and legends are clearly labeled."

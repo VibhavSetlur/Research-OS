@@ -1,22 +1,11 @@
 name: analysis_plan
-description: "Guidance on how to break down research into numbered experiments and log progress."
-conditions:
-  apply_when: "A methodology has been selected and the execution phase is beginning."
+version: 1.0.0
+description: Plan the statistical or qualitative analysis.
+schema_version: "1.0"
 steps:
-  - id: step_1_experiment_scaffolding
-    prompt: "Break down the research into numbered experiments (01_..., 02_...). For each, define the objective and input data."
-    expected_output: "List of experiment folders to create."
-  - id: step_2_readme_generation
-    prompt: "Write a clear README.md for each experiment step detailing the hypothesis, expected outcomes, and data dependencies."
-    expected_output: "README.md contents for each step."
-  - id: step_3_execution_logging
-    prompt: "During execution, explicitly log milestones, errors, and parameter choices to the step's specific log."
-    expected_output: "Logging instructions."
-  - id: step_4_branching_decisions
-    prompt: "Define criteria for when to branch the analysis (e.g., if assumption checks fail, branch to try a non-parametric method)."
-    expected_output: "Branching guidelines."
-checkpoints:
-  - "Verify that all data transformations are saved in the data/derived folder within the experiment."
-outputs:
-  format: "Scaffolded experiment directories with READMEs."
-  destination: "workspace/01_..., workspace/02_..."
+  - id: define_models
+    name: "Define Models"
+    description: "Specify statistical models or analytical frameworks."
+  - id: preprocessing
+    name: "Preprocessing Steps"
+    description: "Detail data cleaning and transformation steps."

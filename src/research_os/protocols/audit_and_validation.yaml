@@ -1,22 +1,14 @@
 name: audit_and_validation
-description: "Post-analysis audit for citations, claims, assumptions, and code quality."
-conditions:
-  apply_when: "The manuscript draft is complete and ready for final review."
+version: 1.0.0
+description: Process for auditing and validating research outputs.
+schema_version: "1.0"
 steps:
-  - id: step_1_citation_verification
-    prompt: "Perform a 3-pass citation check: Verify that every claim is backed by a citation, every citation exists in the bibliography, and the bibliography matches the literature index."
-    expected_output: "List of missing or mismatched citations."
-  - id: step_2_causal_language_check
-    prompt: "Scan the text for causal language ('causes', 'impacts', 'leads to') and ensure it is justified by the methodology. Suggest softer alternatives ('associated with', 'correlated with') if not."
-    expected_output: "List of flagged sentences and suggested revisions."
-  - id: step_3_assumption_recheck
-    prompt: "Cross-reference the final results with the statistical assumptions listed in `methods.md`. Ensure any violations are noted as limitations."
-    expected_output: "Validation checklist."
-  - id: step_4_code_quality
-    prompt: "Run external tools like `ruff` and `mypy` on the final scripts to ensure code quality."
-    expected_output: "Linter reports."
-checkpoints:
-  - "Do not proceed to final PDF generation if critical citations are missing."
-outputs:
-  format: "Final audit report."
-  destination: "workspace/logs/final_audit.md"
+  - id: peer_review
+    name: "Simulated Peer Review"
+    description: "Critique the methodology and findings as an external reviewer."
+  - id: data_integrity
+    name: "Data Integrity Check"
+    description: "Verify that all data points in the text match the figures and tables."
+  - id: logical_flow
+    name: "Logical Flow"
+    description: "Ensure the conclusions logically follow from the results."

@@ -1,24 +1,14 @@
 name: reproducibility
-description: "Checklist for ensuring the research is fully reproducible."
-conditions:
-  apply_when: "Any step of the analysis is completed and code is committed, or before final synthesis."
-steps:
-  - id: step_1_environment_pinning
-    prompt: "Ensure all used packages are pinned with exact versions in the step's environment/requirements.txt."
-    tools:
-      - "tool.env.freeze"
-    expected_output: "requirements.txt file."
-  - id: step_2_seed_verification
-    prompt: "Verify that explicit random seeds are set in all scripts involving stochastic processes (e.g., train_test_split, random forest, sampling)."
-    expected_output: "Confirmed presence of `random_state` or `np.random.seed`."
-  - id: step_3_path_relativity
-    prompt: "Check that all scripts use relative paths based on the workspace root, not absolute system paths."
-    expected_output: "Validated file I/O code."
-  - id: step_4_checksum_generation
-    prompt: "Generate SHA-256 checksums for all input datasets and final derived outputs to ensure data integrity."
-    expected_output: "Checksums saved in .meta/ sidecars."
-checkpoints:
-  - "Test reproducibility by running the scripts in a clean environment to ensure identical outputs."
-outputs:
-  format: "Reproducibility audit report."
-  destination: "workspace/logs/reproducibility_audit.md"
+version: 1.0.0
+description: Standards for reproducible research.
+schema_version: "1.0"
+guidelines:
+  - id: environment
+    name: "Environment"
+    description: "Pin all dependencies and document OS/hardware details."
+  - id: seeds
+    name: "Random Seeds"
+    description: "Fix random seeds for all stochastic processes."
+  - id: data_access
+    name: "Data Access"
+    description: "Ensure data is accessible or provide clear synthetic alternatives."

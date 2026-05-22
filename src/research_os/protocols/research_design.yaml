@@ -1,22 +1,17 @@
 name: research_design
-description: "Decision graph for choosing an appropriate research design based on the research question type."
-conditions:
-  apply_when: "The domain is established and the primary research question needs to be formalized into an actionable design (causal, predictive, exploratory, descriptive)."
+version: 1.0.0
+description: Design rigorous research methodologies and hypothesis testing frameworks.
+schema_version: "1.0"
 steps:
-  - id: step_1_classify_question
-    prompt: "Determine if the research question is causal, predictive, exploratory, or descriptive based on the hypotheses."
-    expected_output: "Classification of research question."
-  - id: step_2_design_selection
-    prompt: "Using the question classification, recommend specific designs (e.g., RCT, cohort, case-control, cross-sectional, quasi-experimental, predictive modeling)."
-    suggestions:
-      - "If causal and observational data: consider quasi-experimental (DiD, RDD) or DAG-based adjustment."
-      - "If predictive: consider train/val/test splits, cross-validation, and holdout sets."
-    expected_output: "Selected research design with reasoning."
-  - id: step_3_design_justification
-    prompt: "Provide a formal justification for the chosen design, explicitly addressing why alternatives were rejected."
-    expected_output: "Paragraph justifying the design."
-checkpoints:
-  - "Ensure the design matches the data availability (e.g., cannot do DiD without time-series/panel data)."
-outputs:
-  format: "Structured design decision appended to methods log."
-  destination: "workspace/methods.md"
+  - id: define_variables
+    name: "Define Variables"
+    description: "Identify independent, dependent, and confounding variables."
+    required_outputs: ["variables.md"]
+  - id: select_methodology
+    name: "Select Methodology"
+    description: "Choose experimental, observational, or quasi-experimental design."
+    required_outputs: ["methodology.md"]
+  - id: power_analysis
+    name: "Power Analysis"
+    description: "Determine required sample size for adequate statistical power."
+    required_outputs: ["power_analysis.md"]

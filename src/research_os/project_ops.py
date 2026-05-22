@@ -381,6 +381,14 @@ def scaffold_minimal_workspace(root: Path, project_name: str, config_overrides: 
         ]
         config_path.write_text("\n".join(config_lines) + "\n")
 
+    # Symlink .os_state into workspace for easier access by scripts
+    workspace_os_state = root / "workspace" / ".os_state"
+    if not workspace_os_state.exists():
+        try:
+            workspace_os_state.symlink_to(root / ".os_state", target_is_directory=True)
+        except OSError:
+            pass # Handle OS limitations (e.g. Windows without admin rights)
+
     intake = root / "inputs" / "intake.md"
     if not intake.exists():
         rq = config_overrides.get("research_question", "")

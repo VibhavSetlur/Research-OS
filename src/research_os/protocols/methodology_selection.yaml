@@ -1,26 +1,11 @@
 name: methodology_selection
-description: "Decision tree for recommending specific statistical or computational approaches based on data characteristics and research goals."
-conditions:
-  apply_when: "A research design has been chosen and specific statistical/computational methods need to be selected before implementation."
+version: 1.0.0
+description: Select the appropriate methodology for the research question.
+schema_version: "1.0"
 steps:
-  - id: step_1_data_profiling
-    prompt: "Analyze data characteristics: scale, distribution types (normal, skewed, categorical), missingness, and dependencies (e.g., repeated measures)."
-    expected_output: "Data characteristic summary."
-  - id: step_2_method_recommendation
-    prompt: "Recommend specific statistical approaches based on the data profile. Examples: 'use mixed-effects model because of repeated measures' or 'apply DAG-based backdoor adjustment for confounding'."
-    tools_to_suggest:
-      - "statsmodels"
-      - "lme4"
-      - "DoWhy"
-      - "scikit-learn"
-      - "scipy.stats"
-    expected_output: "List of recommended methods and corresponding Python/R libraries."
-  - id: step_3_assumption_listing
-    prompt: "List the statistical assumptions required for the recommended methods (e.g., normality of residuals, proportional hazards, strict exogeneity)."
-    expected_output: "Checklist of assumptions to verify during implementation."
-checkpoints:
-  - "Do not implement the method here; only tell the AI *what* to use and *why*."
-  - "Verify that the recommended libraries support the selected methodology."
-outputs:
-  format: "Methodology decision entry with library pointers."
-  destination: "workspace/methods.md"
+  - id: evaluate_options
+    name: "Evaluate Options"
+    description: "Compare quantitative, qualitative, and mixed methods."
+  - id: justify_selection
+    name: "Justify Selection"
+    description: "Provide rationale for the chosen method based on the research question."

@@ -1,29 +1,14 @@
 name: literature_search
-description: "Step-by-step search strategy for finding, deduplicating, and evaluating academic literature."
-conditions:
-  apply_when: "Background research is needed, or literature needs to be found to support a hypothesis or method."
+version: 1.0.0
+description: Conduct a systematic literature search.
+schema_version: "1.0"
 steps:
-  - id: step_1_query_formulation
-    prompt: "Construct logical query strings combining keywords, synonyms, and boolean operators (AND, OR, NOT) based on the research question."
-    expected_output: "List of 3-5 query strings."
-  - id: step_2_database_search
-    prompt: "Use the built-in search tools to query databases."
-    tools:
-      - "tool.search.semantic_scholar"
-      - "tool.search.pubmed"
-      - "tool.search.crossref"
-    expected_output: "Raw search results logged to workspace/logs/searches.log."
-  - id: step_3_deduplication
-    prompt: "Identify and remove duplicate papers across different database results."
-    expected_output: "Unique list of candidate papers."
-  - id: step_4_snowballing
-    prompt: "For the top 3 highly relevant papers, perform forward and backward citation tracing to find additional sources."
-    expected_output: "Expanded list of papers."
-  - id: step_5_quality_evaluation
-    prompt: "Evaluate paper quality using domain-specific checklists (e.g., PRISMA, AMSTAR) by reviewing abstracts or full texts."
-    expected_output: "Filtered list of high-quality papers added to the bibliography."
-checkpoints:
-  - "Ensure every search string and its result count is explicitly logged to searches.log."
-outputs:
-  format: "Updated literature index and bibliography."
-  destination: "inputs/literature_index.yaml"
+  - id: define_query
+    name: "Define Query"
+    description: "Construct boolean search queries."
+  - id: execute_search
+    name: "Execute Search"
+    description: "Search primary databases (PubMed, Semantic Scholar, Crossref)."
+  - id: screen_results
+    name: "Screen Results"
+    description: "Filter based on inclusion/exclusion criteria."

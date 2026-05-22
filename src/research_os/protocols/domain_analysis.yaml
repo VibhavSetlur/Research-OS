@@ -1,22 +1,11 @@
 name: domain_analysis
-description: "Protocol for analyzing research context to determine the appropriate domain profile, reporting standards, and common pitfalls."
-conditions:
-  apply_when: "A new project is initialized, or when the user provides raw data, context files, and initial research questions without an established domain."
+version: 1.0.0
+description: Analyze a research domain to identify trends and gaps.
+schema_version: "1.0"
 steps:
-  - id: step_1_extract_keywords
-    prompt: "Analyze the user inputs (files, questions, context) and extract core domain keywords (e.g., 'RCT', 'Transformers', 'Difference-in-Differences')."
-    expected_output: "List of domain keywords."
-  - id: step_2_classify_domain
-    prompt: "Map the extracted keywords to a structured domain profile (e.g., epidemiology, economics, NLP, general machine learning, clinical trials)."
-    expected_output: "Domain profile label."
-  - id: step_3_identify_standards
-    prompt: "Based on the domain profile, identify required reporting standards (e.g., STROBE for observational, CONSORT for trials, PRISMA for reviews)."
-    expected_output: "List of reporting standard guidelines to enforce."
-  - id: step_4_identify_pitfalls
-    prompt: "List common methodological pitfalls for this domain (e.g., 'data leakage' in ML, 'confounding by indication' in epidemiology)."
-    expected_output: "Checklist of pitfalls to monitor during methodology selection."
-checkpoints:
-  - "Verify that the identified domain aligns with the data provided (e.g., don't suggest clinical trial standards for a purely synthetic ML dataset)."
-outputs:
-  format: "Markdown report detailing Domain Profile, Recommended Standards, and Pitfalls."
-  destination: "workspace/logs/domain_analysis_report.md"
+  - id: identify_keywords
+    name: "Identify Keywords"
+    description: "Extract key terms from the problem statement."
+  - id: map_landscape
+    name: "Map Landscape"
+    description: "Identify major sub-fields and leading authors."

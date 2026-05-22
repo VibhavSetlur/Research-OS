@@ -1,25 +1,14 @@
 name: writing_standards
-description: "Detailed guidance for writing manuscript sections according to academic standards."
-conditions:
-  apply_when: "The analysis is complete and the synthesis/writing phase has begun."
-steps:
-  - id: step_1_imrad_structure
-    prompt: "Structure the manuscript using the IMRAD format (Introduction, Methods, Results, And Discussion)."
-    expected_output: "Document outline."
-  - id: step_2_methods_writing
-    prompt: "Draft the Methods section using the compiled `methods.md` log, ensuring all libraries, versions, and statistical assumptions are explicitly stated."
-    expected_output: "Drafted Methods section."
-  - id: step_3_results_writing
-    prompt: "Draft the Results section, integrating references to the generated tables and figures. Avoid interpreting results here; just report them."
-    expected_output: "Drafted Results section."
-  - id: step_4_discussion_writing
-    prompt: "Draft the Discussion section, interpreting the results, acknowledging limitations (especially those found in the domain_analysis pitfalls), and suggesting future work."
-    expected_output: "Drafted Discussion section."
-  - id: step_5_abstract_generation
-    prompt: "Write a concise abstract summarizing the background, methods, results, and conclusion."
-    expected_output: "Drafted Abstract."
-checkpoints:
-  - "Ensure no causal language is used for observational studies unless rigorous causal inference methods were applied and justified."
-outputs:
-  format: "Markdown or LaTeX manuscript sections."
-  destination: "synthesis/"
+version: 1.0.0
+description: Academic writing standards for publication-ready outputs.
+schema_version: "1.0"
+guidelines:
+  - id: tone
+    name: "Tone and Voice"
+    description: "Maintain an objective, formal academic tone. Avoid passive voice where possible."
+  - id: structure
+    name: "IMRAD Structure"
+    description: "Follow Introduction, Methods, Results, and Discussion structure."
+  - id: citations
+    name: "Citation Format"
+    description: "Use consistent APA style for all citations unless otherwise specified."
