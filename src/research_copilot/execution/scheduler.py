@@ -1,6 +1,8 @@
 from typing import Dict, Any, Optional, List
 import logging
 from research_copilot.state.state_ledger import ResearchLedger
+from research_copilot.project_ops import _resolve_root
+import datetime
 
 logger = logging.getLogger("research.scheduler")
 
@@ -9,6 +11,21 @@ class TaskScheduler:
     
     def __init__(self, ledger: ResearchLedger):
         self.ledger = ledger
+        
+    def log_node_completion(self, node_id: str, agent_name: str, summary: str, root=None):
+        """Append a human-readable summary to workspace/lab_notebook.md."""
+        resolved_root = _resolve_root(root)
+        notebook_path = resolved_root / "workspace" / "lab_notebook.md"
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S")
+        
+        entry = f"- **[{timestamp}] {agent_name}** (Node `{node_id}`): {summary}\n"
+        
+        try:
+            with open(notebook_path, "a") as f:
+                f.write(entry)
+            logger.info(f"Appended to lab_notebook.md: {summary[:50]}...")
+        except Exception as e:
+            logger.error(f"Failed to write to lab_notebook.md: {e}")
 
     def get_next_executable_node(self, plan: Dict[str, Any]) -> Optional[str]:
         """Determine the next step in the workflow based on the active plan and DAG."""

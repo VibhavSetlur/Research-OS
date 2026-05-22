@@ -143,8 +143,8 @@ def scaffold_minimal_workspace(root: Path, project_name: str) -> None:
         "00_inputs": "Immutable canonical inputs after ingest.",
         "00_inputs/raw_data": "Raw data files. Do not modify these after hashing.",
         "00_inputs/literature": "Original literature files and extracted indexes.",
-        "01_workspace": "Human-AI working notes and scratch material.",
-        "01_workspace/scratchpad": "Queued ideas, links, and informal notes.",
+        "workspace": "Human-AI working notes and scratch material.",
+        "workspace/scratchpad": "Queued ideas, links, and informal notes.",
         "02_experiments": "Isolated hypothesis branches with local scripts and outputs.",
         "02_experiments/exp_001_baseline": "Baseline experiment branch.",
         "02_experiments/exp_001_baseline/scripts": "Numbered scripts for the baseline experiment.",
@@ -208,8 +208,9 @@ def scaffold_minimal_workspace(root: Path, project_name: str) -> None:
             "- Place raw files in `00_inputs/raw_data/`.\n"
         )
 
-    notebook = root / "01_workspace" / "lab_notebook.md"
+    notebook = root / "workspace" / "lab_notebook.md"
     if not notebook.exists():
+        notebook.parent.mkdir(parents=True, exist_ok=True)
         notebook.write_text(
             f"# Lab Notebook - {project_name}\n\n"
             "> Append-only chronological record of research thoughts and AI actions.\n\n"
@@ -239,7 +240,7 @@ def scaffold_minimal_workspace(root: Path, project_name: str) -> None:
         "project": {"title": project_name},
         "created_at": now_iso(),
         "architecture": "package_assets_clean_workspace",
-        "top_level_directories": ["00_inputs", "01_workspace", "02_experiments", "03_synthesis"],
+        "top_level_directories": ["00_inputs", "workspace", "02_experiments", "03_synthesis"],
         "active_experiment": "exp_001_baseline",
         "branches": {"exp_001_baseline": {"status": "active"}},
     }
@@ -357,10 +358,10 @@ def _copy_ai_rules_to_project(root: Path) -> None:
     except ImportError:
         import importlib_resources  # type: ignore[no-redef]
 
-    assets = ["AGENTS.md", ".cursorrules", ".clinerules", ".windsurfrules", "copilot-instructions.md"]
+    assets = ["AGENTS.md", "copilot-instructions.md"]
     for asset_name in assets:
         try:
-            asset_path = importlib_resources.files("research_copilot.assets") / asset_name
+            asset_path = importlib_resources.files("research_copilot.docs") / asset_name
             dest = root / asset_name
             if not dest.exists():
                 dest.write_text(asset_path.read_text(encoding="utf-8"), encoding="utf-8")

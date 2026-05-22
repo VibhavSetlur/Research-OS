@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 import importlib.util
 from typing import Dict, Any
+from research_copilot.project_ops import _resolve_root
 
 FORMAT_REGISTRY = {
     # tabular
@@ -58,7 +59,7 @@ def route_file(filepath: str) -> Dict[str, Any]:
     return info
 
 
-def scan_directory(dirpath: str, out_path: str = ".research/cache/data_format_manifest.json") -> Dict[str, Any]:
+def scan_directory(dirpath: str, out_path: str = "workspace/data_format_manifest.json") -> Dict[str, Any]:
     base = Path(dirpath)
     manifest = {"files": [], "tabular_count": 0, "non_tabular_count": 0}
     if not base.exists():
@@ -72,7 +73,12 @@ def scan_directory(dirpath: str, out_path: str = ".research/cache/data_format_ma
             else:
                 manifest["non_tabular_count"] += 1
 
-    out = Path(out_path)
+    try:
+        resolved_root = _resolve_root()
+        out = resolved_root / out_path
+    except Exception:
+        out = Path(out_path)
+        
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(manifest, indent=2))
     return manifest
@@ -87,7 +93,7 @@ if __name__ == "__main__":
 
     ap = argparse.ArgumentParser()
     ap.add_argument("dir", help="Directory to scan")
-    ap.add_argument("--out", default=".research/cache/data_format_manifest.json")
+    ap.add_argument("--out", default="workspace/data_format_manifest.json")
     args = ap.parse_args()
     m = scan_directory(args.dir, args.out)
     print(f"Wrote manifest: {args.out} — {len(m['files'])} files")

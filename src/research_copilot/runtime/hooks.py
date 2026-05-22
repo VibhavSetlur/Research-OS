@@ -248,3 +248,35 @@ class HookRegistry:
 
 
 hook_engine = HookRegistry()
+
+import re
+from research_copilot.project_ops import _resolve_root
+
+@hook_engine.register("post_generation")
+def citation_interceptor(state: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    """Intercepts generated text and logs citations to workspace/sources.md."""
+    output_text = state.get("output_text", "")
+    if not output_text:
+        return state
+        
+    # Extract naive citations [Author, Year] or similar
+    citations = re.findall(r'\[([^\]]+, \d{4})\]', output_text)
+    if citations:
+        try:
+            resolved_root = _resolve_root()
+            sources_path = resolved_root / "workspace" / "sources.md"
+            sources_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            new_entries = []
+            for citation in citations:
+                new_entries.append(f"- {citation} (Extracted at {datetime.now(timezone.utc).isoformat()})")
+                
+            if new_entries:
+                with open(sources_path, "a") as f:
+                    f.write("\n" + "\n".join(new_entries))
+                    
+        except Exception as e:
+            logger.error(f"Citation interceptor failed: {e}")
+            
+    return state
+

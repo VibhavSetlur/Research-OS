@@ -431,6 +431,25 @@ class ResearchEngine:
             self.token_tracker.add_usage(500, 200)
 
         return result
+    def route_and_execute(self, query: str, depth: str = "academic") -> Dict[str, Any]:
+        """Classifies the query, updates the DAG, and returns the transient workflow."""
+        # 1. Router parses request
+        route_result = self.router.route(query, save=True)
+        intake = self.router.build_bootstrap_intake(query)
+        intake["constraints"]["depth"] = depth
+        
+        # 2. Update DAG via PlanMutationEngine
+        from research_copilot.graph.plan_mutation_engine import PlanMutationEngine
+        pme = PlanMutationEngine(self.ledger)
+        pme.build_dag_from_intake(intake)
+        
+        return {
+            "status": "success",
+            "routing": route_result,
+            "intake": intake,
+            "transient_workflow": route_result.get("transient_workflow")
+        }
+
     def create_branch(self, name: str, hypothesis: str) -> Dict[str, Any]:
         branch_result = create_experiment_branch(name, hypothesis, root=self.root)
         self.ledger.branch_state(name)

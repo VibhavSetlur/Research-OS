@@ -1,5 +1,6 @@
-from typing import List, Dict, Any
 from research_copilot.planning.dynamic_planner import ExecutionNode, PlanMutation
+from research_copilot.project_ops import _resolve_root
+import os
 
 class PlanMutationEngine:
     """Applies runtime operations to the Execution Graph."""
@@ -28,6 +29,7 @@ class PlanMutationEngine:
                     dag["nodes"][mut.target_node]["status"] = "pending"
                     
         self.ledger.update(execution_dag=dag)
+        self.export_mermaid(dag)
 
     def build_dag_from_intake(self, intake: Dict[str, Any]):
         """Constructs a ConversationDAG dynamically without disk files from an intake schema."""
@@ -50,3 +52,29 @@ class PlanMutationEngine:
             
         dag["nodes"] = nodes
         self.ledger.update(execution_dag=dag, phase="initialized")
+        self.export_mermaid(dag)
+
+    def export_mermaid(self, dag: Dict[str, Any], root=None):
+        """Exports the DAG to a mermaid file in the workspace directory."""
+        try:
+            resolved_root = _resolve_root(root)
+            mermaid_path = resolved_root / "workspace" / "workflow_dag.mermaid"
+            mermaid_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            lines = ["graph TD"]
+            for node_id, node_info in dag.get("nodes", {}).items():
+                status = node_info.get("status", "pending")
+                color = "green" if status == "success" else "yellow" if status == "pending" else "red"
+                lines.append(f"    {node_id}[{node_id}]:::class_{status}")
+                for dep in node_info.get("dependencies", []):
+                    lines.append(f"    {dep} --> {node_id}")
+                    
+            lines.append("    classDef class_success fill:#cfc;")
+            lines.append("    classDef class_pending fill:#ffc;")
+            lines.append("    classDef class_failed fill:#fcc;")
+            
+            with open(mermaid_path, "w") as f:
+                f.write("\n".join(lines))
+        except Exception as e:
+            pass
+

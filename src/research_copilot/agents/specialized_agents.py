@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
+from research_copilot.prompts.agent_prompts import AGENT_PROMPTS
+from research_copilot.prompts.skill_prompts import SKILL_PROMPTS
 
 class AgentResponse(BaseModel):
     success: bool
@@ -15,16 +17,8 @@ class CitationAgent:
         
     def verify_citations(self, text: str, required_citations: List[str]) -> AgentResponse:
         """Verifies if the required citations are present and valid."""
-        prompt = f"""
-        You are the CitationAgent. Verify the following text includes appropriate citations for: {required_citations}.
-        Return JSON with:
-        - success (bool)
-        - output (dict with 'missing', 'invalid', 'formatted_citations')
-        - escalate (bool, true if severe plagiarism/missing sources detected)
-        - escalation_reason (string)
-        
-        Text: {text}
-        """
+        base_prompt = AGENT_PROMPTS.get("16_peer_review_prep", "") or SKILL_PROMPTS.get("citation_verifier", "")
+        prompt = f"{base_prompt}\n\nYou are the CitationAgent. Verify the following text includes appropriate citations for: {required_citations}.\nReturn JSON with:\n- success (bool)\n- output (dict with 'missing', 'invalid', 'formatted_citations')\n- escalate (bool)\n- escalation_reason (string)\nText: {text}"
         import json
         raw = self.call_llm(prompt)
         if raw.startswith("```json"): raw = raw[7:]
@@ -43,17 +37,8 @@ class RecoveryAgent:
         
     def generate_recovery_plan(self, error_trace: str, current_state: Dict[str, Any]) -> AgentResponse:
         """Proposes a recovery strategy when another agent or execution fails."""
-        prompt = f"""
-        You are the RecoveryAgent. A failure occurred.
-        Error Trace: {error_trace}
-        State: {current_state}
-        
-        Return JSON with:
-        - success (bool)
-        - output (dict with 'rollback_target', 'patch_actions', 'retry_strategy')
-        - escalate (bool, true if unrecoverable and requires human intervention)
-        - escalation_reason (string)
-        """
+        base_prompt = AGENT_PROMPTS.get("08_research_iterate", "")
+        prompt = f"{base_prompt}\n\nYou are the RecoveryAgent. A failure occurred.\nError Trace: {error_trace}\nState: {current_state}\nReturn JSON with:\n- success (bool)\n- output (dict with 'rollback_target', 'patch_actions', 'retry_strategy')\n- escalate (bool)\n- escalation_reason (string)"
         import json
         raw = self.call_llm(prompt)
         if raw.startswith("```json"): raw = raw[7:]
@@ -82,7 +67,8 @@ class ReflectionAgent:
         self.authority = "strategic_reflection"
         
     def reflect(self, trajectory: str) -> AgentResponse:
-        prompt = f"Reflect on this trajectory and identify gaps: {trajectory}"
+        base_prompt = AGENT_PROMPTS.get("10_critic", "")
+        prompt = f"{base_prompt}\n\nReflect on this trajectory and identify gaps: {trajectory}"
         return AgentResponse(success=True, output={"gaps": ["Need more data"]}, escalate=False)
 
 class ValidationAgent:
@@ -92,7 +78,8 @@ class ValidationAgent:
         self.authority = "output_validation"
         
     def validate(self, output_data: str, constraints: str) -> AgentResponse:
-        prompt = f"Validate this data against constraints: {output_data} | {constraints}"
+        base_prompt = AGENT_PROMPTS.get("07_audit_validate", "")
+        prompt = f"{base_prompt}\n\nValidate this data against constraints: {output_data} | {constraints}"
         return AgentResponse(success=True, output={"valid": True}, escalate=False)
 
 class MemoryAgent:

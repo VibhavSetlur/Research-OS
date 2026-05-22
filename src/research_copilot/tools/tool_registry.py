@@ -18,38 +18,72 @@ class ToolRegistry:
         self._register_defaults()
         
     def _register_defaults(self):
-        # Default tools for the Research Copilot
+        # Core Action Tools
         self.register(ToolMetadata(
-            tool_name="citation_verifier.py",
-            capabilities=["claim_validation", "evidence_strengthening", "citation_check"],
+            tool_name="claim_tracer",
+            capabilities=["claim_validation", "evidence_strengthening"],
             cost="medium",
             risk="low",
+            failure_modes=["Ambiguous claim"],
+            preferred_when=["verifying explicit factual claims"],
+            inputSchema={
+                "type": "object",
+                "properties": {"claim": {"type": "string"}},
+                "required": ["claim"]
+            }
+        ))
+        self.register(ToolMetadata(
+            tool_name="citation_verifier",
+            capabilities=["citation_check", "bibliography_validation"],
+            cost="low",
+            risk="low",
             failure_modes=["PDF not found", "Paywall"],
-            preferred_when=["verifying explicit factual claims"]
+            preferred_when=["checking specific citation formats"],
+            inputSchema={
+                "type": "object",
+                "properties": {"citation_text": {"type": "string"}},
+                "required": ["citation_text"]
+            }
         ))
         self.register(ToolMetadata(
-            tool_name="statistical_analyzer.py",
-            capabilities=["claim_validation", "data_analysis", "hypothesis_testing"],
+            tool_name="manuscript_compiler",
+            capabilities=["document_generation", "formatting"],
             cost="high",
-            risk="medium",
-            failure_modes=["Data missing", "Assumptions violated"],
-            preferred_when=["validating numeric data against a hypothesis"]
+            risk="low",
+            failure_modes=["Missing sections"],
+            preferred_when=["compiling final outputs"],
+            inputSchema={
+                "type": "object",
+                "properties": {"sections": {"type": "array", "items": {"type": "string"}}},
+                "required": ["sections"]
+            }
         ))
         self.register(ToolMetadata(
-            tool_name="literature_scraper.py",
-            capabilities=["literature_search", "evidence_gathering"],
-            cost="low",
+            tool_name="dashboard_compiler",
+            capabilities=["visualization", "dashboarding"],
+            cost="medium",
             risk="low",
-            failure_modes=["Rate limits", "Empty results"],
-            preferred_when=["exploring new domains"]
+            failure_modes=["Data missing"],
+            preferred_when=["generating interactive plots"],
+            inputSchema={
+                "type": "object",
+                "properties": {"data_path": {"type": "string"}},
+                "required": ["data_path"]
+            }
         ))
+        # Live Web Connectivity
         self.register(ToolMetadata(
-            tool_name="quick_search.py",
-            capabilities=["literature_search"],
+            tool_name="literature_retrieval",
+            capabilities=["literature_search", "live_web", "evidence_gathering"],
             cost="low",
             risk="low",
-            failure_modes=["Ambiguous query"],
-            preferred_when=["user asks a quick factual question"]
+            failure_modes=["Rate limits", "Empty results", "Network error"],
+            preferred_when=["searching live literature databases like Arxiv, PubMed, Crossref"],
+            inputSchema={
+                "type": "object",
+                "properties": {"query": {"type": "string"}, "source": {"type": "string", "enum": ["crossref", "arxiv", "pubmed"]}},
+                "required": ["query"]
+            }
         ))
 
     def register(self, tool: ToolMetadata):
