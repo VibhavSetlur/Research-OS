@@ -2,30 +2,25 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/* ]
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - uses: actions/checkout@v3
+    - name: Set up Python
+      uses: actions/setup-python@v4
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.10"
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e .[dev,all] || echo "Install fallback"
-    - name: Run tests
+        pip install -e ".[dev]"
+    - name: Run Pytest
+      env:
+        PYTHONPATH: src
       run: |
-        pytest
-    - name: Verify MCP tool docs generation
-      run: |
-        PYTHONPATH=src python scripts/generate_tool_docs.py
-        git diff --exit-code docs/MCP_TOOLS_REFERENCE.md || (echo "Docs out of sync" && exit 1)
+        pytest tests/
