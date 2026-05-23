@@ -20,12 +20,6 @@ build/
 /.clinerules
 /AGENTS.md
 
-# Runtime cache (auto-created)
-.research/cache/
-.research/state/
-.research/workflow_dag.json
-.research/workflow_dag.mermaid
-
 # OS state (auto-created during pipeline runs)
 .os_state/
 
@@ -35,26 +29,15 @@ venv/
 env/
 environment/venv/
 
-# Research outputs (AI-created during pipeline)
-/00_inputs/
-/01_workspace/
-/02_experiments/
-/03_synthesis/
-
-
 # User data (keep directories, ignore contents)
-inputs/data/raw/*
 !inputs/data/raw/.gitkeep
-inputs/context/*
 !inputs/context/.gitkeep
 !inputs/context/README.md
-inputs/papers/*
 !inputs/papers/.gitkeep
 !inputs/papers/README.md
 
 # Researcher config (contains API keys)
 inputs/researcher_config.yaml
-.research/config.yaml
 
 # Large files (never commit)
 *.h5

@@ -2,7 +2,7 @@
 
 **From data to publication-ready manuscript – your MCP-native research operating system.**
 
-Research OS is a Model Context Protocol (MCP) server designed to manage and guide LLM agents (like Cursor, Windsurf, or custom scripts) through rigorous, reproducible academic research workflows.
+Research OS is a Model Context Protocol (MCP) server designed to manage and guide LLM agents (like Cursor, Claude Code, Antigravity, or custom scripts) through rigorous, reproducible academic research workflows.
 
 ## Quick Start
 
@@ -18,11 +18,15 @@ Research OS is a Model Context Protocol (MCP) server designed to manage and guid
    ```bash
    python -m research_os.server
    ```
-   *(Configure this command in your MCP client like Cursor or Windsurf).*
+   *(Configure this command in your MCP client like Cursor or Claude Code).*
 
 3. **Initialize your Project**
    In your AI IDE, prompt the agent:
    > "Please scaffold my new project using `sys.workspace.scaffold` with the name 'My First Study'."
+
+4. **Add Data and Analyze**
+   Then drop your data files into `inputs/raw_data/` and ask:
+   > "Analyze my data."
 
 ## Architecture
 
@@ -30,7 +34,7 @@ Research OS is a Model Context Protocol (MCP) server designed to manage and guid
 +-------------------+       +-------------------+       +-------------------+       +-------------------+
 |                   |       |                   |       |                   |       |                   |
 |     AI IDE        | <---> |   MCP Protocol    | <---> |    Research OS    | <---> |     Workspace     |
-| (Cursor/Windsurf) |       |                   |       |                   |       |                   |
+| (Cursor / Claude / Antigravity) |       |                   |       |                   |       |                   |
 +-------------------+       +-------------------+       +-------------------+       +-------------------+
 ```
 

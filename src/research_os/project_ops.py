@@ -28,7 +28,7 @@ def _resolve_root(root: Path | None = None) -> Path:
     return r
 
 
-def slugify(value: str, fallback: str = "branch") -> str:
+def slugify(value: str, fallback: str = "path") -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
     return slug or fallback
 
@@ -330,34 +330,8 @@ def scaffold_minimal_workspace(
         )
 
     # ── Auto-generate researcher_config.yaml via init_config ──
-    researcher_config_path = root / "inputs" / "researcher_config.yaml"
-    research_question = config_overrides.get("research_question", "")
-    domain = config_overrides.get("domain", "general")
-    depth = config_overrides.get("depth", "academic")
-    if not researcher_config_path.exists():
-        from research_os.tools.actions.config import init_config
-
-        init_config(root)
-
-        # Override researcher_config.yaml with project-specific fields
-        researcher_config_path.write_text(
-            "# Research OS — Researcher Configuration\n"
-            f'project_id: "{project_name}"\n'
-            f'research_question: "{research_question}"\n'
-            f'domain: "{domain}"\n'
-            f'default_depth: "{depth}"\n'
-        )
-    else:
-        # Merge project-specific fields if config already exists
-        import yaml as _yaml
-
-        existing = _yaml.safe_load(researcher_config_path.read_text()) or {}
-        existing.setdefault("project_id", project_name)
-        existing["research_question"] = research_question
-        existing["domain"] = domain
-        existing["default_depth"] = depth
-        with open(researcher_config_path, "w") as f:
-            _yaml.dump(existing, f, default_flow_style=False)
+    from research_os.tools.actions.config import init_config
+    init_config(root)
 
     # Symlink .os_state into workspace for easier access by scripts
     workspace_os_state = root / "workspace" / ".os_state"

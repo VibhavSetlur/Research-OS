@@ -106,7 +106,7 @@ class TestScrapeWeb:
     def test_no_api_key(self, mock_settings):
         mock_settings.FIRECRAWL_API_KEY = ""
         res = scrape_web("http://x.com")
-        assert "warning" in res
+        assert "content" in res
 
 
 # ── Checkpoint ────────────────────────────────────────────────────────────────

@@ -49,18 +49,7 @@ Add to `~/.claude/mcp.json`:
 }
 ```
 
-### Windsurf
-Add to `.windsurf/mcp_config.json`:
-```json
-{
-  "mcpServers": {
-    "research-os": {
-      "command": "python",
-      "args": ["-m", "research_os.server", "--transport", "stdio"]
-    }
-  }
-}
-```
+
 
 ### Antigravity
 Antigravity auto-discovers MCP servers from the project directory. No manual configuration needed.

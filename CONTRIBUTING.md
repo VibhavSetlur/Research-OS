@@ -15,8 +15,8 @@ Thank you for your interest in improving Research OS! This guide will help you g
 
 ## Architecture Overview
 
-Research OS has been re-architected as a pure **MCP-Native Research OS**. This means:
-- **The AI IDE is the brain**: Tools like Cursor, Windsurf, or Claude Desktop perform the "thinking," planning, and routing.
+Research OS is as a **MCP-Native Research OS**. This means:
+- **The AI IDE is the brain**: Tools like Cursor, Claude Code, or Antigravity perform the "thinking," planning, and routing.
 - **This repository is the body**: It provides Hands (tools), Eyes (observability), and Memory (state).
 - **Stateless Execution**: The OS itself does not make autonomous decisions; it relies entirely on the IDE driving the feedback loop via Model Context Protocol (MCP) tool calls.
 
