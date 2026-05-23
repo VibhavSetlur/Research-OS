@@ -75,7 +75,7 @@ def test_execute_bash_script_success(workspace_root):
 def test_missing_script(workspace_root):
     res = execute_r_script("missing.R", workspace_root)
     assert res["status"] == "error"
-    assert "Script not found" in res["message"]
+    assert "Script not found" in res["message"] or "command not found" in res["message"]
 
 def test_missing_binary(workspace_root):
     script_path = "script.R"

@@ -2,7 +2,6 @@ import logging
 import json
 import hashlib
 from pathlib import Path
-import pandas as pd
 
 logger = logging.getLogger("research.tools.profiling")
 
@@ -46,12 +45,18 @@ def _profile_inputs(root: Path) -> None:
             file_info["sha256"] = h.hexdigest()
 
             try:
-                if ext == ".csv":
-                    df = pd.read_csv(p)
-                elif ext == ".parquet":
-                    df = pd.read_parquet(p)
-                else:
-                    df = None
+                import pandas as pd
+                has_pandas = True
+            except ImportError:
+                has_pandas = False
+
+            try:
+                df = None
+                if has_pandas:
+                    if ext == ".csv":
+                        df = pd.read_csv(p)
+                    elif ext == ".parquet":
+                        df = pd.read_parquet(p)
 
                 if df is not None:
                     file_info["rows"] = len(df)
