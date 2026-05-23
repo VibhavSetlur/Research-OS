@@ -10,7 +10,6 @@ Every Research OS project follows a strict, reproducible directory structure. Th
 <user-project>/
 ├── AGENTS.md                # AI agent instructions
 ├── README.md                # Auto-generated project overview
-├── .cursor/rules/           # Cursor-specific rules
 ├── .os_state/               # INTERNAL — OS state (DO NOT EDIT)
 ├── docs/                    # Research documentation
 ├── inputs/                  # IMMUTABLE — original data (read-only by tools)

@@ -49,7 +49,6 @@ Research OS is a Model Context Protocol (MCP) server designed to manage and guid
 <user-project>/
 ├── AGENTS.md                       # AI agent instructions
 ├── README.md                       # Auto-generated project overview
-├── .cursor/rules/research-os.mdc   # Cursor-specific rules
 ├── .os_state/                      # INTERNAL — OS state
 │   ├── state_ledger.yaml           # Source of truth
 │   ├── manifest.json               # Full file inventory with checksums
