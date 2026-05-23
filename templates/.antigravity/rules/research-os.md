@@ -4,7 +4,7 @@
 2. **State Logging**: Log significant methodological decisions using `tool.log.decision`.
 3. **Methodological Appends**: Append new analysis steps to `workspace/methods.md` using `mem.methods.append`.
 4. **Analysis Checkpointing**: Append chronologically to `workspace/analysis.md` using `mem.analysis.log`.
-5. **Experiment Paths**: Use `sys.path.create` for new steps. Use `sys.path.abandon` for dead ends (preserves files).
+5. **Experiment Paths**: Use `sys.path.create` for new steps. Use `sys.path.abandon` for dead ends (preserves files). The workspace does not contain a pre-built 01_ experiment folder. After understanding the data and research question, you must create the first experiment path using sys.path.create.
 6. **Execution Estimation**: Before running heavy scripts, check `data_inventory.json` and use `tool.data.sample` to test logic first.
 7. **Approval Gates**: In `supervised` mode, use `sys.checkpoint.pending` for major milestones.
 8. **Checkpointing**: Use `sys.checkpoint.create` before massive refactoring.

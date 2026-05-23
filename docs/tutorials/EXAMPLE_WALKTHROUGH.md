@@ -24,7 +24,7 @@ This document demonstrates how a researcher and an LLM agent interact using Rese
     - `n_rows`: 1000
     - `strategy`: `random`
 10. **Agent**: The tool returns a sampled dataset.
-11. **Agent**: Writes a Python script `workspace/01_experiment_baseline/scripts/01_eda.py` to analyze the sampled data.
+11. **Agent**: Calls `sys.path.create` to create the first experiment path (`01_baseline_eda`). Writes a Python script `workspace/01_baseline_eda/scripts/01_eda.py` to analyze the sampled data.
 12. **Agent**: Calls `tool.python.exec` on the script.
 13. **Agent**: Calls `mem.analysis.log` to append the initial EDA findings to `workspace/analysis.md`.
 
@@ -32,7 +32,7 @@ This document demonstrates how a researcher and an LLM agent interact using Rese
 
 14. **Agent**: Decides to clean the data (handle missing values). It tries to write back to `inputs/raw_data/trial_data_cleaned.csv` using `sys.file.write`.
 15. **Research OS**: Returns a `WriteProtectedError`.
-16. **Agent**: Realizes its mistake, updates the script to save the cleaned data to `workspace/01_experiment_baseline/data/cleaned_trial_data.csv`.
+16. **Agent**: Realizes its mistake, updates the script to save the cleaned data to `workspace/01_baseline_eda/data/cleaned_trial_data.csv`.
 17. **Agent**: Calls `tool.log.decision`:
     - `context`: "Handling missing values in blood pressure readings."
     - `selected`: "Imputation via K-Nearest Neighbors."

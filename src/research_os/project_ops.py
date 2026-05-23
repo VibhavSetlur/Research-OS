@@ -372,45 +372,7 @@ def scaffold_minimal_workspace(
             "    classDef complete fill:#d4edda,stroke:#28a745\n"
         )
 
-    # ── Create first numbered experiment step (01_experiment_baseline) ──
-    experiment_dir = root / "workspace" / "01_experiment_baseline"
-    if not experiment_dir.exists():
-        for sub in [
-            "data",
-            "scripts",
-            "outputs/reports",
-            "outputs/figures",
-            "outputs/tables",
-            "outputs/dashboards",
-            "environment",
-        ]:
-            (experiment_dir / sub).mkdir(parents=True, exist_ok=True)
-        readme = experiment_dir / "README.md"
-        readme.write_text(
-            f"# Experiment: 01_experiment_baseline\n\n"
-            f"*Created: {now_iso()}*\n\n"
-            "## Goal\n\n"
-            "*(Define the goal of this baseline experiment)*\n\n"
-            "## Input Data\n\n"
-            "- *(List input files used)*\n\n"
-            "## Methods Used\n\n"
-            "- *(List statistical methods, transforms, models)*\n\n"
-            "## Expected Output\n\n"
-            "- *(Describe expected outputs)*\n\n"
-            "## Actual Output\n\n"
-            "- *(Describe actual results after execution)*\n\n"
-            "## Next-Step Decision\n\n"
-            "- *(proceed / branch / dead-end)*\n"
-        )
-        conclusions = experiment_dir / "conclusions.md"
-        conclusions.write_text(
-            f"# 01_experiment_baseline — Conclusions\n\n"
-            f"*Created: {now_iso()}*\n\n"
-            "## Summary\n\n"
-            "*(Summarize key findings here after analysis.)*\n\n"
-            "## Next Steps\n\n"
-            "*(Describe what to do next — proceed or abandon.)*\n"
-        )
+
 
     manifest = {
         "schema_version": "1.0",

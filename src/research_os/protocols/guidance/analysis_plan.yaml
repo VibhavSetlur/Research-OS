@@ -42,6 +42,9 @@ path_creation_criteria:
     - "Running the next logical step on the same track."
 
 steps:
+  - id: setup_first_experiment
+    name: "Setup first experiment"
+    description: "Use sys.path.create to create the first experiment directory (e.g., 01_baseline_eda). Do not assume a numbered folder already exists."
   - id: setup_directories
     name: "Setup directories"
     description: "Use sys.path.create to create each step folder with the format {step_number}_{descriptive_name}. Do not create a synthesis step."

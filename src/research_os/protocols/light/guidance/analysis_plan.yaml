@@ -23,9 +23,12 @@ path_creation_criteria:
     - Continuing the same research track.
 
 steps:
+  - id: setup_first_experiment
+    name: "Setup first experiment"
+    description: "Use sys.path.create to create the first experiment directory (e.g., 01_baseline_eda). Do not assume a numbered folder already exists."
   - id: setup_directories
-    name: Setup directories
-    description: Ensure experiment folders exist (01_, 02_, …). No synthesis step.
+    name: "Setup directories"
+    description: "Use sys.path.create to create each step folder with the format {step_number}_{descriptive_name}. Do not create a synthesis step."
   - id: write_readmes
     name: Write READMEs
     description: Populate directories with boilerplate README.

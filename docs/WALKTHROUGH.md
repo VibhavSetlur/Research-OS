@@ -41,7 +41,7 @@ Once your IDE is connected, open a new chat and simply copy-paste these prompts 
 > "Based on the EDA, let's create a formal analysis plan. Use `sys.guidance.get` to load the `data_analysis` protocol and apply it to our research questions. What statistical tests are appropriate for determining the effect of PM2.5 levels on respiratory health metrics?"
 
 ### Prompt 3: Execute Baseline Experiment
-> "Create an experiment path for our baseline analysis. Write a Python script to clean the data and perform a baseline regression analysis. Save the script in the `scripts/` folder of the new path and save the regression results in the `outputs/reports/` folder."
+> "Use `sys.path.create` to create our first experiment folder (e.g., `01_baseline_analysis`). Write a Python script to clean the data and perform a baseline regression analysis. Save the script in the `scripts/` folder of this new path and save the regression results in the `outputs/reports/` folder."
 
 ### Prompt 4: Log Decisions
 > "Let's log our decision to use linear regression. Please use `log-decision` (or `tool.log.decision`) to record why we chose this method and why we handled missing values the way we did."

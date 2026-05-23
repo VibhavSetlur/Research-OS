@@ -22,7 +22,7 @@ def test_scaffold_workspace():
         assert (root / "synthesis").exists()
         assert (root / "environment").exists()
         assert (root / "workspace" / "workflow.mermaid").exists()
-        assert (root / "workspace" / "01_experiment_baseline").exists()
+        assert not (root / "workspace" / "01_experiment_baseline").exists()
         assert (root / "inputs" / "researcher_config.yaml").exists()
 
         state = load_state(root)
@@ -40,7 +40,7 @@ def test_path_create():
             root, "data_preparation", hypothesis="Clean data"
         )
         assert "data_preparation" in res["path_id"]
-        assert res["path_id"].startswith("02_")
+        assert res["path_id"].startswith("01_")
         assert (root / "workspace" / res["path_id"]).exists()
         assert (root / "workspace" / res["path_id"] / "data").exists()
         assert (root / "workspace" / res["path_id"] / "scripts").exists()
@@ -58,10 +58,10 @@ def test_path_create_auto_numbers():
         scaffold_minimal_workspace(root, "Test")
 
         r1 = create_numbered_experiment(root, "first")
-        assert r1["path_id"] == "02_first"
+        assert r1["path_id"] == "01_first"
 
         r2 = create_numbered_experiment(root, "second")
-        assert r2["path_id"] == "03_second"
+        assert r2["path_id"] == "02_second"
 
 
 def test_path_create_unique_per_number():
@@ -70,8 +70,8 @@ def test_path_create_unique_per_number():
         scaffold_minimal_workspace(root, "Test")
         r1 = create_numbered_experiment(root, "test_path")
         r2 = create_numbered_experiment(root, "test_path")
-        assert r1["path_id"] == "02_test_path"
-        assert r2["path_id"] == "03_test_path"
+        assert r1["path_id"] == "01_test_path"
+        assert r2["path_id"] == "02_test_path"
         assert r1["experiment_number"] + 1 == r2["experiment_number"]
 
 
