@@ -252,7 +252,8 @@ def scaffold_minimal_workspace(
     project_name: str,
     config_overrides: dict | None = None,
     git_init: bool = False,
-    ide: str = "all",
+    ide_flags: list[str] | None = None,
+    copy_agents: bool = False,
 ) -> None:
     """Create the unified workspace directory structure and .os_state config.
 
@@ -271,16 +272,41 @@ def scaffold_minimal_workspace(
     (root / "docs").mkdir(parents=True, exist_ok=True)
     for doc_file, content in [
         (
-            "research_question.md",
-            f"# Research Question\n\n## Main Question\n\n*({project_name})*\n\n## Sub-Questions\n\n1. \n2. \n3. \n\n## Last Updated\n\n{now_iso()}\n",
+            "research_overview.md",
+            f"# Research Overview
+
+## Research Area / Idea
+
+## Motivation & Background
+
+## Key Questions
+
+## Placeholder Section
+
+*Auto-generated: {now_iso()}*
+",
         ),
         (
-            "hypotheses.md",
-            f"# Hypotheses\n\n## H1\n\n- **Statement**:\n- **Test**:\n- **Outcome**:\n\n## H2\n\n- **Statement**:\n- **Test**:\n- **Outcome**:\n\n*Auto-generated: {now_iso()}*\n",
+            "research_question.md",
+            f"# Research Question
+
+*(to be determined)*
+
+## Last Updated
+
+{now_iso()}
+",
         ),
         (
             "glossary.md",
-            f"# Glossary\n\n| Term | Definition |\n|------|------------|\n| | |\n\n*Auto-generated: {now_iso()}*\n",
+            f"# Glossary
+
+| Term | Definition |
+|------|------------|
+| | |
+
+*Auto-generated: {now_iso()}*
+",
         ),
     ]:
         p = root / "docs" / doc_file
@@ -327,7 +353,7 @@ def scaffold_minimal_workspace(
     if not citations_path.exists():
         citations_path.write_text(
             "# Running Bibliography\n\n"
-            "*Each entry has a `verified` flag for the citation_verifier.*\n\n"
+            "*Verified-citation format. Each entry must have a `verified: true` flag and include the DOI/URL if available.*\n\n"
         )
 
     # ── Auto-generate researcher_config.yaml via init_config ──
@@ -348,19 +374,12 @@ def scaffold_minimal_workspace(
         domain = config_overrides.get("domain", "general")
         depth = config_overrides.get("depth", "academic")
         intake.write_text(
-            f"# {project_name} — Research Intake\n\n"
-            "## Project\n\n"
-            f"- Title: {project_name}\n"
-            f"- Domain: {domain}\n"
-            f"- Depth: {depth}\n\n"
-            "## Research Question\n\n"
-            f"{rq if rq else '(Set your research question in inputs/researcher_config.yaml)'}\n\n"
-            "## Input Files\n\n"
-            "- Place raw data in `inputs/raw_data/`\n"
-            "- Place literature PDFs in `inputs/literature/`\n"
-            "- Place context notes in `inputs/context/`\n\n"
-            "## Auto-generated\n"
-            f"- Date: {datetime.now(timezone.utc).date().isoformat()}\n"
+            f"# Research Intake\n"
+            f"*This file will be automatically filled after you place your data and context files in `inputs/` and ask the AI to scan them.*\n\n"
+            f"## Research Question\n"
+            f"*(to be determined)*\n\n"
+            f"## Input Files\n"
+            f"*(to be scanned)*\n"
         )
 
     # ── Initialize workflow.mermaid ──
@@ -394,8 +413,10 @@ def scaffold_minimal_workspace(
     regenerate_intake(root, project_name, config_overrides)
 
     _copy_environment_to_project(root)
-    _copy_agents_md(root)
-    _setup_mcp_configs(root, ide)
+    ide_flags = ide_flags or []
+    if copy_agents or ide_flags:
+        _copy_agents_md(root)
+    _setup_mcp_configs(root, ide_flags)
     _setup_gitignore(root)
     if git_init:
         _initialize_git(root)
@@ -467,7 +488,7 @@ def _setup_gitignore(root: Path) -> None:
         )
 
 
-def _setup_mcp_configs(root: Path, ide: str = "all") -> None:
+def _setup_mcp_configs(root: Path, ide_flags: list[str] = None) -> None:
     """Generate default MCP configuration for popular AI IDEs."""
     import sys as _sys
 
@@ -476,10 +497,10 @@ def _setup_mcp_configs(root: Path, ide: str = "all") -> None:
         "args": ["-m", "research_os.server", "--transport", "stdio"],
     }
 
-    ide = ide.lower()
+    ide_flags = ide_flags or []
 
     # Cursor
-    if ide in ("all", "cursor"):
+    if "cursor" in ide_flags or "all-ide" in ide_flags:
         cursor_dir = root / ".cursor"
         cursor_dir.mkdir(parents=True, exist_ok=True)
 
@@ -502,7 +523,7 @@ def _setup_mcp_configs(root: Path, ide: str = "all") -> None:
             pass
 
     # Claude Desktop
-    if ide in ("all", "claude"):
+    if "claude" in ide_flags or "all-ide" in ide_flags:
         claude_dir = root / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)
 
@@ -529,7 +550,7 @@ def _setup_mcp_configs(root: Path, ide: str = "all") -> None:
 
 
     # Antigravity
-    if ide in ("all", "antigravity"):
+    if "antigravity" in ide_flags or "all-ide" in ide_flags:
         antigravity_dir = root / ".antigravity"
         antigravity_dir.mkdir(parents=True, exist_ok=True)
         rules_dir = antigravity_dir / "rules"
@@ -544,7 +565,7 @@ def _setup_mcp_configs(root: Path, ide: str = "all") -> None:
             pass
 
     # OpenCode
-    if ide in ("all", "opencode"):
+    if "opencode" in ide_flags or "all-ide" in ide_flags:
         opencode_json = root / "opencode.json"
         if not opencode_json.exists():
             opencode_json.write_text(

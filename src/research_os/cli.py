@@ -237,7 +237,15 @@ def cmd_init(args: argparse.Namespace) -> None:
             "provider": "openai",
         }
 
-    scaffold_minimal_workspace(target_dir, project_name, config_overrides=answers)
+    ide_flags = []
+    if args.cursor: ide_flags.append("cursor")
+    if args.claude: ide_flags.append("claude")
+    if args.antigravity: ide_flags.append("antigravity")
+    if args.opencode: ide_flags.append("opencode")
+    if args.vscode: ide_flags.append("vscode")
+    if args.all_ide: ide_flags.append("all-ide")
+
+    scaffold_minimal_workspace(target_dir, project_name, config_overrides=answers, ide_flags=ide_flags, copy_agents=args.rules)
 
     # If there's existing data, symlink it into inputs/raw_data/
     if has_existing_data and not args.force:
@@ -890,6 +898,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run interactive questionnaire for config",
     )
+
+    p_init.add_argument("--cursor", action="store_true", help="Copy Cursor IDE rules")
+    p_init.add_argument("--claude", action="store_true", help="Copy Claude IDE rules")
+    p_init.add_argument("--antigravity", action="store_true", help="Copy Antigravity IDE rules")
+    p_init.add_argument("--opencode", action="store_true", help="Copy OpenCode IDE rules")
+    p_init.add_argument("--vscode", action="store_true", help="Copy VSCode IDE rules")
+    p_init.add_argument("--all-ide", action="store_true", help="Copy all IDE rules")
+    p_init.add_argument("--rules", action="store_true", help="Copy general AGENTS.md rules")
 
     sub.add_parser("preflight", help="Run environment preflight checks")
     sub.add_parser("scan", help="Scan inputs and build research map")

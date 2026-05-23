@@ -7,7 +7,17 @@ steps:
   - id: domain_analysis
     description: "Load domain/domain_analysis and follow it. Classify the research domain, identify reporting standards, and note domain-specific pitfalls."
   - id: research_design
-    description: "Load domain/research_design. Formalise the research question and hypotheses. Write them to docs/research_question.md and docs/hypotheses.md."
+    description: "Load domain/research_design. Formalise the research question and overview. Write them to docs/research_question.md and docs/research_overview.md."
+  - id: present_summary
+    description: |
+      Present a structured summary to the researcher without creating any files yet. Include:
+      - **Project Title:** (derived from inputs)
+      - **Research Question:** ...
+      - **Suggested Hypotheses/Goals:** ...
+      - **Data Summary:** (variables, size, quality)
+      - **Proposed Next Step:** Create baseline exploratory analysis (01_baseline_eda)
+      
+      End by asking 'Would you like me to start the analysis?'. Wait for explicit approval. After approval, update the root README.md with the project title, question, and data summary.
   - id: create_baseline_path
     description: "Create the first experiment path with sys.path.create name='baseline_eda'. This will make workspace/01_baseline_eda/."
   - id: methods_research

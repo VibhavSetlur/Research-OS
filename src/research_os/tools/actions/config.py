@@ -71,28 +71,43 @@ def init_config(root: Path) -> Dict[str, Any]:
     config_path = root / "inputs" / "researcher_config.yaml"
     if not config_path.exists():
         # Create default
-        default_config = {
-            "researcher": {"name": "", "expertise_level": "intermediate", "field": ""},
-            "interaction": {
-                "autonomy_level": "supervised",
-                "notification_preferences": {"on_error": True},
-            },
-            "research_goal": {
-                "output_types": ["paper", "poster", "dashboard"],
-                "target_venue": "conference",
-                "poster_dimensions": "36x48",
-            },
-            "api_keys": {"firecrawl": "", "semantic_scholar": "", "pubmed": "", "crossref": "", "serpapi": ""},
-            "model_profile": "medium",  # small, medium, large
-            "writing_preferences": {
-                "citation_style": "apa",  # apa, vancouver, nature
-                "default_reporting_standard": "strobe",  # strobe, consort, prisma, apa, none
-                "auto_apply_writing_core": True,  # Always load writing_core for writing tasks
-            },
-        }
+        template = '''# ============================================================
+# Researcher Configuration
+# Uncomment and fill in the options below.
+# ============================================================
+
+# researcher:
+#   name: "Your Name"
+#   expertise_level: "intermediate"   # beginner, intermediate, advanced, pi
+#   field: "environmental epidemiology"
+#   institution: ""
+#   orcid: ""
+
+# interaction:
+#   autonomy_level: "supervised"   # manual, supervised, autopilot
+
+# research_goal:
+#   output_types: ["paper", "poster", "dashboard"]   # paper, poster, dashboard, abstract, exploratory
+#   target_venue: "journal"   # journal, conference, preprint, dissertation, report, exploratory
+#   poster_dimensions: "36x48"
+
+# model_profile: "medium"   # small, medium, large
+
+# api_keys:
+#   firecrawl: ""   # Get from https://firecrawl.io
+#   semantic_scholar: ""
+#   pubmed: ""
+#   crossref: ""
+#   serpapi: ""
+
+# external_mcp_servers: []
+
+# writing_preferences:
+#   citation_style: "apa"
+#   default_reporting_standard: "strobe"
+'''
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w") as f:
-            yaml.dump(default_config, f, default_flow_style=False)
+        config_path.write_text(template)
 
         # Restrict permissions
         if os.name != "nt":

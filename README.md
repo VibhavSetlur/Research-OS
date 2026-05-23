@@ -8,17 +8,14 @@ Research OS is a Model Context Protocol (MCP) server designed to manage and guid
 
 1. **Install the OS**
    ```bash
-   pip install git+https://github.com/VibhavSetlur/Research-OS.git
-   
-   # For additional features:
-   pip install "research-os[web,literature,viz,poster] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+   pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
    ```
 
 2. **Initialize your Project**
    ```bash
-   mkdir my-research-project
+   # Creates the folder and scaffolds the workspace
+   research-os init --name "research_project_folder"
    cd my-research-project
-   research-os init --name "My Research Project"
    ```
 
 3. **Start the MCP Server**
@@ -53,13 +50,13 @@ Research OS is a Model Context Protocol (MCP) server designed to manage and guid
 ├── AGENTS.md                       # AI agent instructions
 ├── README.md                       # Auto-generated project overview
 ├── .os_state/                      # INTERNAL — OS state
-│   ├── state_ledger.yaml           # Source of truth
+│   ├── state_ledger.json           # Source of truth
 │   ├── manifest.json               # Full file inventory with checksums
 │   ├── checkpoints/                # Workspace snapshots
 │   └── cache/                      # API response cache
 ├── docs/                           # Human-written research docs
+│   ├── research_overview.md
 │   ├── research_question.md
-│   ├── hypotheses.md
 │   └── glossary.md
 ├── inputs/                         # IMMUTABLE — researcher provided
 │   ├── researcher_config.yaml      # Researcher preferences & API keys
