@@ -1,39 +1,34 @@
 name: analysis_plan
-version: 2.0.0
-schema_version: '1.0'
+version: 2.1.0
+schema_version: "1.0"
+
 structure:
   01_data_prep:
-    purpose: Data cleaning, filtering, and feature engineering.
+    purpose: Data cleaning, filtering, feature engineering.
   02_analysis:
-    purpose: Statistical modelling and core computations.
-  note: "Do NOT create a 03_synthesis step. Synthesis is performed via tool.synthesize into the top-level synthesis/ folder."
+    purpose: Statistical modelling, core computations.
+  note: "Do NOT create a 03_synthesis step. Synthesis is handled by tool.synthesize into the top‑level synthesis/ folder. Step folders are named {step_number}_{descriptor} (e.g., 01_data_prep). Path tracking adds _path_N when starting a new research track."
+
 templates:
-  boilerplate_readme: '# {Folder_Name}
+  boilerplate_readme: '# {folder_name} **Objective**: {description} **Inputs**: {list} **Outputs**: {list} **Scripts**: {list} '
 
-    **Objective**: {Description of tasks in this phase}
-
-    **Inputs**: {List of input files/paths}
-
-    **Outputs**: {List of expected output files}
-
-    **Scripts**: {List of scripts with brief descriptions}
-
-    '
 path_creation_criteria:
   create_new_path_when:
-  - Testing a high-risk data transformation (e.g., massive outlier removal).
-  - Trying an alternative, unproven model architecture.
-  - Conducting a separate sensitivity analysis that might disrupt the main flow.
-  continue_in_path_when:
-  - Adding standard robustness checks.
-  - Fixing bugs in the current script.
+    - Testing high‑risk data transformations.
+    - Trying an alternative model architecture.
+    - Beginning a new research track.
+  continue_in_same_path_when:
+    - Adding robustness checks.
+    - Fixing bugs.
+    - Continuing the same research track.
+
 steps:
-- id: setup_directories
-  name: Setup Directories
-  description: Ensure the 01_, 02_ experiment structure exists. Synthesis is handled separately by tool.synthesize.
-- id: write_readmes
-  name: Write READMEs
-  description: Populate each directory with the boilerplate README.
-- id: evaluate_path_creation
-  name: Evaluate Path Creation
-  description: Review path creation criteria to decide if a new chronological path is needed.
+  - id: setup_directories
+    name: Setup directories
+    description: Ensure experiment folders exist (01_, 02_, …). No synthesis step.
+  - id: write_readmes
+    name: Write READMEs
+    description: Populate directories with boilerplate README.
+  - id: evaluate_path_creation
+    name: Evaluate path creation
+    description: Decide whether next step starts a new track or continues.

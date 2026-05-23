@@ -1,43 +1,60 @@
 name: analysis_plan
-version: 2.0.0
-description: Plan the directory structure, create boilerplates, and manage branching.
+version: 2.1.0
+description: Plan workspace structure, manage step folders, and experiment paths.
 schema_version: "1.0"
+
+# ── Workspace folder naming ───────────────────────────────────────────
+# Every experiment is a folder inside workspace/ named:
+#   {step_number}_{descriptive_name}
+# Examples:
+#   workspace/01_experiment_baseline/
+#   workspace/02_data_preparation/
+#   workspace/03_causal_model_path_1/
+#
+# When a research track begins, subsequent steps that belong to that track
+# append _path_{N} (N = 1, 2, …).  A new track gets the next integer.
+# Path numbers are optional; use them only to group steps logically.
+
 expected_outputs:
-  - "workspace/methods.md: Appended analysis steps"
-  - "workspace/<path_number>/README.md"
-  - "workspace/<path_number>/scripts/analysis.py"
-_output_path_note: "<path_number> is the numbered experiment directory created by sys.path.create (e.g., 02_meta_analysis)."
+  - "workspace/{step_number}_{descriptive_name}/README.md"
+  - "workspace/{step_number}_{descriptive_name}/scripts/analysis.py"
+
 structure:
-  note: "Experiments are numbered chronologically (01_, 02_, ...). Synthesis is NOT a workspace step — use tool.synthesize to compile outputs into the top-level synthesis/ folder."
+  note: "Steps are chronological and uniquely named. Synthesis is NOT a workspace step – it is a separate top‑level folder populated by tool.synthesize."
+
 templates:
   boilerplate_readme: |
-    # {Folder_Name}
-    **Objective**: {Description of tasks in this phase}
-    **Inputs**: {List of input files/paths}
-    **Outputs**: {List of expected output files}
-    **Scripts**: {List of scripts with brief descriptions}
+    # {folder_name}
+    **Objective**: {description}
+    **Inputs**: {list}
+    **Outputs**: {list}
+    **Scripts**: {list}
+
 path_creation_criteria:
   create_new_path_when:
-    - "Testing a high-risk data transformation (e.g., massive outlier removal)."
+    - "Testing a high‑risk data transformation."
     - "Trying an alternative, unproven model architecture."
-    - "Conducting a separate sensitivity analysis that might disrupt the main flow."
-  continue_in_path_when:
-    - "Adding standard robustness checks."
+    - "Starting a separate sensitivity analysis that might disrupt the main flow."
+    - "Beginning a new research track."
+  continue_in_same_path_when:
+    - "Adding robustness checks."
     - "Fixing bugs in the current script."
+    - "Running the next logical step on the same track."
+
 steps:
   - id: setup_directories
-    name: "Setup Directories"
-    description: "Use sys.path.create for each experiment step (e.g., 01_experiment_baseline, 02_data_preparation). Do NOT create a synthesis path — synthesis is a top-level folder populated by tool.synthesize."
+    name: "Setup directories"
+    description: "Use sys.path.create to create each step folder with the format {step_number}_{descriptive_name}. Do not create a synthesis step."
   - id: write_readmes
     name: "Write READMEs"
-    description: "Populate each directory with the boilerplate README."
+    description: "Populate each step folder with the boilerplate README."
   - id: evaluate_path_creation
-    name: "Evaluate Path Creation"
-    description: "Review path creation criteria to decide if a new chronological path is needed."
+    name: "Evaluate path creation"
+    description: "Review path_creation_criteria to decide whether the next step starts a new track (new path number) or continues on the current one."
+
 multi_language_workflow:
-  description: "Guidelines for orchestrating workflows that span multiple programming languages."
+  description: "Guidelines for multi‑language workflows."
   best_practices:
-    - "Use tool.data.convert to seamlessly pass data between Python, R, and Julia (e.g., convert .csv to .feather or .rds)."
-    - "Keep language-specific scripts isolated but run them sequentially within the same experiment directory."
-    - "Example: Run data preprocessing in R (tool.r.exec), save output as .feather, then run ML models in Python (tool.python.exec)."
-    - "Use sys.env.snapshot to capture all environments (pip, renv, Pkg) simultaneously after the experiment is configured."
+    - "Use tool.data.convert to move data between R, Python, Julia (e.g., .csv ↔ .feather)."
+    - "Run language‑specific scripts sequentially inside the same step folder."
+    - "Snapshot all environments with sys.env.snapshot when ready."
