@@ -788,7 +788,7 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             arguments.get("project_name", "Research Project"),
             git_init=arguments.get("git_init", False),
         )
-        if (root / ".os_state").exists():
+        if (root / ".os_state").exists() and (root / "workspace").exists():
             _profile_inputs(root)
         return _text(_success_envelope({"scaffolded": True}))
 
@@ -857,13 +857,13 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
     if name == "sys.state.minimal_context":
         from research_os.state.state_ledger import ResearchLedger
 
-        ledger = ResearchLedger(root)
+        ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
         summary = ledger.get_project_summary(max_tokens=450)
         return _text(_success_envelope({"minimal_context": summary}))
 
     if name == "sys.state.health":
         from research_os.state.state_ledger import ResearchLedger
-        ledger = ResearchLedger(root)
+        ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
         return _text(_success_envelope(ledger.health()))
 
     if name == "sys.session.handoff":
