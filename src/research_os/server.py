@@ -695,13 +695,7 @@ def _log_search(root: Path, tool_name: str, query: str, count: int):
         )
 
 
-def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
-    if not _rate_limiter.is_allowed():
-        return _text(_error_envelope("Rate limit exceeded."))
-
-    logger.info(f"Tool call: {name}")
-
-    if name == "sys.guidance.list":
+def _handle_sys_guidance_list(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = list_protocols(root)
         if "error" in res:
             return _text(_error_envelope(res["error"]))
@@ -712,7 +706,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
         ]
         return _text(_success_envelope({"protocols": summaries}))
 
-    if name == "sys.guidance.get":
+
+def _handle_sys_guidance_get(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p_name = arguments.get("protocol_name")
         # Check model profile
         config_res = get_config(root)
@@ -744,20 +739,23 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
 
         return _text(_success_envelope(res))
 
-    if name == "sys.guidance.validate":
+
+def _handle_sys_guidance_validate(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p_name = arguments.get("protocol_name")
         res = validate_protocol(p_name, root)
         if "error" in res:
             return _text(_error_envelope(res["error"]))
         return _text(_success_envelope(res))
 
-    if name == "sys.tool.info":
+
+def _handle_sys_tool_info(name: str, arguments: dict, root: Path) -> list[TextContent]:
         t_name = arguments.get("tool_name")
         if t_name in TOOL_DEFINITIONS:
             return _text(_success_envelope(TOOL_DEFINITIONS[t_name]))
         return _text(_error_envelope(f"Tool {t_name} not found."))
 
-    if name == "sys.tool.search":
+
+def _handle_sys_tool_search(name: str, arguments: dict, root: Path) -> list[TextContent]:
         q = arguments.get("query", "").lower()
         matches = []
         for t_name, t_schema in TOOL_DEFINITIONS.items():
@@ -767,22 +765,26 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
                 )
         return _text(_success_envelope({"tools": matches}))
 
-    if name == "tool.r.exec":
+
+def _handle_tool_r_exec(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.execution import execute_r_script
         res = execute_r_script(arguments["script_path"], root, timeout=arguments.get("timeout", 300))
         return _text(_success_envelope(res)) if "error" not in res else _text(_error_envelope(res["error"]))
 
-    if name == "tool.julia.exec":
+
+def _handle_tool_julia_exec(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.execution import execute_julia_script
         res = execute_julia_script(arguments["script_path"], root, timeout=arguments.get("timeout", 300))
         return _text(_success_envelope(res)) if "error" not in res else _text(_error_envelope(res["error"]))
 
-    if name == "tool.bash.exec":
+
+def _handle_tool_bash_exec(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.execution import execute_bash_script
         res = execute_bash_script(arguments["script_path"], root, timeout=arguments.get("timeout", 300))
         return _text(_success_envelope(res)) if "error" not in res else _text(_error_envelope(res["error"]))
 
-    if name == "sys.workspace.scaffold":
+
+def _handle_sys_workspace_scaffold(name: str, arguments: dict, root: Path) -> list[TextContent]:
         scaffold_minimal_workspace(
             root,
             arguments.get("project_name", "Research Project"),
@@ -792,7 +794,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             _profile_inputs(root)
         return _text(_success_envelope({"scaffolded": True}))
 
-    if name == "sys.file.read":
+
+def _handle_sys_file_read(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p = root / arguments["filepath"]
         if not p.exists() or not p.is_file():
             return _text(_error_envelope("File not found"))
@@ -803,7 +806,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         return _text(_success_envelope({"content": p.read_text()}))
 
-    if name == "sys.file.write":
+
+def _handle_sys_file_write(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p = root / arguments["filepath"]
         force = arguments.get("force", False)
         # Immutability enforcement
@@ -825,24 +829,28 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             _success_envelope({"written": True, "checksum": compute_file_hash(p)})
         )
 
-    if name == "sys.file.list":
+
+def _handle_sys_file_list(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p = root / arguments["directory"]
         if not p.exists() or not p.is_dir():
             return _text(_error_envelope("Directory not found"))
         files = [str(f.relative_to(root)) for f in p.rglob("*") if f.is_file()]
         return _text(_success_envelope({"files": files}))
 
-    if name == "sys.file.delete":
+
+def _handle_sys_file_delete(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p = root / arguments["filepath"]
         if p.exists() and p.is_file():
             p.unlink()
             return _text(_success_envelope({"deleted": True}))
         return _text(_error_envelope("File not found"))
 
-    if name == "sys.state.get":
+
+def _handle_sys_state_get(name: str, arguments: dict, root: Path) -> list[TextContent]:
         return _text(_success_envelope(load_state(root)))
 
-    if name == "sys.state.summary":
+
+def _handle_sys_state_summary(name: str, arguments: dict, root: Path) -> list[TextContent]:
         state = load_state(root)
         paths = list(state.get("paths", {}).keys())
         return _text(
@@ -854,19 +862,22 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         )
 
-    if name == "sys.state.minimal_context":
+
+def _handle_sys_state_minimal_context(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.state.state_ledger import ResearchLedger
 
         ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
         summary = ledger.get_project_summary(max_tokens=450)
         return _text(_success_envelope({"minimal_context": summary}))
 
-    if name == "sys.state.health":
+
+def _handle_sys_state_health(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.state.state_ledger import ResearchLedger
         ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
         return _text(_success_envelope(ledger.health()))
 
-    if name == "sys.session.handoff":
+
+def _handle_sys_session_handoff(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = session_handoff(root)
         return (
             _text(_success_envelope(res))
@@ -874,7 +885,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "tool.task.create":
+
+def _handle_tool_task_create(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.task import create_task
 
         res = create_task(arguments.get("task_description", ""), root)
@@ -884,7 +896,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "tool.synthesize":
+
+def _handle_tool_synthesize(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.synthesize import synthesize_workspace
         res = synthesize_workspace(
             root,
@@ -893,7 +906,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
         )
         return _text(_success_envelope(res)) if "error" not in res else _text(_error_envelope(res["error"]))
 
-    if name == "tool.audit.synthesis":
+
+def _handle_tool_audit_synthesis(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.audit import audit_synthesis
 
         res = audit_synthesis(arguments["paper_path"], root)
@@ -903,32 +917,37 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "tool.audit.statistical_power":
+
+def _handle_tool_audit_statistical_power(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.audit import audit_power
-        
+
         effect_size = arguments.get("effect_size", 0.5)
         res = audit_power(arguments["filepath"], effect_size, arguments["alpha"], arguments["n"], root)
         return _text(_success_envelope(res)) if res["status"] != "error" else _text(_error_envelope(res["message"]))
 
-    if name == "tool.audit.assumptions":
+
+def _handle_tool_audit_assumptions(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.audit import audit_assumptions
-        
+
         res = audit_assumptions(arguments["filepath"], root)
         return _text(_success_envelope(res)) if res["status"] != "error" else _text(_error_envelope(res["message"]))
 
-    if name == "tool.audit.figure_quality":
+
+def _handle_tool_audit_figure_quality(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.audit import audit_figure
-        
+
         res = audit_figure(arguments["filepath"], root)
         return _text(_success_envelope(res)) if res["status"] != "error" else _text(_error_envelope(res["message"]))
 
-    if name == "tool.audit.reproducibility_full":
+
+def _handle_tool_audit_reproducibility_full(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.audit import audit_reproducibility_full
-        
+
         res = audit_reproducibility_full(root)
         return _text(_success_envelope(res)) if res["status"] != "error" else _text(_error_envelope(res["message"]))
 
-    if name == "sys.checkpoint.create":
+
+def _handle_sys_checkpoint_create(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = create_checkpoint(arguments.get("description", "manual"), root)
         return (
             _text(_success_envelope(res))
@@ -936,7 +955,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.checkpoint.rollback":
+
+def _handle_sys_checkpoint_rollback(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = rollback_checkpoint(arguments["checkpoint_id"], root)
         return (
             _text(_success_envelope(res))
@@ -944,7 +964,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.checkpoint.list":
+
+def _handle_sys_checkpoint_list(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = list_checkpoints(root)
         return (
             _text(_success_envelope(res))
@@ -952,7 +973,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.checkpoint.pending":
+
+def _handle_sys_checkpoint_pending(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = checkpoint_pending(
             arguments["description"], arguments["requires_approval"], root
         )
@@ -962,7 +984,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.checkpoint.approve":
+
+def _handle_sys_checkpoint_approve(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = checkpoint_approve(root)
         return (
             _text(_success_envelope(res))
@@ -970,7 +993,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.path.create":
+
+def _handle_sys_path_create(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = create_path(arguments["name"], root)
         return (
             _text(_success_envelope(res))
@@ -978,7 +1002,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.path.abandon":
+
+def _handle_sys_path_abandon(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = abandon_path(arguments["path_name"], arguments["rationale"], root)
         return (
             _text(_success_envelope(res))
@@ -986,15 +1011,18 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.path.list":
+
+def _handle_sys_path_list(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = list_paths(root)
         return _text(_success_envelope(res))
 
-    if name == "sys.config.init":
+
+def _handle_sys_config_init(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = init_config(root)
         return _text(_success_envelope(res))
 
-    if name == "sys.config.get":
+
+def _handle_sys_config_get(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = get_config(root)
         return (
             _text(_success_envelope(res))
@@ -1002,7 +1030,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.config.set":
+
+def _handle_sys_config_set(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = set_config(arguments["key"], arguments["value"], root)
         return (
             _text(_success_envelope(res))
@@ -1010,7 +1039,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.config.validate":
+
+def _handle_sys_config_validate(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = validate_config(root)
         return (
             _text(_success_envelope(res))
@@ -1018,7 +1048,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.notify":
+
+def _handle_sys_notify(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = notify_researcher(arguments["message"], arguments["level"], root)
         return (
             _text(_success_envelope(res))
@@ -1026,7 +1057,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.external_mcp.discover":
+
+def _handle_sys_external_mcp_discover(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = discover_mcp(root)
         return (
             _text(_success_envelope(res))
@@ -1034,50 +1066,58 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "sys.task.monitor":
+
+def _handle_sys_task_monitor(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = task_monitor(arguments["task_id"], root)
         return _text(_success_envelope(res))
 
-    if name == "sys.task.kill":
+
+def _handle_sys_task_kill(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = task_kill(arguments["task_id"], root)
         return _text(_success_envelope(res))
 
-    if name == "mem.analysis.log":
+
+def _handle_mem_analysis_log(name: str, arguments: dict, root: Path) -> list[TextContent]:
         log_path = root / "workspace" / "analysis.md"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(log_path, "a") as f:
             f.write(f"[{now_iso()}] {arguments['entry']}\n")
         return _text(_success_envelope({"logged": True}))
 
-    if name == "mem.methods.append":
+
+def _handle_mem_methods_append(name: str, arguments: dict, root: Path) -> list[TextContent]:
         m_path = root / "workspace" / "methods.md"
         m_path.parent.mkdir(parents=True, exist_ok=True)
         with open(m_path, "a") as f:
             f.write(f"- {arguments['method']}\n")
         return _text(_success_envelope({"logged": True}))
 
-    if name == "tool.search.semantic_scholar":
+
+def _handle_tool_search_semantic_scholar(name: str, arguments: dict, root: Path) -> list[TextContent]:
         q = arguments["query"]
         limit = arguments.get("limit", 5)
         _log_search(root, name, q, 0)
         res = search_semantic_scholar(q, limit)
         return _text(_success_envelope(res))
 
-    if name == "tool.search.pubmed":
+
+def _handle_tool_search_pubmed(name: str, arguments: dict, root: Path) -> list[TextContent]:
         q = arguments["query"]
         limit = arguments.get("limit", 5)
         _log_search(root, name, q, 0)
         res = search_pubmed(q, limit)
         return _text(_success_envelope(res))
 
-    if name == "tool.search.crossref":
+
+def _handle_tool_search_crossref(name: str, arguments: dict, root: Path) -> list[TextContent]:
         q = arguments["query"]
         limit = arguments.get("limit", 5)
         _log_search(root, name, q, 0)
         res = search_crossref(q, limit)
         return _text(_success_envelope(res))
 
-    if name == "tool.search.web":
+
+def _handle_tool_search_web(name: str, arguments: dict, root: Path) -> list[TextContent]:
         q = arguments["query"]
         limit = arguments.get("limit", 5)
         _log_search(root, name, q, 0)
@@ -1086,11 +1126,13 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             return _text(_success_envelope(res))
         return _text(_success_envelope(res))
 
-    if name == "tool.web.scrape":
+
+def _handle_tool_web_scrape(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = scrape_web(arguments["url"])
         return _text(_success_envelope(res))
 
-    if name == "tool.literature.download":
+
+def _handle_tool_literature_download(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = download_literature(arguments["url"], arguments["filename"], root)
         return (
             _text(_success_envelope(res))
@@ -1098,7 +1140,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             else _text(_error_envelope(res["message"]))
         )
 
-    if name == "tool.python.exec":
+
+def _handle_tool_python_exec(name: str, arguments: dict, root: Path) -> list[TextContent]:
         p = root / arguments["script_path"]
         if not p.exists() or not p.is_file():
             return _text(_error_envelope("Script not found"))
@@ -1123,22 +1166,24 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         )
 
-    if name in ("tool.r.exec", "tool.julia.exec", "tool.bash.exec"):
+
+def _handle_tool_r_exec_group(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.execution import execute_r_script, execute_julia_script, execute_bash_script
-        
+
         timeout = arguments.get("timeout", 300)
         script_path = arguments["script_path"]
-        
+
         if name == "tool.r.exec":
             res = execute_r_script(script_path, root, timeout)
         elif name == "tool.julia.exec":
             res = execute_julia_script(script_path, root, timeout)
         else:
             res = execute_bash_script(script_path, root, timeout)
-            
+
         return _text(_success_envelope(res)) if res["status"] != "error" else _text(_error_envelope(res["message"]))
 
-    if name == "tool.package.install":
+
+def _handle_tool_package_install(name: str, arguments: dict, root: Path) -> list[TextContent]:
         packages = arguments["packages"]
         # Verify in a sub-process
         res = package_install(packages)
@@ -1150,30 +1195,36 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
                     f.write(f"{pkg}\n")
         return _text(_success_envelope(res))
 
-    if name in ("tool.env.freeze", "sys.env.snapshot"):
+
+def _handle_tool_env_freeze_group(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.environment import env_snapshot
         res = env_snapshot(root)
         return _text(_success_envelope(res)) if res.get("status") == "success" else _text(_error_envelope(res.get("message", "Error")))
 
-    if name == "tool.env.restore":
+
+def _handle_tool_env_restore(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.environment import env_restore
         res = env_restore(arguments.get("requirements", ""), root)
         return _text(_success_envelope(res)) if res.get("status") != "error" and res.get("code", 0) == 0 else _text(_error_envelope(res.get("error", "Error")))
 
-    if name == "sys.env.docker.generate":
+
+def _handle_sys_env_docker_generate(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.environment import env_docker_generate
         res = env_docker_generate(root)
         return _text(_success_envelope(res)) if res.get("status") == "success" else _text(_error_envelope(res.get("message", "Error")))
 
-    if name == "tool.latex.compile":
+
+def _handle_tool_latex_compile(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.latex import latex_compile
         return _text(_success_envelope(latex_compile(root)))
 
-    if name == "tool.poster.create":
+
+def _handle_tool_poster_create(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.latex import create_poster
         return _text(_success_envelope(create_poster(root)))
 
-    if name == "tool.data.sample":
+
+def _handle_tool_data_sample(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.data import data_sample
         res = data_sample(
             arguments["filepath"], arguments["n_rows"], arguments["strategy"], root
@@ -1186,7 +1237,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         )
 
-    if name == "tool.data.convert":
+
+def _handle_tool_data_convert(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.data import data_convert
         res = data_convert(
             arguments["filepath"], arguments["output_format"], root
@@ -1199,7 +1251,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         )
 
-    if name == "tool.log.decision":
+
+def _handle_tool_log_decision(name: str, arguments: dict, root: Path) -> list[TextContent]:
         res = log_decision(
             arguments["context"],
             arguments["selected"],
@@ -1208,7 +1261,8 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
         )
         return _text(_success_envelope(res))
 
-    if name == "tool.synthesize":
+
+def _handle_tool_synthesize(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.tools.actions.synthesize import synthesize_workspace
 
         fmt = arguments.get("output_format", "markdown")
@@ -1218,14 +1272,84 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             return _text(_error_envelope(res["error"]))
         return _text(_success_envelope(res))
 
-    # Catch-all for unimplemeted tools
-    if name.startswith("sys.") or name.startswith("tool.") or name.startswith("mem."):
-        return _text(
-            _success_envelope({"message": f"{name} is a stub implementation."})
-        )
 
-    return _text(_error_envelope(f"Unknown tool: {name}"))
+_HANDLERS = {
+    "sys.guidance.list": _handle_sys_guidance_list,
+    "sys.guidance.get": _handle_sys_guidance_get,
+    "sys.guidance.validate": _handle_sys_guidance_validate,
+    "sys.tool.info": _handle_sys_tool_info,
+    "sys.tool.search": _handle_sys_tool_search,
+    "tool.r.exec": _handle_tool_r_exec_group,
+    "tool.julia.exec": _handle_tool_r_exec_group,
+    "tool.bash.exec": _handle_tool_r_exec_group,
+    "sys.workspace.scaffold": _handle_sys_workspace_scaffold,
+    "sys.file.read": _handle_sys_file_read,
+    "sys.file.write": _handle_sys_file_write,
+    "sys.file.list": _handle_sys_file_list,
+    "sys.file.delete": _handle_sys_file_delete,
+    "sys.state.get": _handle_sys_state_get,
+    "sys.state.summary": _handle_sys_state_summary,
+    "sys.state.minimal_context": _handle_sys_state_minimal_context,
+    "sys.state.health": _handle_sys_state_health,
+    "sys.session.handoff": _handle_sys_session_handoff,
+    "tool.task.create": _handle_tool_task_create,
+    "tool.synthesize": _handle_tool_synthesize,
+    "tool.audit.synthesis": _handle_tool_audit_synthesis,
+    "tool.audit.statistical_power": _handle_tool_audit_statistical_power,
+    "tool.audit.assumptions": _handle_tool_audit_assumptions,
+    "tool.audit.figure_quality": _handle_tool_audit_figure_quality,
+    "tool.audit.reproducibility_full": _handle_tool_audit_reproducibility_full,
+    "sys.checkpoint.create": _handle_sys_checkpoint_create,
+    "sys.checkpoint.rollback": _handle_sys_checkpoint_rollback,
+    "sys.checkpoint.list": _handle_sys_checkpoint_list,
+    "sys.checkpoint.pending": _handle_sys_checkpoint_pending,
+    "sys.checkpoint.approve": _handle_sys_checkpoint_approve,
+    "sys.path.create": _handle_sys_path_create,
+    "sys.path.abandon": _handle_sys_path_abandon,
+    "sys.path.list": _handle_sys_path_list,
+    "sys.config.init": _handle_sys_config_init,
+    "sys.config.get": _handle_sys_config_get,
+    "sys.config.set": _handle_sys_config_set,
+    "sys.config.validate": _handle_sys_config_validate,
+    "sys.notify": _handle_sys_notify,
+    "sys.external_mcp.discover": _handle_sys_external_mcp_discover,
+    "sys.task.monitor": _handle_sys_task_monitor,
+    "sys.task.kill": _handle_sys_task_kill,
+    "mem.analysis.log": _handle_mem_analysis_log,
+    "mem.methods.append": _handle_mem_methods_append,
+    "tool.search.semantic_scholar": _handle_tool_search_semantic_scholar,
+    "tool.search.pubmed": _handle_tool_search_pubmed,
+    "tool.search.crossref": _handle_tool_search_crossref,
+    "tool.search.web": _handle_tool_search_web,
+    "tool.web.scrape": _handle_tool_web_scrape,
+    "tool.literature.download": _handle_tool_literature_download,
+    "tool.python.exec": _handle_tool_python_exec,
+    "tool.package.install": _handle_tool_package_install,
+    "tool.env.freeze": _handle_tool_env_freeze_group,
+    "sys.env.snapshot": _handle_tool_env_freeze_group,
+    "tool.env.restore": _handle_tool_env_restore,
+    "sys.env.docker.generate": _handle_sys_env_docker_generate,
+    "tool.latex.compile": _handle_tool_latex_compile,
+    "tool.poster.create": _handle_tool_poster_create,
+    "tool.data.sample": _handle_tool_data_sample,
+    "tool.data.convert": _handle_tool_data_convert,
+    "tool.log.decision": _handle_tool_log_decision,
+}
 
+def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
+    if not _rate_limiter.is_allowed():
+        return _text(_error_envelope("Rate limit exceeded."))
+    logger.info(f"Tool call: {name}")
+    handler = _HANDLERS.get(name)
+    if handler is None:
+        if name.startswith("sys.") or name.startswith("tool.") or name.startswith("mem."):
+            return _text(_success_envelope({"message": f"{name} is a stub implementation."}))
+        return _text(_error_envelope(f"Unknown tool: {name}"))
+    try:
+        return handler(name, arguments, root)
+    except Exception as e:
+        logger.exception(f"Tool {name} failed")
+        return _text(_error_envelope(str(e)))
 
 if HAS_MCP:
     server = Server("research-os")

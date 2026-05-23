@@ -486,24 +486,19 @@ class ResearchLedger:
         return "\n".join(lines)
 
     def health(self) -> dict:
-        """Returns current context estimate, paths, handoff recommendation."""
+        """Returns current qualitative indicators like paths, steps, and handoff recommendation."""
         state = self._load()
         paths = list(state.get("paths", {}).keys())
         turns = len(state.get("conversation_turns", []))
+        completed_steps = len(state.get("completed_steps", []))
         
-        context_estimate = "high" if turns >= 20 else "medium" if turns >= 10 else "low"
         recommend_handoff = turns >= 4
         
         return {
-            "context_estimate": context_estimate,
-            "active_paths": paths,
-            "handoff_recommendation": recommend_handoff,
-            "message": "Handoff recommended due to conversation length." if recommend_handoff else "Context size is healthy.",
-            "writing_queue": state.get("writing_queue", {
-                "pending_tasks": ["methods_log", "citations_update", "analysis_log"],
-                "next_task": "methods_log",
-                "recommended_protocol": "writing_methods"
-            })
+            "number_of_paths": len(paths),
+            "number_of_completed_steps": completed_steps,
+            "handoff_recommendation": "yes" if recommend_handoff else "no",
+            "message": "Handoff recommended due to conversation length." if recommend_handoff else "Workspace state is healthy."
         }
 
     def get_project_summary(self, max_tokens: int = 500) -> str:
