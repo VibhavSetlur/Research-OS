@@ -136,7 +136,7 @@ class TestCreateCheckpoint:
         (tmp_path / "workspace" / "data").mkdir()
         (tmp_path / "workspace" / "data" / "large.csv").write_text("a,b\n1,2")
 
-        ckpt_dir = tmp_path / ".research" / "checkpoints"
+        ckpt_dir = tmp_path / ".os_state" / "checkpoints"
         ckpt_dir.mkdir(parents=True)
         mock_path = ckpt_dir / "manual_20250101_120000.json"
         mock_path.write_text("{}")
@@ -157,7 +157,7 @@ class TestCreateCheckpoint:
             assert not any("large.csv" in n for n in names)
 
     def test_no_workspace(self, tmp_path):
-        ckpt_dir = tmp_path / ".research" / "checkpoints"
+        ckpt_dir = tmp_path / ".os_state" / "checkpoints"
         ckpt_dir.mkdir(parents=True)
         mock_path = ckpt_dir / "manual_20250101_120000.json"
         mock_path.write_text("{}")
@@ -173,7 +173,7 @@ class TestCreateCheckpoint:
 
 class TestRollbackCheckpoint:
     def test_success(self, tmp_path):
-        ckpt_dir = tmp_path / ".research" / "checkpoints"
+        ckpt_dir = tmp_path / ".os_state" / "checkpoints"
         ckpt_dir.mkdir(parents=True)
         (ckpt_dir / "cp1.json").write_text("{}")
 

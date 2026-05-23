@@ -3,7 +3,7 @@
 
 Enables resume from any checkpoint without rerunning expensive earlier phases.
 
-Location: .research/cache/checkpoints/<phase>_<timestamp>.json
+Location: .os_state/checkpoints/<phase>_<timestamp>.json
 """
 
 import hashlib
@@ -23,7 +23,7 @@ class CheckpointManager:
     def __init__(self, checkpoint_dir: Optional[Path] = None):
         if checkpoint_dir is None:
             root = find_project_root()
-            checkpoint_dir = root / "03_synthesis" / "checkpoints"
+            checkpoint_dir = root / ".os_state" / "checkpoints"
         self._dir = Path(checkpoint_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 

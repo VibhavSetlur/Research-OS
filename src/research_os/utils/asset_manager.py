@@ -2,7 +2,7 @@
 
 The installed package owns immutable prompts, skills, schemas, workflows, and
 domain registries under ``research_os.assets``. A project may override a
-single asset by creating the same relative path under ``.research/``.
+single asset by creating the same relative path under ``.os_state/assets/``.
 """
 
 from __future__ import annotations
@@ -35,19 +35,14 @@ class AssetManager:
         self.project_root = (
             Path(project_root) if project_root else self.find_project_root()
         )
-        self.override_root = self.project_root / ".research"
+        self.override_root = self.project_root / ".os_state" / "assets"
 
     @staticmethod
     def find_project_root(start: Optional[Path] = None) -> Path:
         """Find a Research OS workspace without requiring ``.research/``."""
         p = Path(start or Path.cwd()).resolve()
         markers = (
-            ".research",
-            "00_inputs",
-            "01_workspace",
-            "02_experiments",
-            "03_synthesis",
-            "inputs",
+            ".os_state",
         )
         for _ in range(10):
             if any((p / marker).exists() for marker in markers):
