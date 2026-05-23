@@ -402,7 +402,7 @@ TOOL_DEFINITIONS = {
         },
     },
     "tool.audit.statistical_power": {
-        "description": "Compute post-hoc power for statistical tests. Warns if power < 0.8.",
+        "description": "Compute post-hoc power for statistical tests. Warns if power < 0.8. Writes to workspace/<current_path>/outputs/reports/power_report.md.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
@@ -416,7 +416,7 @@ TOOL_DEFINITIONS = {
         },
     },
     "tool.audit.assumptions": {
-        "description": "Re-run assumption checks on the fitted model or residuals.",
+        "description": "Re-run assumption checks on the fitted model or residuals. Writes to workspace/<current_path>/outputs/reports/assumption_report.md.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
@@ -425,7 +425,7 @@ TOOL_DEFINITIONS = {
         },
     },
     "tool.audit.figure_quality": {
-        "description": "Check figure quality (DPI, colorblind-friendly, labels, error bars).",
+        "description": "Check figure quality (DPI, colorblind-friendly, labels, error bars). Writes to workspace/<current_path>/outputs/reports/figure_audit.md.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
@@ -434,7 +434,7 @@ TOOL_DEFINITIONS = {
         },
     },
     "tool.audit.reproducibility_full": {
-        "description": "Run a full reproducibility check using Docker.",
+        "description": "Run a full reproducibility check using Docker. Writes to workspace/logs/reproducibility_report.md.",
         "category": "audit",
         "inputSchema": {
             "type": "object",

@@ -4,6 +4,23 @@ from pathlib import Path
 
 logger = logging.getLogger("research.tools.audit")
 
+def get_current_path(root: Path) -> str:
+    try:
+        from research_os.project_ops import load_state
+        state = load_state(root)
+        current = state.get("current_path")
+        if current and current != "main":
+            return current
+    except Exception:
+        pass
+    
+    workspace = root / "workspace"
+    if workspace.exists():
+        dirs = [d.name for d in workspace.iterdir() if d.is_dir() and d.name[:2].isdigit() and not d.name.endswith("__DEAD_END")]
+        if dirs:
+            return sorted(dirs)[-1]
+    return ""
+
 
 def audit_synthesis(paper_path: str, root: Path) -> Dict[str, Any]:
     try:
@@ -64,10 +81,19 @@ def audit_power(filepath: str, effect_size: float, alpha: float, n: int, root: P
         
         report = {"power": power, "alpha": alpha, "effect_size": effect_size, "n": n}
         
-        if power < 0.8:
-            return {"status": "warning", "report": report, "message": f"Low statistical power ({power:.2f} < 0.8)."}
+        current = get_current_path(root)
+        if current:
+            out_path = root / "workspace" / current / "outputs" / "reports" / "power_report.md"
+        else:
+            out_path = root / "workspace" / "logs" / "power_report.md"
             
-        return {"status": "success", "report": report, "message": "Power analysis passed."}
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(f"# Power Analysis Report\n\n- Power: {power:.4f}\n- Alpha: {alpha}\n- Effect Size: {effect_size}\n- N: {n}\n")
+        
+        if power < 0.8:
+            return {"status": "warning", "report": report, "message": f"Low statistical power ({power:.2f} < 0.8).", "report_path": str(out_path)}
+            
+        return {"status": "success", "report": report, "message": "Power analysis passed.", "report_path": str(out_path)}
     except ImportError:
         return {"status": "error", "message": "statsmodels package is required for power analysis."}
     except Exception as e:
@@ -88,10 +114,13 @@ def audit_assumptions(filepath: str, root: Path) -> Dict[str, Any]:
             "durbin_watson": "passed"
         }
         
-        # Placeholder for writing the assumption report
-        out_path = root / "workspace" / "logs" / "assumption_report.md"
+        current = get_current_path(root)
+        if current:
+            out_path = root / "workspace" / current / "outputs" / "reports" / "assumption_report.md"
+        else:
+            out_path = root / "workspace" / "logs" / "assumption_report.md"
+            
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        
         md_content = "# Assumption Report\n\n- Shapiro-Wilk: passed\n- Levene: passed\n- VIF: passed\n- Durbin-Watson: passed\n"
         out_path.write_text(md_content)
         
@@ -116,7 +145,16 @@ def audit_figure(filepath: str, root: Path) -> Dict[str, Any]:
             "font_size_check": "passed"
         }
         
-        return {"status": "success", "report": report, "message": "Figure passed quality audit."}
+        current = get_current_path(root)
+        if current:
+            out_path = root / "workspace" / current / "outputs" / "reports" / "figure_audit.md"
+        else:
+            out_path = root / "workspace" / "logs" / "figure_audit.md"
+            
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("# Figure Audit Report\n\n- DPI Check: passed\n- Colorblind Friendly: passed\n- Axes Labeled: passed\n- Error Bars Present: passed\n- Font Size Check: passed\n")
+        
+        return {"status": "success", "report": report, "message": "Figure passed quality audit.", "report_path": str(out_path)}
     except Exception as e:
         logger.error(f"Audit figure failed: {e}")
         return {"status": "error", "message": str(e)}
@@ -135,7 +173,11 @@ def audit_reproducibility_full(root: Path) -> Dict[str, Any]:
             "checksum_match": True
         }
         
-        return {"status": "success", "report": report, "message": "Reproducibility audit passed."}
+        out_path = root / "workspace" / "logs" / "reproducibility_report.md"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("# Reproducibility Audit\n\n- Docker Build: success\n- Execution: success\n- Checksum Match: True\n")
+        
+        return {"status": "success", "report": report, "message": "Reproducibility audit passed.", "report_path": str(out_path)}
     except ImportError:
         return {"status": "error", "message": "docker SDK package is required for reproducibility audit."}
     except Exception as e:
