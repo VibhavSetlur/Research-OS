@@ -15,7 +15,7 @@ build/
 .ruff_cache/
 
 # IDE configs
-.cursor/
+/.cursor/
 /.cursorrules
 /.clinerules
 /AGENTS.md
@@ -79,4 +79,4 @@ desktop.ini
 
 # Temporary scratch folder
 scratch/
-workspace/
+/workspace/
