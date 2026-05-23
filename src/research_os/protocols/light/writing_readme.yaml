@@ -1,14 +1,10 @@
 name: writing_readme
-project_readme_update:
-  template: |
-    # {project_name}
-    **Status:** {complete/in_progress}
-    ## Key Findings
-    {top_3_findings}
-per_step_readme_format:
-  template: |
-    # {step_name}
-    ## Goal
-    {what_this_step_aims_to_achieve}
-    ## Outputs
-    - {output_1}
+version: 1.0.0
+project_template: |
+  # [Name]
+  ## Objective
+  [Obj]
+step_template: |
+  # Step [X]
+  ## Purpose
+  [Purp]

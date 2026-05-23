@@ -184,7 +184,7 @@ def default_state() -> dict:
 
 def load_state(root: Path | None = None) -> dict:
     root = _resolve_root(root)
-    ledger = ResearchLedger(state_json_path(root))
+    ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
     # _load handles default state correctly
     return ledger._load()
 
@@ -192,7 +192,7 @@ def load_state(root: Path | None = None) -> dict:
 def save_state(root: Path, state: dict) -> dict:
     """Atomically save state using ResearchLedger, logging diff."""
     root = _resolve_root(root)
-    ledger = ResearchLedger(state_json_path(root))
+    ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
     before = ledger._load()
     state["updated_at"] = now_iso()
     ledger._save(state)

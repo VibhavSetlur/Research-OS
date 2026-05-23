@@ -1,8 +1,8 @@
 name: writing_citations
-citation_entry_format:
-  template: |
-    ### [{citation_key}]
-    - **Authors:** {authors_et_al}
-    - **Year:** {year}
-    - **DOI:** {doi_url}
-    - **Verified:** {status}
+version: 1.0.0
+template: |
+  ## [Author, Year]
+  - DOI: [doi]
+  - Status: [Verified]
+  - Claims Used: [Claims]
+  - BibTeX: [entry]

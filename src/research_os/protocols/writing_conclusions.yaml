@@ -1,48 +1,20 @@
 name: writing_conclusions
 version: 1.0.0
-description: How to write workspace/{step}/conclusions.md after each experiment step.
-always_include: ["writing_core"]
-schema_version: "1.0"
-
-conclusions_format:
-  template: |
-    # {step_name} — Conclusions
-    
-    ## Key Findings
-    1. {finding_1_with_number}
-    2. {finding_2_with_number}
-    
-    ## Statistical Summary
-    | Metric | Value | 95% CI | p-value |
-    |--------|-------|--------|---------|
-    | {metric} | {value} | [{lower}, {upper}] | {p_value} |
-    
-    ## Bugs / Issues Encountered
-    - {bug_description_and_resolution}
-    
-    ## Routing Decision
-    - **Next Step:** {next_step_name}
-    - **Rationale:** {why_this_next_step}
-    - **Continue in Same Path:** {yes/no}
-    - **New Path Number (if applicable):** {path_number}
-    
-    ## Data Changes
-    - {any_new_data_added_or_modified_with_checksums}
-  rules:
-    - "Every finding must include a number (statistic, effect size, p-value, or count)."
-    - "If no bugs were encountered, write 'None.' — do not leave empty."
-    - "Routing decision must be concrete. 'Proceed' is not acceptable."
-
-expected_outputs:
-  - "workspace/{step_number}_{descriptive_name}/conclusions.md: Populated with structured conclusions"
-
-steps:
-  - id: summarize_findings
-    name: "Summarize Findings"
-    description: "Extract key quantitative results from the step's outputs."
-  - id: document_issues
-    name: "Document Issues"
-    description: "Log any bugs, warnings, or unexpected results encountered."
-  - id: decide_routing
-    name: "Decide Routing"
-    description: "Based on results, determine whether to continue in path, create new path, or abandon."
+description: How to write per-step conclusions.md
+template: |
+  # Step Conclusions
+  
+  ## Key Findings
+  - [Finding 1]
+  
+  ## Statistical Summary
+  | Metric | Value | CI |
+  |--------|-------|----|
+  | [M]    | [V]   | [C]|
+  
+  ## Bugs & Issues Encountered
+  - [Issue 1]
+  
+  ## Routing Decision
+  - [Next Step / Decision]
+instructions: "Summarize the experiment step. Include a markdown table for key statistics. Note any bugs encountered for reproducibility."

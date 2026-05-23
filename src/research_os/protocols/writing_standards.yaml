@@ -1,29 +1,17 @@
 name: writing_standards
 version: 3.0.0
-description: Index protocol for all writing tasks. Load this first to discover which specific writing protocol to use.
-schema_version: "1.0"
-
-# This protocol delegates to task-specific writing protocols.
-# Load writing_core for universal rules, then the task-specific protocol.
-
+description: Index — load writing_core first, then the task‑specific protocol.
 writing_protocols:
-  writing_core: "Universal rules: style, banned phrases, causal language, number formatting. ALWAYS load first."
-  writing_methods: "For writing to workspace/methods.md and per-step methods_research.md."
-  writing_citations: "For managing workspace/citations.md entries and citation verification."
-  writing_analysis_log: "For structured entries to workspace/analysis.md via mem.analysis.log."
-  writing_conclusions: "For per-step conclusions.md after each experiment."
-  writing_synthesis: "For building the final manuscript section-by-section into synthesis/."
-  writing_readme: "For updating project and per-step README files."
-
+  writing_core: "Universal rules. ALWAYS load first for any writing task."
+  writing_methods: "For workspace/methods.md and per‑step methods_research.md."
+  writing_citations: "For workspace/citations.md."
+  writing_analysis_log: "For workspace/analysis.md via mem.analysis.log."
+  writing_conclusions: "For per‑step conclusions.md."
+  writing_synthesis: "For synthesis/paper.md section‑by‑section."
+  writing_readme: "For project and per‑step README.md."
 how_to_use:
-  - step: "Identify the writing task (methods, citations, analysis log, conclusions, synthesis, or readme)."
-  - step: "Load writing_core for universal rules."
-  - step: "Load the task-specific protocol listed above."
-  - step: "Follow the template in the task-specific protocol exactly."
-  - step: "For small models: handle ONE writing task per chat response. Call sys.session.handoff between tasks."
-
-expected_outputs: []
-steps:
-  - id: discover_task
-    name: "Discover Writing Task"
-    description: "Identify which writing protocol is needed and load it alongside writing_core."
+  - "Identify the writing task."
+  - "Load writing_core for universal rules."
+  - "Load the task‑specific protocol."
+  - "Execute ONE writing task per AI response (small/medium models)."
+  - "For small models: treat EACH synthesis section as a separate chat session."

@@ -1,62 +1,18 @@
 name: writing_readme
 version: 1.0.0
-description: How to update project README.md and per-step README.md files.
-always_include: ["writing_core"]
-schema_version: "1.0"
-
-project_readme_update:
-  # Applied during final synthesis
-  template: |
-    # {project_name}
-    
-    **Research Question:** {question}
-    **Status:** {complete/in_progress}
-    **Last Updated:** {date}
-    
-    ## Workflow Summary
-    ![Workflow Diagram](synthesis/workflow_diagram.png)
-    
-    ## Key Findings
-    {top_3_findings}
-    
-    ## Outputs
-    - [Abstract](synthesis/abstract.md)
-    - [Paper](synthesis/paper.pdf)
-    {additional_outputs}
-    
-    ## How to Reproduce
-    1. Clone this repository
-    2. Restore environment: `pip install -r environment/requirements.txt`
-    3. Run scripts in order: {script_order}
-
-per_step_readme_format:
-  template: |
-    # {step_name}
-    **Created:** {date}
-    
-    ## Goal
-    {what_this_step_aims_to_achieve}
-    
-    ## Input Data
-    - {input_1} (checksum: sha256:{hash})
-    
-    ## Methods
-    - {method_1}
-    
-    ## Outputs
-    - {output_1}
-    
-    ## Next-Step Decision
-    {routing_decision}
-
-expected_outputs:
-  - "README.md: Updated with project status and findings"
-  - "workspace/{step_number}_{descriptive_name}/README.md: Updated after step completion"
-
-steps:
-  - id: update_project_readme
-    name: "Update Project README"
-    description: "After final synthesis, update the project README with findings and outputs."
-  - id: update_step_readme
-    name: "Update Step README"
-    description: "After completing a step, fill in the per-step README with actual results."
+description: How to update project and per-step README.md
+project_template: |
+  # Project Name
+  ## Objective
+  [Objective]
+  ## Structure
+  - `workspace/`: [Description]
+  ## Status
+  [Current Status]
+step_template: |
+  # Step [X]
+  ## Purpose
+  [Purpose]
+  ## Outputs
+  - [File 1]
+instructions: "Maintain a clear overview of the project structure and step-specific goals."

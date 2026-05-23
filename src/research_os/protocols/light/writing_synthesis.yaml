@@ -1,6 +1,4 @@
 name: writing_synthesis
-synthesis_workflow:
-  section_order: ["methods", "results", "discussion", "abstract", "final"]
-  tool_calls:
-    - "tool.synthesize section={section}"
-    - "tool.latex.compile"
+version: 1.0.0
+section_order: [Methods, Results, Discussion, Abstract, Final]
+instructions: "Use tool.synthesize(section='...'). Small models: one section per session."

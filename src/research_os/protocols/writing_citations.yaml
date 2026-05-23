@@ -1,40 +1,15 @@
 name: writing_citations
 version: 1.0.0
-description: How to format and manage citations in workspace/citations.md.
-always_include: ["writing_core"]
-schema_version: "1.0"
-
-citation_entry_format:
-  template: |
-    ### [{citation_key}]
-    - **Authors:** {authors_et_al}
-    - **Year:** {year}
-    - **Title:** {title}
-    - **Venue:** {journal_or_conference}
-    - **DOI:** {doi_url}
-    - **Verified:** {status} — {verification_date}
-    - **Claims Used:** {list_of_specific_claims_cited_in_manuscript}
-    - **BibTeX:**
-      ```bibtex
-      {bibtex_entry}
-      ```
-  rules:
-    - "citation_key format: FirstAuthorLastNameYear (e.g., Smith2023)"
-    - "Verified status: VERIFIED | CONDITIONAL | FAILED | PENDING"
-    - "Every cited claim must reference which specific finding from the paper supports it."
-    - "Run citation_verifier BEFORE marking as VERIFIED."
-
-expected_outputs:
-  - "workspace/citations.md: Updated with new verified citation entry"
-  - "workspace/logs/citation_verification.log: Record of verification passes"
-
-steps:
-  - id: add_citation
-    name: "Add Citation"
-    description: "Insert a new citation using the citation_entry_format template."
-  - id: verify_citation
-    name: "Verify Citation"
-    description: "Run citation_verifier (3-pass: DOI existence → abstract content check → retraction status). Update verification status."
-  - id: link_claims
-    name: "Link Claims to Sources"
-    description: "For every factual claim in the text, add a citation key linking to a verified entry in citations.md."
+description: How to write to workspace/citations.md
+template: |
+  ## [Author(s), Year]
+  - **DOI**: [doi]
+  - **Verification Status**: [Verified | Unverified]
+  - **BibTeX**:
+    ```bibtex
+    [BibTeX entry]
+    ```
+  - **Claims Used**:
+    - [Specific claim 1]
+    - [Specific claim 2]
+instructions: "Ensure every claim maps exactly to a verified paper. Do not invent DOIs."

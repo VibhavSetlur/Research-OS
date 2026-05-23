@@ -1,91 +1,11 @@
 name: writing_synthesis
 version: 1.0.0
-description: How to build the final manuscript section-by-section into synthesis/.
-always_include: ["writing_core"]
-schema_version: "1.0"
-
-synthesis_workflow:
-  description: >
-    For complex papers, do NOT call tool.synthesize once. Build section by section.
-    Each section call is a separate AI prompt. Between sections, ask the researcher
-    to review before continuing.
-  section_order:
-    - section: "methods"
-      source_files:
-        - "workspace/methods.md"
-        - "workspace/*/methods_research.md"
-      tool_call: "tool.synthesize section=methods"
-      output: "synthesis/methods.md"
-      review_prompt: "Please review synthesis/methods.md. Does this accurately describe the study design, sample, measures, and analysis plan? Type 'continue' or suggest changes."
-    - section: "results"
-      source_files:
-        - "workspace/analysis.md"
-        - "workspace/*/conclusions.md"
-        - "workspace/*/outputs/figures/"
-      tool_call: "tool.synthesize section=results"
-      output: "synthesis/results.md"
-      review_prompt: "Please review synthesis/results.md. Are the best figures included? Do the numbers match what you see in the outputs? Type 'continue' or suggest changes."
-    - section: "discussion"
-      source_files:
-        - "synthesis/results.md"
-        - "workspace/citations.md"
-        - "synthesis/evidence_table.md"
-      tool_call: "tool.synthesize section=discussion"
-      output: "synthesis/discussion.md"
-      review_prompt: "Please review synthesis/discussion.md. Are limitations honestly addressed? Are all claims backed by evidence strength? Type 'continue' or suggest changes."
-    - section: "abstract"
-      source_files:
-        - "synthesis/methods.md"
-        - "synthesis/results.md"
-        - "synthesis/discussion.md"
-      tool_call: "tool.synthesize section=abstract"
-      output: "synthesis/abstract.md"
-      review_prompt: "Please review synthesis/abstract.md (must be ≤250 words). Does it stand alone as a complete summary? Type 'continue' or suggest changes."
-    - section: "final"
-      source_files:
-        - "synthesis/*.md"
-      tool_call: "tool.synthesize"
-      output: "synthesis/paper.md"
-      review_prompt: "Full paper assembled at synthesis/paper.md. Review and call tool.latex.compile to generate PDF."
-
-  small_model_specific:
-    description: "For small models, treat EACH section as a separate chat session."
-    workflow:
-      - "Session 1: Call tool.synthesize section=methods → sys.session.handoff"
-      - "Session 2: Call tool.synthesize section=results → sys.session.handoff"
-      - "Session 3: Call tool.synthesize section=discussion → sys.session.handoff"
-      - "Session 4: Call tool.synthesize section=abstract → sys.session.handoff"
-      - "Session 5: Call tool.synthesize → tool.audit.synthesis → tool.latex.compile"
-
-  abstract_spec:
-    word_limit: 250
-    structure:
-      background: "1-2 sentences on the research gap."
-      methods: "2-3 sentences on design, sample, and analysis."
-      results: "2-3 sentences with key numbers and statistics."
-      conclusion: "1-2 sentences on implications."
-    must_include: "At least one quantitative result with confidence interval."
-
-  poster_spec:
-    sections: ["Title & Authors", "Background", "Methods", "Results (key figures)", "Conclusions", "References (compact)"]
-    figure_count: "2-4 key figures"
-    tool: "tool.poster.create"
-
-expected_outputs:
-  - "synthesis/methods.md"
-  - "synthesis/results.md"
-  - "synthesis/discussion.md"
-  - "synthesis/abstract.md"
-  - "synthesis/paper.md"
-  - "synthesis/paper.pdf (after tool.latex.compile)"
-
-steps:
-  - id: build_section
-    name: "Build Section"
-    description: "Generate ONE section at a time. After each section, ask researcher to review before proceeding."
-  - id: assemble_final
-    name: "Assemble Final Paper"
-    description: "Combine all sections into paper.md. Run tool.audit.synthesis."
-  - id: compile_pdf
-    name: "Compile PDF"
-    description: "Run tool.latex.compile to generate paper.pdf."
+description: How to build synthesis/paper.md section-by-section
+section_order:
+  1: "Methods"
+  2: "Results"
+  3: "Discussion"
+  4: "Abstract"
+  5: "Final Assembly"
+tool_calls: "Use tool.synthesize with section parameter (e.g. section='methods'). Call without section for final assembly."
+small_model_workflow: "Treat EACH synthesis section as a separate chat session to avoid context bloat. Wait for user approval before moving to the next section."

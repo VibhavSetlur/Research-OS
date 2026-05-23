@@ -1,31 +1,12 @@
 name: writing_core
 version: 1.0.0
-description: Universal writing rules applied to ALL research outputs. Load this for any writing task.
-schema_version: "1.0"
-
-universal_rules:
-  style:
-    - "Use standard academic English. No emojis, no em-dashes, no informal contractions."
-    - "Use past tense for describing completed work. Use present tense for established facts."
-    - "Always state direction AND magnitude of effects, not just significance."
+description: Universal writing rules (ALWAYS loaded for any writing task)
+rules:
   banned_phrases:
-    - '"prove / proves / proven" → "suggest / indicate / demonstrate"'
-    - '"very / extremely / huge" → "substantial / considerable / marked"'
-    - '"interestingly" → remove (let the reader decide what is interesting)'
-  causal_language:
-    avoid_if_observational: ["caused", "led to", "resulted in", "impacted", "determined"]
-    use_instead: ["was associated with", "was correlated with", "predicted", "was linked to"]
-  numbers_and_units:
-    - "Report p-values to 3 decimal places (p = .042), unless < .001"
-    - "Report test statistics: t(df) = X.XX, F(df1, df2) = X.XX, χ²(df, N = X) = X.XX"
-    - "Always include units in parentheses after first mention"
-    - "Use spaces around operators: p < .05, not p<.05"
-
-expected_outputs: []
-steps:
-  - id: apply_core_rules
-    name: "Apply Core Writing Rules"
-    description: "Scan the text for banned phrases, causal language violations in observational contexts, and number/unit formatting. Fix ALL issues."
-  - id: verify_tense
-    name: "Verify Tense Consistency"
-    description: "Ensure past tense for actions performed, present tense for established knowledge."
+    - "delve"
+    - "tapestry"
+    - "in conclusion"
+    - "it is important to note"
+  causal_language: "Use 'associated with' instead of 'causes' unless backed by randomized control trials. Avoid definitive claims."
+  number_formatting: "Spell out numbers less than 10; use digits for 10 and above. Always use leading zeros for decimals (0.05)."
+  tense: "Use past tense for Methods and Results. Use present tense for Conclusions and general truths."

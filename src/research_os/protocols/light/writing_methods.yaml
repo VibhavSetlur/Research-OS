@@ -1,12 +1,8 @@
 name: writing_methods
-methods_md_entry_format:
-  template: |
-    ### [{date}] {method_name}
-    **Step:** {step_number}_{step_name}
-    **Input:** {input_file_path}
-    **Output:** {output_file_path}
-    **Checksum:** sha256:{hash}
-  rules:
-    - "Every assumption must have a p-value."
-    - "If violated, state remedy."
-    - "Never skip checksum."
+version: 1.0.0
+template: |
+  ## [Step]
+  - Tool: [Name/Version]
+  - Assumptions: [List]
+  - Checksum: [Hash]
+  - Rationale: [Why]

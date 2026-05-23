@@ -1,9 +1,17 @@
 name: writing_standards
+version: 3.0.0
+description: Index — load writing_core first, then the task‑specific protocol.
 writing_protocols:
-  writing_core: "Universal rules."
-  writing_methods: "For methods.md."
-  writing_citations: "For citations.md."
-  writing_analysis_log: "For analysis.md log."
-  writing_conclusions: "For per-step conclusions.md."
-  writing_synthesis: "For final manuscript."
-  writing_readme: "For README.md updates."
+  writing_core: "Universal rules. ALWAYS load first for any writing task."
+  writing_methods: "For workspace/methods.md and per‑step methods_research.md."
+  writing_citations: "For workspace/citations.md."
+  writing_analysis_log: "For workspace/analysis.md via mem.analysis.log."
+  writing_conclusions: "For per‑step conclusions.md."
+  writing_synthesis: "For synthesis/paper.md section‑by‑section."
+  writing_readme: "For project and per‑step README.md."
+how_to_use:
+  - "Identify the writing task."
+  - "Load writing_core for universal rules."
+  - "Load the task‑specific protocol."
+  - "Execute ONE writing task per AI response (small/medium models)."
+  - "For small models: treat EACH synthesis section as a separate chat session."

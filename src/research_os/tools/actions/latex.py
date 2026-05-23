@@ -117,7 +117,7 @@ def create_poster(root: Path) -> dict:
     poster_tex = synthesis_dir / "poster.tex"
 
     from research_os.state.state_ledger import ResearchLedger
-    ledger = ResearchLedger(root)
+    ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
     state = ledger.get()
     title = state.get("project", "Research Poster")
 

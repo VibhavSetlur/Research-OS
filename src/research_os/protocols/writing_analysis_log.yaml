@@ -1,38 +1,9 @@
 name: writing_analysis_log
 version: 1.0.0
-description: How to write structured entries to workspace/analysis.md via mem.analysis.log.
-always_include: ["writing_core"]
-schema_version: "1.0"
-
-analysis_log_entry_format:
-  template: |
-    [{timestamp}] **{step_name} — {status}**
-    - **Tools used:** {comma_separated_tool_list}
-    - **Key result:** {one_line_quantitative_summary}
-    - **Decision:** {next_action_decision}
-    - **Routing:** {continue_in_path / create_new_path / abandon}
-    - **Warnings:** {warnings_or_none}
-  rules:
-    - "Status must be one of: STARTED, COMPLETED, ABANDONED, PAUSED."
-    - "Key result must include at least one number or statistical finding."
-    - "Decision must be a concrete next action, not vague ('proceed' is too vague; 'proceed to 02_causal_model to test confounding by age' is correct)."
-
-workflow_mermaid_update:
-  after_each_entry: "Append a new node to workspace/workflow.mermaid reflecting the step status."
-  node_styles:
-    complete: "fill:#d4edda,stroke:#28a745"
-    in_progress: "fill:#fff3cd,stroke:#ffc107"
-    abandoned: "fill:#f8d7da,stroke:#dc3545"
-    dead_end: "fill:#e2e3e5,stroke:#6c757d"
-
-expected_outputs:
-  - "workspace/analysis.md: Updated with new structured log entry"
-  - "workspace/workflow.mermaid: Updated with new node"
-
-steps:
-  - id: log_entry
-    name: "Log Analysis Entry"
-    description: "Write a new entry to workspace/analysis.md using the analysis_log_entry_format template."
-  - id: update_workflow
-    name: "Update Workflow Diagram"
-    description: "Append a node to workspace/workflow.mermaid reflecting the new step status."
+description: How to write to workspace/analysis.md via mem.analysis.log
+template: |
+  ### [Timestamp - ISO format]
+  - **Tools Used**: [List of tools]
+  - **Key Result**: [Brief summary of findings]
+  - **Routing Decision**: [Next steps or path chosen based on result]
+instructions: "Keep entries concise but informative enough to resume context after a handoff."

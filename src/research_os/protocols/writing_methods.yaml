@@ -1,68 +1,11 @@
 name: writing_methods
 version: 1.0.0
-description: How to write and update workspace/methods.md and per-step methods_research.md files.
-always_include: ["writing_core"]
-schema_version: "1.0"
-
-methods_md_entry_format:
-  # Each entry appended to workspace/methods.md via mem.methods.append
-  template: |
-    ### [{date}] {method_name}
-    **Step:** {step_number}_{step_name}
-    **Tool(s):** {tool_names_used}
-    **Input:** {input_file_path}
-    **Parameters:** {key_parameters}
-    **Assumptions Checked:** {assumptions_list_with_results}
-    **Assumptions Met:** {yes/no/partial} — {explanation_if_not_met}
-    **Output:** {output_file_path}
-    **Checksum:** sha256:{hash}
-  rules:
-    - "Every assumption must have a p-value or test statistic."
-    - "If an assumption is violated, state the consequence and the remedy taken."
-    - "Never skip the checksum — it's required for reproducibility."
-
-methods_research_md_format:
-  # Written per-step in workspace/{step}/methods_research.md
-  template: |
-    # {step_name} — Methods Research
-    
-    ## Literature Consulted
-    | Source (DOI/URL) | Key Finding | Relevance to This Step |
-    |------------------|-------------|------------------------|
-    | {source} | {finding} | {relevance} |
-    
-    ## Tools / Libraries Investigated
-    | Tool | Documentation URL | Selected? | Rationale |
-    |------|-------------------|-----------|-----------|
-    | {tool} | {url} | {yes/no} | {why} |
-    
-    ## Method Chosen
-    **Method:** {method_name}
-    **Library:** {library_name} v{version}
-    **Justification:** {2-3 sentence justification citing literature or documentation}
-    **Alternatives Considered:** {alternatives_and_why_rejected}
-    
-    ## Implementation Notes
-    - {note_1}
-  rules:
-    - "Every method choice must cite EITHER a literature source (with DOI) OR official library documentation (with URL)."
-    - "Alternatives must include at least one option that was considered and rejected with a reason."
-    - "This file should be populated BEFORE writing analysis scripts."
-
-expected_outputs:
-  - "workspace/methods.md: Updated with new structured method entry"
-  - "workspace/{step_number}_{descriptive_name}/methods_research.md: Populated with research into methods"
-
-steps:
-  - id: load_context
-    name: "Load Required Context"
-    description: "Read workspace/analysis.md for current step context. Read writing_core protocol for universal rules."
-  - id: write_method_entry
-    name: "Write Method Entry"
-    description: "Append to workspace/methods.md using the methods_md_entry_format template. Include ALL fields."
-  - id: write_methods_research
-    name: "Write Methods Research"
-    description: "Populate the per-step methods_research.md using the methods_research_md_format template. Every tool choice must cite a source."
-  - id: verify
-    name: "Verify"
-    description: "Check that checksums, tool versions, and literature citations are included. Apply writing_core rules."
+description: How to write to workspace/methods.md and per-step methods_research.md
+template: |
+  ## [Step Name]
+  - **Tool/Library**: [Name and Version]
+  - **Function**: [Specific function used]
+  - **Assumptions Checked**: [List of assumptions, e.g. normality, independence]
+  - **Data Checksum**: [Checksum of inputs used]
+  - **Rationale**: [Why this method was chosen]
+instructions: "Always include checksums to ensure reproducibility. Explicitly list any statistical assumptions and whether they were verified."
