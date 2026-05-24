@@ -73,8 +73,9 @@ def create_path(name: str, root: Path) -> dict[str, Any]:
         "*(Describe what to do next — proceed or abandon.)*\n"
     )
 
-    from research_os.project_ops import _update_workflow_mermaid
+    from research_os.project_ops import _update_workflow_mermaid, _update_manifest
     _update_workflow_mermaid(root)
+    _update_manifest(root)
 
     return {
         "status": "success",
@@ -110,8 +111,9 @@ def abandon_path(path_name: str, rationale: str, root: Path) -> dict[str, Any]:
     with open(analysis_path, "a") as f:
         f.write(f"\n\n## Abandoned: {path_name}\n\n**Rationale:** {rationale}\n\n")
 
-    from research_os.project_ops import _update_workflow_mermaid
+    from research_os.project_ops import _update_workflow_mermaid, _update_manifest
     _update_workflow_mermaid(root)
+    _update_manifest(root)
 
     return {
         "status": "success",

@@ -251,6 +251,11 @@ TOOL_DEFINITIONS = {
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    "sys.state.summary_md": {
+        "description": "Return .os_state/os_state.md content — a human-readable project status snapshot.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
     "sys.state.health": {
         "description": "Returns current context estimate, paths, and handoff recommendation.",
         "category": "state",
@@ -925,6 +930,9 @@ def _handle_sys_file_write(name: str, arguments: dict, root: Path) -> list[TextC
 
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(arguments["content"])
+        # Sync manifest when writing to workspace/
+        if "workspace/" in arguments["filepath"]:
+            _update_manifest(root)
         return _text(
             _success_envelope({"written": True, "checksum": compute_file_hash(p)})
         )
@@ -987,6 +995,13 @@ def _handle_sys_state_summary(name: str, arguments: dict, root: Path) -> list[Te
         )
 
 
+def _handle_sys_state_summary_md(name: str, arguments: dict, root: Path) -> list[TextContent]:
+        summary_path = root / ".os_state" / "os_state.md"
+        if not summary_path.exists():
+            return _text(_error_envelope("os_state.md not found. Run save_state first to generate it."))
+        return _text(_success_envelope({"content": summary_path.read_text()}))
+
+
 def _handle_sys_state_minimal_context(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.state.state_ledger import ResearchLedger
 
@@ -997,9 +1012,25 @@ def _handle_sys_state_minimal_context(name: str, arguments: dict, root: Path) ->
 
 def _handle_sys_state_health(name: str, arguments: dict, root: Path) -> list[TextContent]:
         from research_os.state.state_ledger import ResearchLedger
+        import json
         ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
         result = ledger.health(root=root)
         result["workspace_tree"] = _build_tree(root / "workspace", 2, True)
+        # Check manifest/state ledger sync
+        manifest_file = root / ".os_state" / "manifest.json"
+        if manifest_file.exists():
+            try:
+                manifest = json.loads(manifest_file.read_text())
+                manifest_paths = set(manifest.get("paths", {}).keys())
+                state = load_state(root)
+                state_paths = set(state.get("paths", {}).keys())
+                if manifest_paths != state_paths:
+                    result["manifest_valid"] = False
+                    result["manifest_warning"] = f"Manifest has {len(manifest_paths)} paths, state has {len(state_paths)} paths"
+                else:
+                    result["manifest_valid"] = True
+            except Exception:
+                result["manifest_valid"] = False
         return _text(_success_envelope(result))
 
 
@@ -1485,6 +1516,7 @@ _HANDLERS = {
     "sys.file.delete": _handle_sys_file_delete,
     "sys.state.get": _handle_sys_state_get,
     "sys.state.summary": _handle_sys_state_summary,
+    "sys.state.summary_md": _handle_sys_state_summary_md,
     "sys.state.minimal_context": _handle_sys_state_minimal_context,
     "sys.state.health": _handle_sys_state_health,
     "sys.session.handoff": _handle_sys_session_handoff,

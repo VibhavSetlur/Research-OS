@@ -1,13 +1,14 @@
 # Research OS — Agent Operating Protocol
 
 ## 1. MANDATORY SESSION START (Run before ANYTHING else)
-1. Call `sys.config.profile` to get your behavioral profile.
-2. Call `sys.config.get` to read the full researcher_config.yaml.
-3. Call `sys.workspace.tree` to get a structural overview of all experiment paths and files.
-4. Call `sys.state.get` to understand current project phase.
-5. Load and follow `guidance/session_boot` protocol.
-6. After session_boot, call `sys.protocol.next` to confirm the recommended next action.
-7. DO NOT start working until these 6 steps are complete.
+1. Call `sys.state.summary_md` to read `.os_state/os_state.md` — a human-readable project status snapshot.
+2. Call `sys.config.profile` to get your behavioral profile.
+3. Call `sys.config.get` to read the full researcher_config.yaml.
+4. Call `sys.workspace.tree` to get a structural overview of all experiment paths and files.
+5. Call `sys.state.get` to understand current project phase.
+6. Load and follow `guidance/session_boot` protocol.
+7. After session_boot, call `sys.protocol.next` to confirm the recommended next action.
+8. DO NOT start working until these 7 steps are complete.
 
 ## 2. PROCESSING ANY REQUEST
 For every researcher message:

@@ -197,7 +197,72 @@ def save_state(root: Path, state: dict) -> dict:
     state["updated_at"] = now_iso()
     ledger._save(state)
     write_state_diff(root, before, state)
+    _write_os_state_summary(root)
     return state
+
+
+def _update_manifest(root: Path) -> None:
+    """Sync .os_state/manifest.json with current workspace/ directory structure."""
+    import re
+    workspace = root / "workspace"
+    paths_info = {}
+    if workspace.exists():
+        for p in sorted(workspace.iterdir()):
+            if p.is_dir() and re.match(r"^\d{2}_", p.name):
+                scripts = []
+                scripts_dir = p / "scripts"
+                if scripts_dir.exists():
+                    scripts = [f.name for f in sorted(scripts_dir.iterdir()) if f.is_file()]
+                paths_info[p.name] = {
+                    "status": "dead_end" if "__DEAD_END" in p.name else "active",
+                    "has_readme": (p / "README.md").exists(),
+                    "has_conclusions": (p / "conclusions.md").exists(),
+                    "scripts": scripts,
+                }
+    manifest = read_json(manifest_path(root), {})
+    manifest["paths"] = paths_info
+    manifest["updated_at"] = now_iso()
+    write_json(manifest_path(root), manifest)
+
+
+def _write_os_state_summary(root: Path) -> None:
+    """Write .os_state/os_state.md — a human-readable project status snapshot."""
+    state = load_state(root)
+
+    # Get path info using list_paths if available
+    try:
+        from research_os.tools.actions.path import list_paths
+        paths_data = list_paths(root)
+        paths = paths_data.get("paths", [])
+    except Exception:
+        paths = []
+
+    project_name = state.get("project_name", "Research Project")
+    pipeline_stage = state.get("pipeline_stage", "init")
+    current_path = state.get("current_path", "main")
+
+    lines = [
+        f"# OS State — {project_name}",
+        f"*Last updated: {now_iso()}*",
+        "",
+        f"## Current Phase: {pipeline_stage}",
+        f"## Active Path: {current_path}",
+        "",
+        "## Experiment Paths",
+    ]
+    for p in paths:
+        icon = "✅" if p.get("status") == "completed" else "🔄" if p.get("status") == "active" else "❌"
+        lines.append(f"- {icon} `{p.get('path_id', '?')}` — {p.get('status', '?')}")
+
+    lines.extend(["", "## Key Files", ""])
+    for f in ["workspace/methods.md", "workspace/analysis.md", "workspace/citations.md",
+              "workspace/workflow.mermaid", "inputs/intake.md", "docs/research_question.md"]:
+        exists = (root / f).exists()
+        lines.append(f"- {'✅' if exists else '❌'} `{f}`")
+
+    os_state_md = root / ".os_state" / "os_state.md"
+    os_state_md.parent.mkdir(parents=True, exist_ok=True)
+    os_state_md.write_text("\n".join(lines) + "\n")
 
 
 def get_active_experiment_dir(root: Path) -> Path | None:
@@ -401,6 +466,7 @@ def scaffold_minimal_workspace(
         _copy_agents_md(root)
     _setup_mcp_configs(root, ide_flags)
     _setup_gitignore(root)
+    _update_manifest(root)
     if git_init:
         _initialize_git(root)
 
