@@ -89,7 +89,7 @@ research_goal:
     - "paper"                   # Options: paper | poster | dashboard | abstract | exploratory
   target_venue: "journal"       # journal | conference | preprint | dissertation | report
 
-# ── API Keys (stored securely, gitignored; injected into env at server start) ───
+# ── Search & Literature API Keys (gitignored) ─────────────────────
 api_keys:
   firecrawl: ""                 # https://firecrawl.io — for web search
   semantic_scholar: ""          # https://www.semanticscholar.org/product/api

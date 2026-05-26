@@ -374,6 +374,21 @@ def scaffold_minimal_workspace(
     for rel, body in directories.items():
         write_readme(root / rel, Path(rel).name.replace("_", " ").title(), body or "")
 
+    # 2.1 — synthesis/paper.md
+    paper_path = root / "synthesis" / "paper.md"
+    if not paper_path.exists():
+        paper_path.write_text(
+            "# Research Paper Outline\n\n"
+            "*Start drafting your paper here. Sections will be populated by Research OS tools.*\n\n"
+            "## Abstract\n\n*(to be written)*\n\n"
+            "## Introduction\n\n*(to be written)*\n\n"
+            "## Methods\n\n*(to be written)*\n\n"
+            "## Results\n\n*(to be written)*\n\n"
+            "## Discussion\n\n*(to be written)*\n\n"
+            "## Conclusion\n\n*(to be written)*\n\n"
+            "## References\n\n*(to be written)*\n"
+        )
+
     # Initialize workspace state files with structured headers (§2.3)
     methods_path = root / "workspace" / "methods.md"
     if not methods_path.exists():
@@ -416,18 +431,18 @@ def scaffold_minimal_workspace(
         except OSError:
             pass  # Handle OS limitations (e.g. Windows without admin rights)
 
+    # 2.2 — intake.md with real override values (will be overwritten by regenerate_intake below)
     intake = root / "inputs" / "intake.md"
     if not intake.exists():
-        rq = config_overrides.get("research_question", "")
-        domain = config_overrides.get("domain", "general")
-        depth = config_overrides.get("depth", "academic")
+        rq = config_overrides.get("research_question") or "*(to be determined)*"
+        domain = config_overrides.get("domain") or "*(to be determined)*"
+        depth = config_overrides.get("depth") or "standard"
         intake.write_text(
-            f"# Research Intake\n"
-            f"*This file will be automatically filled after you place your data and context files in `inputs/` and ask the AI to scan them.*\n\n"
-            f"## Research Question\n"
-            f"*(to be determined)*\n\n"
-            f"## Input Files\n"
-            f"*(to be scanned)*\n"
+            f"# Research Intake\n\n"
+            f"## Research Question\n{rq}\n\n"
+            f"## Domain\n{domain}\n\n"
+            f"## Depth\n{depth}\n\n"
+            f"## Input Files\n*(to be scanned)*\n"
         )
 
     # ── Initialize workflow.mermaid ──
@@ -441,12 +456,13 @@ def scaffold_minimal_workspace(
 
 
 
+    # 2.4 — manifest with correct top-level directories
     manifest = {
         "schema_version": "1.0",
         "project": {"title": project_name},
         "created_at": now_iso(),
         "architecture": "unified_workspace",
-        "top_level_directories": ["workspace", ".os_state"],
+        "top_level_directories": ["workspace", ".os_state", "docs", "inputs", "synthesis", "environment"],
         "active_path": "main",
         "paths": {"main": {"status": "active"}},
     }
@@ -512,7 +528,11 @@ def _copy_agents_md(root: Path) -> None:
 
 
 def _setup_gitignore(root: Path) -> None:
-    """Generate default .gitignore for the research project."""
+    """Generate default .gitignore for the research project.
+
+    Called unconditionally by scaffold_minimal_workspace.
+    _initialize_git is only called when git_init=True (e.g. --git-init flag).
+    """
     gitignore_path = root / ".gitignore"
     if not gitignore_path.exists():
         gitignore_path.write_text(
@@ -534,6 +554,10 @@ def _setup_gitignore(root: Path) -> None:
             ".os_state/checkpoints/\n"
             "# Researcher config (contains API keys)\n"
             "inputs/researcher_config.yaml\n"
+            "# Literature index (contains local paths)\n"
+            "inputs/literature_index.yaml\n"
+            "# Symlinked raw data (machine-specific paths)\n"
+            "inputs/raw_data/\n"
         )
 
 
