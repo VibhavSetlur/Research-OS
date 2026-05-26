@@ -981,12 +981,12 @@ def update_literature_index(root: Path) -> dict:
 # ------------------------------------------------------------------
 
 EXPERIMENT_SUBDIRS = [
-    "data",
+    "data/input",
+    "data/output",
     "scripts",
     "outputs/reports",
     "outputs/figures",
     "outputs/tables",
-    "outputs/dashboards",
     "environment",
 ]
 
@@ -1069,6 +1069,35 @@ def create_numbered_experiment(
         for sub in EXPERIMENT_SUBDIRS:
             d = experiment_dir / sub
             d.mkdir(parents=True, exist_ok=True)
+
+        # Wire data/input → previous step's data/output (or inputs/raw_data/ for step 01)
+        data_input = experiment_dir / "data" / "input"
+        if next_num == 1:
+            # Step 01: input is raw data
+            raw_data_dir = root / "inputs" / "raw_data"
+            raw_data_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                # Replace the empty dir with a symlink to raw_data
+                data_input.rmdir()
+                data_input.symlink_to(raw_data_dir.absolute())
+            except OSError:
+                pass  # Keep the empty dir if symlink fails (permissions, cross-device)
+        else:
+            # Step N: input is previous step's output
+            prev_num = next_num - 1
+            prev_dirs = sorted(
+                p for p in workspace_dir.iterdir()
+                if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
+            )
+            if prev_dirs:
+                prev_output = prev_dirs[0] / "data" / "output"
+                prev_output.mkdir(parents=True, exist_ok=True)
+                try:
+                    data_input.rmdir()
+                    data_input.symlink_to(prev_output.absolute())
+                except OSError:
+                    pass  # Keep empty dir if symlink fails
+
         paths_created = [str(experiment_dir.absolute())]
 
     status = state.get("pipeline_stage", "planned")

@@ -70,29 +70,35 @@ def init_config(root: Path, overrides: dict | None = None) -> Dict[str, Any]:
     config_path = root / "inputs" / "researcher_config.yaml"
     already_exists = config_path.exists()
     if not already_exists:
-        template = '''# ── Researcher Identity ──────────────────────────────────────────
-researcher:
-  name: ""                     # Your name (used in paper authorship)
-  expertise_level: "intermediate"  # beginner | intermediate | advanced | pi
-  field: ""                    # e.g., "environmental epidemiology"
+        template = '''# Research OS — Researcher Configuration
+# This file tells the AI HOW to behave during your research session.
+# Research OS does NOT call any LLM. Your AI lives in the IDE (Antigravity,
+# Cursor, Claude, etc.). No LLM API keys needed here.
 
-# ── Interaction Behavior ─────────────────────────────────────────
+# ── Who You Are ───────────────────────────────────────────────────
+researcher:
+  name: ""                     # Your name (appears in paper authorship)
+  expertise_level: "intermediate"  # beginner | intermediate | advanced | pi
+  field: ""                    # e.g., "clinical psychology", "epidemiology"
+
+# ── How the AI Should Behave ──────────────────────────────────────
 interaction:
   autonomy_level: "supervised"  # manual | supervised | autopilot
-  # manual    = AI asks before every action
-  # supervised = AI asks before creating paths, writing papers, running scripts
-  # autopilot  = AI runs everything, notifies on completion
+  # manual     = AI explains and asks before every action
+  # supervised = AI asks before creating files or running scripts (recommended)
+  # autopilot  = AI runs everything and reports on completion
 
-# ── Model & Output ────────────────────────────────────────────────
-model_profile: "medium"         # small | medium | large
+# ── What You Want to Produce ──────────────────────────────────────
+model_profile: "medium"         # small | medium | large (protocol complexity)
 research_goal:
-  output_types:                 # What you want to produce
-    - "paper"                   # Options: paper | poster | dashboard | abstract | exploratory
+  output_types:
+    - "paper"                   # paper | poster | report | abstract | exploratory
   target_venue: "journal"       # journal | conference | preprint | dissertation | report
 
-# ── Search & Literature API Keys (gitignored) ─────────────────────
+# ── Optional: Literature & Search API Keys ────────────────────────
+# Leave blank to use free public endpoints. Keys increase rate limits.
 api_keys:
-  firecrawl: ""                 # https://firecrawl.io — for web search
+  firecrawl: ""                 # https://firecrawl.io — web search & scraping
   semantic_scholar: ""          # https://www.semanticscholar.org/product/api
   pubmed: ""                    # https://www.ncbi.nlm.nih.gov/account/
   crossref: ""                  # https://www.crossref.org

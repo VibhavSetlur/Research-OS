@@ -16,8 +16,9 @@ dependencies = [
     "mcp>=1.0.0",
     "pyyaml>=6.0",
     "requests>=2.28",
+    "httpx>=0.25",
     "pydantic>=2.0",
-    "importlib-resources>=5.0; python_version < '3.9'",
+    "pydantic-settings>=2.0",
 ]
 
 [project.urls]
@@ -47,10 +48,11 @@ all = ["research-os[web,literature,viz,execution,r,julia,audit,poster]"]
 research-os = "research_os.cli:main"
 
 [tool.ruff.lint]
-per-file-ignores = { "src/research_os/server.py" = ["E402"], "src/research_os/state/state_ledger.py" = ["E402"], "src/research_os/tools/actions/citation_verifier.py" = ["E402"], "src/research_os/utils/executor.py" = ["E402"], "src/research_os/utils/parallel_runner.py" = ["E402"], "src/research_os/utils/skill_indexer.py" = ["E402"] }
+per-file-ignores = { "src/research_os/server.py" = ["E402"], "src/research_os/state/state_ledger.py" = ["E402"] }
 
 [tool.pytest.ini_options]
-norecursedirs = ["scratch", "scripts", ".git", "templates"]
+norecursedirs = [".git", "templates", "__pycache__"]
+markers = ["integration: end-to-end tests that run the CLI in a subprocess"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/research_os"]

@@ -1,34 +1,10 @@
-pyyaml>=6.0
-pandas>=1.5
-numpy>=1.24
-matplotlib
-seaborn
-scipy
-pymupdf
-firecrawl-py>=0.0.10
-pyzotero
-scholarly>=1.7
-beautifulsoup4>=4.12
-metapub>=0.6
-habanero>=1.2
-httpx>=0.25
-tenacity>=8.2
-# MCP
+# requirements.txt — mirrors pyproject.toml [project.dependencies] exactly.
+# For development extras use: pip install -e ".[dev,web,literature]"
+# This file exists only for Docker/CI compatibility; pyproject.toml is authoritative.
+
 mcp>=1.0.0
-# Missing Dependencies
-Pillow
-PyPDF2
-httpx
-importlib-resources
-Jinja2
-matplotlib
-pydantic
-pydantic-settings
-rank-bm25
-requests
-sentence-transformers
-sqlite-vss
-trafilatura
-# Testing
-pytest>=7.0
-pytest-mock>=3.10
+pyyaml>=6.0
+requests>=2.28
+httpx>=0.25
+pydantic>=2.0
+pydantic-settings>=2.0
