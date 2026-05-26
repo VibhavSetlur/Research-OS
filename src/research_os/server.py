@@ -25,6 +25,7 @@ logger = logging.getLogger("research-os.server")
 
 from research_os.project_ops import (
     _update_workflow_mermaid,
+    _update_manifest,
     compute_file_hash,
     load_state,
     now_iso,

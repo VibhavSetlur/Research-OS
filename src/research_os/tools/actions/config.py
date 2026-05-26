@@ -68,7 +68,8 @@ def set_config(key: str, value: Any, root: Path) -> Dict[str, Any]:
 
 def init_config(root: Path, overrides: dict | None = None) -> Dict[str, Any]:
     config_path = root / "inputs" / "researcher_config.yaml"
-    if not config_path.exists():
+    already_exists = config_path.exists()
+    if not already_exists:
         template = '''# ── Researcher Identity ──────────────────────────────────────────
 researcher:
   name: ""                     # Your name (used in paper authorship)
@@ -134,6 +135,12 @@ api_keys:
     if "inputs/researcher_config.yaml" not in gitignore_content:
         with open(gitignore_path, "a") as gf:
             gf.write("\n# Secure config\ninputs/researcher_config.yaml\n")
+
+    if already_exists:
+        return {
+            "status": "success",
+            "message": "Config already exists.",
+        }
 
     return {
         "status": "success",

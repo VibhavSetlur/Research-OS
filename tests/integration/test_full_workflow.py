@@ -96,7 +96,7 @@ References
 """
     res = _handle_tool_call(
         "sys.file.write",
-        {"filepath": "synthesis/paper.md", "content": paper_content},
+        {"filepath": "synthesis/paper.md", "content": paper_content, "force": True},
         root,
     )
     assert "success" in res[0].text
