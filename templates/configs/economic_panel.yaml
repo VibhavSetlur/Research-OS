@@ -1,9 +1,10 @@
 # Economic Panel Data — preset researcher_config.yaml
-# Copy to inputs/researcher_config.yaml of your project, then customise.
+# Copy to inputs/researcher_config.yaml.
 
 project_name: "Economic Panel Analysis"
 research_question: ""
 domain: "economics"
+hypotheses: []
 
 researcher:
   name: ""
@@ -17,11 +18,16 @@ interaction:
 
 model_profile: "medium"
 
+runtime:
+  shared_server: false
+  long_running_threshold_seconds: 60
+  default_n_for_sampling: 1000
+
 research_goal:
   output_types: ["paper"]
   target_venue: "journal"
   reporting_standard: "AEA Data and Code Availability Policy"
-  suggested_methodology: "causal_inference_deep"   # IV / DiD / panel FE
+  suggested_methodology: "causal_inference_deep"
   suggested_protocols:
     - "methodology/causal_inference_deep"
     - "methodology/research_methods"
@@ -31,18 +37,12 @@ writing_preferences:
   language: "en-US"
 
 api_keys:
-  firecrawl: ""
   semantic_scholar: ""
   pubmed: ""
   crossref: ""
+  firecrawl: ""
   serpapi: ""
 
-notifications:
-  on_step_complete: true
-  on_error: true
-  on_decision_required: true
-
-# Domain hints for the AI
 domain_hints:
   expected_columns: [country, year, gdp, inflation, unemployment, interest_rate]
   expected_file_extensions: [.dta, .csv, .xlsx, .parquet]

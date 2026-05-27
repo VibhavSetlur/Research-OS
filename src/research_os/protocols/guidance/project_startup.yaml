@@ -1,70 +1,75 @@
 id: project_startup
 name: Project Startup
-version: '4.0.0'
+version: '5.0.0'
 schema_version: '2.0'
-description: Initial scan of researcher inputs, intake regeneration, research question lock-in, and global environment baseline.
-trigger: Second protocol every NEW project (or whenever inputs change substantially).
+description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
+trigger: Second protocol every new project — and any time inputs/ changes substantially.
 prerequisites:
   - session_boot has completed this session
-  - inputs/researcher_config.yaml exists
+  - inputs/researcher_config.yaml exists (auto-created on `research-os init`)
 
 steps:
   - id: scan_inputs
-    name: Scan inputs/ Completely
+    name: Scan inputs/ at Coarse Granularity
     description: |
-      1. sys_file_list directory="inputs/raw_data"   → enumerate data files.
-      2. sys_file_list directory="inputs/literature" → enumerate PDFs.
-      3. sys_file_list directory="inputs/context"    → enumerate notes/context.
-      4. For each tabular file in raw_data/ (csv|tsv|parquet|feather|xlsx|json):
-            tool_data_profile filepath=<that file>
-         The profile writes a markdown report to workspace/<step>/outputs/reports/
-         when an experiment exists, otherwise workspace/logs/. Read each profile.
-      5. For every .md / .txt in inputs/context/: sys_file_read it.
-      6. mem_intake_regenerate — this rewrites inputs/intake.md with SHA-256 hashes,
-         file sizes, and the current researcher_config values.
+      In ONE batch:
+        - sys_file_list directory="inputs/raw_data"
+        - sys_file_list directory="inputs/literature"
+        - sys_file_list directory="inputs/context"
+      If all three are empty, ask the researcher to drop their data + papers +
+      notes into the relevant folders. Do NOT proceed further until at least
+      one input exists.
 
-  - id: classify_domain_quick
-    name: Domain & Study-Type Snapshot
+  - id: autofill_intake
+    name: Auto-fill Intake from Researcher Dumps
     description: |
-      Inspect column names, file types, and any context notes. Write a ONE-paragraph
-      domain classification to docs/domain_summary.md via sys_file_write. Cover:
-        - Likely field (e.g. environmental epidemiology, NLP, finance).
-        - Study type (observational | experimental | survey | simulation | secondary).
-        - Reporting standard to follow (e.g. STROBE, CONSORT, PRISMA, JARS, ARRIVE).
+      Call tool_intake_autofill (no args).
+      This:
+        - infers domain from columns / file extensions / context keywords
+        - extracts research_question from context notes (looks for explicit
+          "Research question:" / "Aim:" / "Objective:" or the first
+          sentence ending in "?")
+        - extracts hypotheses (H1/H2/H3 lines, or "Hypothesis:")
+        - rewrites inputs/intake.md with the proposal
+        - fills the BLANK fields in researcher_config.yaml
+        - registers each inferred hypothesis in state.active_hypotheses
+      Then show the researcher the proposed (question, domain, hypotheses) in
+      one short message and ask "Approve, or refine?"
+      Wait for approval before any code is written.
 
-  - id: lock_research_question
-    name: Confirm Research Question
+  - id: profile_each_dataset
+    name: Profile Each Data File (sampled)
     description: |
-      Read researcher_config.research_question. If empty:
-        - Propose 2-3 candidate questions tied directly to columns/files you observed.
-        - Wait for the researcher to choose or rewrite.
-      Once a single question is confirmed:
-        - sys_file_write filepath="docs/research_question.md" with sections
-          Question, Sub-questions, Operational definitions, Population, Outcome.
-        - sys_config_set key="research_question" value="<final wording>"
+      For every tabular file (csv|tsv|parquet|feather|xlsx|json|jsonl) in
+      inputs/raw_data/, call tool_data_profile filepath=<that file>.
+      Read the resulting reports — note any high-missingness columns or tiny
+      sample sizes. These constraints feed methodology_selection later.
+      For non-tabular files (.fasta, .nii, .dcm, …) just note their presence
+      and size; defer specialised inspection to the methodology protocol.
 
   - id: snapshot_global_environment
     name: Initialise Global Environment
     description: |
-      sys_env_snapshot to seed the project-level environment/requirements.txt
-      with the current interpreter's packages. Per-experiment environments
-      inherit from this baseline.
+      sys_env_snapshot — writes the current interpreter's packages to
+      environment/requirements.txt. Per-experiment environments inherit from
+      this baseline. R / Julia / conda lockfiles are picked up automatically
+      if they exist at the project root.
 
-  - id: present_summary
+  - id: present_startup_summary
     name: Summarise to Researcher
     description: |
-      Reply in this exact shape:
+      Format:
         **Startup summary**
-        - Data: <N files; key columns / units>
-        - Domain: <classified domain> · standard: <e.g. STROBE>
+        - Inputs: N data files (top types), M PDFs, K notes
+        - Domain: <classified domain> · reporting standard candidate: <name>
         - Question: <confirmed question>
-        - Data quality flags: <missingness / outliers / sample size warnings>
-        - First experiment suggested: <slug> — <one-line scope>
-      Then ask: "Move to analysis_plan to scope the first experiment?"
+        - Hypotheses: <H1, H2, ...> (each tracked in state)
+        - Data quality flags: <missingness / small-n / class imbalance>
+        - Recommended next: domain_analysis (light formal classification + bias list)
+                            OR jump straight to analysis_plan if exploratory and tiny.
 
 expected_outputs:
   - inputs/intake.md
-  - docs/domain_summary.md
   - docs/research_question.md
 
 next_protocol: domain/domain_analysis

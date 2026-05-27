@@ -36,15 +36,15 @@ def test_scaffold_creates_required_directories():
 
 
 def test_scaffold_creates_key_files():
+    """Scaffold creates the minimum needed for boot — NOT pre-baked outputs."""
     with tempfile.TemporaryDirectory() as d:
         root = _scaffold(Path(d))
+        # Required for session_boot + project_startup.
         for rel in (
             "AGENTS.md",
-            "synthesis/paper.md",
             "inputs/intake.md",
             "inputs/researcher_config.yaml",
             "docs/research_question.md",
-            "docs/research_overview.md",
             "docs/glossary.md",
             "workspace/methods.md",
             "workspace/analysis.md",
@@ -56,6 +56,19 @@ def test_scaffold_creates_key_files():
             ".gitignore",
         ):
             assert (root / rel).exists(), f"missing {rel}"
+        # These must NOT be pre-created — protocols own them.
+        for forbidden in (
+            "synthesis/paper.md",
+            "synthesis/abstract.md",
+            "synthesis/poster.tex",
+            "synthesis/dashboard.html",
+            "docs/research_overview.md",
+            "docs/domain_summary.md",
+            "docs/research_design.md",
+        ):
+            assert not (root / forbidden).exists(), (
+                f"scaffold pre-created {forbidden} — only protocols may write it"
+            )
 
 
 def test_researcher_config_permissions_locked_to_600():
@@ -95,12 +108,12 @@ def test_intake_reflects_overrides():
         assert "clinical" in intake
 
 
-def test_paper_md_has_outline():
+def test_intake_md_is_minimal_placeholder():
+    """intake.md should be a tiny placeholder — autofill replaces it later."""
     with tempfile.TemporaryDirectory() as d:
         root = _scaffold(Path(d))
-        paper = (root / "synthesis" / "paper.md").read_text()
-        for section in ("Abstract", "Methods", "Results", "Discussion"):
-            assert f"## {section}" in paper or f"# {section}" in paper
+        intake = (root / "inputs" / "intake.md").read_text()
+        assert "Research Intake" in intake
 
 
 # ── CLI integration ────────────────────────────────────────────────────
@@ -127,7 +140,9 @@ def test_cli_init_creates_workspace():
         assert result.returncode == 0, result.stderr
         assert (target / ".os_state").exists()
         assert (target / "inputs" / "intake.md").exists()
-        assert (target / "synthesis" / "paper.md").exists()
+        # synthesis/ should be present as a directory but EMPTY of outputs.
+        assert (target / "synthesis").is_dir()
+        assert not (target / "synthesis" / "paper.md").exists()
 
 
 @pytest.mark.integration

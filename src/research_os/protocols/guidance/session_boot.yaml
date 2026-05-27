@@ -1,8 +1,8 @@
 id: session_boot
 name: Session Boot
-version: '4.0.0'
+version: '5.0.0'
 schema_version: '2.0'
-description: Mandatory first protocol every session. Loads researcher config, current state, and chooses the right next protocol — all in ONE turn.
+description: Mandatory first protocol every session. Loads researcher config + project state, sets behaviour, decides what to do next — all in ONE turn.
 trigger: First message of every chat / IDE session.
 prerequisites: []
 inputs:
@@ -13,43 +13,86 @@ steps:
   - id: load_context
     name: Load Researcher Config + Project State
     description: |
-      Make exactly these two calls in parallel and merge them into your working memory:
+      Make EXACTLY these two calls in parallel, nothing else:
         1. sys_config_get
         2. sys_state_get
       Do NOT call sys_workspace_tree, sys_file_list, sys_protocol_history,
-      or any other tool during boot — those belong inside the chosen protocol.
+      tool_search_*, or any other tool during boot. Those belong inside the
+      protocol you're about to load.
+
+  - id: infer_blank_behaviour
+    name: Infer Defaults for Blank Config Fields
+    description: |
+      The researcher_config may have blank fields by design — it's encouraged.
+      Apply these defaults silently (do NOT pester the researcher):
+        researcher.expertise_level blank  → "intermediate"
+                                            (bump to advanced/pi if the
+                                             conversation reveals expertise)
+        researcher.field blank            → leave blank; intake_autofill will set
+        domain blank                      → leave blank; intake_autofill will set
+        research_question blank           → leave blank; intake_autofill will set
+        interaction.autonomy_level blank  → "supervised"
+        model_profile blank               → "medium"
+        runtime.shared_server unset       → false
+        runtime.long_running_threshold_seconds unset → 60
+        research_goal.output_types empty  → assume ["exploratory"] until a
+                                            specific deliverable is requested.
 
   - id: set_behavior
-    name: Set Behaviour from Config
+    name: Set Behaviour from Config (effective values, post-defaults)
     description: |
-      From sys_config_get apply:
-        interaction.autonomy_level:
-          manual     → steps_per_turn=1, ask before every tool call.
-          supervised → steps_per_turn=2, ask before sys_path_create / tool_synthesize / writes.
-          autopilot  → steps_per_turn=5, ask only before synthesis or large external calls.
-        researcher.expertise_level:
-          beginner     → plain language, explain every term.
-          intermediate → standard depth; define jargon once.
-          advanced     → skip basics; focus on decisions.
-          pi           → minimal explanation; present options + outcomes.
-        model_profile:
-          small  → keep responses terse, batch tool calls, prefer 1-2 steps per turn.
-          medium → standard.
-          large  → can plan multi-step work in one shot.
+      AUTONOMY (interaction.autonomy_level):
+        manual     → steps_per_turn=1; ask before every tool call.
+        supervised → steps_per_turn=2; ask before sys_path_create /
+                     tool_synthesize / writes to synthesis/ / large external runs.
+        autopilot  → steps_per_turn=5; ask only before tool_synthesize for the
+                     final paper, before tool_audit_reproducibility (slow),
+                     and before any external/paid tool from tool_research_tool.
+
+      EXPERTISE (researcher.expertise_level):
+        beginner     → plain language; define every term; explain decisions.
+        intermediate → standard depth; define jargon once.
+        advanced     → skip basics; focus on decisions and trade-offs.
+        pi           → minimal explanation; present options + outcomes only.
+
+      MODEL PROFILE (model_profile) — affects how you batch:
+        small  → 1-2 steps/turn; one literature provider per search; ask
+                 to confirm before each new sub-task.
+        medium → standard.
+        large  → can plan multi-step work; can hold multiple parallel
+                 hypotheses; uses tool_plan_step less often.
+
+      RUNTIME (runtime.*) — important on shared servers:
+        shared_server=true → prefer tool_task_run for ANY job >
+          long_running_threshold_seconds. Poll with tool_task_status. Warn
+          the researcher before allocating >2 GB RAM or >2 hours of compute.
+
+      AUTONOMY × RUNTIME:
+        autopilot + shared_server=true → ALWAYS background long jobs; warn
+        before destructive ops; never run blocking commands > threshold.
 
   - id: choose_next
     name: Choose Next Action
     description: |
-      Call sys_protocol_next. The dispatcher returns the recommended protocol
-      based on what outputs already exist on disk. Acknowledge in ONE short
-      message:
-        - "Project: <name>. Stage: <pipeline_stage>. Autonomy: <mode> /
-           expertise: <level> / model: <profile>. Next: <protocol>. Proceed?"
-      Then load that protocol via sys_protocol_get and run its first step.
+      Call sys_protocol_next. It returns the recommended protocol based on
+      what outputs already exist on disk + protocol_execution_log.
 
-      If the researcher's message contains a SPECIFIC request (e.g. "write the
-      methods section"), prefer THAT protocol over the pipeline default, and
-      tell the researcher you're deviating from the recommended next step.
+      Then craft ONE boot summary:
+        "Project: <name>. Stage: <pipeline_stage>. Active path: <current_path>.
+         Autonomy <mode> · expertise <level> · model <profile>
+         · runtime: shared=<bool>, threshold=<n>s.
+         Next: <protocol>. Proceed?"
+
+      Routing overrides:
+        - If the researcher's first message has a SPECIFIC ask
+          ("write methods", "make a poster", "run a baseline model"), prefer
+          that protocol — and tell the researcher you're skipping the
+          recommended next step.
+        - If intake.md and research_question.md are both still placeholders
+          AND inputs/ has files, suggest tool_intake_autofill BEFORE
+          project_startup — it's the lowest-effort first step.
+        - If pipeline_stage is past 'init' and you don't recognise the
+          researcher's intent, ask in one sentence rather than guess.
 
 expected_outputs:
   - .os_state/protocol_execution_log.jsonl

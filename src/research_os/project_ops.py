@@ -338,83 +338,66 @@ def scaffold_minimal_workspace(
     ide_flags: list[str] | None = None,
     copy_agents: bool = True,
 ) -> None:
-    """Create the standard Research OS directory layout and seed key files."""
+    """Create the workspace directory tree.
+
+    Philosophy: scaffold creates ONLY the directories + the bare minimum files
+    the AI / researcher need before the first session boot. We do NOT
+    pre-create synthesis outputs (paper.md, abstract.md), per-experiment
+    folders, or pre-filled docs. Those get written by the protocols that own
+    them, when (and only when) they're needed.
+    """
     config_overrides = config_overrides or {}
     ide_flags = ide_flags or list(("cursor", "claude", "antigravity", "opencode", "vscode"))
     root.mkdir(parents=True, exist_ok=True)
 
+    # 1. Directory skeleton + .gitkeep so empty dirs survive git.
     for rel in TOP_LEVEL_DIRS:
-        (root / rel).mkdir(parents=True, exist_ok=True)
+        d = root / rel
+        d.mkdir(parents=True, exist_ok=True)
+        if not any(d.iterdir()):
+            (d / ".gitkeep").touch()
 
-    # docs/*
-    docs_seed = {
-        "research_overview.md": (
-            "# Research Overview\n\n"
-            "*Write motivation, background, and prior knowledge here. "
-            "The AI never overwrites this file.*\n"
-        ),
-        "research_question.md": (
-            f"# Research Question\n\n*(to be confirmed during project_startup)*\n\n"
-            f"## Last Updated\n\n{now_iso()}\n"
-        ),
-        "glossary.md": (
-            f"# Glossary\n\n| Term | Definition | Source |\n|---|---|---|\n| | | |\n\n*Auto-generated: {now_iso()}*\n"
-        ),
-    }
-    for name, content in docs_seed.items():
-        p = root / "docs" / name
-        if not p.exists():
-            p.write_text(content)
-
-    # workspace/*
-    methods_path = root / "workspace" / "methods.md"
-    if not methods_path.exists():
-        methods_path.write_text(
-            "# Methods Log\n\n*Append-only. One block per method via `mem_methods_append`.*\n\n"
+    # 2. docs/glossary.md — empty table (the AI fills it).
+    glossary = root / "docs" / "glossary.md"
+    if not glossary.exists():
+        glossary.write_text(
+            "# Glossary\n\n| Term | Definition | Source |\n|---|---|---|\n"
         )
 
-    analysis_path = root / "workspace" / "analysis.md"
-    if not analysis_path.exists():
-        analysis_path.write_text(
-            "# Analysis Log\n\n*Chronological narrative + workflow diagram.*\n\n"
-            "```mermaid\n"
+    # 3. docs/research_question.md — placeholder; intake autofill replaces it.
+    rq = root / "docs" / "research_question.md"
+    if not rq.exists():
+        rq.write_text(
+            "# Research Question\n\n"
+            "*(blank — say to the AI 'fill out the intake' to populate from inputs/)*\n"
+        )
+
+    # 4. Append-only workspace logs — start EMPTY but with a header so the
+    #    AI knows the file is initialised.
+    for fname, header in [
+        ("methods.md", "# Methods Log\n\n*Append-only via `mem_methods_append`.*\n"),
+        ("analysis.md", "# Analysis Log\n\n*Append-only via `mem_analysis_log`.*\n"),
+        ("citations.md", "# Citations\n\n*Auto-populated by `mem_citations_generate`.*\n"),
+    ]:
+        p = root / "workspace" / fname
+        if not p.exists():
+            p.write_text(header)
+
+    # 5. workflow.mermaid — minimal diagram; expanded by _update_workflow_mermaid.
+    wf = root / "workspace" / "workflow.mermaid"
+    if not wf.exists():
+        wf.write_text(
             "graph TD\n"
             "    init[Initialised]:::complete\n"
             "    classDef complete fill:#d4edda,stroke:#28a745\n"
-            "```\n\n"
-            f"[{now_iso()}] init: workspace scaffolded\n"
         )
 
-    citations_path = root / "workspace" / "citations.md"
-    if not citations_path.exists():
-        citations_path.write_text(
-            "# Running Bibliography\n\n"
-            "*Auto-populated by `mem_citations_generate` from `inputs/literature_index.yaml`.*\n"
-        )
-
-    workflow_mermaid = root / "workspace" / "workflow.mermaid"
-    if not workflow_mermaid.exists():
-        workflow_mermaid.write_text(
-            "graph TD\n"
-            "    init[Initialise Project]:::complete\n"
-            "    classDef complete fill:#d4edda,stroke:#28a745\n"
-        )
-
-    # synthesis seed
-    paper_path = root / "synthesis" / "paper.md"
-    if not paper_path.exists():
-        paper_path.write_text(
-            f"# {project_name}\n\n"
-            "*Auto-generated outline — `tool_synthesize` will populate sections.*\n\n"
-            "## Abstract\n\n## Introduction\n\n## Methods\n\n## Results\n\n## Discussion\n\n## Conclusion\n\n## References\n"
-        )
-
-    # researcher_config.yaml
+    # 6. researcher_config.yaml — source of truth for AI behaviour.
     from research_os.tools.actions.config import init_config
 
     init_config(root, overrides=config_overrides)
 
-    # Symlink .os_state inside workspace for convenience.
+    # 7. .os_state symlink inside workspace/ for scripts that resolve relative.
     workspace_os_state = root / "workspace" / ".os_state"
     if not workspace_os_state.exists():
         try:
@@ -422,12 +405,16 @@ def scaffold_minimal_workspace(
         except OSError:
             pass
 
-    # inputs/intake.md (regenerated after state seeds)
+    # 8. inputs/intake.md — tiny placeholder; tool_intake_autofill rewrites it.
     intake = root / "inputs" / "intake.md"
     if not intake.exists():
-        intake.write_text("# Research Intake\n\n*(scanned on first session_boot)*\n")
+        intake.write_text(
+            "# Research Intake\n\n"
+            "*(blank — drop your data/PDFs/notes into `inputs/`, then ask the AI to "
+            "`fill out the intake`. It will run `tool_intake_autofill`.)*\n"
+        )
 
-    # Manifest
+    # 9. Manifest + state.
     manifest = {
         "schema_version": "2.0",
         "project": {"title": project_name},

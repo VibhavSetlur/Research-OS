@@ -21,6 +21,8 @@ def test_scaffold_creates_complete_workspace():
         assert (root / "workspace" / "workflow.mermaid").exists()
         assert (root / "inputs" / "researcher_config.yaml").exists()
         assert (root / "AGENTS.md").exists()
+        # No pre-baked synthesis output.
+        assert not (root / "synthesis" / "paper.md").exists()
 
         state = load_state(root)
         assert state["project_name"] == "Test Project"

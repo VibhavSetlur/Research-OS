@@ -773,6 +773,180 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "properties": {"title": {"type": "string"}},
         },
     },
+
+    # ── Reasoning / research-grounding ───────────────────────────────
+    "tool_research_method": {
+        "description": "Gather 5-10 academic + web sources about a method, dedupe, write a structured report. Use BEFORE choosing any statistical/computational method.",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Method name + context, e.g. 'logistic regression with imbalanced classes'."},
+                "limit": {"type": "number"},
+            },
+            "required": ["query"],
+        },
+    },
+    "tool_research_tool": {
+        "description": "Find candidate libraries / CLIs / websites for a task. Tags each candidate as installable | api_available | external_tool | paid_or_licensed. Use when picking a tool.",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task": {"type": "string"},
+                "language": {"type": "string", "description": "any | python | r | julia | bash"},
+            },
+            "required": ["task"],
+        },
+    },
+    "tool_external_tool_instructions": {
+        "description": "When the chosen tool is external (website, GUI, paid service), write a WORKSHEET.md telling the researcher how to use it and where to drop the outputs.",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "tool_name": {"type": "string"},
+                "purpose": {"type": "string"},
+                "url": {"type": "string"},
+                "steps": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["tool_name", "purpose", "url"],
+        },
+    },
+    "tool_plan_step": {
+        "description": "Force a complex step to be broken into atomic sub-tasks BEFORE coding. Writes a plan markdown the AI executes piecewise. Required by analysis_plan when scope is non-trivial.",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string"},
+                "max_substeps": {"type": "number"},
+            },
+            "required": ["goal"],
+        },
+    },
+
+    # ── Intake auto-fill ──────────────────────────────────────────────
+    "tool_intake_autofill": {
+        "description": "Read inputs/ (data + literature + context notes) and propose project metadata (research question, domain, hypotheses). Fills blanks in researcher_config.yaml and rewrites inputs/intake.md.",
+        "category": "intake",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "overwrite": {
+                    "type": "boolean",
+                    "description": "If true, overwrite even non-blank config fields (default false).",
+                }
+            },
+        },
+    },
+
+    # ── Real background tasks ─────────────────────────────────────────
+    "tool_task_run": {
+        "description": "Spawn a real background subprocess (Popen). Returns task_id immediately. Use for any command expected to run longer than runtime.long_running_threshold_seconds.",
+        "category": "tasks",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "command": {"type": "string", "description": "Shell-tokenised command, or a list."},
+                "cwd": {"type": "string", "description": "Working directory relative to project root."},
+                "description": {"type": "string"},
+            },
+            "required": ["command"],
+        },
+    },
+    "tool_task_status": {
+        "description": "Check a background task's status + tail of log.",
+        "category": "tasks",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string"},
+                "tail_lines": {"type": "number"},
+            },
+            "required": ["task_id"],
+        },
+    },
+    "tool_task_list": {
+        "description": "List all known background tasks with live status.",
+        "category": "tasks",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_task_kill": {
+        "description": "Kill a background task (SIGTERM by default).",
+        "category": "tasks",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string"},
+                "signal_name": {"type": "string", "description": "TERM | KILL | INT"},
+            },
+            "required": ["task_id"],
+        },
+    },
+
+    # ── Multi-language script support ────────────────────────────────
+    "tool_notebook_exec": {
+        "description": "Execute a Jupyter .ipynb in place (jupyter nbconvert --execute --inplace).",
+        "category": "execution",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "notebook_path": {"type": "string"},
+                "timeout": {"type": "number"},
+                "kernel": {"type": "string"},
+            },
+            "required": ["notebook_path"],
+        },
+    },
+    "tool_rmarkdown_render": {
+        "description": "Render an .Rmd or .qmd document (rmarkdown::render OR quarto render).",
+        "category": "execution",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "doc_path": {"type": "string"},
+                "output_format": {"type": "string"},
+                "timeout": {"type": "number"},
+            },
+            "required": ["doc_path"],
+        },
+    },
+
+    # ── Multi-hypothesis tracking ────────────────────────────────────
+    "mem_hypothesis_add": {
+        "description": "Register a new hypothesis (tracked in state.active_hypotheses + analysis.md).",
+        "category": "memory",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "statement": {"type": "string"},
+                "hypothesis_id": {"type": "string", "description": "Optional; auto-assigned H1, H2, ..."},
+                "direction": {"type": "string"},
+                "status": {"type": "string", "description": "testing|supported|refuted|inconclusive"},
+            },
+            "required": ["statement"],
+        },
+    },
+    "mem_hypothesis_update": {
+        "description": "Update a hypothesis (status + add evidence note).",
+        "category": "memory",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "hypothesis_id": {"type": "string"},
+                "status": {"type": "string"},
+                "evidence": {"type": "string"},
+                "step": {"type": "string"},
+            },
+            "required": ["hypothesis_id"],
+        },
+    },
+    "mem_hypothesis_list": {
+        "description": "List every tracked hypothesis.",
+        "category": "memory",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 }
 
 
@@ -1388,6 +1562,186 @@ def _handle_tool_dashboard_create(name, arguments, root):
     return _text(_error(res.get("message", "dashboard create failed")))
 
 
+# ── Research / reasoning ──────────────────────────────────────────────
+
+
+def _handle_tool_research_method(name, arguments, root):
+    from research_os.tools.actions.research import research_method
+
+    res = research_method(arguments["query"], root, limit=int(arguments.get("limit", 5)))
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "research_method failed")))
+
+
+def _handle_tool_research_tool(name, arguments, root):
+    from research_os.tools.actions.research import research_tool
+
+    res = research_tool(arguments["task"], root, language=arguments.get("language", "any"))
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "research_tool failed")))
+
+
+def _handle_tool_external_tool_instructions(name, arguments, root):
+    from research_os.tools.actions.research import external_tool_instructions
+
+    res = external_tool_instructions(
+        arguments["tool_name"],
+        arguments["purpose"],
+        arguments["url"],
+        root,
+        steps=arguments.get("steps"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "external_tool_instructions failed")))
+
+
+def _handle_tool_plan_step(name, arguments, root):
+    from research_os.tools.actions.research import plan_step
+
+    res = plan_step(
+        arguments["goal"], root, max_substeps=int(arguments.get("max_substeps", 6))
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "plan_step failed")))
+
+
+# ── Intake auto-fill ──────────────────────────────────────────────────
+
+
+def _handle_tool_intake_autofill(name, arguments, root):
+    from research_os.tools.actions.intake import intake_autofill
+
+    res = intake_autofill(root, overwrite=bool(arguments.get("overwrite", False)))
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "intake_autofill failed")))
+
+
+# ── Background tasks ──────────────────────────────────────────────────
+
+
+def _handle_tool_task_run(name, arguments, root):
+    from research_os.tools.actions.tasks import task_run
+
+    res = task_run(
+        arguments["command"],
+        root,
+        cwd=arguments.get("cwd"),
+        description=arguments.get("description", ""),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "task_run failed")))
+
+
+def _handle_tool_task_status(name, arguments, root):
+    from research_os.tools.actions.tasks import task_status
+
+    res = task_status(
+        arguments["task_id"], root, tail_lines=int(arguments.get("tail_lines", 50))
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "task_status failed")))
+
+
+def _handle_tool_task_list(name, arguments, root):
+    from research_os.tools.actions.tasks import task_list
+
+    res = task_list(root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "task_list failed")))
+
+
+def _handle_tool_task_kill(name, arguments, root):
+    from research_os.tools.actions.tasks import task_kill
+
+    res = task_kill(
+        arguments["task_id"], root, signal_name=arguments.get("signal_name", "TERM")
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "task_kill failed")))
+
+
+# ── Notebook / R-markdown ─────────────────────────────────────────────
+
+
+def _handle_tool_notebook_exec(name, arguments, root):
+    from research_os.tools.actions.notebook import execute_notebook
+
+    res = execute_notebook(
+        arguments["notebook_path"],
+        root,
+        timeout=int(arguments.get("timeout", 1800)),
+        kernel=arguments.get("kernel", "python3"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "notebook exec failed")))
+
+
+def _handle_tool_rmarkdown_render(name, arguments, root):
+    from research_os.tools.actions.notebook import render_rmarkdown
+
+    res = render_rmarkdown(
+        arguments["doc_path"],
+        root,
+        output_format=arguments.get("output_format", "html_document"),
+        timeout=int(arguments.get("timeout", 1800)),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "rmarkdown render failed")))
+
+
+# ── Hypothesis tracking ───────────────────────────────────────────────
+
+
+def _handle_mem_hypothesis_add(name, arguments, root):
+    from research_os.tools.actions.memory import hypothesis_add
+
+    res = hypothesis_add(
+        arguments["statement"],
+        root,
+        hypothesis_id=arguments.get("hypothesis_id"),
+        direction=arguments.get("direction"),
+        status=arguments.get("status", "testing"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "hypothesis_add failed")))
+
+
+def _handle_mem_hypothesis_update(name, arguments, root):
+    from research_os.tools.actions.memory import hypothesis_update
+
+    res = hypothesis_update(
+        arguments["hypothesis_id"],
+        root,
+        status=arguments.get("status"),
+        evidence=arguments.get("evidence"),
+        step=arguments.get("step"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "hypothesis_update failed")))
+
+
+def _handle_mem_hypothesis_list(name, arguments, root):
+    from research_os.tools.actions.memory import hypothesis_list
+
+    res = hypothesis_list(root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "hypothesis_list failed")))
+
+
 _HANDLERS = {
     # protocol
     "sys_protocol_get": _handle_sys_protocol_get,
@@ -1461,6 +1815,25 @@ _HANDLERS = {
     "tool_latex_compile": _handle_tool_latex_compile,
     "tool_poster_create": _handle_tool_poster_create,
     "tool_dashboard_create": _handle_tool_dashboard_create,
+    # research / reasoning
+    "tool_research_method": _handle_tool_research_method,
+    "tool_research_tool": _handle_tool_research_tool,
+    "tool_external_tool_instructions": _handle_tool_external_tool_instructions,
+    "tool_plan_step": _handle_tool_plan_step,
+    # intake autofill
+    "tool_intake_autofill": _handle_tool_intake_autofill,
+    # tasks
+    "tool_task_run": _handle_tool_task_run,
+    "tool_task_status": _handle_tool_task_status,
+    "tool_task_list": _handle_tool_task_list,
+    "tool_task_kill": _handle_tool_task_kill,
+    # multi-language scripts
+    "tool_notebook_exec": _handle_tool_notebook_exec,
+    "tool_rmarkdown_render": _handle_tool_rmarkdown_render,
+    # hypothesis tracking
+    "mem_hypothesis_add": _handle_mem_hypothesis_add,
+    "mem_hypothesis_update": _handle_mem_hypothesis_update,
+    "mem_hypothesis_list": _handle_mem_hypothesis_list,
 }
 
 # Aliases — keep the AI's life easy when it forgets exact naming.
@@ -1554,7 +1927,12 @@ if HAS_MCP:
 
 
 def _inject_api_keys(root: Path) -> None:
-    """Read inputs/researcher_config.yaml and export api_keys as env vars."""
+    """Export literature / search API keys from researcher_config to env vars.
+
+    Research OS does NOT manage LLM provider keys — your AI client owns that.
+    Only research-data-source credentials (Semantic Scholar, PubMed, Crossref,
+    Firecrawl, SerpAPI) are injected here, with SDK-friendly aliases.
+    """
     try:
         import yaml as _yaml
 
@@ -1565,23 +1943,22 @@ def _inject_api_keys(root: Path) -> None:
                 return
         cfg = _yaml.safe_load(cfg_path.read_text()) or {}
         api_keys = cfg.get("api_keys", {}) or {}
+        allowed = {"semantic_scholar", "pubmed", "crossref", "firecrawl", "serpapi"}
         for key, value in api_keys.items():
-            if not value:
+            if not value or key not in allowed:
                 continue
             env_name = key.upper()
             os.environ[env_name] = str(value)
-            # Common alternative names (compat with multiple SDKs)
+            # SDK-compat aliases.
             if key == "semantic_scholar":
                 os.environ["SEMANTIC_SCHOLAR_API_KEY"] = str(value)
                 os.environ["S2_API_KEY"] = str(value)
+            if key == "pubmed":
+                os.environ["NCBI_API_KEY"] = str(value)
             if key == "firecrawl":
                 os.environ["FIRECRAWL_API_KEY"] = str(value)
             if key == "serpapi":
                 os.environ["SERPAPI_API_KEY"] = str(value)
-            if key == "openai":
-                os.environ["OPENAI_API_KEY"] = str(value)
-            if key == "anthropic":
-                os.environ["ANTHROPIC_API_KEY"] = str(value)
     except Exception as e:  # pragma: no cover - non-fatal
         logger.debug(f"API key injection skipped: {e}")
 

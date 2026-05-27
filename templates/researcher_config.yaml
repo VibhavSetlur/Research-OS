@@ -1,70 +1,61 @@
 # Research OS — Researcher Configuration
 #
-# This file is the SOURCE OF TRUTH for how the AI behaves in this workspace.
-# Fill in (or have the AI fill in during session_boot) and edit any time.
-# Research OS injects nothing autonomously — your AI client owns the LLM.
+# Source of truth for AI behaviour in this workspace.
+# Research OS does NOT manage LLM providers — your AI client (Claude Code /
+# OpenCode / Antigravity / Cursor / Claude / VS Code) handles model access.
+#
+# EVERY field below is OPTIONAL. The most common workflow:
+#   1. Drop your data into inputs/raw_data/
+#   2. Drop PDFs into inputs/literature/
+#   3. Drop notes / drafts / past reports into inputs/context/
+#   4. Say to your AI: "fill out the intake" (or just "start the project").
+# The AI will read inputs/, propose a research question + domain, and fill in
+# anything you left blank below.
 
-# ─── Who you are ─────────────────────────────────────────────────────────
+# ── Project (blank is fine — AI infers from inputs/) ────────────────────
+project_name: ""                 # blank → uses directory name
+research_question: ""            # blank → AI proposes from inputs/context
+domain: ""                       # blank → AI classifies from inputs/raw_data
+hypotheses: []                   # list of strings; AI tracks them with mem_hypothesis_*
+
+# ── Researcher (blank is fine) ──────────────────────────────────────────
 researcher:
-  name: ""                          # Appears in paper authorship.
-  field: ""                         # e.g., "clinical epidemiology", "NLP".
-  expertise_level: "intermediate"   # beginner | intermediate | advanced | pi
+  name: ""
+  field: ""                      # AI infers from data + context if blank
+  expertise_level: ""            # beginner | intermediate | advanced | pi
   institution: ""
-  orcid: ""                         # Optional. Used in synthesis metadata.
+  orcid: ""
 
-# ─── What this project is about ─────────────────────────────────────────
-project_name: ""                    # Short title.
-research_question: ""               # One sentence. AI will ask if blank.
-domain: ""                          # e.g. clinical, finance, geospatial, ml.
-
-# ─── How the AI should behave ───────────────────────────────────────────
+# ── How the AI should behave ────────────────────────────────────────────
 interaction:
-  autonomy_level: "supervised"      # manual | supervised | autopilot
-  # manual     → AI asks before every tool call (1 step / turn).
-  # supervised → AI asks before path creation / synthesis / writes (2 / turn).
-  # autopilot  → AI runs everything; asks before synthesis (5 / turn).
+  autonomy_level: "supervised"   # manual | supervised | autopilot
 
-# ─── Model profile (controls protocol verbosity) ────────────────────────
-model_profile: "medium"             # small | medium | large
-# small  → light protocols, terse tool descriptions, batch tool calls.
-# medium → standard.
-# large  → full protocol detail and multi-step planning.
+# ── Model profile (controls protocol verbosity + reasoning depth) ───────
+model_profile: "medium"          # small | medium | large
 
-# ─── What you want to produce ────────────────────────────────────────────
+# ── Compute environment ─────────────────────────────────────────────────
+runtime:
+  shared_server: false           # set true on HPC / shared boxes
+  long_running_threshold_seconds: 60
+  default_n_for_sampling: 1000
+
+# ── What you want to produce (blank = AI suggests; start exploratory) ───
 research_goal:
-  output_types:                     # any combination
-    - "paper"                       # full IMRAD manuscript
-    # - "abstract"                  # 250-word structured abstract
-    # - "poster"                    # tikzposter PDF
-    # - "dashboard"                 # single-file HTML
-    # - "report"                    # internal write-up
-    # - "exploratory"               # EDA-only, no manuscript
-  target_venue: "journal"           # journal | conference | preprint | dissertation | report
-  reporting_standard: ""            # auto-filled by domain_analysis (CONSORT, STROBE, PRISMA, TRIPOD-AI, etc.)
-  poster_dimensions: "36x48"        # only if "poster" in output_types
+  output_types: []               # paper | abstract | poster | dashboard | report | exploratory
+  target_venue: ""               # journal | conference | preprint | dissertation | report
+  reporting_standard: ""         # auto-filled by domain_analysis
+  poster_dimensions: "36x48"
 
-# ─── Writing preferences ─────────────────────────────────────────────────
+# ── Writing preferences ─────────────────────────────────────────────────
 writing_preferences:
-  citation_style: "apa"             # apa | vancouver | acm | ieee | nature
+  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
   language: "en-US"
 
-# ─── API keys (optional — increase rate limits) ─────────────────────────
-# Leave blank for public/free endpoints. Keys are injected as env vars
-# (FIRECRAWL_API_KEY, SEMANTIC_SCHOLAR_API_KEY, NCBI_API_KEY, etc.) at
-# server start.
+# ── API keys (optional; public endpoints work without keys) ─────────────
+# NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
 api_keys:
-  firecrawl: ""                     # https://firecrawl.io  — web search & scrape
-  semantic_scholar: ""              # https://www.semanticscholar.org/product/api
-  pubmed: ""                        # https://www.ncbi.nlm.nih.gov/account/  (NCBI_API_KEY)
-  crossref: ""                      # https://www.crossref.org (rarely needed)
-  serpapi: ""                       # https://serpapi.com  — fallback web search
-  # openai: ""                      # ONLY if your IDE doesn't manage its own LLM keys
-  # anthropic: ""                   # ditto
-
-# ─── Notification preferences ───────────────────────────────────────────
-notifications:
-  on_step_complete: true
-  on_error: true
-  on_decision_required: true
-  on_long_running_task: true
-  long_running_threshold_seconds: 300
+  semantic_scholar: ""
+  pubmed: ""
+  crossref: ""
+  firecrawl: ""
+  serpapi: ""

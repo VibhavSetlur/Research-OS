@@ -1,9 +1,10 @@
 # Randomised Controlled Trial — preset researcher_config.yaml
-# Copy to inputs/researcher_config.yaml of your project, then customise.
+# Copy to inputs/researcher_config.yaml.
 
 project_name: "Randomised Controlled Trial"
 research_question: ""
 domain: "clinical"
+hypotheses: []
 
 researcher:
   name: ""
@@ -16,6 +17,11 @@ interaction:
   autonomy_level: "supervised"
 
 model_profile: "medium"
+
+runtime:
+  shared_server: false
+  long_running_threshold_seconds: 60
+  default_n_for_sampling: 1000
 
 research_goal:
   output_types: ["paper"]
@@ -30,16 +36,11 @@ writing_preferences:
   language: "en-US"
 
 api_keys:
-  firecrawl: ""
   semantic_scholar: ""
   pubmed: ""
   crossref: ""
+  firecrawl: ""
   serpapi: ""
-
-notifications:
-  on_step_complete: true
-  on_error: true
-  on_decision_required: true
 
 domain_hints:
   expected_columns: [patient_id, arm, baseline_outcome, follow_up_outcome, ae_grade, withdrawn]

@@ -1,24 +1,27 @@
 id: methodology_selection
 name: Methodology Selection
-version: '4.0.0'
+version: '5.0.0'
 schema_version: '2.0'
-description: Pick the statistical / computational method to test the planned hypotheses. Document the implementation, parameters, and assumptions.
-trigger: After research_design. Re-run if the outcome class changes.
+description: Pick the statistical / computational method(s) to test the active hypotheses. Document implementation, parameters, and assumptions. Validates every choice in the literature.
+trigger: After research_design (or directly from project_startup when the design is obviously fixed). Re-run if outcome class changes.
 
 steps:
   - id: classify_problem
     name: Classify the Problem on 3 Axes
     description: |
       Decide:
-        1. Outcome type:  continuous | binary | count | time-to-event | text | image | network
+        1. Outcome type:  continuous | binary | count | time-to-event | ordinal | nominal | text | image | network
         2. Data structure: independent | repeated | nested | spatial | temporal | sequential
-        3. Dimensionality: univariate | low-D | high-D (p >> n)
-      Write the triple to workspace/methods.md.
+        3. Dimensionality: univariate | low-D (p << n) | high-D (p ~ n or p >> n)
+      Cross-check against the data profile reports from project_startup
+      (outputs/reports/profile_*.md). Write the (type, structure, dim) triple
+      to workspace/methods.md via mem_methods_append (one entry per hypothesis).
 
   - id: enumerate_candidates
-    name: Enumerate Candidate Methods
+    name: Enumerate 2-3 Candidate Methods
     description: |
-      Examples (NOT exhaustive — verify with literature):
+      Starting points — verify with literature, never commit blindly:
+
         Continuous · independent · low-D  → OLS / Ridge / LASSO; MLR for multi-IV
         Continuous · repeated             → Mixed-effects (lme4 / statsmodels)
         Continuous · nested               → Multilevel / hierarchical Bayes
@@ -29,47 +32,60 @@ steps:
         Count                             → Poisson / Negative Binomial / zero-inflated
         Time-to-event                     → Cox PH; Fine-Gray for competing risks
         Causal observational              → Propensity scoring, DiD, IV, RDD
-        ML benchmark                      → Cross-validated baseline + main + ablations
+        ML benchmark                      → Baseline + main + ablations
         Text                              → Pretrained transformer fine-tune + calibration
-        Image                             → CNN baseline + domain-appropriate transfer
-      List 2-3 candidates with pros/cons.
+        Image                             → CNN baseline + domain transfer
+      Document 2-3 candidates with pros/cons in workspace/methods.md.
 
-  - id: ground_with_literature
-    name: Ground Method Choice in Literature
+  - id: ground_in_literature
+    name: Ground Each Candidate (MANDATORY)
     description: |
-      MANDATORY: do NOT decide from training knowledge alone.
-        tool_search_semantic_scholar query="<problem> <leading candidate method> review"
-        tool_search_web query="<candidate method> best practices <year>"
-      Cite at least 2 sources supporting the chosen method.
+      For each candidate, call tool_research_method query="<method> for <triple>".
+      This writes a structured report to outputs/reports/method_research_*.md.
+      Cite at least 2 sources supporting the winning method (in the
+      mem_methods_append justification field) and at least 1 source for each
+      runner-up.
+
+      For ML / software-heavy methodologies, also call tool_research_tool to
+      validate the chosen library is maintained and installable.
+
+  - id: pick_tools
+    name: Pick Tools / Libraries
+    description: |
+      tool_research_tool task="<method implementation>" language="<py|r|julia>"
+      Prefer installable libraries (tag: installable_via_package_manager).
+      If best option is external (website, paid, GUI) — call
+      tool_external_tool_instructions and warn the researcher.
+      Use tool_package_install on the winner; it appends to requirements.txt
+      automatically.
 
   - id: record_choice_and_assumptions
     name: Record Choice, Implementation & Assumptions
     description: |
       For the WINNING method, call mem_methods_append with:
         method=<name>
-        step_number=<NN>           # the experiment this method will be used in
+        step_number=<NN>           # next experiment number
         step_name=<slug>
         dataset_name=<from intake>
         dataset_hash=<sha256 from intake>
-        implementation=<lib+version, e.g. statsmodels 0.14>
+        implementation=<library>==<version>
         parameters=<key hyperparams>
-        justification=<1-2 sentences citing references>
-        assumptions=[list of assumptions you will TEST during execute_step]
-      Also call mem_decision_log to record the decision in analysis.md.
+        justification=<1-2 sentences with citation keys>
+        assumptions=[<list of assumptions to TEST>]
+      Plus mem_decision_log (context / selected / rationale / options considered).
 
   - id: list_assumption_tests
     name: Plan Assumption Tests
     description: |
-      For every assumption, name the diagnostic test that will be run during
-      analysis_plan's execute step. Examples:
-        Normality           → Shapiro-Wilk, Q-Q plot
-        Homoscedasticity    → Levene, Breusch-Pagan
+      For every assumption, name the diagnostic test to run during execution:
+        Normality           → Shapiro-Wilk (n<5000) / Q-Q plot
+        Homoscedasticity    → Levene / Breusch-Pagan
         Multicollinearity   → VIF (>10 = problem)
-        Independence        → Durbin-Watson (residuals)
+        Independence        → Durbin-Watson on residuals
         Proportional hazards → Schoenfeld residuals
         Calibration (binary)→ Hosmer-Lemeshow / calibration plot
-      Write the test plan as a numbered list inside workspace/methods.md under
-      "Assumption tests planned".
+        Class balance (ML)  → Class-frequency ratio + stratified split
+      Write the test plan into workspace/methods.md under "Assumption tests planned".
 
 expected_outputs:
   - workspace/methods.md

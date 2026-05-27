@@ -19,55 +19,72 @@ logger = logging.getLogger("research_os.tools.config")
 
 
 CONFIG_TEMPLATE = """# Research OS — Researcher Configuration
-# This file is the SOURCE OF TRUTH for AI behaviour in this workspace.
-# Edit any time. Research OS does not call any LLM itself — your AI client owns the model.
+#
+# Source of truth for AI behaviour in this workspace.
+# Research OS does NOT manage LLM providers — your AI client (Claude Code /
+# OpenCode / Antigravity / Cursor / Claude / VS Code) handles model access.
+#
+# EVERY field below is OPTIONAL. Leave anything blank — the AI will infer or
+# ask. The most common workflow is: drop data + notes into inputs/ and say
+# "fill out the intake" to the AI. It will populate the rest.
 
-# ── Project ──────────────────────────────────────────────────────────────
+# ── Project (blank is fine — AI infers from inputs/) ────────────────────
 project_name: "{project_name}"
-research_question: "{research_question}"
-domain: "{domain}"
+research_question: ""            # blank → AI proposes from inputs/context
+domain: ""                       # blank → AI classifies from inputs/raw_data
+hypotheses: []                   # list, free-form — AI tracks them across steps
 
-# ── Who you are ──────────────────────────────────────────────────────────
+# ── Researcher (blank is fine) ──────────────────────────────────────────
 researcher:
   name: ""
-  field: ""
-  expertise_level: "intermediate"   # beginner | intermediate | advanced | pi
+  field: ""                      # blank → AI infers from data + context
+  expertise_level: ""            # blank → AI starts at "intermediate"; bumps
+                                 #         after observing the conversation
+                                 # explicit values: beginner | intermediate | advanced | pi
   institution: ""
   orcid: ""
 
 # ── How the AI should behave ────────────────────────────────────────────
 interaction:
-  autonomy_level: "supervised"      # manual | supervised | autopilot
+  autonomy_level: "supervised"   # manual | supervised | autopilot
+  # manual     → ask before every tool call.
+  # supervised → ask before path creation, synthesis, destructive writes.
+  # autopilot  → run autonomously; ask only before synthesis / very long jobs.
 
-# ── Model profile (controls protocol verbosity) ─────────────────────────
-model_profile: "medium"             # small | medium | large
+# ── Model profile (controls protocol verbosity + reasoning depth) ───────
+model_profile: "medium"          # small | medium | large
+# small  → terser tool descriptions, max 1-2 steps/turn, ask often.
+# medium → standard.
+# large  → can plan multi-step work; reasons over more sources at once.
 
-# ── What you want to produce ────────────────────────────────────────────
+# ── Compute environment ─────────────────────────────────────────────────
+runtime:
+  shared_server: false           # true → AI uses background tasks for long jobs,
+                                 #        and warns before heavy memory/CPU bursts.
+  long_running_threshold_seconds: 60   # jobs longer than this prefer background.
+  default_n_for_sampling: 1000   # default head-sample for tabular exploration.
+
+# ── What you want to produce (blank = AI suggests; start exploratory) ───
 research_goal:
-  output_types:
-    - "paper"                       # any of: paper | abstract | poster | dashboard | report | exploratory
-  target_venue: "journal"           # journal | conference | preprint | dissertation | report
-  reporting_standard: ""            # auto-filled by domain_analysis
+  output_types: []               # any of: paper | abstract | poster | dashboard | report | exploratory
+  target_venue: ""               # journal | conference | preprint | dissertation | report
+  reporting_standard: ""         # auto-filled by domain_analysis
   poster_dimensions: "36x48"
 
-# ── Writing preferences ──────────────────────────────────────────────────
+# ── Writing preferences ─────────────────────────────────────────────────
 writing_preferences:
-  citation_style: "apa"             # apa | vancouver | acm | ieee | nature
+  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
   language: "en-US"
 
-# ── API keys (optional — leave blank for free public endpoints) ──────────
+# ── API keys (optional; public endpoints work without keys) ─────────────
+# NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
+# These are for literature search and web scraping only.
 api_keys:
-  firecrawl: ""                     # https://firecrawl.io
-  semantic_scholar: ""              # https://www.semanticscholar.org/product/api
-  pubmed: ""                        # https://www.ncbi.nlm.nih.gov/account/
-  crossref: ""
-  serpapi: ""
-
-# ── Notification preferences ────────────────────────────────────────────
-notifications:
-  on_step_complete: true
-  on_error: true
-  on_decision_required: true
+  semantic_scholar: ""           # https://www.semanticscholar.org/product/api
+  pubmed: ""                     # https://www.ncbi.nlm.nih.gov/account/
+  crossref: ""                   # https://www.crossref.org  (rarely needed)
+  firecrawl: ""                  # https://firecrawl.io  — web search + scrape
+  serpapi: ""                    # https://serpapi.com   — fallback web search
 """
 
 

@@ -53,7 +53,10 @@ walks through its steps using MCP tools.
 
 ---
 
-## 5. The 51 MCP tools
+## 5. The MCP tools (~65)
+
+> Research OS does NOT manage LLM provider keys. Your IDE owns model access.
+> The credentials below are for literature / search / scraping APIs only.
 
 ### System (`sys_*`)
 
@@ -127,6 +130,40 @@ walks through its steps using MCP tools.
 | `mem_citations_generate`| Refresh `workspace/citations.md` from the literature index. |
 | `mem_intake_regenerate` | Refresh `inputs/intake.md` (hashes). |
 | `mem_decision_log`      | Append a structured decision (context/selected/rationale). |
+| `mem_hypothesis_add`    | Register a new hypothesis. |
+| `mem_hypothesis_update` | Update a hypothesis (status + evidence). |
+| `mem_hypothesis_list`   | Show every tracked hypothesis. |
+
+### Reasoning + research grounding (`tool_*`)
+
+| Tool | Description |
+|---|---|
+| `tool_research_method` | Pull 5-10 academic + web sources about a method; write a structured report. Call BEFORE choosing any method. |
+| `tool_research_tool`   | Find candidate libraries / CLIs / websites; tag each as installable / api / external / paid. |
+| `tool_external_tool_instructions` | When the chosen tool is external (website / paid / GUI), write a WORKSHEET.md for the researcher. |
+| `tool_plan_step`       | Force a complex step to be broken into atomic sub-tasks BEFORE coding. |
+| `tool_intake_autofill` | Read inputs/, classify domain, extract research question + hypotheses, fill blank config fields. |
+
+### Background tasks (`tool_task_*`)
+
+| Tool | Description |
+|---|---|
+| `tool_task_run`     | Real `subprocess.Popen`; returns task_id immediately. |
+| `tool_task_status`  | Poll status + tail log. |
+| `tool_task_list`    | List all known tasks. |
+| `tool_task_kill`    | Terminate a task. |
+
+### Multi-language scripts
+
+| File | Tool |
+|---|---|
+| `.py`   | `tool_python_exec` |
+| `.R`    | `tool_r_exec` |
+| `.jl`   | `tool_julia_exec` |
+| `.sh`   | `tool_bash_exec` |
+| `.ipynb`| `tool_notebook_exec` |
+| `.Rmd`  | `tool_rmarkdown_render` |
+| `.qmd`  | `tool_rmarkdown_render` (uses quarto) |
 
 ---
 

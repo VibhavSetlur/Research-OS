@@ -111,20 +111,41 @@ research-os MCP server
 
 ## What's in the box
 
-* **51 MCP tools** under `sys_*`, `tool_*`, `mem_*` namespaces.
-  Names use underscores; dot notation is auto-rewritten by the dispatcher.
+* **~65 MCP tools** under `sys_*`, `tool_*`, `mem_*` namespaces.
+  Names use underscores; dot notation + legacy names auto-rewritten.
 * **33 YAML protocols** covering the full pipeline: session boot → project
   startup → domain analysis → research design → methodology selection →
   literature search → analysis (looped) → reproducibility → audit → synthesis.
 * **5 domain presets** for `researcher_config.yaml`: RCTs, observational
   epidemiology, genomics, NLP benchmarks, economic panels.
-* **Output generators**: `tool_synthesize` (IMRAD paper), `tool_dashboard_create`
-  (HTML dashboard), `tool_poster_create` (tikzposter PDF), `tool_latex_compile`
-  (paper.tex → PDF).
-* **Audit tools** with real checks: citation verification, statistical power,
-  model assumptions, figure quality, full reproducibility re-run.
-* **Live literature search** via Crossref, Semantic Scholar, PubMed, arXiv,
-  Firecrawl, SerpAPI.
+* **Intake autofill** — drop your data + PDFs + notes into `inputs/`, say
+  "fill out the intake" — the AI reads everything, classifies the domain,
+  extracts your research question + hypotheses, and writes the metadata
+  for you. Every config field is optional.
+* **Reasoning / grounding tools** — `tool_research_method` (deep-dive a
+  method with 5-10 academic + web sources), `tool_research_tool` (find +
+  evaluate libraries, including external tools the AI can't run),
+  `tool_plan_step` (force complex steps to be broken into atomic
+  sub-tasks before coding), `tool_external_tool_instructions` (worksheet
+  the researcher fills when the chosen tool is a website / paid app).
+* **Multi-language scripts** — `.py` / `.R` / `.jl` / `.sh` / `.ipynb` /
+  `.Rmd` / `.qmd` all first-class.
+* **Real background tasks** for shared servers + HPC — `tool_task_run`
+  (Popen, returns task_id immediately), `tool_task_status`,
+  `tool_task_list`, `tool_task_kill`.
+* **Multi-hypothesis tracking** — `mem_hypothesis_add` /
+  `_update` / `_list` keep a ledger across experiment steps.
+* **Output generators** — `tool_synthesize` (IMRAD paper),
+  `tool_dashboard_create` (HTML), `tool_poster_create` (tikzposter PDF),
+  `tool_latex_compile` (.tex → PDF).
+* **Audit tools** with real checks — citation verification, statistical
+  power, model assumptions, figure quality, full reproducibility re-run.
+* **Live literature search** — Crossref, Semantic Scholar, PubMed, arXiv,
+  Firecrawl, SerpAPI. All free providers work without keys.
+
+**No LLM provider keys.** Research OS does not call any model itself.
+Your IDE (Claude Code / OpenCode / Antigravity / Cursor / Claude / VS Code)
+owns model access.
 
 ---
 

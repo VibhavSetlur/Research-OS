@@ -1,103 +1,157 @@
 id: analysis_plan
 name: Analysis Plan (Core Loop)
-version: '4.0.0'
+version: '5.0.0'
 schema_version: '2.0'
-description: The core per-step loop. Scope, ground methods in literature, execute, document, environment-snapshot. Iterates once per experiment step.
-trigger: After methodology_selection — or whenever the researcher asks for a new experiment step.
+description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
+trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
 prerequisites:
-  - workspace/methods.md exists with at least one method entry
-  - workspace/citations.md exists (literature_search has been run at least once)
+  - workspace/methods.md exists with at least one substantive entry
+  - workspace/citations.md exists (literature_search has run, even if minimally)
 
 steps:
   - id: scope_step
-    name: Scope the Step
+    name: Scope the Step (≤2 sentences)
     description: |
-      Determine the goal of this step in ≤2 sentences. Examples:
+      State the goal in 1-2 sentences. Examples:
         - "Baseline EDA: distributions, missingness, basic correlations."
-        - "Fit a logistic regression with covariates X1..Xk, evaluate AUC and calibration."
-      Decide:
-        - One-shot script vs sub-steps (use sub-steps if >3 distinct methods).
-        - Inputs (from previous step's data/output/ — symlinked automatically).
-      For supervised/manual autonomy, ask the researcher to confirm the scope.
+        - "Fit logistic regression with X1..Xk covariates; report AUROC + calibration."
+      Identify:
+        - Input data (from previous step's data/output/, symlinked).
+        - The hypothesis (or hypotheses) this step targets — by ID, e.g. H2.
+
+      AUTONOMY GATE:
+        manual / supervised → present the scope; ask for confirmation.
+        autopilot           → state the scope and proceed; do NOT ask.
+
+      SIZE GATE: if scope mentions >3 distinct methods OR multiple subgroups
+      OR custom pipelines, you MUST call tool_plan_step before coding. The
+      plan markdown becomes part of the experiment record.
 
   - id: ground_methods
-    name: Ground Methods in Literature
+    name: Ground Methodology in Literature (mandatory)
     description: |
-      You MUST search literature before choosing a method. In ONE turn:
-        - tool_search_semantic_scholar query=<methodology question>
-        - tool_search_web query=<methodology question + year>
-        - Optionally tool_search_arxiv / tool_search_pubmed / tool_search_crossref.
-      For each method you intend to use, append to workspace/methods.md via
-      mem_methods_append with at minimum: method, implementation, parameters,
-      justification, assumptions, and 1-3 citation references. Also call
-      mem_decision_log to record the methodological choice and rejected alternatives.
+      You MUST search literature BEFORE choosing any method. Skip on training
+      memory alone is forbidden.
 
-  - id: create_step
+      For each candidate method, call EITHER:
+        tool_research_method query="<method> for <data structure>"   (deep)
+        OR a single batch:
+        tool_search_semantic_scholar + tool_search_web              (light)
+
+      For each method actually chosen:
+        - mem_methods_append (full structured fields: method, dataset,
+          dataset_hash, implementation, parameters, justification with citation,
+          assumptions list).
+        - mem_decision_log (context / selected / rationale / options
+          considered / linked citations).
+        - mem_hypothesis_update for each hypothesis touched, status='testing'.
+
+  - id: pick_tools
+    name: Pick Tools / Libraries (validated, not guessed)
+    description: |
+      If you're uncertain which library to use:
+        tool_research_tool task="<concrete task>" language="<python|r|julia|any>"
+      For external/paid/GUI tools that you cannot run:
+        tool_external_tool_instructions tool_name=<X> purpose=<Y> url=<Z>
+      Then commit the tool decision via mem_decision_log.
+
+      Reproducibility check: every tool used must be installable
+      (tool_package_install if Python) and snapshotted later.
+
+  - id: create_step_folder
     name: Create the Numbered Experiment Folder
     description: |
-      sys_path_create name="<slug>" hypothesis="<one-sentence hypothesis>".
-      This creates workspace/NN_<slug>/{scripts,data,outputs/{reports,figures,tables,dashboards},environment}
-      and updates state. The new step becomes current_path.
+      sys_path_create name="<slug>" hypothesis="<H<id>: <text>>"
+      Creates workspace/NN_<slug>/{scripts,data,outputs/{reports,figures,tables,dashboards},environment}
+      and sets it as current_path.
 
-  - id: write_and_run_script
-    name: Write + Run the Analysis Script
+  - id: write_atomic_scripts
+    name: Write Atomic Versioned Scripts
     description: |
-      Write the analysis script(s) to workspace/<step>/scripts/. Naming convention:
-        <step_number>_<step_name>_v<n>.<ext>     e.g. 03_logistic_baseline_v1.py
-      Bump the version number when you change the script meaningfully.
+      DO NOT one-shot a 400-line mega-script. Break the step into atomic
+      sub-tasks (a plan_step report exists if scope was non-trivial). One
+      script per sub-task. Naming:
+        workspace/<step>/scripts/<step_number>_<short_name>_v<n>.<ext>
+        e.g. 03_fit_baseline_v1.py / 03_calibration_v1.R / 03_feature_eng_v1.ipynb
+
+      Allowed script types (pick the right tool for the language):
+        Python (.py)        → tool_python_exec
+        R (.R)              → tool_r_exec
+        Julia (.jl)         → tool_julia_exec
+        Bash (.sh)          → tool_bash_exec
+        Jupyter (.ipynb)    → tool_notebook_exec
+        R-markdown (.Rmd)   → tool_rmarkdown_render
+        Quarto (.qmd)       → tool_rmarkdown_render
+
+      LONG-RUNNING (estimated > runtime.long_running_threshold_seconds, or
+      on shared_server=true): use tool_task_run instead of blocking exec, then
+      poll tool_task_status. Tell the researcher "task <id> backgrounded;
+      checking every <interval>".
 
       Every script MUST:
-        - Read from workspace/<step>/data/input/  (symlinked to prior data/output/).
+        - Read from workspace/<step>/data/input/ (auto-symlinked).
         - Write derived data to workspace/<step>/data/output/.
-        - Write at least one markdown report to outputs/reports/ summarising findings.
-        - Write at least one figure (PNG ≥150 DPI) to outputs/figures/ — unless the
-          step is purely textual; in that case generate a table to outputs/tables/.
-        - Set random seeds explicitly; print library versions to stderr.
+        - Write at least one report to outputs/reports/ (markdown summary
+          WITH numbers + interpretation).
+        - Write at least one figure (PNG ≥ 150 DPI) to outputs/figures/ OR
+          a table to outputs/tables/ — empty outputs/ is a fail.
+        - Set RNG seeds explicitly; print library versions to stderr.
 
-      Run via tool_python_exec / tool_r_exec / tool_julia_exec / tool_bash_exec.
-      If the script fails, iterate (next version) and re-run; do NOT silently swallow errors.
+      Bump _v<n> on every meaningful re-run; do NOT silently overwrite.
 
   - id: document_conclusions
-    name: Document Conclusions & Update Workspace Logs
+    name: Document Conclusions for This Step
     description: |
-      Populate workspace/<step>/conclusions.md with:
+      Update workspace/<step>/conclusions.md:
         ## Findings
-          - 2-5 concrete quantitative bullets (with numbers and units).
+          - 2-5 quantitative bullets (numbers + units).
+        ## Hypothesis evidence
+          - For each hypothesis you tested: mem_hypothesis_update H<id>
+            status=<supported|refuted|inconclusive> evidence=<one-line>.
         ## Limitations
-          - Assumption checks performed and their result.
+          - Assumption tests run + results. If any failed → flag here AND
+            in the audit at end-of-pipeline.
         ## Decision
-          - One of: proceed | branch (new experiment) | dead-end.
+          - proceed | branch (new experiment, why) | dead-end (call dead_end_routing).
         ## Next steps
-          - 2-3 candidate next analysis steps (with brief rationale).
-      Then update workspace/<step>/README.md with the actual inputs/methods/outputs.
-      mem_analysis_log with a one-line summary of what was done.
+          - 2-3 concrete candidate experiments with brief rationale.
+
+      Also: mem_analysis_log entry="<step_id> done: <one-line summary>".
+      Then update workspace/<step>/README.md with actual inputs/methods/outputs.
 
   - id: snapshot_step_environment
     name: Snapshot Step Environment
     description: |
-      sys_env_snapshot — this writes the current interpreter's packages into
-      workspace/<step>/environment/requirements.txt (and Project.toml / renv.lock
-      if R or Julia were used).
+      sys_env_snapshot — writes requirements.txt / Project.toml / renv.lock
+      into workspace/<step>/environment/. Always do this BEFORE moving on
+      so the step is independently reproducible.
 
-  - id: audit_step
-    name: Lightweight Step Audit
+  - id: lightweight_step_audit
+    name: Lightweight In-Step Audit
     description: |
-      If outputs/figures has a primary figure, call tool_audit_figure on it.
-      If a statistical test was run with a known n, call tool_audit_power
-      (effect_size hint can be Cohen's small-medium defaults if unknown).
-      If model residuals were saved, call tool_audit_assumptions on them.
-      Add any warnings to the conclusions.md "Limitations" section.
+      Whichever apply:
+        - tool_audit_figure on the primary figure (DPI / size).
+        - tool_audit_power if a statistical test with known n was run.
+        - tool_audit_assumptions if residuals were saved.
+      Append warnings to conclusions.md > Limitations.
 
   - id: decide_next
-    name: Decide Next Step
+    name: Decide Next Step (don't loop forever)
     description: |
-      Based on conclusions, recommend ONE of:
-        - Proceed to a new analysis step → return to scope_step (this protocol again).
-        - Abandon: sys_path_abandon path_name=<id> rationale=<short>.
-          Then run guidance/dead_end_routing.
-        - Advance to reproducibility: only when ALL planned experiments are
-          completed (conclusions.md decisions are "proceed" or "branch", none "dead-end")
-          and you have at least one terminal experiment with publishable findings.
+      One of:
+        - Proceed → return to scope_step for the next experiment.
+        - Branch → create a parallel experiment via sys_path_create with a
+                  different methodology (kept active alongside this one).
+        - Abandon → sys_path_abandon + load guidance/dead_end_routing.
+        - Advance to reproducibility — only when ALL planned experiments
+          have non-empty conclusions.md (decisions are 'proceed' or 'branch',
+          NONE 'dead-end') AND at least one terminal experiment has a
+          publishable finding.
+
+      AUTONOMY GATE:
+        manual / supervised → present the recommendation; ask researcher.
+        autopilot           → pick the most-likely next step; tell the
+                              researcher what you're starting; proceed.
 
 expected_outputs:
   - workspace/*/README.md

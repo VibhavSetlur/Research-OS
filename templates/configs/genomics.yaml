@@ -1,9 +1,10 @@
 # Genomics — preset researcher_config.yaml
-# Copy to inputs/researcher_config.yaml of your project, then customise.
+# Copy to inputs/researcher_config.yaml.
 
 project_name: "Genomics Analysis"
 research_question: ""
 domain: "bioinformatics"
+hypotheses: []
 
 researcher:
   name: ""
@@ -16,6 +17,11 @@ interaction:
   autonomy_level: "supervised"
 
 model_profile: "medium"
+
+runtime:
+  shared_server: true            # default: bioinformatics often runs on HPC
+  long_running_threshold_seconds: 120
+  default_n_for_sampling: 5000
 
 research_goal:
   output_types: ["paper"]
@@ -31,16 +37,11 @@ writing_preferences:
   language: "en-US"
 
 api_keys:
-  firecrawl: ""
   semantic_scholar: ""
   pubmed: ""
   crossref: ""
+  firecrawl: ""
   serpapi: ""
-
-notifications:
-  on_step_complete: true
-  on_error: true
-  on_decision_required: true
 
 domain_hints:
   expected_columns: [gene_id, expression, log2fc, pvalue, padj, chromosome, position]
