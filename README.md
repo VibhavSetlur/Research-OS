@@ -10,7 +10,7 @@
 
 > A research operating system that turns your AI IDE into a rigorous
 > research collaborator. Drop your data, talk in plain English, and
-> Research OS picks the right protocol from 82, runs it through audited
+> Research OS picks the right protocol, runs it through audited
 > sub-task pipelines, and produces publication-grade outputs with
 > verified citations and full provenance — no hallucinations leaking
 > into the paper.
@@ -42,7 +42,6 @@ research-os init                    # arrow-key wizard (default)
   not open-access),
 * offers to **symlink existing data files** in the target folder into
   `inputs/raw_data/`,
-* runs a 10-check smoke pass on the new workspace.
 
 Arrow keys + Space to navigate, Tab to autocomplete paths, Esc to cancel.
 Finished in under a minute.
@@ -73,31 +72,6 @@ Need step-by-step setup or per-IDE wiring? →
 You talk; the AI picks the right workflow from **82 protocols** and
 runs it through **140 MCP tools** that enforce real quality gates.
 
-### The guarantees that distinguish Research OS
-
-- **Verified citations** — every cite traces to Crossref / Semantic
-  Scholar / PubMed / arXiv; unverified entries are dropped before they
-  reach `paper.md`.
-- **Numbered-claim grounding** — every number in synthesis traces to a
-  workspace artefact (`tool_audit_claims` BLOCKS synthesis on
-  hallucinated numbers).
-- **Per-figure provenance** — every figure / table / model emits a
-  `.prov.json` sidecar with script + parameters + RNG seed + library
-  versions + wall-time.
-- **Sub-task pipelines, not mega-scripts** — content-hash cached
-  (`ingest → validate → clean → fit → diagnose → visualize → report`);
-  editing one stage re-runs only the affected chain.
-- **Server-enforced immutability** — `inputs/raw_data/` and
-  `inputs/literature/` can NEVER be modified by the AI.
-- **Preregistration drift detection** — `tool_preregister_diff`
-  surfaces every deviation from the frozen SAP at synthesis time.
-- **Self-tested dashboards** — Playwright suite auto-generated; the AI
-  iterates until WCAG + scroll-spy + sort + print + visual-regression
-  tests pass.
-- **Hierarchical routing** — `tool_route` picks the right protocol in
-  ~250 tokens; full session boot stays under ~1.2K tokens regardless
-  of how many tools + protocols exist.
-
 ### Across 7 capability groups (linked to triggers + outputs)
 
 | | What you say · what you get |
@@ -108,7 +82,7 @@ runs it through **140 MCP tools** that enforce real quality gates.
 | **Write** | per-section drafting (methods · results · discussion · limitations · end-matter with CRediT) · title workshop · cover letter · pre-submission ready-to-submit gate |
 | **Synthesise** | IMRAD paper · abstract · poster + QR · talk slides (lab / conference / defense) · self-tested dashboard · printable handout + QR · grant narrative · lay summary · PI progress update · null-findings companion · synthesis from inputs (no in-RO analysis) |
 | **Read + understand** | quick paper critique · multi-paper comparative review · methodological consultation (teach me X) · literature search with forward-citation walk · full PRISMA systematic review |
-| **Audit + ship** | master quality audit · reproducibility verification + Dockerfile · code review · peer-review response · collaboration handoff (share-safe zip) · structured AI pushback when grounded evidence disagrees |
+| **Audit + ship** | quality audit · reproducibility verification · code review · peer-review response · collaboration handoff (share-safe zip) · structured AI pushback when grounded evidence disagrees |
 
 → [**docs/USE_CASES.md**](docs/USE_CASES.md) maps your role × goal ×
 output to the right protocol.
@@ -125,11 +99,6 @@ AI IDE  (Claude Code / Claude Desktop / OpenCode / Antigravity /
    │ MCP stdio
    ▼
 research-os MCP server  (Python — ONE global process)
-   │
-   │  Per-request project resolution:
-   │   1. $RESEARCH_OS_WORKSPACE (IDE sets it to ${workspaceFolder})
-   │   2. cwd walked up to .os_state/
-   │   3. cwd as fallback
    │
    ├── Routing      sys_boot → tool_route (L1→L2→L3) → tool_plan_turn
    ├── sys.*        workspace · state · paths · checkpoints · config ·
