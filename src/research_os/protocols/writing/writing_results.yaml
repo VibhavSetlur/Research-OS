@@ -1,0 +1,227 @@
+id: writing_results
+name: Writing — Results (data with discipline)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Draft the Results section. Results writing is its own skill: report
+  what the data show, refer correctly to figures and tables, format
+  every statistic to the field's reporting standard, and STAY OUT of
+  interpretation — the Discussion handles that.
+
+  Distinct from:
+    - `writing/writing_methods` — that documents HOW the work was
+      done; this reports WHAT it produced.
+    - `writing/writing_discussion` — that INTERPRETS the findings;
+      this REPORTS them.
+    - `writing/writing_conclusions` — per-step conclusions in the
+      workspace; this is the paper's section.
+
+trigger: |
+  Researcher says any of: "draft the results", "write the results",
+  "results section", "report what we found", "the results section
+  needs work".
+
+prerequisites:
+  - At least one workspace step has substantive conclusions.md > Findings.
+  - At least one figure in workspace/<step>/outputs/figures/ with both
+    caption sidecars.
+
+editorial_voice:
+  mode: prescription
+  rules:
+    - "Past tense throughout. Active or passive, your choice, but be
+       consistent within a section."
+    - "Report numbers; interpret them in the Discussion. 'The
+       intervention group had a 0.42 SD improvement (95% CI 0.31-0.52)'
+       is Results; 'this suggests the intervention is effective' is
+       Discussion."
+    - "Every figure / table referenced must (a) exist on disk and
+       (b) be numbered when this section is finalised. Reference by
+       'Figure N' / 'Table N' once numbered; until then refer by
+       file slug so the audit can resolve."
+    - "Every statistic carries its full form: point estimate +
+       uncertainty (CI when possible; SE otherwise) + sample size +
+       test name + p-value formatted to the field's convention."
+    - "When subgroups are reported, the subgroup count is reported
+       alongside the subgroup estimate. Subgroup analyses without
+       counts invite cherry-picking concerns."
+
+structure_options:
+  by_aim:
+    organisation: "one block per Aim / hypothesis"
+    notes: |
+      Most-used in life-sciences journals. Section ordered to mirror
+      the order of the Specific Aims in the Methods / Introduction.
+      One sub-section per hypothesis, ending with verdict in
+      neutral terms ("the hypothesis was supported" / "was not
+      supported by the data").
+  by_dataset:
+    organisation: "one block per dataset / cohort"
+    notes: |
+      For papers reporting on multiple cohorts or datasets in
+      parallel. Each block has its own descriptives + primary
+      analysis + sensitivity.
+  by_analysis_type:
+    organisation: "descriptives → primary → secondary → sensitivity"
+    notes: |
+      Methods-paper organisation. Common in ML / stats / methods
+      journals. Less common in domain-application papers.
+  by_outcome:
+    organisation: "one block per outcome (primary, secondary)"
+    notes: |
+      CONSORT-aligned for RCTs. Primary outcome first, secondary
+      outcomes after, exploratory outcomes labelled as such.
+
+steps:
+  - id: select_structure
+    name: Select results structure
+    description: |
+      Ask (or infer):
+        "Structure? by_aim | by_dataset | by_analysis_type |
+         by_outcome."
+      Defaults:
+        target_venue ∈ {clinical_trial, BMJ, JAMA, NEJM} → by_outcome
+        ML/stats methods journals                        → by_analysis_type
+        most cohort/observational studies                → by_aim
+        multi-cohort papers                              → by_dataset
+
+  - id: assemble_the_evidence_table
+    name: Assemble the evidence table (the data behind the section)
+    description: |
+      Before writing prose, build the EVIDENCE TABLE — a markdown
+      table the section will draw from. One row per result the
+      section will report. Save to
+      workspace/scratch/results_evidence.md:
+
+        | id | hypothesis | metric | estimate | uncertainty | n | test | p | figure | table |
+
+      Every cell sourced from a specific workspace artefact (a
+      conclusions.md row, an outputs/tables CSV, an outputs/reports
+      markdown). The Results prose later cites this table by id;
+      tool_audit_claims uses it as the ground truth.
+
+      Rows that don't have a source on disk are NOT REPORTED. If a
+      number appears in the researcher's head but not in a workspace
+      artefact, route back to analysis_plan to generate the
+      artefact first.
+
+  - id: draft_descriptives_first
+    name: Draft descriptives first (one short paragraph)
+    description: |
+      Open with a descriptives paragraph (or a Table 1 reference):
+        - sample sizes per group, per outcome, per stratum
+        - basic demographic / variable distributions
+        - missingness counts (the missingness is data; report it)
+
+      Keep it tight — most papers blow paragraph budget on
+      descriptives. Three to five sentences max for a journal;
+      one paragraph for a thesis chapter. For papers with a real
+      Table 1, the Results prose just references the table:
+      "Sample characteristics are shown in Table 1."
+
+  - id: draft_primary_results
+    name: Draft the primary results (organised per structure)
+    description: |
+      For each block in the chosen structure, draft 2-5 sentences:
+        - the substantive result (lead with the FINDING, not the
+          method: "Intervention reduced X by 0.42 SD ..." not
+          "We fit a mixed-effects model and found ...")
+        - the full statistic (estimate + uncertainty + n + test +
+          p) using the field's reporting convention
+        - the figure or table reference that supports the result
+        - any pre-specified subgroup result with its subgroup n
+          alongside
+
+      Pattern for one primary result:
+        "Intervention reduced X by 0.42 SD (95% CI 0.31-0.52;
+         n=412; mixed-effects model, p < 0.001; Figure 2). The
+         effect was consistent across pre-specified strata
+         (Table 2)."
+
+  - id: draft_secondary_and_sensitivity
+    name: Draft secondary + sensitivity results
+    description: |
+      Secondary outcomes get their own paragraph (or one paragraph
+      per secondary outcome when the paper has many). Sensitivity
+      analyses get a SHORT paragraph at the end of the block they
+      probe ("Sensitivity analyses excluding <X> did not change
+      the magnitude or direction of the effect (Table S3).").
+
+      Exploratory analyses are LABELLED AS EXPLORATORY in the
+      prose AND in any figure / table caption. Mixing exploratory
+      results into the primary results without labelling is the
+      most common cause of post-hoc interpretation drift.
+
+  - id: figure_and_table_reference_check
+    name: Figure + table reference check
+    description: |
+      Walk every "Figure N" / "Table N" reference. For each:
+        - confirm the figure / table exists on disk in
+          workspace/<step>/outputs/figures or .../outputs/tables
+          OR in synthesis/figures / synthesis/tables
+        - confirm the figure has both caption sidecars
+          (.caption.md + .summary.md)
+        - confirm the table has a header row + values that match
+          the prose
+
+      Run tool_audit_figure_full on each cited figure if not
+      already done. Any failure becomes a blocker for the assembly.
+
+  - id: causal_language_pass
+    name: Causal-language pass (Results = associations only)
+    description: |
+      The Results section reports ASSOCIATIONS. Causal verbs
+      ("causes", "leads to", "drives", "improves") belong in the
+      Discussion when the design supports them — not in Results.
+
+      Walk the prose:
+        "Intervention CAUSED X reduction"             → no
+        "Intervention WAS ASSOCIATED WITH X reduction" → yes (for
+         observational)
+        "X RECEIVED Y, leading to Z"                  → no
+        "X RECEIVED Y; Z was lower in this arm"       → yes
+
+      For RCTs, "intervention reduced X" is acceptable in Results
+      because the design supports the causal reading. For everything
+      else, use associational phrasing.
+
+  - id: number_format_pass
+    name: Number-format pass (field's convention)
+    description: |
+      Walk every statistic:
+        - p-values formatted per writing_core (3 decimals; "p < 0.001"
+          for very small)
+        - CIs reported as (point, 95% CI lo-hi)
+        - effect sizes paired with CIs (not just SEs)
+        - significant figures match the precision of the measurement
+          (no spurious precision)
+        - units always present
+        - scientific notation for |x| < 1e-3 or > 1e5
+
+      Inconsistent formatting reads as careless; reviewers will
+      flag it. The protocol's job is to surface it before the
+      reviewer does.
+
+  - id: validate
+    name: Validate
+    description: |
+      sys_file_validate_md filepath="synthesis/results.md"
+        protocol_name="writing_core"
+      Run tool_audit_claims on synthesis/results.md — every number
+      must trace to a workspace artefact (the evidence table from
+      step `assemble_the_evidence_table`).
+
+expected_outputs:
+  - synthesis/results.md
+  - workspace/scratch/results_evidence.md
+
+quality_bar:
+  every_number_has_full_statistical_form: true
+  every_figure_table_reference_resolves: true
+  no_interpretation_in_results: true
+  exploratory_analyses_labelled: true
+  subgroup_counts_reported_alongside_subgroup_estimates: true
+  number_format_consistent_with_field_convention: true
+
+next_protocol: writing/writing_discussion
+on_failure: null

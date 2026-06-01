@@ -429,6 +429,163 @@ def test_route_existing_protocols_not_hijacked_by_new_ones(tmp_path):
         )
 
 
+def test_route_writing_discussion(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "writing discussion")
+    res = route_request("draft the discussion section", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "writing/writing_discussion"
+
+
+def test_route_writing_limitations(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "writing limitations")
+    res = route_request("tighten the limitations", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "writing/writing_limitations"
+
+
+def test_route_writing_results(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "writing results")
+    res = route_request("draft the results section", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "writing/writing_results"
+
+
+def test_route_writing_end_matter(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "end matter")
+    res = route_request("draft the end matter", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "writing/writing_data_availability"
+
+
+def test_route_multi_panel(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "multi panel")
+    res = route_request("multi-panel figure with subpanels", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "visualization/multi_panel_composition"
+
+
+def test_route_figure_narrative_arc(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "arc")
+    res = route_request("order my figures for the paper", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "visualization/figure_narrative_arc"
+
+
+def test_route_color_accessibility(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "a11y")
+    res = route_request("check colour accessibility on my figures", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "visualization/color_accessibility_audit"
+
+
+def test_route_cover_letter(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "cover")
+    res = route_request("draft a cover letter for the journal", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_cover_letter"
+
+
+def test_route_title_workshop(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "title")
+    res = route_request("workshop the title for the paper", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_title_workshop"
+
+
+def test_route_handout(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "handout")
+    res = route_request("make a one-pager handout", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_handout"
+
+
+def test_route_evaluation_design(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "eval design")
+    res = route_request("design the evaluation strategy", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/evaluation_design"
+
+
+def test_route_sweep_design(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "sweep")
+    res = route_request("design the hyperparameter sweep", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/hyperparameter_search_design"
+
+
+def test_route_data_ethics(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "ethics")
+    res = route_request("do an ethics review on this data", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/data_ethics_review"
+
+
+def test_route_constructive_disagreement(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "disagree")
+    res = route_request("tell me if i am wrong about this plan", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "guidance/constructive_disagreement"
+
+
+def test_route_pre_submission_checklist(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "submit")
+    res = route_request("is this ready to submit", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "audit/pre_submission_checklist"
+
+
+def test_sys_active_project_exists_in_router_essentials_or_handlers(tmp_path):
+    """Smoke: sys_active_project + sys_help are wired."""
+    from research_os.server import TOOL_DEFINITIONS, _HANDLERS
+    assert "sys_active_project" in TOOL_DEFINITIONS
+    assert "sys_active_project" in _HANDLERS
+    assert "sys_help" in TOOL_DEFINITIONS
+    assert "sys_help" in _HANDLERS
+
+
+def test_sys_active_project_returns_root(tmp_path):
+    """Smoke: sys_active_project returns a project root + advice."""
+    import os
+    from research_os.server import _handle_sys_active_project
+    scaffold_minimal_workspace(tmp_path, "active project")
+    os.environ["RESEARCH_OS_WORKSPACE"] = str(tmp_path)
+    try:
+        out = _handle_sys_active_project("sys_active_project", {}, tmp_path)
+        assert out and out[0].text
+        import json
+        payload = json.loads(out[0].text)
+        assert payload["status"] == "success"
+        data = payload["data"]
+        assert "project_root" in data
+        assert data["has_os_state"] is True
+        assert "env var" in data["resolved_via"] or "cwd" in data["resolved_via"]
+    finally:
+        os.environ.pop("RESEARCH_OS_WORKSPACE", None)
+
+
+def test_sys_help_returns_orientation(tmp_path):
+    from research_os.server import _handle_sys_help
+    out = _handle_sys_help("sys_help", {}, tmp_path)
+    assert out and out[0].text
+    import json
+    payload = json.loads(out[0].text)
+    assert payload["status"] == "success"
+    data = payload["data"]
+    assert "tool_namespaces" in data
+    assert "session_start_pattern" in data
+    assert "protocol_categories" in data
+
+
+def test_sys_help_topic_synthesis_returns_synthesis_protocols(tmp_path):
+    from research_os.server import _handle_sys_help
+    out = _handle_sys_help("sys_help", {"topic": "synthesis"}, tmp_path)
+    assert out and out[0].text
+    import json
+    payload = json.loads(out[0].text)
+    assert payload["status"] == "success"
+    assert "synthesis_protocols" in payload["data"]
+
+
 def test_plan_turn_recommends_chat_split_when_long(tmp_path):
     import yaml as _yaml
     scaffold_minimal_workspace(tmp_path, "PlanTurn Split")

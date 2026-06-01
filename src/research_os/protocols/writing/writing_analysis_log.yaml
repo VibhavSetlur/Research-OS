@@ -1,6 +1,6 @@
 id: writing_analysis_log
 name: Writing — Analysis Log
-version: '4.0.0'
+version: '1.0.0'
 schema_version: '2.0'
 description: Format for structured entries appended to workspace/analysis.md via mem_analysis_log.
 

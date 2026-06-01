@@ -92,12 +92,23 @@ research-os init [DIRECTORY] [OPTIONS]
   --force               Re-scaffold an existing workspace (preserves data)
 
 research-os start [OPTIONS]
-  --workspace PATH      Project root (default: auto-detect from cwd)
+  --workspace PATH      (Optional, back-compat) Pin the server to a
+                        specific workspace path. Equivalent to setting
+                        RESEARCH_OS_WORKSPACE. Omit for global mode —
+                        one server serves all projects.
   --transport stdio|sse Default stdio (what most IDEs use)
 ```
 
 You can pass `--name "Cohort 2024"` to set the project name; everything else
 is optional. The AI fills the rest later.
+
+**The server is global.** Install once with `pip install research-os`;
+the SAME `research-os start` binary serves every project. Each MCP
+request resolves the active project per call via:
+  1. `RESEARCH_OS_WORKSPACE` env var (set by IDE MCP config to
+     `${workspaceFolder}` so each IDE project gets its own context)
+  2. The current working directory walked up to `.os_state/`
+  3. The current working directory as a fallback
 
 ---
 
@@ -254,7 +265,7 @@ recommended next protocol in one short message.
 | IDE shows MCP error: "spawn research-os ENOENT" | The IDE can't find `research-os`. Use the absolute path in the MCP config, OR install Research OS into the env the IDE uses. |
 | Tool calls hang silently | Your IDE may not be MCP-aware. Check the MCP panel for stderr. |
 | `WriteProtectedError` when AI tries to write | Cannot write into `inputs/raw_data/` or `inputs/literature/`. Move to `workspace/` instead. |
-| "Not a Research OS workspace" | Run `research-os init .` or pass `--workspace`. |
+| "Not a Research OS workspace" | Run `research-os init .` here, or open a folder that has been `init`'d. The server resolves per-request via env var or cwd. |
 | State / dir look broken | Ask the AI: "Run `tool_workspace_repair`." It heals without deleting. |
 | Citation tool returns 0 results | Check internet, optional API key, and the query string. Public endpoints have rate limits. |
 | Mermaid PNG not rendering | `npm install -g @mermaid-js/mermaid-cli`. |

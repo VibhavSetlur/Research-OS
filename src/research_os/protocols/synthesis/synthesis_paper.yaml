@@ -1,6 +1,6 @@
 id: synthesis_paper
 name: Synthesis — Paper (IMRAD, venue-tailored)
-version: '6.0.0'
+version: '1.0.0'
 schema_version: '2.0'
 description: |
   Compile the final IMRAD paper into synthesis/paper.md (and
@@ -9,6 +9,18 @@ description: |
   inline-formatting + table-aware fallback (no more raw-escaped text).
   Server-side completeness gate blocks the assembly until every active
   step has a focal figure + caption + summary + non-stub conclusions.
+
+  Related per-section / supporting protocols this one calls into:
+    - `synthesis/synthesis_title_workshop` — workshop the title
+      (the single most-read sentence) before assembly
+    - `writing/writing_methods` — Methods drafting
+    - `writing/writing_results` — Results drafting
+    - `writing/writing_discussion` — Discussion drafting
+    - `writing/writing_limitations` — Limitations sub-section
+    - `writing/writing_data_availability` — end-matter (data /
+      code / CRediT / funding / COI / acknowledgements)
+    - `synthesis/synthesis_cover_letter` — journal cover letter
+    - `audit/pre_submission_checklist` — final ready-to-submit gate
 trigger: After audit_and_validation passes. Final pipeline step. The researcher asks "write the paper" / "draft the manuscript".
 prerequisites:
   - workspace/logs/audit_report.md exists with no BLOCKER lines
@@ -186,6 +198,49 @@ steps:
         tool_latex_compile
       Verify synthesis/paper.pdf exists; show warnings from compile log.
 
+  - id: workshop_the_title
+    name: Workshop the title (single most-read sentence)
+    description: |
+      Load `synthesis/synthesis_title_workshop` to generate, iterate,
+      and pick the title. The title is the single most-read sentence
+      in the paper — first-draft titles age badly.
+
+      Skip this step only when the title was already workshopped
+      this session (synthesis/title.md exists and is recent).
+
+  - id: build_end_matter
+    name: Build the end matter (data / code / CRediT / funding / COI / ack)
+    description: |
+      Load `writing/writing_data_availability` to draft:
+        - data availability statement
+        - code availability statement
+        - author contributions (CRediT)
+        - funding statement
+        - conflicts of interest
+        - acknowledgements
+
+      Append to synthesis/paper.md in the order most journals expect
+      (acknowledgements → author contributions → funding → conflicts
+      → data availability → code availability). Re-order per the
+      target venue's house style.
+
+  - id: draft_cover_letter
+    name: Draft the cover letter
+    description: |
+      Load `synthesis/synthesis_cover_letter` to draft the cover
+      letter the editor will see first. Cover letters are
+      frequently the difference between desk-review and desk-
+      reject; the protocol handles fit + significance +
+      reviewers.
+
+  - id: run_pre_submission_checklist
+    name: Run the pre-submission checklist
+    description: |
+      Load `audit/pre_submission_checklist` for the final
+      ready-to-submit gate. Produces a single GREEN / YELLOW /
+      RED verdict + a punch list. RED blocks submission; YELLOW
+      means proceed-after-addressing.
+
   - id: report_to_researcher
     name: Report to Researcher
     description: |
@@ -194,6 +249,10 @@ steps:
         - Citation count + verified ratio
         - Figure count
         - Output files (paper.md, paper.tex, paper.pdf, references.bib)
+        - End-matter status (each statement present + audited)
+        - Cover letter status
+        - Pre-submission checklist verdict (GREEN / YELLOW / RED +
+          punch list)
         - Audit summary (any non-BLOCKER warnings to address)
 
 expected_outputs:

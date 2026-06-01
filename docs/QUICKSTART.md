@@ -1,8 +1,10 @@
 # Quickstart — 5 minutes
 
 This page gets you from zero to "the AI is doing my research" in under 5
-minutes. For deeper material see [GUIDE.md](GUIDE.md), [SETUP.md](SETUP.md),
-or [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md).
+minutes. Want the explicit hand-holding version? Read
+[FIRST_HOUR.md](FIRST_HOUR.md) first. For deeper material see
+[GUIDE.md](GUIDE.md), [SETUP.md](SETUP.md), or
+[RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md).
 
 ---
 
@@ -17,6 +19,9 @@ if you want shap / xgboost / jupyter / full literature providers
 preinstalled. Need help with Python / pip / virtualenvs? See
 [SETUP.md](SETUP.md).
 
+Research OS is GLOBAL. You install it once. The same `research-os`
+binary serves every project you scaffold.
+
 ## 2. Scaffold a project (15 s)
 
 ```bash
@@ -24,7 +29,7 @@ mkdir my-project && cd my-project
 research-os init
 ```
 
-`init` drops:
+`init` is the ONLY per-project command. It drops:
 
 * `AGENTS.md` — the AI operating manual (every supported IDE reads from this).
 * `inputs/researcher_config.yaml` — config + optional API keys (gitignored).
@@ -45,9 +50,13 @@ Anything: data, PDFs, prior write-ups, lab notebooks. The AI will read it all.
 
 ## 4. Open your AI IDE on this folder
 
-Most IDEs auto-detect the MCP config. If yours doesn't, see
-[SETUP.md § 4](SETUP.md). The status bar / MCP panel should show
-`research-os` connected.
+Most IDEs auto-detect the MCP config. The IDE auto-launches
+`research-os start` (the global MCP server) and points it at THIS
+project via the `RESEARCH_OS_WORKSPACE` env var. You don't run
+`research-os start` by hand.
+
+If your IDE doesn't auto-detect, see [SETUP.md § 4](SETUP.md). The
+status bar / MCP panel should show `research-os` connected.
 
 ## 5. Just talk
 
@@ -98,6 +107,10 @@ through install and IDE wiring for whatever IDE you use.
 
 ## Next reads
 
+* [FIRST_HOUR.md](FIRST_HOUR.md) — 60-minute hand-held first session.
+* [CHEATSHEET.md](CHEATSHEET.md) — every command worth knowing, one page.
+* [USE_CASES.md](USE_CASES.md) — pick the right protocol by
+  role × goal × output.
 * [WALKTHROUGH.md](WALKTHROUGH.md) — exhaustive 10-day simulated
   project with realistic messy researcher prompts. Best for seeing
   every feature in context.

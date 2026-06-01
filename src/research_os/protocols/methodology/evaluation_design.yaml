@@ -1,0 +1,260 @@
+id: evaluation_design
+name: Evaluation Design (split / CV / metric / test strategy)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Standalone design protocol for the EVALUATION REGIME — the
+  split, the cross-validation strategy, the metric set, and the
+  statistical test for comparing variants. The evaluation regime
+  is the most common silent failure point in modelling work: a
+  perfectly competent fit can be invalidated by a leaky split, an
+  inappropriate metric, or a comparison test that mis-estimates
+  uncertainty.
+
+  Distinct from:
+    - `methodology/methodology_selection` — that picks the METHOD;
+      this picks how the method will be JUDGED
+    - `methodology/method_comparison` — that runs the head-to-head
+      under an evaluation regime; this DESIGNS that regime
+    - `methodology/power_analysis` — that justifies sample size;
+      this designs the eval scheme on a given sample
+
+trigger: |
+  Researcher says any of: "design the evaluation", "evaluation
+  strategy", "cross-validation plan", "data split design", "pick
+  the metrics", "design the test set", "leakage-safe split", "what
+  cv should i use".
+
+prerequisites:
+  - The task / outcome is named.
+  - A dataset is available (or its shape is known) — drives split
+    feasibility.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "The split MIRRORS DEPLOYMENT. Time-forward deployment →
+       time-forward split. Cross-institution deployment → leave-
+       one-institution-out. Random k-fold demands a positive
+       justification, not a default."
+    - "Every split has a LEAKAGE STORY: 'data from time t after
+       the split-time cannot influence the training fold' — write
+       it. If the story is fragile, the split is fragile."
+    - "Metric choice is irreversible. A model tuned for AUROC will
+       fit different parameters than the same model tuned for
+       calibration / Brier / sensitivity-at-fixed-specificity.
+       Pick the metric that matches the deployment decision."
+    - "Comparing two models with a paired test that ignores
+       within-fold dependence underestimates the variance. Pick
+       the paired test that respects the split structure."
+
+steps:
+  - id: scope_the_evaluation
+    name: Scope the evaluation
+    description: |
+      Confirm:
+        - task family: classification / regression / ranking /
+          survival / forecasting / clustering quality / generation
+        - outcome variable + variable type
+        - intended DEPLOYMENT — what decision will use the model's
+          output, on what time horizon, in what population
+        - sample size + grouping structure (independent rows /
+          repeated measures / clustered by institution / time
+          series)
+
+      The deployment answer drives the split; the task answer
+      drives the metric set; the grouping drives the CV scheme.
+      Without all three, the evaluation is generic.
+
+  - id: design_the_split
+    name: Design the split (mirror deployment)
+    description: |
+      Pick the SPLIT structure from the deployment intent + the
+      grouping:
+
+        DEPLOYMENT INTENT → SPLIT
+          time-forward (future data)        → time-forward split
+                                              (train < cutoff < test)
+          cross-institution                 → leave-one-institution-
+                                              out (LOIO)
+          cross-subject (subject-disjoint)  → leave-one-subject-out
+                                              (LOSO) / GroupKFold
+          out-of-distribution               → distribution-shift
+                                              hold-out (e.g. different
+                                              site, era, instrument)
+          same-distribution generalisation  → random k-fold (justify)
+
+        FOR CLUSTERED DATA: NEVER random-split rows. Group-aware
+        split is the default; random-split is the deviation.
+
+      Write the leakage story for the chosen split: one paragraph
+      naming WHICH data items in the training set could possibly
+      INFLUENCE the test set, and how the split prevents each
+      mechanism. Sources of leakage to address:
+        - feature engineering computed on the whole dataset
+        - patient / subject / site appears in both train and test
+        - target encoding / impute statistics computed on test
+        - look-ahead in time series (using future to predict past)
+        - duplicate / near-duplicate samples across splits
+
+      Save to workspace/<step>/outputs/reports/split_design.md.
+
+  - id: design_the_cv
+    name: Design the cross-validation (within the train side)
+    description: |
+      CV runs INSIDE the train side for hyperparameter tuning +
+      uncertainty estimation. Never on the test side.
+
+      Pick CV strategy per the grouping:
+        - independent rows           → stratified k-fold (k=5 or 10)
+        - clustered by group         → group k-fold (k = #groups
+                                       when feasible; otherwise
+                                       leave-one-group-out)
+        - time-ordered               → expanding-window or
+                                       rolling-origin CV (NOT
+                                       random k-fold)
+        - small-n                    → repeated stratified k-fold
+                                       (5 × 10-fold reduces variance)
+
+      Justify k from the sample size: small n favours larger k
+      (more folds → more training data per fold); large n
+      tolerates smaller k.
+
+      Document hyperparameter search BUDGET (number of trials)
+      and the inner-CV strategy that selects within that budget
+      (nested CV, single inner split, Bayesian opt with early
+      stopping). Same budget for every variant in any later
+      comparison.
+
+  - id: pick_the_metric_set
+    name: Pick the metric set (primary + secondary)
+    description: |
+      Metrics map to DEPLOYMENT DECISIONS. Pick the PRIMARY
+      metric from:
+
+        TASK → DEFAULT primary metric (but justify per project)
+          binary classification:    AUROC, Brier, calibration slope
+          binary with class
+            imbalance:              average precision (AUPR),
+                                    sensitivity at fixed specificity
+          multi-class classification: macro / weighted F1,
+                                       log-loss
+          regression:               RMSE / MAE (pick based on
+                                    outlier sensitivity), R²
+          survival:                 C-index, time-dependent AUC,
+                                    Brier@t, IPCW
+          ranking:                  NDCG@k, MAP@k, MRR
+          forecasting:              MAE, MAPE, sMAPE, MASE,
+                                    pinball loss for quantiles
+          counterfactual estimation: PEHE, policy-value gap
+          clustering quality:       silhouette, ARI, NMI (vs ground
+                                                          truth)
+          generation:               task-appropriate likelihood +
+                                    human eval rubric
+
+      For each, the literature names the convention; cite it. The
+      metric set is NOT generic — it reflects this task on this
+      data in this deployment.
+
+      Add SECONDARY metrics that the deployment cares about:
+        - calibration (when probabilities feed downstream
+          decisions)
+        - fairness across subgroups
+        - latency / memory / model size
+        - interpretability when applicable
+
+      Save to workspace/<step>/outputs/reports/metric_set.md.
+
+  - id: design_the_uncertainty_estimation
+    name: Design uncertainty estimation
+    description: |
+      Point estimates of metrics are over-confident. Pick the
+      uncertainty strategy:
+
+        - bootstrap on a fixed test set (~1000 resamples) →
+          gives 95% CI on the metric
+        - cross-validation variance (k folds → mean ± SD across
+          folds) → gives a sense of stability; not strictly an
+          uncertainty CI
+        - repeated CV (multiple shuffles) → smoother variance
+          estimate
+        - clustered bootstrap when rows are not independent
+
+      For HIGH-STAKES eval (regulatory / clinical / policy), use
+      MORE than one (e.g. bootstrap + repeated CV; report both).
+
+  - id: design_the_comparison_test
+    name: Design the statistical test for comparing variants
+    description: |
+      When two or more variants are compared on the SAME test set
+      / SAME CV folds:
+        - paired test on metric differences PER FOLD (or per
+          bootstrap resample)
+        - for AUROC: DeLong's test (the field's convention)
+        - for binary outcomes per item: McNemar's test
+        - for clustered data: cluster-bootstrap on the difference
+        - corrected resampled t-test (Nadeau-Bengio) when using
+          repeated random splits — naive t-test underestimates
+          variance
+
+      For N variants pairwise: name the multiple-comparison
+      correction (Bonferroni / Holm / Benjamini-Hochberg —
+      whichever the field uses).
+
+      Save to workspace/<step>/outputs/reports/comparison_test.md.
+
+  - id: write_the_eval_protocol
+    name: Write the evaluation protocol (the deliverable)
+    description: |
+      sys_file_write filepath="workspace/<step>/evaluation_protocol.md":
+
+        # Evaluation protocol
+        ## Task + deployment
+        ## Split design
+          - strategy: <named>
+          - leakage story: <one paragraph>
+          - cutoff / group / institution definition
+        ## Cross-validation
+          - inside-train: <k-fold / group-k-fold / time-series-cv>
+          - hyperparameter trial budget per variant
+          - inner-CV scheme
+        ## Metric set
+          - primary metric + cited convention
+          - secondary metrics + rationale
+        ## Uncertainty estimation
+          - bootstrap or CV-variance or repeated-CV, with N samples
+        ## Comparison statistical test
+          - paired test + correction
+        ## Stop conditions
+          - the gate that ends tuning + freezes the test-set
+            evaluation
+
+      This protocol document FEEDS methodology/method_comparison
+      and analysis_plan. Freeze it before any test-set evaluation
+      runs.
+
+  - id: route_to_prereg_when_high_stakes
+    name: Route to preregistration when high stakes
+    description: |
+      For clinical / regulatory / pre-published high-stakes
+      evaluations: load `methodology/preregistration` to freeze
+      the evaluation protocol as part of the SAP. Pre-registered
+      eval regimes are CHECKED against the executed eval at
+      synthesis time; deviations are flagged.
+
+expected_outputs:
+  - workspace/<step>/outputs/reports/split_design.md
+  - workspace/<step>/outputs/reports/metric_set.md
+  - workspace/<step>/outputs/reports/comparison_test.md
+  - workspace/<step>/evaluation_protocol.md
+
+quality_bar:
+  split_mirrors_deployment_with_leakage_story: true
+  cv_respects_grouping: true
+  metric_set_has_primary_plus_secondary: true
+  uncertainty_estimation_named: true
+  paired_comparison_test_named_and_cited: true
+  same_budget_per_variant: true
+
+next_protocol: methodology/methodology_selection
+on_failure: guidance/dead_end_routing

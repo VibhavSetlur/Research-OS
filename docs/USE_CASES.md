@@ -21,8 +21,17 @@ picks the protocol. This page exists so you know what's possible.
 | Sandbox-explore without paperwork | "just poke at this", "sanity check" | `guidance/casual_exploration` |
 | Generate hypotheses from data | "do real EDA — no hypothesis yet" | `methodology/exploratory_data_analysis` |
 | Compare two methods head-to-head | "benchmark RF vs XGB on this" | `methodology/method_comparison` |
+| Design the eval (split + CV + metrics) | "design the evaluation strategy" | `methodology/evaluation_design` |
+| Design a hyperparameter sweep | "design the sweep, equal budgets" | `methodology/hyperparameter_search_design` |
+| Workshop my paper title | "give me title alternatives" | `synthesis/synthesis_title_workshop` |
+| Write the Discussion | "draft the discussion" | `writing/writing_discussion` |
+| Write the Limitations | "tighten the limitations" | `writing/writing_limitations` |
 | Write the paper | "draft the manuscript for a journal" | `synthesis/synthesis_paper` |
+| Cover letter for submission | "draft a cover letter" | `synthesis/synthesis_cover_letter` |
+| End-matter (data avail / CRediT / etc.) | "draft the end matter" | `writing/writing_data_availability` |
+| Pre-submission final check | "is this ready to submit" | `audit/pre_submission_checklist` |
 | Make a poster | "make me a conference poster" | `synthesis/synthesis_poster` |
+| Make a one-pager / handout | "make a one-pager for the poster session" | `synthesis/synthesis_handout` |
 | Make a dashboard | "build a dashboard" | `synthesis/synthesis_dashboard` |
 | Wrap up a working session | "wrap up", "going to lunch" | `guidance/chat_handoff` |
 | Come back next day | "pick up where we left off" | `guidance/session_resume` |
@@ -48,6 +57,10 @@ picks the protocol. This page exists so you know what's possible.
 | Justify a power calc for an upcoming RCT | "power analysis", "sample size" | `methodology/power_analysis` |
 | Audit a dataset before recommending methods | "data quality audit" | `methodology/data_quality_audit` |
 | Walk through methodology pick for a project | "which method should I use" | `methodology/methodology_selection` |
+| Design split / CV / metric / paired test | "design the evaluation strategy" | `methodology/evaluation_design` |
+| Design a hyperparameter sweep | "design the sweep" | `methodology/hyperparameter_search_design` |
+| Walk an ethics review | "data ethics review" | `methodology/data_ethics_review` |
+| Push back when the chosen direction is weak | "tell me if I'm wrong" | `guidance/constructive_disagreement` |
 | Build the canonical pipeline for a subfield | "best-practice pipeline for snRNA-seq" | `methodology/deep_domain_research` |
 | Pre-register the SAP | "freeze the analysis plan" | `methodology/preregistration` |
 | Set up a simulation study (ADEMP) | "run a simulation study" | `methodology/simulation_studies` |
@@ -112,6 +125,9 @@ don't want to redo the intake.
 | Build a figure deck from a results table | "build me figures from this CSV" | `visualization/visualization_workflow` |
 | Polish a single figure | "polish my figure" | `visualization/visualization_workflow` |
 | Critique a figure | "critique this figure" | `visualization/figure_critique` |
+| Compose Figure 2 = panels A / B / C / D | "make figure 2 with panels" | `visualization/multi_panel_composition` |
+| Order figures across a paper / talk / poster | "order my figures" | `visualization/figure_narrative_arc` |
+| Color-blind + WCAG accessibility check | "check colour accessibility" | `visualization/color_accessibility_audit` |
 | Just learn the figure conventions | "what's the figure style guide" | `visualization/figure_guidelines` |
 
 ### The "no project yet, just thinking" researcher
@@ -147,7 +163,17 @@ don't want to redo the intake.
 |---|---|
 | Polished single figure | `visualization/visualization_workflow` |
 | Figure deck | `visualization/visualization_workflow` |
+| Multi-panel figure (A / B / C / D) | `visualization/multi_panel_composition` |
+| Figure ordering brief (across paper / talk) | `visualization/figure_narrative_arc` |
+| Color accessibility audit report | `visualization/color_accessibility_audit` |
 | Paper (IMRAD) | `synthesis/synthesis_paper` |
+| Title (workshopped) | `synthesis/synthesis_title_workshop` |
+| Discussion section | `writing/writing_discussion` |
+| Results section | `writing/writing_results` |
+| Limitations section | `writing/writing_limitations` |
+| End matter (data / code / CRediT / etc.) | `writing/writing_data_availability` |
+| Cover letter | `synthesis/synthesis_cover_letter` |
+| Pre-submission checklist + verdict | `audit/pre_submission_checklist` |
 | Abstract | `synthesis/synthesis_abstract` |
 | Poster | `synthesis/synthesis_poster` |
 | Dashboard (offline HTML) | `synthesis/synthesis_dashboard` |
@@ -156,12 +182,16 @@ don't want to redo the intake.
 | Grant narrative | `synthesis/synthesis_grant` |
 | Lay summary / press release / blog | `synthesis/synthesis_lay_summary` |
 | PI / advisor / weekly update | `synthesis/synthesis_progress_update` |
+| Printable one-pager / handout (with QR) | `synthesis/synthesis_handout` |
 | Null-findings companion | `synthesis/synthesis_null_findings` |
 | Critique brief (single paper) | `guidance/quick_paper_review` |
 | Critique brief (single figure) | `visualization/figure_critique` |
 | Comparative review brief (N papers) | `literature/comparative_paper_review` |
 | Reproduction report | `methodology/reproduction_attempt` |
 | Power justification paragraph | `methodology/power_analysis` |
+| Evaluation protocol document | `methodology/evaluation_design` |
+| Sweep design document | `methodology/hyperparameter_search_design` |
+| Data ethics review document | `methodology/data_ethics_review` |
 | Data-quality audit report | `methodology/data_quality_audit` |
 | Methodological consultation notes (optional) | `methodology/methodological_consultation` |
 

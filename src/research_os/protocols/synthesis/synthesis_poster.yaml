@@ -1,8 +1,12 @@
 id: synthesis_poster
 name: Synthesis — Poster (audience-tailored)
-version: '5.0.0'
+version: '1.0.0'
 schema_version: '2.0'
-description: Generate a poster (LaTeX → PDF) sized and styled for the target audience.
+description: |
+  Generate a poster (LaTeX → PDF) sized and styled for the target
+  audience. Adds a QR code linking to the full artefact (paper /
+  dashboard / preprint) and enforces the single-headline test
+  (the visitor must grok the point from across the room).
 trigger: Researcher asks for "a poster"; OR `research_goal.output_types` includes "poster".
 
 quality_bar:
@@ -13,6 +17,8 @@ quality_bar:
   figure_dpi_minimum: 300
   whitespace_target_percent: 35         # avoid wall-of-text posters
   one_headline_message: true            # the visitor must grok the point in 10 seconds
+  qr_to_full_artefact_present: true     # paper / preprint / dashboard
+  single_headline_test_passed: true     # "what's the finding" answerable from across the room
 
 audience_profile:
   academic_conference:
@@ -76,6 +82,48 @@ steps:
       compiles to synthesis/poster.pdf (if pdflatex is available).
       The generator pulls in the curated figures + your block text.
 
+  - id: generate_qr_to_full_artefact
+    name: Generate QR code linking to the full artefact (mandatory)
+    description: |
+      Pick the URL the QR will point to:
+        - the paper preprint / DOI (most reader-useful)
+        - the dashboard URL (when dashboard is the primary
+          deliverable)
+        - the lab page hosting the paper PDF + supplementary
+          materials
+        - the project landing page (only when the above don't
+          exist)
+
+      Generate via `qrcode` / `segno`:
+        python -c "import qrcode; qrcode.make('<url>').save(
+          'synthesis/poster_qr.png')"
+
+      Embed in the poster's bottom-right (Contact block for
+      industry profile; in the References block for academic).
+      Test the QR by scanning it BEFORE printing. A dead QR is
+      worse than no QR.
+
+  - id: single_headline_test
+    name: Single-headline test (across-the-room readability)
+    description: |
+      Print the poster (or render the PDF and zoom to physical
+      scale on a screen). Stand 1.5 metres back and ask:
+        - what is the headline finding?
+        - which figure carries it?
+        - what's the action / takeaway?
+
+      A passer-by spends ≤10 seconds at the poster — the
+      headline must land in those 10 seconds. If the headline
+      doesn't land:
+        - typography: increase headline font + reduce body
+        - layout: move the headline higher / centre
+        - figure: replace with a billboard-ready figure (the
+          Morrison Better Poster pattern)
+
+      Run this test BEFORE final printing. Iterating on a draft
+      is cheap; reprinting an A0 poster the night before the
+      conference is not.
+
   - id: quality_audit
     name: Quality Audit
     description: |
@@ -84,11 +132,17 @@ steps:
         - ≤6 citations.
         - One headline message dominates.
         - Whitespace looks reasonable (~30-40%, not packed).
+        - QR code present + scannable.
+        - Single-headline test passed.
+        - Color-blind safe (per
+          visualization/color_accessibility_audit if the
+          poster will be public).
       Iterate if any check fails.
 
 expected_outputs:
   - synthesis/poster.tex
   - synthesis/poster.pdf
+  - synthesis/poster_qr.png
 
 next_protocol: null
 on_failure: null

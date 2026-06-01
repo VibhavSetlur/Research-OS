@@ -265,6 +265,26 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["protocol_name"],
         },
     },
+    "sys_active_project": {
+        "short": "Return the project root the server resolved for THIS request (global-server mode).",
+        "description": "Returns the currently-resolved project root + how it was resolved (env var / cwd walk / fallback). The Research OS MCP server is GLOBAL — one process serves multiple projects. Each request resolves a project per the rules: (1) RESEARCH_OS_WORKSPACE env var (the IDE MCP config typically sets this to ${workspaceFolder}); (2) the current working directory walked up for `.os_state/`; (3) the current working directory itself. Call this when you need to confirm which project this session is operating on, OR when a tool surprised you and you want to verify the root.",
+        "category": "routing",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "sys_help": {
+        "short": "AI orientation — how to use Research OS efficiently (protocols + tools + routing).",
+        "description": "Returns a compact orientation block for the AI: the routing pattern (sys_boot → tool_route → sys_protocol_get → sys_active_tools), the protocol categories with one-line summaries, the tool namespaces (sys_* / tool_* / mem_*), and the canonical session-start flow. Use this when starting cold (no prior session memory), when a new AI takes over from a handoff, or when a tool / protocol mention is ambiguous and the orientation block clarifies it.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "Optional — a topic to focus the orientation on (e.g. 'synthesis', 'methodology', 'audit'). Returns category-specific guidance.",
+                },
+            },
+        },
+    },
 
     # ── Protocols / guidance ──────────────────────────────────────────
     "sys_protocol_get": {
@@ -3690,6 +3710,171 @@ def _handle_sys_dep_inventory(name, arguments, root):
     return _text(_success(_optional_dep_inventory()))
 
 
+def _handle_sys_active_project(name, arguments, root):
+    """Report which project root the server resolved for this request."""
+    env_root = os.environ.get("RESEARCH_OS_WORKSPACE", "").strip()
+    via = "cwd"
+    env_used = False
+    if env_root and Path(env_root).expanduser().resolve() == root:
+        via = "RESEARCH_OS_WORKSPACE env var"
+        env_used = True
+    elif (root / ".os_state").exists():
+        via = "cwd walked up to .os_state/"
+    return _text(_success({
+        "project_root": str(root),
+        "has_os_state": (root / ".os_state").exists(),
+        "resolved_via": via,
+        "env_var_set": env_used,
+        "advice": (
+            "This server is GLOBAL — one process serves multiple projects. "
+            "Each request resolves a project per these rules: "
+            "(1) RESEARCH_OS_WORKSPACE env var (the IDE MCP config usually "
+            "sets this to ${workspaceFolder}); (2) cwd walked up for "
+            "`.os_state/`; (3) cwd. If `has_os_state` is False, the "
+            "project hasn't been scaffolded — tell the researcher to run "
+            "`research-os init` here, or to open a folder that has been "
+            "initialised."
+        ),
+    }))
+
+
+def _handle_sys_help(name, arguments, root):
+    """Compact AI orientation block — how to use Research OS efficiently."""
+    topic = (arguments or {}).get("topic", "").strip().lower()
+
+    core = {
+        "what_research_os_is": (
+            "Research OS is an MCP server that scaffolds + audits "
+            "research projects end-to-end (data → publication) AND "
+            "supports off-axis work (viz only / talks / lay summaries / "
+            "method consultation / reproduction / mid-pipeline entry). "
+            "One install, one global server, per-project init."
+        ),
+        "tool_namespaces": {
+            "sys_*":  "system / workspace / state / files / paths / checkpoints",
+            "tool_*": "research work — search, exec, audit, synthesis, intake, plan",
+            "mem_*":  "append-only memory — methods, citations, decisions, hypotheses",
+        },
+        "session_start_pattern": [
+            "1. sys_boot — one call returns state + config + history + advice",
+            "2. (await researcher's first message)",
+            "3. tool_route(prompt) — picks the right protocol L1→L2→L3",
+            "4. If `complexity:high`, tool_plan_turn → walk via tool_plan_advance",
+            "5. If `complexity:low`, run shortcut_tool OR sys_protocol_get format='summary'",
+        ],
+        "protocol_categories": {
+            "guidance":      "session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree)",
+            "discover":      "intake + question lock-in",
+            "domain":        "domain classification + study design",
+            "methodology":   "method picking + per-method protocols (ML / Bayes / RCT / qualitative / consult / EDA / comparison / etc.)",
+            "literature":    "search + systematic review + evidence synthesis + comparative paper review",
+            "writing":       "per-section drafting (methods / results / discussion / limitations / end_matter)",
+            "visualization": "figures (rules / workflow / critique / multi-panel / arc / a11y)",
+            "synthesis":     "final deliverables (paper / abstract / poster / dashboard / slides / lay / handout / report / grant / null_findings / progress_update / from_inputs / cover_letter / title)",
+            "audit":         "quality audit + pre-submission checklist",
+            "reproducibility": "snapshot + verify everything reruns clean",
+        },
+        "routing_principle": (
+            "tool_route is the FIRST tool after every researcher message. "
+            "It returns a tight routing decision in ~250 tokens. Don't "
+            "search for protocols manually; let the router pick. When "
+            "ambiguous it returns `ask_user` — ask that question and "
+            "re-route, never guess."
+        ),
+        "anti_patterns": [
+            "Don't call sys_state_get + sys_config_get + sys_protocol_history separately — use sys_boot.",
+            "Don't load full protocols with sys_protocol_get format='full' when summary suffices.",
+            "Don't one-shot 400-line scripts — tool_plan_step + sub-task pipelines (see guidance/analysis_plan).",
+            "Don't invent citations — synthesis tools VERIFY every citation.",
+            "Don't write under inputs/raw_data or inputs/literature — server blocks it.",
+        ],
+        "docs_for_humans": [
+            "docs/QUICKSTART.md — 5-minute start",
+            "docs/RESEARCHER_GUIDE.md — non-technical walkthrough",
+            "docs/USE_CASES.md — role × goal × output map",
+            "docs/PROTOCOLS.md — protocol catalogue + triggers",
+            "docs/TOOLS.md — every MCP tool with example calls",
+            "docs/PROTOCOL_DOCTRINE.md — scaffold-not-script principle",
+            "docs/FAQ.md — common questions",
+        ],
+    }
+
+    if topic in {"synthesis", "deliverable", "deliverables"}:
+        return _text(_success({
+            "synthesis_protocols": {
+                "synthesis_paper": "IMRAD paper, venue-tailored",
+                "synthesis_abstract": "structured / unstructured / preprint",
+                "synthesis_poster": "billboard / classic LaTeX poster + QR",
+                "synthesis_dashboard": "offline HTML dashboard, Playwright-tested",
+                "synthesis_slides": "talks (lab / conference / defense / invited / teaching)",
+                "synthesis_grant": "grant narrative (R01 / NSF / Wellcome / ERC)",
+                "synthesis_report": "internal / client / technical / policy report",
+                "synthesis_lay_summary": "public / press / patient / funder / blog / social",
+                "synthesis_progress_update": "PI / advisor / lab / stand-up update",
+                "synthesis_handout": "single-page printable leave-behind + QR",
+                "synthesis_from_inputs": "synthesis when prior analysis ran outside RO",
+                "synthesis_null_findings": "publishable companion for refuted / abandoned",
+                "synthesis_cover_letter": "journal cover letter",
+                "synthesis_title_workshop": "title generation + iteration",
+            },
+            "support_protocols": {
+                "writing/writing_discussion": "Discussion section",
+                "writing/writing_limitations": "Limitations sub-section",
+                "writing/writing_results": "Results section",
+                "writing/writing_methods": "Methods section",
+                "writing/writing_data_availability": "end matter — CRediT / data / code / etc.",
+                "writing/writing_core": "universal writing rules",
+                "audit/pre_submission_checklist": "final ready-to-submit gate",
+            },
+        }))
+    if topic in {"methodology", "methods"}:
+        return _text(_success({
+            "picker_protocols": ["methodology/methodology_selection", "methodology/deep_domain_research"],
+            "per_method": [
+                "causal_inference_deep", "machine_learning", "clinical_trials",
+                "meta_analysis", "survey_psychometrics", "qualitative_research",
+                "simulation_studies", "replication_study", "ablation_study",
+                "pilot_study", "mixed_methods", "bayesian_analysis",
+                "timeseries_analysis",
+            ],
+            "design_protocols": [
+                "exploratory_data_analysis", "method_comparison",
+                "data_quality_audit", "power_analysis", "evaluation_design",
+                "hyperparameter_search_design", "data_ethics_review",
+            ],
+            "support": ["preregistration", "methodological_consultation",
+                        "reproduction_attempt", "tool_discovery"],
+        }))
+    if topic in {"visualization", "viz", "figures"}:
+        return _text(_success({
+            "rules": "visualization/figure_guidelines",
+            "workflow": "visualization/visualization_workflow",
+            "critique": "visualization/figure_critique",
+            "multi_panel": "visualization/multi_panel_composition",
+            "arc": "visualization/figure_narrative_arc",
+            "a11y": "visualization/color_accessibility_audit",
+        }))
+    if topic in {"audit", "quality"}:
+        return _text(_success({
+            "master_audit": "audit/audit_and_validation",
+            "pre_submission": "audit/pre_submission_checklist",
+            "reproducibility": "reproducibility/reproducibility",
+            "specific_audits": [
+                "tool_audit_step_completeness",
+                "tool_audit_code_quality",
+                "tool_audit_prose",
+                "tool_audit_claims",
+                "tool_audit_figure_full",
+                "tool_audit_citations",
+                "tool_audit_assumptions",
+                "tool_audit_reproducibility",
+                "tool_preregister_diff",
+            ],
+        }))
+
+    return _text(_success(core))
+
+
 _HANDLERS = {
     # routing (call these first)
     "sys_boot": _handle_sys_boot,
@@ -3699,6 +3884,8 @@ _HANDLERS = {
     "tool_plan_clear": _handle_tool_plan_clear,
     "sys_tool_describe": _handle_sys_tool_describe,
     "sys_active_tools": _handle_sys_active_tools,
+    "sys_active_project": _handle_sys_active_project,
+    "sys_help": _handle_sys_help,
     "tool_cache_clear": _handle_tool_cache_clear,
     "tool_step_env_lock": _handle_tool_step_env_lock,
     "tool_workflow_dag": _handle_tool_workflow_dag,
@@ -3928,7 +4115,7 @@ if HAS_MCP:
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
-        root = Path(os.getcwd())
+        root = _resolve_project_root()
         profile = _read_profile(root)
         tools: list[Tool] = []
         for name, schema in TOOL_DEFINITIONS.items():
@@ -3943,7 +4130,10 @@ if HAS_MCP:
 
     @server.call_tool()
     async def call_tool(name: str, arguments: dict) -> list[TextContent]:
-        root = Path(os.getcwd())
+        # Per-request project resolution — supports global-server mode
+        # (one `research-os start` process serving multiple projects).
+        # Tools that need a project root receive the resolved path.
+        root = _resolve_project_root()
         return _handle_tool_call(name, arguments, root)
 
     async def run_stdio() -> None:
@@ -3990,20 +4180,77 @@ def _inject_api_keys(root: Path) -> None:
         logger.debug(f"API key injection skipped: {e}")
 
 
+def _resolve_project_root() -> Path:
+    """Resolve the active project root for the current request.
+
+    Resolution order:
+      1. RESEARCH_OS_WORKSPACE environment variable (set by IDE MCP
+         config, typically to ${workspaceFolder}).
+      2. Current working directory walked up to the nearest `.os_state/`
+         (the project marker dropped by `research-os init`).
+      3. Current working directory itself (last resort — tools that
+         need a real workspace will report it gracefully).
+    """
+    env_root = os.environ.get("RESEARCH_OS_WORKSPACE", "").strip()
+    if env_root:
+        p = Path(env_root).expanduser().resolve()
+        if p.exists():
+            return p
+
+    try:
+        from research_os.utils.asset_manager import AssetManager
+        detected = AssetManager.find_project_root()
+        if (detected / ".os_state").exists():
+            return detected
+    except Exception:
+        pass
+
+    return Path.cwd().resolve()
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--transport", default="stdio")
-    parser.add_argument("--workspace", type=str)
+    parser = argparse.ArgumentParser(
+        prog="research-os start",
+        description=(
+            "Run the Research OS MCP server over stdio. The server is "
+            "GLOBAL — it does not need a `--workspace` argument. The "
+            "active project is resolved per-request via the "
+            "RESEARCH_OS_WORKSPACE env var (preferred; set by your IDE "
+            "MCP config to ${workspaceFolder}) or by walking up from the "
+            "current working directory looking for `.os_state/`."
+        ),
+    )
+    parser.add_argument("--transport", default="stdio",
+                        help="MCP transport (default: stdio). 'sse' reserved for future use.")
+    parser.add_argument(
+        "--workspace",
+        type=str,
+        default=None,
+        help=(
+            "DEPRECATED in v1.0.0. Workspace is auto-resolved from the "
+            "RESEARCH_OS_WORKSPACE env var or the current working "
+            "directory. Passing --workspace still works (back-compat) "
+            "but is no longer required."
+        ),
+    )
     args = parser.parse_args()
 
+    # Back-compat: if --workspace is passed explicitly, honour it by
+    # setting the env var. Future requests will read it consistently.
     if args.workspace:
-        os.chdir(args.workspace)
+        os.environ["RESEARCH_OS_WORKSPACE"] = str(
+            Path(args.workspace).expanduser().resolve()
+        )
 
-    _inject_api_keys(Path(os.getcwd()))
+    # Inject API keys for the resolved project (if a project is on disk
+    # at server start; otherwise keys are injected lazily on first call).
+    try:
+        _inject_api_keys(_resolve_project_root())
+    except Exception:
+        pass
 
     if HAS_MCP:
         import asyncio
-
         asyncio.run(run_stdio())
     else:
         sys.exit("MCP package missing. Install with: pip install 'research-os[all]'")

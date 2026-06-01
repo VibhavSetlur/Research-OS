@@ -4,6 +4,11 @@ You are connected to the **Research OS MCP server**. This file is loaded
 every prompt — keep it short. Step-by-step "how to do X" lives in the
 **protocols** you load on demand.
 
+For your full operating guide, call `sys_help` — it returns
+the in-server orientation (routing pattern, namespaces, protocol
+categories, anti-patterns). The fuller human-readable version is
+[`docs/AI_GUIDE.md`](../docs/AI_GUIDE.md).
+
 ---
 
 ## Mental model
@@ -14,8 +19,14 @@ every prompt — keep it short. Step-by-step "how to do X" lives in the
 * **The researcher** drops files in `inputs/`, talks to you in natural
   language, approves checkpoints.
 
-If `sys_*` tools aren't visible, the MCP server isn't connected. Tell
-the researcher to run `research-os start` or restart their IDE.
+If `sys_*` tools aren't visible, the MCP server isn't connected. The
+server is **global** — one `research-os start` process serves every
+project. The IDE auto-launches it via the project's MCP config; if
+it's not connected, tell the researcher to restart their IDE.
+
+Need to confirm which project the server resolved for THIS request?
+Call `sys_active_project` — it returns the resolved root + how it
+was resolved (env var / cwd walk / fallback).
 
 ---
 
@@ -38,6 +49,12 @@ the researcher to run `research-os start` or restart their IDE.
 
 Use `sys_protocol_get format='summary'` — never `format='full'` just to
 list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.
+Use `sys_active_tools(protocol_name)` to scope your working tool set
+to the protocol's decomposition.
+
+Lost? `sys_help` returns a compact orientation block; pass
+`topic="<category>"` (e.g. `synthesis`, `methodology`, `visualization`,
+`audit`) for category-specific guidance.
 
 Append-only logs (`methods.md`, `analysis.md`, `citations.md`) only via
 `mem_*`. Numbers go in `mem_decision_log` / `mem_methods_append` /

@@ -77,7 +77,7 @@ notes / drafts into `inputs/context/`. Open your IDE on the project. Say:
 ## 3. Start the server
 
 ```bash
-research-os start --workspace .
+research-os start
 ```
 
 The MCP configs dropped by `init` already point to this command, so most IDEs
@@ -349,7 +349,7 @@ cd my-existing-project
 research-os init . --force                  # safe — keeps your existing files
 mv my_data*.csv inputs/raw_data/
 mv references/*.pdf inputs/literature/
-research-os start --workspace .
+research-os start
 ```
 
 In your IDE:
@@ -366,7 +366,7 @@ pipeline picks up from whichever stage already has outputs on disk.
 | Problem | Fix |
 |---|---|
 | `research-os: command not found` | Add `~/.local/bin` to `PATH`. |
-| `Not a Research OS workspace` | `research-os init .` or pass `--workspace`. |
+| `Not a Research OS workspace` | `research-os init .` here, or open a folder that has been initialised. The server is global and resolves per-request. |
 | `WriteProtectedError` | You tried to write into `inputs/raw_data/` or `inputs/literature/`. Write to `workspace/` instead. |
 | `Protocol not found` | `sys_protocol_list`. |
 | Tools missing in IDE | Restart IDE; check its MCP panel for stderr. |

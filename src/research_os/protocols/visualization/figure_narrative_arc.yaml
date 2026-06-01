@@ -1,0 +1,257 @@
+id: figure_narrative_arc
+name: Figure Narrative Arc (ordering figures across paper / talk / poster)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Choose and ORDER the figures that appear in a paper / talk / poster
+  / dashboard. The choice of WHICH figures and the order they appear
+  in is editorial work that gets less attention than the figures
+  themselves but determines whether a reader / audience follows the
+  argument.
+
+  Distinct from:
+    - `visualization/figure_guidelines` — single-figure styling
+    - `visualization/visualization_workflow` — building / polishing
+    - `visualization/multi_panel_composition` — composing one figure
+      of several panels
+  This protocol asks: across the N figures in your deliverable, which
+  ones earn their place, and in what order?
+
+trigger: |
+  Researcher says any of: "which figures should i keep", "order my
+  figures", "figure arc", "narrative arc", "what should figure 1 be",
+  "drop a figure", "tighten the figure set", "figure budget".
+
+prerequisites:
+  - At least 2 figures available across workspace/<step>/outputs/figures/
+    OR synthesis/figures/.
+  - A target deliverable (paper / talk / poster / dashboard) named so
+    the figure budget is bounded.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Figure 1 sets the question; the LAST figure delivers the
+       headline. Intermediate figures support the chain — every
+       figure earns its place by being load-bearing for a step in
+       the argument."
+    - "A figure that survives a 'cut this figure' challenge is a
+       figure that belongs. Apply the cut-test to every candidate;
+       the survivors are the keep set."
+    - "Sequence the figures so the reader's mental model BUILDS.
+       Don't introduce a result before introducing the comparison
+       it makes — the reader must already see WHY before they see
+       WHAT."
+    - "Different deliverables have different figure budgets and
+       arcs. A paper has 4-6 figures and an IMRAD arc; a talk has
+       8-12 figures and a story arc; a poster has 2-4 figures and
+       a billboard arc. Pick the arc per deliverable."
+
+destination_profile:
+  paper_journal:
+    figure_budget: [4, 6]
+    arc: [Setup, Validation, Primary_result, Mechanism_or_subgroup, Synthesis]
+    notes: |
+      Default for a journal paper. Figure 1 frames the question /
+      shows the design; Figure 2 validates the setup (descriptives,
+      QC); Figure 3 (or 3+4) carries the primary result; Figure 5
+      drills into a sub-finding (subgroup / sensitivity / mechanism);
+      Figure 6 synthesises across the prior figures.
+  paper_short_letter:
+    figure_budget: [2, 4]
+    arc: [Frame_and_validate_in_one, Primary_result, Sub_result_or_synthesis]
+    notes: |
+      Letter format (Science / Nature / similar). Figure 1 doubles
+      duty as frame + validation. Figure 2 is the headline. Figure
+      3 (if used) is a robustness / mechanism check.
+  talk_short:
+    figure_budget: [4, 8]
+    arc: [Title_card, Question, Setup_in_one, Headline, Sensitivity, Implication]
+    notes: |
+      12-15 minute conference talk. Tight arc; each figure carries
+      one moment.
+  talk_long:
+    figure_budget: [8, 14]
+    arc: [Title_card, Question, Roadmap, Setup, Validation, Sub_studies, Headline, Robustness, Limitations_visualised, Implication, Future]
+    notes: |
+      45-60 minute talk. Use Roadmap and Limitations as their own
+      slide-figures; the visual aids the audience cannot get from
+      prose alone.
+  poster:
+    figure_budget: [2, 4]
+    arc: [Headline_billboard, Method_summary, Result, Robustness]
+    notes: |
+      Morrison Better Poster style. Figure 1 is the BILLBOARD
+      finding readable from across the room; the other 1-3 figures
+      sit in flanking columns.
+  dashboard:
+    figure_budget: [4, 12]
+    arc: [Verdicts_at_a_glance, per_hypothesis_findings, Cross_cutting_synthesis]
+    notes: |
+      One figure per hypothesis verdict + one per cross-cutting
+      synthesis. Dashboard tooling already enforces this through
+      synthesis_spec; this protocol just confirms the figure SET
+      before the dashboard renders.
+
+steps:
+  - id: select_destination
+    name: Select destination + figure budget
+    description: |
+      Ask (or infer):
+        "Destination? paper_journal | paper_short_letter | talk_short
+         | talk_long | poster | dashboard."
+      The destination's figure_budget bounds the keep set;
+      the destination's arc structures the order.
+
+  - id: inventory_candidates
+    name: Inventory all candidate figures
+    description: |
+      In ONE batch:
+        - sys_path_list                              (all active steps)
+        - sys_file_list directory="workspace/<step>/outputs/figures"
+          for each step
+        - sys_file_list directory="synthesis/figures"
+          (already-curated)
+
+      For each candidate, record:
+        - source step
+        - filename
+        - the substantive claim its caption makes (from
+          <name>.caption.md if present)
+        - whether it has both sidecars
+        - whether it is publication-grade (≥300 DPI, both sidecars
+          present, audit-clean)
+
+      Write to workspace/scratch/figure_inventory.md.
+
+  - id: name_the_story
+    name: Name the story across the figures
+    description: |
+      Write ONE PARAGRAPH (≤100 words) describing the argument
+      the figures collectively tell. The paragraph names:
+        - the question the reader starts with
+        - the evidence the reader needs to follow the argument
+        - the headline conclusion the reader arrives at
+
+      Each figure in the keep set will earn its place by being
+      load-bearing for one beat in this paragraph. Figures that
+      do not appear in the paragraph are decorative; they get
+      cut (or moved to supplementary).
+
+  - id: apply_cut_test
+    name: Apply the cut-test to every candidate
+    description: |
+      For each candidate figure, ask:
+        "If this figure were removed, would the argument still
+         hold? If yes, can the reader still follow the chain
+         without it?"
+
+      Three outcomes:
+        - LOAD-BEARING — removing it breaks the argument → keep
+        - REDUNDANT — another figure makes the same point → cut
+                      (or merge as a panel of the load-bearing one)
+        - SUPPLEMENTARY — informative but not load-bearing → move
+                          to supplementary / appendix
+
+      Apply ruthlessly until the count fits the destination's
+      figure_budget. A paper with 8 figures usually shrinks to 5
+      that are sharper; the cut figures move to supplementary.
+
+  - id: assign_to_arc_positions
+    name: Assign keep-set figures to arc positions
+    description: |
+      Walk the destination's arc and assign each figure to its
+      position:
+
+        paper_journal arc:
+          Setup            → figure 1
+          Validation       → figure 2
+          Primary_result   → figure 3 (and 4 if needed)
+          Sub-result       → figure 4 or 5
+          Synthesis        → figure 5 or 6
+
+      For positions WITH NO CANDIDATE in the inventory:
+        - either build the missing figure via
+          `visualization/visualization_workflow`, OR
+        - explicitly drop that arc beat from the deliverable
+          (most short-form papers drop the synthesis figure)
+
+      For positions WITH MULTIPLE CANDIDATES, pick the strongest
+      and demote the others to supplementary.
+
+      Save the assignment to workspace/scratch/figure_arc.md as a
+      numbered list:
+        Figure 1: <name> — <one-sentence role in the argument>
+        Figure 2: <name> — <one-sentence role in the argument>
+        ...
+
+  - id: check_reading_order_supports_the_chain
+    name: Reading-order sanity check
+    description: |
+      Walk the arc forward as a naive reader would:
+        - does Figure N introduce only concepts already shown in
+          figures 1..N-1?
+        - does Figure N reference any quantity / unit / colour /
+          legend not introduced earlier?
+        - does any figure assume a comparison the reader has not
+          yet been shown?
+
+      When a figure assumes something not yet shown, EITHER move
+      its prerequisite earlier in the arc OR add a small intro
+      figure before it. Reading-order violations are the single
+      most common reason figures "don't quite land" with the
+      reader.
+
+  - id: write_the_figure_brief_for_the_deliverable
+    name: Write a figure brief for the deliverable's drafter
+    description: |
+      sys_file_write filepath="synthesis/figure_brief.md":
+
+        # Figure brief — <deliverable>
+        Destination: <destination>
+        Figure budget: <range>
+        Story (1 paragraph): <from name_the_story>
+
+        ## Keep set, ordered
+        Figure 1: <name> — <role> — source: <path>
+        Figure 2: <name> — <role> — source: <path>
+        ...
+
+        ## Cuts (with rationale)
+        - <name> → moved to supplementary; <one-line why>
+        - <name> → dropped; <one-line why>
+
+        ## Building required
+        - position <N>: <missing figure description> — route to
+          visualization/visualization_workflow
+
+      This brief is what synthesis_paper / synthesis_slides /
+      synthesis_poster / synthesis_dashboard consume to know which
+      figure goes where. It also documents the cut decisions so a
+      reviewer / collaborator can see what was considered.
+
+  - id: route_to_curate
+    name: Route to the deliverable's figure-curation tool
+    description: |
+      For paper / poster / dashboard:
+        tool_synthesis_curate_figures (curates per synthesis/figure_brief.md
+        and copies into synthesis/figures/ with fig01_<slug>.png,
+        fig02_<slug>.png, ...).
+      For talk:
+        the slide protocol reads synthesis/figure_brief.md and
+        embeds per-slide.
+
+expected_outputs:
+  - workspace/scratch/figure_inventory.md
+  - workspace/scratch/figure_arc.md
+  - synthesis/figure_brief.md
+
+quality_bar:
+  figure_budget_respected: true
+  every_kept_figure_is_load_bearing: true
+  reading_order_does_not_assume_concepts_not_yet_shown: true
+  cuts_documented_with_rationale: true
+  story_paragraph_under_100_words: true
+
+next_protocol: null
+on_failure: guidance/dead_end_routing

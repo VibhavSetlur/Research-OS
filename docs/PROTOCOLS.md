@@ -1,6 +1,6 @@
 # Protocol Reference
 
-Research OS ships **66 YAML protocols** organised into nine categories.
+Research OS ships **82 YAML protocols** organised into nine categories.
 Each protocol is a sequence of steps the AI should follow, with explicit
 `expected_outputs`, a `next_protocol` pointer, and a `quality_bar`. All
 are indexed in `src/research_os/protocols/_router_index.yaml` for
@@ -12,9 +12,13 @@ real researchers actually run: visualization-only requests, talk decks,
 lay summaries for non-experts, PI progress updates, exploratory data
 analysis with hypothesis generation, head-to-head method comparisons,
 standalone power analyses, reproduction attempts of published work,
-teaching / consultation modes, multi-paper comparative reviews, and
-mid-pipeline entry for projects already in flight. See [USE_CASES.md](USE_CASES.md)
-for a role × goal map of when each protocol fires.
+teaching / consultation modes, multi-paper comparative reviews,
+mid-pipeline entry, per-section paper drafting (results / discussion /
+limitations / end-matter), multi-panel figure composition, figure
+narrative arcs, color accessibility audits, cover letters, title
+workshops, printable handouts, evaluation + sweep design, and data
+ethics review. See [USE_CASES.md](USE_CASES.md) for a role × goal map
+of when each protocol fires.
 
 For the format of a protocol file, see
 [CONTRIBUTING.md § Adding or modifying a protocol](../CONTRIBUTING.md).
@@ -121,6 +125,9 @@ AND on-disk artifacts so migrated projects resume cleanly.
 | `methodology/power_analysis` | Standalone power / sample-size justification |
 | `methodology/reproduction_attempt` | Reproduce a published analysis (rerun their pipeline) |
 | `methodology/methodological_consultation` | Teach / explain / compare methods (no project commit) |
+| `methodology/evaluation_design` | Design split / CV / metric set / paired comparison test |
+| `methodology/hyperparameter_search_design` | Design a sweep (space, budget, strategy, early-stopping) |
+| `methodology/data_ethics_review` | IRB / privacy / consent / sharing / fairness / dual-use |
 
 ### Literature
 
@@ -131,12 +138,23 @@ AND on-disk artifacts so migrated projects resume cleanly.
 
 ### Writing
 
-* `writing/writing_core` — universal rules; loaded implicitly by every synthesis.
+* `writing/writing_core` — universal rules; loaded implicitly by every
+  synthesis. Includes vague-quantifier audit + anti-bullshit signals +
+  numbered claim grounding pattern.
 * `writing/writing_methods` — append a structured method entry.
+* `writing/writing_results` — Results section drafting (report numbers,
+  defer interpretation, full statistical form).
+* `writing/writing_discussion` — Discussion section drafting (the hardest
+  section — principal findings, alternative explanations, limitations
+  route, scope-limited implications, concrete future work).
+* `writing/writing_limitations` — Limitations sub-section (no boilerplate;
+  every limitation paired with downstream implication; critical-first).
 * `writing/writing_citations` — maintain workspace/citations.md.
 * `writing/writing_conclusions` — per-step conclusions.md.
 * `writing/writing_analysis_log` — append structured entry to analysis.md.
 * `writing/writing_readme` — project + per-step README.
+* `writing/writing_data_availability` — end matter (data + code
+  availability, CRediT, funding, COI, acknowledgements).
 
 ### Synthesis — final deliverables
 
@@ -176,6 +194,13 @@ Each is venue/audience-tailored and enforces quality minimums:
   were done OUTSIDE Research-OS. Builds a shadow workspace step,
   imports the artefacts, runs the chosen target synthesis on top,
   with a provenance ceiling stated in the final deliverable.
+* `synthesis/synthesis_cover_letter` — journal cover letter (fit +
+  significance + reviewers + disclosures + word cap ≤ 400).
+* `synthesis/synthesis_title_workshop` — title generation + iteration
+  (≥6 alternatives across archetypes, substring test, shortlist of 3,
+  stress test the winner).
+* `synthesis/synthesis_handout` — single-page printable leave-behind /
+  one-pager (5 audience profiles, QR code mandatory).
 
 ### Audit + reproducibility
 
@@ -199,6 +224,15 @@ Each is venue/audience-tailored and enforces quality minimums:
 * `visualization/figure_critique` — reviewer-style critique of a
   single figure (chart family, encoding, caption alignment,
   sensitivity to alternative encoding).
+* `visualization/multi_panel_composition` — compose a multi-panel
+  figure (Figure 2 = A / B / C / D) with shared scales + combined
+  caption.
+* `visualization/figure_narrative_arc` — order figures across a paper /
+  talk / poster (figure budget + arc + cut decisions + reading-order
+  sanity check).
+* `visualization/color_accessibility_audit` — color-blindness
+  simulation (3 types) + WCAG contrast + grayscale-survivability +
+  redundant-encoding audit.
 
 ---
 

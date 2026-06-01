@@ -1,6 +1,6 @@
 id: figure_guidelines
 name: Figure Guidelines
-version: '6.1.0'
+version: '1.0.0'
 schema_version: '2.0'
 description: |
   Rules for picking the right chart type, producing publication-quality
@@ -9,12 +9,18 @@ description: |
   focal figure with both caption sidecars. Server-enforced via
   tool_audit_step_completeness.
 
-  This protocol is the STYLE-AND-RULES reference. For a full
-  visualization WORKFLOW (build / polish a figure or figure deck
-  without committing to analysis_plan), see
-  `visualization/visualization_workflow`. For a reviewer-style
-  critique of a single existing figure, see
-  `visualization/figure_critique`.
+  This protocol is the STYLE-AND-RULES reference. Related visualization
+  protocols (load these for workflow / composition / critique / a11y):
+    - `visualization/visualization_workflow` — build a figure or
+      figure deck without committing to the full analysis_plan loop
+    - `visualization/figure_critique` — reviewer-style critique of
+      a single existing figure
+    - `visualization/multi_panel_composition` — compose a multi-
+      panel figure (Figure 2 = A / B / C / D)
+    - `visualization/figure_narrative_arc` — order figures across a
+      paper / talk / poster (which figure goes first; the throughline)
+    - `visualization/color_accessibility_audit` — deeper color-blind
+      simulation + WCAG contrast + grayscale-survivability audit
 
 mandatory_per_step_figure:
   rule: |

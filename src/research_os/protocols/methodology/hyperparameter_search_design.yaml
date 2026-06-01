@@ -1,0 +1,266 @@
+id: hyperparameter_search_design
+name: Hyperparameter Search Design (sweeps + budgets)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Design a hyperparameter sweep — the search space, the budget, the
+  search strategy, the early-stopping rule, and the reporting
+  discipline that makes the resulting numbers comparable across
+  variants and reproducible across runs.
+
+  Distinct from:
+    - `methodology/method_comparison` — that compares two or more
+      methods after tuning; this designs the tuning
+    - `methodology/methodology_selection` — that picks the method
+      family; this picks how that family will be configured
+    - `methodology/evaluation_design` — that designs the
+      train/val/test regime; this designs what runs INSIDE the
+      train side
+
+trigger: |
+  Researcher says any of: "design the sweep", "hyperparameter
+  search", "sweep design", "what hyperparameters should i tune",
+  "design the grid", "random search vs bayesian opt", "early
+  stopping", "compute budget for tuning".
+
+prerequisites:
+  - A method family is chosen (or the candidate set from
+    methodology_selection is in hand).
+  - A train/val/test split exists (or is being designed in
+    evaluation_design).
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Search what MATTERS. Tuning 30 hyperparameters when 4 carry
+       95% of the variance is compute spent on noise. The
+       literature names which hyperparameters drive each method
+       family; consult before searching."
+    - "Budget is part of the experiment, not a hidden choice. A
+       comparison between two methods given different trial
+       budgets is not a comparison."
+    - "Random search beats grid search in most regimes (Bergstra &
+       Bengio 2012). Bayesian optimisation beats both for
+       expensive evaluations but adds variance from the surrogate
+       model — report it."
+    - "Early-stopping rules are part of the search definition. A
+       sweep with one method using ASHA / Hyperband and another
+       using fixed budget is comparing two designs, not two
+       methods."
+
+steps:
+  - id: scope_the_sweep
+    name: Scope the sweep
+    description: |
+      Confirm:
+        - method family (one or several — if several, design ONE
+          sweep per family with equal-effort budgets)
+        - the evaluation regime the sweep runs INSIDE of (the
+          inner CV / inner val split from evaluation_design)
+        - the compute budget available (wall-clock; GPU-hours;
+          cost ceiling) — drives search strategy
+        - the goal of the sweep:
+            (a) FIND a single best configuration to deploy
+            (b) UNDERSTAND the hyperparameter landscape (which
+                params matter, in what ranges)
+            (c) BOTH
+
+  - id: identify_hyperparameters_that_matter
+    name: Identify hyperparameters that matter (literature + sanity)
+    description: |
+      For each method family in scope:
+        tool_research_method query="<method> hyperparameter
+                                    sensitivity for <task type>"
+      Read the returned methods + benchmark papers to identify
+      the 3-7 hyperparameters that drive most of the variance for
+      THIS task family. Examples (illustrative; pick from
+      literature for the actual project):
+        - gradient-boosted trees → n_estimators, max_depth,
+          learning_rate, min_child_weight, regularisation
+          (the count "10 to tune" is misleading; ~5 carry the
+          variance for most tasks)
+        - random forest → n_estimators, max_depth, min_samples_leaf,
+          max_features
+        - transformer fine-tuning → learning_rate, batch_size,
+          warmup_ratio, weight_decay, lora_rank when applicable
+
+      For each, set a SEARCH RANGE based on the literature's
+      reported good values + a wider margin. Write to
+      workspace/<step>/outputs/reports/sweep_space.md.
+
+  - id: pick_search_strategy
+    name: Pick the search strategy
+    description: |
+      Pick based on (number of hyperparameters, evaluation cost,
+      compute budget):
+
+        GRID SEARCH:
+          good for: ≤3 params with discrete values; reproducibility
+                    audit
+          bad for: continuous spaces; >3 params (curse of
+                   dimensionality)
+
+        RANDOM SEARCH:
+          good for: 3-7 params; mixed discrete + continuous;
+                    parallelisable; reproducible (seeded);
+                    default for most projects
+          bad for:  very expensive evaluations where each trial
+                    is hours
+
+        BAYESIAN OPTIMISATION (TPE / GP):
+          good for: 3-15 params; expensive evaluations; sample-
+                    efficient
+          bad for:  fast evaluations (overhead matters);
+                    multi-fidelity setups (use the next option)
+
+        SUCCESSIVE HALVING / ASHA / HYPERBAND:
+          good for: when evaluation cost SCALES with epochs /
+                    samples / iterations; early-stops poor configs
+          bad for:  non-iterative methods (no early signal)
+
+        POPULATION-BASED TRAINING:
+          good for: deep nets with schedules that themselves
+                    benefit from tuning
+          rare outside large-scale neural training
+
+      Document the choice + the citation that motivated it. Save
+      to workspace/<step>/outputs/reports/sweep_strategy.md.
+
+  - id: define_the_budget
+    name: Define the trial / wall-clock budget
+    description: |
+      Budget definitions vary by search strategy:
+        - grid: trial count = product of grid sizes
+        - random: trial count (typical: 50-200 for 3-7 params)
+        - bayes: trial count (typical: 30-100 incl. ~10 warmup)
+        - asha/hyperband: total resource budget (GPU-hours, epochs)
+
+      Constraints:
+        - SAME budget across method variants when this sweep is
+          part of a comparison (carry to method_comparison)
+        - budget feasible within the compute deadline
+        - leave headroom for the final test-set evaluation
+          (which runs ONCE per variant)
+
+      For multi-seed reporting: budget × N_seeds, with N_seeds
+      typically 3-5 for confident variance estimates.
+
+  - id: set_early_stopping_and_pruning
+    name: Set early-stopping + pruning rules
+    description: |
+      For iterative methods (gradient descent / boosting rounds /
+      epochs):
+        - early-stop on validation metric plateau (patience window
+          + min-delta threshold)
+        - prune trials that are clearly losing at intermediate
+          checkpoints (asha / hyperband / optuna pruners do this)
+
+      The pruning rule is part of the sweep definition. Document:
+        - the validation metric the pruner watches
+        - the patience window (epochs / rounds)
+        - the min-delta threshold
+        - the asha / hyperband bracket schedule when used
+
+  - id: pin_the_seed_strategy
+    name: Pin the seed strategy (reproducibility)
+    description: |
+      For each trial:
+        - SEED the data shuffling (so all trials see the same
+          fold split given the same fold id)
+        - SEED the model initialisation (per-trial seed; record
+          to the trial log)
+        - SEED any random aug / dropout etc.
+
+      For final reporting:
+        - run the BEST configuration with N_seeds different seeds
+          (typically 3-5)
+        - report mean ± std across seeds on the test set
+        - report the per-seed CI alongside the point estimate
+
+      Single-seed test-set numbers underestimate variance and
+      reviewers know it; the seed-variance budget pays off.
+
+  - id: implement_via_supported_library
+    name: Implement via a supported library
+    description: |
+      Pick the library based on the search strategy + the
+      project's stack:
+        Python: Optuna (default — supports grid / random / TPE /
+                ASHA / pruners), Ray Tune (distributed),
+                scikit-learn (GridSearchCV / RandomizedSearchCV),
+                Hyperopt
+        R:      mlr3tuning, tune package
+        Julia:  Hyperopt.jl
+
+      Configure trial logging so EACH trial writes:
+        - hyperparameters tried
+        - validation metric (per fold when CV-inside)
+        - training time
+        - early-stopping outcome (completed / pruned at step N)
+        - seed
+        - library / version
+
+      Trial log goes to
+      workspace/<step>/data/output/sweep_trials.parquet (or .csv
+      for small sweeps).
+
+  - id: visualise_the_landscape
+    name: Visualise the search landscape
+    description: |
+      Standard sweep figures (build via tool_figure_create):
+
+        - parallel-coordinates plot of trial hyperparameters
+          coloured by validation metric (see which regions of
+          space are good)
+        - per-hyperparameter slice plot (val metric vs one
+          hyperparameter, marginalising over others) — reveals
+          which hyperparameters matter
+        - optimisation history (best-so-far vs trial number) —
+          shows whether the search converged or stalled
+        - importance ranking (e.g. fANOVA) — gives a defensible
+          claim about which hyperparameters carried the variance
+
+      Each figure ends with both caption sidecars. These figures
+      are valuable in the paper / appendix — they substantiate
+      the claim that the comparison was fair.
+
+  - id: write_the_sweep_protocol
+    name: Write the sweep protocol document
+    description: |
+      sys_file_write filepath="workspace/<step>/sweep_protocol.md":
+
+        # Hyperparameter sweep protocol
+        ## Method family
+        ## Hyperparameters in scope + ranges + literature source
+        ## Search strategy + library + version
+        ## Budget (trials, wall-clock, compute)
+        ## Early-stopping + pruning rules
+        ## Seed strategy
+        ## Reporting
+          - mean ± std across N_seeds at the winning config
+          - per-trial log written to <path>
+          - landscape figures written to <path>
+
+      Freeze the protocol BEFORE the sweep starts. Deviations get
+      logged via mem_decision_log; pre-registered sweeps refuse
+      mid-flight retuning ("just one more config" is when
+      sweeps go off the rails).
+
+expected_outputs:
+  - workspace/<step>/outputs/reports/sweep_space.md
+  - workspace/<step>/outputs/reports/sweep_strategy.md
+  - workspace/<step>/sweep_protocol.md
+  - workspace/<step>/data/output/sweep_trials.parquet
+  - workspace/<step>/outputs/figures/sweep_*.png
+
+quality_bar:
+  search_space_grounded_in_literature: true
+  search_strategy_justified_for_compute_budget: true
+  budget_explicit_and_equal_across_compared_variants: true
+  early_stopping_rule_documented: true
+  seed_strategy_pinned: true
+  per_trial_log_persisted: true
+  landscape_visualised: true
+
+next_protocol: methodology/method_comparison
+on_failure: guidance/dead_end_routing

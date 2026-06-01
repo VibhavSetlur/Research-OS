@@ -1,8 +1,13 @@
 id: literature_search
 name: Literature Search
-version: '4.0.0'
+version: '1.0.0'
 schema_version: '2.0'
-description: Systematic search across 2-4 academic databases. Produces a deduplicated citation list and a PRISMA-style accounting.
+description: |
+  Systematic search across 2-4 academic databases. Produces a
+  deduplicated citation list and a PRISMA-style accounting. Now also:
+  flags suspected predatory / problematic venues and walks the
+  forward-citation graph for the seminal hits so the literature pass
+  doesn't miss the recent extensions.
 trigger: After methodology_selection — provides the body of literature that grounds the eventual paper.
 
 steps:
@@ -69,11 +74,58 @@ steps:
       List step literature any time with:
          tool_step_literature_list step_id=<NN_slug>   # or omit for all steps
 
+  - id: forward_citation_walk
+    name: Forward-citation walk (catch the recent extensions)
+    description: |
+      A keyword search returns papers MATCHING terms; it misses the
+      recent papers that CITE the seminal references but use new
+      vocabulary. Walk one level of forward citations on the 2-3
+      most-included hits:
+
+        tool_search_semantic_scholar mode="forward_citations"
+                                     paper_id="<seed paper>"
+                                     limit=10
+
+      Score the returned papers on relevance to the research
+      question; include any whose abstract clearly extends or
+      contradicts the seed. Add to the dedup pass.
+
+      The forward walk catches:
+        - the recent methodology paper that the keyword search
+          missed because it uses a new term for the same idea
+        - the recent critique / failed-replication that wasn't
+          named in the seed's terminology
+        - the recent benchmark that supersedes the seed's
+          comparison
+
+  - id: predatory_venue_check
+    name: Predatory / problematic venue check
+    description: |
+      Walk each included citation's VENUE:
+        - cross-reference against Beall's list (archived) + Cabells
+          Predatory Reports + the open Stop Predatory Journals
+          list (when the journal is unfamiliar)
+        - flag any hit from a known predatory publisher
+        - flag any hit from a retracted-papers index (Retraction
+          Watch) — both for the paper itself + for any retracted
+          source it cites approvingly
+
+      Predatory-venue hits don't get dropped automatically — many
+      have legitimate content, and some critiques the literature
+      needs to engage with are published there. But they get
+      TAGGED in the citations index so the AI / researcher knows
+      to weight them lower + so synthesis flags any reliance on
+      them in the limitations.
+
+      Save the flag list to workspace/logs/predatory_venue_flags.md.
+      For retraction hits: this is RED — the citation gets
+      removed and the limitation noted.
+
   - id: log_prisma_counts
     name: Log PRISMA-style counts
     description: |
       Append to workspace/analysis.md (via mem_analysis_log) one line:
-        "PRISMA: identified=<N1>, after_dedup=<N2>, screened=<N3>, included=<N4>"
+        "PRISMA: identified=<N1>, after_dedup=<N2>, screened=<N3>, included=<N4>, forward_walk_added=<N5>, predatory_flagged=<N6>, retracted_removed=<N7>"
 
   - id: persist_search_log
     name: Persist Search Log
@@ -86,6 +138,7 @@ expected_outputs:
   - inputs/literature_index.yaml
   - workspace/citations.md
   - workspace/logs/searches.log
+  - workspace/logs/predatory_venue_flags.md   (when any flags surfaced)
 
 next_protocol: guidance/analysis_plan
 on_failure: literature/evidence_synthesis

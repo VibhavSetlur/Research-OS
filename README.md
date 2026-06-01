@@ -52,14 +52,25 @@ manage LLM provider keys — your IDE owns that.
 * **HPC ready.** SLURM submit / status / fetch. Per-step Apptainer
   recipes + reproducer `entrypoint.sh`.
 
-138 MCP tools, 66 YAML protocols, full hierarchical L1→L2→L3 routing
+140 MCP tools, 82 YAML protocols, full hierarchical L1→L2→L3 routing
 keeps every session boot under ~1.2K tokens. The protocol surface covers
 both the canonical data → publication pipeline AND the partial / off-axis
 workflows real researchers run (visualization-only, talk decks, lay
 summaries, PI updates, EDA + hypothesis generation, head-to-head method
-comparison, standalone power, reproduction of published work, teaching /
-consultation, multi-paper compare, mid-pipeline entry). See
+comparison, standalone power + evaluation + sweep + ethics design,
+reproduction of published work, teaching / consultation, multi-paper
+compare, mid-pipeline entry, per-section paper drafting,
+multi-panel figures, figure narrative arcs, color accessibility audits,
+cover letters, title workshops, printable handouts, and a
+pre-submission final-gate checklist). See
 [`docs/USE_CASES.md`](docs/USE_CASES.md) for the role × goal map.
+
+**The MCP server is GLOBAL.** Install once with
+`pip install research-os`; the SAME `research-os start` binary serves
+every project. Each IDE request resolves the active project per call
+via `RESEARCH_OS_WORKSPACE` (set by the IDE MCP config to
+`${workspaceFolder}`), or by walking up from the current working
+directory. `research-os init` is the only per-project command.
 
 ---
 
@@ -391,7 +402,10 @@ protocols + tools exist on disk.
 
 | File | Read when |
 |---|---|
-| [`docs/QUICKSTART.md`](docs/QUICKSTART.md) | First time. 5-minute walkthrough. |
+| [`docs/QUICKSTART.md`](docs/QUICKSTART.md) | First time, dense version. 5 minutes. |
+| [`docs/FIRST_HOUR.md`](docs/FIRST_HOUR.md) | First-time, hand-held version. 60 minutes top to bottom. |
+| [`docs/CHEATSHEET.md`](docs/CHEATSHEET.md) | One page. Every command worth knowing. |
+| [`docs/AI_GUIDE.md`](docs/AI_GUIDE.md) | Orientation for the AI driving Research OS (operating manual). |
 | [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md) | End-to-end simulated project — shell commands + realistic chat prompts from data download through paper + handoff + resume. |
 | [`docs/SETUP.md`](docs/SETUP.md) | Install + per-IDE MCP wiring + troubleshooting. |
 | [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) | Paste-into-any-AI installer prompt (no project needed). |
@@ -409,10 +423,10 @@ protocols + tools exist on disk.
 
 ## What's in the box
 
-* **98 MCP tools** across `sys_*`, `tool_*`, `mem_*` namespaces. Dot
+* **140 MCP tools** across `sys_*`, `tool_*`, `mem_*` namespaces. Dot
   notation (`sys.state.get`) and legacy names auto-rewrite. Run
   `python scripts/preflight.py` after install to verify everything is wired.
-* **66 YAML protocols** — the AI loads the right one based on what you ask.
+* **82 YAML protocols** — the AI loads the right one based on what you ask.
   Each declares an explicit `quality_bar` so output stays publication-grade
   even on smaller models. Coverage spans methodology (RCTs, clinical
   trials, observational causal, ML, meta-analysis, survey psychometrics,

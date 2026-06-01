@@ -1,0 +1,247 @@
+id: synthesis_handout
+name: Synthesis — Printable Handout / One-Pager
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Single-page printable handout — the kind you print 20 of for a
+  conference poster session, hand to a PI after a meeting, slip
+  under a collaborator's door, or attach to a grant submission as
+  the "lay summary at-a-glance". Distinct from `synthesis_poster`
+  (large-format, wall-mounted), from `synthesis_lay_summary`
+  (digital, not necessarily formatted for print), and from
+  `synthesis_report` (multi-page).
+
+  The defining constraints: exactly ONE page, printed, taken-away,
+  and standalone — the reader will not have the paper / poster /
+  talk in front of them.
+
+trigger: |
+  Researcher says any of: "make a one-pager", "make a handout",
+  "printable handout for the conference", "handout for the poster
+  session", "one-page summary", "for the audience to take away",
+  "leave-behind for the meeting".
+
+prerequisites:
+  - At least one workspace step has substantive conclusions OR a
+    synthesis/* deliverable exists.
+
+quality_bar:
+  exactly_one_page: true                          # fits A4 / Letter
+  has_one_headline_finding: true                  # billboard at top
+  has_one_figure: true                            # readable at arm's length
+  has_qr_to_full_artefact: true                   # paper / dashboard / poster
+  has_contact_block: true                         # name + email + ORCID
+  citations_capped: 6
+  font_size_minimum_pt: 11                        # readable at arm's length
+  whitespace_target_percent: 30                   # not packed
+
+audience_profile:
+  conference_poster_takeaway:
+    sections: [Headline_finding, At_a_glance_method, Headline_figure_with_caption, Three_bullet_implications, QR_to_paper, Contact]
+    notes: |
+      Sits in a stack at the poster's foot. Reader takes one,
+      reads on the train home, decides whether to look up the
+      paper / dashboard. ONE headline + one figure + one QR are
+      the load-bearing elements.
+  meeting_leave_behind:
+    sections: [Project_in_one_line, What_we_did, What_we_found, Why_it_matters_for_you, Where_we_go_from_here, Contact]
+    notes: |
+      For an internal meeting (PI / team / department). The
+      "Why it matters for YOU" section is targeted — name the
+      audience explicitly and frame the implication for them.
+  grant_lay_appendix:
+    sections: [Plain_language_summary, Funded_work_diagram, Outcomes_to_date, Public_benefit, Contact]
+    notes: |
+      One-page lay appendix to a grant submission. Public-facing
+      tone; the funder's communications team may publish it.
+  funder_milestone_brief:
+    sections: [Project, Milestone_status, This_period_deliverables, Next_period, Spend_summary, Contact]
+    notes: |
+      For a programme officer / funder check-in. Status-first;
+      milestone-aligned; one figure showing progress against
+      the funded timeline.
+  press_kit_one_pager:
+    sections: [Headline, Backgrounder, Key_findings, Quote, Visual, Embargo_or_release, Contact]
+    notes: |
+      Sits in a press kit alongside a press release. The visual
+      slot is the high-resolution image journalists will use;
+      include caption credit + license.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "The handout is taken AWAY. It must stand alone — assume the
+       reader will not have the paper / poster / talk for
+       reference."
+    - "One headline + one figure + one QR. Anything else fights
+       for attention. The handout is not a mini-paper."
+    - "Print constraints are real. White text on a coloured
+       background loses contrast in greyscale photocopy; small
+       gridlines vanish; serif fonts <11pt are unreadable.
+       Design for the worst printer in the room."
+    - "QR codes earn their place by being SCANNED. A QR that
+       points to a dead URL or a paywalled paper costs trust.
+       Test the QR before printing."
+
+steps:
+  - id: select_audience
+    name: Select audience profile
+    description: |
+      Ask:
+        "Audience? conference_poster_takeaway | meeting_leave_behind
+         | grant_lay_appendix | funder_milestone_brief |
+         press_kit_one_pager."
+      Default: conference_poster_takeaway when the prompt mentions
+      "poster" / "conference"; meeting_leave_behind otherwise.
+
+  - id: pull_source_artefacts
+    name: Pull source artefacts
+    description: |
+      In ONE batch:
+        - synthesis/synthesis_spec.yaml (if present — for the
+          headline finding + caption alignment with the existing
+          deliverables)
+        - synthesis/abstract.md
+        - synthesis/discussion.md (principal findings paragraph)
+        - synthesis/figure_brief.md (the curated figure set)
+        - workspace/<step>/outputs/figures/                (sourcing
+          the one figure for the handout)
+        - synthesis/citations.md (for the ≤6 references)
+
+  - id: pick_the_one_headline
+    name: Pick the ONE headline finding
+    description: |
+      The handout's billboard is ONE sentence (≤25 words) at the
+      TOP of the page. Pick from:
+        - synthesis/synthesis_spec.yaml#poster_headline (when
+          present — already curated for a billboard)
+        - synthesis/discussion.md > principal_findings
+        - mem_hypothesis_list (most-supported hypothesis)
+
+      Constraints:
+        - lead with the SUBSTANTIVE claim (not the topic)
+        - include the headline number with unit + uncertainty
+          ("0.42 SD improvement [95% CI 0.31-0.52]") when it
+          will print legibly
+        - end with the SCOPE LIMIT (population / setting) so the
+          handout doesn't over-generalise
+
+      Save to workspace/scratch/handout_headline.md.
+
+  - id: pick_the_one_figure
+    name: Pick the ONE figure
+    description: |
+      The handout has ONE figure. Pick from synthesis/figures/ or
+      workspace/<step>/outputs/figures/:
+        - the figure that BEST supports the headline (usually the
+          same figure that's slide 1 of the talk and Figure 2 of
+          the paper)
+        - ≥300 DPI, both sidecars present (caption.md + summary.md)
+        - readable at ARM'S LENGTH at the handout's print size
+          (typically 4-6 inches on the page) — test by zooming
+          the PNG to that physical size
+
+      When the candidate figure is too dense to print at handout
+      size, EITHER rebuild a TALK / HANDOUT version via
+      tool_figure_create with larger labels, OR pick a different
+      figure. Do NOT shrink an unreadable figure to fit.
+
+      Copy to synthesis/handout_figure.png. Pair the caption from
+      the .caption.md.
+
+  - id: generate_qr_to_full_artefact
+    name: Generate QR to the full artefact (mandatory)
+    description: |
+      Pick the URL the QR will point to:
+        - the paper preprint / DOI (most reader-useful for a
+          conference handout)
+        - the dashboard URL (when the dashboard is the primary
+          deliverable)
+        - the lab page hosting the paper PDF + supplementary
+          materials
+        - the project landing page (only when the above don't
+          exist)
+
+      Generate the QR via a small Python script using `qrcode` or
+      `segno`. Save to synthesis/handout_qr.png. EMBED in the
+      handout below the figure.
+
+      Test the QR — scan it with a phone before printing 50
+      copies. Dead QRs are worse than no QR.
+
+  - id: draft_remaining_sections
+    name: Draft the remaining sections (per audience)
+    description: |
+      For each section in audience.sections (excluding headline,
+      figure, QR), draft 1-3 SENTENCES or 2-4 BULLETS:
+
+        At_a_glance_method:
+          ≤3 short bullets. Sample size, design, analysis in
+          field-neutral language.
+        Three_bullet_implications:
+          One per implication category that actually applies.
+          End each with the scope limit (per writing_discussion).
+        Contact:
+          Corresponding-author name + email + ORCID + lab page.
+          For lay handouts, prefer the institution's press
+          contact over the individual.
+        Embargo_or_release:
+          (press_kit_one_pager only) embargo lift date in UTC +
+          local time + release language.
+        Quote:
+          (press_kit_one_pager only) ONE sentence in the named
+          author's voice. Present tense. ≤30 words.
+
+      Cap citations at 6 in any audience profile.
+
+  - id: build_the_handout
+    name: Build the handout (PDF)
+    description: |
+      Build via the preferred path:
+
+      (a) LaTeX one-pager (typst is fine too):
+        Write synthesis/handout.tex with a single-column layout,
+        the headline at top, figure + caption in the middle, the
+        remaining sections in a tight block below, QR + contact
+        at the bottom-right. Compile via tool_latex_compile to
+        synthesis/handout.pdf.
+
+      (b) Markdown → PDF (pandoc with a custom template):
+        Write synthesis/handout.md; render to PDF via pandoc with
+        the project's handout template.
+
+      (c) HTML → PDF (for the press_kit_one_pager when a
+          web-deliverable mirror is wanted):
+        Write synthesis/handout.html with a print-stylesheet;
+        render to PDF via the dashboard's print path
+        (tool_dashboard_create has the machinery).
+
+      Whichever path: open the PDF, verify it FITS ONE PAGE.
+      Anything that overflows must be cut, not shrunk.
+
+  - id: audit_the_handout
+    name: Audit the handout
+    description: |
+      Walk the printed page (or the PDF at 100% zoom):
+        - exactly one page
+        - headline visible from arm's length (font ≥ 24pt for
+          the headline line; ≥ 11pt for body)
+        - figure readable at print size
+        - QR code scans (verify with a phone)
+        - contact block has email + ORCID
+        - whitespace target met (~30%, not packed)
+        - greyscale photocopy survivable (use the
+          `visualization/color_accessibility_audit` grayscale
+          check)
+
+      Any failure: rebuild. Do not ship a handout that fails the
+      single-page test.
+
+expected_outputs:
+  - synthesis/handout.{md,tex,html}
+  - synthesis/handout.pdf
+  - synthesis/handout_figure.png
+  - synthesis/handout_qr.png
+
+next_protocol: null
+on_failure: null

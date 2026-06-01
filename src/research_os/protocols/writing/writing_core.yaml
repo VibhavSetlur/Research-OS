@@ -1,12 +1,25 @@
 id: writing_core
 name: Writing — Core Rules
-version: '5.0.0'
+version: '1.0.0'
 schema_version: '2.0'
 description: |
   Universal writing rules. Loaded implicitly by every writing/* and
   synthesis/* protocol. The single source of truth for voice, claim
   grounding, banned phrases, number formatting, and tense. Invoke
   directly only when auditing an arbitrary markdown file.
+
+  Per-section drafting protocols live alongside this one:
+    - writing/writing_methods       — methods section
+    - writing/writing_results       — results section
+    - writing/writing_discussion    — discussion section
+    - writing/writing_limitations   — limitations sub-section
+    - writing/writing_conclusions   — per-step conclusions
+    - writing/writing_citations     — bibliography maintenance
+    - writing/writing_readme        — project + per-step READMEs
+    - writing/writing_analysis_log  — narrative analysis log
+    - writing/writing_data_availability — end-matter (data / code /
+                                          CRediT / funding / COI /
+                                          ack)
 
 editorial_voice:
   default_tense: past for what was done, present for what the evidence supports
@@ -55,6 +68,62 @@ rules:
     - "most researchers"
     - "perfectly"
     - "100% accurate"
+  vague_quantifier_audit:
+    rule: |
+      Replace vague quantifiers with the SPECIFIC count or fraction
+      they refer to. Vague quantifiers read as hedging when the
+      number is uncertain, and as carelessness when the number is
+      known but unstated.
+    replacements:
+      - "'a few'        → '<n>'"
+      - "'several'      → '<n>'"
+      - "'many'         → '<n>' or '<percentage>%'"
+      - "'most'         → '<percentage>%'"
+      - "'some'         → '<n>' or '<percentage>%'"
+      - "'a number of'  → '<n>'"
+      - "'a significant amount of' → '<exact quantity>'"
+      - "'considerable' → '<the measured amount>'"
+      - "'substantial'  → '<the measured amount>'"
+  anti_bullshit_signals:
+    rule: |
+      Watch for sentences that PERFORM rigour without delivering
+      it. Each pattern is a smell; rewrite when it appears.
+    patterns:
+      - 'sentences like `X demonstrates Y` without naming the comparison X was demonstrated against'
+      - 'sentences like `X significantly Y` with no statistical test cited'
+      - '`robust` / `robustly` without naming the robustness check'
+      - '`principled` without naming the principle'
+      - '`we leverage` / `we harness` instead of `we use`'
+      - '`rich` / `deep` / `powerful` used as method adjectives rather than measured properties'
+      - '`extensive experiments` without enumeration in Methods'
+      - '`we observe` used to soft-pedal a quantitative claim that should be stated with its statistic'
+      - 'claim sentences ending with `(Figure N)` when the figure does not actually support the claim'
+  numbered_claim_grounding:
+    rule: |
+      For high-stakes drafts (papers, grants, dashboards), assign
+      each substantive claim a `[C<n>]` tag and maintain a claim
+      ledger that maps tag → evidence. This makes the claims audit
+      mechanical instead of subjective.
+    workflow: |
+      1. As you write, append `[C<n>]` after each claim that
+         requires grounding (every quantitative claim;
+         every methodological claim; every comparative claim).
+      2. Maintain workspace/scratch/claim_ledger.md as a markdown
+         table:
+           | tag | claim | evidence_type | source_path | citation_key |
+      3. `evidence_type` is one of:
+           - workspace_output (an output file path)
+           - workspace_decision (a mem_decision_log entry)
+           - cited_paper (a citation_key)
+           - figure (a figure path)
+           - table (a table path)
+      4. tool_audit_claims now reads the ledger when present —
+         every `[C<n>]` in the draft must have a ledger entry
+         that resolves to a real artefact / verified citation.
+      5. Before final assembly, strip the tags from the prose
+         (or convert them to footnotes, depending on venue).
+      6. The ledger persists; it documents grounding for future
+         audits, peer review, and reproductions.
   causal_language:
     permitted_when: ["RCT", "instrumental variable", "regression discontinuity",
                      "difference-in-differences", "mathematical proof"]
@@ -103,6 +172,33 @@ steps:
       term is licensed by the study design. When in doubt, use the
       observational alternative — over-claiming costs more than
       under-claiming.
+
+  - id: vague_quantifier_check
+    name: Vague quantifier check
+    description: |
+      Walk the draft for "a few / several / many / most / some /
+      a number of / a significant amount of / considerable /
+      substantial". For each:
+        - if the exact count is known → replace with the count or
+          percentage
+        - if the exact count is unknown → either run a quick
+          count or remove the claim
+      The vague form is acceptable only when the count would be
+      meaningless to the reader (e.g. "several other reasons" in
+      an introduction's framing).
+
+  - id: anti_bullshit_check
+    name: Anti-bullshit signals check
+    description: |
+      Walk the draft for the patterns listed in
+      `anti_bullshit_signals` above. For each hit:
+        - state what's being claimed in concrete terms
+        - cite the evidence that supports the claim, OR
+        - delete the sentence
+
+      Sentences that perform rigour without delivering it survive
+      first drafts because they sound right; the audit's job is
+      to make them die.
 
   - id: optional_validation
     name: Programmatic validation (optional)

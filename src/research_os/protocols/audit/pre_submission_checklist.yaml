@@ -1,0 +1,308 @@
+id: pre_submission_checklist
+name: Pre-Submission Checklist (final ready-to-submit gate)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Final ready-to-submit gate. Walks the project through every
+  pre-submission check that journals, reviewers, and program
+  officers will run — BEFORE submission. Cheaper to find a missing
+  CRediT statement here than to lose a week of submission time to
+  the publisher's automated check.
+
+  Distinct from `audit/audit_and_validation` (mid-project quality
+  audit) and from `synthesis/synthesis_paper` (paper assembly).
+  This protocol runs LAST, after audit + synthesis + cover letter
+  + end-matter, and produces a single GREEN / YELLOW / RED verdict
+  with a punch list.
+
+trigger: |
+  Researcher says any of: "is this ready to submit", "pre-submission
+  checklist", "final check before submission", "ready to submit",
+  "submission readiness", "what's left before submission", "submit
+  audit", "final gate before journal submission".
+
+prerequisites:
+  - synthesis/paper.md exists.
+  - audit/audit_and_validation has run (workspace/logs/audit_report.md
+    exists).
+
+editorial_voice:
+  mode: prescription
+  rules:
+    - "Every check has a SPECIFIC fail criterion. 'Title looks
+       good' is not a check; 'title is ≤140 characters AND
+       includes 2+ of the field's search terms' is."
+    - "RED is rare and explicit. Most projects pass with YELLOW
+       (some things to address); the protocol's job is to make
+       the YELLOW items concrete + actionable, not to gate
+       submission unnecessarily."
+    - "The checklist is COPYABLE. The output is a one-page
+       summary the researcher can show their co-authors / PI as
+       evidence the paper is submission-ready."
+
+steps:
+  - id: scope_submission
+    name: Scope the submission
+    description: |
+      Confirm:
+        - target venue (journal name + section)
+        - submission deadline (so blockers can be triaged by
+          time-to-fix)
+        - whether the submission is a NEW manuscript / a REVISION
+          (revisions skip some checks and add others — see
+          revision_addendum below)
+
+  - id: artefact_inventory
+    name: Artefact inventory (everything the submission needs)
+    description: |
+      For a standard journal submission, expect:
+        REQUIRED:
+          - paper.md (or .docx / .tex / .pdf)
+          - abstract.md
+          - figures (high-res TIFF / EPS / PDF per journal)
+          - figure captions (separate file for some journals)
+          - tables (separate file for some journals)
+          - cover_letter.md
+          - end-matter: data availability, code availability,
+            author contributions, funding, conflicts,
+            acknowledgements
+          - references / bibliography
+          - suggested reviewers list
+        OFTEN-REQUIRED:
+          - supplementary materials (PDF + raw files)
+          - response to reviewers (revisions only)
+          - reporting checklist (CONSORT / PRISMA / STROBE /
+            ARRIVE / TRIPOD-AI per study type)
+          - title page (separate from manuscript per some
+            journals)
+          - graphical abstract
+          - highlights bullets (some journals: 3-5 bullets ≤85
+            chars)
+          - data deposit (DOI / accession number)
+        SOMETIMES-REQUIRED:
+          - ethics approval letter
+          - registered-report Stage 1 acceptance
+          - statistics editor's pre-review
+          - layperson summary
+
+      For each REQUIRED item, check it exists at the expected
+      path. Missing required items become RED. Missing
+      often-required items become YELLOW.
+
+  - id: paper_content_checks
+    name: Paper content checks
+    description: |
+      Walk the paper:
+        TITLE:
+          - exists, ≤140 chars (most journals; some allow more)
+          - passes substring test (first 60 chars convey the
+            finding) — per synthesis/synthesis_title_workshop
+        ABSTRACT:
+          - in venue's word band (per synthesis_paper venue_profile)
+          - structured / unstructured per venue
+          - ≤3 citations
+        INTRODUCTION:
+          - ends with explicit "in this study, we ..." sentence
+          - cites ≥3 prior works framing the question
+        METHODS:
+          - has reproducibility-relevant detail (versions, seeds,
+            data source)
+          - cites every method to its canonical reference
+        RESULTS:
+          - every figure / table cited in prose
+          - every statistic in full reporting form (per
+            writing_results)
+          - no interpretation (per writing_results)
+        DISCUSSION:
+          - principal-findings paragraph ≤150 words
+          - alternative-explanations named per finding (per
+            writing_discussion)
+          - limitations section follows writing_limitations'
+            structure
+          - no causal language for observational designs
+        REFERENCES:
+          - every cited reference resolves (run
+            tool_citations_verify)
+          - no hallucinated citations
+          - bibliography style matches the journal
+
+  - id: figure_table_checks
+    name: Figure + table checks
+    description: |
+      For each figure in synthesis/figures/:
+        - DPI ≥ journal floor (typically 300 for print;
+          some journals require 600 for line art)
+        - format meets journal spec (TIFF + PNG / EPS / PDF)
+        - file size within journal cap (many journals: ≤10 MB
+          per figure)
+        - caption sidecars present
+        - colour-blind safe (per
+          visualization/color_accessibility_audit)
+        - no embedded fonts that won't be available at the
+          publisher
+
+      For each table:
+        - header row matches column types
+        - values match the prose
+        - footnotes present for any abbreviation / star convention
+        - export to the journal's preferred format (XLSX / CSV /
+          embedded markdown)
+
+      Run tool_audit_figure_full on every figure in
+      synthesis/figures/. Aggregate fails to the punch list.
+
+  - id: end_matter_checks
+    name: End-matter checks
+    description: |
+      Confirm each end-matter section per
+      writing/writing_data_availability:
+        - data availability statement matches actual data-sharing
+          capability
+        - code availability statement matches actual code release
+        - author contributions (CRediT) statement covers every
+          author + every relevant CRediT role
+        - funding statement includes grant numbers + "role of
+          funder" clause
+        - conflicts of interest stated (even when absent)
+        - acknowledgements present
+
+  - id: cover_letter_check
+    name: Cover letter check
+    description: |
+      Per synthesis/synthesis_cover_letter:
+        - cover_letter.md exists
+        - addresses the editor by name when known
+        - states significance in one sentence
+        - justifies journal fit with citation to ≥1 recent
+          journal paper
+        - declares no concurrent submission
+        - suggests 2-4 reviewers + 1-2 excluded with reasons
+        - word count ≤ 400
+        - one-page test passes
+
+  - id: ethics_and_compliance_checks
+    name: Ethics + compliance checks
+    description: |
+      Per methodology/data_ethics_review (when previously run):
+        - IRB / REC approval number listed in Methods (if human
+          subjects)
+        - consent + de-identification statement in Methods
+        - data-sharing constraints reflected in data availability
+          statement
+        - reporting checklist completed (CONSORT / PRISMA / STROBE
+          / ARRIVE / TRIPOD-AI per study type — most journals
+          require the completed form as a separate upload)
+        - registered-report Stage 1 acceptance (when applicable)
+
+  - id: reproducibility_checks
+    name: Reproducibility checks
+    description: |
+      Per reproducibility/reproducibility:
+        - environment snapshot per active step
+        - random seeds explicit in all scripts
+        - relative paths only
+        - output hashes recorded
+        - Dockerfile present (when journal requires
+          containerised reproducibility)
+        - code deposited at a public URL with a release tag +
+          Zenodo DOI (when journal requires)
+
+      Run tool_audit_reproducibility for high-stakes
+      submissions; skip for time-pressed submissions where
+      the standard reproducibility audit already passed.
+
+  - id: claim_grounding_audit
+    name: Claim grounding audit
+    description: |
+      Run tool_audit_claims on synthesis/paper.md.
+      Every numeric claim must trace to a workspace artefact
+      OR a verified citation. Hallucinated numbers are RED.
+
+      Also run tool_grounding_verify on the project's
+      decision log — every methodological commitment must have
+      been grounded in PROV-O sources. Ungrounded commitments
+      are YELLOW (the discussion / limitations should
+      acknowledge them).
+
+  - id: venue_specific_checks
+    name: Venue-specific checks (per journal house style)
+    description: |
+      Run a one-shot web search:
+        "<journal> author guidelines submission checklist"
+      and apply venue-specific checks that go beyond the
+      general list:
+        - word count caps for the manuscript (some journals
+          cap article length; supplements move overflow there)
+        - figure count caps (some cap at 6-8 main figures)
+        - colour print fees vs greyscale
+        - submission file format (LaTeX template vs Word vs
+          PDF)
+        - graphical abstract / highlights / structured abstract
+          required
+        - specific reporting-standard form required (e.g.
+          STROBE-MR for Mendelian randomisation)
+
+      The general checklist passes 90% of what every journal
+      wants; this step covers the last 10% that varies.
+
+  - id: revision_addendum
+    name: Revision addendum (revisions only)
+    description: |
+      For REVISIONS (not new submissions):
+        - response_to_reviewers.md exists per
+          guidance/peer_review_response
+        - every reviewer comment has a response + an edit
+          locator (line / section reference)
+        - revised manuscript carries change marks (track
+          changes / coloured diff) per journal preference
+        - new analyses / new figures since the original
+          submission are clearly flagged
+
+      Skip this step for new submissions.
+
+  - id: produce_the_verdict
+    name: Produce the verdict
+    description: |
+      sys_file_write filepath="workspace/logs/pre_submission_check.md":
+
+        # Pre-submission check — <YYYYMMDD>
+        Target venue: <name>
+        Deadline: <when set>
+
+        ## Verdict: GREEN | YELLOW | RED
+
+        GREEN  — every required check passes; submit
+        YELLOW — submission viable; address the punch list
+                 below first (none would prevent submission;
+                 all would strengthen it)
+        RED    — at least one BLOCKER; do NOT submit until
+                 resolved
+
+        ## Punch list (prioritised)
+        1. <item> — <severity> — <suggested fix> — <est. time>
+        2. ...
+
+        ## Things checked + passing (the bulk of it)
+        - <quick bulleted list — gives confidence the check
+           actually ran>
+
+        ## Generated by Research-OS pre_submission_checklist
+        Re-run after addressing the punch list.
+
+      Surface the verdict to the researcher inline:
+        "Pre-submission verdict: <GREEN | YELLOW | RED>. <One-
+         sentence summary>. Full check at
+         workspace/logs/pre_submission_check.md."
+
+expected_outputs:
+  - workspace/logs/pre_submission_check.md
+
+quality_bar:
+  every_required_artefact_inventoried: true
+  every_check_has_specific_fail_criterion: true
+  verdict_one_of_green_yellow_red: true
+  punch_list_actionable: true
+  venue_specific_checks_run: true
+
+next_protocol: null
+on_failure: guidance/dead_end_routing

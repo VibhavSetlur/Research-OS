@@ -228,24 +228,34 @@ def cmd_init(args: argparse.Namespace) -> None:
 
 
 def cmd_start(args: argparse.Namespace) -> None:
-    """Start the MCP server for an existing workspace."""
-    if args.workspace:
-        workspace = Path(args.workspace).resolve()
-    else:
-        try:
-            workspace = AssetManager.find_project_root()
-        except Exception:
-            workspace = Path.cwd()
+    """Start the MCP server (global mode — workspace resolved per request).
 
-    if not (workspace / ".os_state").exists():
-        print(f"  ✗ Not a Research OS workspace: {workspace}")
-        print("  Run 'research-os init' first, or pass --workspace <path>.")
-        sys.exit(1)
+    The server resolves the active project per request, via:
+      1. RESEARCH_OS_WORKSPACE env var (set by the IDE MCP config to
+         ${workspaceFolder}, typically).
+      2. The current working directory walked up for `.os_state/`.
+      3. The current working directory as a fallback.
 
+    `--workspace` is accepted for back-compat but no longer required;
+    when passed, it pins the env var for the lifetime of this server
+    process. Omit it for true global usage where one MCP server process
+    is shared across multiple IDE projects via per-instance env vars.
+    """
     from research_os.server import main as server_main
 
-    sys.argv = [sys.argv[0], "--transport", args.transport]
-    sys.argv.extend(["--workspace", str(workspace)])
+    if args.workspace:
+        workspace = Path(args.workspace).resolve()
+        if not (workspace / ".os_state").exists():
+            print(f"  ⚠  --workspace points at a non-RO directory: {workspace}")
+            print("  Run 'research-os init' there first, or omit --workspace")
+            print("  to let the server resolve a project per IDE request.")
+        sys.argv = [sys.argv[0], "--transport", args.transport,
+                    "--workspace", str(workspace)]
+    else:
+        # Global mode — the server resolves project per request via env
+        # var (set by IDE MCP config) or CWD walk.
+        sys.argv = [sys.argv[0], "--transport", args.transport]
+
     server_main()
 
 
@@ -337,13 +347,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_start = sub.add_parser(
         "start",
-        help="Start the MCP server for this workspace.",
-        description="Run the MCP server. Your AI IDE connects to it via stdio.",
+        help="Start the Research OS MCP server (global — one server, many projects).",
+        description=(
+            "Run the Research OS MCP server. Your AI IDE connects to it\n"
+            "via stdio. The server is GLOBAL — install once, share across\n"
+            "all your projects.\n\n"
+            "The active project is resolved per request, in this order:\n"
+            "  1. RESEARCH_OS_WORKSPACE env var (your IDE MCP config sets\n"
+            "     this to ${workspaceFolder} so each IDE project gets its\n"
+            "     own context automatically).\n"
+            "  2. The current working directory walked up looking for\n"
+            "     `.os_state/` (the project marker dropped by\n"
+            "     `research-os init`).\n"
+            "  3. The current working directory as a last resort.\n\n"
+            "Tip: run `research-os init` in each project folder; the IDE\n"
+            "MCP config auto-routes calls there via $RESEARCH_OS_WORKSPACE."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p_start.add_argument(
         "--workspace",
         default=None,
-        help="Workspace path (default: auto-detect from cwd).",
+        help=(
+            "(Optional, back-compat) Pin this server to a specific "
+            "workspace path. Equivalent to setting RESEARCH_OS_WORKSPACE. "
+            "Omit for global mode."
+        ),
     )
     p_start.add_argument(
         "--transport",

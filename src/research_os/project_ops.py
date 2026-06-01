@@ -918,8 +918,26 @@ def _setup_gitignore(root: Path) -> None:
 
 
 def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
-    """Drop a per-IDE MCP config + rule file so the AI auto-connects."""
+    """Drop a per-IDE MCP config + rule file so the AI auto-connects.
+
+    The MCP config uses `${workspaceFolder}` so the SAME `research-os`
+    binary serves any project the IDE has open — install once, scaffold
+    each project with `research-os init`, no rebuild of the global
+    install. (Editors that don't expand `${workspaceFolder}` fall back
+    to the absolute path written here; the server then resolves the
+    project per request via the env var.)
+    """
+    # `${workspaceFolder}` is the IDE-side variable expansion every major
+    # IDE supports (Cursor / VS Code / Continue / etc.). For IDEs that
+    # don't expand it, we still write the absolute path as a fallback —
+    # the server reads RESEARCH_OS_WORKSPACE first and falls back to CWD.
     mcp_entry = {
+        "command": "research-os",
+        "args": ["start"],
+        "env": {"RESEARCH_OS_WORKSPACE": "${workspaceFolder}"},
+    }
+    # Absolute-path fallback for tooling that doesn't do variable expansion.
+    mcp_entry_abs = {
         "command": "research-os",
         "args": ["start"],
         "env": {"RESEARCH_OS_WORKSPACE": str(root.resolve())},

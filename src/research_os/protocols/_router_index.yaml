@@ -42,6 +42,7 @@ hierarchy:
       handoff:       "End session cleanly (AI → AI)"
       collaborator:  "Hand off to a HUMAN outside Research-OS"
       autopilot:     "Let the AI drive with explicit gates"
+      disagree:      "Constructive disagreement — AI pushback rules"
   discover:
     label: "Project intake + question lock-in"
     sub_intents:
@@ -86,6 +87,9 @@ hierarchy:
       power:        "Power / sample-size justification (standalone)"
       reproduce:    "Attempt to reproduce a published analysis"
       consult:      "Methodological consultation / explain / teach (no project commit)"
+      eval_design:  "Design the train/val/test split, CV, metrics, comparison test"
+      sweep:        "Design a hyperparameter sweep (search space, budget, strategy)"
+      ethics:       "Data ethics review (IRB / privacy / consent / fairness)"
   literature:
     label: "Literature search + synthesis"
     sub_intents:
@@ -110,11 +114,19 @@ hierarchy:
       lay:       "Lay summary / press release / outreach"
       update:    "Progress update for PI / advisor / lab"
       inputs_only: "Synthesis from inputs/ alone (no in-RO analysis ran)"
+      cover_letter: "Journal cover letter for submission"
+      title:     "Title workshop (single most-read sentence)"
+      handout:   "Printable one-page handout / leave-behind"
+      multi_panel: "Compose a multi-panel figure (Figure 2 = A / B / C / D)"
+      figure_arc: "Order figures across a paper / talk / poster"
+      a11y:      "Color-blind + WCAG accessibility audit"
+      end_matter: "Data / code availability + CRediT + funding + COI + ack"
   audit_wrap:
     label: "Audit + reproducibility"
     sub_intents:
       audit:    "Audit a synthesis output"
       repro:    "Snapshot + verify everything reruns clean"
+      submission: "Pre-submission checklist (final ready-to-submit gate)"
   memory:
     label: "Hypothesis + glossary bookkeeping"
     sub_intents:
@@ -1066,6 +1078,304 @@ protocols:
       - protocol: guidance/mid_pipeline_entry
         purpose: "Classify entry archetype + route to the right downstream protocol."
       - tool: tool_context_intake
+
+# ─────────────────────────────────────────────────────────────────────
+# NEW (v2.3) — deliverable quality + per-section writing + workflow depth
+# Adds section-specific writing protocols (discussion, limitations,
+# results, end-matter), figure composition / arc / a11y, cover letter,
+# title workshop, handout, evaluation design, hyperparameter sweep
+# design, data ethics review, constructive disagreement,
+# pre-submission checklist.
+# ─────────────────────────────────────────────────────────────────────
+
+  writing/writing_discussion:
+    intent_class: synthesize
+    sub_intent: writing
+    summary: "Draft the Discussion section (principal findings, alternative explanations, limitations route)."
+    triggers:
+      - "draft the discussion"
+      - "write the discussion"
+      - "discussion section"
+      - "what does this mean"
+      - "interpret these results"
+      - "interpret the results"
+      - "the discussion needs work"
+      - "tighten the discussion"
+    token_estimate: 1700
+    decomposition:
+      - protocol: writing/writing_discussion
+        purpose: "Pull evidence floor + draft per-section discipline."
+      - tool: tool_audit_prose
+      - tool: tool_audit_claims
+
+  writing/writing_limitations:
+    intent_class: synthesize
+    sub_intent: writing
+    summary: "Draft the Limitations section (no boilerplate; every limitation paired with implication)."
+    triggers:
+      - "write the limitations"
+      - "limitations section"
+      - "the limitations need work"
+      - "tighten the limitations"
+      - "what should the limitations cover"
+      - "the reviewer complained about limitations"
+      - "draft limitations"
+    token_estimate: 1300
+    decomposition:
+      - protocol: writing/writing_limitations
+        purpose: "Enumerate from categories, pair with implications, prioritise."
+
+  writing/writing_results:
+    intent_class: synthesize
+    sub_intent: writing
+    summary: "Draft the Results section (report numbers, defer interpretation, full statistical form)."
+    triggers:
+      - "draft the results"
+      - "write the results"
+      - "results section"
+      - "report what we found"
+      - "the results section needs work"
+      - "tighten the results"
+    token_estimate: 1500
+    decomposition:
+      - protocol: writing/writing_results
+        purpose: "Build evidence table, draft per-structure, audit causal-language + number-format."
+      - tool: tool_audit_claims
+
+  writing/writing_data_availability:
+    intent_class: synthesize
+    sub_intent: end_matter
+    summary: "Draft end matter — data + code availability, CRediT, funding, COI, acknowledgements."
+    triggers:
+      - "data availability"
+      - "code availability"
+      - "author contributions"
+      - "credit statement"
+      - "credit taxonomy"
+      - "funding statement"
+      - "conflicts of interest"
+      - "acknowledgements"
+      - "draft the end matter"
+      - "journal end-of-paper sections"
+      - "end matter for the paper"
+    token_estimate: 1300
+    decomposition:
+      - protocol: writing/writing_data_availability
+        purpose: "Draft each end-matter section per journal convention."
+
+  visualization/multi_panel_composition:
+    intent_class: synthesize
+    sub_intent: multi_panel
+    summary: "Compose a multi-panel figure (Figure 2 = A / B / C / D) with shared scales + combined caption."
+    triggers:
+      - "multi-panel figure"
+      - "multi panel figure"
+      - "figure with sub-panels"
+      - "figure with subpanels"
+      - "panels a b c"
+      - "compose panels"
+      - "combine these figures into one"
+      - "make figure 2 with panels"
+      - "subplot layout"
+      - "composite figure"
+    token_estimate: 1500
+    decomposition:
+      - protocol: visualization/multi_panel_composition
+        purpose: "Name the story, design the grid, build panels, compose, caption."
+      - tool: tool_figure_create
+
+  visualization/figure_narrative_arc:
+    intent_class: synthesize
+    sub_intent: figure_arc
+    summary: "Order figures across a paper / talk / poster (figure budget + arc + cut decisions)."
+    triggers:
+      - "which figures should i keep"
+      - "order my figures"
+      - "figure arc"
+      - "narrative arc of figures"
+      - "what should figure 1 be"
+      - "drop a figure"
+      - "tighten the figure set"
+      - "figure budget"
+      - "figure brief"
+    token_estimate: 1400
+    decomposition:
+      - protocol: visualization/figure_narrative_arc
+        purpose: "Inventory, name story, cut-test, assign-to-arc, brief the drafter."
+
+  visualization/color_accessibility_audit:
+    intent_class: synthesize
+    sub_intent: a11y
+    summary: "Color-blind simulation (3 types) + WCAG contrast + grayscale + redundant-encoding audit."
+    triggers:
+      - "is this figure colour-blind safe"
+      - "is this figure color-blind safe"
+      - "check colour accessibility"
+      - "check color accessibility"
+      - "wcag check"
+      - "contrast check on the dashboard"
+      - "audit my palette"
+      - "is this readable for colour-blind readers"
+      - "deuteranopia check"
+      - "tritanopia check"
+      - "a11y audit"
+      - "accessibility audit"
+    token_estimate: 1500
+    decomposition:
+      - protocol: visualization/color_accessibility_audit
+        purpose: "Extract palette, simulate, contrast, grayscale, redundant-encoding, fix."
+
+  synthesis/synthesis_cover_letter:
+    intent_class: synthesize
+    sub_intent: cover_letter
+    summary: "Draft journal cover letter (fit + significance + reviewers + disclosures)."
+    triggers:
+      - "draft a cover letter"
+      - "draft the cover letter"
+      - "cover letter for the journal"
+      - "cover letter for"
+      - "letter to the editor for submission"
+      - "submission letter"
+    token_estimate: 1100
+    decomposition:
+      - protocol: synthesis/synthesis_cover_letter
+        purpose: "Scope, extract significance, justify fit, draft, source reviewers."
+
+  synthesis/synthesis_title_workshop:
+    intent_class: synthesize
+    sub_intent: title
+    summary: "Workshop a title (≥6 alternatives across archetypes, substring test, shortlist)."
+    triggers:
+      - "workshop the title"
+      - "i need a title"
+      - "pick a title"
+      - "the title needs work"
+      - "title options"
+      - "is this a good title"
+      - "give me title alternatives"
+      - "workshop my paper title"
+    token_estimate: 1200
+    decomposition:
+      - protocol: synthesis/synthesis_title_workshop
+        purpose: "Extract search terms, generate alternatives, substring-test, shortlist, stress-test."
+
+  synthesis/synthesis_handout:
+    intent_class: synthesize
+    sub_intent: handout
+    summary: "Single-page printable handout / one-pager (5 audience profiles, QR code mandatory)."
+    triggers:
+      - "make a one-pager"
+      - "one pager"
+      - "make a handout"
+      - "printable handout"
+      - "handout for the poster session"
+      - "one-page summary"
+      - "for the audience to take away"
+      - "leave-behind for the meeting"
+      - "leave behind for the meeting"
+    token_estimate: 1500
+    decomposition:
+      - protocol: synthesis/synthesis_handout
+        purpose: "Pick audience, headline, one figure, QR, build, audit."
+
+  methodology/evaluation_design:
+    intent_class: methodology
+    sub_intent: eval_design
+    summary: "Design split / CV / metric set / paired comparison test for a modelling task."
+    triggers:
+      - "design the evaluation"
+      - "evaluation strategy"
+      - "cross-validation plan"
+      - "data split design"
+      - "design the test set"
+      - "leakage-safe split"
+      - "leakage safe split"
+      - "what cv should i use"
+      - "pick the metrics"
+    token_estimate: 1500
+    decomposition:
+      - protocol: methodology/evaluation_design
+        purpose: "Split, CV, metric set, uncertainty, paired test, freeze."
+
+  methodology/hyperparameter_search_design:
+    intent_class: methodology
+    sub_intent: sweep
+    summary: "Design a hyperparameter sweep (search space, budget, strategy, early-stopping, seeds)."
+    triggers:
+      - "design the sweep"
+      - "hyperparameter search"
+      - "hyperparameter sweep"
+      - "sweep design"
+      - "what hyperparameters should i tune"
+      - "design the grid"
+      - "random search vs bayesian opt"
+      - "compute budget for tuning"
+    token_estimate: 1500
+    decomposition:
+      - protocol: methodology/hyperparameter_search_design
+        purpose: "Identify params that matter, pick strategy, define budget, set pruning, pin seeds."
+
+  methodology/data_ethics_review:
+    intent_class: methodology
+    sub_intent: ethics
+    summary: "IRB / consent / privacy / sharing / fairness / dual-use review on data."
+    triggers:
+      - "irb review"
+      - "rec review"
+      - "ethics review"
+      - "privacy check"
+      - "consent check"
+      - "deidentification audit"
+      - "data sharing agreement"
+      - "is this data ethical to use"
+      - "fairness audit"
+      - "bias and fairness review"
+      - "compliance check on the data"
+    token_estimate: 1600
+    decomposition:
+      - protocol: methodology/data_ethics_review
+        purpose: "Walk IRB / consent / privacy / sharing / fairness / dual-use; produce verdict."
+
+  guidance/constructive_disagreement:
+    intent_class: session
+    sub_intent: disagree
+    summary: "Structured AI pushback when the AI's evidence disagrees with the researcher's direction."
+    triggers:
+      - "push back if you disagree"
+      - "tell me if i'm wrong"
+      - "tell me if i am wrong"
+      - "be a tough reviewer of my plan"
+      - "is this the right call"
+      - "argue against this"
+      - "play devil's advocate on this plan"
+      - "devils advocate on my plan"
+      - "constructive disagreement"
+    token_estimate: 1100
+    decomposition:
+      - protocol: guidance/constructive_disagreement
+        purpose: "Detect, classify severity, voice, respect, log, surface in synthesis if relevant."
+
+  audit/pre_submission_checklist:
+    intent_class: audit_wrap
+    sub_intent: submission
+    summary: "Final ready-to-submit gate (GREEN / YELLOW / RED + punch list)."
+    triggers:
+      - "is this ready to submit"
+      - "pre-submission checklist"
+      - "pre submission checklist"
+      - "final check before submission"
+      - "ready to submit"
+      - "submission readiness"
+      - "what's left before submission"
+      - "submit audit"
+      - "final gate before journal submission"
+    token_estimate: 1700
+    decomposition:
+      - protocol: audit/pre_submission_checklist
+        purpose: "Artefact + paper + figure + end-matter + cover-letter + ethics + repro + claims + venue checks."
+      - tool: tool_audit_synthesis
+      - tool: tool_audit_claims
+      - tool: tool_citations_verify
 
 # ─────────────────────────────────────────────────────────────────────
 # Cross-intent shortcuts (no protocol, just a tool)
