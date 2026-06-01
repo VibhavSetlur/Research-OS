@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" role="img" aria-label="Research OS">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160" role="img" aria-label="Research OS">
   <title>Research OS</title>
   <desc>A pipeline of hexagons — input, process, output — beside the Research OS wordmark.</desc>
   <defs>
@@ -8,12 +8,19 @@
       <stop offset="100%" stop-color="#06c"/>
     </linearGradient>
     <style>
+      /* Light-mode defaults (GitHub light, plain browsers, image viewers). */
       .wordmark { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
                   font-weight: 700; font-size: 28px; letter-spacing: 0.18em; fill: #111; }
       .tag      { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
-                  font-size: 13px; letter-spacing: 0.06em; fill: #666; }
-      .link     { stroke: url(#hex); stroke-width: 2; }
-      .vert     { stroke: url(#hex); stroke-width: 2; stroke-dasharray: 2 3; opacity: 0.7; }
+                  font-size: 13px; letter-spacing: 0.06em; fill: #555; }
+      /* Dark-mode override — GitHub renders SVG with prefers-color-scheme honoured. */
+      @media (prefers-color-scheme: dark) {
+        .wordmark { fill: #e6edf3; }
+        .tag      { fill: #9da7b3; }
+      }
+      .link     { stroke: url(#hex); stroke-width: 2.5; stroke-linecap: round; }
+      .vert     { stroke: url(#hex); stroke-width: 2; stroke-dasharray: 2 3; opacity: 0.75; }
+      .flow     { stroke: url(#hex); stroke-width: 2; stroke-linecap: round; fill: none; opacity: 0.65; }
       .filled   { fill: url(#hex); }
       .outline  { fill: none; stroke: url(#hex); stroke-width: 2; }
     </style>
@@ -24,29 +31,40 @@
     <symbol id="hexOutline" viewBox="-22 -22 44 44">
       <polygon class="outline" points="0,-18 15.6,-9 15.6,9 0,18 -15.6,9 -15.6,-9"/>
     </symbol>
+    <!-- Small arrow marker for the pipeline flow links. -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="url(#hex)"/>
+    </marker>
   </defs>
+
+  <!-- Pipeline input lead-in (left of top row) -->
+  <line class="flow" x1="20" y1="68" x2="46" y2="68" marker-end="url(#arrow)"/>
 
   <!-- Top row: filled hexagons (the inputs / processing / outputs) -->
   <use href="#hexFilled" x="40"  y="46" width="44" height="44"/>
   <use href="#hexFilled" x="100" y="46" width="44" height="44"/>
   <use href="#hexFilled" x="160" y="46" width="44" height="44"/>
-  <!-- Horizontal links between filled row -->
-  <line class="link" x1="84"  y1="46" x2="100" y2="46"/>
-  <line class="link" x1="144" y1="46" x2="160" y2="46"/>
+  <!-- Horizontal links between filled row, with flow arrows -->
+  <line class="link" x1="78"  y1="68" x2="106" y2="68" marker-end="url(#arrow)"/>
+  <line class="link" x1="138" y1="68" x2="166" y2="68" marker-end="url(#arrow)"/>
 
   <!-- Vertical links (data flowing down to outline row) -->
-  <line class="vert" x1="62"  y1="68" x2="62"  y2="92"/>
-  <line class="vert" x1="122" y1="68" x2="122" y2="92"/>
-  <line class="vert" x1="182" y1="68" x2="182" y2="92"/>
+  <line class="vert" x1="62"  y1="86" x2="62"  y2="120"/>
+  <line class="vert" x1="122" y1="86" x2="122" y2="120"/>
+  <line class="vert" x1="182" y1="86" x2="182" y2="120"/>
 
   <!-- Bottom row: outline hexagons (the audited, citable artefacts) -->
-  <use href="#hexOutline" x="40"  y="92" width="44" height="44"/>
-  <use href="#hexOutline" x="100" y="92" width="44" height="44"/>
-  <use href="#hexOutline" x="160" y="92" width="44" height="44"/>
-  <line class="link" x1="84"  y1="114" x2="100" y2="114"/>
-  <line class="link" x1="144" y1="114" x2="160" y2="114"/>
+  <use href="#hexOutline" x="40"  y="98" width="44" height="44"/>
+  <use href="#hexOutline" x="100" y="98" width="44" height="44"/>
+  <use href="#hexOutline" x="160" y="98" width="44" height="44"/>
+  <line class="link" x1="78"  y1="120" x2="106" y2="120" marker-end="url(#arrow)"/>
+  <line class="link" x1="138" y1="120" x2="166" y2="120" marker-end="url(#arrow)"/>
+
+  <!-- Pipeline output lead-out (right of bottom row) -->
+  <line class="flow" x1="198" y1="120" x2="224" y2="120" marker-end="url(#arrow)"/>
 
   <!-- Wordmark -->
-  <text class="wordmark" x="240" y="84">RESEARCH OS</text>
-  <text class="tag"      x="240" y="108">grounded · cited · auditable</text>
+  <text class="wordmark" x="248" y="84">RESEARCH OS</text>
+  <text class="tag"      x="248" y="108">grounded · cited · auditable</text>
 </svg>
