@@ -135,6 +135,51 @@ def test_intake_md_is_minimal_placeholder():
         assert "Research Intake" in intake
 
 
+def test_cold_init_keeps_short_intake_pointer():
+    """Bug: scaffold wrote the short pointer, then regenerate_intake
+    immediately overwrote it with the legacy long-form table on every
+    cold init. The pointer must survive when no inputs/overrides are
+    present so the AI knows to call tool_intake_autofill later."""
+    with tempfile.TemporaryDirectory() as d:
+        root = _scaffold(Path(d))
+        intake = (root / "inputs" / "intake.md").read_text()
+        assert "fill out the intake" in intake.lower(), (
+            f"cold init should keep the short pointer; got:\n{intake[:300]}"
+        )
+        # And NOT regenerate the long-form table on a cold init.
+        assert "Auto-generated:" not in intake
+
+
+def test_init_writes_full_intake_when_overrides_present():
+    """When the wizard captures a research question / domain, the
+    intake should reflect it immediately (so the AI doesn't have to
+    re-derive what the researcher already said)."""
+    with tempfile.TemporaryDirectory() as d:
+        overrides = {
+            "research_question": "Does X reduce Y?",
+            "domain": "clinical",
+        }
+        root = _scaffold(Path(d), config_overrides=overrides)
+        intake = (root / "inputs" / "intake.md").read_text()
+        assert "Does X reduce Y?" in intake
+        assert "clinical" in intake
+
+
+def test_ensure_lazy_dir_rejects_unknown_paths(tmp_path):
+    """Bug: ensure_lazy_dir was dead code that quietly mkdir'd any
+    path. It now refuses paths not in LAZY_DIRS so writers can't
+    silently grow the lazy surface."""
+    from research_os.project_ops import ensure_lazy_dir, scaffold_minimal_workspace
+
+    scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+    # Registered lazy dir — OK.
+    p = ensure_lazy_dir(tmp_path, "synthesis")
+    assert p.is_dir()
+    # Random path — refused.
+    with pytest.raises(ValueError):
+        ensure_lazy_dir(tmp_path, "not_a_lazy_dir")
+
+
 # ── CLI integration ────────────────────────────────────────────────────
 
 

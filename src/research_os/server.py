@@ -2090,17 +2090,12 @@ def _handle_sys_protocol_get(name, arguments, root):
                 "_loaded_as", fmt
             )
         else:
+            # format=full: AI explicitly opted into the bulk payload —
+            # don't tack on another paragraph telling it to prefer
+            # summary. Boot reminder also lives in sys_boot now.
             response = {"content": _yaml.dump(data, sort_keys=False)}
             if model_profile == "small":
                 response["note"] = "Loaded in light mode (small model profile)."
-            if p_name != "guidance/session_boot":
-                response["_reminder"] = (
-                    "Confirm session_boot has run this session; if not, load it first."
-                )
-            response["_load_tip"] = (
-                "Loaded as full. Prefer format='summary' (~300 tokens) or "
-                "format='step' + step_id='<id>' to save context."
-            )
         return _text(_success(response))
     except Exception as e:
         return _text(_error(str(e)))
@@ -2136,14 +2131,18 @@ def _handle_tool_plan_advance(name, arguments, root):
     from research_os.tools.actions.router import advance_plan
 
     override = bool(arguments.get("override_gate", False))
-    if override:
+    res = advance_plan(root, override_gate=override)
+    # Log the override ONLY when the gate would have blocked — a bypass
+    # passed on a deliverable that already met the gate is a phantom
+    # entry the pre-submission audit shouldn't have to defend.
+    if override and res.get("bypassed_blockers"):
         log_override(
             root,
             tool="tool_plan_advance",
             gate="deliverable_completeness",
             rationale=arguments.get("override_rationale"),
+            extra={"blocker_count": len(res["bypassed_blockers"])},
         )
-    res = advance_plan(root, override_gate=override)
     # status='blocked' is informational, not a transport-level error.
     if res.get("status") in {"success", "blocked"}:
         return _text(_success(res))
@@ -2339,19 +2338,23 @@ def _handle_sys_state_get(name, arguments, root):
         return _text(_success({"markdown": md_path.read_text()}))
     # full (lean projection — strip very large fields)
     paths = state.get("paths", {})
-    return _text(
-        _success(
-            {
-                "project_name": state.get("project_name") or state.get("project", ""),
-                "pipeline_stage": state.get("pipeline_stage", state.get("phase", "init")),
-                "step": state.get("step", 0),
-                "current_path": state.get("current_path", "main"),
-                "paths_summary": {k: v.get("status") for k, v in paths.items()},
-                "active_hypotheses": state.get("active_hypotheses", []),
-                "resumable_from": state.get("resumable_from"),
-            }
-        )
-    )
+    out: dict[str, Any] = {
+        "project_name": state.get("project_name") or state.get("project", ""),
+        "pipeline_stage": state.get("pipeline_stage", state.get("phase", "init")),
+        "step": state.get("step", 0),
+        "current_path": state.get("current_path", "main"),
+    }
+    # Only include collection-valued fields when they have content —
+    # empty list/dict/None on a fresh project just burns tokens.
+    paths_summary = {k: v.get("status") for k, v in paths.items()}
+    if paths_summary:
+        out["paths_summary"] = paths_summary
+    hypotheses = state.get("active_hypotheses") or []
+    if hypotheses:
+        out["active_hypotheses"] = hypotheses
+    if state.get("resumable_from"):
+        out["resumable_from"] = state["resumable_from"]
+    return _text(_success(out))
 
 
 def _handle_sys_file_read(name, arguments, root):
@@ -2382,11 +2385,28 @@ def _handle_sys_file_write(name, arguments, root):
 
 
 def _handle_sys_file_list(name, arguments, root):
-    p = root / arguments["directory"]
+    from research_os.project_ops import LAZY_DIRS
+
+    rel = arguments["directory"]
+    p = root / rel
     if not p.exists() or not p.is_dir():
+        # A lazy directory that hasn't been materialised yet is NOT an
+        # error — it just hasn't received its first artefact. Return an
+        # empty list with a hint so protocols can detect the empty state
+        # without retry loops.
+        if rel.strip("/") in LAZY_DIRS:
+            return _text(_success({
+                "files": [],
+                "empty": True,
+                "lazy_dir": True,
+                "hint": (
+                    f"`{rel}` is created on first write. "
+                    "Drop files here (or via the wizard) to materialise it."
+                ),
+            }))
         return _text(_error("Directory not found"))
     files = [str(f.relative_to(root)) for f in p.rglob("*") if f.is_file()]
-    return _text(_success({"files": files}))
+    return _text(_success({"files": files, "empty": not files}))
 
 
 def _handle_sys_file_delete(name, arguments, root):
@@ -2855,52 +2875,95 @@ def _handle_tool_synthesize(name, arguments, root):
         audit_quality_full, audit_step_completeness,
     )
     from research_os.tools.actions.synthesis.synthesize import synthesize_workspace
+    from research_os.project_ops import log_override
+    from research_os.tools.actions.state.config import get_interaction_policy
 
     # Server-enforced quality gate. Single-section synthesis (e.g. just
     # the abstract) clears with a lightweight check; full-document
     # synthesis must pass the master quality auditor.
-    skip_gate = bool(arguments.get("override_completeness_gate", False))
-    if skip_gate:
-        from research_os.project_ops import log_override
+    #
+    # We log override_completeness_gate=true to override_log.md ONLY
+    # when the gate it would have run actually returned blockers — a
+    # bypass that didn't bypass anything (gate would have passed, or
+    # didn't apply to the section call) is a phantom entry that
+    # confuses the pre-submission audit.
+    override_requested = bool(arguments.get("override_completeness_gate", False))
+    rationale = arguments.get("override_rationale")
+    full_doc = not arguments.get("section")
+    bypass_logged = False
+    policy = get_interaction_policy(root)["quality_gate_policy"]
+    # warn_only ⇒ never block; the gate-blocker list is surfaced as
+    # warnings on the response. Sandbox / exploratory use only.
+    soft_gate = policy == "warn_only"
+    # enforce ⇒ overrides demand an explicit researcher rationale; a
+    # call asking for the bypass without supplying WHY is rejected.
+    if (policy == "enforce" and override_requested
+            and (not rationale or not str(rationale).strip())):
+        return _text(_error(
+            "interaction.quality_gate_policy=enforce: override_completeness_gate=true "
+            "requires a one-line override_rationale (recorded to "
+            "workspace/logs/override_log.md). Pass override_rationale='…' or "
+            "ask the researcher; or relax the policy to 'allow_override' in "
+            "inputs/researcher_config.yaml."
+        ))
+
+    def _record_bypass(gate_name: str, blockers: list[str] | None) -> None:
+        nonlocal bypass_logged
+        if bypass_logged:
+            return
         log_override(
             root,
             tool="tool_synthesize",
-            gate="quality_full",
-            rationale=arguments.get("override_rationale"),
+            gate=gate_name,
+            rationale=rationale,
             extra={
                 "output_type": arguments.get("output_type", "paper"),
                 "section": arguments.get("section"),
+                "blocker_count": len(blockers or []),
             },
         )
-    full_doc = not arguments.get("section")
-    if full_doc and not skip_gate:
+        bypass_logged = True
+
+    if full_doc:
         gate = audit_quality_full(
             root,
             # Skip claims gate on the FIRST synthesis (paper.md doesn't
-            # exist yet to extract claims from).
-            skip=arguments.get("skip_gates") or ["claims"],
+            # exist yet to extract claims from). Honour an explicit
+            # empty list — researcher asked for ALL gates to run.
+            skip=arguments["skip_gates"] if "skip_gates" in arguments else ["claims"],
         )
         if gate.get("status") == "error":
-            return _text(_error(
-                "BLOCKED by master quality gate. "
-                + (gate.get("advice") or "")
-                + "\n\nBlockers:\n"
-                + "\n".join(f"- {b}" for b in (gate.get("blockers") or [])[:15])
-                + (f"\n  … and {len(gate.get('blockers') or []) - 15} more"
-                   if len(gate.get("blockers") or []) > 15 else "")
-                + "\n\nReport: " + str(gate.get("report_path"))
-                + "\n\nTo bypass for a partial / WIP deliverable, call "
-                "again with override_completeness_gate=true."
-            ))
-    elif not skip_gate:
+            if override_requested:
+                _record_bypass("quality_full", gate.get("blockers"))
+            elif soft_gate:
+                # warn_only policy — record the override (researcher set
+                # the policy that turns blockers into warnings) and let
+                # synthesis proceed. Blockers attach as warnings below.
+                _record_bypass("quality_full", gate.get("blockers"))
+            else:
+                return _text(_error(
+                    "BLOCKED by master quality gate. "
+                    + (gate.get("advice") or "")
+                    + "\n\nBlockers:\n"
+                    + "\n".join(f"- {b}" for b in (gate.get("blockers") or [])[:15])
+                    + (f"\n  … and {len(gate.get('blockers') or []) - 15} more"
+                       if len(gate.get("blockers") or []) > 15 else "")
+                    + "\n\nReport: " + str(gate.get("report_path"))
+                    + "\n\nTo bypass for a partial / WIP deliverable, call "
+                    "again with override_completeness_gate=true."
+                ))
+    else:
         # Lightweight gate for single-section calls — still want focal
         # figure + caption coverage.
         sc = audit_step_completeness(root)
         if sc.get("status") == "error":
-            return _text(_error(
-                "BLOCKED by step-completeness gate (section-only synthesis). "
-                + sc.get("advice", "")
-            ))
+            if override_requested or soft_gate:
+                _record_bypass("step_completeness", sc.get("blockers"))
+            else:
+                return _text(_error(
+                    "BLOCKED by step-completeness gate (section-only synthesis). "
+                    + sc.get("advice", "")
+                ))
 
     res = synthesize_workspace(
         root,
@@ -2913,8 +2976,9 @@ def _handle_tool_synthesize(name, arguments, root):
         return _text(_error(res["error"]))
 
     # After writing the full paper, run the claims audit as a second
-    # pass so any AI hallucinations surface immediately.
-    if full_doc and not skip_gate:
+    # pass so any AI hallucinations surface immediately. Skip when the
+    # researcher already overrode the gate (the bypass log captures it).
+    if full_doc and not override_requested and not soft_gate:
         try:
             from research_os.tools.actions.audit.claim_grounding import (
                 audit_claims,
@@ -2958,36 +3022,48 @@ def _handle_tool_poster_create(name, arguments, root):
 def _handle_tool_dashboard_create(name, arguments, root):
     from research_os.tools.actions.audit.audit import audit_step_completeness
     from research_os.tools.actions.synthesis.latex import create_dashboard
+    from research_os.project_ops import log_override
+    from research_os.tools.actions.state.config import get_interaction_policy
 
-    skip_gate = bool(arguments.get("override_completeness_gate", False))
-    if skip_gate:
-        from research_os.project_ops import log_override
-        log_override(
-            root,
-            tool="tool_dashboard_create",
-            gate="step_completeness",
-            rationale=arguments.get("override_rationale"),
-        )
-    if not skip_gate:
-        gate = audit_step_completeness(root)
-        if gate.get("status") == "error":
-            # Soft-fail to a warning the dashboard still renders. The
-            # dashboard is more useful as a "where are we now" snapshot
-            # than the paper, so we don't BLOCK it — we annotate that
-            # blockers exist so the editor sees them.
-            arguments.setdefault("_completeness_warnings", gate.get("blockers"))
+    override_requested = bool(arguments.get("override_completeness_gate", False))
+    rationale = arguments.get("override_rationale")
+    completeness_warnings: list[str] | None = None
+    policy = get_interaction_policy(root)["quality_gate_policy"]
+    if (policy == "enforce" and override_requested
+            and (not rationale or not str(rationale).strip())):
+        return _text(_error(
+            "interaction.quality_gate_policy=enforce: override_completeness_gate=true "
+            "requires a one-line override_rationale."
+        ))
+
+    gate = audit_step_completeness(root)
+    if gate.get("status") == "error":
+        completeness_warnings = gate.get("blockers")
+        if override_requested:
+            # Real bypass: blockers existed AND researcher authorised
+            # suppression of the warning panel. Log it for the audit.
+            log_override(
+                root,
+                tool="tool_dashboard_create",
+                gate="step_completeness",
+                rationale=rationale,
+                extra={"blocker_count": len(completeness_warnings or [])},
+            )
 
     res = create_dashboard(
         root,
         title=arguments.get("title"),
         audience=arguments.get("audience", "academic"),
+        # Only suppress the panel when there was something to suppress —
+        # the renderer no-ops the flag on a clean workspace.
+        suppress_audit_panel=override_requested and bool(completeness_warnings),
     )
     if res.get("status") == "success":
-        if arguments.get("_completeness_warnings"):
-            res["completeness_warnings"] = arguments["_completeness_warnings"]
+        if completeness_warnings and not override_requested:
+            res["completeness_warnings"] = completeness_warnings
             res["advice"] = (
                 "Dashboard rendered, but step-completeness audit flagged "
-                f"{len(arguments['_completeness_warnings'])} blocker(s). "
+                f"{len(completeness_warnings)} blocker(s). "
                 "Resolve them before the FINAL deliverable."
             )
         return _text(_success(res))
@@ -3844,90 +3920,77 @@ def _handle_sys_active_project(name, arguments, root):
     """Report which project root the server resolved for this request."""
     env_root = os.environ.get("RESEARCH_OS_WORKSPACE", "").strip()
     via = "cwd"
-    env_used = False
     if env_root and Path(env_root).expanduser().resolve() == root:
-        via = "RESEARCH_OS_WORKSPACE env var"
-        env_used = True
+        via = "RESEARCH_OS_WORKSPACE"
     elif (root / ".os_state").exists():
-        via = "cwd walked up to .os_state/"
-    return _text(_success({
+        via = "cwd→.os_state"
+    has_state = (root / ".os_state").exists()
+    payload: dict[str, Any] = {
         "project_root": str(root),
-        "has_os_state": (root / ".os_state").exists(),
+        "has_os_state": has_state,
         "resolved_via": via,
-        "env_var_set": env_used,
-        "advice": (
-            "This server is GLOBAL — one process serves multiple projects. "
-            "Each request resolves a project per these rules: "
-            "(1) RESEARCH_OS_WORKSPACE env var (the IDE MCP config usually "
-            "sets this to ${workspaceFolder}); (2) cwd walked up for "
-            "`.os_state/`; (3) cwd. If `has_os_state` is False, the "
-            "project hasn't been scaffolded — tell the researcher to run "
-            "`research-os init` here, or to open a folder that has been "
-            "initialised."
-        ),
-    }))
+    }
+    # Only surface the orientation advice when the project isn't
+    # scaffolded — that's the only branch the AI needs to act on.
+    if not has_state:
+        payload["advice"] = (
+            "No .os_state/ here — run `research-os init` or open a "
+            "scaffolded folder. Project resolution order: "
+            "RESEARCH_OS_WORKSPACE env var → cwd walked up → cwd."
+        )
+    return _text(_success(payload))
 
 
 def _handle_sys_help(name, arguments, root):
     """Compact AI orientation block — how to use Research OS efficiently."""
     topic = (arguments or {}).get("topic", "").strip().lower()
 
+    # Lean default: orientation only the AI needs on EVERY call lives
+    # here; deep cuts (protocol categories, anti-patterns, docs index)
+    # are one `topic=` request away when the AI actually needs them.
     core = {
-        "what_research_os_is": (
-            "Research OS is an MCP server that scaffolds + audits "
-            "research projects end-to-end (data → publication) AND "
-            "supports off-axis work (viz only / talks / lay summaries / "
-            "method consultation / reproduction / mid-pipeline entry). "
-            "One install, one global server, per-project init."
-        ),
-        "tool_namespaces": {
-            "sys_*":  "system / workspace / state / files / paths / checkpoints",
-            "tool_*": "research work — search, exec, audit, synthesis, intake, plan",
-            "mem_*":  "append-only memory — methods, citations, decisions, hypotheses",
+        "namespaces": {
+            "sys_*":  "workspace / state / files / paths",
+            "tool_*": "research work (search / exec / audit / synthesis / plan)",
+            "mem_*":  "append-only memory",
         },
-        "session_start_pattern": [
-            "1. sys_boot — one call returns state + config + history + advice",
-            "2. (await researcher's first message)",
-            "3. tool_route(prompt) — picks the right protocol L1→L2→L3",
-            "4. If `complexity:high`, tool_plan_turn → walk via tool_plan_advance",
-            "5. If `complexity:low`, run shortcut_tool OR sys_protocol_get format='summary'",
-        ],
-        "protocol_categories": {
-            "guidance":      "session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree)",
-            "discover":      "intake + question lock-in",
-            "domain":        "domain classification + study design",
-            "methodology":   "method picking + per-method protocols (ML / Bayes / RCT / qualitative / consult / EDA / comparison / etc.)",
-            "literature":    "search + systematic review + evidence synthesis + comparative paper review",
-            "writing":       "per-section drafting (methods / results / discussion / limitations / end_matter)",
-            "visualization": "figures (rules / workflow / critique / multi-panel / arc / a11y)",
-            "synthesis":     "final deliverables (paper / abstract / poster / dashboard / slides / lay / handout / report / grant / null_findings / progress_update / from_inputs / cover_letter / title)",
-            "audit":         "quality audit + pre-submission checklist",
-            "reproducibility": "snapshot + verify everything reruns clean",
-        },
-        "routing_principle": (
-            "tool_route is the FIRST tool after every researcher message. "
-            "It returns a tight routing decision in ~250 tokens. Don't "
-            "search for protocols manually; let the router pick. When "
-            "ambiguous it returns `ask_user` — ask that question and "
-            "re-route, never guess."
+        "session_start": (
+            "sys_boot once → wait for prompt → tool_route(prompt) → "
+            "tool_plan_turn if complexity=high; else shortcut_tool."
         ),
-        "anti_patterns": [
-            "Don't call sys_state_get + sys_config_get + sys_protocol_history separately — use sys_boot.",
-            "Don't load full protocols with sys_protocol_get format='full' when summary suffices.",
-            "Don't one-shot 400-line scripts — tool_plan_step + sub-task pipelines (see guidance/analysis_plan).",
-            "Don't invent citations — synthesis tools VERIFY every citation.",
-            "Don't write under inputs/raw_data or inputs/literature — server blocks it.",
+        "topics": [
+            "synthesis", "methodology", "visualization", "audit",
+            "categories", "anti_patterns", "docs",
         ],
-        "docs_for_humans": [
-            "docs/START.md — install + first project + cheatsheet",
-            "docs/RESEARCHER_GUIDE.md — full workflow walkthrough",
-            "docs/USE_CASES.md — role × goal × output map",
-            "docs/PROTOCOLS.md — protocol catalogue + triggers",
-            "docs/TOOLS.md — every MCP tool with example calls",
-            "docs/PROTOCOL_DOCTRINE.md — scaffold-not-script principle",
-            "docs/FAQ.md — common questions",
-        ],
+        "hint": "Call sys_help again with topic=<one of topics> for detail.",
     }
+    if topic in {"categories", "protocols"}:
+        return _text(_success({"protocol_categories": {
+            "guidance": "session/flow (boot/resume/handoff/autopilot/casual/mid_entry/disagree)",
+            "discover": "intake + question lock-in",
+            "domain": "domain classification + study design",
+            "methodology": "method picking + per-method protocols",
+            "literature": "search + systematic review + comparative review",
+            "writing": "per-section drafting",
+            "visualization": "figures (rules/workflow/critique/multi-panel/a11y)",
+            "synthesis": "final deliverables (paper/poster/dashboard/slides/...)",
+            "audit": "quality audit + pre-submission",
+            "reproducibility": "snapshot + verify reruns",
+        }}))
+    if topic == "anti_patterns":
+        return _text(_success({"anti_patterns": [
+            "Don't call sys_state_get + sys_config_get separately — use sys_boot.",
+            "Don't load full protocols when summary suffices.",
+            "Don't one-shot 400-line scripts — tool_plan_step + sub-task pipelines.",
+            "Don't invent citations — synthesis tools VERIFY every citation.",
+            "Don't write under inputs/raw_data or inputs/literature.",
+        ]}))
+    if topic == "docs":
+        return _text(_success({"docs_for_humans": [
+            "docs/START.md", "docs/RESEARCHER_GUIDE.md",
+            "docs/USE_CASES.md", "docs/PROTOCOLS.md",
+            "docs/TOOLS.md", "docs/PROTOCOL_DOCTRINE.md", "docs/FAQ.md",
+        ]}))
 
     if topic in {"synthesis", "deliverable", "deliverables"}:
         return _text(_success({

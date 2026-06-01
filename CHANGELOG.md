@@ -6,6 +6,95 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.0.0] — Hardening (post-review)
+
+15-finding code-review pass fixed in-place against v1.0.0; no version
+bump (no API changes). 417 tests green (up from 395), preflight 13/13.
+
+* **Mega-script blocker no longer fires on stray figures.** The
+  blocker now counts only artefacts that bear the step's number
+  prefix toward `categories_hit`. A legacy step that produced one
+  CSV no longer blocks `tool_synthesize` because someone dropped an
+  unrelated `panel.png` into `outputs/figures/`.
+  ([`audit.py`](src/research_os/tools/actions/audit/audit.py))
+* **Version-coherence audit no longer cries wolf or sleeps through drift.**
+  The stem-prefix derivation used a non-anchored `startswith` that
+  both (a) conflated unrelated sibling scripts like `01_fit_v2.py` /
+  `01_fit_extended_v3.py` (false drift) AND (b) missed
+  unsuffixed-to-versioned bumps like `02_clean.py` → `02_clean_v2.py`
+  (silent miss). Now exact-stem matching catches the real case in
+  both directions.
+  ([`iteration.py`](src/research_os/tools/actions/state/iteration.py))
+* **`tool_step_iterate` is safe under concurrent IDE sessions.**
+  `fcntl.flock` serialises the read-ledger → pick `n` → create
+  `.versions/v<n>/` → write-ledger critical section. The archive
+  dir is verified unused before mkdir so a stale `vN` can't be
+  clobbered. `_bump_script_suffix` scans the folder for the
+  highest existing `_v<n>` and returns `_v<n+1>`, so the rename
+  advice never overwrites an existing file. Atomic ledger writes
+  via temp + replace.
+  ([`iteration.py`](src/research_os/tools/actions/state/iteration.py))
+* **`tool_audit_version_coherence` surfaces typos and warnings.**
+  An unknown `step_id` now raises `FileNotFoundError` instead of
+  returning empty success. A ledger entry with empty `snapshot_dir`
+  is flagged as malformed instead of silently resolving to the step
+  dir. Top-level `status` escalates to `warning` when any per-step
+  warning fires (stale captions etc.), not only on drift.
+* **Override audit trail is honest.** `log_override` now fires only
+  when the bypassed gate would have blocked — phantom entries from
+  defensive `override=true` calls (or section-only synthesis where
+  the full gate never ran) no longer pollute
+  `workspace/logs/override_log.md`. The plan-persisted
+  `override_completeness_gate` flag inside `active_plan.json` gets
+  its own log entry on the deliverable step.
+  ([`server.py`](src/research_os/server.py),
+  [`router.py`](src/research_os/tools/actions/router.py))
+* **Dashboard override actually suppresses the warning panel.**
+  `override_completeness_gate=true` on `tool_dashboard_create` now
+  plumbs through to `render_dashboard` via a `suppress_audit_panel`
+  flag so the schema's promise (drop the warning section in the
+  rendered HTML) is honoured.
+  ([`dashboard.py`](src/research_os/tools/actions/synthesis/dashboard.py))
+* **Cold init keeps the short intake pointer.** `scaffold_minimal_workspace`
+  no longer unconditionally overwrites the new short
+  `inputs/intake.md` with the legacy long-form table — it
+  regenerates the full intake only when the researcher dropped
+  files or passed config overrides.
+  ([`project_ops.py`](src/research_os/project_ops.py))
+* **`sys_file_list` on lazy dirs returns empty, not error.** Cold
+  protocols that probe `inputs/raw_data`, `inputs/literature`,
+  `inputs/context` no longer break on a fresh project — the handler
+  returns `{files: [], empty: true, lazy_dir: true}` with a hint.
+  ([`server.py`](src/research_os/server.py))
+* **`interaction.quality_gate_policy` and `interaction.ambiguity_posture`
+  are now live config.** `tool_synthesize` and `tool_dashboard_create`
+  read the policy: `warn_only` turns blockers into warnings;
+  `enforce` rejects overrides without a rationale; `allow_override`
+  is the existing behaviour. New `get_interaction_policy` helper
+  exposed via `state` package.
+  ([`state/config.py`](src/research_os/tools/actions/state/config.py))
+* **`audit/pre_submission_checklist` reads the override log.** A new
+  `override_audit_review` step surfaces every entry in
+  `workspace/logs/override_log.md` and folds unresolved bypasses
+  into the GREEN / YELLOW / RED verdict. The audit trail is no
+  longer write-only.
+* **`ensure_lazy_dir` is real now.** Synthesis writers route through
+  it instead of ad-hoc `mkdir`; the helper rejects paths not in
+  `LAZY_DIRS` so the lazy surface can't silently grow.
+  ([`project_ops.py`](src/research_os/project_ops.py))
+* **sys.* output token-bloat trim.** `sys_help` default returns a
+  lean orientation block + topic index (deep dives behind
+  `topic=categories|anti_patterns|docs`); `sys_active_project`
+  emits the orientation advice only when the project isn't
+  scaffolded; `sys_state_get` omits empty `paths_summary` /
+  `active_hypotheses` / `resumable_from`; `sys_protocol_get`
+  format=full drops the redundant "prefer summary" reminder.
+* **README rewrite.** Reframed as user/functionality-first — what it
+  does, what you say, what you get, the layout you touch. Setup +
+  per-IDE wiring + tool catalogues offloaded to `docs/`.
+
+---
+
 ## [1.0.0] — Initial public release
 
 The first public release of Research OS — an MCP-native operating system

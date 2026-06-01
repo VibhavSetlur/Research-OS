@@ -1056,20 +1056,30 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
     reports_dir = step_dir / "outputs" / "reports"
     tables_dir = step_dir / "outputs" / "tables"
 
-    def _nonempty(d: Path, exts: tuple[str, ...] | None = None) -> bool:
+    def _has_step_artifact(d: Path, exts: tuple[str, ...]) -> bool:
+        """True iff this step's number-prefixed artefacts live under ``d``.
+
+        The mega-script blocker only fires for output categories the
+        step's OWN scripts produce. A stray figure or report file with
+        no ``<step_num>_`` prefix isn't an artefact of this step — it
+        could be an external comparison image, a placeholder, or a
+        cross-step reference — and must not count toward the threshold.
+        """
         if not d.exists():
             return False
+        prefix = f"{step_num}_"
         for p in d.iterdir():
-            if not p.is_file():
+            if not p.is_file() or p.suffix.lower() not in exts:
                 continue
-            if exts is None or p.suffix.lower() in exts:
+            if p.name.startswith(prefix):
                 return True
         return False
 
+    figures_from_step = [f for f in figures if f.startswith(f"{step_num}_")]
     categories_hit = sum([
-        bool(figures),                                            # figures/
-        _nonempty(tables_dir, (".csv", ".tsv", ".parquet")),      # tables/
-        _nonempty(reports_dir, (".md", ".txt", ".html")),         # reports/
+        bool(figures_from_step),                                       # figures/
+        _has_step_artifact(tables_dir, (".csv", ".tsv", ".parquet")),  # tables/
+        _has_step_artifact(reports_dir, (".md", ".txt", ".html")),     # reports/
     ])
     info["output_categories"] = categories_hit
 

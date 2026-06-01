@@ -150,10 +150,9 @@ def create_poster(
     omitted rather than filled with "describe your work here".
     """
     from research_os.tools.actions.synthesis.dashboard import _load_spec
-    from research_os.project_ops import load_state
+    from research_os.project_ops import ensure_lazy_dir, load_state
 
-    synthesis_dir = root / "synthesis"
-    synthesis_dir.mkdir(parents=True, exist_ok=True)
+    synthesis_dir = ensure_lazy_dir(root, "synthesis")
     poster_tex = synthesis_dir / "poster.tex"
 
     spec = _load_spec(root)
@@ -486,8 +485,12 @@ def create_poster(
 
 def create_dashboard(
     root: Path, title: str | None = None, audience: str = "academic",
+    suppress_audit_panel: bool = False,
 ) -> dict[str, Any]:
     """Delegate to the canonical dashboard renderer."""
     from research_os.tools.actions.synthesis.dashboard import render_dashboard
 
-    return render_dashboard(root, title=title, audience=audience)
+    return render_dashboard(
+        root, title=title, audience=audience,
+        suppress_audit_panel=suppress_audit_panel,
+    )

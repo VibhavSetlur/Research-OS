@@ -51,8 +51,20 @@ except ImportError:  # pragma: no cover - yaml is a hard dep elsewhere
 _VERSION_RE = re.compile(r"_v(\d+)(?=\.[^.]+$)")
 
 
+def _safe_step_segment(step_id: str) -> str:
+    if not step_id or step_id != step_id.strip():
+        raise ValueError("step_id is required and may not be padded with whitespace.")
+    if "/" in step_id or "\\" in step_id or step_id in {".", ".."} or step_id.startswith("."):
+        raise ValueError(
+            f"step_id '{step_id}' must be a single workspace/ subfolder name "
+            "(no slashes, no '..', no leading '.')."
+        )
+    return step_id
+
+
 def _step_dir(root: Path, step_id: str) -> Path:
-    d = root / "workspace" / step_id
+    seg = _safe_step_segment(step_id)
+    d = root / "workspace" / seg
     if not d.is_dir():
         raise FileNotFoundError(f"Step '{step_id}' not found under workspace/")
     return d
@@ -79,7 +91,40 @@ def _save_ledger(step_dir: Path, ledger: dict[str, Any]) -> None:
     if yaml is None:
         return
     path = _iteration_ledger_path(step_dir)
-    path.write_text(yaml.safe_dump(ledger, sort_keys=False))
+    # Atomic write so an interrupted call can't truncate the ledger.
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(yaml.safe_dump(ledger, sort_keys=False))
+    tmp.replace(path)
+
+
+# Cross-process lock around (read-ledger → pick n → mkdir vN → write-ledger).
+# fcntl.flock is POSIX-only; on platforms without it (Windows) the manager
+# falls back to a no-op — the single-process case is already safe because
+# _save_ledger is the only writer.
+import contextlib
+
+try:
+    import fcntl  # type: ignore
+except ImportError:  # pragma: no cover - non-POSIX
+    fcntl = None  # type: ignore[assignment]
+
+
+@contextlib.contextmanager
+def _ledger_lock(step_dir: Path):
+    if fcntl is None:
+        yield
+        return
+    lock_path = step_dir / ".iterations.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "w")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    finally:
+        fh.close()
 
 
 def _next_iteration_number(ledger: dict[str, Any]) -> int:
@@ -91,22 +136,44 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _bump_script_suffix(script: Path) -> Path:
-    """Return the path the script SHOULD be renamed to (next ``_v<n>``).
+def _stem_prefix(script_name: str) -> str:
+    """Return the part of ``script_name`` BEFORE any ``_v<n>`` version tag.
 
-    Idempotent for callers that already bumped; if the current suffix
-    is the highest in the folder, return ``script`` unchanged.
+    For ``fit_v2.py`` returns ``fit``; for ``fit.py`` (no tag) returns
+    ``fit`` (extension stripped). Used to group sibling versions of the
+    same logical script without bleeding into unrelated scripts that
+    merely share a prefix substring.
+    """
+    m = _VERSION_RE.search(script_name)
+    if m:
+        return script_name[: m.start()]
+    return Path(script_name).stem
+
+
+def _bump_script_suffix(script: Path) -> Path:
+    """Return the path the script SHOULD be renamed to (next free ``_v<n>``).
+
+    Scans the script's parent directory for the highest existing
+    ``_v<n>`` sharing the same logical stem and returns ``_v<highest+1>``
+    so the rename never clobbers a file already on disk.
     """
     if not script.exists():
         return script
-    m = _VERSION_RE.search(script.name)
-    if not m:
-        # No suffix yet — first iteration adds _v2 (assumes _v1 was implicit).
-        new_name = script.stem + "_v2" + script.suffix
-        return script.with_name(new_name)
-    cur = int(m.group(1))
-    new_stem = _VERSION_RE.sub(f"_v{cur + 1}", script.name)
-    return script.with_name(new_stem)
+    parent = script.parent
+    base = _stem_prefix(script.name)
+    suffix = script.suffix
+    highest = 1
+    if parent.is_dir():
+        for p in parent.iterdir():
+            if not p.is_file() or p.suffix != suffix:
+                continue
+            if _stem_prefix(p.name) != base:
+                continue
+            m = _VERSION_RE.search(p.name)
+            v = int(m.group(1)) if m else 1
+            if v > highest:
+                highest = v
+    return script.with_name(f"{base}_v{highest + 1}{suffix}")
 
 
 def iterate_step(
@@ -163,10 +230,6 @@ def iterate_step(
         )
 
     step = _step_dir(root, step_id)
-    ledger = _load_ledger(step)
-    n = _next_iteration_number(ledger)
-    archive = step / ".versions" / f"v{n}"
-    archive.mkdir(parents=True, exist_ok=True)
 
     # Suffixes worth snapshotting per subfolder. We deliberately exclude
     # auto-generated README.md / .gitkeep / .gitignore from the default
@@ -200,48 +263,63 @@ def iterate_step(
     snap_figures = _members("outputs/figures", figures)
     snap_tables = _members("outputs/tables", tables)
 
-    snapshotted: list[str] = []
+    # fcntl.flock on iterations.yaml serialises concurrent iterate_step
+    # calls from multiple IDE sessions sharing one project root, so two
+    # writers can't both pick the same n and clobber each other's archive.
+    with _ledger_lock(step):
+        ledger = _load_ledger(step)
+        n = _next_iteration_number(ledger)
+        archive = step / ".versions" / f"v{n}"
+        # Refuse to reuse a vN that exists on disk (e.g. ledger was edited
+        # but the archive was not pruned in lock-step) so we never silently
+        # overwrite a prior snapshot.
+        while archive.exists():
+            n += 1
+            archive = step / ".versions" / f"v{n}"
+        archive.mkdir(parents=True)
 
-    def _copy(src: Path, dest_rel: str) -> None:
-        dest = archive / dest_rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dest)
-        # Also copy sidecars if present (caption, summary, prov).
-        for sidecar_suffix in (".caption.md", ".summary.md", ".prov.json"):
-            sidecar = src.with_name(src.stem + sidecar_suffix)
-            if sidecar.exists():
-                shutil.copy2(sidecar, dest.with_name(src.stem + sidecar_suffix))
-        snapshotted.append(dest_rel)
+        snapshotted: list[str] = []
 
-    for s in snap_scripts:
-        _copy(s, f"scripts/{s.name}")
-    for f in snap_figures:
-        _copy(f, f"outputs/figures/{f.name}")
-    for t in snap_tables:
-        _copy(t, f"outputs/tables/{t.name}")
+        def _copy(src: Path, dest_rel: str) -> None:
+            dest = archive / dest_rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+            # Also copy sidecars if present (caption, summary, prov).
+            for sidecar_suffix in (".caption.md", ".summary.md", ".prov.json"):
+                sidecar = src.with_name(src.stem + sidecar_suffix)
+                if sidecar.exists():
+                    shutil.copy2(sidecar, dest.with_name(src.stem + sidecar_suffix))
+            snapshotted.append(dest_rel)
 
-    if bump_conclusion:
-        conclusions = step / "conclusions.md"
-        if conclusions.exists():
-            shutil.copy2(conclusions, archive / "conclusions.md")
-            snapshotted.append("conclusions.md")
+        for s in snap_scripts:
+            _copy(s, f"scripts/{s.name}")
+        for f in snap_figures:
+            _copy(f, f"outputs/figures/{f.name}")
+        for t in snap_tables:
+            _copy(t, f"outputs/tables/{t.name}")
 
-    next_script_paths = {
-        s.name: _bump_script_suffix(s).name for s in snap_scripts
-    }
+        if bump_conclusion:
+            conclusions = step / "conclusions.md"
+            if conclusions.exists():
+                shutil.copy2(conclusions, archive / "conclusions.md")
+                snapshotted.append("conclusions.md")
 
-    entry = {
-        "iteration": n,
-        "created_at": _now_iso(),
-        "rationale": rationale.strip(),
-        "snapshot_dir": f".versions/v{n}",
-        "scripts": [s.name for s in snap_scripts],
-        "figures": [f.name for f in snap_figures],
-        "tables": [t.name for t in snap_tables],
-        "next_script_rename_suggestion": next_script_paths,
-    }
-    ledger["iterations"].append(entry)
-    _save_ledger(step, ledger)
+        next_script_paths = {
+            s.name: _bump_script_suffix(s).name for s in snap_scripts
+        }
+
+        entry = {
+            "iteration": n,
+            "created_at": _now_iso(),
+            "rationale": rationale.strip(),
+            "snapshot_dir": f".versions/v{n}",
+            "scripts": [s.name for s in snap_scripts],
+            "figures": [f.name for f in snap_figures],
+            "tables": [t.name for t in snap_tables],
+            "next_script_rename_suggestion": next_script_paths,
+        }
+        ledger["iterations"].append(entry)
+        _save_ledger(step, ledger)
 
     return {
         "status": "success",
@@ -295,7 +373,9 @@ def audit_version_coherence(root: Path, step_id: str | None = None) -> dict[str,
         return {"status": "error", "message": "workspace/ not found"}
 
     if step_id:
-        targets = [workspace / step_id]
+        # Validate and surface typos loudly — matches iterate_step /
+        # list_iterations rather than silently returning an empty audit.
+        targets = [_step_dir(root, step_id)]
     else:
         targets = [
             d for d in sorted(workspace.iterdir())
@@ -303,14 +383,21 @@ def audit_version_coherence(root: Path, step_id: str | None = None) -> dict[str,
             and not d.name.endswith("__DEAD_END")
         ]
 
-    def _highest_version_script(scripts_dir: Path, stem_prefix: str | None) -> Path | None:
+    def _highest_version_script(scripts_dir: Path, base_stem: str, ext: str) -> Path | None:
+        """Pick the largest _v<n> sibling sharing the same logical stem.
+
+        Matches on the exact stem-before-version (no startswith prefix
+        leak) AND the same extension, so unrelated scripts that merely
+        share a leading substring (e.g. ``fit_v2.py`` vs
+        ``fit_extended_v3.py``) never get conflated.
+        """
         if not scripts_dir.is_dir():
             return None
         best: tuple[int, Path] | None = None
         for p in scripts_dir.iterdir():
-            if not p.is_file():
+            if not p.is_file() or p.suffix != ext:
                 continue
-            if stem_prefix and not p.name.startswith(stem_prefix):
+            if _stem_prefix(p.name) != base_stem:
                 continue
             m = _VERSION_RE.search(p.name)
             v = int(m.group(1)) if m else 1
@@ -357,9 +444,10 @@ def audit_version_coherence(root: Path, step_id: str | None = None) -> dict[str,
                         else:
                             m = _VERSION_RE.search(script_name)
                             v_used = int(m.group(1)) if m else 1
-                            # Compare against highest version with same stem-prefix.
-                            stem_prefix = _VERSION_RE.split(script_name)[0]
-                            head = _highest_version_script(scripts_dir, stem_prefix)
+                            base_stem = _stem_prefix(script_name)
+                            head = _highest_version_script(
+                                scripts_dir, base_stem, Path(script_name).suffix
+                            )
                             if head is not None:
                                 hm = _VERSION_RE.search(head.name)
                                 v_head = int(hm.group(1)) if hm else 1
@@ -385,11 +473,18 @@ def audit_version_coherence(root: Path, step_id: str | None = None) -> dict[str,
         # Iteration archive integrity.
         ledger = _load_ledger(step)
         for it in ledger.get("iterations", []):
-            snap = step / it.get("snapshot_dir", "")
+            snap_rel = it.get("snapshot_dir") or ""
+            if not snap_rel:
+                warns.append(
+                    f"iteration v{it.get('iteration')} has no snapshot_dir "
+                    "recorded — ledger entry is malformed."
+                )
+                continue
+            snap = step / snap_rel
             if not snap.is_dir():
                 warns.append(
                     f"iteration v{it.get('iteration')} snapshot dir is missing "
-                    f"({it.get('snapshot_dir')}) — history was scrubbed."
+                    f"({snap_rel}) — history was scrubbed."
                 )
 
         per_step.append({
@@ -414,17 +509,31 @@ def audit_version_coherence(root: Path, step_id: str | None = None) -> dict[str,
         lines.append("")
     report.write_text("\n".join(lines) + "\n")
 
-    return {
-        "status": "warning" if total_drift else "success",
-        "steps": per_step,
-        "drift_count": total_drift,
-        "report_path": str(report.relative_to(root)),
-        "advice": (
+    total_warnings = sum(len(r["warnings"]) for r in per_step)
+    if total_drift:
+        top_status = "warning"
+        advice = (
             "Version drift detected — outputs were produced by a script "
             "version that is no longer the highest on disk. Re-run the "
             "pipeline or call tool_step_iterate to snapshot the prior "
             "version before regenerating."
-            if total_drift else
-            "Every output traces to the highest-version script on disk."
-        ),
+        )
+    elif total_warnings:
+        top_status = "warning"
+        advice = (
+            f"{total_warnings} warning(s) — review per-step details "
+            "(stale captions, scrubbed snapshot archives, etc.) before "
+            "proceeding to synthesis."
+        )
+    else:
+        top_status = "success"
+        advice = "Every output traces to the highest-version script on disk."
+
+    return {
+        "status": top_status,
+        "steps": per_step,
+        "drift_count": total_drift,
+        "warning_count": total_warnings,
+        "report_path": str(report.relative_to(root)),
+        "advice": advice,
     }

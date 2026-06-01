@@ -191,3 +191,151 @@ def test_step_completeness_single_category_ok_without_pipeline(tmp_path):
     )
     res = audit_step_completeness(tmp_path, step_id=step_id)
     assert not any("mega-script" in b for b in res["blockers"])
+
+
+# ── regression tests for the hardening pass ───────────────────────────
+
+
+def test_mega_script_ignores_stray_figures_without_step_prefix(tmp_path):
+    """Bug: stray figure files (no step_num prefix) forced a BLOCKER.
+
+    A step that legitimately produces only a CSV table must not get
+    blocked when an unrelated comparison panel.png lands in
+    outputs/figures/.
+    """
+    step_id = _make_step(tmp_path, slug="fit")
+    step_dir = tmp_path / "workspace" / step_id
+    step_num = step_id.split("_", 1)[0]
+    # Legit: one CSV table from this step.
+    _populate_step(step_dir, scripts=1, tables=1)
+    # Stray: a figure with NO step-number prefix (someone dropped it).
+    stray = step_dir / "outputs" / "figures" / "panel.png"
+    stray.parent.mkdir(parents=True, exist_ok=True)
+    stray.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+    stray.with_name("panel.caption.md").write_text("c")
+    stray.with_name("panel.summary.md").write_text("s")
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n\n- finding\n\n## Decision\n\nproceed.\n"
+    )
+
+    res = audit_step_completeness(tmp_path, step_id=step_id)
+    # The mega-script blocker must NOT fire — the stray figure has no
+    # step_num prefix so it isn't an artefact of this step.
+    assert not any("mega-script" in b for b in res["blockers"]), (
+        f"stray figure should not trigger blocker; got {res['blockers']}"
+    )
+    # Categories actually attributable to this step's scripts: tables only.
+    assert res["steps"][0]["output_categories"] == 1
+    _ = step_num  # silence the unused warning if numbering changes
+
+
+def test_version_coherence_does_not_falsely_flag_sibling_prefix(tmp_path):
+    """Bug: unrelated scripts sharing a prefix produced false drift.
+
+    Step has scripts/01_fit_v2.py (used by the figure) AND an unrelated
+    scripts/01_fit_extended_v3.py. The audit must report drift_count=0,
+    not blame `_extended_v3` for `_v2`'s figure.
+    """
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    (step_dir / "scripts").mkdir(parents=True, exist_ok=True)
+    (step_dir / "scripts" / "01_fit_v2.py").write_text("# fit v2\n")
+    (step_dir / "scripts" / "01_fit_extended_v3.py").write_text("# unrelated\n")
+    (step_dir / "outputs" / "figures").mkdir(parents=True, exist_ok=True)
+    fig = step_dir / "outputs" / "figures" / "01_curve.png"
+    fig.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+    fig.with_name("01_curve.prov.json").write_text(json.dumps({
+        "produced_by": {"script": "scripts/01_fit_v2.py"},
+    }))
+    res = audit_version_coherence(tmp_path, step_id=step_id)
+    assert res["drift_count"] == 0, res["steps"][0]["drift"]
+
+
+def test_version_coherence_catches_unsuffixed_to_versioned_drift(tmp_path):
+    """Bug: prov pointing at unsuffixed script + newer _v2 on disk was missed."""
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    (step_dir / "scripts").mkdir(parents=True, exist_ok=True)
+    (step_dir / "scripts" / "02_clean.py").write_text("# original\n")
+    (step_dir / "scripts" / "02_clean_v2.py").write_text("# replacement\n")
+    (step_dir / "outputs" / "figures").mkdir(parents=True, exist_ok=True)
+    fig = step_dir / "outputs" / "figures" / "02_overview.png"
+    fig.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 32)
+    fig.with_name("02_overview.prov.json").write_text(json.dumps({
+        "produced_by": {"script": "scripts/02_clean.py"},
+    }))
+    res = audit_version_coherence(tmp_path, step_id=step_id)
+    assert res["drift_count"] == 1, res
+    assert "02_clean_v2.py" in res["steps"][0]["drift"][0]
+
+
+def test_bump_script_suffix_skips_existing_versions(tmp_path):
+    """Bug: rename advice clobbered existing _v(n+1) files."""
+    from research_os.tools.actions.state.iteration import _bump_script_suffix
+    step_id = _make_step(tmp_path)
+    scripts = tmp_path / "workspace" / step_id / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    (scripts / "fit_v1.py").write_text("v1")
+    (scripts / "fit_v2.py").write_text("v2")  # already on disk!
+    advised = _bump_script_suffix(scripts / "fit_v1.py")
+    # Must skip v2 (and v1) to the first free slot — v3.
+    assert advised.name == "fit_v3.py"
+
+
+def test_iterate_step_picks_unused_archive_dir(tmp_path):
+    """Refuses to overwrite an existing .versions/v<n>/ on disk."""
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1)
+    # Pre-create v1 to simulate a stale/orphan archive.
+    (step_dir / ".versions" / "v1" / "stale.txt").parent.mkdir(parents=True)
+    (step_dir / ".versions" / "v1" / "stale.txt").write_text("do not clobber")
+    res = iterate_step(tmp_path, step_id=step_id, rationale="r")
+    assert res["iteration"] >= 2
+    assert (step_dir / ".versions" / "v1" / "stale.txt").read_text() == "do not clobber"
+
+
+def test_audit_version_coherence_rejects_unknown_step_id(tmp_path):
+    """Typo'd step_id must surface, not silently return success."""
+    _make_step(tmp_path, slug="real_step")
+    with pytest.raises(FileNotFoundError):
+        audit_version_coherence(tmp_path, step_id="not_a_real_step")
+
+
+def test_audit_version_coherence_rejects_traversal(tmp_path):
+    _make_step(tmp_path)
+    with pytest.raises(ValueError):
+        audit_version_coherence(tmp_path, step_id="../inputs")
+
+
+def test_audit_version_coherence_escalates_status_on_warnings(tmp_path):
+    """Bug: warning-only steps left top-level status='success'."""
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1)
+    # Caption older than figure → warning, no drift.
+    fig = step_dir / "outputs" / "figures" / "01_curve_0.png"
+    cap = fig.with_name("01_curve_0.caption.md")
+    import os
+    import time
+    old = time.time() - 3600
+    os.utime(cap, (old, old))
+    res = audit_version_coherence(tmp_path, step_id=step_id)
+    assert res["status"] == "warning"
+    assert res["warning_count"] >= 1
+
+
+def test_audit_version_coherence_warns_on_empty_snapshot_dir(tmp_path):
+    """Bug: empty snapshot_dir collapsed to step → integrity check silent."""
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1)
+    # Hand-write a ledger entry with a missing snapshot_dir.
+    (step_dir / "iterations.yaml").write_text(yaml.safe_dump({
+        "step_id": step_dir.name,
+        "iterations": [{"iteration": 1, "snapshot_dir": ""}],
+    }))
+    res = audit_version_coherence(tmp_path, step_id=step_id)
+    assert res["status"] == "warning"
+    assert any("malformed" in w or "scrubbed" in w
+               for w in res["steps"][0]["warnings"])

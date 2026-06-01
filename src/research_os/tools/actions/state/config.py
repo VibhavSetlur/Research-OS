@@ -109,6 +109,41 @@ def _config_path(root: Path) -> Path:
     return root / "inputs" / "researcher_config.yaml"
 
 
+VALID_GATE_POLICIES = ("enforce", "allow_override", "warn_only")
+VALID_AMBIGUITY_POSTURES = ("ask_when_uncertain", "take_best_default")
+
+
+def get_interaction_policy(root: Path) -> dict[str, str]:
+    """Return ``{quality_gate_policy, ambiguity_posture}`` from the config.
+
+    Falls back to the documented defaults when the file or the
+    ``interaction:`` block is absent or contains an unknown value.
+    Callers use this to decide whether to enforce, soft-override, or
+    warn-only on quality-gate blockers; and whether to ask the
+    researcher or pick a best-default on ambiguity.
+    """
+    defaults = {
+        "quality_gate_policy": "enforce",
+        "ambiguity_posture": "ask_when_uncertain",
+    }
+    try:
+        cfg_path = _config_path(root)
+        if not cfg_path.exists():
+            return defaults
+        cfg = yaml.safe_load(cfg_path.read_text()) or {}
+        interaction = cfg.get("interaction") or {}
+        out = dict(defaults)
+        pol = interaction.get("quality_gate_policy")
+        if pol in VALID_GATE_POLICIES:
+            out["quality_gate_policy"] = pol
+        amb = interaction.get("ambiguity_posture")
+        if amb in VALID_AMBIGUITY_POSTURES:
+            out["ambiguity_posture"] = amb
+        return out
+    except Exception:
+        return defaults
+
+
 def _mask_api_keys(config: dict[str, Any]) -> dict[str, Any]:
     safe = copy.deepcopy(config)
     keys = safe.get("api_keys")

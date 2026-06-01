@@ -1186,8 +1186,14 @@ def _build_per_step_appendix(
 
 
 def render_dashboard(root: Path, title: str | None = None,
-                     audience: str = "academic") -> dict[str, Any]:
-    """Generate the polished research-summary dashboard."""
+                     audience: str = "academic",
+                     suppress_audit_panel: bool = False) -> dict[str, Any]:
+    """Generate the polished research-summary dashboard.
+
+    When ``suppress_audit_panel`` is true (researcher-authorised
+    override), the step-completeness audit section is dropped from the
+    rendered HTML. The override is still logged at the handler layer.
+    """
     try:
         state = _load_state(root)
         cfg = _load_config(root)
@@ -1216,8 +1222,8 @@ def render_dashboard(root: Path, title: str | None = None,
                 meta_items.append({"label": "Researcher", "value": owner})
             meta_items.append({"label": "Format", "value": "Self-contained dashboard; figures embedded"})
 
-        synthesis_dir = root / "synthesis"
-        synthesis_dir.mkdir(parents=True, exist_ok=True)
+        from research_os.project_ops import ensure_lazy_dir
+        synthesis_dir = ensure_lazy_dir(root, "synthesis")
         out_path = synthesis_dir / "dashboard.html"
 
         # Audience profiles change the section ordering + which sections to
@@ -1249,6 +1255,8 @@ def render_dashboard(root: Path, title: str | None = None,
         if spec.get("hide_per_step_appendix") and "per_step" in order:
             order = [s for s in order if s != "per_step"]
         if not (root / "workspace" / "logs" / "step_completeness.md").exists():
+            order = [s for s in order if s != "audit"]
+        if suppress_audit_panel:
             order = [s for s in order if s != "audit"]
 
         section_builders = {

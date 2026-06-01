@@ -679,8 +679,8 @@ def synthesize_workspace(
 ) -> dict[str, Any]:
     """Build a section, OR — when section is None — assemble the full output."""
     try:
-        synthesis_dir = root / "synthesis"
-        synthesis_dir.mkdir(parents=True, exist_ok=True)
+        from research_os.project_ops import ensure_lazy_dir
+        synthesis_dir = ensure_lazy_dir(root, "synthesis")
 
         experiments = _gather_experiment_outputs(root)
         figures = _copy_figures(root, experiments)

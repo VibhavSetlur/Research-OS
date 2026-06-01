@@ -89,17 +89,34 @@ LAZY_DIRS = (
 )
 
 
+def _has_user_inputs(root: Path) -> bool:
+    """True iff the researcher has dropped real files into inputs/."""
+    for sub in ("raw_data", "literature", "context"):
+        d = root / "inputs" / sub
+        if not d.exists():
+            continue
+        for p in d.rglob("*"):
+            if not p.is_file():
+                continue
+            if p.name.startswith(".") or p.name == ".gitkeep":
+                continue
+            return True
+    return False
+
+
 def ensure_lazy_dir(root: Path, rel: str) -> Path:
-    """Create a lazy directory at first write; idempotent.
+    """Create a lazy workspace directory at first write; idempotent.
 
     Tools call this before dropping the first artefact into a LAZY_DIRS
     path so the project surface stays minimal until real content arrives.
+    Passing a path that is not in ``LAZY_DIRS`` raises so writers can't
+    silently grow the lazy surface without updating the registry.
     """
     if rel not in LAZY_DIRS:
-        # Not a lazy path — caller is responsible for normal mkdir.
-        target = root / rel
-        target.mkdir(parents=True, exist_ok=True)
-        return target
+        raise ValueError(
+            f"ensure_lazy_dir('{rel}') is not a registered lazy directory. "
+            f"Allowed: {', '.join(LAZY_DIRS)}. Use Path.mkdir for ad-hoc dirs."
+        )
     target = root / rel
     target.mkdir(parents=True, exist_ok=True)
     return target
@@ -522,7 +539,18 @@ def scaffold_minimal_workspace(
     state["project_name"] = project_name
     save_state(root, state)
 
-    regenerate_intake(root, project_name, config_overrides)
+    # Only regenerate intake.md if there's something real to put in it:
+    # files the researcher already dropped under inputs/, or explicit
+    # overrides (research_question / domain) passed via the wizard or
+    # `--config-overrides`. On a cold init with no signal, the short
+    # pointer written above is the right surface — tool_intake_autofill
+    # rewrites it once the researcher has dropped files in and asked
+    # for an intake pass.
+    intake_signal = _has_user_inputs(root) or any(
+        (config_overrides or {}).get(k) for k in ("research_question", "domain", "keywords")
+    )
+    if intake_signal:
+        regenerate_intake(root, project_name, config_overrides)
     _copy_agents_md(root, copy_agents)
     _setup_mcp_configs(root, ide_flags)
     _setup_gitignore(root)

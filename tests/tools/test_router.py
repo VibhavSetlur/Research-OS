@@ -544,7 +544,12 @@ def test_sys_active_project_exists_in_router_essentials_or_handlers(tmp_path):
 
 
 def test_sys_active_project_returns_root(tmp_path):
-    """Smoke: sys_active_project returns a project root + advice."""
+    """Smoke: sys_active_project returns a project root.
+
+    The orientation `advice` only fires when the project isn't
+    scaffolded; this test scaffolds, so we expect no advice and a
+    compact resolved_via tag.
+    """
     import os
     from research_os.server import _handle_sys_active_project
     scaffold_minimal_workspace(tmp_path, "active project")
@@ -558,9 +563,22 @@ def test_sys_active_project_returns_root(tmp_path):
         data = payload["data"]
         assert "project_root" in data
         assert data["has_os_state"] is True
-        assert "env var" in data["resolved_via"] or "cwd" in data["resolved_via"]
+        # Scaffolded → resolved_via names env var or cwd; no advice.
+        assert data["resolved_via"] in {"RESEARCH_OS_WORKSPACE", "cwd→.os_state", "cwd"}
+        assert "advice" not in data
     finally:
         os.environ.pop("RESEARCH_OS_WORKSPACE", None)
+
+
+def test_sys_active_project_advises_when_unscaffolded(tmp_path):
+    from research_os.server import _handle_sys_active_project
+    import json
+    out = _handle_sys_active_project("sys_active_project", {}, tmp_path)
+    payload = json.loads(out[0].text)
+    data = payload["data"]
+    assert data["has_os_state"] is False
+    assert "advice" in data
+    assert "research-os init" in data["advice"]
 
 
 def test_sys_help_returns_orientation(tmp_path):
@@ -571,8 +589,17 @@ def test_sys_help_returns_orientation(tmp_path):
     payload = json.loads(out[0].text)
     assert payload["status"] == "success"
     data = payload["data"]
-    assert "tool_namespaces" in data
-    assert "session_start_pattern" in data
+    # Trimmed default: orientation only the AI needs on every call.
+    assert "namespaces" in data
+    assert "session_start" in data
+    assert "topics" in data
+
+
+def test_sys_help_categories_topic_returns_protocol_categories(tmp_path):
+    from research_os.server import _handle_sys_help
+    import json
+    out = _handle_sys_help("sys_help", {"topic": "categories"}, tmp_path)
+    data = json.loads(out[0].text)["data"]
     assert "protocol_categories" in data
 
 

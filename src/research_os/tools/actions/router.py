@@ -912,39 +912,62 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
         "tool_synthesize", "tool_dashboard_create",
         "tool_poster_create", "tool_latex_compile",
     }
-    if (next_tool in DELIVERABLE_TOOLS
-            and not override_gate
-            and not plan.get("override_completeness_gate")):
+    bypassed_blockers: list[str] = []
+    if next_tool in DELIVERABLE_TOOLS:
         try:
             from research_os.tools.actions.audit.audit import audit_step_completeness
 
             gate = audit_step_completeness(root)
             if gate.get("status") == "error":
-                return {
-                    "status": "blocked",
-                    "current_step": plan["current_step"] - 1,
-                    "next_step": next_step,
-                    "blockers": gate.get("blockers", []),
-                    "advice": (
-                        f"Cannot advance to `{next_tool}` — per-step "
-                        "completeness audit found "
-                        f"{len(gate.get('blockers', []))} blocker(s). "
-                        "Resolve them or call advance_plan with "
-                        "override_gate=true if the researcher "
-                        "explicitly authorised a partial deliverable. "
-                        f"Full report: {gate.get('report_path')}"
-                    ),
-                }
+                if override_gate or plan.get("override_completeness_gate"):
+                    bypassed_blockers = list(gate.get("blockers", []))
+                    if plan.get("override_completeness_gate"):
+                        # Plan-persisted overrides need their own audit
+                        # entry — the per-call handler only logs when it
+                        # sees override_gate=true on THIS call.
+                        try:
+                            from research_os.project_ops import log_override
+                            log_override(
+                                root,
+                                tool="tool_plan_advance",
+                                gate="deliverable_completeness",
+                                rationale="<plan-persisted override>",
+                                extra={
+                                    "next_tool": next_tool,
+                                    "blocker_count": len(bypassed_blockers),
+                                },
+                            )
+                        except Exception:
+                            pass
+                else:
+                    return {
+                        "status": "blocked",
+                        "current_step": plan["current_step"] - 1,
+                        "next_step": next_step,
+                        "blockers": gate.get("blockers", []),
+                        "advice": (
+                            f"Cannot advance to `{next_tool}` — per-step "
+                            "completeness audit found "
+                            f"{len(gate.get('blockers', []))} blocker(s). "
+                            "Resolve them or call advance_plan with "
+                            "override_gate=true if the researcher "
+                            "explicitly authorised a partial deliverable. "
+                            f"Full report: {gate.get('report_path')}"
+                        ),
+                    }
         except Exception as e:
             logger.warning("plan_advance gate check failed: %s", e)
 
     _active_plan_path(root).write_text(json.dumps(plan, indent=2, default=str))
-    return {
+    result: dict[str, Any] = {
         "status": "success",
         "current_step": plan["current_step"],
         "next_step": next_step,
         "remaining": len(decomposition) - plan["current_step"] + 1,
     }
+    if bypassed_blockers:
+        result["bypassed_blockers"] = bypassed_blockers
+    return result
 
 
 def clear_active_plan(root: Path) -> dict[str, Any]:
