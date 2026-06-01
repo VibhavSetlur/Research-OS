@@ -30,6 +30,18 @@ researcher:
 interaction:
   autonomy_level: "supervised"   # manual | supervised | autopilot
 
+  # Quality-gate posture (the AI NEVER bypasses on its own).
+  #   enforce        → refuse bypass without an explicit researcher ask
+  #   allow_override → allow override_completeness_gate=true on request,
+  #                    rationale logged to workspace/logs/override_log.md
+  #   warn_only      → treat gate blockers as warnings (sandbox use only)
+  quality_gate_policy: "enforce"
+
+  # Ambiguity posture
+  #   ask_when_uncertain → default; AI asks a one-line follow-up
+  #   take_best_default  → AI proceeds, surfaces the chosen default for review
+  ambiguity_posture: "ask_when_uncertain"
+
 # ── Model profile (controls protocol verbosity + reasoning depth) ───────
 model_profile: "medium"          # small | medium | large
 

@@ -194,6 +194,25 @@ steps:
       Empty outputs/figures/ is a HARD FAIL — tool_audit_step_completeness
       BLOCKS the final synthesis until cleared.
 
+      Outputs spanning multiple categories (figures + tables + reports)
+      WITHOUT a pipeline.yaml is ALSO a HARD FAIL — the mega-script
+      anti-pattern. Separate scripts per sub-task (one for the fit,
+      one per figure, one per table, one for the report) and declare
+      them via tool_step_pipeline_define.
+
+      Versioning has TWO distinct modes:
+
+        - BUG FIX → bump `_v<n>` on the affected script, re-run; the
+          content-hash cache invalidates downstream nodes automatically.
+        - DELIBERATE ITERATION (recolour Fig 2, tighten a cutoff, swap
+          a model spec) → call tool_step_iterate with a rationale FIRST.
+          It snapshots the current scripts + outputs + captions +
+          conclusion into .versions/v<n>/ as a coordinated unit so the
+          prior version is preserved before you edit anything. Then
+          rename the live scripts using the suggested _v<n+1> suffix
+          and re-run. Use tool_audit_version_coherence to confirm
+          every output traces to the highest-version script on disk.
+
       Bump _v<n> on every meaningful re-run; do NOT silently overwrite.
 
   - id: document_conclusions

@@ -70,7 +70,11 @@ flags it before synthesis.
 | Need | Look in |
 |---|---|
 | Full tool list | `sys_protocol_list` → `sys_tool_describe(name)` |
+| Which project is THIS request for? | `sys_active_project` |
+| Researcher pivoted mid-plan | `tool_plan_clear`, then re-`tool_route` |
 | Step naming | `guidance/analysis_plan` |
+| Deliberate iteration (recolour fig, tighten cutoff) | `tool_step_iterate` (snapshot first), then re-run |
+| Are outputs in sync with their scripts? | `tool_audit_version_coherence` |
 | Synthesis quality bars | the `synthesis/*` protocol you're running |
 | New file mid-flow | `tool_context_intake` |
 | Broken workspace | `tool_workspace_repair` |
@@ -117,8 +121,46 @@ flags it before synthesis.
     `tool_audit_claims` flags hallucinations.
 11. **Multi-script steps need a `pipeline.yaml`** — defined via
     `tool_step_pipeline_define`, run via `tool_step_pipeline_run`.
-    The runner topologically orders + content-hash-caches; one-script
-    mega-files are flagged by `tool_audit_step_completeness`.
+    The runner topologically orders + content-hash-caches; one
+    monolithic script that produces outputs in MULTIPLE categories
+    (figures + tables + reports) is BLOCKED by
+    `tool_audit_step_completeness` — split into atomic sub-tasks.
+12. **Iterate vs. fix.** A bug fix bumps `_v<n>` on the affected
+    script and re-runs. A deliberate design iteration (recolour a
+    figure, tighten a cutoff, swap a model) must call
+    `tool_step_iterate(step_id, rationale=…)` FIRST so the prior
+    scripts + outputs + captions + conclusion are snapshotted into
+    `.versions/v<n>/` as a coordinated unit. `tool_audit_version_coherence`
+    flags any output whose `.prov.json` points at a script that is
+    no longer the highest version on disk.
+
+---
+
+## When the researcher explicitly overrides a rule
+
+The hard rules above describe defaults. When the researcher EXPLICITLY
+authorises a bypass — words like "skip the audit", "just draft it",
+"give me a partial preview" — the AI may pass `override_completeness_gate=true`
+(`tool_synthesize` / `tool_dashboard_create`) or `override_gate=true`
+(`tool_plan_advance`). REQUIREMENTS:
+
+* The authorisation must be in the researcher's CURRENT message, not
+  inferred from past behaviour or assumed from silence.
+* Always pass `override_rationale` quoting WHY the researcher wants
+  the bypass. The override is appended to `workspace/logs/override_log.md`
+  so `audit/pre_submission_checklist` can resurface every bypass at
+  publish time.
+* Project-level posture lives at `interaction.quality_gate_policy` in
+  `inputs/researcher_config.yaml` (`enforce` / `allow_override` /
+  `warn_only`). Default is `enforce`.
+* The override is never permanent — the next deliverable call re-runs
+  the gate. The researcher must re-authorise each bypass.
+
+If the researcher's request would force a violation of a Hard Rule
+that is NOT a quality gate (e.g. invent a citation, write to
+`inputs/raw_data/`), refuse and explain the constraint. The hard
+rules above are absolute; the quality gate is the only authorised
+escape hatch.
 
 Research OS does **not** manage LLM provider keys. The IDE owns model
 access. The only credentials it uses are for literature / web search.

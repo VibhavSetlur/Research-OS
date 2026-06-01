@@ -51,6 +51,23 @@ interaction:
   # supervised → ask before path creation, synthesis, destructive writes.
   # autopilot  → run autonomously; ask only before synthesis / very long jobs.
 
+  # Quality-gate posture. The AI NEVER bypasses a gate on its own; this
+  # only sets the friction level when the researcher asks to bypass.
+  #   enforce        → AI refuses to bypass without an explicit researcher
+  #                    instruction in the current message.
+  #   allow_override → AI may pass override_completeness_gate=true when
+  #                    the researcher asks, but must record the rationale.
+  #   warn_only      → Treat blockers as warnings (still logged); deliverables
+  #                    proceed. Use only for sandbox / exploratory projects.
+  quality_gate_policy: "enforce"
+
+  # Whether the AI should ask follow-ups vs. take a reasonable default
+  # when a protocol step is ambiguous.
+  #   ask_when_uncertain → default. Surfaces ask_user from tool_route.
+  #   take_best_default  → AI proceeds with the most defensible choice
+  #                        and surfaces it in the conclusion for review.
+  ambiguity_posture: "ask_when_uncertain"
+
 # ── Model profile (controls protocol verbosity + reasoning depth) ───────
 model_profile: "medium"          # small | medium | large
 # small  → terser tool descriptions, max 1-2 steps/turn, ask often.

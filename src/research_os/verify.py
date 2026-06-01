@@ -36,12 +36,15 @@ REQUIRED_FILES = [
     ".gitignore",
 ]
 
+# Directories that MUST exist after `research-os init`. Lazy dirs
+# (inputs/{raw_data,literature,context}, synthesis/, environment/) are
+# deliberately omitted — they materialise on first write so a fresh
+# project surface stays uncluttered.
 REQUIRED_DIRS = [
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
+    "inputs",
     "workspace",
-    "synthesis",
+    "workspace/logs",
+    "workspace/scratch",
     "docs",
     ".os_state",
 ]

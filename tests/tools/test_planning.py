@@ -92,6 +92,8 @@ def test_dead_end_lessons_with_no_dead_ends(tmp_path):
 
 def test_quick_review_stages_skeleton(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Review Test")
+    # inputs/literature/ is a LAZY dir created at first write.
+    (tmp_path / "inputs" / "literature").mkdir(parents=True, exist_ok=True)
     fake_pdf = tmp_path / "inputs" / "literature" / "paper.pdf"
     fake_pdf.write_text("%PDF-1.4 fake")
     res = quick_review(tmp_path, "inputs/literature/paper.pdf")

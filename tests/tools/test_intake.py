@@ -9,6 +9,7 @@ from research_os.tools.actions.data.intake import intake_autofill
 def test_intake_autofill_with_only_data(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Test Project")
     # Drop a CSV with clinical-sounding columns.
+    (tmp_path / "inputs" / "raw_data").mkdir(parents=True, exist_ok=True)
     (tmp_path / "inputs" / "raw_data" / "trial.csv").write_text(
         "patient_id,treatment,outcome,age\n1,A,1,55\n2,B,0,42\n"
     )
@@ -17,13 +18,16 @@ def test_intake_autofill_with_only_data(tmp_path):
     assert res["proposed_domain"] == "clinical"
     cfg = yaml.safe_load((tmp_path / "inputs" / "researcher_config.yaml").read_text())
     assert cfg["domain"] == "clinical"
-    # research_overview.md should no longer look like the placeholder.
-    rq = (tmp_path / "docs" / "research_overview.md").read_text()
+    # research_overview.md is created LAZILY by intake_autofill (not at init).
+    rq_path = tmp_path / "docs" / "research_overview.md"
+    assert rq_path.exists(), "intake_autofill should write research_overview.md"
+    rq = rq_path.read_text()
     assert "(blank" not in rq
 
 
 def test_intake_autofill_extracts_question_from_context(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Test")
+    (tmp_path / "inputs" / "context").mkdir(parents=True, exist_ok=True)
     (tmp_path / "inputs" / "context" / "notes.md").write_text(
         "# Notes\n\nResearch question: Does sustained X exposure increase Y in cohort Z?\n"
         "\nH1: X is positively associated with Y.\n"
@@ -50,6 +54,7 @@ def test_intake_autofill_respects_existing_config(tmp_path):
     cfg["domain"] = "my_custom_domain"
     cfg_path.write_text(yaml.dump(cfg, sort_keys=False))
 
+    (tmp_path / "inputs" / "raw_data").mkdir(parents=True, exist_ok=True)
     (tmp_path / "inputs" / "raw_data" / "trial.csv").write_text(
         "patient_id,treatment\n1,A\n"
     )

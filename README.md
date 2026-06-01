@@ -70,7 +70,7 @@ Need step-by-step setup or per-IDE wiring? →
 ## What it does
 
 You talk; the AI picks the right workflow from **87 protocols** and
-runs it through **140 MCP tools** that enforce real quality gates.
+runs it through **143 MCP tools** that enforce real quality gates.
 
 ### Across 7 capability groups (linked to triggers + outputs)
 
@@ -167,7 +167,8 @@ You touch `inputs/`. The AI touches `workspace/` and `synthesis/`.
 | AI hallucinates citations | `tool_synthesize` verifies every cite online; drops the rest. Per-section caps (3 abstract / 12 dashboard / 40 paper). |
 | AI hallucinates numbers | `tool_audit_claims` traces every number in `paper.md` to a workspace artefact. BLOCKS synthesis. |
 | AI guesses methodology | `tool_research_method` mandates literature grounding before any commit. |
-| AI writes 400-line one-shot scripts | `tool_plan_step` + `pipeline.yaml` force atomic versioned sub-tasks. |
+| AI writes 400-line one-shot scripts | `tool_plan_step` + `pipeline.yaml` force atomic versioned sub-tasks. A step whose outputs span figures + tables + reports without a `pipeline.yaml` is BLOCKED. |
+| "I want to iterate Figure 2's look" → manual ad-hoc edits | `tool_step_iterate` snapshots scripts + outputs + captions + conclusion as a coordinated `.versions/v<n>/` BEFORE you edit; `tool_audit_version_coherence` flags any output whose `.prov.json` still points at the older script. |
 | Pre-registered analyses drift | `tool_preregister_freeze` content-hashes the SAP; `_diff` surfaces every deviation. |
 | Null findings → file drawer | `synthesis/synthesis_null_findings` publishable companion for refuted / underpowered / abandoned. |
 | Researcher enters mid-pipeline | `guidance/mid_pipeline_entry` classifies into 7 archetypes; skips redundant intake. |

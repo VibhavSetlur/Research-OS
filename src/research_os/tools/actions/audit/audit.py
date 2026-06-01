@@ -1044,12 +1044,59 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
         )
 
     # 5. Multi-script steps must declare a pipeline.yaml (sub-task DAG).
+    #    Tightened in v1.0.0: a step that emits outputs in MULTIPLE
+    #    categories (figures + tables + reports) is "non-trivial" and
+    #    must be split into atomic sub-tasks — otherwise a single mega
+    #    script ends up producing every output, defeating reproducibility
+    #    and incremental re-runs. The rule:
+    #      - >2 scripts, no pipeline.yaml             →  warning  (legacy)
+    #      - outputs in ≥2 categories, 1 script       →  BLOCKER  (mega)
+    #      - outputs in ≥2 categories, no pipeline.yaml → BLOCKER (mega)
     pipeline_yaml = step_dir / "pipeline.yaml"
+    reports_dir = step_dir / "outputs" / "reports"
+    tables_dir = step_dir / "outputs" / "tables"
+
+    def _nonempty(d: Path, exts: tuple[str, ...] | None = None) -> bool:
+        if not d.exists():
+            return False
+        for p in d.iterdir():
+            if not p.is_file():
+                continue
+            if exts is None or p.suffix.lower() in exts:
+                return True
+        return False
+
+    categories_hit = sum([
+        bool(figures),                                            # figures/
+        _nonempty(tables_dir, (".csv", ".tsv", ".parquet")),      # tables/
+        _nonempty(reports_dir, (".md", ".txt", ".html")),         # reports/
+    ])
+    info["output_categories"] = categories_hit
+
     if len(scripts) > 2 and not pipeline_yaml.exists():
         warnings.append(
             f"{len(scripts)} scripts but no pipeline.yaml declaring the "
             "sub-task DAG. Call tool_step_pipeline_define so the runner "
             "can topologically order + cache them."
+        )
+
+    if categories_hit >= 2 and not pipeline_yaml.exists():
+        blockers.append(
+            f"Outputs span {categories_hit} categories (figures / tables / "
+            "reports) but no pipeline.yaml declares the sub-task DAG — this "
+            "is the mega-script anti-pattern. Split into separate scripts "
+            "(one per sub-task: ingest / clean / fit / visualize / report / "
+            "tabulate) and declare them via tool_step_pipeline_define. The "
+            "runner then content-hash-caches each node so editing the "
+            "figure script no longer re-runs the fit. Override is only "
+            "valid for genuinely atomic single-purpose steps."
+        )
+    elif categories_hit >= 2 and len(scripts) <= 1 and pipeline_yaml.exists():
+        # pipeline.yaml declared but only 1 script — still suspicious.
+        warnings.append(
+            "Step emits outputs in multiple categories but only one "
+            "script exists. Verify pipeline.yaml lists distinct nodes "
+            "rather than a single catch-all node."
         )
     info["has_pipeline_yaml"] = pipeline_yaml.exists()
 

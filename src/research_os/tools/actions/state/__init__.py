@@ -22,6 +22,11 @@ from research_os.tools.actions.state.path import (  # noqa: F401
     list_paths,
     workflow_dag,
 )
+from research_os.tools.actions.state.iteration import (  # noqa: F401
+    audit_version_coherence,
+    iterate_step,
+    list_iterations,
+)
 from research_os.tools.actions.state.repair import workspace_repair  # noqa: F401
 from research_os.tools.actions.state.scratch import (  # noqa: F401
     scratch_clear,

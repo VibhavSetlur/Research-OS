@@ -17,23 +17,37 @@ def _scaffold(tmp: Path, name: str = "Test Project", **kwargs) -> Path:
     return tmp
 
 
-def test_scaffold_creates_required_directories():
+def test_scaffold_creates_eager_directories():
+    """Scaffold creates EAGER dirs (always populated). LAZY dirs
+    (synthesis/, environment/, inputs/{raw_data,literature,context}/)
+    are created at first write, not at init — keeps the project
+    surface uncluttered for the researcher."""
     with tempfile.TemporaryDirectory() as d:
         root = _scaffold(Path(d))
         for directory in (
             "inputs",
-            "inputs/raw_data",
-            "inputs/literature",
-            "inputs/context",
             "workspace",
             "workspace/logs",
             "workspace/scratch",
-            "synthesis",
             "docs",
-            "environment",
             ".os_state",
         ):
             assert (root / directory).is_dir(), f"missing {directory}"
+
+
+def test_scaffold_omits_lazy_directories():
+    """Lazy dirs (synthesis/, environment/, and the empty input
+    subfolders) must NOT exist after a cold init — they materialise
+    on first write via ensure_lazy_dir or the writing tool's own
+    mkdir(parents=True, exist_ok=True)."""
+    from research_os.project_ops import LAZY_DIRS
+
+    with tempfile.TemporaryDirectory() as d:
+        root = _scaffold(Path(d))
+        for rel in LAZY_DIRS:
+            assert not (root / rel).exists(), (
+                f"scaffold created lazy dir '{rel}' — should defer to first write"
+            )
 
 
 def test_scaffold_creates_key_files():
@@ -46,7 +60,6 @@ def test_scaffold_creates_key_files():
             "GETTING_STARTED.md",
             "inputs/intake.md",
             "inputs/researcher_config.yaml",
-            "docs/research_overview.md",
             "docs/glossary.md",
             "workspace/methods.md",
             "workspace/analysis.md",
@@ -61,11 +74,14 @@ def test_scaffold_creates_key_files():
         ):
             assert (root / rel).exists(), f"missing {rel}"
         # These must NOT be pre-created — protocols own them.
+        # docs/research_overview.md is also deferred — created lazily
+        # by tool_intake_autofill once the researcher has real context.
         for forbidden in (
             "synthesis/paper.md",
             "synthesis/abstract.md",
             "synthesis/poster.tex",
             "synthesis/dashboard.html",
+            "docs/research_overview.md",
             "docs/domain_summary.md",
             "docs/research_design.md",
         ):
@@ -143,8 +159,8 @@ def test_cli_init_creates_workspace():
         assert result.returncode == 0, result.stderr
         assert (target / ".os_state").exists()
         assert (target / "inputs" / "intake.md").exists()
-        # synthesis/ should be present as a directory but EMPTY of outputs.
-        assert (target / "synthesis").is_dir()
+        # synthesis/ is LAZY — created on first synthesis, NOT at init.
+        assert not (target / "synthesis").exists()
         assert not (target / "synthesis" / "paper.md").exists()
 
 

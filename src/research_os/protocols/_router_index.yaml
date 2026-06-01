@@ -1562,3 +1562,24 @@ shortcut_intents:
   scratch_sandbox:
     triggers: ["quick test", "syntax check", "scratch", "throwaway"]
     tool: tool_scratch_write
+
+  step_iterate:
+    triggers:
+      - "iterate on this step"
+      - "iterate the figure"
+      - "iterate the analysis"
+      - "rerun with different"
+      - "snapshot this version"
+      - "version this iteration"
+      - "design iteration"
+      - "v2 of this step"
+    tool: tool_step_iterate
+
+  version_coherence:
+    triggers:
+      - "version drift"
+      - "stale outputs"
+      - "outputs out of sync"
+      - "are my figures up to date"
+      - "version coherence"
+    tool: tool_audit_version_coherence

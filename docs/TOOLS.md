@@ -241,7 +241,28 @@ tool ships its `short` field, full description available on demand.
 * `tool_audit_claims` — every paper number traces to outputs.
 * `tool_audit_evalue` — VanderWeele E-value sensitivity.
 * `tool_audit_step_completeness` — focal figure + sidecars +
-  conclusions per step.
+  conclusions per step + **BLOCKS** a step whose outputs span
+  figures + tables + reports without a `pipeline.yaml`.
+* `tool_audit_version_coherence` — flags drift between scripts,
+  outputs, and provenance: a v2 figure produced by a v1 script,
+  a caption older than its figure, a missing iteration snapshot.
+
+**Iteration versioning** (collective change application)
+* `tool_step_iterate(step_id, rationale=…)` — snapshot scripts +
+  outputs + caption / summary / prov sidecars + conclusion into
+  `.versions/v<n>/` BEFORE editing. Live filenames stay stable so
+  cross-step references in conclusions / dashboards don't rot.
+* `tool_step_iterations_list(step_id)` — return `iterations.yaml`
+  ledger so the AI can show the iteration history before the next
+  edit.
+
+**Researcher-authorised overrides** (every bypass is logged)
+* `tool_synthesize(override_completeness_gate=true, override_rationale=…)`
+* `tool_dashboard_create(override_completeness_gate=true, override_rationale=…)`
+* `tool_plan_advance(override_gate=true, override_rationale=…)`
+
+Bypasses append to `workspace/logs/override_log.md`;
+`audit/pre_submission_checklist` resurfaces them at publish time.
 
 **Pre-registration, multi-verse, red-team, null findings**
 * `tool_preregister_freeze` / `tool_preregister_diff`

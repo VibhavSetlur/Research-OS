@@ -221,29 +221,34 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             except Exception as e:
                 logger.warning(f"Could not write researcher_config: {e}")
 
-        # Update docs/research_overview.md if blank/placeholder
+        # Create / update docs/research_overview.md. Scaffold no longer
+        # pre-creates this file (the placeholder text was unnecessary
+        # boilerplate), so intake_autofill is the canonical writer.
         rq_path = root / "docs" / "research_overview.md"
+        rq_path.parent.mkdir(parents=True, exist_ok=True)
         rq_changed = False
+        write = True
         if rq_path.exists():
             current = rq_path.read_text()
             placeholders = ("(blank", "(to be", "*(blank", "*(to be", "to be filled")
             is_placeholder = any(m in current.lower() for m in placeholders)
-            if overwrite or is_placeholder or len(current.strip()) < 60:
-                rq_body = (
-                    f"# Research Question\n\n"
-                    f"{question}\n\n"
-                )
-                if hypotheses:
-                    rq_body += "## Hypotheses (inferred from inputs/context)\n\n"
-                    for i, h in enumerate(hypotheses, 1):
-                        rq_body += f"- H{i}: {h}\n"
-                    rq_body += "\n"
-                rq_body += (
-                    "## Last updated\n\n"
-                    f"{now_iso()} — populated by `tool_intake_autofill`.\n"
-                )
-                rq_path.write_text(rq_body)
-                rq_changed = True
+            write = overwrite or is_placeholder or len(current.strip()) < 60
+        if write:
+            rq_body = (
+                f"# Research Question\n\n"
+                f"{question}\n\n"
+            )
+            if hypotheses:
+                rq_body += "## Hypotheses (inferred from inputs/context)\n\n"
+                for i, h in enumerate(hypotheses, 1):
+                    rq_body += f"- H{i}: {h}\n"
+                rq_body += "\n"
+            rq_body += (
+                "## Last updated\n\n"
+                f"{now_iso()} — populated by `tool_intake_autofill`.\n"
+            )
+            rq_path.write_text(rq_body)
+            rq_changed = True
 
         # Update state hypotheses tracking
         state = load_state(root)

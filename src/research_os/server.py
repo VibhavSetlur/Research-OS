@@ -224,12 +224,19 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_plan_advance": {
         "short": "Mark current step done; get next step. Returns status='blocked' when a deliverable gate fails.",
-        "description": "Walk the active_plan. Returns next_step + remaining. Returns status='blocked' when the next step is a deliverable tool (tool_synthesize / tool_dashboard_create / tool_poster_create / tool_latex_compile) and the quality gate finds blockers. Pass override_gate=true only on explicit researcher approval of a partial deliverable.",
+        "description": "Walk the active_plan. Returns next_step + remaining. Returns status='blocked' when the next step is a deliverable tool (tool_synthesize / tool_dashboard_create / tool_poster_create / tool_latex_compile) and the quality gate finds blockers. Pass override_gate=true ONLY on explicit researcher approval of a partial deliverable; supply override_rationale so workspace/logs/override_log.md records WHY the bypass happened.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "override_gate": {"type": "boolean"},
+                "override_gate": {
+                    "type": "boolean",
+                    "description": "Bypass the deliverable quality gate. Set only when the researcher explicitly authorised the bypass.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "One-line researcher-supplied reason for the bypass. Logged.",
+                },
             },
         },
     },
@@ -983,8 +990,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_audit_step_completeness": {
-        "short": "Per-step gate: focal figure + caption + summary + non-stub conclusions. BLOCKS tool_synthesize when failing.",
-        "description": "Server-enforced 'did the step actually finish?' check. Validates that EVERY active numbered step has: (a) conclusions.md with non-stub Findings + Decision; (b) at least one focal figure under outputs/figures/; (c) sibling .caption.md + .summary.md for each figure; (d) at least one runnable script. Returns status='error' if any step has BLOCKERS — tool_synthesize honours this and refuses to assemble until cleared. Pass step_id to audit one step instead of the whole project. Writes report to workspace/logs/step_completeness.md.",
+        "short": "Per-step gate: focal figure + caption + summary + non-stub conclusions + no mega-script. BLOCKS tool_synthesize when failing.",
+        "description": "Server-enforced 'did the step actually finish?' check. Validates that EVERY active numbered step has: (a) conclusions.md with non-stub Findings + Decision; (b) at least one focal figure under outputs/figures/; (c) sibling .caption.md + .summary.md for each figure; (d) at least one runnable script; (e) when outputs span multiple categories (figures + tables + reports) a pipeline.yaml MUST declare the sub-task DAG — mega-scripts are blocked. Returns status='error' if any step has BLOCKERS — tool_synthesize honours this and refuses to assemble until cleared. Pass step_id to audit one step instead of the whole project. Writes report to workspace/logs/step_completeness.md.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
@@ -993,6 +1000,46 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "Optional — audit one step instead of all active ones.",
                 }
+            },
+        },
+    },
+    "tool_step_iterate": {
+        "short": "Take a coordinated iteration snapshot of a step (script+figure+caption+conclusion) into .versions/v<n>/.",
+        "description": "Bumps an analysis step into a new named iteration. Use when the researcher wants to DELIBERATELY iterate (re-colour a figure, tighten a cutoff, swap a model spec) — distinct from a bug fix. Copies the selected scripts / figures / tables AND every sidecar (.caption.md / .summary.md / .prov.json) AND conclusions.md into workspace/<step>/.versions/v<n>/, appends a row to workspace/<step>/iterations.yaml with the (REQUIRED) rationale, and returns the recommended _v<n+1> rename for each script. The live files keep their stable names so cross-step references in conclusions / dashboards don't rot; the snapshot preserves the prior version for audit. After this call, re-run via tool_step_pipeline_run (for code iteration) or regenerate figures live (for cosmetic iteration).",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {"type": "string", "description": "Numbered step folder, e.g. '03_fit_baseline'."},
+                "rationale": {"type": "string", "description": "REQUIRED. Why this iteration is happening (design change, parameter sweep, reviewer ask, etc.). Recorded in iterations.yaml."},
+                "scripts": {"type": "array", "items": {"type": "string"}, "description": "Optional — names under scripts/ to include. Default: every script."},
+                "figures": {"type": "array", "items": {"type": "string"}, "description": "Optional — names under outputs/figures/ to include. Default: every figure."},
+                "tables": {"type": "array", "items": {"type": "string"}, "description": "Optional — names under outputs/tables/ to include. Default: every table."},
+                "bump_conclusion": {"type": "boolean", "description": "Copy conclusions.md into the snapshot (default true)."},
+            },
+            "required": ["step_id", "rationale"],
+        },
+    },
+    "tool_step_iterations_list": {
+        "short": "Return the iterations.yaml ledger for a step.",
+        "description": "List every recorded iteration of a step (created by tool_step_iterate), including rationale, snapshot dir, and the script/figure/table names captured at each version. Use to surface the iteration history to the researcher or before deciding whether the next change warrants a new iteration vs an in-place edit.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {"type": "string"},
+            },
+            "required": ["step_id"],
+        },
+    },
+    "tool_audit_version_coherence": {
+        "short": "Flag version drift: outputs whose .prov.json points at a script no longer on disk OR not the highest _v<n>.",
+        "description": "Walk every numbered step (or just one if step_id given) and flag drift between scripts, outputs, and captions. Specifically: (1) an output whose .prov.json names a script that no longer exists, (2) an output produced by a v<k> script when v<k+1> is now the highest version in scripts/, (3) a caption sidecar older than its figure, (4) an iterations.yaml entry whose snapshot dir was deleted. Writes report to workspace/logs/version_coherence.md. Status='warning' (not error) so it surfaces without blocking deliverables; use the report to decide whether to re-run.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {"type": "string", "description": "Optional — audit one step instead of every active step."},
             },
         },
     },
@@ -1491,7 +1538,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_synthesize": {
-        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure.",
+        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure. Quality gate: refuses to build a full document if tool_audit_quality_full reports BLOCKERS. The researcher (NOT the AI) can authorise a partial / WIP deliverable by passing override_completeness_gate=true with a one-line override_rationale — both are logged to workspace/logs/override_log.md for the audit trail.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -1511,6 +1558,19 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "citation_style": {
                     "type": "string",
                     "description": "vancouver (default) | apa",
+                },
+                "override_completeness_gate": {
+                    "type": "boolean",
+                    "description": "Bypass the master quality gate for a partial / WIP deliverable. ONLY set when the researcher has explicitly authorised it. Logged.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "Required when override_completeness_gate=true. One-line reason the researcher authorised the bypass (e.g. 'reviewer asked for a preview of the discussion section before the final figures are in').",
+                },
+                "skip_gates": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional list of specific audit names to skip (e.g. ['claims', 'prose']). Defaults to ['claims'] on first synthesis since paper.md doesn't exist yet.",
                 },
             },
         },
@@ -1538,7 +1598,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_dashboard_create": {
-        "description": "Generate a standalone, offline HTML dashboard (sortable tables, lightbox gallery, light/dark toggle, print-friendly) at synthesis/dashboard.html. Tailored to audience: academic | executive | technical | teaching.",
+        "description": "Generate a standalone, offline HTML dashboard (sortable tables, lightbox gallery, light/dark toggle, print-friendly) at synthesis/dashboard.html. Tailored to audience: academic | executive | technical | teaching. Step-completeness gate is soft (warnings only) since the dashboard is most useful as a 'where are we now' snapshot, but set override_completeness_gate=true to suppress the warning panel for the FINAL deliverable.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -1547,6 +1607,14 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "audience": {
                     "type": "string",
                     "description": "academic (default) | executive | technical | teaching",
+                },
+                "override_completeness_gate": {
+                    "type": "boolean",
+                    "description": "Suppress the step-completeness warning panel. Set only on explicit researcher approval. Logged.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "One-line reason for the bypass; logged to workspace/logs/override_log.md.",
                 },
             },
         },
@@ -2064,11 +2132,18 @@ def _handle_tool_route(name, arguments, root):
 
 
 def _handle_tool_plan_advance(name, arguments, root):
+    from research_os.project_ops import log_override
     from research_os.tools.actions.router import advance_plan
 
-    res = advance_plan(
-        root, override_gate=bool(arguments.get("override_gate", False)),
-    )
+    override = bool(arguments.get("override_gate", False))
+    if override:
+        log_override(
+            root,
+            tool="tool_plan_advance",
+            gate="deliverable_completeness",
+            rationale=arguments.get("override_rationale"),
+        )
+    res = advance_plan(root, override_gate=override)
     # status='blocked' is informational, not a transport-level error.
     if res.get("status") in {"success", "blocked"}:
         return _text(_success(res))
@@ -2784,7 +2859,19 @@ def _handle_tool_synthesize(name, arguments, root):
     # Server-enforced quality gate. Single-section synthesis (e.g. just
     # the abstract) clears with a lightweight check; full-document
     # synthesis must pass the master quality auditor.
-    skip_gate = arguments.get("override_completeness_gate", False)
+    skip_gate = bool(arguments.get("override_completeness_gate", False))
+    if skip_gate:
+        from research_os.project_ops import log_override
+        log_override(
+            root,
+            tool="tool_synthesize",
+            gate="quality_full",
+            rationale=arguments.get("override_rationale"),
+            extra={
+                "output_type": arguments.get("output_type", "paper"),
+                "section": arguments.get("section"),
+            },
+        )
     full_doc = not arguments.get("section")
     if full_doc and not skip_gate:
         gate = audit_quality_full(
@@ -2872,7 +2959,15 @@ def _handle_tool_dashboard_create(name, arguments, root):
     from research_os.tools.actions.audit.audit import audit_step_completeness
     from research_os.tools.actions.synthesis.latex import create_dashboard
 
-    skip_gate = arguments.get("override_completeness_gate", False)
+    skip_gate = bool(arguments.get("override_completeness_gate", False))
+    if skip_gate:
+        from research_os.project_ops import log_override
+        log_override(
+            root,
+            tool="tool_dashboard_create",
+            gate="step_completeness",
+            rationale=arguments.get("override_rationale"),
+        )
     if not skip_gate:
         gate = audit_step_completeness(root)
         if gate.get("status") == "error":
@@ -2903,6 +2998,41 @@ def _handle_tool_audit_step_completeness(name, arguments, root):
     from research_os.tools.actions.audit.audit import audit_step_completeness
 
     return _text(_success(audit_step_completeness(
+        root, step_id=arguments.get("step_id"),
+    )))
+
+
+def _handle_tool_step_iterate(name, arguments, root):
+    from research_os.tools.actions.state.iteration import iterate_step
+
+    try:
+        res = iterate_step(
+            root,
+            step_id=arguments["step_id"],
+            rationale=arguments["rationale"],
+            scripts=arguments.get("scripts"),
+            figures=arguments.get("figures"),
+            tables=arguments.get("tables"),
+            bump_conclusion=bool(arguments.get("bump_conclusion", True)),
+        )
+        return _text(_success(res))
+    except (ValueError, FileNotFoundError) as e:
+        return _text(_error(str(e)))
+
+
+def _handle_tool_step_iterations_list(name, arguments, root):
+    from research_os.tools.actions.state.iteration import list_iterations
+
+    try:
+        return _text(_success(list_iterations(root, arguments["step_id"])))
+    except (KeyError, FileNotFoundError) as e:
+        return _text(_error(str(e)))
+
+
+def _handle_tool_audit_version_coherence(name, arguments, root):
+    from research_os.tools.actions.state.iteration import audit_version_coherence
+
+    return _text(_success(audit_version_coherence(
         root, step_id=arguments.get("step_id"),
     )))
 
@@ -3861,6 +3991,7 @@ def _handle_sys_help(name, arguments, root):
             "reproducibility": "reproducibility/reproducibility",
             "specific_audits": [
                 "tool_audit_step_completeness",
+                "tool_audit_version_coherence",
                 "tool_audit_code_quality",
                 "tool_audit_prose",
                 "tool_audit_claims",
@@ -3870,6 +4001,11 @@ def _handle_sys_help(name, arguments, root):
                 "tool_audit_reproducibility",
                 "tool_preregister_diff",
             ],
+            "iteration_versioning": {
+                "snapshot": "tool_step_iterate",
+                "list": "tool_step_iterations_list",
+                "drift_check": "tool_audit_version_coherence",
+            },
         }))
 
     return _text(_success(core))
@@ -3961,6 +4097,9 @@ _HANDLERS = {
     "tool_audit_citations": _handle_tool_audit_citations,
     "tool_audit_reproducibility": _handle_tool_audit_reproducibility,
     "tool_audit_step_completeness": _handle_tool_audit_step_completeness,
+    "tool_audit_version_coherence": _handle_tool_audit_version_coherence,
+    "tool_step_iterate": _handle_tool_step_iterate,
+    "tool_step_iterations_list": _handle_tool_step_iterations_list,
     "tool_figure_create": _handle_tool_figure_create,
     "tool_figure_caption_synthesise": _handle_tool_figure_caption_synthesise,
     "tool_audit_figure_full": _handle_tool_audit_figure_full,

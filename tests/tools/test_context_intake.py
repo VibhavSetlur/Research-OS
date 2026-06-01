@@ -36,6 +36,8 @@ def test_intake_routes_md_to_context(tmp_path):
 
 def test_intake_never_overwrites(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+    # inputs/literature/ is a LAZY dir — created at first write.
+    (tmp_path / "inputs" / "literature").mkdir(parents=True, exist_ok=True)
     (tmp_path / "inputs" / "literature" / "paper.pdf").write_text("existing")
     (tmp_path / "extra" / "paper.pdf").parent.mkdir()
     (tmp_path / "extra" / "paper.pdf").write_text("new content")

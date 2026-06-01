@@ -27,7 +27,7 @@ researcher who can talk in plain English to an AI IDE.
   - `sys_*` — system, workspace, state, files, paths, checkpoints
   - `tool_*` — research work: search, exec, audit, synthesis, intake, plan
   - `mem_*` — append-only memory: methods, citations, decisions, hypotheses
-* **82 YAML protocols** the AI loads contextually, organised in nine
+* **87 YAML protocols** the AI loads contextually, organised in nine
   categories: guidance, discover, domain, methodology, literature,
   writing, visualization, synthesis, audit, reproducibility.
 * **Hierarchical L1 → L2 → L3 router** (`tool_route`) — picks the right
@@ -39,7 +39,7 @@ researcher who can talk in plain English to an AI IDE.
   anti-patterns); `sys_active_project` reports which project the
   global server resolved for THIS request.
 
-### Protocol surface (82 protocols)
+### Protocol surface (87 protocols)
 
 **Guidance + session + flow control (15)**
 * `session_boot`, `session_resume`, `chat_handoff`, `autopilot`,
@@ -201,8 +201,60 @@ for reasoning, not scripts to execute.
 * [`docs/TOOLS.md`](docs/TOOLS.md) — every MCP tool with example calls
 * [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle
 
+### Robustness refinements (folded into 1.0.0)
+
+* **No empty-folder pollution.** Scaffolding now creates only directories
+  guaranteed to be populated. `synthesis/`, `environment/`, and
+  `inputs/{raw_data,literature,context}/` are LAZY — they materialise at
+  first write via `ensure_lazy_dir(root, rel)`. A fresh `research-os init`
+  surface has zero orphan `.gitkeep`-only folders. `_prune_stale_gitkeeps`
+  now also removes any empty lazy-dir leftovers from pre-1.0 projects.
+* **No premade boilerplate.** `docs/research_overview.md` is no longer
+  written at init — it is created lazily by `tool_intake_autofill` once
+  the researcher has actual context to summarise. `inputs/intake.md` is
+  reduced to a one-sentence pointer.
+* **Mega-script blocker.** `tool_audit_step_completeness` now BLOCKS
+  (not just warns) when a step's outputs span multiple categories
+  (figures + tables + reports) without a `pipeline.yaml` declaring the
+  sub-task DAG. Atomic scripts per sub-task are mandatory — the
+  reproducibility guarantee depends on it.
+* **Deliberate iteration versioning.** New `tool_step_iterate(step_id,
+  rationale=…)` snapshots a coordinated unit (scripts + outputs +
+  caption / summary / prov sidecars + conclusion) into
+  `.versions/v<n>/` before the researcher edits anything. The live
+  filenames stay stable so cross-step references in conclusions /
+  dashboards don't rot. `tool_step_iterations_list` returns the ledger.
+* **Version-coherence audit.** `tool_audit_version_coherence` walks
+  every step and flags drift: an output whose `.prov.json` points at a
+  script no longer on disk OR at `_v<k>` when `_v<k+1>` exists OR a
+  caption sidecar older than its figure. Report at
+  `workspace/logs/version_coherence.md`.
+* **Override discoverability + audit trail.** The previously-undeclared
+  `override_completeness_gate` parameter is now in the inputSchema for
+  `tool_synthesize` and `tool_dashboard_create`; `override_gate` /
+  `override_rationale` are documented on `tool_plan_advance`. Every
+  bypass appends to `workspace/logs/override_log.md` (the
+  pre-submission audit surfaces them).
+* **User-side override policy.** `researcher_config.yaml` gains
+  `interaction.quality_gate_policy` (`enforce` | `allow_override` |
+  `warn_only`) and `interaction.ambiguity_posture`
+  (`ask_when_uncertain` | `take_best_default`). Defaults are
+  conservative; the researcher tightens or loosens to taste.
+* **Per-IDE rule parity.** `.windsurfrules` and `.continuerules` now
+  use the same `sys_boot` + `tool_route` boot pattern as
+  `AGENTS.md` / `.claude/` / `.cursor/` / `.antigravity/` —
+  no more legacy `sys_config_get + sys_state_get` cost.
+* **AGENTS.md escape clause.** Hard rule 11 (multi-script DAG) is
+  tightened. New rule 12 separates bug-fix versioning (bump `_v<n>`)
+  from deliberate iteration (`tool_step_iterate` first). A new
+  "When the researcher explicitly overrides a rule" section formalises
+  the bypass protocol: explicit current-message authorisation,
+  `override_rationale` mandatory, logged.
+
 ### Test + quality status
 
-* 342+ tests pass; preflight 13 / 13 checks green
-* 82 protocols indexed; all router refs + tool refs resolve
+* 380+ tests pass; preflight 13 / 13 checks green
+* 87 protocols indexed; all router refs + tool refs resolve
 * All protocols at version 1.0.0
+* 143 MCP tools (140 baseline + `tool_step_iterate` +
+  `tool_step_iterations_list` + `tool_audit_version_coherence`)

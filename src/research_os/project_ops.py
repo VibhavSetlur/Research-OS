@@ -67,6 +67,89 @@ TOP_LEVEL_DIRS = (
     "environment",
 )
 
+# Directories created EAGERLY (always populated, never empty after init).
+EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+)
+
+# Directories created LAZILY (only when the first artefact lands in them).
+# Keeping these absent on a fresh init avoids "what are these empty folders?"
+# friction. Tools that write into them MUST call ``ensure_lazy_dir`` first.
+LAZY_DIRS = (
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "synthesis",
+    "environment",
+)
+
+
+def ensure_lazy_dir(root: Path, rel: str) -> Path:
+    """Create a lazy directory at first write; idempotent.
+
+    Tools call this before dropping the first artefact into a LAZY_DIRS
+    path so the project surface stays minimal until real content arrives.
+    """
+    if rel not in LAZY_DIRS:
+        # Not a lazy path — caller is responsible for normal mkdir.
+        target = root / rel
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+    target = root / rel
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def log_override(
+    root: Path,
+    *,
+    tool: str,
+    gate: str,
+    rationale: str | None,
+    extra: dict[str, Any] | None = None,
+) -> Path:
+    """Append a researcher-authorised gate bypass to the override log.
+
+    Every time the AI calls a tool with ``override_completeness_gate=true``
+    (or ``override_gate=true`` on ``tool_plan_advance``), we record:
+
+    * which tool was bypassed
+    * which gate it was
+    * the rationale the researcher supplied (or ``<none provided>`` —
+      this surfaces in audits as a soft warning)
+    * a UTC timestamp
+
+    The log lives at ``workspace/logs/override_log.md`` so the
+    pre-submission audit can list every bypass and ask the researcher
+    to confirm before publication.
+    """
+    logs = root / "workspace" / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    log = logs / "override_log.md"
+    if not log.exists():
+        log.write_text(
+            "# Quality-gate bypass log\n\n"
+            "Every entry here represents a moment the researcher "
+            "explicitly authorised the AI to bypass a quality gate. "
+            "The pre-submission audit surfaces this list — confirm "
+            "each bypass was intentional before submission.\n\n"
+        )
+    note = (rationale or "").strip() or "<no rationale provided — flag in audit>"
+    extras = ""
+    if extra:
+        try:
+            extras = " · " + json.dumps(extra, sort_keys=True, default=str)
+        except Exception:
+            extras = ""
+    with log.open("a") as fh:
+        fh.write(f"- {now_iso()} · `{tool}` · gate={gate} · {note}{extras}\n")
+    return log
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -335,12 +418,14 @@ def scaffold_minimal_workspace(
     ide_flags = ide_flags or list(("cursor", "claude", "antigravity", "opencode", "vscode"))
     root.mkdir(parents=True, exist_ok=True)
 
-    # 1. Directory skeleton + .gitkeep so empty dirs survive git.
-    for rel in TOP_LEVEL_DIRS:
+    # 1. Eager skeleton — only the directories that are GUARANTEED to be
+    #    populated by the rest of this scaffold. Lazy dirs (synthesis/,
+    #    environment/, inputs/raw_data/, inputs/literature/, inputs/context/)
+    #    are deferred to first-write via ``ensure_lazy_dir`` so a fresh
+    #    project surface has no orphan .gitkeep folders.
+    for rel in EAGER_DIRS:
         d = root / rel
         d.mkdir(parents=True, exist_ok=True)
-        if not any(d.iterdir()):
-            (d / ".gitkeep").touch()
 
     # 2. docs/glossary.md — empty table (the AI fills it).
     glossary = root / "docs" / "glossary.md"
@@ -354,26 +439,10 @@ def scaffold_minimal_workspace(
             "| Term | Definition | Source |\n|---|---|---|\n"
         )
 
-    # 3. docs/research_overview.md — placeholder; intake autofill replaces it.
-    rq = root / "docs" / "research_overview.md"
-    if not rq.exists():
-        rq.write_text(
-            "# Research Overview\n\n"
-            "*The big picture for this project. Filled in by the AI when "
-            "you say `fill out the intake`, or hand-edit any section.*\n\n"
-            "## Research question(s)\n\n"
-            "_(blank — drop your data/PDFs/notes into `inputs/`, then ask "
-            "the AI to `fill out the intake`. You can also list questions "
-            "in `inputs/researcher_config.yaml` under `research_questions:`.)_\n\n"
-            "## Hypotheses\n\n"
-            "_(blank — the AI proposes initial hypotheses from your inputs, "
-            "tracks them across experiments, and updates this section as "
-            "evidence accumulates.)_\n\n"
-            "## Background\n\n"
-            "_(blank — short summary of why this project matters and what "
-            "prior work it builds on. Useful for collaborators dropping "
-            "into the workspace cold.)_\n"
-        )
+    # 3. docs/research_overview.md — created LAZILY by
+    #    ``tool_intake_autofill``. Leaving it absent on a cold init avoids
+    #    the "what's all this placeholder text?" friction; the researcher
+    #    is pointed at it via inputs/intake.md instead.
 
     # 4. Append-only workspace logs — start EMPTY but with a header so the
     #    AI knows the file is initialised.
@@ -426,13 +495,16 @@ def scaffold_minimal_workspace(
         except OSError:
             pass
 
-    # 8. inputs/intake.md — tiny placeholder; tool_intake_autofill rewrites it.
+    # 8. inputs/intake.md — single-line pointer. Replaced wholesale by
+    #    tool_intake_autofill once the researcher drops files + says
+    #    "fill out the intake".
     intake = root / "inputs" / "intake.md"
     if not intake.exists():
         intake.write_text(
             "# Research Intake\n\n"
-            "*(blank — drop your data/PDFs/notes into `inputs/`, then ask the AI to "
-            "`fill out the intake`. It will run `tool_intake_autofill`.)*\n"
+            "Drop data into `inputs/raw_data/`, PDFs into `inputs/literature/`, "
+            "notes into `inputs/context/`, then ask the AI to **fill out the "
+            "intake** — `tool_intake_autofill` rewrites this file.\n"
         )
 
     # 9. Manifest + state.
@@ -815,11 +887,15 @@ reads as a finished research project, not an in-progress AI workspace.
 
 
 def _prune_stale_gitkeeps(root: Path) -> None:
-    """Remove .gitkeep from any TOP_LEVEL_DIR that now has real content.
+    """Remove .gitkeep from any project directory that now has real content.
 
-    Scaffold creates .gitkeep up front; later steps populate some dirs. The
-    .gitkeep then lingers and pollutes `tool_scratch_list`, manifest counts,
-    and confuses casual ``ls``. Keep .gitkeep only in dirs that stayed empty.
+    With the eager/lazy split we no longer create .gitkeep on a cold
+    scaffold. This helper still runs for safety: pre-1.0 projects (or
+    user-created dirs) may carry .gitkeep files alongside real artefacts,
+    and we want them gone so casual ``ls`` and dashboard counters stay
+    honest. The pass also removes .gitkeep from any empty LAZY_DIR a
+    legacy code path may have created — those dirs should not exist at
+    all unless populated.
     """
     for rel in TOP_LEVEL_DIRS:
         d = root / rel
@@ -832,6 +908,14 @@ def _prune_stale_gitkeeps(root: Path) -> None:
         if siblings:
             try:
                 keep.unlink()
+            except OSError:
+                pass
+            continue
+        # Empty + .gitkeep'd lazy dir → drop both the marker and the dir.
+        if rel in LAZY_DIRS:
+            try:
+                keep.unlink()
+                d.rmdir()
             except OSError:
                 pass
 

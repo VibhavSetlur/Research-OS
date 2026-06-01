@@ -145,6 +145,52 @@ prior knowledge.
 Don't override the gate unless the researcher explicitly authorises
 a partial deliverable.
 
+## When the researcher EXPLICITLY overrides a gate
+
+Quality gates can be bypassed — but only on explicit researcher
+authorisation in their CURRENT message ("just draft it", "give me a
+preview", "skip the audit"). The override path:
+
+* `tool_synthesize(override_completeness_gate=true, override_rationale="<why>")`
+* `tool_dashboard_create(override_completeness_gate=true, override_rationale="<why>")`
+* `tool_plan_advance(override_gate=true, override_rationale="<why>")`
+
+The rationale is mandatory; the override appends to
+`workspace/logs/override_log.md`. `audit/pre_submission_checklist`
+surfaces every bypass at publish time so the researcher confirms
+each one was intentional.
+
+The project-level posture lives at `interaction.quality_gate_policy`
+in `inputs/researcher_config.yaml`:
+
+* `enforce` (default) — AI refuses to bypass without explicit ask
+* `allow_override` — AI may bypass when asked, logs the rationale
+* `warn_only` — gate blockers become warnings (sandbox use only)
+
+The AI never bypasses on its own. Hard rules (no fabricated
+citations, no writes under `inputs/raw_data/`) are absolute — the
+quality gate is the ONLY authorised escape hatch.
+
+## Deliberate iteration vs bug fix
+
+Two distinct modes for re-running a step:
+
+* **Bug fix** — script has a defect. Bump `_v<n>`, re-run via
+  `tool_step_pipeline_run`. The fingerprint cache invalidates the
+  affected node automatically.
+* **Deliberate iteration** — researcher wants a coordinated change
+  (recolour Fig 2, tighten a cutoff, swap a model spec). FIRST call
+  `tool_step_iterate(step_id, rationale=…)` to snapshot scripts +
+  outputs + caption / summary / prov sidecars + conclusion into
+  `.versions/v<n>/`. Live filenames stay stable so cross-step
+  references don't rot. Then rename the live scripts per
+  `next_script_paths` and re-run.
+
+After iteration, run `tool_audit_version_coherence` to confirm every
+output traces to the highest-version script on disk. Drift (a v2
+figure produced by a v1 script) is flagged in
+`workspace/logs/version_coherence.md`.
+
 ---
 
 ## When the AI's grounded evidence disagrees with the researcher

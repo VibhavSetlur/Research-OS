@@ -26,7 +26,7 @@ logger = logging.getLogger("research_os.tools.state.repair")
 def workspace_repair(root: Path, *, dry_run: bool = False) -> dict[str, Any]:
     """Detect and (optionally) fix workspace integrity issues."""
     from research_os.project_ops import (
-        TOP_LEVEL_DIRS,
+        EAGER_DIRS,
         _update_manifest,
         _update_workflow_mermaid,
         default_state,
@@ -40,8 +40,13 @@ def workspace_repair(root: Path, *, dry_run: bool = False) -> dict[str, Any]:
     actions: list[str] = []
     issues: list[str] = []
 
-    # 1. Top-level directories
-    for rel in TOP_LEVEL_DIRS:
+    # 1. Top-level directories.
+    # Repair only ensures EAGER dirs exist. LAZY dirs (synthesis/,
+    # environment/, inputs/raw_data/, inputs/literature/, inputs/context/)
+    # are intentionally absent until the first writer materialises them
+    # via ensure_lazy_dir — repairing them would re-introduce the empty
+    # folder noise the lazy split was designed to eliminate.
+    for rel in EAGER_DIRS:
         d = root / rel
         if not d.exists():
             issues.append(f"missing dir: {rel}")

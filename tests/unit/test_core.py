@@ -16,8 +16,15 @@ def test_scaffold_creates_complete_workspace():
         root = Path(d)
         scaffold_minimal_workspace(root, "Test Project")
 
-        for top in (".os_state", "docs", "inputs", "workspace", "synthesis", "environment"):
+        # Eager dirs always exist.
+        for top in (".os_state", "docs", "inputs", "workspace"):
             assert (root / top).exists(), top
+        # Lazy dirs (synthesis/, environment/) are deferred to first
+        # write — keeps the project surface clean.
+        for lazy in ("synthesis", "environment"):
+            assert not (root / lazy).exists(), (
+                f"{lazy}/ should NOT exist after a cold scaffold"
+            )
         assert (root / "workspace" / "workflow.mermaid").exists()
         assert (root / "inputs" / "researcher_config.yaml").exists()
         assert (root / "AGENTS.md").exists()
