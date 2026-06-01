@@ -9,7 +9,7 @@ from research_os.tools.actions.protocol import load_protocol
 
 
 PROTOCOLS_DIR = (
-    Path(__file__).resolve().parent.parent
+    Path(__file__).resolve().parent.parent.parent
     / "src" / "research_os" / "protocols"
 )
 
@@ -17,6 +17,9 @@ PROTOCOLS_DIR = (
 def _all_protocol_paths():
     for p in sorted(PROTOCOLS_DIR.rglob("*.yaml")):
         if "light" in p.parts:
+            continue
+        # Skip underscore-prefixed special files (router index, etc.)
+        if p.name.startswith("_"):
             continue
         yield p
 

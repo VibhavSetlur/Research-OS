@@ -1,0 +1,225 @@
+id: synthesis_progress_update
+name: Synthesis — Progress Update (PI / advisor / lab / weekly)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Compile a short progress update — the kind a researcher sends their
+  PI / advisor on a Friday afternoon, posts to the lab Slack before a
+  meeting, or fills into a weekly stand-up template. Distinct from
+  `synthesis_report` (longer, structured for a stakeholder audience)
+  and from `tool_progress_digest` (mechanical status snapshot the AI
+  generates for itself).
+
+  The constraint: the reader is busy AND knows the project. They want
+  to know what changed since the last update, what's blocking, and
+  what's coming next. They do NOT want the full methodology re-stated.
+
+trigger: |
+  Researcher says any of: "update my PI", "draft a status update",
+  "weekly update", "what should I tell my advisor", "lab Slack update",
+  "stand-up summary", "blurb for my supervisor", "Friday update",
+  "what changed this week".
+
+prerequisites:
+  - At least one workspace step has been touched since the LAST update
+    (or this is the first update — protocol still applies, just longer
+    Background section).
+
+quality_bar:
+  word_count_band_by_audience: true
+  what_changed_section_present: true
+  blockers_section_present_or_explicit_none: true
+  next_section_present: true
+  one_actionable_ask_when_present: true     # not "everything is great"
+  reads_in_under_two_minutes: true          # ≤500 words for a long update
+
+audience_profile:
+  pi_short_weekly:
+    word_count: [120, 250]
+    sections: [TLDR, What_changed, Blockers, Next_week, Ask]
+    tone: terse_factual
+    notes: |
+      The PI scans this on their phone between meetings. TLDR is
+      one sentence. Bullet everything else. If the answer to "ask"
+      is "nothing", say so — but say so. Silence reads as confusion.
+  pi_long_milestone:
+    word_count: [400, 800]
+    sections: [Headline, Since_last_update, Findings, Decisions_made, Blockers, Next_milestone, Ask, Attachments]
+    tone: structured_substantive
+    notes: |
+      End-of-aim / end-of-chapter / pre-meeting update. The PI will
+      use this to brief a co-investigator or write a sentence into
+      a progress report. Attach the headline figure.
+  advisor_thesis:
+    word_count: [300, 600]
+    sections: [Where_I_am_in_the_thesis, Since_last_meeting, Decision_points, Stuck_on, Next_two_weeks, Ask]
+    tone: reflective
+    notes: |
+      Thesis-context update for a one-on-one. The "decision points"
+      section gives the advisor a hook to give advice; the "stuck on"
+      section is honest about where the work is hard.
+  lab_slack:
+    word_count: [60, 120]
+    sections: [Headline_emoji_optional, One_to_three_bullets, Link]
+    tone: ultra_short_casual
+    notes: |
+      One line per accomplishment. End with a link to the figure or
+      the dashboard, not an essay. Lab Slack is for keeping people
+      oriented, not delivering findings.
+  collaborator_external:
+    word_count: [200, 500]
+    sections: [Status_in_one_line, What_we_did, What_we_found, What_we_need_from_you, Timeline]
+    tone: contractual_polite
+    notes: |
+      External collaborator who is not in the daily loop. The
+      "what we need from you" section is the actual point of the
+      update — it has to be specific and actionable.
+  stand_up:
+    word_count: [40, 100]
+    sections: [Yesterday, Today, Blocker]
+    tone: stand_up_format
+    notes: |
+      Classic daily stand-up format. Three lines. If blocker is
+      "none", say "none" — do not invent one.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Lead with the change, not the recap. The reader knows the
+       project; they want to know what is DIFFERENT from the last
+       update."
+    - "Distinguish FACTS (what happened, what was decided) from
+       INTERPRETATION (what the AI / researcher thinks it means).
+       PIs frequently react to a factual update by asking for the
+       interpretation in the next email."
+    - "Blockers are specific. 'Blocked on data access' is not a
+       blocker; 'IRB amendment in review since Tuesday, expected
+       3-5 business days, downstream work delayed by ~1 week if
+       not back by Friday' is a blocker."
+    - "When there is no ask, say so. An update with no ask is
+       acceptable; an update that hides an ask in the middle of a
+       paragraph is not."
+
+steps:
+  - id: select_audience
+    name: Select audience + format
+    description: |
+      Ask: "Audience? pi_short_weekly | pi_long_milestone |
+      advisor_thesis | lab_slack | collaborator_external | stand_up."
+      Default: pi_short_weekly when the prompt doesn't say.
+
+  - id: locate_the_diff
+    name: Identify what changed since the last update
+    description: |
+      Pull in ONE batch:
+        - tool_progress_digest          (mechanical state snapshot)
+        - sys_protocol_history limit=30
+        - sys_path_list                 (which steps are new / active /
+                                         abandoned since the last update)
+        - mem_hypothesis_list           (status changes)
+        - mem_decision_log              (decisions taken since)
+        - the most recent handoff doc under .os_state/handoffs/
+          (the last "where we left off" line is often the previous
+          update's content)
+
+      Filter to entries created AFTER the last update. If there is no
+      "last update" anchor (first update or the file is missing), look
+      back ~7 days for short updates and the full project for
+      milestone updates.
+
+  - id: pull_the_headline_finding
+    name: Pull the headline finding (if any)
+    description: |
+      The headline is the ONE thing the researcher would want the PI
+      to read first. Source it from:
+        - the most recently-completed step's conclusions.md > Findings
+        - the most recently-flipped hypothesis (testing → supported /
+          refuted / inconclusive)
+        - the most recently-resolved blocker
+
+      If nothing crossed a threshold this period (the most common
+      case for short weekly updates), the headline is the PROGRESS,
+      not a finding: "Finished the data pipeline for chapter 2; first
+      results expected Tuesday."
+
+  - id: pull_the_blockers
+    name: Pull blockers from the workspace
+    description: |
+      Source blockers from:
+        - workspace/logs/audit_report.md  (any BLOCKER: lines)
+        - dead-end paths recorded since the last update
+          (sys_path_list status=__DEAD_END mtime>last_update)
+        - tool_dead_end_lessons          (the recurring blockers
+                                          showing up across attempts)
+        - mem_decision_log entries with rationale containing "blocked"
+          or "waiting on"
+
+      Convert each into the SPECIFIC form: what is blocked, what is
+      blocking it, what unblocking would look like, who can help.
+      Vague blockers ("stuck on the pipeline") are converted to
+      specific ones ("stuck on getting the snRNA-seq integration to
+      converge — tried two normalisations, considering a third; would
+      benefit from 30 min with someone who has run this before").
+
+  - id: name_the_ask
+    name: Name the ask (or explicitly note none)
+    description: |
+      An update with no ask is fine. An update with a hidden ask is
+      not. For each anticipated ask, write:
+        - WHAT — the specific action requested
+        - FROM WHOM — name a person, not "someone"
+        - BY WHEN — a date, not "soon"
+        - WHY — the downstream consequence of not having it
+
+      If there is no ask, write "Ask: nothing this week — will flag
+      if anything comes up before next update." Silence on this line
+      reads as confusion, not as "no problems".
+
+  - id: draft_each_section
+    name: Draft each section in the audience profile
+    description: |
+      For each section in audience.sections:
+        tool_synthesize section="<name>" output_type="progress_update"
+      Apply the audience profile's tone and the word-count band. Hold
+      to "what changed → blockers → next → ask" structure even when
+      the labels in the profile differ.
+
+      For lab_slack: each bullet stands alone. End with a single link
+      to the dashboard / figure / draft — not three.
+
+      For stand_up: yesterday / today / blocker, three lines, done.
+
+  - id: attach_the_one_useful_artefact
+    name: Attach the ONE useful artefact (when applicable)
+    description: |
+      For pi_long_milestone, advisor_thesis, collaborator_external:
+      attach ONE artefact — the headline figure, the dashboard URL,
+      or the draft section the reader most needs.
+
+      Multi-attachment updates are usually a sign the update is
+      trying to be a report. If you find yourself attaching three
+      things, the right protocol is synthesis_report, not this one —
+      route there instead.
+
+  - id: audit_and_handback
+    name: Audit for length + structure
+    description: |
+      Walk the draft:
+        - word count in the audience profile's band
+        - what_changed / blockers / next / ask all present (or "none"
+          on blockers / ask when accurate)
+        - no jargon the audience has not already used in their own
+          messages about this project
+        - reads in under two minutes (a long update at 800 words is
+          right at the edge)
+
+      Hand back:
+        synthesis/progress_<YYYYMMDD>.md  (one file per update; never
+        overwrite the previous one — the chain of updates becomes a
+        searchable project diary).
+
+expected_outputs:
+  - synthesis/progress_<YYYYMMDD>.md
+
+next_protocol: null
+on_failure: guidance/dead_end_routing

@@ -1,0 +1,302 @@
+id: synthesis_slides
+name: Synthesis — Slides / Talk Deck
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Compile a presentation deck — lab meeting, conference talk, defense,
+  invited seminar, or job talk — from the project's existing artefacts.
+  Adapts to audience and venue: 10-minute lightning vs 45-minute invited
+  vs hour-long defense are different problems with different slide
+  budgets, different depth, and different Q&A defence.
+
+  Distinct from synthesis_poster (static, single-panel) and
+  synthesis_dashboard (interactive, HTML). A talk is sequential, has a
+  pace, and has to survive being read aloud — these constraints drive
+  the protocol.
+
+trigger: |
+  Researcher says any of: "make me slides", "build the talk", "lab
+  meeting deck", "conference slides", "defense talk", "build a slide
+  deck", "PowerPoint", "Beamer", "deck for tomorrow", "I'm presenting
+  to <audience>".
+
+prerequisites:
+  - At least one experiment step has a substantive conclusions.md
+    OR the project carries a finished synthesis/* deliverable to
+    derive the talk from.
+
+quality_bar:
+  one_idea_per_slide: true             # title bar makes the claim of the slide
+  every_figure_has_caption_sidecar: true
+  every_figure_readable_at_back_of_room: true   # ≥24pt label / ≥36pt title
+  citations_maximum: 12
+  no_filename_text_visible: true       # no `outputs/figures/03_foo.png` showing
+  speaker_notes_present: true          # ≥1 sentence under each slide
+  closing_slide_states_one_takeaway: true
+  q_and_a_anticipation_section_drafted: true
+
+audience_profile:
+  lab_meeting:
+    duration_minutes: 30
+    slide_target: [12, 20]
+    sections: [Title, Question, Setup, Headline, Details, Limitations, Next, Backup]
+    tone: informal
+    notes: |
+      The lab knows the project. Skip background; start with the
+      headline. Backup slides for likely lab questions (alternative
+      methods, sensitivity, the path you abandoned and why).
+  conference_talk_short:
+    duration_minutes: 12
+    slide_target: [8, 12]
+    sections: [Title, Question_and_motivation, Method_in_one_slide, Result, Implication, Q_and_A_prompt]
+    tone: paced
+    notes: |
+      One idea per slide. Ruthless. ACL / NeurIPS / similar lightning
+      slot. A 10-min talk + 2-min Q&A means the title slide does work —
+      put the headline finding on it.
+  conference_talk_long:
+    duration_minutes: 25
+    slide_target: [18, 28]
+    sections: [Title, Question, Prior_work, Method, Result, Sensitivity, Limitations, Implication, Future, Q_and_A_prompt]
+    tone: paced
+    notes: |
+      A real talk. Include a prior-work slide; one method slide is
+      usually too few; one limitations slide is usually too few.
+  defense:
+    duration_minutes: 45
+    slide_target: [30, 45]
+    sections: [Title, Question, Contributions, Background, Chapter1, ChapterN, Synthesis, Impact, Limitations, Future, Acknowledgements, Q_and_A_prompt]
+    tone: formal_thorough
+    notes: |
+      Dissertation defense. One chapter ≈ one mini-arc. The committee
+      will ask about every decision you made — your backup deck is
+      half the work.
+  invited_seminar:
+    duration_minutes: 50
+    slide_target: [25, 40]
+    sections: [Title, Motivation, Roadmap, Background, Two_to_three_studies, Synthesis, Open_questions, Acknowledgements]
+    tone: narrative
+    notes: |
+      Invited seminar / job talk. The audience is broader; the arc is
+      "here is the question I care about and here are the studies I
+      did about it." Story-first, not paper-by-paper.
+  teaching:
+    duration_minutes: 50
+    slide_target: [20, 30]
+    sections: [Title, Learning_objectives, Concept, Example, Worked_problem, Common_mistakes, Summary, Practice]
+    tone: didactic
+    notes: |
+      A class lecture using your project as the running example.
+      Learning objectives at the top. Worked problem in the middle.
+      Common mistakes is usually missing in research talks — here it
+      should be explicit.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Each slide's title bar makes the slide's CLAIM, not just labels
+       the slide. 'Random forests recover the effect' is a title bar;
+       'Random forest results' is a label."
+    - "If a slide would benefit from being read silently, it's a
+       handout, not a slide. Cut text down."
+    - "Speaker notes carry the script the figure cannot speak for —
+       what to say, what to point at, what to skip if running short."
+    - "Backup slides exist for the questions you know are coming.
+       Treat the Q&A anticipation step as part of the deliverable,
+       not optional polish."
+
+steps:
+  - id: select_audience_and_duration
+    name: Select audience + duration
+    description: |
+      Ask in one line:
+        "Audience? lab_meeting | conference_talk_short |
+         conference_talk_long | defense | invited_seminar | teaching."
+      And:
+        "How many minutes do you have, including Q&A?"
+      Default audience: lab_meeting. Default duration: from the audience
+      profile's `duration_minutes`.
+
+  - id: choose_format
+    name: Choose output format
+    description: |
+      Ask:
+        "Format? Beamer (LaTeX) | Marp markdown | Reveal.js | plain
+         markdown | PowerPoint."
+      Default per audience:
+        defense / conference_talk_long / invited_seminar → Beamer
+        lab_meeting / conference_talk_short / teaching   → Marp markdown
+        teaching when the lecturer prefers slides-they-can-edit-live
+          → PowerPoint
+      The format determines compile vs render; record it in
+      synthesis/slides_spec.yaml.
+
+  - id: derive_outline_from_workspace
+    name: Derive the outline from the workspace
+    description: |
+      Pull in ONE batch:
+        - sys_state_get
+        - sys_path_list
+        - sys_file_read filepath="synthesis/synthesis_spec.yaml"
+          (when present — the synthesis_dashboard editorial layer)
+        - mem_hypothesis_list
+        - the most recent conclusions.md per active step
+
+      Map each slide section in the chosen audience profile to ONE
+      source artefact. Sections without a clear source either get
+      cut (lab_meeting / conference_talk_short) or get an explicit
+      placeholder for the researcher to fill (defense backup slides).
+
+  - id: author_slides_spec
+    name: Author synthesis/slides_spec.yaml (optional but recommended)
+    description: |
+      For high-stakes talks (defense, invited, job talk), author
+      synthesis/slides_spec.yaml so the talk's editorial voice survives
+      rebuilds:
+
+        title:                # talk title — shorter than the paper title
+        subtitle:             # one-line framing
+        author:
+        affiliation:
+        date:
+        venue:                # e.g. "ACL 2026 main conference"
+        audience:             # lab_meeting | conference_talk_short | ...
+        duration_minutes:
+        opening_claim:        # the ONE sentence the audience leaves with
+        slides:
+          - id: title
+            claim: "<the title-bar claim>"
+            type: title | section | content | figure | quote | backup
+            source: "<workspace/<step>/.../conclusions.md | spec.findings.<id>>"
+            figure: "<rel path to figure to embed>"
+            caption: "<one-sentence finding>"
+            speaker_notes: "<what to say, what to point at>"
+        q_and_a:
+          - question: "<anticipated question>"
+            answer_outline: "<bullet outline + one figure to bring up>"
+            backup_slide: "<id of backup slide to jump to>"
+
+      When the spec is absent, the protocol still renders cleanly from
+      the audience profile + auto-derived sources.
+
+  - id: curate_figures
+    name: Curate the figures the deck embeds
+    description: |
+      Talks lean on figures more than papers. Walk each slide flagged
+      as `type: figure` in slides_spec.yaml (or each step's focal
+      figure when no spec exists). For each:
+        - confirm the source figure is ≥300 DPI and has both sidecars
+          (tool_audit_figure_full)
+        - if the figure has a busy axis or tiny labels, rebuild a
+          TALK VERSION via tool_figure_create with a larger style
+          (style="notebook" or a config-level talk-style override) —
+          the paper version stays; the talk version goes in
+          synthesis/slides_figures/
+        - if the figure is unreadable at the back of the room, the
+          fix is bigger labels + simpler chart, not a louder palette
+
+      Output naming: synthesis/slides_figures/slide<NN>_<slug>.png
+      with a sibling .caption.md kept for fallback rendering.
+
+  - id: write_speaker_notes
+    name: Write speaker notes per slide (mandatory)
+    description: |
+      Every slide gets ≥1 sentence of speaker notes — what to say,
+      what to point at, what to skip if running short. For figure
+      slides, the note also names the one feature to point the
+      audience at; the audience cannot read a figure as fast as
+      the presenter.
+
+      Speaker notes are the difference between a deck that survives
+      handing to someone else and one that doesn't. Treat them as
+      part of the deliverable, not optional polish.
+
+  - id: build_q_and_a_backup
+    name: Build the Q&A anticipation + backup deck (mandatory)
+    description: |
+      Write the q_and_a section of slides_spec.yaml (or a parallel
+      Q_AND_A.md file when no spec): 5-10 anticipated questions plus
+      a one-bullet answer outline plus the backup slide id to jump
+      to. Sources:
+        - workspace/<step>/conclusions.md > Limitations
+        - workspace/logs/audit_report.md   (audit findings the deck
+          may not have covered in-line)
+        - mem_decision_log               (close-call decisions: the
+          questioner often asks "why did you not …")
+        - dead-end paths (sys_path_list status=__DEAD_END) — these
+          tend to be exactly what the audience asks about
+
+      Build a backup slide for each anticipated question whose answer
+      benefits from a figure or table.
+
+  - id: assemble
+    name: Assemble the deck
+    description: |
+      Format-specific:
+
+        Beamer:
+          tool_synthesize section="slides" output_type="slides"
+            output_format="beamer"
+          Writes synthesis/slides.tex; compile via tool_latex_compile.
+          Verify the resulting PDF opens; check the slide count is in
+          the audience profile's slide_target band.
+
+        Marp markdown:
+          tool_synthesize section="slides" output_type="slides"
+            output_format="marp"
+          Writes synthesis/slides.md with marp directives. Render via
+          the CLI marp tool when available; otherwise the markdown is
+          already presentable.
+
+        Reveal.js:
+          tool_synthesize section="slides" output_type="slides"
+            output_format="reveal"
+          Writes synthesis/slides.html — single-file, self-contained.
+
+        PowerPoint:
+          tool_synthesize section="slides" output_type="slides"
+            output_format="pptx"
+          Writes synthesis/slides.pptx via python-pptx when available;
+          otherwise falls back to a Marp markdown the researcher can
+          convert.
+
+  - id: audit_deck
+    name: Audit the deck
+    description: |
+      Walk every slide:
+        - title bar makes a claim, not a label
+        - one idea per slide (cut sub-bullets that should be their
+          own slide)
+        - figure readable at the back of the room (label ≥ 24 pt,
+          title ≥ 36 pt — open the PDF at 100 % zoom and check)
+        - no visible file paths
+        - speaker notes present and non-trivial
+        - citations capped at the quality_bar
+        - q_and_a section drafted with ≥5 anticipated questions
+
+      tool_audit_synthesis paper_path="synthesis/slides.tex"
+        (or the equivalent for the chosen format)
+      Any BLOCKER must be addressed before sharing.
+
+  - id: dry_run_and_handback
+    name: Dry-run guidance + hand back
+    description: |
+      Tell the researcher:
+        - "synthesis/slides.{tex|md|html|pptx} — open and walk through.
+           Time yourself; the deck targets <duration> minutes."
+        - "Speaker notes are in <location>. Print them or use presenter
+           view."
+        - "Q&A anticipation in synthesis/slides_q_and_a.md (or in
+           slides_spec.yaml#q_and_a) — review the answers + backup
+           slide jumps before going on."
+        - For a talk in <72h, suggest a dry-run timing and a recording
+          to spot pacing problems the deck alone won't show.
+
+expected_outputs:
+  - synthesis/slides.{tex|md|html|pptx}
+  - synthesis/slides_figures/
+  - synthesis/slides_spec.yaml           (when authored)
+  - synthesis/slides_q_and_a.md          (when no spec)
+
+next_protocol: null
+on_failure: guidance/dead_end_routing

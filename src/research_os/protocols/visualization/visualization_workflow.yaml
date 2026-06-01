@@ -1,0 +1,248 @@
+id: visualization_workflow
+name: Visualization Workflow (figures on demand, no full analysis)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Workflow protocol for when a researcher wants FIGURES — one, a few, or a
+  full deck — without committing to the full analysis_plan loop. Handles
+  three common shapes:
+
+    a) data already cleaned, results already computed → build polished
+       figures from those tables
+    b) raw data present but no prior analysis → minimal computation
+       needed to support each figure
+    c) a research question + a vague visual idea → pick the right chart
+       families and prototype them
+
+  This protocol is the WORKFLOW; `visualization/figure_guidelines` remains
+  the STYLE-AND-RULES reference and is consulted from inside this protocol.
+  The two are complementary: workflow tells the AI WHAT figures to make
+  and HOW to iterate; figure_guidelines tells it HOW each figure should
+  look when finished.
+
+trigger: |
+  Researcher says any of: "make me a figure", "build me a figure deck",
+  "I just need plots", "visualize this", "polish my figures", "remake
+  this chart", "give me a viz of <X>", "I want pretty figures for my talk
+  / paper / dashboard".
+
+prerequisites:
+  - At least one input is available — a CSV / parquet / json under
+    inputs/raw_data OR a results table under inputs/context OR an
+    existing workspace step with outputs/tables.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Pick the chart from the comparison the figure makes, not from
+       the data type alone. A bar chart of group means and a violin
+       of group distributions answer different questions about the
+       same data."
+    - "Every figure is paired with both sidecars (technical caption +
+       plain-English summary). A figure without an interpretation is
+       a decorative element, not a research artefact."
+    - "Polishing replaces re-inventing — prefer tool_figure_create's
+       enforced defaults (palette / DPI / dual export / sidecars) over
+       a hand-rolled script unless the chart family genuinely requires
+       it."
+    - "When a figure surprises the researcher, the right response is
+       a sensitivity / alternative-encoding check, not a re-styling."
+
+steps:
+  - id: scope_request
+    name: Scope the request in one sentence
+    description: |
+      Ask the researcher (or infer from the prompt) which shape applies:
+        a) "polish a figure / deck I already have"
+        b) "build figures from a table I'll point you at"
+        c) "build figures from raw data that needs minimal computation"
+        d) "I have an idea — propose chart families"
+      Also surface the destination — talk / paper / dashboard / report /
+      one-off look — because that drives DPI floor, aspect ratio bias,
+      caption depth, and palette discipline.
+
+      AUTONOMY GATE:
+        manual / supervised → ask before assuming a shape or destination.
+        autopilot           → infer + proceed; tell the researcher the
+                              inferred shape in one line.
+
+  - id: locate_sources
+    name: Locate the data the figure(s) will draw from
+    description: |
+      In ONE batch:
+        - sys_file_list directory="inputs/raw_data"
+        - sys_file_list directory="inputs/context"
+        - sys_path_list  (any workspace steps with outputs/tables/)
+      For shape (a) — list the existing figures already on disk under
+      inputs/ or workspace/*/outputs/figures/.
+      For shape (b)/(c) — confirm WHICH file or table each requested
+      figure draws from. Do not invent a derived table; if the figure
+      needs aggregation, write a short script as a sub-task (see
+      `compute_minimal_inputs`).
+
+  - id: load_visual_rules
+    name: Load the figure rules ONCE
+    description: |
+      sys_protocol_get format='summary' name='visualization/figure_guidelines'
+      Skim the chart_chooser + formatting blocks. Re-loading the full rules
+      per figure is wasteful — load once, hold the conventions in scope
+      for the rest of this protocol.
+
+  - id: enumerate_figures
+    name: Enumerate the figures the deck needs
+    description: |
+      Write a short figure plan to workspace/scratch/figure_plan.md (or
+      to the active step's scratch/ when one exists):
+
+        for each figure:
+          - purpose: the SPECIFIC comparison or distribution this figure
+                     makes — phrased as a question the reader will answer
+                     by looking at it
+          - chart family: from the chart_chooser in figure_guidelines —
+                          comparison / relationship / distribution /
+                          meta-analytic
+          - source: which file + which columns
+          - audience: who reads the destination (lay / mixed /
+                      technical / expert)
+          - caption draft: one-sentence finding the figure is meant
+                           to surface
+          - sensitivity check: an alternative encoding (e.g. violin
+                               instead of box) that, if it shows a
+                               different story, calls the headline
+                               into question
+
+      The plan replaces "make a figure" with "make the figure that
+      answers this specific question." Skip the plan only when a single
+      one-off chart is requested.
+
+  - id: compute_minimal_inputs
+    name: Compute minimal inputs (only when needed)
+    description: |
+      For figures that need aggregation / derived columns / model fits
+      not yet on disk, write the SHORTEST possible script as a sub-task
+      under the active step (if any) or under workspace/scratch/. The
+      script does ONE thing: produce the table the figure consumes. It
+      is not a full analysis; it's the figure's data pipeline.
+
+      Rules:
+        - One script per derived table; name it
+          <NN>_<figure_slug>_data_v1.<ext>.
+        - Read from workspace/<step>/data/input/ (or inputs/) and write
+          to workspace/<step>/data/output/ (or workspace/scratch/data/).
+        - Set RNG seeds when randomness is involved. Print library
+          versions to stderr.
+        - If the same derivation feeds three or more figures, promote
+          it to a real analysis step via guidance/analysis_plan before
+          building the figures — the project will outgrow scratch.
+
+  - id: build_each_figure
+    name: Build each figure via tool_figure_create (preferred)
+    description: |
+      For each entry in figure_plan.md:
+
+        tool_figure_create
+          step_id="<NN_slug>"            # use the active step OR a
+                                         # dedicated workspace/<NN>_figures/
+                                         # folder created via sys_path_create
+          name="<figure_slug>"
+          kind=<chart family from plan>
+          data="<path>"                  # the table from compute_minimal_inputs
+          x="<col>" y="<col>"
+          caption="<one-sentence finding>"
+          plain_english="<2-3 sentence non-expert summary>"
+          palette=<qualitative|sequential|diverging|accent>
+          style=<default|nature|ieee|notebook|no_latex>
+
+      tool_figure_create handles DPI ≥ 300, dual PNG + SVG export, Okabe-Ito /
+      viridis / PuOr palettes, axis units, and both sidecars in one shot.
+      Per-figure return includes the output paths; record them in
+      figure_plan.md under each entry's `outputs:` field.
+
+      For chart families tool_figure_create does not cover (network layouts,
+      maps, custom small-multiples), write a minimal matplotlib / plotnine /
+      plotly script but still write both caption sidecars by hand or via
+      tool_figure_caption_synthesise.
+
+  - id: sensitivity_check
+    name: Sensitivity / alternative-encoding check
+    description: |
+      For each headline figure, build at LEAST one alternative encoding
+      from figure_plan.md's `sensitivity check` field. The point is
+      adversarial: if a violin tells a different story than a box, the
+      headline is fragile and the caption must qualify it.
+
+      Record the outcome inline in figure_plan.md:
+        - "alternative encoding agrees — headline robust"
+        - "alternative encoding disagrees — caption rewritten to <X>"
+
+      Sensitivity is not the same as polish. Even a beautifully styled
+      figure is fragile if the only encoding that shows the effect is
+      one the researcher chose because they had already seen the effect.
+
+  - id: write_captions_and_summaries
+    name: Caption + plain-English summary
+    description: |
+      Every figure ships with two sidecars (the audit gate blocks
+      synthesis otherwise):
+
+        <name>.caption.md   — technical, 3 sentences max, ~250 chars:
+          1. lead with the substantive finding (not "histogram of X")
+          2. axis units when not self-evident
+          3. one specific feature worth pointing at
+
+        <name>.summary.md   — plain-English, 2-3 short paragraphs:
+          • What it shows.
+          • How to read it.
+          • Why it matters.
+
+      tool_figure_create writes both when you pass `caption` +
+      `plain_english`. Otherwise:
+        tool_figure_caption_synthesise figure_path=<rel>
+      generates a competent draft from the existing caption + the step's
+      conclusions; polish the draft if needed.
+
+  - id: audit_figures
+    name: Audit each figure (DPI + sidecars + aspect ratio)
+    description: |
+      tool_audit_figure_full filepath="<png>"
+      Checks DPI, dimensions, caption + summary presence, SVG companion,
+      aspect-ratio sanity for time series. For decks with many figures,
+      aggregate the warnings into workspace/logs/figure_audit_summary.md.
+
+      Any figure WITHOUT a sibling .caption.md AND .summary.md is a
+      BLOCKER — the deliverable will not embed it.
+
+  - id: promote_or_curate
+    name: Promote / curate / stop
+    description: |
+      Ask the researcher one of:
+        - promote → these figures become part of a real analysis step
+                    (route to guidance/analysis_plan and back-fill the
+                    methods + decision log)
+        - curate  → these figures stay in workspace/scratch/ as look-and-
+                    see artefacts; nothing else changes
+        - synthesis → fold them into an existing synthesis deliverable
+                      (route to the matching synthesis/* protocol)
+
+      AUTONOMY GATE:
+        manual / supervised → wait for the researcher to choose.
+        autopilot           → curate by default; surface the choice as
+                              a one-line suggestion.
+
+expected_outputs:
+  - workspace/scratch/figure_plan.md   (or active step's scratch/)
+  - workspace/<step>/outputs/figures/*.png
+  - workspace/<step>/outputs/figures/*.svg
+  - workspace/<step>/outputs/figures/*.caption.md
+  - workspace/<step>/outputs/figures/*.summary.md
+
+quality_bar:
+  every_figure_has_caption_sidecar: true
+  every_figure_has_summary_sidecar: true
+  every_headline_figure_has_sensitivity_check: true
+  no_chartjunk: true                  # no 3-D bars, dual-y axes, exploded pies
+  palette_is_colorblind_safe: true    # Okabe-Ito / viridis / PuOr defaults
+  dpi_floor: 300                      # tool_figure_create default
+
+next_protocol: null
+on_failure: guidance/dead_end_routing

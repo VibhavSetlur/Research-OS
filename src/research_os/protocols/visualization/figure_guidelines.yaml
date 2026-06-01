@@ -1,6 +1,6 @@
 id: figure_guidelines
 name: Figure Guidelines
-version: '6.0.0'
+version: '6.1.0'
 schema_version: '2.0'
 description: |
   Rules for picking the right chart type, producing publication-quality
@@ -8,6 +8,13 @@ description: |
   English captions, and ensuring every analysis step has at least one
   focal figure with both caption sidecars. Server-enforced via
   tool_audit_step_completeness.
+
+  This protocol is the STYLE-AND-RULES reference. For a full
+  visualization WORKFLOW (build / polish a figure or figure deck
+  without committing to analysis_plan), see
+  `visualization/visualization_workflow`. For a reviewer-style
+  critique of a single existing figure, see
+  `visualization/figure_critique`.
 
 mandatory_per_step_figure:
   rule: |

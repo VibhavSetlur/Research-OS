@@ -46,6 +46,7 @@ hierarchy:
     label: "Project intake + question lock-in"
     sub_intents:
       intake:     "Read inputs and propose project metadata"
+      mid_entry:  "Enter an in-progress project (prior work outside RO)"
   plan:
     label: "Planning + iteration"
     sub_intents:
@@ -79,12 +80,19 @@ hierarchy:
       bayesian:     "Bayesian workflow (priors → posterior → checks)"
       timeseries:   "Time-aware analysis + forecasting"
       subfield_pipeline: "Identify the specific subfield + survey its canonical pipeline"
+      eda:          "Exploratory data analysis + hypothesis generation"
+      comparison:   "Head-to-head benchmark of N methods on one task"
+      data_audit:   "Standalone data quality / QC audit"
+      power:        "Power / sample-size justification (standalone)"
+      reproduce:    "Attempt to reproduce a published analysis"
+      consult:      "Methodological consultation / explain / teach (no project commit)"
   literature:
     label: "Literature search + synthesis"
     sub_intents:
       search:           "Broad literature pass"
       systematic:       "PRISMA systematic review"
       evidence_grade:   "GRADE-style evidence synthesis"
+      compare:          "Compare-and-contrast 2-N papers"
   synthesize:
     label: "Final deliverables"
     sub_intents:
@@ -95,8 +103,13 @@ hierarchy:
       grant:     "Grant narrative"
       report:    "Technical / executive report"
       figures:   "Figure styling + guidelines"
+      viz_build: "Build / polish a figure or figure deck (workflow)"
       writing:   "Writing rules (methods, citations, conclusions, ...)"
       null_findings: "Publishable companion for refuted / inconclusive / abandoned"
+      slides:    "Talk / presentation deck (lab meeting / conference / defense)"
+      lay:       "Lay summary / press release / outreach"
+      update:    "Progress update for PI / advisor / lab"
+      inputs_only: "Synthesis from inputs/ alone (no in-RO analysis ran)"
   audit_wrap:
     label: "Audit + reproducibility"
     sub_intents:
@@ -113,6 +126,7 @@ hierarchy:
       quick:     "Fast critical appraisal of an external paper"
       code:      "Code review of analysis scripts (yours or collaborator's)"
       respond:   "Draft response to peer-review comments on YOUR paper"
+      figure:    "Critique a single figure (yours or theirs)"
 
 # ─────────────────────────────────────────────────────────────────────
 # GUIDANCE protocols
@@ -687,6 +701,371 @@ protocols:
     triggers: ["reproducibility", "reproducible", "rerun from scratch",
               "snapshot environment"]
     shortcut_tool: tool_audit_reproducibility
+
+# ─────────────────────────────────────────────────────────────────────
+# NEW (v2.2) — partial-workflow / role-specific protocols
+# Added for researchers entering mid-pipeline, doing viz-only work,
+# teaching, comparing methods, or producing non-paper deliverables.
+# ─────────────────────────────────────────────────────────────────────
+
+  visualization/visualization_workflow:
+    intent_class: synthesize
+    sub_intent: viz_build
+    summary: "Build / polish a figure or figure deck without committing to the full analysis_plan loop."
+    triggers:
+      - "make me a figure"
+      - "make a figure"
+      - "build me figures"
+      - "build a figure"
+      - "build a figure deck"
+      - "figure deck for"
+      - "polish my figure"
+      - "polish my figures"
+      - "polish my plots"
+      - "remake this chart"
+      - "remake the figure"
+      - "remake this figure"
+      - "i just need plots"
+      - "i just need figures"
+      - "visualize this"
+      - "give me a viz"
+      - "give me pretty figures"
+      - "pretty figures"
+      - "build figures from"
+      - "i want pretty figures"
+    token_estimate: 1500
+    decomposition:
+      - protocol: visualization/visualization_workflow
+        purpose: "Scope + plan figures, then build via tool_figure_create."
+      - tool: tool_figure_create
+        purpose: "Build each figure with palette / DPI / sidecars in one call."
+      - tool: tool_audit_figure_full
+        purpose: "Audit each figure."
+
+  visualization/figure_critique:
+    intent_class: review
+    sub_intent: figure
+    summary: "Reviewer-style critique of a single figure (yours or theirs)."
+    triggers:
+      - "critique this figure"
+      - "critique my figure"
+      - "review this plot"
+      - "review this figure"
+      - "review this chart"
+      - "is this a good figure"
+      - "what's wrong with this chart"
+      - "what's wrong with this figure"
+      - "improve this figure"
+      - "feedback on my figure"
+      - "feedback on my plot"
+      - "the reviewers complained about my figure"
+      - "how would you improve this figure"
+      - "figure 2 needs work"
+    token_estimate: 900
+    decomposition:
+      - protocol: visualization/figure_critique
+        purpose: "Walk the chart-family / encoding / caption critique."
+
+  synthesis/synthesis_slides:
+    intent_class: synthesize
+    sub_intent: slides
+    summary: "Build a presentation deck (lab meeting / conference / defense / invited / teaching)."
+    triggers:
+      - "make slides"
+      - "make me slides"
+      - "build the talk"
+      - "build my talk"
+      - "build a slide deck"
+      - "slide deck"
+      - "lab meeting deck"
+      - "conference slides"
+      - "defense talk"
+      - "defense slides"
+      - "powerpoint"
+      - "beamer"
+      - "marp"
+      - "reveal.js"
+      - "presentation deck"
+      - "deck for my talk"
+      - "deck for tomorrow"
+      - "i'm presenting"
+      - "job talk"
+      - "invited seminar"
+    token_estimate: 2000
+    decomposition:
+      - protocol: synthesis/synthesis_slides
+        purpose: "Pick audience + outline + slides spec."
+      - tool: tool_synthesize
+        args: {output_type: slides}
+      - tool: tool_audit_synthesis
+
+  synthesis/synthesis_lay_summary:
+    intent_class: synthesize
+    sub_intent: lay
+    summary: "Plain-language summary for non-experts (press / public / patient / funder / blog / social)."
+    triggers:
+      - "lay summary"
+      - "press release"
+      - "explain this to a non-scientist"
+      - "for the public"
+      - "for the patient newsletter"
+      - "blog post about this"
+      - "blog post for"
+      - "social media summary"
+      - "twitter thread"
+      - "x thread"
+      - "explain for my grandma"
+      - "explain for my mom"
+      - "for non-experts"
+      - "patient-facing"
+      - "outreach summary"
+      - "funder lay section"
+      - "translate this for a non-expert"
+    token_estimate: 1400
+    decomposition:
+      - protocol: synthesis/synthesis_lay_summary
+        purpose: "Pick lay audience + translate jargon + anchor numbers."
+      - tool: tool_synthesize
+        args: {output_type: lay_summary}
+
+  synthesis/synthesis_progress_update:
+    intent_class: synthesize
+    sub_intent: update
+    summary: "Short progress update for PI / advisor / lab / collaborator / stand-up."
+    triggers:
+      - "update my pi"
+      - "weekly update"
+      - "status update"
+      - "advisor update"
+      - "lab slack update"
+      - "blurb for my supervisor"
+      - "friday update"
+      - "what changed this week"
+      - "stand-up summary"
+      - "draft a status update"
+      - "what should i tell my advisor"
+      - "thesis advisor update"
+      - "milestone update"
+    token_estimate: 1200
+    decomposition:
+      - tool: tool_progress_digest
+        purpose: "Mechanical state snapshot to feed the update."
+      - protocol: synthesis/synthesis_progress_update
+        purpose: "Compose the audience-tailored update."
+
+  synthesis/synthesis_from_inputs:
+    intent_class: synthesize
+    sub_intent: inputs_only
+    summary: "Synthesis from inputs/ alone — when prior analyses were done outside Research-OS."
+    triggers:
+      - "synthesize from what i already have"
+      - "i have results write the paper"
+      - "i have results just write"
+      - "i have results — write"
+      - "consolidate my notes"
+      - "draft from my notes"
+      - "no need to re-run anything"
+      - "we already analysed this"
+      - "we already analyzed this"
+      - "just write it up"
+      - "migrate this old project into a paper"
+      - "inputs-only synthesis"
+      - "draft from inputs"
+    token_estimate: 1800
+    decomposition:
+      - protocol: synthesis/synthesis_from_inputs
+        purpose: "Build a shadow step + provenance manifest, then run target synthesis."
+      - tool: tool_context_intake
+      - tool: sys_path_create
+
+  methodology/exploratory_data_analysis:
+    intent_class: methodology
+    sub_intent: eda
+    summary: "Real exploratory data analysis + hypothesis generation (distinct from confirmatory EDA inside analysis_plan)."
+    triggers:
+      - "explore the data"
+      - "real eda"
+      - "do real eda"
+      - "exploratory data analysis pass"
+      - "no hypothesis yet"
+      - "is there a story here"
+      - "hypothesis generation"
+      - "generate hypotheses"
+      - "data understanding pass"
+      - "what should i be asking"
+      - "open-ended exploration"
+      - "find a hypothesis"
+    token_estimate: 1700
+    decomposition:
+      - protocol: methodology/exploratory_data_analysis
+        purpose: "Pre-register scope, profile, build univariate + bivariate views."
+      - tool: tool_data_profile
+      - tool: tool_figure_create
+
+  methodology/method_comparison:
+    intent_class: methodology
+    sub_intent: comparison
+    summary: "Head-to-head benchmark of N candidate methods on the same task."
+    triggers:
+      - "compare x vs y"
+      - "compare methods"
+      - "compare these methods"
+      - "compare these models"
+      - "benchmark these methods"
+      - "benchmark these models"
+      - "which model is best"
+      - "head-to-head"
+      - "head to head"
+      - "shoot-out"
+      - "bake-off"
+      - "bakeoff"
+      - "leaderboard"
+      - "horse race"
+      - "which estimator should i use"
+    token_estimate: 2000
+    decomposition:
+      - protocol: methodology/method_comparison
+        purpose: "Pre-register evaluation, implement each method, compare with uncertainty."
+
+  methodology/data_quality_audit:
+    intent_class: methodology
+    sub_intent: data_audit
+    summary: "Standalone data quality audit (schema / missingness / leakage / bias check)."
+    triggers:
+      - "audit this dataset"
+      - "data quality check"
+      - "data quality audit"
+      - "is this data usable"
+      - "qc pass on inputs"
+      - "qc pass on this data"
+      - "data sanity check"
+      - "check the data dictionary"
+      - "validate the schema"
+      - "before i trust this data"
+      - "check missingness"
+      - "check data leakage"
+    token_estimate: 1500
+    decomposition:
+      - protocol: methodology/data_quality_audit
+        purpose: "Schema + completeness + distribution + duplicate + leakage + bias checks."
+      - tool: tool_data_profile
+
+  methodology/power_analysis:
+    intent_class: methodology
+    sub_intent: power
+    summary: "Standalone power / sample-size justification (prospective / post-hoc sensitivity / sequential)."
+    triggers:
+      - "power analysis"
+      - "sample size"
+      - "sample size calculation"
+      - "how many subjects"
+      - "how many participants"
+      - "how many samples"
+      - "power calculation"
+      - "detectable effect size"
+      - "minimum detectable effect"
+      - "mde"
+      - "n required"
+      - "for the irb power"
+      - "for the grant power"
+      - "post-hoc power"
+      - "achieved precision"
+    token_estimate: 1500
+    decomposition:
+      - protocol: methodology/power_analysis
+        purpose: "Source effect size, name test, build power table + curve, justify N."
+
+  methodology/reproduction_attempt:
+    intent_class: methodology
+    sub_intent: reproduce
+    summary: "Attempt to reproduce a published analysis (rerun the authors' pipeline)."
+    triggers:
+      - "reproduce this paper"
+      - "reproduce the paper"
+      - "rerun their analysis"
+      - "rerun the code from"
+      - "can i get the same numbers"
+      - "check if their result reproduces"
+      - "reproduction attempt"
+      - "computational reproduction"
+      - "rescience"
+      - "redo the analysis from the paper"
+    token_estimate: 1800
+    decomposition:
+      - protocol: methodology/reproduction_attempt
+        purpose: "Inventory provided assets, pin env, rerun, compare numbers."
+
+  methodology/methodological_consultation:
+    intent_class: methodology
+    sub_intent: consult
+    summary: "Teach / explain / compare methods without committing to a project (intuition → mechanics → caveats)."
+    triggers:
+      - "explain to me"
+      - "teach me"
+      - "walk me through"
+      - "how does it work"
+      - "what's the difference between"
+      - "when would i use"
+      - "consult on"
+      - "help me think through"
+      - "what should i know about"
+      - "give me a primer on"
+      - "primer on"
+      - "before i use this method"
+      - "explain the method"
+      - "teach me a method"
+    token_estimate: 1300
+    decomposition:
+      - protocol: methodology/methodological_consultation
+        purpose: "Literature pass + layered explanation + reading list + next step."
+      - tool: tool_research_method
+
+  literature/comparative_paper_review:
+    intent_class: literature
+    sub_intent: compare
+    summary: "Compare-and-contrast 2-N papers (journal club / related work / reviewer-asked / foundational)."
+    triggers:
+      - "compare these papers"
+      - "contrast these papers"
+      - "contrast x and y papers"
+      - "journal club"
+      - "synthesize across these papers"
+      - "compare and contrast papers"
+      - "related work review"
+      - "head-to-head paper comparison"
+      - "papers x vs y vs z"
+      - "compare-and-contrast paper review"
+      - "review group of papers"
+    token_estimate: 1700
+    decomposition:
+      - protocol: literature/comparative_paper_review
+        purpose: "Scope dimensions, ingest each paper, build matrix, name common ground + disagreements."
+
+  guidance/mid_pipeline_entry:
+    intent_class: discover
+    sub_intent: mid_entry
+    summary: "Enter Research-OS with work already done outside it (route past redundant intake)."
+    triggers:
+      - "i'm mid-way through"
+      - "i'm midway through"
+      - "i already have results"
+      - "i have a draft just need"
+      - "i have a draft, just need"
+      - "we've been working on this for months"
+      - "i'm bringing this into research-os"
+      - "bringing this into ro"
+      - "import this project"
+      - "migrate this into ro"
+      - "migrate this into research-os"
+      - "starting from in-progress"
+      - "i have the analysis i need the writing"
+      - "i have the writing i need the figures"
+      - "this project started outside"
+    token_estimate: 1400
+    decomposition:
+      - protocol: guidance/mid_pipeline_entry
+        purpose: "Classify entry archetype + route to the right downstream protocol."
+      - tool: tool_context_intake
 
 # ─────────────────────────────────────────────────────────────────────
 # Cross-intent shortcuts (no protocol, just a tool)

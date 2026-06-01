@@ -1,10 +1,20 @@
 # Protocol Reference
 
-Research OS ships **52 YAML protocols** organised into nine categories.
+Research OS ships **66 YAML protocols** organised into nine categories.
 Each protocol is a sequence of steps the AI should follow, with explicit
 `expected_outputs`, a `next_protocol` pointer, and a `quality_bar`. All
 are indexed in `src/research_os/protocols/_router_index.yaml` for
 hierarchical routing via `tool_route`.
+
+The protocol surface deliberately covers BOTH the canonical
+data → publication pipeline AND the partial / off-axis workflows
+real researchers actually run: visualization-only requests, talk decks,
+lay summaries for non-experts, PI progress updates, exploratory data
+analysis with hypothesis generation, head-to-head method comparisons,
+standalone power analyses, reproduction attempts of published work,
+teaching / consultation modes, multi-paper comparative reviews, and
+mid-pipeline entry for projects already in flight. See [USE_CASES.md](USE_CASES.md)
+for a role × goal map of when each protocol fires.
 
 For the format of a protocol file, see
 [CONTRIBUTING.md § Adding or modifying a protocol](../CONTRIBUTING.md).
@@ -78,6 +88,7 @@ AND on-disk artifacts so migrated projects resume cleanly.
 | `guidance/dead_end_routing` | execute / abandon | "dead end", "abandon", "not working" |
 | `guidance/hypothesis_tracking` | memory / hypothesis | "add hypothesis", "list hypotheses" |
 | `guidance/glossary_update` | memory / glossary | "add to glossary", "define term" |
+| `guidance/mid_pipeline_entry` | discover / mid_entry | "i'm mid-way through", "i already have results", "bringing this into RO" |
 
 ### Domain — classification + design
 
@@ -104,12 +115,19 @@ AND on-disk artifacts so migrated projects resume cleanly.
 | `methodology/pilot_study` | Feasibility / variance estimation |
 | `methodology/mixed_methods` | Concurrent / sequential qual + quant |
 | `methodology/tool_discovery` | Find candidate libraries / CLIs |
+| `methodology/exploratory_data_analysis` | Real EDA + hypothesis generation (pre-registered scope) |
+| `methodology/method_comparison` | Head-to-head benchmark of N methods on one task |
+| `methodology/data_quality_audit` | Standalone data QC (schema / missingness / leakage / bias) |
+| `methodology/power_analysis` | Standalone power / sample-size justification |
+| `methodology/reproduction_attempt` | Reproduce a published analysis (rerun their pipeline) |
+| `methodology/methodological_consultation` | Teach / explain / compare methods (no project commit) |
 
 ### Literature
 
 * `literature/literature_search` — multi-database search.
 * `literature/systematic_review` — full PRISMA workflow.
 * `literature/evidence_synthesis` — GRADE-style grading + contradiction detection.
+* `literature/comparative_paper_review` — compare-and-contrast 2-N papers (journal club / related work / reviewer-asked / foundational).
 
 ### Writing
 
@@ -143,6 +161,21 @@ Each is venue/audience-tailored and enforces quality minimums:
   (nih_r01 / nsf / wellcome / erc / doe / industry). Specific Aims first.
 * `synthesis/synthesis_report` — audience profiles
   (internal_team / client / technical_audit / policy_brief).
+* `synthesis/synthesis_slides` — presentation deck (lab meeting /
+  conference short / conference long / defense / invited seminar /
+  teaching). Beamer / Marp / Reveal.js / PowerPoint output. Speaker
+  notes + Q&A anticipation are part of the deliverable.
+* `synthesis/synthesis_lay_summary` — non-expert summary
+  (general_public / press_release / funder_lay_section /
+  patient_or_participant / social_thread / blog_post). Reading-grade
+  capped; jargon replaced; numbers anchored.
+* `synthesis/synthesis_progress_update` — short PI / advisor / lab /
+  stand-up update. Sourced from the diff since the last update;
+  blockers + ask explicit.
+* `synthesis/synthesis_from_inputs` — synthesis when prior analyses
+  were done OUTSIDE Research-OS. Builds a shadow workspace step,
+  imports the artefacts, runs the chosen target synthesis on top,
+  with a provenance ceiling stated in the final deliverable.
 
 ### Audit + reproducibility
 
@@ -158,7 +191,14 @@ Each is venue/audience-tailored and enforces quality minimums:
 ### Visualization
 
 * `visualization/figure_guidelines` — chart-chooser + formatting standards
-  (palettes, fonts, DPI, error indicators).
+  (palettes, fonts, DPI, error indicators). The style-and-rules
+  reference.
+* `visualization/visualization_workflow` — build / polish a figure or
+  figure deck WITHOUT committing to the full analysis_plan loop. The
+  workflow counterpart of figure_guidelines.
+* `visualization/figure_critique` — reviewer-style critique of a
+  single figure (chart family, encoding, caption alignment,
+  sensitivity to alternative encoding).
 
 ---
 

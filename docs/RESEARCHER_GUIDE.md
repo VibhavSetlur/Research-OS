@@ -146,26 +146,82 @@ calls `sys_config_set interaction.autonomy_level=autopilot` and adjusts.
 
 ## Useful prompts (just copy-paste)
 
+### Starting a project
+
 ```
 fill out the intake
 look at my data
 what is in my inputs folder?
+i'm bringing this into research-os — we've been working on it for months
+i already have results, just write it up
+do real EDA — i don't have a hypothesis yet
+```
+
+### Mid-flow analysis
+
+```
 run a baseline EDA
 fit a logistic regression and check assumptions
 what should I do next?
+benchmark random forest vs xgboost head-to-head
+audit this dataset for data quality
+power analysis for the upcoming RCT
+freeze the analysis plan
+this experiment isn't working — abandon it and try X instead
+```
+
+### Reading + understanding
+
+```
+review this paper
+tear apart this paper as a tough reviewer
+journal club on these three papers
+explain mixed-effects models to me
+teach me propensity scores before i use them
+walk me through bayesian model averaging
+reproduce this paper — i want the same numbers
 find me papers about <topic>
 do a systematic review of <topic>
-this experiment isn't working — abandon it and try X instead
-make a dashboard for executives
-write the methods section
+```
+
+### Visualization
+
+```
+make me a figure from this CSV
+polish my figures for the talk
+build a figure deck for the paper
+critique this figure
+remake this chart for the dashboard
+```
+
+### Writing + synthesis
+
+```
 draft the paper for a journal submission
 draft an NIH R01 narrative
-write me a one-pager for my PI
+make a dashboard for executives
+build a poster for the conference
+build a slide deck for my defense
+build slides for a 12-minute conference talk
+write a lay summary for the public
+write a press release on this finding
+weekly update for my PI
+status update for my advisor
+write the methods section
+```
+
+### Operations
+
+```
 check reproducibility
 audit my workspace for issues
 fix my workspace
 wrap up the session
+pick up where we left off
+send to a collaborator
 ```
+
+For a complete role × goal × output map, see [USE_CASES.md](USE_CASES.md).
 
 ---
 
@@ -188,6 +244,7 @@ wrap up the session
 ## See also
 
 * [QUICKSTART.md](QUICKSTART.md) — 5-minute start.
+* [USE_CASES.md](USE_CASES.md) — role × goal × output map for picking the right protocol.
 * [GUIDE.md](GUIDE.md) — full tool + protocol reference (technical).
 * [PROTOCOLS.md](PROTOCOLS.md) — what each protocol does + when it fires.
 * [TOOLS.md](TOOLS.md) — every MCP tool, with example calls.

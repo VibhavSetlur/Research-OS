@@ -252,6 +252,183 @@ def test_active_tools_for_unknown_protocol(tmp_path):
     assert res["status"] == "error"
 
 
+def test_route_visualization_workflow(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Viz Workflow")
+    res = route_request("make me a figure from this CSV for the talk", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "visualization/visualization_workflow"
+    assert res["intent_class"] == "synthesize"
+    assert res["sub_intent"] == "viz_build"
+
+
+def test_route_figure_critique(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Figure Critique")
+    res = route_request("critique this figure for me", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "visualization/figure_critique"
+    assert res["intent_class"] == "review"
+    assert res["sub_intent"] == "figure"
+
+
+def test_route_synthesis_slides(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Slides")
+    res = route_request("build a slide deck for my conference talk", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_slides"
+    assert res["intent_class"] == "synthesize"
+    assert res["sub_intent"] == "slides"
+
+
+def test_route_lay_summary(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Lay Summary")
+    res = route_request("write a lay summary for the public", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_lay_summary"
+    assert res["intent_class"] == "synthesize"
+    assert res["sub_intent"] == "lay"
+
+
+def test_route_progress_update(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Progress")
+    res = route_request("weekly update for my pi", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_progress_update"
+    assert res["intent_class"] == "synthesize"
+    assert res["sub_intent"] == "update"
+
+
+def test_route_from_inputs_synthesis(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "From Inputs")
+    res = route_request(
+        "we already analysed this, just write it up", tmp_path
+    )
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "synthesis/synthesis_from_inputs"
+    assert res["intent_class"] == "synthesize"
+    assert res["sub_intent"] == "inputs_only"
+
+
+def test_route_exploratory_data_analysis(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "EDA")
+    res = route_request("do real eda on this dataset", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/exploratory_data_analysis"
+    assert res["intent_class"] == "methodology"
+    assert res["sub_intent"] == "eda"
+
+
+def test_route_method_comparison(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Method Compare")
+    res = route_request("benchmark these methods head-to-head", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/method_comparison"
+    assert res["intent_class"] == "methodology"
+    assert res["sub_intent"] == "comparison"
+
+
+def test_route_data_quality_audit(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Data QC")
+    res = route_request("data quality audit on this csv", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/data_quality_audit"
+    assert res["intent_class"] == "methodology"
+    assert res["sub_intent"] == "data_audit"
+
+
+def test_route_power_analysis(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Power")
+    res = route_request("power analysis for the irb", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/power_analysis"
+    assert res["intent_class"] == "methodology"
+    assert res["sub_intent"] == "power"
+
+
+def test_route_reproduction_attempt(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Reproduction")
+    res = route_request("reproduce this paper for me", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/reproduction_attempt"
+    assert res["intent_class"] == "methodology"
+    assert res["sub_intent"] == "reproduce"
+
+
+def test_route_methodological_consultation(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Consult")
+    res = route_request("teach me about mixed effects models", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "methodology/methodological_consultation"
+    assert res["intent_class"] == "methodology"
+    assert res["sub_intent"] == "consult"
+
+
+def test_route_comparative_paper_review(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Paper Compare")
+    res = route_request("compare these papers for journal club", tmp_path)
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "literature/comparative_paper_review"
+    assert res["intent_class"] == "literature"
+    assert res["sub_intent"] == "compare"
+
+
+def test_route_mid_pipeline_entry(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "Mid Entry")
+    res = route_request(
+        "i'm bringing this into research-os, we've been working on this for months",
+        tmp_path,
+    )
+    assert res["status"] == "success"
+    assert res["primary_protocol"] == "guidance/mid_pipeline_entry"
+    assert res["intent_class"] == "discover"
+    assert res["sub_intent"] == "mid_entry"
+
+
+def test_route_figure_guidelines_still_wins_on_style_prompt(tmp_path):
+    """figure_guidelines (style) should still win on a styling prompt,
+    not be hijacked by the new visualization_workflow."""
+    scaffold_minimal_workspace(tmp_path, "Figure Guidelines")
+    res = route_request("which color palette should i use for the dpi", tmp_path)
+    assert res["status"] == "success"
+    # Either figure_guidelines or visualization_workflow; we just check
+    # that figures-domain protocols win over unrelated ones.
+    assert res["primary_protocol"] in (
+        "visualization/figure_guidelines",
+        "visualization/visualization_workflow",
+    )
+
+
+def test_route_existing_protocols_not_hijacked_by_new_ones(tmp_path):
+    """Regression: adding 14 new protocols should not change routing
+    for any existing well-known trigger phrase."""
+    scaffold_minimal_workspace(tmp_path, "Regression")
+    # Each pair is (prompt, expected pre-existing protocol).
+    pairs = [
+        ("fill the intake", "guidance/project_startup"),
+        ("run a baseline EDA and then fit a random forest and audit",
+         "guidance/analysis_plan"),
+        ("draft the paper for a journal", "synthesis/synthesis_paper"),
+        ("review this paper", "guidance/quick_paper_review"),
+        ("review my code", "guidance/code_review"),
+        ("pick up where we left off", "guidance/session_resume"),
+        ("wrap up i need to come back tomorrow", "guidance/chat_handoff"),
+        ("make a poster for an academic conference",
+         "synthesis/synthesis_poster"),
+        ("build a dashboard for the lab meeting",
+         "synthesis/synthesis_dashboard"),
+        ("draft an nsf proposal", "synthesis/synthesis_grant"),
+        ("preregister this study before data lands",
+         "methodology/preregistration"),
+        ("send to a collaborator", "guidance/collaboration_handoff"),
+    ]
+    for prompt, expected in pairs:
+        res = route_request(prompt, tmp_path)
+        assert res["status"] == "success", prompt
+        assert res["primary_protocol"] == expected, (
+            f"Regression: {prompt!r} routed to "
+            f"{res['primary_protocol']!r}, expected {expected!r}"
+        )
+
+
 def test_plan_turn_recommends_chat_split_when_long(tmp_path):
     import yaml as _yaml
     scaffold_minimal_workspace(tmp_path, "PlanTurn Split")

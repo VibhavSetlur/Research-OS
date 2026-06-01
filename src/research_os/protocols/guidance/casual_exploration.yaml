@@ -1,6 +1,6 @@
 id: casual_exploration
 name: Casual Exploration
-version: '1.0.0'
+version: '1.1.0'
 schema_version: '2.0'
 description: |
   Lightweight mode for "I just want to poke at this." Skips reproducibility
@@ -8,6 +8,19 @@ description: |
   Use when the researcher explicitly says it's exploratory / for a meeting /
   not for publication. Anything that turns into real research can be
   upgraded to analysis_plan later — nothing is lost, just deferred.
+
+  Related lightweight modes (route to these when the prompt is more
+  specific than "just poke"):
+    - `methodology/exploratory_data_analysis` — real EDA + hypothesis
+      generation (pre-registered scope, not a casual sandbox)
+    - `methodology/data_quality_audit` — standalone data quality pass
+    - `methodology/methodological_consultation` — teach / explain a
+      method without project commit
+    - `visualization/visualization_workflow` — build figures without
+      the full analysis_plan loop
+    - `guidance/quick_paper_review` — quick critique of someone else's
+      paper
+    - `guidance/code_review` — vet an analysis script
 trigger: |
   Researcher says any of: "just poke around", "give me a quick look", "no
   publication", "exploratory only", "I'm just curious", "sanity check", or

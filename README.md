@@ -52,8 +52,14 @@ manage LLM provider keys — your IDE owns that.
 * **HPC ready.** SLURM submit / status / fetch. Per-step Apptainer
   recipes + reproducer `entrypoint.sh`.
 
-137 MCP tools, 52 YAML protocols, full hierarchical L1→L2→L3 routing
-keeps every session boot under ~1.2K tokens.
+138 MCP tools, 66 YAML protocols, full hierarchical L1→L2→L3 routing
+keeps every session boot under ~1.2K tokens. The protocol surface covers
+both the canonical data → publication pipeline AND the partial / off-axis
+workflows real researchers run (visualization-only, talk decks, lay
+summaries, PI updates, EDA + hypothesis generation, head-to-head method
+comparison, standalone power, reproduction of published work, teaching /
+consultation, multi-paper compare, mid-pipeline entry). See
+[`docs/USE_CASES.md`](docs/USE_CASES.md) for the role × goal map.
 
 ---
 
@@ -390,6 +396,7 @@ protocols + tools exist on disk.
 | [`docs/SETUP.md`](docs/SETUP.md) | Install + per-IDE MCP wiring + troubleshooting. |
 | [`docs/SETUP_PROMPT.md`](docs/SETUP_PROMPT.md) | Paste-into-any-AI installer prompt (no project needed). |
 | [`docs/RESEARCHER_GUIDE.md`](docs/RESEARCHER_GUIDE.md) | Non-technical walkthrough of the workflow. |
+| [`docs/USE_CASES.md`](docs/USE_CASES.md) | Role × goal × output map — which protocol for which researcher, which moment. |
 | [`docs/GUIDE.md`](docs/GUIDE.md) | Full technical reference: every tool + protocol + the pipeline. |
 | [`docs/PROTOCOLS.md`](docs/PROTOCOLS.md) | Protocol catalog — when each fires, what it does, quality bars. |
 | [`docs/TOOLS.md`](docs/TOOLS.md) | Tool catalog with example invocations. |
@@ -405,15 +412,24 @@ protocols + tools exist on disk.
 * **98 MCP tools** across `sys_*`, `tool_*`, `mem_*` namespaces. Dot
   notation (`sys.state.get`) and legacy names auto-rewrite. Run
   `python scripts/preflight.py` after install to verify everything is wired.
-* **52 YAML protocols** — the AI loads the right one based on what you ask.
+* **66 YAML protocols** — the AI loads the right one based on what you ask.
   Each declares an explicit `quality_bar` so output stays publication-grade
   even on smaller models. Coverage spans methodology (RCTs, clinical
   trials, observational causal, ML, meta-analysis, survey psychometrics,
   qualitative research, simulation/ADEMP studies, replication studies,
-  ablation studies, pilot studies, mixed methods) and guidance (session
-  boot/resume, autopilot mode with explicit gates, quick paper review,
-  casual exploration, chat/AI-to-AI handoff, iterative planning,
-  dead-end routing).
+  ablation studies, pilot studies, mixed methods, exploratory data
+  analysis with hypothesis generation, head-to-head method comparison,
+  standalone data quality audit, standalone power analysis, reproduction
+  of published work, methodological consultation / teaching), literature
+  (broad search, PRISMA systematic review, GRADE evidence synthesis,
+  comparative paper review for 2-N papers / journal clubs / related-work
+  sections), synthesis (paper, abstract, poster, dashboard, report,
+  grant, slides, lay summary, progress update, from-inputs, null
+  findings), visualization (figure rules, visualization workflow,
+  figure critique), and guidance (session boot/resume, autopilot,
+  quick paper review, code review, peer-review response, casual
+  exploration, chat/AI-to-AI handoff, collaboration handoff, iterative
+  planning, dead-end routing, mid-pipeline entry).
 * **One neutral config** at `templates/researcher_config.yaml`. No
   modality presets — `domain_analysis` infers the project shape from
   signals + literature, and the AI fills the config per-project. See

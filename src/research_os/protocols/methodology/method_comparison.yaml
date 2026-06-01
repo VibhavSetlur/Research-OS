@@ -1,0 +1,249 @@
+id: method_comparison
+name: Method Comparison (head-to-head benchmark)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Compare N candidate methods on the SAME prediction / estimation
+  task with the SAME data, the SAME evaluation, and the SAME
+  reporting. Distinct from:
+    - `methodology/methodology_selection` — that picks ONE; this
+      benchmarks N.
+    - `methodology/ablation_study` — that pulls components out of a
+      single method; this compares whole methods.
+    - `methodology/sensitivity_studies` / specification curve — that
+      perturbs analysis choices within one method; this varies the
+      method itself.
+    - `methodology/replication_study` — that asks whether a published
+      result reproduces; this asks which of N approaches works best
+      on YOUR problem.
+
+  The protocol exists because "I want to know if X beats Y" is one of
+  the most common asks researchers make, and one of the easiest to
+  do badly: leaky splits, inconsistent hyperparameter budgets, picking
+  the winner on the same data used to tune.
+
+trigger: |
+  Researcher says any of: "compare X vs Y", "benchmark these methods",
+  "which model is best", "head-to-head", "shoot-out", "bake-off",
+  "leaderboard", "which estimator should I use" (when more than one
+  is on the table), "horse race between X and Y".
+
+prerequisites:
+  - Active workspace step OR a clear dataset + outcome already in
+    workspace/methods.md.
+  - At least two candidate methods named.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Equal compute, equal information. Every method gets the same
+       data split, the same hyperparameter budget, the same featureset
+       (modulo what the method itself requires), the same evaluation
+       metric. Asymmetry in any of these makes the winner moot."
+    - "Pre-register the evaluation: which metric, which split, which
+       statistical test for differences. Comparing on whichever metric
+       made YOUR favourite win is the most common failure mode."
+    - "Uncertainty around a point estimate of accuracy is bigger than
+       researchers think. Run repeated splits / bootstrap CIs; report
+       the comparison as effect size + CI, not as 'X has higher
+       accuracy than Y'."
+    - "A method's loss on YOUR task is informative about the method's
+       fit to your data — it is NOT informative about the method's
+       general superiority. Resist over-generalising the comparison."
+
+steps:
+  - id: name_the_methods_and_the_task
+    name: Name the methods + the task
+    description: |
+      Confirm in one line:
+        - The TASK: classification / regression / ranking / survival /
+          counterfactual estimation / clustering quality / forecasting /
+          generation. State the OUTCOME variable explicitly.
+        - The N METHODS to compare. Each gets a candidate name (as the
+          literature names it) plus the implementation library if
+          already chosen.
+        - A baseline. Every comparison MUST include a baseline (a
+          simple model whose loss is the floor a real method should
+          beat) — logistic regression, mean predictor, prevalence
+          baseline, random forest with defaults, depending on task.
+
+  - id: ground_each_candidate
+    name: Ground each candidate in the literature (MANDATORY)
+    description: |
+      For EACH method (including the baseline), run:
+        tool_research_method query="<method> for <task type> with
+                                    <data structure>"
+      Save the canonical reference + a recent benchmark to the active
+      step's literature/ folder via
+      tool_literature_search_and_save.
+
+      The literature pass surfaces:
+        - default hyperparameter conventions for THIS task (so the
+          comparison isn't tuning one method's defaults against
+          another method's tuned values)
+        - typical pitfalls (leakage modes, calibration issues,
+          subgroup behaviour)
+        - the reporting standard the field uses for THIS kind of
+          comparison (e.g. McNemar for paired binary; DeLong for
+          ROC AUC differences; cluster-bootstrap for grouped data;
+          paired t for within-fold metric differences with proper
+          correction).
+
+  - id: pre_register_the_comparison
+    name: Pre-register the comparison protocol
+    description: |
+      Write workspace/<step>/comparison_plan.md BEFORE any model
+      is run against the test set:
+
+        ## Task + outcome
+          <one paragraph>
+        ## Methods (N + baseline)
+          - <method> — implementation — initial hyperparameter range
+                     — justification (citation_key)
+        ## Data split + evaluation regime
+          - the split mirrors deployment (time-forward / leave-one-
+            <unit>-out / random k-fold — pick from research_design)
+          - hyperparameter tuning runs INSIDE folds; nothing tunes
+            on the test set
+          - same featureset / preprocessing across methods (unless
+            the method requires its own — note the asymmetry)
+        ## Primary metric + secondary metrics
+          - primary: <the ONE metric the comparison is judged on>
+          - secondary: <calibration, time, memory, fairness, ...>
+        ## Statistical test for differences
+          - <paired test the field uses for this kind of metric on
+             this kind of data>
+          - multiple-comparison correction when N(N-1)/2 contrasts
+            are being checked
+        ## Stopping rule + tie-breaker
+          - <when do you declare a winner? what counts as a tie?>
+        ## Budget
+          - compute budget per method (wall-clock, gpu-hours)
+          - hyperparameter trial budget per method (same for all)
+
+      Freeze via tool_preregister_freeze if the comparison is high
+      stakes; otherwise the plan still serves as the SAP for the
+      diff that synthesis will surface.
+
+  - id: implement_each_method
+    name: Implement each method as a separate sub-task script
+    description: |
+      One script per method, named:
+        workspace/<step>/scripts/<NN>_<method_slug>_v1.<ext>
+
+      Every script consumes the SAME data input symlink, applies
+      the SAME preprocessing function (factored into a shared
+      utility script if needed), and writes its predictions /
+      estimates to:
+
+        workspace/<step>/data/output/<method_slug>_predictions.{csv|parquet}
+        workspace/<step>/data/output/<method_slug>_eval.json
+
+      Set RNG seeds explicitly in each script — different seeds in
+      different scripts is itself a confounder.
+
+  - id: tune_within_folds_not_on_test
+    name: Tune within folds; never on the test set
+    description: |
+      For methods with hyperparameters:
+        - hyperparameter search runs INSIDE the inner training fold
+          (nested CV / inner validation split / Bayesian opt with
+          early stopping)
+        - test set is touched ONCE per method, at the very end
+
+      Same trial budget for every method. A method given 500 trials
+      vs another given 5 is not being compared — it is being
+      advantaged. Log the trial budget per method in
+      workspace/<step>/outputs/reports/tuning_audit.md.
+
+  - id: evaluate_with_uncertainty
+    name: Evaluate with uncertainty (not point estimates)
+    description: |
+      Build for each method:
+        - the primary metric with a 95% CI (bootstrap over the test
+          set when the test set is fixed; cross-validation variance
+          when using repeated splits)
+        - the paired difference vs the baseline + 95% CI on the
+          difference
+        - the secondary metrics (calibration / time / memory / etc.)
+
+      Per the pre-registered statistical test, compute and report:
+        - p-values for pairwise method differences with the
+          appropriate correction (Bonferroni / Holm / Benjamini-
+          Hochberg — name the one used + cite it)
+        - effect sizes (the difference itself + its CI) — these
+          are what readers should react to, not p-values alone
+
+  - id: build_the_comparison_dashboard
+    name: Build the per-method comparison panel
+    description: |
+      tool_figure_create the canonical comparison figure for this
+      task family:
+        - classification → ROC + PR + calibration overlay per method
+        - regression → predicted-vs-actual + residual panel per method
+        - forecasting → metric-over-horizon line per method
+        - survival → KM + Brier per method
+
+      Plus a SUMMARY plot — typically a dot-and-whisker chart of
+      the primary metric per method with CIs. This is the figure
+      that will appear in the paper / talk.
+
+      One figure per kind, faceted by method. Each figure ends with
+      both caption sidecars.
+
+  - id: name_the_winner_honestly
+    name: Name the winner — honestly
+    description: |
+      Write workspace/<step>/conclusions.md > Findings:
+        - winner per the primary metric — by how much, with CI
+        - whether the difference is statistically meaningful AND
+          practically meaningful (a 0.005 ROC AUC difference with
+          tight CIs is statistically meaningful and clinically
+          irrelevant)
+        - the secondary-metric story: e.g. method B wins on accuracy
+          but is 50× slower; method C is calibrated; method D is
+          easier to maintain.
+        - the subgroup story when relevant: a winner overall that
+          loses on the minority subgroup is not the winner the
+          downstream user wants.
+
+      If no method clearly wins (overlapping CIs across the
+      primary metric), say so explicitly — "no clear winner; the
+      choice should be driven by secondary criteria X / Y".
+
+  - id: capture_generalisability_ceiling
+    name: Capture the generalisability ceiling
+    description: |
+      Append to conclusions.md > Limitations:
+        - the comparison is informative about THIS dataset + THIS
+          task; not about method superiority in general
+        - what data shapes would likely flip the winner (high-
+          dimensional, low-n, different class balance, different
+          deployment regime)
+        - the implementation choice (library, version, hyperparameter
+          range) matters — a tuned competing method might overtake;
+          the comparison is honest about the trial budget it gave
+          each side
+
+      This paragraph is what separates a useful comparison from a
+      mis-cited one.
+
+expected_outputs:
+  - workspace/<step>/comparison_plan.md
+  - workspace/<step>/scripts/<method>_v*.py
+  - workspace/<step>/data/output/<method>_predictions.*
+  - workspace/<step>/data/output/<method>_eval.json
+  - workspace/<step>/outputs/figures/<task>_per_method_panel.png
+  - workspace/<step>/outputs/figures/<task>_winner_summary.png
+  - workspace/<step>/outputs/reports/tuning_audit.md
+
+quality_bar:
+  same_split_same_features_same_budget: true
+  uncertainty_reported_alongside_winner: true
+  paired_statistical_test_named_and_cited: true
+  multiple_comparison_correction_when_n_gt_2: true
+  baseline_included: true
+  no_winner_overstated_beyond_dataset: true
+
+next_protocol: guidance/analysis_plan
+on_failure: guidance/dead_end_routing

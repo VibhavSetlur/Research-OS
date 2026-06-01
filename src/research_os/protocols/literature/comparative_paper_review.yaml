@@ -1,0 +1,260 @@
+id: comparative_paper_review
+name: Comparative Paper Review (compare / contrast 2-N papers)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Compare-and-contrast review of TWO OR MORE papers. Distinct from:
+    - `guidance/quick_paper_review` — that does a single-paper
+      appraisal; this synthesises across N.
+    - `literature/systematic_review` — that follows full PRISMA on
+      a broad question; this is the "I have 3-8 specific papers on
+      my desk" use case, not a screening pass.
+    - `literature/evidence_synthesis` — that grades a body of
+      evidence (GRADE-style) on a defined PICO; this can stay closer
+      to the papers themselves and is fine without a strict question
+      definition.
+
+  Typical contexts:
+    - journal club / reading group preparation
+    - related-work section that needs proper comparative grounding
+    - "the reviewer asked us to compare to X, Y, Z — what do they
+      do that we don't?"
+    - foundational reading for a new project (the 3-5 papers the
+      project must engage with)
+
+trigger: |
+  Researcher says any of: "compare these papers", "contrast X and Y",
+  "journal club on these", "synthesize across these papers", "what's
+  the difference between these approaches", "related work review",
+  "compare-and-contrast", "head-to-head paper comparison" (when about
+  papers, not methods), "X vs Y vs Z" (when those are paper titles).
+
+prerequisites:
+  - At least TWO papers / preprints / reports identified — PDF in
+    inputs/literature/ OR a DOI / URL the AI can fetch.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Compare on DIMENSIONS that matter for the researcher's intent —
+       prediction vs explanation papers don't compare on the same
+       dimensions; methods papers don't compare on the same dimensions
+       as empirical findings papers. Pick the dimensions deliberately."
+    - "Distinguish what the papers ACTUALLY did from what they
+       CLAIM. The Discussion often overshoots the Results. Compare
+       on what the data supports, not on the paper's own framing."
+    - "Treat disagreements as findings, not as one paper being
+       'wrong'. Two papers reaching different conclusions on the same
+       question usually differ on data / population / methodology /
+       outcome definition — the comparison's value is in surfacing
+       which differences explain the divergence."
+    - "End with WHERE THIS LEAVES the researcher's project. A
+       comparative review that produces no project-relevant
+       commitment (cite both, prefer one, branch a new experiment,
+       adopt a third's methodology) hasn't earned its time."
+
+audience_profile:
+  journal_club:
+    sections: [Papers, Common_ground, Key_disagreements, Method_compare, Discussion_questions]
+    notes: |
+      Lab meeting / reading group. Discussion questions matter
+      more than verdicts; the point is to spark conversation.
+  related_work_section:
+    sections: [Coverage_map, Per_paper_paragraph, Positioning_our_work, Gap_we_address, References]
+    notes: |
+      Goes verbatim or near-verbatim into a Related Work section.
+      Each paper gets one paragraph; the positioning paragraph
+      states where the researcher's project sits relative to the
+      reviewed work.
+  reviewer_response:
+    sections: [What_reviewer_asked, Each_paper_summarised, What_they_share_with_our_work, What_we_do_differently, Citation_added]
+    notes: |
+      Reviewer asked you to engage with N papers. Each paper gets
+      a specific comparison; the rebuttal letter explains what was
+      added to the manuscript.
+  foundational_reading:
+    sections: [Why_these_papers, Per_paper_summary, Cross_paper_synthesis, Implications_for_the_project, Reading_order_for_lab_mates]
+    notes: |
+      The first 3-5 papers a new project must engage with. End
+      with a reading order so anyone who joins the project can
+      get up to speed.
+
+steps:
+  - id: scope_the_comparison
+    name: Scope the comparison
+    description: |
+      Confirm:
+        - which papers (titles + DOIs / paths)
+        - audience: journal_club | related_work_section |
+          reviewer_response | foundational_reading
+        - the DIMENSIONS the comparison should cover — pick from:
+          research question / data / population / methods / primary
+          outcome / headline finding / limitations / claimed
+          contribution / connections to upstream literature /
+          relevance to MY project
+
+      Picking the dimensions BEFORE reading prevents the comparison
+      from drifting into "first paper good, second paper good, both
+      good." Force the researcher (or the autopilot inference) to
+      name 4-7 dimensions to compare on.
+
+  - id: ingest_each_paper
+    name: Ingest each paper (notes per dimension)
+    description: |
+      For each paper:
+        - sys_file_read on the PDF if text-extractable, OR
+          tool_web_scrape on the URL
+        - extract into workspace/scratch/<paper_slug>_notes.md the
+          fields the comparison dimensions need:
+            * research question (one sentence)
+            * data + population (one sentence)
+            * method used + canonical reference for it
+            * headline number + unit + uncertainty
+            * stated limitations
+            * stated claimed contribution
+            * upstream references the paper builds on
+
+      Do NOT summarise the paper for the researcher yet — these
+      notes feed the comparison matrix.
+
+  - id: build_comparison_matrix
+    name: Build the comparison matrix
+    description: |
+      Write workspace/scratch/comparison_matrix.md as a markdown
+      table with one ROW per paper and one COLUMN per dimension
+      named in scope:
+
+        | Paper | RQ | Data | Population | Method | Headline | Limitations | ... |
+
+      Cells are SPECIFIC and PARALLEL — "regression" vs "Cox PH on
+      n=412 with FU=4y" is parallel; "regression" vs "neural net"
+      is not. Force each cell to the same depth.
+
+      The matrix is the protocol's central artefact. Every claim
+      downstream cites a row+column.
+
+  - id: name_common_ground
+    name: Name what the papers AGREE on
+    description: |
+      Read across the matrix and write a SHORT section on common
+      ground:
+        - shared assumptions about the research question / population
+        - shared methodological commitments (e.g. all preregistered;
+          all use the same outcome definition)
+        - shared findings (e.g. all report a directionally similar
+          effect, even if magnitudes differ)
+
+      Common ground is interesting to readers and matters to the
+      project's positioning. If the papers share more than they
+      disagree, the cross-paper synthesis matters more than any
+      individual paper.
+
+  - id: name_disagreements
+    name: Name the disagreements (and explain them)
+    description: |
+      Where the papers diverge:
+        - identify the SPECIFIC dimension on which they disagree
+        - look at the adjacent dimensions for the DRIVER of the
+          disagreement (different data / different population /
+          different methods / different outcome definition / different
+          time period)
+        - cite each paper's stated explanation for any divergence
+          from prior work
+        - identify any remaining unexplained disagreement — these
+          are the live questions in the field
+
+      A comparative review whose only finding is "papers disagree"
+      has not done its job. Force the explanation step.
+
+  - id: methodological_compare
+    name: Methodological compare-and-contrast
+    description: |
+      Walk the methods column carefully:
+        - same method, different parameters? → flag and explain
+        - different method families? → name the COMPARABILITY
+          ceiling (a logistic regression's coefficient and a random
+          forest's variable importance are not the same quantity)
+        - one paper does an analysis the other does not? → call out
+          the gap explicitly
+        - one paper preregistered, the other did not? → call out
+          the credibility asymmetry
+
+      For each methodological gap that matters for the researcher's
+      project, route a follow-up:
+        - to methodology/method_comparison when the project will
+          benchmark these methods
+        - to methodology/methodological_consultation when the
+          researcher needs to learn one of the methods deeper
+
+  - id: position_the_researchers_project
+    name: Position the researcher's project (when applicable)
+    description: |
+      For audiences related_work_section / reviewer_response /
+      foundational_reading — name explicitly:
+        - which of the papers' commitments the researcher's project
+          INHERITS
+        - which it DEPARTS from + WHY
+        - the GAP the project addresses that NONE of the papers
+          address
+        - which paper is the NEAREST NEIGHBOUR (most-comparable
+          predecessor) and which is the most DISTANT but still
+          worth citing
+
+      This positioning paragraph is what the comparative review
+      contributes to the project. Skip only for journal_club
+      audience (where the goal is discussion, not project
+      positioning).
+
+  - id: write_the_review_brief
+    name: Write the review brief
+    description: |
+      sys_file_write filepath="workspace/reviews/comparative_<slug>.md"
+      per the audience profile's sections.
+
+      Universal elements:
+        - paper list (title, authors, year, DOI)
+        - comparison matrix (the table from build_comparison_matrix)
+        - common ground (one short section)
+        - disagreements + drivers (one short section)
+        - methodological compare (one short section)
+        - positioning (when applicable)
+        - discussion questions (journal_club)
+        - references
+
+      Cap at:
+        journal_club        → 1200 words
+        related_work_section → 1500 words + ready-to-paste paragraphs
+        reviewer_response   → 1000 words
+        foundational_reading → 2000 words
+
+      Citation honesty: every claim that ANY paper makes is sourced
+      to a specific page / section / table — not paraphrased into
+      an unsourced bullet.
+
+  - id: hand_back
+    name: Hand back + offer the follow-up
+    description: |
+      Report:
+        - "workspace/reviews/comparative_<slug>.md — N papers
+           compared across M dimensions; X disagreements identified;
+           Y methodological gaps."
+        - For related_work_section + foundational_reading: offer to
+          import the comparison matrix verbatim into
+          workspace/citations.md so synthesis can cite from it.
+        - For reviewer_response: offer to route to
+          guidance/peer_review_response to draft the actual rebuttal.
+
+expected_outputs:
+  - workspace/scratch/<paper_slug>_notes.md
+  - workspace/scratch/comparison_matrix.md
+  - workspace/reviews/comparative_<slug>.md
+
+quality_bar:
+  comparison_dimensions_named_before_reading: true
+  matrix_cells_at_parallel_depth: true
+  common_ground_and_disagreements_both_named: true
+  every_disagreement_has_a_proposed_driver: true
+  positioning_paragraph_for_project_audiences: true
+
+next_protocol: null
+on_failure: guidance/dead_end_routing

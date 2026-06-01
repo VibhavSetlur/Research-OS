@@ -4,6 +4,177 @@ All notable changes to Research OS are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) ·
 versioning: [SemVer](https://semver.org).
 
+## [2.2.0] — Partial-workflow + role-specific protocols
+
+Coverage release. Audits the protocol surface against how researchers
+actually USE Research OS — many enter mid-pipeline, want viz without
+re-running analysis, need a talk deck instead of a paper, or want to
+TEACH a method rather than commit to one. Adds 14 new protocols
+covering visualization-only, role-specific synthesis (slides / lay
+summary / progress update / from-inputs), and methodology workflows
+that didn't have a home (real EDA + hypothesis generation, head-to-
+head method comparison, standalone data quality, standalone power,
+reproduction of published work, methodological consultation /
+teaching, multi-paper compare, mid-pipeline entry). All scaffolds,
+not scripts.
+
+### New protocols — visualization
+* `visualization/visualization_workflow` — full WORKFLOW counterpart of
+  `figure_guidelines` (the existing rules-only doc). Scope → locate
+  sources → enumerate figures → compute minimal inputs → build via
+  `tool_figure_create` → sensitivity-check → audit → promote/curate.
+  Routes from "make me a figure", "polish my figures", "build a
+  figure deck".
+* `visualization/figure_critique` — reviewer-style critique of a single
+  figure. Chart-family / encoding / information-density / caption-
+  alignment walk + one alternative-encoding sensitivity proposal.
+  Routes from "critique this figure", "review this plot".
+
+### New protocols — synthesis
+* `synthesis/synthesis_slides` — presentation deck with six audience
+  profiles (lab_meeting / conference_talk_short / conference_talk_long /
+  defense / invited_seminar / teaching), four output formats
+  (Beamer / Marp / Reveal.js / PowerPoint), mandatory speaker notes,
+  mandatory Q&A anticipation + backup deck.
+* `synthesis/synthesis_lay_summary` — non-expert summary with six
+  audience profiles (general_public / press_release / funder_lay_section
+  / patient_or_participant / social_thread / blog_post). Reading-grade
+  cap; jargon-replacement glossary; anchor comparisons for every
+  number; supportive recommendation for a human review pass on
+  high-stakes outputs.
+* `synthesis/synthesis_progress_update` — short PI / advisor / lab /
+  collaborator / stand-up update sourced from the diff since the
+  last update; blockers + ask explicit; one-per-day file naming so
+  the chain of updates becomes a searchable project diary.
+* `synthesis/synthesis_from_inputs` — synthesis when prior analyses
+  ran OUTSIDE Research-OS. Creates a labelled SHADOW workspace step
+  to anchor the synthesis (so audit + dashboard tooling still works),
+  extracts findings from input artefacts with explicit citations,
+  runs the chosen target synthesis on top, surfaces an honest
+  PROVENANCE CEILING paragraph in the final deliverable.
+
+### New protocols — methodology
+* `methodology/exploratory_data_analysis` — real EDA + hypothesis
+  generation (distinct from confirmatory EDA inside analysis_plan
+  and from the lightweight `casual_exploration`). Pre-registers the
+  SCOPE of exploration before outcomes are examined; caps subgroup
+  splits; marks generated hypotheses with `status="exploratory"`;
+  forbids confirmatory claims on the same data; audits for
+  forking-paths, target leakage, and over-reach.
+* `methodology/method_comparison` — head-to-head benchmark of N
+  candidate methods on the same task. Same split + same featureset +
+  same hyperparameter budget; tune-inside-folds; uncertainty (CIs
+  + paired tests + correction) reported alongside the winner;
+  baseline mandatory; honest generalisability ceiling.
+* `methodology/data_quality_audit` — standalone data QC. Structural /
+  completeness / distributional / duplicate / leakage / temporal /
+  cross-source / representation checks. Verdict in one of four
+  classes (usable / usable with conditions / usable for subset only /
+  not usable) with reproducible-check evidence per blocker.
+* `methodology/power_analysis` — standalone power / sample-size
+  justification. Three shapes (prospective / post-hoc sensitivity /
+  sequential). Explicitly refuses classical post-hoc power; replaces
+  with detectable-effect-size analysis. Builds a power TABLE (not a
+  single number) across an effect × alpha × allocation × attrition
+  grid + a power-curve figure + a reviewer-facing justification
+  paragraph.
+* `methodology/reproduction_attempt` — attempt to reproduce a
+  PUBLISHED analysis (distinct from `replication_study` which runs
+  the analysis on new data, and from `reproducibility/reproducibility`
+  which audits OUR OWN work). Honest verdict in one of six classes
+  (regenerated / regenerated-with-deviations / partial /
+  failed-mechanically / failed-substantively / blocked-by-
+  unavailability). Numerical diff table; cause hierarchy walks
+  mechanical → substantive; author engagement encouraged before
+  publishing the failure.
+* `methodology/methodological_consultation` — teach / explain / compare
+  methods WITHOUT committing to a project. Layered explanation
+  (intuition → mechanics → caveats → reading list); literature-
+  grounded BEFORE the explanation so it reflects current consensus.
+  Failure-mode layer matches the depth of the mechanics layer
+  (half of methodological skill is knowing how to break what you're
+  about to use). Optional save to `docs/consultations/`.
+
+### New protocols — literature
+* `literature/comparative_paper_review` — compare-and-contrast 2-N
+  papers (distinct from `quick_paper_review` (single paper) and from
+  the broader `systematic_review` / `evidence_synthesis`). Four
+  audience profiles (journal_club / related_work_section /
+  reviewer_response / foundational_reading). Comparison matrix with
+  cells at parallel depth; common ground + disagreements both
+  named; positioning paragraph for project audiences.
+
+### New protocols — guidance
+* `guidance/mid_pipeline_entry` — explicit entry for researchers
+  arriving with work ALREADY DONE outside Research-OS (distinct from
+  `session_boot` which fires every session, `session_resume` for
+  paused RO projects, and `project_startup` for fresh data dumps).
+  Classifies the entry into one of seven archetypes (DATA-READY /
+  ANALYSES-READY / FIGURES-READY / SYNTHESIS-READY / PRIOR-RO-PROJECT
+  / CONCEPTUAL / MIXED) and routes to the right downstream protocol
+  without forcing redundant intake. Records the provenance ceiling
+  so downstream audits know what was reasoned vs imported.
+
+### Router hierarchy — new sub-intents
+Added to `_router_index.yaml`:
+* `discover.mid_entry` — enter an in-progress project
+* `methodology.eda` / `comparison` / `data_audit` / `power` /
+  `reproduce` / `consult`
+* `literature.compare`
+* `synthesize.slides` / `lay` / `update` / `inputs_only` / `viz_build`
+* `review.figure`
+
+### Docs
+* `docs/USE_CASES.md` (new) — role × goal × output map. Picks the
+  right protocol by researcher role (grad student / PI /
+  methodologist / reviewer / communicator / teacher / presenter /
+  starting-in-the-middle / viz-only / no-project-yet) and by output
+  type (paper / poster / dashboard / slides / lay summary / report /
+  grant / progress update / critique / reproduction report / power
+  justification / consultation).
+* `docs/RESEARCHER_GUIDE.md` — copy-paste prompts section expanded with
+  categorised entries (starting / mid-flow analysis / reading +
+  understanding / visualization / writing + synthesis / operations).
+  Cross-references USE_CASES.
+* `docs/PROTOCOLS.md` — protocol counts and per-category lists updated.
+  Cross-references USE_CASES.
+* `README.md` — top-line counts updated (66 protocols), feature
+  description names the role / partial-workflow coverage explicitly,
+  documentation table links USE_CASES.
+
+### Existing protocols — cross-references added (no behaviour change)
+* `visualization/figure_guidelines` (v6.0.0 → v6.1.0) — description
+  cross-references `visualization_workflow` (workflow counterpart)
+  and `figure_critique` (single-figure critique). No step changes.
+* `guidance/casual_exploration` (v1.0.0 → v1.1.0) — description lists
+  the related lightweight modes (`exploratory_data_analysis`,
+  `data_quality_audit`, `methodological_consultation`,
+  `visualization_workflow`, `quick_paper_review`, `code_review`) so
+  the AI knows when to route to a more-specific protocol instead.
+  No step changes.
+
+### Tests
+* `tests/tools/test_router.py` — 14 new tests, one per new protocol,
+  asserting correct L1 / L2 / L3 routing for a representative
+  trigger. Plus a regression test verifying that adding 14 new
+  protocols does NOT change routing for any of 12 well-known
+  pre-existing trigger phrases.
+* `tests/integration/test_all_protocols_load.py` — path bug fix
+  (the parametrize was silently empty because
+  `tests/src/research_os/protocols/` did not exist; one more
+  `.parent` was needed). Now correctly parametrizes over every
+  protocol on disk + skips underscore-prefixed special files
+  (router index). Coverage went from 0 to 67 protocols loaded.
+
+### Preflight
+67 protocols indexed, all router refs resolve, all tool refs resolve.
+13 / 13 preflight checks pass.
+
+### Test count
+342 passed (was 259, +83 new). 1 skipped.
+
+---
+
 ## [2.1.0] — Reasoning scaffolds, branch-aware paths, domain-agnostic deep research
 
 Doctrine + capability release. Codifies the protocol-design principle
