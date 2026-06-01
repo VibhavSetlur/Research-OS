@@ -209,6 +209,13 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                 config["authors"] = existing
             if overrides.get("depth"):
                 config.setdefault("research_goal", {})["target_venue"] = overrides["depth"]
+            # API keys: merge non-empty values into the api_keys: block.
+            if overrides.get("api_keys"):
+                api_keys_in = overrides["api_keys"]
+                if isinstance(api_keys_in, dict):
+                    for k, v in api_keys_in.items():
+                        if isinstance(v, str) and v.strip():
+                            config.setdefault("api_keys", {})[k] = v.strip()
             cfg_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
         except Exception as e:
             logger.warning(f"Failed to apply config overrides: {e}")

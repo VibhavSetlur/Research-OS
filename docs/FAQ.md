@@ -38,6 +38,55 @@ The protocols will automatically background long jobs via `tool_task_run`
 
 ---
 
+## Setup & configuration
+
+### How do I add an API key later?
+
+Edit `inputs/researcher_config.yaml` under the `api_keys:` block. The
+file is created with `chmod 600` (owner read/write only) so secrets are
+not world-readable. Example:
+
+```yaml
+api_keys:
+  semantic_scholar: "s2_..."
+  serpapi: "..."
+  firecrawl: "fc_..."
+```
+
+You can leave any key blank. Research OS falls back to keyless public
+endpoints (Crossref, PubMed, arXiv) automatically and only enables the
+paid / rate-limited search backend when its key is present. No restart
+needed — the server re-reads the file each session.
+
+### Do I have to read all 87 protocols to know which to use?
+
+No. You never browse protocols. You speak in plain English; `tool_route`
+maps your message to the right protocol via a hierarchical L1 → L2 → L3
+picker. "make me a dashboard for executives", "fit a logistic regression",
+"tear apart this paper as a tough reviewer" all resolve to one protocol
+with no menu surfing on your end.
+
+If you *want* to browse — for example to scope what Research OS can do
+before committing a project — open [USE_CASES.md](USE_CASES.md). It is
+the role × goal × output map (PI vs grad student vs reviewer × explore
+vs publish vs teach × paper / poster / dashboard / lay summary). It
+points each row at the protocol that will fire, so you can read the
+catalogue from the outside-in instead of YAML-by-YAML.
+
+### How do I add another AI IDE later?
+
+```bash
+research-os ide add <name>     # e.g. windsurf, continue, aider
+research-os ide list           # see what's wired
+research-os ide remove <name>  # tear out one config
+```
+
+This drops only the new IDE's MCP config; nothing else in the workspace
+changes, no `--force` needed, and a row is appended to `CONTRIBUTORS.md`
+so the project's history shows who wired what.
+
+---
+
 ## Workflow
 
 ### I just want to dump files and have the AI figure out the rest. Possible?

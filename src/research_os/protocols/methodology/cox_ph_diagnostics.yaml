@@ -1,0 +1,222 @@
+id: cox_ph_diagnostics
+name: Cox PH Diagnostics (Proportional Hazards check + fallback routing)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Whenever a Cox proportional-hazards model is fit (lifelines `CoxPHFitter`,
+  R `survival::coxph`, statsmodels PH regression, sksurv `CoxPHSurvivalAnalysis`,
+  Stata `stcox`, SAS `PROC PHREG`), the proportional-hazards assumption must
+  be tested — NOT assumed. A violated PH assumption silently biases hazard
+  ratios and inflates confidence in the point estimate; reviewers and editors
+  at survival-heavy journals (JCO, Stat Med, Lancet, NEJM) will reject papers
+  that report Cox hazard ratios without an explicit PH check.
+
+  This protocol forces the AI to:
+    1) detect the Cox fit,
+    2) run the Schoenfeld residual test (Grambsch-Therneau),
+    3) plot scaled Schoenfeld residuals over time per covariate,
+    4) inspect log-log survival plots for stratifying variables,
+    5) if the global or any per-covariate test is violated, route to a
+       FALLBACK strategy (stratified Cox, time-varying coefficient,
+       accelerated failure time, time-split Cox) and document the choice.
+
+  The protocol is GUIDANCE — Research OS does not run the stats itself;
+  the AI writes a `tool_python_exec` (or `tool_r_exec`) script that
+  performs the test, saves the per-covariate p-value table + the
+  log-log + scaled-Schoenfeld figures with provenance sidecars, then
+  reads the report.
+
+trigger: |
+  Any of the following is true:
+    - The active step's methods.md names a Cox PH model.
+    - A `scripts/*.py` in the step imports `lifelines.CoxPHFitter`
+      or `sksurv.linear_model.CoxPHSurvivalAnalysis` or
+      `statsmodels.duration.hazard_regression.PHReg`.
+    - A `scripts/*.R` calls `survival::coxph(`.
+    - Researcher says "cox", "cox ph", "proportional hazards",
+      "hazard ratio", "schoenfeld", "log-log plot", "coxph", "PHREG".
+    - `audit/audit_and_validation` step 3 (audit_assumptions) detects a
+      survival regression and routes here for the PH-specific checks.
+
+prerequisites:
+  - A Cox model has been fit (or is about to be fit) on a survival dataset
+    with `duration` + `event` columns.
+  - The covariate set is documented (in methods.md or the script).
+  - Residuals are computable (the model object must be retained, OR the
+    script must be re-run with `residuals=True`).
+
+editorial_voice:
+  mode: prescription
+  rules:
+    - "Every Cox PH model SHIPS WITH a Schoenfeld test + a log-log plot
+       + a per-covariate p-value table. Anything less is incomplete."
+    - "A violated PH assumption is not a paper-killer — it is a routing
+       signal. Stratify, interact-with-time, switch to AFT, or split
+       follow-up. Document the choice, do NOT silently ignore."
+    - "The global Schoenfeld test alone is insufficient — global non-
+       rejection can mask covariate-specific violations and vice versa.
+       Always report BOTH global + per-covariate p-values."
+    - "Visual inspection complements the test. Schoenfeld p-values
+       depend on the chosen transformation of time; the scaled-
+       residuals plot is the assumption-free check."
+    - "Reproducibility: the test + plot script is committed to
+       `workspace/<step>/scripts/`, not to scratch/. The audit consumes
+       the on-disk artefacts."
+
+steps:
+  - id: detect_cox_fit
+    name: Detect that a Cox PH model has been (or will be) fit
+    description: |
+      Confirm one of the following before proceeding:
+        - methods.md names "Cox PH" / "proportional hazards" with the
+          covariate list,
+        - a script imports `lifelines.CoxPHFitter` or equivalent,
+        - the researcher answered "yes, a Cox PH model".
+      If none holds, exit and route back. Do NOT diagnose a non-Cox
+      survival model with this protocol (parametric AFT, Aalen
+      additive, Royston-Parmar all have their own diagnostics).
+
+  - id: write_diagnostics_script
+    name: Write the PH-diagnostics script
+    description: |
+      sys_file_write a script at
+      `workspace/<step>/scripts/<NN>_cox_ph_diagnostics_v1.py`
+      (or `.R`) that:
+
+        Python / lifelines:
+          - fits or re-loads the CoxPHFitter,
+          - calls `cph.check_assumptions(df, p_value_threshold=0.05,
+            show_plots=True, advice=True)` — wraps both the
+            Grambsch-Therneau test and the scaled Schoenfeld plots,
+          - saves the per-covariate p-value table to
+            `data/output/cox_ph_test.csv`
+            (columns: covariate, test_statistic, p_value,
+            chi_sq_df, transformation),
+          - saves the scaled-Schoenfeld figure to
+            `outputs/figures/cox_scaled_schoenfeld.png`,
+          - saves the log-log survival plot
+            (lifelines `KaplanMeierFitter.plot_loglogs` per stratum
+            for each categorical covariate) to
+            `outputs/figures/cox_loglog_<covariate>.png`,
+          - writes `outputs/reports/cox_ph_diagnostics.md`
+            with the global p-value, the per-covariate table, and
+            an interpretation paragraph,
+          - writes a `.prov.json` sidecar for every figure +
+            csv (or relies on `tool_figure_create` which does it
+            automatically when used to render the plots).
+
+        R / survival:
+          - calls `cox.zph(fit)` — the Grambsch-Therneau test,
+          - `plot(cox.zph(fit))` for the scaled-Schoenfeld curves,
+          - `survfit(Surv(...) ~ stratum)` + `plot(..., fun = "cloglog")`
+            for the log-log,
+          - writes the same artefacts under
+            `data/output/` + `outputs/figures/` +
+            `outputs/reports/`.
+
+      Use a deterministic seed (numpy.random.default_rng(seed=…) or
+      set.seed) even though Cox is not stochastic — many downstream
+      bootstrap CI calculations are.
+
+  - id: run_and_read
+    name: Run the script + read the report
+    description: |
+      tool_python_exec script=<path-from-step-2> (or `tool_r_exec`).
+      Then sys_file_read `outputs/reports/cox_ph_diagnostics.md` and
+      surface to the researcher:
+        - the global Grambsch-Therneau p-value,
+        - the per-covariate p-values (the table),
+        - the SCALED-SCHOENFELD figure path (the assumption-free
+          visual),
+        - one log-log path per stratifying categorical covariate,
+        - a one-line verdict: "PH assumption holds" |
+          "global violation" | "violation in <covariate>".
+
+  - id: route_on_violation
+    name: Route on violation — pick a fallback strategy
+    description: |
+      If ANY per-covariate p-value < 0.05 OR the global p-value < 0.05
+      OR the scaled-Schoenfeld plot shows a non-flat trend in the
+      assistant's reading:
+
+        Strategy A — STRATIFY by the violating covariate.
+          Refit with `strata=[violating_covariate]` (lifelines) or
+          `+ strata(violating_covariate)` (R survival). Loses the
+          hazard-ratio estimate FOR that covariate (becomes
+          nuisance); preserves it for the rest. Cheapest fix.
+
+        Strategy B — TIME-VARYING COEFFICIENT for the violating
+          covariate. Refit with `time_varying_covariate` in lifelines
+          via `CoxTimeVaryingFitter` after long-format conversion,
+          or `tt(covariate)` in R survival's `coxph`. Preserves
+          the hazard-ratio interpretation but as a function of time;
+          report HR at chosen anchor times.
+
+        Strategy C — SWITCH MODEL FAMILY to an Accelerated Failure
+          Time (AFT) model: `lifelines.WeibullAFTFitter`,
+          `LogLogisticAFTFitter`, or `LogNormalAFTFitter`. AFT
+          models trade hazard ratios for time ratios; report time
+          ratios with CIs. Justify the parametric family with an AIC
+          comparison.
+
+        Strategy D — SPLIT FOLLOW-UP at the kink. If the violation
+          is a single early/late kink (visible in the scaled-
+          Schoenfeld plot), refit Cox on the pre-kink and post-kink
+          segments and report stage-wise hazard ratios. Use the
+          piecewise approach only when the kink is interpretable
+          (treatment effect that wanes after year 2, for example).
+
+      Use `mem_decision_log` to record:
+        - which covariate(s) violated,
+        - which strategy was chosen,
+        - why (the trade-off explicit),
+        - the new model's per-covariate PH test (re-run this
+          protocol's step 2-3 on the new fit).
+
+      If NO violation, append a one-line note to conclusions.md:
+      "PH assumption supported (global Grambsch-Therneau p=<value>,
+      all per-covariate p>0.05; see outputs/reports/cox_ph_diagnostics.md)."
+
+  - id: append_to_methods_and_conclusions
+    name: Append to methods.md + conclusions.md
+    description: |
+      mem_methods_append should already have documented the Cox model;
+      now append a method line for the diagnostic:
+
+        method="Schoenfeld residual test (Grambsch-Therneau)"
+        implementation="lifelines==<version>" (or survival package)
+        parameters="p_value_threshold=0.05; transformation=identity"
+        justification="proportional-hazards assumption check
+                       required for any reported Cox hazard ratio
+                       (Grambsch & Therneau 1994, Biometrika)."
+        assumptions=["scaled Schoenfeld residuals constant over time"]
+
+      And in `conclusions.md > ## Limitations` add the diagnostic
+      verdict + any chosen fallback rationale.
+
+  - id: cross_check_with_audit
+    name: Cross-check with audit_and_validation
+    description: |
+      `audit/audit_and_validation` step 3 (audit_assumptions) routes
+      here when it sees a Cox fit. After this protocol finishes,
+      return control so the master audit can record the PH-check as
+      satisfied (and the report path).
+
+expected_outputs:
+  - workspace/<step>/scripts/<NN>_cox_ph_diagnostics_v1.py
+  - workspace/<step>/data/output/cox_ph_test.csv
+  - workspace/<step>/outputs/figures/cox_scaled_schoenfeld.png
+  - workspace/<step>/outputs/figures/cox_loglog_<covariate>.png
+  - workspace/<step>/outputs/reports/cox_ph_diagnostics.md
+
+quality_bar:
+  schoenfeld_grambsch_therneau_test_run: true
+  per_covariate_p_value_table_present: true
+  log_log_plot_for_each_stratifying_covariate: true
+  scaled_schoenfeld_figure_with_both_sidecars: true
+  global_p_value_reported_alongside_per_covariate: true
+  fallback_strategy_chosen_and_logged_if_violated: true
+  cox_hazard_ratio_never_reported_without_companion_ph_test: true
+
+next_protocol: audit/audit_and_validation
+on_failure: guidance/dead_end_routing

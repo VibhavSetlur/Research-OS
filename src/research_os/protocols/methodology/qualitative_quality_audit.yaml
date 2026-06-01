@@ -1,0 +1,257 @@
+id: qualitative_quality_audit
+name: Qualitative Quality Audit (COREQ + SRQR enforcement)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  Companion to `methodology/qualitative_research`. The research protocol
+  DESIGNS the qualitative work; this audit ENFORCES the COREQ
+  (Consolidated criteria for Reporting Qualitative research; Tong,
+  Sainsbury, Craig 2007) and SRQR (Standards for Reporting Qualitative
+  Research; O'Brien et al. 2014) standards before any qualitative
+  finding enters a synthesis output.
+
+  The protocol walks the AI through:
+    1) Saturation — interview / observation count must be JUSTIFIED by
+       evidence of thematic saturation, not asserted.
+    2) Reflexivity — an explicit reflexivity statement (researcher
+       characteristics + assumptions + relationship to participants)
+       must exist in workspace/<step>/outputs/reports/reflexivity.md.
+    3) Intercoder agreement — when ≥2 coders, report Cohen's κ /
+       Krippendorff's α / percent agreement on a held-out subset
+       (≥10% of corpus, ≥0.7 target OR a documented limitation).
+    4) Member checking — attempted (verbatim transcripts back to
+       participants, or theme summaries back to a sub-sample), with
+       outcome documented; OR a justified explanation of why not.
+    5) Quote anonymisation — every verbatim quote in any output (theme
+       report, paper draft, dashboard) carries a participant ID
+       (Pseudonym or P01) AND any identifying detail (employer, region,
+       rare condition) is generalised.
+    6) Audit trail — coding decisions, code-book versions, and theme-
+       development memos are dated + reproducible.
+
+  This is GUIDANCE. The AI runs `tool_python_exec` for any reliability
+  computation (κ / α) and reads transcripts via `sys_file_read`.
+
+trigger: |
+  Any of the following:
+    - `methodology/qualitative_research` has completed and a synthesis
+      output is being prepared,
+    - `audit/audit_and_validation` detects qualitative artefacts
+      (codebook.md, themes.md) and routes here,
+    - researcher says "audit my qualitative work", "coreq check",
+      "srqr check", "qualitative quality", "intercoder agreement",
+      "saturation check", "member check", "reflexivity statement".
+
+prerequisites:
+  - methodology/qualitative_research artefacts exist (outputs/reports/interview_protocol.md, outputs/reports/codebook.md, outputs/reports/themes.md, outputs/reports/trustworthiness.md).
+  - Transcripts are staged in workspace/<step>/data/input/.
+
+editorial_voice:
+  mode: prescription
+  rules:
+    - "Saturation is evidence, not assertion. A claim of 'data
+       saturation reached at N=18' must show that the last 2-3
+       transcripts produced no new codes (saturation curve)."
+    - "Reflexivity is part of the method, not an afterthought. WHO
+       coded, with WHAT prior beliefs, in WHAT relationship to the
+       participants — these shape the analysis and must be named."
+    - "When two coders are used, intercoder agreement is reportable.
+       When one coder is used, that itself is a limitation and must
+       be flagged."
+    - "Verbatim quotes are evidence; without participant IDs they are
+       just rhetoric. Without anonymisation, they may be a consent
+       breach."
+    - "The codebook is reproducible if and only if a second coder
+       can apply it to a held-out transcript and recover similar
+       codes. Test this."
+
+steps:
+  - id: saturation_evidence_check
+    name: Saturation evidence check
+    description: |
+      Read `outputs/reports/codebook.md` + per-transcript coding
+      records. The AI builds a SATURATION CURVE — cumulative
+      unique-codes vs transcript-number — and asks: do the last
+      2-3 transcripts add NEW codes?
+
+      Write a `tool_python_exec` script that:
+        - parses the open-codes file (one code per line, with
+          transcript ID),
+        - computes cumulative unique codes after transcript 1, 2, ..., N,
+        - plots the saturation curve and saves to
+          `outputs/figures/saturation_curve.png` with both caption
+          sidecars + .prov.json,
+        - flags if the slope at the last transcript is > 0
+          (saturation NOT reached).
+
+      Write the verdict to `outputs/reports/saturation_check.md`:
+        - N transcripts coded,
+        - codes added by the last 3 transcripts,
+        - verdict: SATURATED | INCONCLUSIVE | NOT SATURATED,
+        - if NOT SATURATED: route back to
+          `methodology/qualitative_research` to collect more data
+          OR document explicitly in the limitations.
+
+  - id: reflexivity_statement_check
+    name: Reflexivity statement present + substantive
+    description: |
+      Confirm `outputs/reports/reflexivity.md` exists and covers
+      at minimum:
+        - Researcher characteristics relevant to the topic
+          (discipline, gender, age band, prior experience).
+        - Theoretical orientation / paradigm
+          (post-positivist, constructivist, critical, etc.).
+        - Relationship to participants (insider / outsider / hybrid).
+        - Prior assumptions about the phenomenon — what the
+          researcher EXPECTED to find.
+        - How those positions may have shaped: recruitment,
+          interview rapport, coding emphasis, theme selection.
+      If the file is missing or is < 200 words, BLOCK and write
+      a stub for the researcher to complete. The reflexivity
+      statement is not a Research-OS output — it is the researcher's
+      first-person voice.
+
+  - id: intercoder_agreement_check
+    name: Intercoder agreement (Cohen's κ or Krippendorff's α)
+    description: |
+      Determine how many coders worked on the corpus
+      (sys_file_read codebook.md; mem_methods_append should note it).
+
+      ONE coder:
+        Write to `outputs/reports/intercoder_agreement.md`:
+          "Single-coder analysis. Intercoder agreement not computed.
+           Limitation documented; suggested mitigation: ask a
+           second coder to re-code a 10% subset and recompute."
+        This becomes a limitation in conclusions.md.
+
+      TWO OR MORE coders:
+        Identify the SHARED subset (≥10% of transcripts coded by
+        ≥2 coders).
+        Write a `tool_python_exec` script that:
+          - loads the per-coder code assignments for the shared
+            subset (long format: transcript_id, segment_id, coder,
+            code),
+          - aligns the segments,
+          - computes Cohen's κ for two coders
+            (`sklearn.metrics.cohen_kappa_score`) OR Krippendorff's α
+            for ≥3 coders (use `krippendorff` package or
+            `simpledorff`),
+          - reports per-code agreement when the codebook supports it.
+
+        Write to `outputs/reports/intercoder_agreement.md`:
+          - shared subset size + selection method,
+          - per-pair κ (or α),
+          - verdict per the field convention:
+              κ ≥ 0.80 = excellent,
+              0.60 ≤ κ < 0.80 = substantial,
+              0.40 ≤ κ < 0.60 = moderate,
+              κ < 0.40 = poor.
+          - if κ < 0.70: a RECONCILIATION plan (disagreements
+            discussed, codebook revised, subset re-coded).
+
+      A verdict < 0.70 without a reconciliation plan is a BLOCKER.
+
+  - id: member_checking_attempted
+    name: Member checking attempted (or justified absence)
+    description: |
+      Check the trustworthiness report and protocol for a member-
+      checking record. Member checking takes one of:
+        - Transcript review (participants verify their own
+          transcripts),
+        - Theme summary review (a sub-sample sees the analytic
+          summary and comments),
+        - Follow-up interview (participants react to the
+          interpretation).
+
+      Write to `outputs/reports/member_checking.md`:
+        - which method (or NONE),
+        - participant sub-sample size + selection,
+        - outcome (what changed, what stood),
+        - if NONE: justified reason (e.g. one-shot interviews,
+          ethics-approved no-recontact, terminal-illness cohort) +
+          documented limitation.
+
+      Member checking is RECOMMENDED, not strictly mandatory; absence
+      with justification is acceptable. Absence without justification
+      is a BLOCKER.
+
+  - id: quote_anonymisation_audit
+    name: Verbatim-quote anonymisation audit
+    description: |
+      Scan every report / draft that ships verbatim quotes
+      (themes.md, paper.md drafts, dashboard sections, poster
+      sections). For each verbatim quote:
+        - confirm it carries a participant identifier (P01, "Maria"
+          (pseudonym), Coder-style "(P12, F, 47)") that is
+          UNAMBIGUOUS but NOT identifying,
+        - check for residual identifiers: employer names, exact
+          locations, rare diagnoses, dates, distinctive phrases —
+          flag for the researcher to generalise.
+
+      Write `outputs/reports/quote_anonymisation_audit.md` with one
+      row per flagged quote (file, line, the identifier or
+      identifying detail, proposed redaction).
+
+  - id: audit_trail_check
+    name: Audit trail (codebook versions + memos)
+    description: |
+      Confirm:
+        - The codebook has versioning (codebook_v1.md, codebook_v2.md,
+          OR a single codebook.md with a CHANGELOG section).
+        - Coding memos exist
+          (`outputs/reports/coding_memos.md` or
+          `analytic_memos.md`) — dated notes on emerging themes,
+          codebook changes, and the analytic decisions.
+        - Decisions to merge / split / drop codes are explained.
+      Missing → BLOCKER with a stub generated for the researcher to
+      backfill.
+
+  - id: write_audit_summary
+    name: Aggregate audit summary
+    description: |
+      Write `workspace/<step>/outputs/reports/qualitative_quality_audit.md`
+      with one section per check, the verdict per check, and any
+      BLOCKERs surfaced at the top. The synthesis protocols
+      (paper / poster / dashboard) consult this file before
+      embedding any theme or quote.
+
+  - id: append_to_methods_and_conclusions
+    name: Append to methods.md + conclusions.md
+    description: |
+      mem_methods_append:
+        method="COREQ/SRQR quality audit"
+        parameters="kappa_target=0.70; saturation_window=last_3"
+        justification="Tong et al. 2007 (COREQ); O'Brien et al. 2014
+                       (SRQR)."
+        assumptions=["coders independent on shared subset",
+                     "saturation defined as ≤0 new codes in last 3
+                      transcripts"]
+      And append the verdict per check to conclusions.md ## Limitations.
+
+  - id: cross_check_with_audit
+    name: Cross-check with audit_and_validation
+    description: |
+      `audit/audit_and_validation` consults
+      `qualitative_quality_audit.md` for any qualitative step; a
+      BLOCKER here stops synthesis until resolved.
+
+expected_outputs:
+  - workspace/<step>/outputs/figures/saturation_curve.png
+  - workspace/<step>/outputs/reports/saturation_check.md
+  - workspace/<step>/outputs/reports/reflexivity.md
+  - workspace/<step>/outputs/reports/intercoder_agreement.md
+  - workspace/<step>/outputs/reports/member_checking.md
+  - workspace/<step>/outputs/reports/quote_anonymisation_audit.md
+  - workspace/<step>/outputs/reports/qualitative_quality_audit.md
+
+quality_bar:
+  saturation_evidence_present_or_explicit_limitation: true
+  reflexivity_statement_substantive_and_first_person: true
+  intercoder_agreement_kappa_ge_0_7_or_documented_limitation: true
+  member_checking_attempted_or_justified_absence: true
+  every_verbatim_quote_anonymised_with_participant_id: true
+  codebook_versioned_with_analytic_memos: true
+  audit_summary_written_for_synthesis_consumption: true
+
+next_protocol: audit/audit_and_validation
+on_failure: guidance/dead_end_routing

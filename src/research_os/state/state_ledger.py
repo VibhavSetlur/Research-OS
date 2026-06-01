@@ -18,6 +18,11 @@ from pathlib import Path
 from typing import Optional
 
 try:
+    import fcntl  # type: ignore[import-untyped]  # POSIX only
+except ImportError:  # pragma: no cover — Windows fallback
+    fcntl = None  # type: ignore[assignment]
+
+try:
     import yaml  # type: ignore[import-untyped]
 except ImportError:
     yaml = None
@@ -45,36 +50,54 @@ class ResearchLedger:
         return self._default_state()
 
     def _save(self, data: dict) -> None:
-        """Atomic write: write to temp file, then rename to avoid corruption."""
+        """Atomic write: write to temp file, then rename to avoid corruption.
+
+        Wrapped in an advisory file lock (POSIX ``fcntl.flock``) so two
+        concurrent writers serialise instead of clobbering each other.
+        Windows has no fcntl — there we fall through unlocked (single-user
+        dev environment, the atomic ``os.replace`` is best-effort)."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
 
-        fd, tmp_path = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                json.dump(data, f, indent=2, default=str, sort_keys=True)
-            os.replace(tmp_path, str(self._path))
-        except Exception:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-            raise
+        lock_path = self._path.with_suffix(".lock")
+        lock_fd: Optional[int] = None
+        if fcntl is not None:
+            lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
 
-        # Also write a YAML copy alongside for human readability
-        if yaml:
-            yaml_path = self._path.with_suffix(".yaml")
-            fd2, tmp2 = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
+        try:
+            fd, tmp_path = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
             try:
-                with os.fdopen(fd2, "w") as f:
-                    yaml.dump(
-                        data,
-                        f,
-                        default_flow_style=False,
-                        sort_keys=False,
-                        allow_unicode=True,
-                    )
-                os.replace(tmp2, str(yaml_path))
+                with os.fdopen(fd, "w") as f:
+                    json.dump(data, f, indent=2, default=str, sort_keys=True)
+                os.replace(tmp_path, str(self._path))
             except Exception:
-                if os.path.exists(tmp2):
-                    os.unlink(tmp2)
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
+
+            # Also write a YAML copy alongside for human readability
+            if yaml:
+                yaml_path = self._path.with_suffix(".yaml")
+                fd2, tmp2 = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
+                try:
+                    with os.fdopen(fd2, "w") as f:
+                        yaml.dump(
+                            data,
+                            f,
+                            default_flow_style=False,
+                            sort_keys=False,
+                            allow_unicode=True,
+                        )
+                    os.replace(tmp2, str(yaml_path))
+                except Exception:
+                    if os.path.exists(tmp2):
+                        os.unlink(tmp2)
+        finally:
+            if lock_fd is not None and fcntl is not None:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                finally:
+                    os.close(lock_fd)
 
     @staticmethod
     def _default_state() -> dict:

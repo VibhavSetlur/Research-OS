@@ -15,6 +15,48 @@ template: |
   - **Assumptions to test:** {list}
 
 steps:
+  - id: pre_audit_evidence_grid
+    name: Pre-audit the evidence grid (BEFORE prose is appended)
+    description: |
+      MANDATORY first step. Before any methods line is appended to
+      `workspace/methods.md`, run `tool_audit_claims` against the
+      existing evidence floor that the methods prose will draw from.
+
+      The methods prose references:
+        - dataset names + sha256 hashes from `inputs/intake.md`,
+        - library + version numbers from
+          `workspace/<step>/environment/requirements.txt`,
+        - parameter values from the producing script
+          (`workspace/<step>/scripts/`),
+        - citation keys from `workspace/citations.md`.
+
+      Call:
+        tool_audit_claims target="workspace/methods.md"
+          (when a prior version exists)
+        OR
+        tool_audit_claims target="<the methods-evidence floor>:
+          the conclusions / parameter dumps / citations file the
+          new line will quote".
+
+      The auditor flags any number (sample size, parameter, library
+      version, p-value, threshold) that:
+        - does not trace to a producing artefact on disk,
+        - matches an "approx" / "around" / "roughly" hedge instead
+          of a precise on-disk figure,
+        - cites a key not present in `workspace/citations.md`.
+
+      If ungrounded numbers / citations exist, REFUSE TO APPEND.
+      The researcher must either:
+        (a) point the AI at the source on disk (a script line, a
+            requirements.txt entry, a citation key), or
+        (b) drop the claim, or
+        (c) run the step / install the package / add the citation
+            so the source exists.
+
+      Persist the verdict to
+      `workspace/logs/methods_pre_audit.md`. Only after the pre-
+      audit returns a clean grid does the `gather` step proceed.
+
   - id: gather
     name: Gather Information
     description: |

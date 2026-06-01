@@ -1,0 +1,280 @@
+id: revise_and_resubmit
+name: Revise & Resubmit (full R&R orchestration)
+version: '1.0.0'
+schema_version: '2.0'
+description: |
+  End-to-end orchestration for a Revise & Resubmit decision from a
+  journal. Distinct from `guidance/peer_review_response`, which
+  drafts the reply letter; this protocol owns the WHOLE R&R cycle —
+  comment intake → triage → routing to the right protocol per comment
+  type (new experiment → `guidance/analysis_plan`; prose change →
+  `writing/*`; figure fix → `visualization/*`) → response-grid
+  bookkeeping → re-audit the revised manuscript → produce the
+  point-by-point response letter.
+
+  The deliverable is a tracked, auditable R&R package:
+    - `workspace/logs/reviewer_response_grid.md` — one row per
+      reviewer comment with verdict, revised-section reference,
+      audit-passed badge, and response paragraph.
+    - `synthesis/response_to_reviewers.md` — the formal point-by-
+      point reply letter.
+    - re-audited `synthesis/paper.md` — every claim re-passes
+      `tool_audit_claims` and the prose re-passes `tool_audit_prose`.
+
+trigger: |
+  Researcher pastes a reviewer report and says any of:
+    "revise and resubmit", "r&r", "major revision", "minor revision",
+    "the editor wants revisions", "round 2 reviews", "revise the paper
+    based on reviews", "respond to reviewers and revise".
+
+prerequisites:
+  - synthesis/paper.md exists (the submitted manuscript).
+  - The full reviewer report (or reports) text is available.
+  - The editor's decision letter is captured (sets the deadline,
+    the resubmission requirements).
+
+editorial_voice:
+  mode: prescription
+  rules:
+    - "Every comment gets a row in the grid. Silent drops are the
+       fastest path to rejection on resubmission."
+    - "Classify before drafting. Knowing the comment is ACCEPT vs
+       PARTIAL vs PUSH-BACK changes whether you write code, prose,
+       or a figure."
+    - "Pushback is fair when backed by evidence; pushback by
+       assertion alone wastes everyone's time."
+    - "The revised manuscript must re-pass the same audits the
+       original passed (and any NEW audits the reviewers
+       implied). Do not assume the revision is improvement-only."
+    - "Track changes by section + line in the revised paper. A
+       reviewer should be able to verify the change in under 30
+       seconds."
+
+steps:
+  - id: ingest_decision_and_reviews
+    name: Ingest the editor decision + reviewer reports
+    description: |
+      Save verbatim to:
+        - `workspace/reviews/editor_decision_<journal>_<date>.md`
+        - `workspace/reviews/reviewer_<R#>_<journal>_<date>.md`
+          (one file per reviewer)
+      Capture: the decision type (major / minor / reject-with-
+      encouragement), the deadline, the resubmission portal,
+      and any editor-specific requests (cover letter format,
+      track-changes requirement, page-limit changes).
+
+  - id: parse_to_numbered_list
+    name: Parse each report into a numbered comment list
+    description: |
+      For each reviewer file, extract atomic comments. Use the
+      reviewer's numbering when present; assign your own
+      (Mn / mn / En) when absent. One comment = one actionable
+      point — split a multi-part comment into 1a / 1b / 1c if
+      addressing them requires different routing.
+
+      Persist to `workspace/logs/reviewer_response_grid.md` with
+      the header row:
+
+        | id | reviewer | severity | verbatim | verdict | route | section | audit | response |
+
+      Populate `verbatim` from the reviewer's text (italicised).
+      Leave verdict / route / section / audit / response blank
+      for now.
+
+  - id: classify_each_comment
+    name: Classify each comment + assign a route
+    description: |
+      Walk every row. For each, set:
+
+        VERDICT ∈ {ACCEPT, CLARIFY, PARTIAL, PUSH-BACK, DEFER}
+
+        ROUTE ∈ {
+          analysis_plan,           # new experiment / new analysis
+          methodology/cox_ph_diagnostics,    # PH-specific question
+          methodology/missing_data_strategy, # missing-data question
+          methodology/qualitative_quality_audit, # qualitative re-audit
+          methodology/power_analysis,         # power / N question
+          methodology/preregistration,        # SAP-deviation question
+          writing/writing_results,            # results re-draft
+          writing/writing_methods,            # methods re-draft
+          writing/writing_discussion,         # discussion re-draft
+          writing/writing_limitations,        # limitations re-draft
+          writing/writing_data_availability,  # end-matter
+          visualization/figure_critique,      # single-figure fix
+          visualization/multi_panel_composition, # panel re-layout
+          visualization/color_accessibility_audit, # a11y fix
+          audit/provenance_completeness,      # provenance gap
+          prose-only,              # in-paper edit, no new protocol
+          none,                    # DEFERred or PUSH-BACK
+        }
+
+        SECTION — the section + line range in `synthesis/paper.md`
+          where the change will land (or "N/A" for DEFER /
+          PUSH-BACK).
+
+      Use `mem_decision_log` for every comment classified as
+      PUSH-BACK or DEFER — these are the riskiest categories and
+      need a defensible rationale on file.
+
+  - id: execute_routes
+    name: Execute each route — produce the evidence
+    description: |
+      Walk the grid by route group:
+
+        analysis_plan (and methodology/*):
+          For each row, create or reopen the relevant step via
+          `sys_path_create` (NEW analysis) or reopen the existing
+          step. Walk the routed protocol end-to-end. The new
+          result becomes the EVIDENCE the response cites.
+
+        writing/* and visualization/*:
+          Walk the routed writing/figure protocol against the
+          specific section / figure flagged. Update
+          `synthesis/paper.md` in place; the writing protocols
+          already enforce their own audits.
+
+        prose-only:
+          Direct edit to `synthesis/paper.md`. Log the edit via
+          `mem_decision_log` so the audit trail is complete.
+
+        none (DEFER / PUSH-BACK):
+          No edit to the paper. The response paragraph is the
+          deliverable for these.
+
+      For every row, update the SECTION cell with the actual
+      section + line range that ended up changed.
+
+  - id: re_audit_revised_manuscript
+    name: Re-audit the revised manuscript (claims + prose + figures + citations)
+    description: |
+      The revision is not done until the audit chain re-passes.
+      Run, in order:
+
+        tool_audit_claims target="synthesis/paper.md"
+          — every number traces to a workspace artefact;
+            NEW numbers from new experiments must be groundable.
+
+        tool_audit_prose target="synthesis/paper.md"
+          — hedging, vague quantifiers, causal-language drift,
+            reading level, section-coverage per reporting standard.
+
+        tool_audit_citations
+          — every new citation resolves on Crossref / Semantic Scholar.
+
+        tool_audit_figure_full per any figure that changed.
+
+        tool_audit_quality_full (or the per-component audits)
+          — master audit; the grid's `audit` column gets the
+            audit verdict per row.
+
+      Blocking audit failures route back to step `execute_routes`
+      for the offending row(s).
+
+  - id: fill_response_paragraphs
+    name: Fill the response paragraph per comment
+    description: |
+      Walk the grid one more time. For each row, draft the response
+      paragraph in this shape:
+
+        "**<id>. <comment title>.**
+         > <verbatim reviewer quote, italicised>
+
+         Response. <What we did, where it landed (Section X, lines
+         Y-Z), and any caveat worth surfacing. For PUSH-BACK:
+         <evidence — citation, new figure, added analysis — never
+         assertion alone>. For DEFER: <why out-of-scope here, where
+         it lives next.>"
+
+      Populate the grid's `response` column with the paragraph
+      (or a pointer to its location in `synthesis/response_to_reviewers.md`).
+
+      The grid's `audit` column must read "PASS" for every row
+      whose route produced an audit-touching change (claims /
+      prose / figure / citation). Any "FAIL" is a BLOCKER.
+
+  - id: assemble_response_letter
+    name: Assemble the formal point-by-point response letter
+    description: |
+      `synthesis/response_to_reviewers.md` — structured as:
+
+        # Response to Reviewers — <Journal>, <Round>
+
+        ## Editor
+
+        <Acknowledge the editor's letter; summarise the major
+         revisions in one paragraph; commit to the resubmission
+         deadline.>
+
+        ## Reviewer 1
+        We thank Reviewer 1 for the careful read. Each comment is
+        addressed below; revised passages are referenced by section
+        + line number in the resubmitted manuscript.
+
+        ### M1. <title>
+        > <verbatim>
+
+        Response. <paragraph>
+
+        ### M2. ...
+
+        ## Reviewer 2
+        ...
+
+      Run `tool_response_to_reviewers` to generate the skeleton, then
+      paste each row's response paragraph into the appropriate slot.
+
+      Also emit `synthesis/cover_letter_r1.md` (or _r2, _r3) — the
+      brief note to the editor summarising the major revisions and
+      navigating reviewer disagreements.
+
+  - id: track_changes_check
+    name: Track-changes / line-reference check
+    description: |
+      Confirm every "we have revised <section>" claim in the
+      response letter maps to a real change in `synthesis/paper.md`
+      at the cited section + line range. The grid's SECTION column
+      is the source of truth; cross-check each row.
+
+      For journals that require a track-changes PDF, generate it
+      via `latex_compile` against a version of the manuscript with
+      `latexdiff` markup, or via a Word `Compare Documents` pass
+      if the manuscript lives in `.docx`.
+
+  - id: pre_submission_gate
+    name: Pre-submission gate
+    description: |
+      Before flagging the R&R package ready:
+        - `tool_audit_quality_full` re-passes,
+        - every grid row has VERDICT + ROUTE + SECTION + AUDIT=PASS
+          + RESPONSE filled,
+        - response letter mentions every comment,
+        - cover letter exists,
+        - track-changes artefact exists (if required by the
+          journal),
+        - deadline has not passed.
+
+      Route to `audit/pre_submission_checklist` for the final
+      GREEN / YELLOW / RED verdict before submission.
+
+expected_outputs:
+  - workspace/reviews/editor_decision_*.md
+  - workspace/reviews/reviewer_*.md
+  - workspace/logs/reviewer_response_grid.md
+  - synthesis/response_to_reviewers.md
+  - synthesis/cover_letter_*.md
+  - synthesis/paper.md (revised in place)
+
+quality_bar:
+  every_reviewer_comment_has_grid_row: true
+  every_grid_row_has_verdict_route_section: true
+  every_route_that_changed_artefacts_has_audit_pass: true
+  push_back_rows_have_evidence_not_assertion: true
+  defer_rows_have_documented_rationale: true
+  response_letter_addresses_every_comment: true
+  revised_paper_re_passes_tool_audit_claims: true
+  revised_paper_re_passes_tool_audit_prose: true
+  track_changes_artefact_present_when_required: true
+  cover_letter_exists: true
+
+next_protocol: audit/pre_submission_checklist
+on_failure: guidance/dead_end_routing

@@ -40,7 +40,7 @@ Need help with Python / pip / virtualenvs / conda? See
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                 # 5-step interactive wizard (default)
+research-os init                 # 7-step interactive wizard (default)
 # research-os init --yes         # non-interactive (CI / scripts)
 ```
 
@@ -113,7 +113,7 @@ The AI translates your plain-English prompt into the right protocol via
 * **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
   declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
   → fit → diagnose → visualize → report). Content-hash cached.
-* **82 protocols** the AI picks from via `tool_route`. Covers the
+* **87 protocols** the AI picks from via `tool_route`. Covers the
   canonical data → publication pipeline plus partial / off-axis
   workflows (visualization-only, talks, lay summaries, EDA + hypothesis
   generation, method comparison, reproduction, methodological
@@ -382,7 +382,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 * [SETUP.md](SETUP.md) — detailed install + per-IDE wiring +
   troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
-* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 82 protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 140 MCP tools.
+* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of every protocol.
+* [TOOLS.md](TOOLS.md) — catalogue of every MCP tool.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving
   Research OS (useful for debugging "why did the AI do that?").

@@ -1,10 +1,23 @@
 # Protocol Reference
 
-Research OS ships **82 YAML protocols** organised into nine categories.
+Research OS ships **87 YAML protocols** organised into nine categories.
 Each protocol is a sequence of steps the AI should follow, with explicit
 `expected_outputs`, a `next_protocol` pointer, and a `quality_bar`. All
 are indexed in `src/research_os/protocols/_router_index.yaml` for
 hierarchical routing via `tool_route`.
+
+| Category | Count | What's in it |
+|---|---|---|
+| `methodology/` | 29 | Method pickers + per-family deep workflows (causal, ML, Bayesian, time-series, clinical, qualitative, mixed-methods, simulation, replication, ablation, pilot, evaluation design, hyperparameter sweep design, ethics review, EDA + hypothesis generation, method comparison, data-quality audit, power analysis, reproduction, methodological consultation). |
+| `guidance/` | 18 | Session boot / resume / handoff / autopilot / collaboration, intake, iterative planning, dead-end routing, hypothesis + glossary tracking, mid-pipeline entry, code review, peer-review response. |
+| `synthesis/` | 14 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs. |
+| `writing/` | 10 | Per-section drafting (methods / results / discussion / limitations / end-matter), writing core rules, citations ledger, conclusions, analysis log, README. |
+| `visualization/` | 6 | Figure guidelines, viz workflow, single-figure critique, multi-panel composition, narrative arc, colour-accessibility audit. |
+| `literature/` | 4 | Search, systematic review (PRISMA), evidence synthesis (GRADE), comparative paper review. |
+| `audit/` | 3 | Master audit + validation, plus targeted gates. |
+| `domain/` | 2 | Domain classification, research-design + sample-size justification. |
+| `reproducibility/` | 1 | Per-step env lock, seed verification, container generation. |
+| **Total** | **87** | |
 
 The protocol surface deliberately covers BOTH the canonical
 data → publication pipeline AND the partial / off-axis workflows

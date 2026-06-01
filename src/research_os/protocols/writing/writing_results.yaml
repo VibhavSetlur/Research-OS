@@ -73,6 +73,46 @@ structure_options:
       outcomes after, exploratory outcomes labelled as such.
 
 steps:
+  - id: pre_audit_evidence_grid
+    name: Pre-audit the evidence grid (BEFORE prose is appended)
+    description: |
+      MANDATORY first step. Before a single Results sentence is
+      written, run `tool_audit_claims` on the planned evidence
+      sources so that ungrounded numbers cannot leak into prose.
+
+      Walk the existing evidence floor:
+        - `workspace/<step>/conclusions.md > ## Findings` rows,
+        - `workspace/<step>/outputs/tables/*.csv` cells,
+        - `workspace/<step>/outputs/reports/*.md` claims tables,
+        - `workspace/scratch/results_evidence.md`
+          (built fresh in the next step if it doesn't exist yet —
+           if it does exist from a prior pass, audit it now).
+
+      Call:
+        tool_audit_claims target="<the evidence floor: the existing
+        conclusions/reports/results_evidence file the prose will
+        draw from>"
+
+      The auditor flags any number that:
+        - does not trace to a workspace artefact on disk,
+        - appears in a draft / scratch / chat-only buffer with no
+          producing script or output file,
+        - matches an "approx" / "around" / "roughly" hedge instead
+          of a precise figure on disk.
+
+      If ungrounded numbers exist, REFUSE TO WRITE. The researcher
+      must either:
+        (a) point the AI at the source on disk (a CSV row, a
+            report row, a conclusions.md ## Findings line), or
+        (b) drop the claim, or
+        (c) open a new step via `sys_path_create` and run the
+            analysis that produces the number — then re-audit.
+
+      Persist the verdict to
+      `workspace/logs/results_pre_audit.md`. The downstream
+      `assemble_the_evidence_table` step starts from this clean
+      ground-truth set.
+
   - id: select_structure
     name: Select results structure
     description: |

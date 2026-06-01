@@ -1,10 +1,10 @@
 """Interactive scaffolding wizard for ``research-os init``.
 
-Walks researchers through a 6-step setup in under a minute: project
+Walks researchers through a 7-step setup in under a minute: project
 location, name, optional research metadata, AI IDE wiring, an *optional*
 "bring in your inputs" loop (paste a Slack message, drop in paper URLs,
-attach screenshots, symlink existing data), and a post-scaffold
-verification pass.
+attach screenshots, symlink existing data), an *optional* API-keys
+collection step, and a post-scaffold verification pass.
 
 Arrow-key navigation, multi-select with Space, Tab path completion, and
 paper URL auto-download. Pure stdlib + ``requests`` (already a dep).
@@ -133,6 +133,8 @@ class WizardResult:
     pending_papers: list[str] = field(default_factory=list)
     # New in this revision — files the user wants copied/symlinked.
     pending_attachments: list[Path] = field(default_factory=list)
+    # API keys captured in Step 6 — written to inputs/researcher_config.yaml.
+    api_keys: dict[str, str] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +162,7 @@ def run_wizard(args) -> WizardResult:
     the command line by skipping the matching question."""
     print(logo.render(width=68, version="1.0.0"))
 
-    total = 6
+    total = 7
 
     # ── Step 1: Location ────────────────────────────────────────────────
     section(1, total, "Project location",
@@ -259,8 +261,15 @@ def run_wizard(args) -> WizardResult:
     pending_notes, pending_papers, detected_inputs, pending_attachments = \
         _collect_inputs(target_dir)
 
-    # ── Step 6: Post-init actions ───────────────────────────────────────
-    section(6, total, "After scaffolding",
+    # ── Step 6: API keys (optional) ─────────────────────────────────────
+    section(6, total, "API keys (optional)",
+            "Used only for literature search + web scraping. NO LLM keys — "
+            "your AI IDE owns model access. Skip to fill in later via "
+            "inputs/researcher_config.yaml (chmod 600).")
+    api_keys = _collect_api_keys()
+
+    # ── Step 7: Post-init actions ───────────────────────────────────────
+    section(7, total, "After scaffolding",
             "Final touches. Defaults are safe — Enter to accept.")
     run_verify = tui.confirm("Run a smoke check on the new workspace?", default=True)
     start_server = tui.confirm(
@@ -283,6 +292,7 @@ def run_wizard(args) -> WizardResult:
         pending_notes=pending_notes,
         pending_papers=pending_papers,
         pending_attachments=pending_attachments,
+        api_keys=api_keys,
     )
 
 
@@ -496,6 +506,61 @@ def _capture_attachment(attachments: list[Path]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Step 6 helpers — API keys
+# ---------------------------------------------------------------------------
+
+# (slug, human label, one-line description / signup URL)
+API_KEY_SPECS: list[tuple[str, str, str]] = [
+    ("semantic_scholar", "Semantic Scholar",
+     "https://www.semanticscholar.org/product/api"),
+    ("pubmed", "PubMed (NCBI E-utilities)",
+     "https://www.ncbi.nlm.nih.gov/account/"),
+    ("crossref", "Crossref (polite pool email/token)",
+     "https://www.crossref.org  (rarely needed — public endpoint works)"),
+    ("firecrawl", "Firecrawl (web search + scrape)",
+     "https://firecrawl.io"),
+    ("serpapi", "SerpAPI (fallback web search)",
+     "https://serpapi.com"),
+]
+
+
+def _collect_api_keys() -> dict[str, str]:
+    """Optionally collect API keys. Returns dict of only non-empty keys.
+
+    Never echoes the values back to the user — only the count.
+    """
+    pick = tui.select_one(
+        "Add API keys now?",
+        [
+            ("yes",  "Yes — I have some keys handy"),
+            ("skip", f"Skip — leave blank or fill later in "
+                     f"{_C.BOLD}inputs/researcher_config.yaml{_C.RESET} "
+                     f"{_C.GREY}(default){_C.RESET}"),
+        ],
+        default_index=1,
+    )
+    if pick != "yes":
+        ok("Skipped — fill in inputs/researcher_config.yaml later (chmod 600).")
+        return {}
+
+    keys: dict[str, str] = {}
+    for slug, label, descr in API_KEY_SPECS:
+        prompt = f"{label} — {descr}"
+        value = tui.text(prompt, placeholder="paste key or press Enter to skip",
+                         allow_empty=True)
+        if value and value.strip():
+            keys[slug] = value.strip()
+
+    if keys:
+        # SECURITY: report count only, never echo values.
+        ok(f"Captured {len(keys)} API key(s)",
+           "stored in inputs/researcher_config.yaml (chmod 600)")
+    else:
+        ok("No keys entered — leaving all blank.")
+    return keys
+
+
+# ---------------------------------------------------------------------------
 # Confirmation + done card
 # ---------------------------------------------------------------------------
 
@@ -523,6 +588,9 @@ def show_summary_and_confirm(r: WizardResult) -> bool:
         rows.append(("Attachments", f"{len(r.pending_attachments)} file(s) → inputs/context|literature/"))
     if r.detected_inputs:
         rows.append(("Link data",   f"{len(r.detected_inputs)} file(s) → inputs/raw_data/"))
+    if r.api_keys:
+        rows.append(("API keys",
+                     f"{len(r.api_keys)} key(s) set — stored in researcher_config.yaml (chmod 600)"))
     rows.extend([
         ("Verify",   "yes" if r.run_verify else "no"),
         ("Server",   "start now" if r.start_server else "later (your IDE will launch it)"),

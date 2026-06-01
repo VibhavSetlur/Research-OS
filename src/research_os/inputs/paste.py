@@ -27,6 +27,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from research_os.errors import check_write_permitted
+
 _SLACK_TIMESTAMP_RE = re.compile(
     r"^\s*(\d{1,2}:\d{2}\s?(?:AM|PM)?|\d{1,2}/\d{1,2}/\d{2,4}.*|"
     r"(?:Today|Yesterday|Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b.*)\s*$",
@@ -183,6 +185,23 @@ def save(
                        source_hint.lower())[:30].strip("_") or "note"
     fname = f"{stamp}_{detected_kind}_{hint_slug}.md"
     target = dest_dir / fname
+
+    # Enforce input-tree write protection if we're inside a workspace
+    # (heuristic: walk up looking for ``.os_state``). When found, ask the
+    # central guard to vet the destination; raise on protection violation so
+    # the caller (the init wizard) can warn and skip without aborting.
+    root = dest_dir.resolve()
+    workspace_root: Path | None = None
+    for candidate in (root, *root.parents):
+        if (candidate / ".os_state").exists():
+            workspace_root = candidate
+            break
+    if workspace_root is not None:
+        try:
+            rel = target.resolve().relative_to(workspace_root)
+        except ValueError:
+            rel = target
+        check_write_permitted(str(rel))
 
     frontmatter = (
         "---\n"

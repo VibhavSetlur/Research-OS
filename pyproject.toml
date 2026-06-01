@@ -38,8 +38,11 @@ dependencies = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/VibhavSetlur/Research-OS"
 Repository = "https://github.com/VibhavSetlur/Research-OS"
 Issues = "https://github.com/VibhavSetlur/Research-OS/issues"
+Changelog = "https://github.com/VibhavSetlur/Research-OS/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/VibhavSetlur/Research-OS/tree/main/docs"
 
 [project.optional-dependencies]
 # Per-feature extras. Use [all] for everything except R / Julia / Docker

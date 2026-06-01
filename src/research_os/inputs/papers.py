@@ -25,6 +25,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from research_os.errors import check_write_permitted
+
 # ---------------------------------------------------------------------------
 # Format detection
 # ---------------------------------------------------------------------------
@@ -107,10 +109,28 @@ def _safe_filename(stem: str, suffix: str = ".pdf") -> str:
 
 def _download(url: str, dest_dir: Path, stem: str) -> DownloadResult:
     """Stream a URL into ``dest_dir`` with a safe filename. Returns a
-    structured result; never raises."""
+    structured result; never raises (except WriteProtectedError, which we
+    deliberately propagate so the caller treats the destination as off-limits)."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     fname = _safe_filename(stem)
     target = dest_dir / fname
+
+    # Enforce input-tree write protection if we're inside a workspace
+    # (heuristic: walk up looking for ``.os_state``). WriteProtectedError
+    # propagates — the wizard already warns + skips per-paper failures.
+    root = dest_dir.resolve()
+    workspace_root: Path | None = None
+    for candidate in (root, *root.parents):
+        if (candidate / ".os_state").exists():
+            workspace_root = candidate
+            break
+    if workspace_root is not None:
+        try:
+            rel = target.resolve().relative_to(workspace_root)
+        except ValueError:
+            rel = target
+        check_write_permitted(str(rel))
+
     if target.exists() and target.stat().st_size > 0:
         return DownloadResult(token=url, kind="reused", ok=True, path=target,
                               bytes_written=target.stat().st_size)

@@ -46,14 +46,43 @@ steps:
       session snapshot. Verify it would build (read it, sanity check the
       package list).
 
-  - id: optional_full_audit
-    name: Optional Full Reproducibility Audit
+  - id: mandatory_rerun_audit
+    name: Mandatory Re-Run Reproducibility Audit (DEFAULT before any synthesis-grade output)
     description: |
-      If the researcher wants a hard guarantee:
+      Re-run verification is REQUIRED by default before ANY synthesis-grade
+      output (paper, poster, dashboard, slides, handout, grant, report).
+      The audit re-runs every workspace script in a clean subprocess and
+      compares output hashes against `workspace/logs/output_hashes.json`.
+
+      Call:
         tool_audit_reproducibility
-      This re-runs every workspace script in a clean subprocess, then compares
-      output hashes. Report goes to workspace/logs/reproducibility_report.md.
-      Slow — skip in autopilot unless requested.
+
+      Report goes to `workspace/logs/reproducibility_report.md`.
+
+      Outcomes:
+        - All hashes match            → PASS. Synthesis may proceed.
+        - Any hash mismatch           → BLOCKER. Investigate before
+          synthesis: did a seed slip? a dependency upgrade? a manual
+          edit to an output file?
+        - Any script fails to re-run  → BLOCKER. Fix the script before
+          synthesis embeds its output.
+
+      OPT-OUT — the researcher MAY skip this audit only via an
+      EXPLICIT opt-out, by either:
+        (a) invoking the audit with `--skip-rerun-audit`
+            (`tool_audit_reproducibility skip=true` documents the
+             opt-out in the report), OR
+        (b) telling the AI "skip the re-run audit; I'll accept the
+            unverified state" — the AI then `mem_decision_log`s the
+            opt-out with the researcher's stated rationale and a
+            warning that the resulting synthesis is NOT
+            reproducibility-verified.
+
+      Autopilot mode does NOT auto-opt-out. The previous "skip in
+      autopilot" behaviour was a footgun — autopilot is precisely
+      when re-run verification matters most because the human is
+      not watching. Autopilot runs the audit by default and pauses
+      on BLOCKERs as a configured gate.
 
 expected_outputs:
   - workspace/*/environment/requirements.txt

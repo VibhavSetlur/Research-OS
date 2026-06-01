@@ -111,15 +111,35 @@ def _count_scaffold(target_dir: Path) -> dict:
 
 def _copy_attachments(target_dir: Path, paths: list[Path]) -> list[Path]:
     """Copy attachments into inputs/. PDFs → literature/, anything else → context/.
-    Returns the list of destination paths actually written."""
-    from research_os.wizard import IMAGE_EXTENSIONS  # local import to avoid cycle
+    Returns the list of destination paths actually written.
+
+    Refuses to copy symlinks whose target escapes the user's home directory —
+    a paper.pdf → /etc/passwd trick would otherwise be silently dragged in.
+    """
+    from research_os import wizard  # local import to avoid cycle
+    from research_os.wizard import IMAGE_EXTENSIONS  # noqa: F401
 
     lit_dir = target_dir / "inputs" / "literature"
     ctx_dir = target_dir / "inputs" / "context"
     lit_dir.mkdir(parents=True, exist_ok=True)
     ctx_dir.mkdir(parents=True, exist_ok=True)
+    home = Path.home().resolve()
     written: list[Path] = []
     for src in paths:
+        # Reject symlinks that point outside the user's home directory.
+        if src.is_symlink():
+            try:
+                real_src = src.resolve(strict=True)
+            except (OSError, RuntimeError) as exc:
+                wizard.warn(f"Skipping {src.name}", f"unresolvable symlink: {exc}")
+                continue
+            if home != real_src and home not in real_src.parents:
+                wizard.warn(
+                    f"Skipping {src.name}",
+                    f"symlink target escapes home directory ({real_src})",
+                )
+                continue
+
         suffix = src.suffix.lower()
         dest_dir = lit_dir if suffix == ".pdf" else ctx_dir
         dest = dest_dir / src.name
@@ -237,6 +257,7 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
         "research_question": r.question,
         "research_questions": list(getattr(r, "questions", []) or []),
         "authors": [author.as_dict()],
+        "api_keys": dict(getattr(r, "api_keys", {}) or {}),
     }
     scaffold_minimal_workspace(
         target_dir,

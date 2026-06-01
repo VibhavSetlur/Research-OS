@@ -51,6 +51,24 @@ steps:
       Then read the report and append any FAILED assumptions to the step's
       conclusions.md under "## Limitations".
 
+      Model-specific routing — if the step's methods.md or scripts indicate
+      a particular model family, ALSO run the family-specific diagnostic
+      protocol BEFORE accepting the assumption verdict:
+
+        If Cox PH model detected (lifelines `CoxPHFitter`,
+        survival::coxph, statsmodels PHReg, sksurv
+        `CoxPHSurvivalAnalysis`, Stata `stcox`, SAS `PROC PHREG`):
+          → also run protocol methodology/cox_ph_diagnostics
+            (Schoenfeld residual test + log-log plot + per-covariate
+            p-value table + fallback strategy if violated).
+
+        If missing-data handling is detected in the residuals pipeline
+        (any `dropna` / `na.omit` / `IterativeImputer` / `mice`):
+          → also run protocol methodology/missing_data_strategy.
+
+        If the step is qualitative (themes.md / codebook.md exists):
+          → also run protocol methodology/qualitative_quality_audit.
+
   - id: audit_figures
     name: Audit Figure Quality
     description: |

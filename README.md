@@ -32,7 +32,7 @@ research-os init                    # arrow-key wizard (default)
 # or: research-os init my-project --yes    # one-shot, no prompts (CI / scripts)
 ```
 
-`init` is the only per-project command. The 6-step wizard:
+`init` is the only per-project command. The 7-step wizard:
 
 * asks where the project lives, what it's called, which AI IDEs you use,
 * lets you **paste a Slack thread / email / PI message** that gets parsed
@@ -69,7 +69,7 @@ Need step-by-step setup or per-IDE wiring? →
 
 ## What it does
 
-You talk; the AI picks the right workflow from **82 protocols** and
+You talk; the AI picks the right workflow from **87 protocols** and
 runs it through **140 MCP tools** that enforce real quality gates.
 
 ### Across 7 capability groups (linked to triggers + outputs)
@@ -86,8 +86,8 @@ runs it through **140 MCP tools** that enforce real quality gates.
 
 → [**docs/USE_CASES.md**](docs/USE_CASES.md) maps your role × goal ×
 output to the right protocol.
-→ [**docs/PROTOCOLS.md**](docs/PROTOCOLS.md) catalogues all 82 with
-triggers + quality bars.
+→ [**docs/PROTOCOLS.md**](docs/PROTOCOLS.md) catalogues every protocol
+with triggers + quality bars.
 
 ---
 
@@ -171,7 +171,7 @@ You touch `inputs/`. The AI touches `workspace/` and `synthesis/`.
 | Pre-registered analyses drift | `tool_preregister_freeze` content-hashes the SAP; `_diff` surfaces every deviation. |
 | Null findings → file drawer | `synthesis/synthesis_null_findings` publishable companion for refuted / underpowered / abandoned. |
 | Researcher enters mid-pipeline | `guidance/mid_pipeline_entry` classifies into 7 archetypes; skips redundant intake. |
-| 140 tools is too many to triage every turn | `tool_route` returns ~10-15 active tools per protocol via `sys_active_tools`. |
+| The full tool surface is too many to triage every turn | `tool_route` returns ~10-15 active tools per protocol via `sys_active_tools`. |
 | Same project, different AI tomorrow | `sys_session_handoff` snapshots + writes a fresh-AI-readable handoff; `tool_session_resume` reconstructs intent in one call. |
 | Long jobs on shared HPC | `tool_task_run` backgrounds them; `tool_slurm_submit` for clusters. |
 
@@ -187,7 +187,8 @@ Pick the one that matches what you need.
 |---|---|---|
 | [`docs/START.md`](docs/START.md) — install + first project + cheatsheet | [`docs/RESEARCHER_GUIDE.md`](docs/RESEARCHER_GUIDE.md) — full workflow walkthrough | [`docs/PROTOCOLS.md`](docs/PROTOCOLS.md) — every protocol |
 | [`docs/SETUP.md`](docs/SETUP.md) — install + per-IDE wiring | [`docs/USE_CASES.md`](docs/USE_CASES.md) — role × goal × output map | [`docs/TOOLS.md`](docs/TOOLS.md) — every MCP tool |
-| [`docs/FAQ.md`](docs/FAQ.md) — common questions | [`docs/AI_GUIDE.md`](docs/AI_GUIDE.md) — for the AI itself | [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md) — for protocol authors |
+| [`docs/FAQ.md`](docs/FAQ.md) — common questions | [`docs/SHARING.md`](docs/SHARING.md) — zip + GitHub paths for sending to collaborators | [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md) — for protocol authors |
+| | [`docs/AI_GUIDE.md`](docs/AI_GUIDE.md) — for the AI itself | |
 
 Doc index: [`docs/README.md`](docs/README.md).
 

@@ -682,7 +682,38 @@ protocols:
     sub_intent: respond
     summary: "Structured response to external peer-review comments on YOUR paper."
     triggers: ["respond to reviewers", "reviewer comments", "rebuttal",
-               "draft a response", "the editor sent back", "revise and resubmit"]
+               "draft a response", "the editor sent back"]
+
+  guidance/revise_and_resubmit:
+    intent_class: review
+    sub_intent: respond
+    summary: "End-to-end R&R orchestration — intake → triage → route per comment (analysis/writing/figure) → response-grid → re-audit → point-by-point letter."
+    triggers:
+      - "revise and resubmit"
+      - "r&r"
+      - "r and r"
+      - "major revision"
+      - "minor revision"
+      - "the editor wants revisions"
+      - "round 2 reviews"
+      - "round two reviews"
+      - "revise the paper based on reviews"
+      - "respond to reviewers and revise"
+      - "process the reviewer report"
+      - "work through the reviewer report"
+      - "full r&r workflow"
+    token_estimate: 2200
+    decomposition:
+      - protocol: guidance/revise_and_resubmit
+        purpose: "Ingest reviews, parse to grid, classify + route per comment, execute routes, re-audit, fill response, assemble letter."
+      - tool: tool_response_to_reviewers
+        purpose: "Generate the formal point-by-point letter skeleton."
+      - tool: tool_audit_claims
+        purpose: "Re-audit every number in the revised manuscript."
+      - tool: tool_audit_prose
+        purpose: "Re-audit the revised prose for hedging / causal-language / reading level."
+      - tool: tool_audit_quality_full
+        purpose: "Master re-audit before pre-submission gate."
 
   guidance/collaboration_handoff:
     intent_class: session
@@ -705,6 +736,31 @@ protocols:
       - tool: tool_audit_synthesis
       - tool: tool_audit_citations
       - tool: tool_audit_figure
+
+  audit/provenance_completeness:
+    intent_class: audit_wrap
+    sub_intent: audit
+    summary: "Per-output provenance sidecar coverage — every figure/table/model artefact must ship with a `<stem>.prov.json` (script + git SHA + RNG seed + lib versions + params + wall-time)."
+    triggers:
+      - "provenance"
+      - "prov json"
+      - "prov.json"
+      - "sidecars"
+      - "provenance audit"
+      - "provenance completeness"
+      - "reproducibility manifest"
+      - "missing sidecars"
+      - "show me how this figure was made"
+      - "audit the provenance"
+      - "is every output provenanced"
+    token_estimate: 1300
+    decomposition:
+      - protocol: audit/provenance_completeness
+        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running through tool_figure_create or write_output_provenance."
+      - tool: tool_python_exec
+        purpose: "Re-run any artefact-producing script under provenance to backfill missing sidecars."
+      - tool: tool_figure_create
+        purpose: "Re-route figure rendering through the tool that writes the sidecar automatically."
 
   reproducibility/reproducibility:
     intent_class: audit_wrap
@@ -986,6 +1042,102 @@ protocols:
     decomposition:
       - protocol: methodology/power_analysis
         purpose: "Source effect size, name test, build power table + curve, justify N."
+
+  methodology/cox_ph_diagnostics:
+    intent_class: methodology
+    sub_intent: pick
+    summary: "Cox PH diagnostics — Schoenfeld residual test (Grambsch-Therneau) + log-log plot + per-covariate p-values + fallback strategy if violated."
+    triggers:
+      - "cox"
+      - "cox ph"
+      - "coxph"
+      - "proportional hazards"
+      - "ph assumption"
+      - "schoenfeld"
+      - "schoenfeld residuals"
+      - "grambsch-therneau"
+      - "grambsch therneau"
+      - "log-log plot"
+      - "log log survival"
+      - "hazard ratio check"
+      - "cox.zph"
+      - "phreg"
+      - "stcox"
+      - "time-varying coefficient"
+    token_estimate: 1500
+    decomposition:
+      - protocol: methodology/cox_ph_diagnostics
+        purpose: "Detect Cox fit, run Schoenfeld + log-log + per-covariate tests, route to fallback on violation."
+      - tool: tool_python_exec
+        purpose: "Run the diagnostics script (lifelines / sksurv / statsmodels) or tool_r_exec for survival::coxph."
+      - tool: tool_audit_assumptions
+        purpose: "Record the PH-assumption verdict alongside the other assumption checks."
+
+  methodology/missing_data_strategy:
+    intent_class: methodology
+    sub_intent: pick
+    summary: "Missing-data strategy — MCAR/MAR/MNAR reasoning, primary handling (complete-case or multiple imputation via MICE), mandatory sensitivity under a different mechanism."
+    triggers:
+      - "missing data"
+      - "missingness"
+      - "drop na"
+      - "dropna"
+      - "complete case"
+      - "complete-case analysis"
+      - "imputation"
+      - "impute"
+      - "mice"
+      - "multiple imputation"
+      - "iterative imputer"
+      - "iterativeimputer"
+      - "missforest"
+      - "fill na"
+      - "fillna"
+      - "mcar"
+      - "mar"
+      - "mnar"
+      - "pattern mixture"
+      - "heckman"
+    token_estimate: 1700
+    decomposition:
+      - protocol: methodology/missing_data_strategy
+        purpose: "Quantify missingness, justify mechanism, pick handling, run primary + sensitivity, pre-register if confirmatory."
+      - tool: tool_data_profile
+        purpose: "Profile missingness per column / row / stratum."
+      - tool: tool_python_exec
+        purpose: "Run MICE / IPW / pattern-mixture scripts."
+      - tool: tool_sensitivity_define
+        purpose: "Register the sensitivity spec under a different missingness mechanism."
+      - tool: tool_sensitivity_run
+        purpose: "Execute the sensitivity analysis and pool against the primary."
+
+  methodology/qualitative_quality_audit:
+    intent_class: methodology
+    sub_intent: qualitative
+    summary: "Qualitative quality audit — COREQ + SRQR enforcement (saturation, reflexivity, intercoder agreement ≥ 0.7, member checking, anonymisation, audit trail)."
+    triggers:
+      - "qualitative quality"
+      - "qualitative audit"
+      - "coreq check"
+      - "srqr check"
+      - "coreq audit"
+      - "srqr audit"
+      - "intercoder agreement"
+      - "intercoder reliability"
+      - "cohen's kappa coding"
+      - "krippendorff alpha"
+      - "saturation check"
+      - "member check"
+      - "member checking"
+      - "reflexivity statement"
+      - "audit my qualitative work"
+      - "qualitative trustworthiness audit"
+    token_estimate: 1600
+    decomposition:
+      - protocol: methodology/qualitative_quality_audit
+        purpose: "Walk saturation curve, reflexivity, intercoder agreement, member checking, quote anonymisation, audit trail."
+      - tool: tool_python_exec
+        purpose: "Compute saturation curve + Cohen's κ / Krippendorff's α on shared coding subset."
 
   methodology/reproduction_attempt:
     intent_class: methodology
