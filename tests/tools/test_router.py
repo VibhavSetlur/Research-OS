@@ -586,6 +586,56 @@ def test_sys_help_topic_synthesis_returns_synthesis_protocols(tmp_path):
     assert "synthesis_protocols" in payload["data"]
 
 
+def test_resolve_project_root_uses_env_var_when_set(tmp_path):
+    """Global-server resolution: RESEARCH_OS_WORKSPACE wins."""
+    import os
+    from research_os.server import _resolve_project_root
+    scaffold_minimal_workspace(tmp_path, "envvar test")
+    os.environ["RESEARCH_OS_WORKSPACE"] = str(tmp_path)
+    try:
+        root = _resolve_project_root()
+        assert root == tmp_path.resolve()
+    finally:
+        os.environ.pop("RESEARCH_OS_WORKSPACE", None)
+
+
+def test_resolve_project_root_ignores_nonexistent_env_var(tmp_path):
+    """If env var points at a nonexistent path, fall through to cwd."""
+    import os
+    from research_os.server import _resolve_project_root
+    os.environ["RESEARCH_OS_WORKSPACE"] = "/this/path/does/not/exist"
+    try:
+        root = _resolve_project_root()
+        # Should fall through to cwd-based resolution, not crash
+        assert root.exists()
+    finally:
+        os.environ.pop("RESEARCH_OS_WORKSPACE", None)
+
+
+def test_resolve_project_root_falls_back_to_cwd_when_no_env_var(tmp_path, monkeypatch):
+    """Without env var, walks up from cwd looking for .os_state/."""
+    import os
+    from research_os.server import _resolve_project_root
+    scaffold_minimal_workspace(tmp_path, "cwd test")
+    os.environ.pop("RESEARCH_OS_WORKSPACE", None)
+    monkeypatch.chdir(tmp_path)
+    root = _resolve_project_root()
+    assert root == tmp_path.resolve()
+
+
+def test_tool_alias_resolution(tmp_path):
+    """Dispatcher rewrites dot notation + handles legacy aliases."""
+    from research_os.server import _resolve_tool_name
+    # Dot → underscore
+    assert _resolve_tool_name("sys.state.get") == "sys_state_get"
+    assert _resolve_tool_name("tool.audit.synthesis") == "tool_audit_synthesis"
+    # Legacy alias
+    assert _resolve_tool_name("tool_audit_figure_quality") == "tool_audit_figure_full"
+    assert _resolve_tool_name("tool_log_decision") == "mem_decision_log"
+    # No-op for canonical names
+    assert _resolve_tool_name("sys_boot") == "sys_boot"
+
+
 def test_plan_turn_recommends_chat_split_when_long(tmp_path):
     import yaml as _yaml
     scaffold_minimal_workspace(tmp_path, "PlanTurn Split")

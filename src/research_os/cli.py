@@ -276,8 +276,9 @@ def build_parser() -> argparse.ArgumentParser:
             "(Claude Code, OpenCode, Antigravity, Cursor, Claude Desktop,\n"
             "VS Code, Windsurf, Continue, Aider, ...) owns model access.\n\n"
             "Everything beyond `init` happens by talking to the AI in your IDE.\n\n"
-            "Documentation: docs/QUICKSTART.md (5 min) · docs/RESEARCHER_GUIDE.md\n"
-            "               docs/GUIDE.md · docs/TOOLS.md · docs/PROTOCOLS.md · docs/FAQ.md"
+            "Documentation: docs/START.md (install + first project + cheatsheet) ·\n"
+            "               docs/RESEARCHER_GUIDE.md · docs/USE_CASES.md ·\n"
+            "               docs/TOOLS.md · docs/PROTOCOLS.md · docs/FAQ.md"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

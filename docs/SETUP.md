@@ -1,33 +1,34 @@
 # Setup — install, MCP wiring, troubleshooting
 
 This is the deep dive on getting Research OS installed and connected to
-your AI IDE. For a 5-minute version, see [QUICKSTART.md](QUICKSTART.md).
+your AI IDE. For the 5-minute version, see [START.md](START.md).
 
 ---
 
 ## 1. Prerequisites
 
 * Python 3.10 or newer.
-* pip (or `uv` / `poetry` / `conda` — anything that can install a Python
+* `pip` (or `uv` / `poetry` / `conda` — anything that installs a Python
   package).
-* An AI IDE that supports MCP: Claude Code, OpenCode, Antigravity, Cursor,
-  Claude Desktop, VS Code (with MCP extension), Windsurf, Continue, or Aider.
+* An AI IDE that supports MCP: Claude Code, OpenCode, Antigravity,
+  Cursor, Claude Desktop, VS Code (with MCP extension), Windsurf,
+  Continue, or Aider.
 
 Optional system tools (only needed for specific features):
 
 | Tool | Required for |
 |---|---|
-| Node.js + `@mermaid-js/mermaid-cli` | rendering workflow.mermaid → PNG |
-| TeX Live (pdflatex + bibtex) | paper.tex → PDF, poster.tex → PDF |
-| R (Rscript) | `tool_r_exec`, `tool_rmarkdown_render` for .Rmd |
+| Node.js + `@mermaid-js/mermaid-cli` | rendering `workflow.mermaid` → PNG |
+| TeX Live (`pdflatex` + `bibtex`) | `paper.tex` → PDF, `poster.tex` → PDF |
+| R (`Rscript`) | `tool_r_exec`, `tool_rmarkdown_render` for `.Rmd` |
 | Julia | `tool_julia_exec` |
-| Quarto | `tool_rmarkdown_render` for .qmd |
-| Jupyter | `tool_notebook_exec` for .ipynb |
+| Quarto | `tool_rmarkdown_render` for `.qmd` |
+| Jupyter | `tool_notebook_exec` for `.ipynb` |
 | Docker | `tool_audit_reproducibility` containerised re-run |
 
-Nothing in the list above is required to do basic research with Research OS.
-Each tool degrades gracefully (the relevant tool returns a clear error
-explaining what to install).
+Nothing in the list above is required for basic research with Research
+OS. Each tool degrades gracefully (the relevant tool returns a clear
+error explaining what to install).
 
 ---
 
@@ -39,7 +40,7 @@ explaining what to install).
 pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
-The `all` extra pulls every optional Python dependency the tools may use.
+The `all` extra pulls every optional Python dependency.
 
 ### Minimal
 
@@ -47,17 +48,16 @@ The `all` extra pulls every optional Python dependency the tools may use.
 pip install "research-os @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
-Core only — search + literature + viz + execution + audit extras are not
-installed. You can add them later (`pip install 'research-os[viz,audit]'`).
+Core only. Add extras later: `pip install 'research-os[viz,audit]'`.
 
-### Inside a virtualenv
+### Virtualenv
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
-### Conda (server / shared environments)
+### Conda
 
 ```bash
 conda create -n research-os python=3.11 -y
@@ -65,10 +65,11 @@ conda activate research-os
 pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
-Verify:
+### Verify
 
 ```bash
 research-os --help
+python -c "import research_os; print(research_os.__version__)"
 ```
 
 ---
@@ -80,7 +81,7 @@ mkdir my-project && cd my-project
 research-os init
 ```
 
-The two CLI commands:
+The CLI surface — two commands by design:
 
 ```
 research-os init [DIRECTORY] [OPTIONS]
@@ -88,7 +89,8 @@ research-os init [DIRECTORY] [OPTIONS]
   --domain DOMAIN       Optional hint: clinical|finance|nlp|genomics|...
   --question STRING     Initial research question (AI refines later)
   --ide IDE             Comma-separated, default "all":
-                        cursor|claude|antigravity|opencode|vscode|windsurf|continue|aider
+                        cursor|claude|antigravity|opencode|vscode|
+                        windsurf|continue|aider
   --force               Re-scaffold an existing workspace (preserves data)
 
 research-os start [OPTIONS]
@@ -96,30 +98,33 @@ research-os start [OPTIONS]
                         specific workspace path. Equivalent to setting
                         RESEARCH_OS_WORKSPACE. Omit for global mode —
                         one server serves all projects.
-  --transport stdio|sse Default stdio (what most IDEs use)
+  --transport stdio|sse Default stdio (what most IDEs use).
 ```
 
-You can pass `--name "Cohort 2024"` to set the project name; everything else
-is optional. The AI fills the rest later.
+### The server is GLOBAL
 
-**The server is global.** Install once with `pip install research-os`;
-the SAME `research-os start` binary serves every project. Each MCP
-request resolves the active project per call via:
-  1. `RESEARCH_OS_WORKSPACE` env var (set by IDE MCP config to
-     `${workspaceFolder}` so each IDE project gets its own context)
-  2. The current working directory walked up to `.os_state/`
-  3. The current working directory as a fallback
+You install Research OS once. The SAME `research-os start` binary
+serves every project. Each MCP request resolves the active project
+per-call:
+
+1. `RESEARCH_OS_WORKSPACE` env var (set by your IDE MCP config to
+   `${workspaceFolder}` so each IDE project gets its own context).
+2. The current working directory walked up to `.os_state/`.
+3. The current working directory as a fallback.
+
+You rarely run `research-os start` manually — the IDE auto-launches it.
 
 ---
 
 ## 4. Wire up your IDE
 
-`init` automatically drops the right config file for every supported IDE.
-You typically need to **restart the IDE** so it picks up the new file.
+`init` automatically drops the right config file for every supported
+IDE. **Restart your IDE** after `init` so it picks up the new MCP config.
 
 ### Claude Code
 
-* File dropped: `CLAUDE.md` (root) + `.claude/mcp.json` + `.claude/commands/`.
+* File dropped: `CLAUDE.md` (root) + `.claude/mcp.json` +
+  `.claude/commands/`.
 * Claude Code auto-detects `CLAUDE.md` and the MCP server.
 
 ### OpenCode
@@ -129,7 +134,8 @@ You typically need to **restart the IDE** so it picks up the new file.
 
 ### Antigravity
 
-* File dropped: `.antigravity/mcp.json` + `.antigravity/rules/research-os.md`.
+* File dropped: `.antigravity/mcp.json` +
+  `.antigravity/rules/research-os.md`.
 
 ### Cursor
 
@@ -137,11 +143,11 @@ You typically need to **restart the IDE** so it picks up the new file.
 
 ### Claude Desktop
 
-* File dropped: `.claude/mcp.json` inside the project (Claude Desktop reads
-  this when you "Open project").
-* If you use Claude Desktop globally, copy this snippet into
+* File dropped: `.claude/mcp.json` inside the project. Claude Desktop
+  reads this when you "Open project".
+* For global Claude Desktop config (typically
   `~/Library/Application Support/Claude/claude_desktop_config.json`
-  (macOS) — substitute `/abs/path/to/your-project`:
+  on macOS), add this snippet — substitute the absolute project path:
 
   ```json
   {
@@ -162,7 +168,8 @@ You typically need to **restart the IDE** so it picks up the new file.
 
 ### Windsurf
 
-* File dropped: `.windsurfrules` + `.windsurf/mcp.json` (when applicable).
+* File dropped: `.windsurfrules` + `.windsurf/mcp.json` (when
+  applicable).
 
 ### Continue
 
@@ -171,13 +178,13 @@ You typically need to **restart the IDE** so it picks up the new file.
 ### Aider
 
 * File dropped: `.aider.conf.yml` + a rule snippet you can paste into
-  `--read AGENTS.md` flag.
+  the `--read AGENTS.md` flag.
 
 ### Any other IDE
 
-* `AGENTS.md` is the canonical rule file at the project root. Any AI client
-  that lets you set custom instructions can be pointed at it. Add this to
-  the system prompt:
+* `AGENTS.md` is the canonical rule file at the project root. Any AI
+  client that lets you set custom instructions can be pointed at it.
+  Add to the system prompt:
 
   > "Before responding to any research request, read `AGENTS.md` in the
   > project root and follow it. All research actions go through the
@@ -187,30 +194,83 @@ You typically need to **restart the IDE** so it picks up the new file.
 
 ## 5. Install without starting a project
 
-If you want Research OS installed and your IDE wired up BEFORE you have
-a project in mind:
+If you want Research OS installed and your IDE wired up BEFORE you
+have a project in mind:
 
 ```bash
 pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
-Done — `research-os` is on your PATH. When you eventually have a project:
+Done — `research-os` is on your `PATH`. When you eventually have a
+project:
 
 ```bash
 cd path/to/wherever
-research-os init       # scaffold now
+research-os init       # scaffold + drop IDE configs
 ```
 
-Want an AI to handle the install + IDE setup for you? Paste the
-[Setup Prompt](SETUP_PROMPT.md) into any AI chat (Claude, ChatGPT, Cursor,
-Aider — anything). It walks the install end-to-end for your IDE.
+### Setup prompt — let an AI handle the install
+
+Paste this into any AI chat (Claude, ChatGPT, Cursor inline, OpenCode,
+Aider — anywhere) and let it walk you through the setup end-to-end.
+
+> I want to install and configure **Research OS** on this machine.
+> Research OS is an MCP-native research operating system hosted at
+> <https://github.com/VibhavSetlur/Research-OS>. Please walk me through
+> all of this, asking me ONE question at a time when you need input:
+>
+> 1. **Check Python ≥ 3.10.** If missing, suggest how to install for
+>    my OS (macOS / Linux / Windows / WSL — ask which I'm on).
+> 2. **Install with all optional extras**:
+>    ```
+>    pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+>    ```
+>    Use a virtualenv if I tell you to; otherwise install with
+>    `--user`.
+> 3. **Verify**: run `research-os --help` and show me the output.
+> 4. **Detect my AI IDE.** Ask which I'm using (Claude Code / OpenCode
+>    / Antigravity / Cursor / Claude Desktop / VS Code with MCP /
+>    Windsurf / Continue / Aider / other). For the chosen IDE, tell me
+>    what file Research OS will drop on `init`. If it needs a global
+>    config snippet, show it — DO NOT modify global configs without
+>    my approval.
+> 5. **Show me the two-command workflow**:
+>    ```
+>    mkdir my-project && cd my-project
+>    research-os init     # scaffolds + drops IDE config
+>    ```
+>    Then open the IDE on the folder and chat. `research-os start` is
+>    auto-launched by the IDE; I rarely run it manually.
+> 6. **Show me 5 essential prompts** I'll use most often:
+>    - "fill out the intake"
+>    - "what should I do next?"
+>    - "run a baseline EDA"
+>    - "draft the paper for a journal submission"
+>    - "make me a dashboard"
+> 7. **Optional credentials**: Research OS does NOT manage LLM
+>    provider keys — my IDE owns model access. Optional literature /
+>    web search keys live in `inputs/researcher_config.yaml
+>    api_keys.*`. Don't ask me for them now.
+> 8. **Point me at the docs**:
+>    - `docs/START.md` — install + first-hour walkthrough + cheatsheet
+>    - `docs/RESEARCHER_GUIDE.md` — full workflow walkthrough
+>    - `docs/USE_CASES.md` — role × goal × output map
+>    - `docs/FAQ.md` — common questions
+
+Power-user tips for the prompt:
+
+* For a different install path: *"Install via uv instead of pip."*
+* Shared HPC: *"I'm on a shared cluster; install into `~/.local` using
+  `pip install --user`."*
+* Skip IDE wiring: *"Just install Research OS, I'll handle IDE config
+  myself."*
 
 ---
 
 ## 6. Researcher configuration
 
-`inputs/researcher_config.yaml` is auto-created. **Every field is optional**
-— blank fields get sensible defaults applied silently by `session_boot`.
+`inputs/researcher_config.yaml` is auto-created. **Every field is
+optional** — blank fields get sensible defaults applied silently.
 
 The minimal useful subset:
 
@@ -224,13 +284,13 @@ runtime:
   shared_server: false             # set true on HPC / shared boxes
 ```
 
-Want to set up everything? See [GUIDE.md § 8](GUIDE.md) for the full schema.
+Full schema: [RESEARCHER_GUIDE.md § 8](RESEARCHER_GUIDE.md#8-configuration-inputsresearcher_configyaml).
 
 ### API keys (optional)
 
-Research OS does NOT manage LLM provider keys — your IDE owns model access.
-The credentials below are for literature / web search only. Free public
-endpoints work without any keys.
+Research OS does NOT manage LLM provider keys — your IDE owns model
+access. The credentials below are for literature / web search only.
+Free public endpoints work without any keys.
 
 ```yaml
 api_keys:
@@ -241,8 +301,8 @@ api_keys:
   serpapi: ""                      # https://serpapi.com (web search fallback)
 ```
 
-These are auto-exported as env vars (`SEMANTIC_SCHOLAR_API_KEY`, etc.) when
-the server starts.
+These are auto-exported as env vars (`SEMANTIC_SCHOLAR_API_KEY`, etc.)
+when the server starts.
 
 ---
 
@@ -255,18 +315,26 @@ In your IDE, in a fresh chat:
 A healthy install returns project + config + state + dep inventory +
 recommended next protocol in one short message.
 
+Confirm which project the server resolved:
+
+> "Call `sys_active_project` and tell me what it returned."
+
+You should see `has_os_state: true` and a `resolved_via` field naming
+either the env var or the cwd walk.
+
 ---
 
 ## 8. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `research-os: command not found` | Add `~/.local/bin` (or the venv's `bin/`) to PATH. |
-| IDE shows MCP error: "spawn research-os ENOENT" | The IDE can't find `research-os`. Use the absolute path in the MCP config, OR install Research OS into the env the IDE uses. |
+| `research-os: command not found` | Add `~/.local/bin` (or the venv's `bin/`) to `PATH`. |
+| IDE shows MCP error: `spawn research-os ENOENT` | The IDE can't find `research-os`. Use the absolute path in the MCP config, OR install Research OS into the env the IDE uses. |
 | Tool calls hang silently | Your IDE may not be MCP-aware. Check the MCP panel for stderr. |
 | `WriteProtectedError` when AI tries to write | Cannot write into `inputs/raw_data/` or `inputs/literature/`. Move to `workspace/` instead. |
-| "Not a Research OS workspace" | Run `research-os init .` here, or open a folder that has been `init`'d. The server resolves per-request via env var or cwd. |
-| State / dir look broken | Ask the AI: "Run `tool_workspace_repair`." It heals without deleting. |
+| `Not a Research OS workspace` | Run `research-os init .` here, or open a folder that has been initialised. The server resolves per-request via env var or cwd. |
+| `sys_active_project` returns `has_os_state: false` | The IDE opened a folder that hasn't been initialised. Run `research-os init` there. |
+| State / dir look broken | Ask the AI: "Run `tool_workspace_repair`." Heals without deleting. |
 | Citation tool returns 0 results | Check internet, optional API key, and the query string. Public endpoints have rate limits. |
 | Mermaid PNG not rendering | `npm install -g @mermaid-js/mermaid-cli`. |
 | `pdflatex not found` | Install TeX Live. The relevant tools fail gracefully without it. |

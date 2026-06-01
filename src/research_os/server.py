@@ -3789,8 +3789,8 @@ def _handle_sys_help(name, arguments, root):
             "Don't write under inputs/raw_data or inputs/literature — server blocks it.",
         ],
         "docs_for_humans": [
-            "docs/QUICKSTART.md — 5-minute start",
-            "docs/RESEARCHER_GUIDE.md — non-technical walkthrough",
+            "docs/START.md — install + first project + cheatsheet",
+            "docs/RESEARCHER_GUIDE.md — full workflow walkthrough",
             "docs/USE_CASES.md — role × goal × output map",
             "docs/PROTOCOLS.md — protocol catalogue + triggers",
             "docs/TOOLS.md — every MCP tool with example calls",

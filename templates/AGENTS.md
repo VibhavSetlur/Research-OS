@@ -6,8 +6,8 @@ every prompt — keep it short. Step-by-step "how to do X" lives in the
 
 For your full operating guide, call `sys_help` — it returns
 the in-server orientation (routing pattern, namespaces, protocol
-categories, anti-patterns). The fuller human-readable version is
-[`docs/AI_GUIDE.md`](../docs/AI_GUIDE.md).
+categories, anti-patterns). The fuller human-readable version is at
+<https://github.com/VibhavSetlur/Research-OS/blob/main/docs/AI_GUIDE.md>.
 
 ---
 

@@ -5,14 +5,22 @@ contribute changes that keep the surface small and the protocols sharp.
 
 ## Architecture in one paragraph
 
-The AI IDE is the brain (Cursor / Claude / Antigravity / OpenCode /
-VS Code / Windsurf / Continue / Aider). Research OS is the body: 98 MCP
-tools and 47 YAML protocols, plus a router that turns a user prompt into
-a protocol pick + planned tool sequence without loading every YAML. It
+The AI IDE is the brain (Cursor / Claude Code / Claude Desktop /
+OpenCode / Antigravity / VS Code / Windsurf / Continue / Aider).
+Research OS is the body: 140 MCP tools and 82 YAML protocols, plus a
+hierarchical L1 → L2 → L3 router that turns a user prompt into a
+protocol pick + planned tool sequence without loading every YAML. It
 enforces immutability (`inputs/raw_data/`, `inputs/literature/`) and
 provenance (`workspace/methods.md`, `workspace/analysis.md`,
 `.os_state/protocol_execution_log.jsonl`, `.os_state/active_plan.json`).
 It never calls an LLM itself.
+
+The server is **global** — install once with `pip install research-os`;
+the SAME `research-os start` binary serves every project. Each MCP
+request resolves the active project per call via the
+`RESEARCH_OS_WORKSPACE` env var (set by the IDE MCP config to
+`${workspaceFolder}`), or by walking up the current working directory
+for `.os_state/`.
 
 ## Development setup
 
@@ -21,9 +29,9 @@ git clone https://github.com/VibhavSetlur/Research-OS.git
 cd Research-OS
 pip install -e ".[ci,dev]"           # lean install used by CI
 # or pip install -e ".[all,dev]"     # everything except R / Julia / Docker
-pytest                                # ~180 tests, ~3s
+pytest                                # ~376 tests, ~8s
 ruff check src/ tests/ scripts/
-python scripts/preflight.py           # 12 wiring checks
+python scripts/preflight.py           # 13 wiring checks
 ```
 
 ## Adding or modifying a protocol
@@ -42,7 +50,7 @@ Keep the schema tight:
 ```yaml
 id: <protocol_id>
 name: <Human Name>
-version: '5.0.0'
+version: '1.0.0'
 schema_version: '2.0'
 description: One-line summary.
 trigger: When the AI should run this.

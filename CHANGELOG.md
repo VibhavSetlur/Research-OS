@@ -188,26 +188,18 @@ for reasoning, not scripts to execute.
   intent from logs after any pause; `sys_session_handoff` snapshots a
   checkpoint + writes a fresh-AI-readable handoff doc.
 
-### Docs
+### Docs (10 docs, consolidated)
 
-* [`docs/QUICKSTART.md`](docs/QUICKSTART.md) — 5-minute start
-* [`docs/FIRST_HOUR.md`](docs/FIRST_HOUR.md) — first-hour orientation
-  for new researchers
-* [`docs/CHEATSHEET.md`](docs/CHEATSHEET.md) — one-page command reference
-* [`docs/RESEARCHER_GUIDE.md`](docs/RESEARCHER_GUIDE.md) — non-technical
-  walkthrough
+* [`docs/README.md`](docs/README.md) — table of contents + pick-your-path
+* [`docs/START.md`](docs/START.md) — install + first project + cheatsheet (replaces QUICKSTART + FIRST_HOUR + CHEATSHEET)
+* [`docs/RESEARCHER_GUIDE.md`](docs/RESEARCHER_GUIDE.md) — full workflow walkthrough (replaces GUIDE + WALKTHROUGH + the old RESEARCHER_GUIDE)
 * [`docs/USE_CASES.md`](docs/USE_CASES.md) — role × goal × output map
-* [`docs/AI_GUIDE.md`](docs/AI_GUIDE.md) — orientation for the AI
-  driving Research OS
-* [`docs/PROTOCOLS.md`](docs/PROTOCOLS.md) — protocol catalogue +
-  triggers + quality bars
-* [`docs/TOOLS.md`](docs/TOOLS.md) — every MCP tool with example calls
-* [`docs/SETUP.md`](docs/SETUP.md) — install + per-IDE MCP wiring
-* [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md) — the
-  scaffold-not-script principle
+* [`docs/SETUP.md`](docs/SETUP.md) — install + per-IDE MCP wiring (absorbs SETUP_PROMPT)
 * [`docs/FAQ.md`](docs/FAQ.md) — common questions
-* [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md) — end-to-end simulated
-  project from data download through paper + handoff + resume
+* [`docs/AI_GUIDE.md`](docs/AI_GUIDE.md) — orientation for the AI driving Research OS
+* [`docs/PROTOCOLS.md`](docs/PROTOCOLS.md) — protocol catalogue + triggers + quality bars
+* [`docs/TOOLS.md`](docs/TOOLS.md) — every MCP tool with example calls
+* [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle
 
 ### Test + quality status
 

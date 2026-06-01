@@ -1,251 +1,625 @@
-# Researcher Guide — using Research OS day-to-day
+# Researcher Guide
 
-A non-technical walkthrough of the typical research workflow. Assumes
-[QUICKSTART.md](QUICKSTART.md) is done (you've installed, scaffolded, and
-your IDE is connected).
+The full guide to working with Research OS day-to-day. Read after
+[START.md](START.md) (5-minute install + first project). This document
+covers: the mental model, the file layout, a typical session, the
+canonical 10-stage pipeline, all 82 protocols and 140 MCP tools, the
+config schema, power-user patterns, and troubleshooting.
+
+For the AI-driving-Research-OS guide (which the AI itself reads), see
+[AI_GUIDE.md](AI_GUIDE.md).
 
 ---
 
-## The mental model
+## 1. The mental model
 
 ```
 You — drop files, talk to the AI, approve or redirect.
 AI in your IDE — plans, reasons, writes scripts, drafts text.
-Research OS — executes, records, enforces rules, prevents mistakes.
+Research OS — executes, records state, enforces immutability, picks
+              the right protocol via a hierarchical router, walks the
+              AI through it.
 ```
 
-You never call MCP tools directly. You just talk. The AI translates your
-intent into the right tool calls, following protocols that Research OS
-loads on demand.
+You never call MCP tools directly. You just talk. The AI translates
+your intent into the right `tool_route` call, loads the picked protocol,
+executes via the right `sys_*` / `tool_*` / `mem_*` tools, and reports
+back.
+
+> Research OS does NOT manage LLM provider keys. Your IDE owns model
+> access. The only credentials Research OS uses are for literature +
+> web search (Crossref / Semantic Scholar / PubMed / Firecrawl /
+> SerpAPI), all optional. Public endpoints work without keys.
 
 ---
 
-## Where files go
+## 2. The session pattern (how the AI is supposed to use Research OS)
+
+```
+1. sys_boot                            # one MCP call: state + config
+                                       # + history + dep inventory +
+                                       # next protocol + pause
+                                       # classification + active plan
+2. (await researcher's message)
+3. tool_route(prompt=<their message>)  # hierarchical L1 → L2 → L3
+                                       # picker; returns
+                                       # primary_protocol, shortcut_tool,
+                                       # decomposition, complexity,
+                                       # ask_user
+4. If complexity = "high":
+     a. tool_plan_turn               # batch sized to model_profile
+     b. execute every entry in this_turn IN ORDER
+     c. tool_plan_advance after each
+     d. if chat_split_recommended → sys_session_handoff,
+        ask for fresh chat
+   If complexity = "low":
+     • call shortcut_tool directly, OR
+     • sys_protocol_get format='summary' (~300 tokens) →
+       format='step' + step_id=<id> when ready to execute
+```
+
+A typical session boot is ~1.2K tokens (vs ~5K with naive multi-call).
+
+---
+
+## 3. Where files go
 
 ```
 my-project/
-├── inputs/raw_data/         ← drop your data here (CSVs, parquet, FASTQs, ...)
-├── inputs/literature/       ← drop PDFs here
-├── inputs/context/          ← drop notes, drafts, prior reports, anything text
-├── docs/                    ← human-readable: research question, glossary, design
-├── workspace/               ← AI lives here (experiments, methods, analysis logs)
+├── inputs/                  ← IMMUTABLE — researcher provides
+│   ├── raw_data/            ← drop your CSVs / parquet / FASTQ / ...
+│   ├── literature/          ← drop your PDFs
+│   ├── context/             ← drop notes / drafts / prior reports
+│   ├── researcher_config.yaml  ← source of truth for AI behaviour
+│   └── intake.md            ← auto-filled by tool_intake_autofill
+│
+├── docs/                    ← human-readable
+│   ├── research_question.md
+│   ├── domain_summary.md
+│   ├── research_design.md
+│   └── glossary.md
+│
+├── workspace/               ← ACTIVE — experiments live here
+│   ├── methods.md           ← append-only method log
+│   ├── analysis.md          ← chronological narrative
+│   ├── citations.md         ← auto-generated bibliography
+│   ├── workflow.mermaid     ← cross-step DAG
 │   ├── 01_baseline_eda/     ← numbered experiment steps
+│   │   ├── README.md
+│   │   ├── conclusions.md
+│   │   ├── scripts/         ← versioned scripts (_v1, _v2, ...)
+│   │   ├── data/{input,output}/
+│   │   ├── outputs/{reports,figures,tables}/
+│   │   ├── environment/     ← per-step requirements.txt
+│   │   └── literature/      ← step-scoped PDFs (optional)
 │   ├── 02_data_preparation/
 │   ├── scratch/             ← AI sandbox (gitignored)
-│   ├── methods.md           ← every method used, appended
-│   ├── analysis.md          ← chronological narrative
-│   └── citations.md         ← bibliography
-└── synthesis/               ← final outputs (only created when you ask)
-    ├── paper.md / .tex / .pdf
-    ├── abstract.md
-    ├── poster.pdf
-    ├── dashboard.html
-    └── references.bib
+│   └── logs/                ← search / audit / repair / task logs
+│
+├── synthesis/               ← FINAL — only created when you ask
+│   ├── paper.md / .tex / .pdf
+│   ├── abstract.md
+│   ├── poster.tex / .pdf + poster_qr.png
+│   ├── dashboard.html       ← single-file, offline-safe
+│   ├── slides.{tex,md,html,pptx}
+│   ├── handout.pdf + handout_qr.png
+│   ├── lay_summary.md
+│   ├── cover_letter.md
+│   ├── data_availability.md / author_contributions.md / ...
+│   └── references.bib
+│
+├── AGENTS.md                ← canonical AI rules (every IDE reads it)
+├── CLAUDE.md  .windsurfrules  .cursor/  .claude/  ...
+└── .os_state/               ← internal (do NOT edit by hand)
 ```
 
-You touch `inputs/`. The AI touches `workspace/` and `synthesis/`. Nothing in
-`inputs/raw_data/` or `inputs/literature/` is ever modified — Research OS
-blocks writes at the server level.
+You touch `inputs/`. The AI touches `workspace/` and `synthesis/`.
+Nothing in `inputs/raw_data/` or `inputs/literature/` is ever modified
+— Research OS blocks writes at the server level.
 
 ---
 
-## A typical session
+## 4. A typical session (narrative)
 
-### 1. First time (set up the project)
+### 4.1 First time — set up the project
 
-> **You:** I dropped my CSV and a couple of papers in inputs/. Fill out the intake.
+> **You:** I dropped my CSV and a couple of papers in inputs/. Fill out
+> the intake.
 
-The AI calls `tool_intake_autofill`, reads everything, proposes a research
-question + domain + hypotheses, and shows you what it inferred. You approve
-or refine.
+The AI calls `tool_intake_autofill`, reads everything, proposes a
+research question + domain + hypotheses, and shows you what it
+inferred. You approve or refine.
 
-### 2. Start analysing
+### 4.2 Start analysing
 
 > **You:** OK, run a baseline EDA on the data.
 
-The AI loads the `guidance/analysis_plan` protocol, creates
+The AI loads `guidance/analysis_plan`, creates
 `workspace/01_baseline_eda/`, writes an atomic Python (or R / Julia)
-script, runs it, drops the output figures + report into the experiment
-folder, and writes conclusions.
+script, runs it, drops outputs + figures + reports into the step, and
+writes `conclusions.md`.
 
-### 3. Course-correct mid-flow
+### 4.3 Course-correct mid-flow
 
 > **You:** Actually, group by quarter instead of month.
 
 The AI bumps the script to `_v2`, re-runs, updates conclusions. Old
 versions stay on disk for provenance.
 
-### 4. Branch into a parallel approach
+### 4.4 Branch into a parallel approach
 
-> **You:** Try a tree-based model too, in parallel to the logistic regression.
+> **You:** Try a tree-based model too, in parallel.
 
-The AI calls `tool_branch_recommendation` (decides: branch since we have
-< 3 active paths), runs `sys_path_create`, sets up
-`workspace/03_random_forest/`, executes, compares results across the two
-paths.
+The AI calls `tool_branch_recommendation` (decides: branch since we
+have < 3 active paths), runs `sys_path_create`, sets up
+`workspace/03_random_forest/`, executes, compares across the paths.
 
-### 5. Mid-flow context (a new paper or dataset appears)
+### 4.5 Mid-flow context (a new paper appears)
 
-> **You:** My PI sent me a new paper, here it is.
-> *(drag-drop or paste the PDF into `inputs/literature/` or anywhere in the project)*
+> **You:** My PI sent me a new paper. *(drag-drop into the project)*
 > Integrate it.
 
-The AI calls `tool_context_intake also_autofill=true`. The new paper is
-auto-routed to `inputs/literature/`, the bibliography is updated, the
-research question / hypotheses are revisited if the new paper warrants it,
-and `analysis.md` is annotated with the integration.
+`tool_context_intake also_autofill=true` auto-routes the file to
+`inputs/literature/`, updates the bibliography, revisits the research
+question / hypotheses if the new paper warrants it, and annotates
+`analysis.md`.
 
-### 6. Decide what's next
+### 4.6 Decide what's next
 
 > **You:** What should I do next?
 
-The AI loads `guidance/iterative_planning`. It surveys state, pulls fresh
-literature on your open question, searches the web for relevant tools, and
-proposes 2-3 concrete options with a recommendation.
+The AI loads `guidance/iterative_planning`. Surveys state, pulls fresh
+literature on your open question, searches the web for relevant tools,
+and proposes 2-3 concrete options with a recommendation.
 
-### 7. Synthesise
+### 4.7 Synthesise
 
 > **You:** Write the paper for a journal submission.
 
-The AI loads `synthesis/synthesis_paper`, picks the `journal` venue profile
-(structured abstract, ~4000 words, ≤40 citations, ≥1 figure), drafts each
-section (methods → results → discussion → introduction → abstract), audits
-citations, and writes `synthesis/paper.md` plus `synthesis/references.bib`.
+The AI loads `synthesis/synthesis_paper` → workshops the title via
+`synthesis/synthesis_title_workshop` → drafts Methods → Results →
+`writing/writing_discussion` → `writing/writing_limitations` →
+Introduction → Abstract → assembles the end matter via
+`writing/writing_data_availability` (CRediT / data avail / funding /
+COI / ack) → drafts the cover letter via
+`synthesis/synthesis_cover_letter` → runs
+`audit/pre_submission_checklist` for a final GREEN / YELLOW / RED gate.
 
-If you want a poster too:
+Also want a poster?
 
-> **You:** Also make a poster for an academic conference.
+> **You:** And make a poster for the academic conference.
 
-The AI loads `synthesis/synthesis_poster`, picks the `academic_conference`
-audience (36×48 portrait, 5-block tikzposter), curates 2-4 publication-grade
-figures, builds `synthesis/poster.pdf`.
+`synthesis/synthesis_poster` builds a tikzposter PDF with a QR code
+linking back to the paper and a single-headline test.
 
-### 8. Hand off the project at end-of-day
+### 4.8 Hand off at end-of-day
 
 > **You:** Wrap up the session.
 
-The AI calls `sys_session_handoff` — writes a markdown summary with state +
-recent analysis + a resume prompt you can paste into a fresh chat next time.
+`sys_session_handoff` writes a markdown summary with state + recent
+analysis + a resume prompt you can paste into a fresh chat tomorrow.
 
 ---
 
-## The autonomy slider
+## 5. The canonical 10-stage pipeline
 
-Set in `inputs/researcher_config.yaml`:
+`sys_protocol_next` returns the first stage whose outputs (and
+execution log) say "not done yet".
 
-| Mode | What the AI does without asking | Best for |
-|---|---|---|
-| `manual` | nothing — asks before every tool call | learning, watching the AI work, debugging |
-| `supervised` (default) | reads + searches autonomously; asks before creating experiments, writing to `synthesis/`, running long jobs | day-to-day research |
-| `autopilot` | runs end-to-end; asks only before final synthesis + very long jobs | well-scoped projects you want to leave running |
+| # | Protocol                              | Done when... |
+|---|---------------------------------------|---|
+| 1 | `guidance/session_boot`               | first protocol logged |
+| 2 | `guidance/project_startup`            | `intake.md` filled + research question confirmed |
+| 3 | `domain/domain_analysis`              | `docs/domain_summary.md` exists |
+| 4 | `domain/research_design`              | `docs/research_design.md` exists |
+| 5 | `methodology/methodology_selection`   | `workspace/methods.md` substantive |
+| 6 | `literature/literature_search`        | `inputs/literature_index.yaml` + `citations.md` exist |
+| 7 | `guidance/analysis_plan`              | at least one `workspace/NN/conclusions.md` non-empty |
+| 8 | `reproducibility/reproducibility`     | `workspace/*/environment/requirements.txt` exists |
+| 9 | `audit/audit_and_validation`          | `workspace/logs/audit_report.md` exists |
+| 10| `synthesis/synthesis_paper`           | `synthesis/paper.md` exists |
 
-You can change this mid-session: just say "switch to autopilot" — the AI
-calls `sys_config_set interaction.autonomy_level=autopilot` and adjusts.
+You do NOT have to follow this in order. Off-pipeline entry points:
 
----
+- **No data, just a question** → `methodology/methodological_consultation`
+- **Data, results, no RO history** → `guidance/mid_pipeline_entry` →
+  `synthesis/synthesis_from_inputs`
+- **Just want a figure** → `visualization/visualization_workflow`
+- **Just want a poster** → `synthesis/synthesis_poster`
+- **Just want a lab-meeting deck** → `synthesis/synthesis_slides`
+- **Quick critique of someone else's paper** →
+  `guidance/quick_paper_review`
+- **Multi-paper journal club** → `literature/comparative_paper_review`
+- **Power analysis only** → `methodology/power_analysis`
+- **Reproduce a published paper** → `methodology/reproduction_attempt`
+- **Lay summary / press release** → `synthesis/synthesis_lay_summary`
 
-## Useful prompts (just copy-paste)
-
-### Starting a project
-
-```
-fill out the intake
-look at my data
-what is in my inputs folder?
-i'm bringing this into research-os — we've been working on it for months
-i already have results, just write it up
-do real EDA — i don't have a hypothesis yet
-```
-
-### Mid-flow analysis
-
-```
-run a baseline EDA
-fit a logistic regression and check assumptions
-what should I do next?
-benchmark random forest vs xgboost head-to-head
-audit this dataset for data quality
-power analysis for the upcoming RCT
-freeze the analysis plan
-this experiment isn't working — abandon it and try X instead
-```
-
-### Reading + understanding
-
-```
-review this paper
-tear apart this paper as a tough reviewer
-journal club on these three papers
-explain mixed-effects models to me
-teach me propensity scores before i use them
-walk me through bayesian model averaging
-reproduce this paper — i want the same numbers
-find me papers about <topic>
-do a systematic review of <topic>
-```
-
-### Visualization
-
-```
-make me a figure from this CSV
-polish my figures for the talk
-build a figure deck for the paper
-critique this figure
-remake this chart for the dashboard
-```
-
-### Writing + synthesis
-
-```
-draft the paper for a journal submission
-draft an NIH R01 narrative
-make a dashboard for executives
-build a poster for the conference
-build a slide deck for my defense
-build slides for a 12-minute conference talk
-write a lay summary for the public
-write a press release on this finding
-weekly update for my PI
-status update for my advisor
-write the methods section
-```
-
-### Operations
-
-```
-check reproducibility
-audit my workspace for issues
-fix my workspace
-wrap up the session
-pick up where we left off
-send to a collaborator
-```
-
-For a complete role × goal × output map, see [USE_CASES.md](USE_CASES.md).
+For the full role × goal × output map, see [USE_CASES.md](USE_CASES.md).
 
 ---
 
-## What if something goes wrong?
+## 6. The on-demand protocol surface (82 total)
 
-* **AI is making bad choices** → switch autonomy to `supervised` or
-  `manual`. Ask the AI to "explain the rationale" before each step.
-* **Workspace looks broken** → "Run `tool_workspace_repair`." Heals
-  without deleting.
-* **AI seems to forget context** → "Re-run `sys_protocol_get` for the
-  current protocol and confirm where you are."
-* **The chat is too long** → "Hand off the session." Then paste the
-  resume prompt into a fresh chat.
-* **Something deleted by mistake** → `sys_checkpoint_list` shows snapshots;
-  `sys_checkpoint_rollback <id>` restores. Research OS auto-snapshots at
-  every protocol boundary.
+For per-protocol triggers + quality bars, see
+[PROTOCOLS.md](PROTOCOLS.md). High-level inventory:
+
+**Guidance (17)** — session + flow control. `session_boot` /
+`session_resume` / `chat_handoff` / `collaboration_handoff` /
+`autopilot` / `casual_exploration` / `quick_paper_review` /
+`code_review` / `peer_review_response` / `project_startup` /
+`analysis_plan` / `iterative_planning` / `dead_end_routing` /
+`hypothesis_tracking` / `glossary_update` / `mid_pipeline_entry` /
+`constructive_disagreement`.
+
+**Domain + methodology (24)** — `domain_analysis` / `research_design` /
+`methodology_selection` / `deep_domain_research` / `preregistration` /
+`tool_discovery` + per-method: `causal_inference_deep` /
+`machine_learning` / `clinical_trials` / `meta_analysis` /
+`survey_psychometrics` / `qualitative_research` / `simulation_studies`
+/ `replication_study` / `ablation_study` / `pilot_study` /
+`mixed_methods` / `bayesian_analysis` / `timeseries_analysis` +
+design / workflow: `exploratory_data_analysis` / `method_comparison` /
+`data_quality_audit` / `power_analysis` / `evaluation_design` /
+`hyperparameter_search_design` / `data_ethics_review` /
+`reproduction_attempt` / `methodological_consultation`.
+
+**Literature (4)** — `literature_search` (with forward-citation walk +
+predatory-venue check) / `systematic_review` / `evidence_synthesis` /
+`comparative_paper_review`.
+
+**Writing (9)** — `writing_core` (universal rules) + per-section:
+`writing_methods` / `writing_results` / `writing_discussion` /
+`writing_limitations` / `writing_conclusions` / `writing_citations` /
+`writing_readme` / `writing_analysis_log` / `writing_data_availability`
+(end matter — data / code / CRediT / funding / COI / ack).
+
+**Visualization (6)** — `figure_guidelines` (style + rules) /
+`visualization_workflow` (build / polish) / `figure_critique` /
+`multi_panel_composition` / `figure_narrative_arc` /
+`color_accessibility_audit`.
+
+**Synthesis (14)** — `synthesis_paper` / `synthesis_abstract` /
+`synthesis_poster` (with QR + single-headline test) /
+`synthesis_dashboard` (Playwright-tested) / `synthesis_grant` /
+`synthesis_report` / `synthesis_null_findings` (anti-file-drawer) /
+`synthesis_slides` (talks) / `synthesis_lay_summary` (outreach) /
+`synthesis_progress_update` (PI / advisor) / `synthesis_handout`
+(printable + QR) / `synthesis_from_inputs` (no in-RO analysis) /
+`synthesis_cover_letter` / `synthesis_title_workshop`.
+
+**Audit + reproducibility (3)** — `audit_and_validation` (master
+quality audit) / `pre_submission_checklist` (final GREEN/YELLOW/RED
+gate) / `reproducibility` (env snapshot + Dockerfile + seed
+verification).
+
+---
+
+## 7. MCP tools (140 total)
+
+> All names use underscores. Dot notation + legacy names are
+> auto-rewritten. Full catalogue with example calls:
+> [TOOLS.md](TOOLS.md).
+
+### Routing layer — call FIRST every session
+
+| Tool | Purpose |
+|---|---|
+| `sys_boot` | One call returns state + config + history + dep inventory + next protocol + pause classification + active plan. Replaces 4-5 separate calls. |
+| `tool_route` | Hierarchical L1 → L2 → L3 picker for "which protocol fits this prompt". Returns ambiguity-aware (`ask_user` for L≥2 ties). |
+| `tool_plan_turn` | Per-turn batching sized to `model_profile` (small=1, medium=3, large=6 steps). Returns `chat_split_recommended` for long plans. |
+| `tool_plan_advance` / `tool_plan_clear` | Walk or discard the active plan. |
+| `sys_active_project` | Returns the project root the server resolved for THIS request + how (env var / cwd walk / fallback). |
+| `sys_help` | AI orientation block — routing pattern, namespaces, protocol categories, anti-patterns. Pass `topic=` for category-specific guidance. |
+| `sys_tool_describe` | Full description + schema for one tool. |
+| `sys_active_tools` | Tool shortlist for a protocol (essentials + decomposition tools). |
+| `sys_protocol_get` | `format='summary'` (~300 tokens) / `format='step' step_id='...'` / `format='full'`. |
+| `sys_dep_inventory` | Which optional extras failed to import. |
+
+### `sys_*` — workspace, state, files, paths, checkpoints
+
+| Tool | Purpose |
+|---|---|
+| `sys_state_get` | Full / minimal / markdown state snapshot. (Prefer `sys_boot` at session start.) |
+| `sys_workspace_scaffold` / `sys_workspace_tree` | Re-create / inspect the workspace tree. |
+| `sys_file_read` / `_write` / `_list` / `_delete` / `_validate_md` | File I/O (write blocked under `inputs/raw_data/` and `inputs/literature/`). |
+| `sys_path_create` / `_abandon` / `_list` | Numbered experiment folders. |
+| `sys_checkpoint_create` / `_rollback` / `_list` | Workspace snapshots (hardlinked, fast). |
+| `sys_config_get` / `_set` / `_validate` | `researcher_config.yaml`. |
+| `sys_notify` | Append to `workspace/logs/notifications.log`. |
+| `sys_session_handoff` | Structured handoff doc + fresh checkpoint. |
+| `sys_env_snapshot` / `_docker_generate` | Capture + containerise the env. |
+
+### `tool_*` — research workflow
+
+| Tool | Purpose |
+|---|---|
+| `tool_session_resume` / `tool_progress_digest` / `tool_dead_end_lessons` | Session continuity + bookkeeping. |
+| `tool_quick_review` / `tool_redteam_review` | Stage critical-appraisal + adversarial-review skeletons. |
+| `tool_search_semantic_scholar` / `_pubmed` / `_crossref` / `_arxiv` / `_web` | Literature + web search. |
+| `tool_literature_download` / `tool_literature_search_and_save` / `tool_step_literature_list` | Per-step literature management. |
+| `tool_python_exec` / `_r_exec` / `_julia_exec` / `_bash_exec` / `tool_notebook_exec` / `tool_rmarkdown_render` | Run scripts / notebooks. Returncode-aware. |
+| `tool_package_install` | `pip install` + update requirements. |
+| `tool_data_sample` / `_profile` / `_convert` | Sample, profile, convert tabular data. |
+| `tool_audit_synthesis` / `_step_completeness` / `_code_quality` / `_prose` / `_claims` / `_figure_full` / `_citations` / `_assumptions` / `_reproducibility` / `_quality_full` | Real audits — citation lookups, statistical power, assumption tests, figure DPI, full re-runs, master quality audit. |
+| `tool_synthesize_plan` / `tool_synthesize` | Plan section order; build paper / abstract / poster / dashboard / grant / report / slides / lay / handout with verified citations. |
+| `tool_latex_compile` / `tool_poster_create` / `tool_dashboard_create` / `tool_dashboard_test_generate` / `tool_dashboard_test_run` | PDF + tikzposter + single-file HTML dashboard + Playwright suite. |
+| `tool_research_method` / `tool_research_tool` / `tool_external_tool_instructions` / `tool_plan_step` | Reasoning + grounding helpers. |
+| `tool_plan_next_step` / `tool_branch_recommendation` / `tool_alternative_path_propose` | Iterative planning. |
+| `tool_grounding_register` / `_verify` | Bind decisions to PROV-O sources. |
+| `tool_preregister_freeze` / `_diff` | Lock the SAP before data; diff at synthesis. |
+| `tool_sensitivity_define` / `_run` | Specification-curve / multiverse analyses. |
+| `tool_step_pipeline_define` / `_run` / `tool_workflow_dag` / `tool_step_env_lock` | Per-step sub-task pipelines + DAG + env locking. |
+| `tool_slurm_submit` / `_status` / `_fetch` | HPC submission. |
+| `tool_task_run` / `_status` / `_list` / `_kill` | Real background subprocesses for shared servers. |
+| `tool_scratch_write` / `_run` / `_list` / `_clear` | Workspace sandbox. |
+| `tool_workspace_repair` | Heal a broken workspace; never deletes. |
+| `tool_intake_autofill` / `tool_context_intake` | Auto-fill + mid-flow context injection. |
+| `tool_lessons_record` / `_consult` | Carry lessons across sessions. |
+| `tool_null_findings_report` | Anti-file-drawer report assembly. |
+| `tool_cache_clear` | Wipe search cache per provider / older-than-N-days. |
+
+### `mem_*` — append-only logs, decisions, hypotheses
+
+| Tool | Purpose |
+|---|---|
+| `mem_analysis_log` / `mem_methods_append` / `mem_citations_generate` / `mem_intake_regenerate` / `mem_decision_log` | Append to canonical workspace logs. |
+| `mem_hypothesis_add` / `_update` / `_list` | Multi-hypothesis ledger. |
+
+---
+
+## 8. Configuration (`inputs/researcher_config.yaml`)
+
+Auto-created on `init`. **Every field is optional** — blank fields get
+sensible defaults applied silently. Set only what you care about.
+
+```yaml
+project_name: ""                  # blank → uses directory name
+research_question: ""             # blank → tool_intake_autofill proposes
+domain: ""                        # blank → AI classifies from inputs
+hypotheses: []                    # AI tracks via mem_hypothesis_*
+
+researcher:
+  name: ""
+  field: ""
+  expertise_level: ""             # beginner | intermediate | advanced | pi
+
+interaction:
+  autonomy_level: "supervised"    # manual | supervised | autopilot
+
+model_profile: "medium"           # small | medium | large
+                                  # — drives tool_plan_turn batch size
+
+runtime:
+  shared_server: false            # set true on HPC / shared boxes
+  long_running_threshold_seconds: 60
+  default_n_for_sampling: 1000
+
+research_goal:
+  output_types: []                # paper | abstract | poster |
+                                  # dashboard | report | exploratory
+  target_venue: ""
+  reporting_standard: ""
+  poster_dimensions: "36x48"
+
+writing_preferences:
+  citation_style: "apa"
+  language: "en-US"
+
+api_keys:                         # all optional — NO LLM provider keys
+  semantic_scholar: ""
+  pubmed: ""
+  crossref: ""
+  firecrawl: ""
+  serpapi: ""
+```
+
+### One config, no presets
+
+There is ONE template: `templates/researcher_config.yaml`. Every field
+is blank. The AI fills it from your `inputs/` + an `intake_autofill`
+pass — never from a modality-specific preset.
+
+---
+
+## 9. Power-user patterns
+
+### Custom / novel methodology
+
+Skip `tool_research_tool` (or run it to confirm no library fits). Run
+`tool_research_method` for published precedent. Document with
+`mem_methods_append implementation="custom"` and `mem_decision_log`
+explaining why off-the-shelf was inadequate. Prototype in
+`workspace/scratch/`; promote into a numbered step when it works.
+
+### Branching
+
+When an alternative methodology deserves its own thread, create a
+parallel numbered path via `sys_path_create`. Use
+`tool_branch_recommendation` if uncertain whether to branch or extend.
+For methodology-level branches (e.g. "the literature also supports X
+for this data shape"), `tool_alternative_path_propose` is
+confidence-gated.
+
+### Multiple hypotheses
+
+`mem_hypothesis_add` for each (auto-assigned `H1, H2, …` or you pick
+the ID). Every experiment step declares which hypothesis IDs it
+touches via `mem_hypothesis_update status=testing|supported|refuted|
+inconclusive evidence=<one-line>`.
+
+### Mid-flow context
+
+Researcher drops a new paper / dataset?
+`tool_context_intake also_autofill=true` routes the file and re-runs
+intake.
+
+### Long-running jobs
+
+`tool_task_run` for real background subprocesses (`subprocess.Popen`,
+zombie-aware); poll with `tool_task_status`. Especially important on
+shared HPC. For SLURM clusters, use `tool_slurm_submit` /
+`tool_slurm_status` / `tool_slurm_fetch`.
+
+### Iterative ("what's next?") workflow
+
+Load `guidance/iterative_planning` or call `tool_plan_next_step` for a
+single-turn recommendation.
+
+### Specification curves / multiverse
+
+Define a grid of analytic choices via `tool_sensitivity_define`; run
+the fan-out via `tool_sensitivity_run`. Returns a specification-curve
+plot that distinguishes ROBUST findings from FRAGILE ones.
+
+### Preregistration drift
+
+`tool_preregister_freeze` content-hashes the SAP before data;
+`tool_preregister_diff` surfaces every deviation at synthesis time so
+the Discussion can acknowledge them honestly.
+
+### Hallucinated citations
+
+Cannot happen for synthesis outputs. `tool_synthesize` pulls every
+citation from Crossref / Semantic Scholar / PubMed / arXiv and drops
+anything unverified. Confirm on demand with `tool_citations_verify`.
+
+### Hallucinated numbers
+
+`tool_audit_claims` extracts every numeric claim from
+`synthesis/paper.md` and verifies each appears verbatim (or within 1%
+tolerance) in some workspace CSV / JSON / MD / TXT. BLOCKS
+`tool_synthesize` until cleared.
+
+### Multi-project / shared data
+
+Two patterns:
+
+* **Symlink shared data**: `ln -s /path/to/shared/raw inputs/raw_data`
+  — Research OS treats it as immutable, same as a local copy.
+* **Separate Research OS workspaces per paper**: each gets its own
+  `inputs/`, `workspace/`, `synthesis/`. Use `inputs/context/` to
+  drop pointers to sibling projects.
+
+---
+
+## 10. Migrating an existing project into Research OS
+
+```bash
+cd my-existing-project
+research-os init . --force                 # safe — keeps your existing files
+mv my_data*.csv inputs/raw_data/
+mv references/*.pdf inputs/literature/
+mv notes/*.md inputs/context/
+```
+
+Open your IDE on the folder. Then:
+
+> "I have an existing project — bring it into research-os."
+
+Loads `guidance/mid_pipeline_entry` — classifies your project into one
+of seven entry archetypes (DATA-READY / ANALYSES-READY / FIGURES-READY
+/ SYNTHESIS-READY / PRIOR-RO-PROJECT / CONCEPTUAL / MIXED) and routes
+to the right downstream protocol without forcing redundant intake. The
+provenance ceiling is recorded so any downstream synthesis discloses
+what was reasoned vs imported.
+
+For a project where the analyses were done OUTSIDE Research OS:
+
+> "We already analysed this, just write it up."
+
+Loads `synthesis/synthesis_from_inputs`. Builds a SHADOW workspace
+step that anchors the synthesis, imports the artefacts, runs the
+chosen target synthesis on top, and stamps a provenance ceiling
+paragraph into the deliverable.
+
+---
+
+## 11. Codebase layout (for power users + contributors)
+
+```
+src/research_os/
+├── server.py                    # MCP server + dispatcher + tool defs
+├── cli.py                       # `init` + `start`
+├── project_ops.py               # scaffolding, state, mermaid, intake regen
+├── config.py / errors.py / __init__.py
+├── protocols/                   # 82 YAML protocols + _router_index.yaml
+├── state/                       # ResearchLedger
+├── utils/                       # asset manager, common helpers
+└── tools/
+    └── actions/
+        ├── protocol.py          # YAML loader (cross-cutting)
+        ├── router.py            # sys_boot, tool_route, plan_turn (cross-cutting)
+        ├── state/               # config, path, checkpoint, scratch, repair
+        ├── data/                # data, profiling, intake, context_intake
+        ├── exec/                # scripts, notebook, tasks, environment, sensitivity, step_pipeline, cluster
+        ├── search/              # search providers, literature download
+        ├── research/            # research_method/tool/plan, planning, grounding, lessons
+        ├── audit/               # audit, md_audit, code_quality, prose_quality, claim_grounding, preregistration, redteam, null_findings
+        ├── synthesis/           # synthesize, latex, citations, dashboard
+        ├── viz/                 # figures, dashboard_tests
+        └── memory/              # hypotheses, append-only helpers
+
+tests/
+├── conftest.py                  # isolates each test on tmp_path
+├── unit/                        # pure-function tests, fast
+├── integration/                 # workspace + pipeline + reorganization-aware
+└── tools/                       # one file per new MCP tool group
+```
+
+Run all tests:
+```bash
+pytest -q
+```
+
+Run a slice:
+```bash
+pytest tests/unit -q
+pytest tests/integration -q
+pytest tests/tools/test_router.py -q
+```
+
+Preflight (everything-is-wired check):
+```bash
+python scripts/preflight.py
+```
+
+---
+
+## 12. Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `research-os: command not found` | Add `~/.local/bin` (or your venv's `bin/`) to `PATH`. |
+| `Not a Research OS workspace` | `research-os init .` here, or open a folder that has been initialised. The server is global and resolves per-request. |
+| `WriteProtectedError` | You tried to write into `inputs/raw_data/` or `inputs/literature/`. Write to `workspace/` instead. |
+| Tools missing in IDE | Restart IDE; check its MCP panel for stderr. |
+| AI seems lost / confused | "show me sys_help" — AI re-orients. |
+| AI seems to forget context | "re-run sys_protocol_get for the current protocol". |
+| Wrong protocol picked | "actually I meant <X>" — AI re-routes. |
+| AI making bad calls | Switch autonomy to `manual` or `supervised`. |
+| Workspace looks broken | "fix the workspace" — `tool_workspace_repair`, never deletes. |
+| Chat too long | "hand off the session" — open fresh chat, "pick up where we left off". |
+| Deleted by mistake | "list checkpoints" → "rollback to <id>". |
+| Stale memory / re-doing work | `sys_protocol_next` checks BOTH execution log AND on-disk artifacts; if both say "done", the AI moves on. After migrating from outside RO, `tool_workspace_repair` rebuilds expected metadata. |
+| `No web-search provider configured` | Set `firecrawl` or `serpapi` in researcher_config (optional). |
+| Mermaid PNG not rendering | `npm install -g @mermaid-js/mermaid-cli`. |
+| `pdflatex not found` | Install TeX Live. The relevant tools fail gracefully without it. |
+| `tool_audit_reproducibility` slow | It re-runs every script. Skip in autopilot unless explicitly asked. |
+| `Protocol not found` | `sys_protocol_list`. |
+| "Unknown tool" error | The dispatcher accepts `sys_state_get` / `sys.state.get` / legacy `sys_guidance_get`. If still failing, "Call `sys_protocol_list` and tell me what's available." |
+
+For more: [FAQ.md](FAQ.md).
 
 ---
 
 ## See also
 
-* [QUICKSTART.md](QUICKSTART.md) — 5-minute start.
-* [USE_CASES.md](USE_CASES.md) — role × goal × output map for picking the right protocol.
-* [GUIDE.md](GUIDE.md) — full tool + protocol reference (technical).
-* [PROTOCOLS.md](PROTOCOLS.md) — what each protocol does + when it fires.
-* [TOOLS.md](TOOLS.md) — every MCP tool, with example calls.
+* [START.md](START.md) — install + first-hour walkthrough + cheatsheet.
+* [USE_CASES.md](USE_CASES.md) — role × goal × output map.
+* [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
+* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 82 protocols.
+* [TOOLS.md](TOOLS.md) — catalogue of all 140 MCP tools.
+* [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
+* [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — scaffold-not-script
+  principle (for protocol authors / contributors).

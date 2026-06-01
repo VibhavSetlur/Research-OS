@@ -26,8 +26,9 @@ manually (see [SETUP.md § 4](SETUP.md)).
 
 Yes. `pip install` puts `research-os` on your PATH; nothing happens until
 you `cd` somewhere and run `research-os init`. The
-[Setup Prompt](SETUP_PROMPT.md) walks an AI through install + IDE wiring
-without needing a project at all.
+[SETUP.md § 5](SETUP.md) ships a "Setup Prompt" you can paste into
+any AI chat to walk through install + IDE wiring without needing a
+project at all.
 
 ### Does it work on a shared server / HPC cluster?
 

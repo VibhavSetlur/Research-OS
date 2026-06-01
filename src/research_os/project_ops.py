@@ -880,8 +880,9 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 
 ## More
 
-* Quickstart: `docs/QUICKSTART.md`
-* Full guide: `docs/GUIDE.md`
+* First steps: `docs/START.md` (install + first project + cheatsheet)
+* Full guide: `docs/RESEARCHER_GUIDE.md`
+* Pick a protocol: `docs/USE_CASES.md` (role × goal × output)
 * All tools: `docs/TOOLS.md`
 * All protocols: `docs/PROTOCOLS.md`
 * FAQ: `docs/FAQ.md`
