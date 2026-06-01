@@ -14,7 +14,7 @@ trigger: |
 prerequisites:
   - session_boot has completed and set autonomy=autopilot
   - inputs/intake.md exists (researcher won't be available to fix gaps)
-  - research_question.md is non-placeholder
+  - research_overview.md is non-placeholder
 
 steps:
   - id: declare_scope

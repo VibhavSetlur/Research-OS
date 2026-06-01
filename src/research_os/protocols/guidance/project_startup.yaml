@@ -82,7 +82,7 @@ steps:
 
 expected_outputs:
   - inputs/intake.md
-  - docs/research_question.md
+  - docs/research_overview.md
 
 next_protocol: domain/domain_analysis
 on_failure: guidance/dead_end_routing

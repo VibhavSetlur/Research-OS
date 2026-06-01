@@ -26,7 +26,7 @@ trigger: |
   "minimum detectable effect", "for the IRB", "for the grant — power".
 
 prerequisites:
-  - The research question is stated (research_question.md or a
+  - The research question is stated (research_overview.md or a
     sentence in the prompt).
   - The design is at least sketched (RCT / cohort / cross-sectional /
     survey / paired-measurements / clustered — affects which

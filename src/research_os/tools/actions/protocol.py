@@ -340,8 +340,8 @@ def _any_protocol_logged(root: Path) -> bool:
 
 
 def _has_real_research_question(root: Path) -> bool:
-    """True if docs/research_question.md has been filled in (placeholder gone)."""
-    p = root / "docs" / "research_question.md"
+    """True if docs/research_overview.md has been filled in (placeholder gone)."""
+    p = root / "docs" / "research_overview.md"
     if not p.exists():
         return False
     text = p.read_text().lower()

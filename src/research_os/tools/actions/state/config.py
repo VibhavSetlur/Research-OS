@@ -183,6 +183,30 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                 config["domain"] = overrides["domain"]
             if overrides.get("research_question"):
                 config["research_question"] = overrides["research_question"]
+            # Multi-question: write a `research_questions:` list AND mirror
+            # the first into the singular field so older protocols keep working.
+            if overrides.get("research_questions"):
+                qs = [q for q in overrides["research_questions"] if q.strip()]
+                if qs:
+                    config["research_questions"] = qs
+                    if not config.get("research_question"):
+                        config["research_question"] = qs[0]
+            # Multi-researcher: append authors to a top-level list, deduplicated.
+            if overrides.get("authors"):
+                existing = config.get("authors") or []
+                if not isinstance(existing, list):
+                    existing = []
+                seen = {(a.get("name"), a.get("email")) for a in existing
+                        if isinstance(a, dict)}
+                for a in overrides["authors"]:
+                    if not isinstance(a, dict):
+                        continue
+                    key = (a.get("name"), a.get("email"))
+                    if key in seen:
+                        continue
+                    existing.append(a)
+                    seen.add(key)
+                config["authors"] = existing
             if overrides.get("depth"):
                 config.setdefault("research_goal", {})["target_venue"] = overrides["depth"]
             cfg_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))

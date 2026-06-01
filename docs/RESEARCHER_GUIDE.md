@@ -74,7 +74,7 @@ my-project/
 │   └── intake.md            ← auto-filled by tool_intake_autofill
 │
 ├── docs/                    ← human-readable
-│   ├── research_question.md
+│   ├── research_overview.md
 │   ├── domain_summary.md
 │   ├── research_design.md
 │   └── glossary.md

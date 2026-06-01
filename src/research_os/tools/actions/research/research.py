@@ -443,13 +443,13 @@ def plan_step_grounded(
         ctx_dir = inputs_dir / "context"
         lit_dir = inputs_dir / "literature"
         intake = inputs_dir / "intake.md"
-        rq = root / "docs" / "research_question.md"
+        rq = root / "docs" / "research_overview.md"
 
         available_inputs: list[str] = []
         if intake.exists():
             available_inputs.append("inputs/intake.md (research question + input inventory)")
         if rq.exists():
-            available_inputs.append("docs/research_question.md")
+            available_inputs.append("docs/research_overview.md")
         for sub in (inputs_dir / "raw_data",):
             if sub.exists() and any(p for p in sub.iterdir() if p.name != ".gitkeep"):
                 available_inputs.append(f"{sub.relative_to(root)}/ (raw data)")

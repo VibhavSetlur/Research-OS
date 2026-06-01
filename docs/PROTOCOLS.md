@@ -55,7 +55,7 @@ routing layer existed.
 | # | Protocol | What it does | Done when |
 |---|---|---|---|
 | 1 | `guidance/session_boot` | One-call boot via `sys_boot`; route first message via `tool_route` | first entry in execution log |
-| 2 | `guidance/project_startup` | Intake autofill, profile data, lock research question | intake.md filled + research_question.md confirmed |
+| 2 | `guidance/project_startup` | Intake autofill, profile data, lock research question | intake.md filled + research_overview.md confirmed |
 | 3 | `domain/domain_analysis` | Classify domain, pick reporting standard, list biases | docs/domain_summary.md exists |
 | 4 | `domain/research_design` | Choose study design + sample size justification | docs/research_design.md exists |
 | 5 | `methodology/methodology_selection` | Pick statistical / computational methods (literature-grounded) | workspace/methods.md substantive |

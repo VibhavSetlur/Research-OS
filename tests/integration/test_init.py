@@ -46,7 +46,7 @@ def test_scaffold_creates_key_files():
             "GETTING_STARTED.md",
             "inputs/intake.md",
             "inputs/researcher_config.yaml",
-            "docs/research_question.md",
+            "docs/research_overview.md",
             "docs/glossary.md",
             "workspace/methods.md",
             "workspace/analysis.md",
@@ -66,7 +66,6 @@ def test_scaffold_creates_key_files():
             "synthesis/abstract.md",
             "synthesis/poster.tex",
             "synthesis/dashboard.html",
-            "docs/research_overview.md",
             "docs/domain_summary.md",
             "docs/research_design.md",
         ):

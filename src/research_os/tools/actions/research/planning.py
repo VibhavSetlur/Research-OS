@@ -125,7 +125,7 @@ def plan_next_step(root: Path, *, goal: str | None = None,
         elif refuted and not completed:
             recommendations.append(
                 "All current hypotheses refuted. Either revise the research "
-                "question (`docs/research_question.md`) or branch to a different "
+                "question (`docs/research_overview.md`) or branch to a different "
                 "methodological angle via `guidance/dead_end_routing`."
             )
         if dead:

@@ -17,8 +17,8 @@ def test_intake_autofill_with_only_data(tmp_path):
     assert res["proposed_domain"] == "clinical"
     cfg = yaml.safe_load((tmp_path / "inputs" / "researcher_config.yaml").read_text())
     assert cfg["domain"] == "clinical"
-    # research_question.md should no longer look like the placeholder.
-    rq = (tmp_path / "docs" / "research_question.md").read_text()
+    # research_overview.md should no longer look like the placeholder.
+    rq = (tmp_path / "docs" / "research_overview.md").read_text()
     assert "(blank" not in rq
 
 

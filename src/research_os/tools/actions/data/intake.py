@@ -4,7 +4,7 @@ The most accessible workflow is: the researcher drops files into inputs/
 (data, PDFs, notes, drafts) and says "fill out the intake". This tool
 inspects everything and writes:
   - inputs/intake.md (with proposed research question + domain + key files)
-  - docs/research_question.md   (if currently blank/placeholder)
+  - docs/research_overview.md   (if currently blank/placeholder)
   - updates inputs/researcher_config.yaml with inferred domain / question /
     field — only when those fields are currently empty.
 """
@@ -221,8 +221,8 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             except Exception as e:
                 logger.warning(f"Could not write researcher_config: {e}")
 
-        # Update docs/research_question.md if blank/placeholder
-        rq_path = root / "docs" / "research_question.md"
+        # Update docs/research_overview.md if blank/placeholder
+        rq_path = root / "docs" / "research_overview.md"
         rq_changed = False
         if rq_path.exists():
             current = rq_path.read_text()

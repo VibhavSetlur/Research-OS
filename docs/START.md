@@ -40,10 +40,15 @@ Need help with Python / pip / virtualenvs / conda? See
 
 ```bash
 mkdir my-project && cd my-project
-research-os init
+research-os init                 # 5-step interactive wizard (default)
+# research-os init --yes         # non-interactive (CI / scripts)
 ```
 
-`init` is the only per-project command. It drops:
+`init` is the only per-project command. The wizard collects: location,
+project name, optional domain + research question, which AI IDEs to
+wire up, and whether to run a post-scaffold smoke check. Pass any of
+`--name / --domain / --question / --ide` to pre-fill an answer and the
+wizard will skip that step. It drops:
 
 - `AGENTS.md` — the AI's operating manual (every supported IDE reads it)
 - `inputs/{raw_data, literature, context}/` — where YOU drop files

@@ -178,7 +178,7 @@ steps:
         - synthesis target needs at least ONE step's conclusions.md?
           Use synthesis/synthesis_from_inputs to build a SHADOW
           step that anchors the synthesis honestly.
-        - audit gate needs research_question.md? Write it from the
+        - audit gate needs research_overview.md? Write it from the
           paper draft's introduction in one paragraph.
 
       Each back-filled artefact carries an explicit "back-filled

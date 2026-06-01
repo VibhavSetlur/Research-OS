@@ -5,7 +5,7 @@ schema_version: '2.0'
 description: Full PRISMA workflow for a primary systematic review or meta-analysis project.
 trigger: Use when the project IS a systematic review (not just a background lit search for a primary study).
 prerequisites:
-  - docs/research_question.md uses PICO/PECO format
+  - docs/research_overview.md uses PICO/PECO format
   - methodology_selection has been run (review type confirmed)
 
 steps:

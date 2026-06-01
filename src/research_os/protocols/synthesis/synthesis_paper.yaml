@@ -151,7 +151,7 @@ steps:
       tool_synthesize section="discussion" output_type="paper"
 
       QUALITY CHECK:
-        - Directly answers research_question.md.
+        - Directly answers research_overview.md.
         - Mentions limitations (from conclusions.md > Limitations + audit warnings).
         - For observational designs: ZERO causal-language hits (the audit will flag this).
         - At least 5 citations.

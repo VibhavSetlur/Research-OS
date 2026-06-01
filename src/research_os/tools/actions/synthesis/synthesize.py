@@ -75,7 +75,7 @@ def synthesize_plan(root: Path) -> dict[str, Any]:
          "experiments": conclusions},
         {"id": "discussion", "source": "workspace/analysis.md + citations.md",
          "status": "ready" if analysis_path.exists() and citations_present else "partial"},
-        {"id": "introduction", "source": "citations.md + research_question.md",
+        {"id": "introduction", "source": "citations.md + research_overview.md",
          "status": "ready" if citations_present else "missing (run literature_search first)"},
         {"id": "abstract", "source": "synthesis of all sections (run AFTER methods/results/discussion)",
          "status": "pending"},
@@ -100,7 +100,7 @@ def _read(p: Path) -> str:
 
 
 def _research_question(root: Path) -> str:
-    rq = root / "docs" / "research_question.md"
+    rq = root / "docs" / "research_overview.md"
     if not rq.exists():
         return "Project research question"
     for line in rq.read_text().splitlines():

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Research OS — grounded · cited · auditable" width="520">
+</p>
+
 # Research OS
 
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://github.com/VibhavSetlur/Research-OS)
@@ -24,8 +28,24 @@ LLM provider keys; your IDE owns that.
 pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
 
 mkdir my-project && cd my-project
-research-os init                    # the only command per project
+research-os init                    # arrow-key wizard (default)
+# or: research-os init my-project --yes    # one-shot, no prompts (CI / scripts)
 ```
+
+`init` is the only per-project command. The 6-step wizard:
+
+* asks where the project lives, what it's called, which AI IDEs you use,
+* lets you **paste a Slack thread / email / PI message** that gets parsed
+  + saved straight into `inputs/context/` with provenance frontmatter,
+* lets you **paste arXiv IDs · DOIs · PDF URLs** and downloads them into
+  `inputs/literature/` (Unpaywall for DOIs; manual-link fallback when
+  not open-access),
+* offers to **symlink existing data files** in the target folder into
+  `inputs/raw_data/`,
+* runs a 10-check smoke pass on the new workspace.
+
+Arrow keys + Space to navigate, Tab to autocomplete paths, Esc to cancel.
+Finished in under a minute.
 
 Open your AI IDE on the folder — the MCP server auto-launches. Drop
 files into `inputs/raw_data/`, papers into `inputs/literature/`,

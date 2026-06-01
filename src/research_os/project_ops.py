@@ -238,7 +238,7 @@ def _write_os_state_summary(root: Path) -> None:
     lines.extend(["", "## Key files"])
     for f in [
         "inputs/intake.md",
-        "docs/research_question.md",
+        "docs/research_overview.md",
         "docs/domain_summary.md",
         "workspace/methods.md",
         "workspace/analysis.md",
@@ -346,15 +346,33 @@ def scaffold_minimal_workspace(
     glossary = root / "docs" / "glossary.md"
     if not glossary.exists():
         glossary.write_text(
-            "# Glossary\n\n| Term | Definition | Source |\n|---|---|---|\n"
+            "# Glossary\n\n"
+            "Domain-specific terms used in this project — definitions and "
+            "their source. The AI auto-populates this table when it "
+            "encounters new terminology in your data or literature; you "
+            "can also add rows by hand.\n\n"
+            "| Term | Definition | Source |\n|---|---|---|\n"
         )
 
-    # 3. docs/research_question.md — placeholder; intake autofill replaces it.
-    rq = root / "docs" / "research_question.md"
+    # 3. docs/research_overview.md — placeholder; intake autofill replaces it.
+    rq = root / "docs" / "research_overview.md"
     if not rq.exists():
         rq.write_text(
-            "# Research Question\n\n"
-            "*(blank — say to the AI 'fill out the intake' to populate from inputs/)*\n"
+            "# Research Overview\n\n"
+            "*The big picture for this project. Filled in by the AI when "
+            "you say `fill out the intake`, or hand-edit any section.*\n\n"
+            "## Research question(s)\n\n"
+            "_(blank — drop your data/PDFs/notes into `inputs/`, then ask "
+            "the AI to `fill out the intake`. You can also list questions "
+            "in `inputs/researcher_config.yaml` under `research_questions:`.)_\n\n"
+            "## Hypotheses\n\n"
+            "_(blank — the AI proposes initial hypotheses from your inputs, "
+            "tracks them across experiments, and updates this section as "
+            "evidence accumulates.)_\n\n"
+            "## Background\n\n"
+            "_(blank — short summary of why this project matters and what "
+            "prior work it builds on. Useful for collaborators dropping "
+            "into the workspace cold.)_\n"
         )
 
     # 4. Append-only workspace logs — start EMPTY but with a header so the
@@ -530,22 +548,29 @@ def _write_sharing_scripts(root: Path, project_name: str) -> None:
         sharing_doc.write_text(_SHARING_DOC_TEMPLATE)
 
 
-_EXPORT_PY_TEMPLATE = '''"""Build a share-safe zip of the project.
+_EXPORT_PY_TEMPLATE = '''"""Bundle this Research OS project for a collaborator.
+
+Builds a zip that contains a clean, share-safe view of your project —
+the inputs you've collected, the analyses you've run, the synthesis
+artefacts, and the docs — WITHOUT any AI configuration. The recipient
+opens the zip and sees a normal research workspace; they do NOT need
+Research OS installed to read it.
 
 What is included:
   inputs/, workspace/, synthesis/, docs/, environment/, README.md (if present)
 What is EXCLUDED (always):
-  AGENTS.md, CLAUDE.md, GETTING_STARTED.md, .os_state/, .claude/,
-  .cursor/, .vscode/, .antigravity/, .opencode/, MCP configs,
-  __pycache__/, .pytest_cache/, .DS_Store, virtualenvs, node_modules/.
+  AGENTS.md, CLAUDE.md, GETTING_STARTED.md, CONTRIBUTORS.md,
+  .os_state/, .claude/, .cursor/, .vscode/, .antigravity/, .opencode/,
+  MCP configs, __pycache__/, .pytest_cache/, .DS_Store, virtualenvs,
+  node_modules/.
 
 The zip is written to <project>_share_<YYYY-MM-DD>.zip in the project
 root. Use --out PATH to override.
 
 Usage:
-    python scripts/export_share_archive.py
-    python scripts/export_share_archive.py --out /tmp/myproj.zip
-    python scripts/export_share_archive.py --include-raw-data
+    python scripts/export_share_archive.py                    # default zip
+    python scripts/export_share_archive.py --out /tmp/x.zip   # custom path
+    python scripts/export_share_archive.py --include-raw-data # include raw data
 """
 from __future__ import annotations
 import argparse
@@ -593,12 +618,13 @@ def main() -> int:
     files_added = 0
     bytes_added = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        # Top-level README.md if it exists
-        readme = root / "README.md"
-        if readme.exists():
-            zf.write(readme, arcname=f"{root.name}/README.md")
-            files_added += 1
-            bytes_added += readme.stat().st_size
+        # Top-level files we DO want shipped to collaborators.
+        for top in ("README.md", "CONTRIBUTORS.md"):
+            tp = root / top
+            if tp.exists():
+                zf.write(tp, arcname=f"{root.name}/{top}")
+                files_added += 1
+                bytes_added += tp.stat().st_size
         for sub in INCLUDE_DIRS:
             base = root / sub
             if not base.exists():
@@ -713,7 +739,21 @@ gh repo view --json url -q .url
 
 _SHARING_DOC_TEMPLATE = """# Sharing this project
 
-Two paths, both share-safe by default (AI-internal files are excluded):
+**What this is for.** Two safe ways to send this project to a
+collaborator (or your PI / advisor / Argonne team) without leaking
+AI-internal config or large raw data. Both excludes `.os_state/`,
+the IDE MCP configs, `AGENTS.md`, and `CLAUDE.md` by default — what
+your collaborator opens looks like a finished research workspace,
+not an in-progress AI session.
+
+Pick the one that matches how you collaborate:
+
+* **Option 1** — bundle a zip you can email or upload anywhere.
+  No git knowledge required.
+* **Option 2** — push to a private GitHub repo so your team can
+  pull, contribute, and see the project's `CONTRIBUTORS.md` history.
+
+---
 
 ## Option 1 — Zip archive
 
@@ -878,9 +918,23 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 | Conversation too long | "Hand off the session." |
 | AI making bad calls | "Switch to manual mode and walk me through each step." |
 
+## 7. Working with collaborators
+
+* `CONTRIBUTORS.md` — auto-updated activity log. Every `research-os init`
+  / `ide add` / `ide remove` appends a row with date + researcher +
+  action, so a fresh collaborator can see who set the project up.
+* `research-os ide add <name>` — wire a new AI IDE for *you* without
+  re-scaffolding the workspace (so nothing your teammate did breaks).
+* `research-os ide list` — see which IDE configs are wired.
+* `scripts/export_share_archive.py` — bundle this project as a safe
+  zip (no AI internals) to email or upload. See `docs/SHARING.md`.
+* `scripts/init_github.sh` — push to a private GitHub repo with the
+  share-safe `.gitignore` already configured.
+
 ## More
 
 * First steps: `docs/START.md` (install + first project + cheatsheet)
+* Sharing: `docs/SHARING.md` (zip + GitHub paths)
 * Full guide: `docs/RESEARCHER_GUIDE.md`
 * Pick a protocol: `docs/USE_CASES.md` (role × goal × output)
 * All tools: `docs/TOOLS.md`
