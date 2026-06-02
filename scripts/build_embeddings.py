@@ -59,13 +59,19 @@ SCHEMA_VERSION = "1"
 # ---------------------------------------------------------------------------
 
 
+_TRIGGERS_IN_DOC_CAP = 6  # cap triggers per protocol in the embedded doc
+
+
 def _compose_protocol_doc(protocol_id: str, yaml_data: dict, router_entry: dict) -> str:
     """Compose the text we embed for a single protocol.
 
-    The text is the *meaning* of the protocol — what it is for, when it
-    fires, what it produces. We avoid stuffing the entire protocol body
-    (it's too long + dilutes the signal). Order: name, summary, triggers,
-    description, step names.
+    Order: name, summary, capped-trigger list, description, step names.
+
+    Triggers are included but CAPPED — a protocol with 17 triggers in
+    its router-index entry would otherwise dominate the embedding doc
+    and over-score on adjacent prompts. The runtime boost layer still
+    sees the full trigger list for exact-phrase boosting; only the
+    embedded representation is capped.
     """
     parts: list[str] = []
     parts.append(f"Protocol: {protocol_id}")
@@ -75,9 +81,12 @@ def _compose_protocol_doc(protocol_id: str, yaml_data: dict, router_entry: dict)
         if summary := router_entry.get("summary"):
             parts.append(f"Summary: {summary}")
         if triggers := router_entry.get("triggers"):
-            trig_str = "; ".join(t for t in triggers if isinstance(t, str))
-            if trig_str:
-                parts.append(f"User says: {trig_str}")
+            valid = [t for t in triggers if isinstance(t, str)]
+            # Prefer multi-word triggers (more specific signal) when capping.
+            valid.sort(key=lambda t: (-t.count(" "), -len(t)))
+            capped = valid[:_TRIGGERS_IN_DOC_CAP]
+            if capped:
+                parts.append(f"User says: {'; '.join(capped)}")
     if desc := yaml_data.get("description"):
         desc_str = str(desc).strip()
         # First paragraph is usually the most semantically dense.

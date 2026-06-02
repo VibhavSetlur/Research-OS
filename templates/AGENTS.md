@@ -58,6 +58,12 @@ list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.
 Use `sys_active_tools(protocol_name)` to scope your working tool set
 to the protocol's decomposition.
 
+**Never load `_router_index.yaml` directly.** That file is a maintainer
+artifact — the routing logic reads it server-side. For routing, call
+`tool_route`. For ranked alternatives, call `tool_semantic_route`. For
+finding a tool by what it does, call `sys_semantic_tool_search`. These
+scale as the catalog grows; dumping the full catalog every turn does not.
+
 Lost? `sys_help` returns a compact orientation block. Useful topics:
 
 * category orientation — `synthesis`, `methodology`, `visualization`,

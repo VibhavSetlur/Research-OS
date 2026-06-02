@@ -1,3 +1,12 @@
+# MAINTAINER-ONLY index. AI clients never load this file directly; they
+# route through `tool_route` (hybrid semantic + trigger) which reads
+# this server-side. The semantic path retrieves over the pre-built
+# embeddings in `_embeddings.npz`; this YAML supplies hierarchy +
+# decompositions + the trigger lists that feed the exact-match boost.
+#
+# Anyone editing this file is a maintainer or protocol author. AI
+# clients should treat this file as private implementation detail.
+#
 # Hierarchical routing registry — single source of truth for `tool_route`
 # and `sys_boot`.
 #
@@ -27,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 4
+version: 6
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -91,6 +100,8 @@ hierarchy:
       eval_design:  "Design the train/val/test split, CV, metrics, comparison test"
       sweep:        "Design a hyperparameter sweep (search space, budget, strategy)"
       ethics:       "Data ethics review (IRB / privacy / consent / fairness)"
+      tool_setup:   "Install + verify external tools (Node / Quarto / Docker / R / Julia / ffmpeg / LaTeX)"
+      mcp_compose:  "Compose other MCP servers alongside Research OS (Postgres / Slack / GitHub / Figma / etc.)"
       dmp:          "Data Management Plan (funder-compliant, FAIR-aligned)"
       multiplicity: "Multiple-comparisons / multiplicity correction strategy"
       qual_design:  "Pre-collection qualitative — interview / topic guide"
@@ -130,6 +141,13 @@ hierarchy:
       multi_panel: "Compose a multi-panel figure (Figure 2 = A / B / C / D)"
       figure_arc: "Order figures across a paper / talk / poster"
       a11y:      "Color-blind + WCAG accessibility audit"
+      network:    "Network / graph visualization (DAGs, citation, knowledge graphs)"
+      geo:        "Geospatial / map visualization (choropleth, points, raster)"
+      animation:  "Animation for time-series / model behaviour / talks"
+      uncertainty: "Uncertainty visualization (intervals, fans, posteriors)"
+      distribution: "Distribution-comparison visualization (raincloud, halfeye, ridgeline)"
+      interactive: "Interactive dashboard design (Observable, Streamlit, Shiny, deck.gl)"
+      showcase: "Showcase / novel-research visualization (the visual IS the contribution)"
       end_matter: "Data / code availability + CRediT + funding + COI + ack"
       venue:     "Journal / venue selection + fit assessment"
       outline:   "Manuscript outline + narrative arc (pre-draft)"
@@ -492,6 +510,28 @@ protocols:
                "dmsp", "fair plan", "data management",
                "data sharing requirement"]
 
+  methodology/external_tool_setup:
+    intent_class: methodology
+    sub_intent: tool_setup
+    summary: "Install + verify top-tier external tools (Node / Quarto / Docker / R / Julia / ffmpeg / LaTeX) for the active workflow."
+    triggers: ["install", "setup", "set up", "how do i install",
+               "install node", "install quarto", "install docker",
+               "install r", "install julia", "install ffmpeg",
+               "install latex", "missing dependency",
+               "command not found", "tool setup",
+               "environment setup", "configure my system"]
+
+  methodology/mcp_ecosystem_integration:
+    intent_class: methodology
+    sub_intent: mcp_compose
+    summary: "Compose other MCP servers alongside Research OS — Postgres / Slack / GitHub / Notion / Figma / etc."
+    triggers: ["mcp server", "another mcp", "mcp marketplace",
+               "mcp registry", "compose mcp", "wire up mcp",
+               "postgres mcp", "slack mcp", "github mcp",
+               "notion mcp", "figma mcp", "linear mcp",
+               "filesystem mcp", "brave search mcp", "tavily mcp",
+               "add an mcp", "multiple mcp servers"]
+
   methodology/multiple_comparisons:
     intent_class: methodology
     sub_intent: multiplicity
@@ -504,8 +544,13 @@ protocols:
     intent_class: methodology
     sub_intent: causal
     summary: "DAG + dowhy / IPW / DiD / RDD pipeline."
-    triggers: ["causal", "counterfactual", "treatment effect", "iv estimator",
-              "did", "rdd", "instrumental variable"]
+    triggers: ["causal inference", "counterfactual", "treatment effect",
+               "instrumental variable", "propensity score",
+               "inverse probability weighting", "ipw",
+               "difference-in-differences", "regression discontinuity",
+               "average treatment effect", "doubly robust",
+               "g-computation", "marginal structural model",
+               "directed acyclic graph"]
 
   methodology/machine_learning:
     intent_class: methodology
@@ -620,7 +665,11 @@ protocols:
     summary: "Bayesian workflow: priors → posterior → diagnostics → checks → sensitivity."
     triggers: ["bayesian", "stan", "pymc", "brms", "posterior",
                "credible interval", "rope", "bayes factor",
-               "hierarchical bayesian", "prior predictive"]
+               "hierarchical bayesian", "prior predictive",
+               "r-hat", "rhat", "ess", "effective sample size",
+               "divergences", "nuts sampler", "hmc",
+               "mcmc diagnostics", "posterior predictive check",
+               "variational inference", "advi"]
 
   methodology/timeseries_analysis:
     intent_class: methodology
@@ -721,6 +770,83 @@ protocols:
     triggers: ["figure", "chart", "plot type", "color palette", "dpi",
               "axis labels"]
 
+  visualization/network_visualization:
+    intent_class: synthesize
+    sub_intent: network
+    summary: "Plot a network / graph (DAGs, citation networks, knowledge graphs); layout + encoding reasoning."
+    triggers: ["network plot", "graph visualization", "node-link",
+               "force-directed", "edge bundling", "citation network",
+               "co-authorship network", "knowledge graph",
+               "dag diagram", "directed acyclic graph",
+               "gephi", "cytoscape", "graphviz"]
+
+  visualization/geospatial_visualization:
+    intent_class: synthesize
+    sub_intent: geo
+    summary: "Plot a map (choropleth, points, raster); projection + classification + palette."
+    triggers: ["map", "choropleth", "geospatial", "shapefile",
+               "geojson", "lat/lon", "gis", "trajectory map",
+               "geographic", "spatial visualization",
+               "satellite imagery", "raster map", "leaflet",
+               "tile map", "proportional symbol"]
+
+  visualization/animation_design:
+    intent_class: synthesize
+    sub_intent: animation
+    summary: "Animate a figure for time series / model behaviour / talks (static fallback mandatory)."
+    triggers: ["animate", "animated figure", "make a gif",
+               "animation", "video figure", "evolve over time",
+               "rotating 3d", "training trajectory video",
+               "hypothetical outcome plot", "spaghetti plot",
+               "playable figure"]
+
+  visualization/uncertainty_visualization:
+    intent_class: synthesize
+    sub_intent: uncertainty
+    summary: "Visualize intervals / fans / ensembles / posteriors / calibration honestly."
+    triggers: ["uncertainty visualization", "fan chart",
+               "confidence band", "credible band", "posterior plot",
+               "plot the posterior", "plot my posterior",
+               "spaghetti", "ensemble plot", "calibration plot",
+               "reliability diagram", "forest plot",
+               "predictive interval plot", "error band",
+               "plot intervals", "hdi plot", "visualize uncertainty",
+               "show the uncertainty", "draw the fan"]
+
+  visualization/distribution_comparison:
+    intent_class: synthesize
+    sub_intent: distribution
+    summary: "Compare distributions across groups (raincloud / halfeye / ridgeline / beeswarm — beyond bar+error)."
+    triggers: ["raincloud", "violin plot", "beeswarm", "swarm plot",
+               "ridgeline", "joy plot", "halfeye", "boxenplot",
+               "letter-value plot", "distribution comparison",
+               "compare distributions", "strip plot", "ecdf"]
+
+  visualization/interactive_dashboard_design:
+    intent_class: synthesize
+    sub_intent: interactive
+    summary: "Design a multi-page interactive dashboard (Observable / Streamlit / Shiny / Dash / Panel / kepler.gl / deck.gl) — next tier beyond static HTML."
+    triggers: ["interactive dashboard", "dashboard design",
+               "streamlit", "shiny app", "dash app", "panel app",
+               "observable framework", "observable notebook",
+               "kepler.gl dashboard", "deck.gl dashboard",
+               "vega-lite dashboard", "interactive demo",
+               "stakeholder dashboard", "live dashboard",
+               "scrollytelling dashboard", "showcase dashboard"]
+
+  visualization/showcase_visualization:
+    intent_class: synthesize
+    sub_intent: showcase
+    summary: "Top-tier visualization where the visual IS the contribution (HCI / data art / journal covers / novel research). Three.js / D3 / WebGL / Observable."
+    triggers: ["showcase", "journal cover", "publication cover",
+               "data art", "data essay", "novel visualization",
+               "vis paper figure", "infovis figure",
+               "interactive explainer", "distill.pub style",
+               "the pudding style", "scrollytelling",
+               "three.js viz", "webgl visualization",
+               "hero figure", "paper landing page figure",
+               "next-tier figure", "top-tier visualization"]
+
 # ─────────────────────────────────────────────────────────────────────
 # SYNTHESIS — final deliverables
 # ─────────────────────────────────────────────────────────────────────
@@ -731,7 +857,9 @@ protocols:
     summary: "Outline + storyboard the paper BEFORE drafting (figures-first narrative)."
     triggers: ["outline the paper", "narrative arc", "story board",
                "storyboard the figures", "what's the headline",
-               "plan the paper", "paper outline", "manuscript outline"]
+               "plan the paper", "paper outline", "manuscript outline",
+               "figure-first", "figures first", "headline message",
+               "lock the headline", "section beats", "before drafting"]
 
   synthesis/journal_selection:
     intent_class: synthesize

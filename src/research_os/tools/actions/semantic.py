@@ -70,6 +70,12 @@ _TRIGGER_BOOST_BASE = 0.08          # added if ANY trigger matches
 _TRIGGER_BOOST_PER_CHAR = 0.006     # added per char of the longest matched trigger (cap at 0.15)
 _TRIGGER_BOOST_MAX = 0.20           # ceiling for the per-protocol boost
 
+# When top-1 scores at or above this, we are confident enough to ACCEPT
+# the result even when neighbours cluster nearby (the narrow-spread
+# detector is suppressed). High absolute score means we found a real
+# topic even though many adjacent topics share vocabulary.
+_NARROW_SPREAD_SUPPRESS_AT = 0.65
+
 # BGE-small recommends a query-side prefix for retrieval. Documents are
 # embedded without prefix (matches the build script).
 _BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
@@ -85,8 +91,10 @@ _NOTHING_FLOOR = 0.45      # top-1 below this → no match, surface ask_user
 # When the top-k spread is very narrow (all candidates cluster within
 # this delta), nothing actually dominates — usually means the query
 # was gibberish or too generic. Treat as low confidence regardless of
-# the absolute top-1 score.
-_NARROW_SPREAD = 0.04
+# the absolute top-1 score. SUPPRESSED above _NARROW_SPREAD_SUPPRESS_AT
+# because high absolute cosines mean we found a real topic even when
+# neighbours share vocabulary.
+_NARROW_SPREAD = 0.055
 _NARROW_SPREAD_K = 5
 
 # Query-embedder lock so model load happens once even under thread races.
@@ -156,17 +164,25 @@ def _load_embeddings_bundle() -> dict[str, Any] | None:
         )
         return None
 
-    # Load triggers per protocol for the boost — best-effort; semantic
-    # works without them.
+    # Load triggers + intent_class per protocol — best-effort; semantic
+    # works without them. intent_class is used for the same-parent-intent
+    # tiebreak so e.g. synthesis/synthesis_abstract and writing/writing_*
+    # don't pretend to be ambiguous when they share the synthesize parent.
     protocol_triggers: dict[str, list[str]] = {}
+    protocol_intent_class: dict[str, str] = {}
     if _ROUTER_INDEX.exists():
         try:
             ri = yaml.safe_load(_ROUTER_INDEX.read_text()) or {}
             for pid, entry in (ri.get("protocols", {}) or {}).items():
-                trigs = (entry or {}).get("triggers") or []
+                if not isinstance(entry, dict):
+                    continue
+                trigs = entry.get("triggers") or []
                 protocol_triggers[pid] = [t.lower() for t in trigs if isinstance(t, str)]
+                ic = entry.get("intent_class")
+                if isinstance(ic, str):
+                    protocol_intent_class[pid] = ic
         except Exception as exc:  # pragma: no cover
-            logger.warning("Failed to load router triggers: %s", exc)
+            logger.warning("Failed to load router metadata: %s", exc)
 
     return {
         "meta": meta,
@@ -175,6 +191,7 @@ def _load_embeddings_bundle() -> dict[str, Any] | None:
         "tool_names": tool_names,
         "tool_embeds": tool_embeds,
         "protocol_triggers": protocol_triggers,
+        "protocol_intent_class": protocol_intent_class,
     }
 
 
@@ -244,34 +261,64 @@ def _topk(matrix: np.ndarray, query_vec: np.ndarray, ids: list[str], k: int) -> 
     return [Match(id=ids[i], score=float(scores[i])) for i in top_idx]
 
 
+def _compute_trigger_boost(query_lower: str, triggers_for_id: list[str]) -> float:
+    """Return the boost magnitude for one protocol given a lowered query.
+
+    Returns 0.0 if no trigger matches. The longest matched trigger drives
+    the boost so multi-word specific triggers ("bias audit") beat
+    single-word generic ones ("audit").
+    """
+    matched_lens = [len(t) for t in triggers_for_id if t and t in query_lower]
+    if not matched_lens:
+        return 0.0
+    longest = max(matched_lens)
+    return min(
+        _TRIGGER_BOOST_BASE + _TRIGGER_BOOST_PER_CHAR * longest,
+        _TRIGGER_BOOST_MAX,
+    )
+
+
 def _apply_trigger_boost(
     matches_full: list[Match],
     query: str,
     triggers: dict[str, list[str]],
     k: int,
+    all_ids: list[str] | None = None,
+    all_embeds: np.ndarray | None = None,
+    qvec: np.ndarray | None = None,
 ) -> list[Match]:
-    """Add a length-weighted boost to any match whose trigger appears in the query.
+    """Boost trigger-matched protocols; force-include them even if outside the pool.
 
-    The longest matched trigger drives the boost, so a multi-word
-    specific trigger ("bias audit") wins over a single-word generic
-    trigger ("audit") when both match.
+    The semantic pool is a top-N slice of all protocols. Trigger-matched
+    protocols that fall outside the pool (because their pre-boost cosine
+    was low) wouldn't otherwise get their boost applied, which silently
+    broke routing on the most deterministic inputs. We fix that by
+    computing trigger matches over ALL protocols and force-injecting any
+    triggered-but-out-of-pool matches with their cosine + boost.
     """
     if not triggers or not query:
         return matches_full[:k]
     q_lower = query.lower()
+    in_pool_ids = {m.id for m in matches_full}
     boosted: list[Match] = []
     for m in matches_full:
-        trigs = triggers.get(m.id) or []
-        matched_lens = [len(t) for t in trigs if t and t in q_lower]
-        if matched_lens:
-            longest = max(matched_lens)
-            boost = min(
-                _TRIGGER_BOOST_BASE + _TRIGGER_BOOST_PER_CHAR * longest,
-                _TRIGGER_BOOST_MAX,
-            )
-            boosted.append(Match(id=m.id, score=m.score + boost))
-        else:
-            boosted.append(m)
+        boost = _compute_trigger_boost(q_lower, triggers.get(m.id) or [])
+        boosted.append(Match(id=m.id, score=m.score + boost) if boost else m)
+    # Force-inject any out-of-pool triggered protocols (need their cosine
+    # to add the boost on top of). Only run when we have the full index.
+    if all_ids is not None and all_embeds is not None and qvec is not None:
+        id_to_idx = {pid: i for i, pid in enumerate(all_ids)}
+        for pid, trigs in triggers.items():
+            if pid in in_pool_ids:
+                continue
+            boost = _compute_trigger_boost(q_lower, trigs)
+            if not boost:
+                continue
+            idx = id_to_idx.get(pid)
+            if idx is None:
+                continue
+            cosine = float(all_embeds[idx] @ qvec)
+            boosted.append(Match(id=pid, score=cosine + boost))
     boosted.sort(key=lambda x: x.score, reverse=True)
     return boosted[:k]
 
@@ -285,14 +332,20 @@ def top_k_protocols(query: str, k: int = 5) -> list[Match]:
     if qvec is None:
         return []
     # Pull a wider pool first so trigger boost can promote results
-    # outside the un-boosted top-k.
+    # outside the un-boosted top-k. The full bundle is also passed
+    # so trigger-matched protocols outside the pool are force-injected.
     pool = _topk(
         bundle["protocol_embeds"],
         qvec,
         bundle["protocol_ids"],
         max(k * 3, 15),
     )
-    return _apply_trigger_boost(pool, query, bundle.get("protocol_triggers") or {}, k)
+    return _apply_trigger_boost(
+        pool, query, bundle.get("protocol_triggers") or {}, k,
+        all_ids=bundle["protocol_ids"],
+        all_embeds=bundle["protocol_embeds"],
+        qvec=qvec,
+    )
 
 
 def top_k_tools(query: str, k: int = 5) -> list[Match]:
@@ -342,8 +395,13 @@ def semantic_route(prompt: str, k: int = 5) -> dict[str, Any] | None:
 
     # 0. Narrow-spread → no clear winner regardless of absolute scores.
     #    Happens on vague / gibberish prompts where everything embeds
-    #    similarly to a noisy mid-band score.
-    if len(matches) >= _NARROW_SPREAD_K:
+    #    similarly to a noisy mid-band score. SUPPRESSED when top-1 is
+    #    already high-confidence (we found a real topic; neighbours
+    #    just share vocabulary).
+    if (
+        len(matches) >= _NARROW_SPREAD_K
+        and top.score < _NARROW_SPREAD_SUPPRESS_AT
+    ):
         window = matches[:_NARROW_SPREAD_K]
         spread = window[0].score - window[-1].score
         if spread < _NARROW_SPREAD:
@@ -374,22 +432,34 @@ def semantic_route(prompt: str, k: int = 5) -> dict[str, Any] | None:
             "method": "semantic",
         }
 
-    # 2. Two strong candidates within the ambiguity gap → ask
+    # 2. Two strong candidates within the ambiguity gap → conditional ask.
+    #    Suppress the ambiguity when the contenders share their parent
+    #    intent_class — choosing wrong within an intent-class is a small
+    #    error the AI can recover from; choosing wrong across intent
+    #    classes is the real failure mode worth asking about.
+    bundle = _load_embeddings_bundle()
+    intent_class_lookup = (bundle or {}).get("protocol_intent_class") or {}
     if (
         len(matches) >= 2
         and (top.score - matches[1].score) < _AMBIGUOUS_GAP
         and matches[1].score >= _PRIMARY_FLOOR
     ):
-        return {
-            "primary_protocol": None,
-            "candidates": cand_payload,
-            "ask_user": (
-                f"Two protocols match similarly well — '{matches[0].id}' and "
-                f"'{matches[1].id}'. Which fits your ask?"
-            ),
-            "confidence": "low",
-            "method": "semantic",
-        }
+        top_intent = intent_class_lookup.get(top.id)
+        runner_intent = intent_class_lookup.get(matches[1].id)
+        intents_match = top_intent and top_intent == runner_intent
+        if not intents_match:
+            return {
+                "primary_protocol": None,
+                "candidates": cand_payload,
+                "ask_user": (
+                    f"Two protocols match similarly well — '{matches[0].id}' and "
+                    f"'{matches[1].id}'. Which fits your ask?"
+                ),
+                "confidence": "low",
+                "method": "semantic",
+            }
+        # else: fall through; both are in the same intent_class, top-1
+        # wins and confidence is calibrated below.
 
     # 3. Below the primary floor — surface as a candidate but flag uncertainty
     if top.score < _PRIMARY_FLOOR:

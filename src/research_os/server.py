@@ -341,7 +341,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_list": {
-        "description": "List every available protocol with a one-line summary.",
+        "short": "Full catalog dump (~100+ items). Prefer tool_route / tool_semantic_route — semantic routing scales as the catalog grows.",
+        "description": "Returns every protocol name + one-line summary. Designed for debugging + maintainer browsing; not the primary entrypoint at runtime. For routing a user prompt, call tool_route (hybrid semantic + trigger). For inspecting ranked alternatives, call tool_semantic_route. For finding tools by what they do, call sys_semantic_tool_search. As the catalog grows beyond ~150 protocols, dumping the full list every turn wastes context — semantic retrieval is the AI-friendly path.",
         "category": "protocol",
         "inputSchema": {"type": "object", "properties": {}},
     },
