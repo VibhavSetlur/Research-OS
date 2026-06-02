@@ -58,13 +58,16 @@ endpoints (Crossref, PubMed, arXiv) automatically and only enables the
 paid / rate-limited search backend when its key is present. No restart
 needed — the server re-reads the file each session.
 
-### Do I have to read all 88 protocols to know which to use?
+### Do I have to read all 100 protocols to know which to use?
 
 No. You never browse protocols. You speak in plain English; `tool_route`
-maps your message to the right protocol via a hierarchical L1 → L2 → L3
-picker. "make me a dashboard for executives", "fit a logistic regression",
-"tear apart this paper as a tough reviewer" all resolve to one protocol
-with no menu surfing on your end.
+maps your message to the right protocol. As of v1.2.0 it tries
+**semantic search first** (local BGE-small embeddings — no network,
+no LLM API keys) and falls back to a hierarchical L1 → L2 → L3
+trigger picker for unmatched / unavailable cases. "make me a dashboard
+for executives", "fit a logistic regression", "tear apart this paper
+as a tough reviewer" all resolve to one protocol with no menu surfing
+on your end.
 
 If you *want* to browse — for example to scope what Research OS can do
 before committing a project — open [USE_CASES.md](USE_CASES.md). It is
@@ -97,8 +100,11 @@ Yes. After `research-os init`, drop your data / PDFs / notes anywhere in
 > "fill out the intake"
 
 `tool_intake_autofill` reads everything, classifies the domain, extracts
-your research question + hypotheses from context notes, and populates the
-blank fields in `researcher_config.yaml`. Every config field is optional.
+your research question + hypotheses from context notes, and writes them
+into `inputs/intake.md` + `docs/research_overview.md` (with the
+hypothesis ledger persisted to `.os_state/state.json`). Domain / research
+question / hypotheses are intentionally NOT in `researcher_config.yaml`
+— that file is reserved for fields a researcher actively chooses.
 
 ### Do I have to use the 10-stage pipeline?
 

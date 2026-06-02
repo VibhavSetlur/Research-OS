@@ -192,8 +192,17 @@ def freeze_preregistration(
         except Exception:
             cfg = {}
 
+    # research_question lives in state.json (written by tool_intake_autofill);
+    # older workspaces may still carry it in researcher_config.yaml.
+    state_rq = ""
+    try:
+        from research_os.project_ops import load_state
+        state_rq = (load_state(root) or {}).get("research_question", "")
+    except Exception:
+        pass
     rq = (
-        cfg.get("research_question")
+        state_rq
+        or cfg.get("research_question")
         or (cfg.get("research_goal") or {}).get("primary_question")
         or "(unset)"
     )

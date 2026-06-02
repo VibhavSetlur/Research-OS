@@ -59,6 +59,109 @@ def reload_index() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Semantic routing — primary path when fastembed + embeddings file present
+# ---------------------------------------------------------------------------
+
+
+def _try_semantic_route(
+    prompt: str,
+    protocols: dict,
+    hierarchy: dict,
+    shortcuts: dict,
+    *,
+    is_complex: bool,
+    root: Path,
+    persist_plan: bool,
+) -> dict[str, Any] | None:
+    """Run the semantic router and shape the result like the trigger router.
+
+    Returns None when:
+      - the semantic module isn't usable (fastembed not installed OR
+        embeddings file missing) — caller falls back to trigger router.
+      - the semantic confidence is "low" or "none" — caller falls back so
+        the trigger router can try its luck (it may find a literal match
+        the semantic path missed).
+      - the top semantic protocol_id is not in the router index (defensive
+        — happens if embeddings + index are out of sync).
+    """
+    try:
+        from research_os.tools.actions import semantic
+    except Exception:
+        return None
+    if not semantic.semantic_available():
+        return None
+
+    sem = semantic.semantic_route(prompt, k=5)
+    if sem is None:
+        return None
+
+    confidence = sem.get("confidence", "none")
+    if confidence in ("low", "none"):
+        # Let the trigger router try — it might pick up an exact phrase
+        # the embedding missed. If it ALSO fails, the trigger router's
+        # _fallback_response surfaces the candidates from this same set.
+        return None
+
+    primary_id = sem.get("primary_protocol")
+    if not primary_id or primary_id not in protocols:
+        # Embeddings + index drift. Refuse and let the trigger router
+        # provide a safer answer.
+        logger.warning(
+            "Semantic top match '%s' not in router index — falling back.", primary_id
+        )
+        return None
+
+    primary_data = protocols[primary_id]
+    decomposition = primary_data.get("decomposition", []) or []
+    shortcut_tool = primary_data.get("shortcut_tool")
+    intent_class = primary_data.get("intent_class")
+    sub_intent = primary_data.get("sub_intent")
+
+    alternatives = [
+        c["id"] for c in (sem.get("candidates") or [])
+        if c.get("id") != primary_id and c.get("id") in protocols
+    ][:4]
+
+    response: dict[str, Any] = {
+        "status": "success",
+        "resolved_level": 3,
+        "intent_class": intent_class,
+        "sub_intent": sub_intent,
+        "primary_protocol": primary_id,
+        "shortcut_tool": shortcut_tool,
+        "decomposition": decomposition,
+        "alternatives": alternatives,
+        "ambiguous_alternatives": [],
+        "matched_triggers": [],         # semantic path doesn't surface raw triggers
+        "complexity": "high" if is_complex else "low",
+        "ask_user": None,
+        "why": (
+            f"Semantic match (confidence={confidence}) on protocol description + "
+            f"triggers. Top candidate score "
+            f"{sem['candidates'][0]['score']:.3f}."
+        ),
+        "advice": _route_advice_hier(
+            3, is_complex, primary_id, shortcut_tool, False
+        ),
+        "token_estimate": primary_data.get("token_estimate"),
+        "active_tools": _active_tools_for(primary_data, shortcut_tool),
+        "method": "semantic",
+        "confidence": confidence,
+        "semantic_candidates": sem.get("candidates") or [],
+    }
+
+    # Persist the active plan only when complex + decomposition exists,
+    # same rule as the trigger path.
+    if persist_plan and is_complex and decomposition:
+        plan_path = _persist_active_plan(
+            root, prompt, primary_id, decomposition, shortcut_tool,
+        )
+        response["active_plan_path"] = plan_path
+
+    return response
+
+
+# ---------------------------------------------------------------------------
 # sys_boot — one-call session bootstrap
 # ---------------------------------------------------------------------------
 
@@ -153,9 +256,10 @@ def sys_boot(root: Path) -> dict[str, Any]:
             "project_name": state.get("project_name", "(unnamed)"),
             "pipeline_stage": state.get("pipeline_stage", "init"),
             "current_path": state.get("current_path", "main"),
-            "domain": cfg.get("domain", ""),
+            "domain": state.get("domain") or cfg.get("domain", ""),
             "research_question_set": bool(
-                cfg.get("research_question") and "(blank" not in str(cfg.get("research_question", ""))
+                (state.get("research_question") or cfg.get("research_question"))
+                and "(blank" not in str(state.get("research_question") or cfg.get("research_question", ""))
             ),
             "autonomy": cfg.get("interaction", {}).get("autonomy_level", "supervised"),
             "expertise": cfg.get("researcher", {}).get(
@@ -383,15 +487,29 @@ def route_request(
         hierarchy = index.get("hierarchy", {}) or {}
 
         prompt_norm = " " + prompt.lower().strip() + " "
+        is_complex = _is_complex(prompt_norm)
 
         # ── Step 0: cross-intent shortcut wins outright ───────────────
         # E.g. "what's the progress" → tool_progress_digest, no protocol
         # load needed regardless of class/sub-intent.
         shortcut_hit = _match_shortcut(prompt_norm, shortcuts)
 
+        # ── Step 0.5: semantic route (PRIMARY path when available) ────
+        # Try semantic first — much better fuzzy-intent matching than
+        # trigger substrings as the catalog grows. Cross-intent shortcuts
+        # still win if matched (researcher voice is more reliable than
+        # embeddings for the rare "literal-trigger" path). Semantic also
+        # bows out on low-confidence answers so the trigger router can
+        # try a literal-phrase match.
+        if not shortcut_hit:
+            semantic_resp = _try_semantic_route(prompt, protocols, hierarchy,
+                                                shortcuts, is_complex=is_complex,
+                                                root=root, persist_plan=persist_plan)
+            if semantic_resp is not None:
+                return semantic_resp
+
         # ── Step 1: score every protocol; group by (class, sub_intent) ─
         scored = _score_protocols(prompt_norm, protocols)
-        is_complex = _is_complex(prompt_norm)
 
         # No matches at all and no shortcut.
         if not scored and not shortcut_hit:
@@ -496,6 +614,7 @@ def route_request(
                 if resolved_level == 3
                 else list(_ESSENTIAL_TOOLS)
             ),
+            "method": "trigger",
         }
 
         # Persist plan ONLY when we resolved to L3 AND the prompt is

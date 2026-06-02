@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.1.1"
+version = "1.2.1"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -25,8 +25,10 @@ classifiers = [
 ]
 
 # Core deps: only the bits the server itself needs to boot and serve every
-# tool that doesn't require optional system tools. pandas is here because
-# tool_data_sample / tool_data_profile are core.
+# tool that doesn't require optional system tools. pandas is core because
+# tool_data_sample / tool_data_profile use it; numpy is core because the
+# semantic-router loader reads the pre-built embeddings .npz at startup
+# (the fastembed *embedder* itself is the optional [semantic] extra).
 dependencies = [
     "mcp>=1.0.0",
     "pyyaml>=6.0",
@@ -35,6 +37,7 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "pandas>=1.5",
+    "numpy>=1.23",
 ]
 
 [project.urls]
@@ -56,6 +59,11 @@ notebook = ["jupyter", "nbconvert"]
 execution = ["docker"]
 r = ["rpy2"]
 julia = ["julia"]
+# Semantic routing — local ONNX embedder (BAAI/bge-small-en-v1.5,
+# ~33 MiB model + ~120 MiB onnxruntime). Without this extra, tool_route
+# falls back to the trigger-substring hierarchical router. The pre-built
+# protocol embeddings ship in the wheel either way.
+semantic = ["fastembed>=0.4"]
 
 # Developer extras
 dev = [
@@ -67,7 +75,7 @@ dev = [
 
 # "all" pulls everything CI can install cross-platform. R / Julia / Docker
 # need their respective system runtimes and are deliberately excluded.
-all = ["research-os[web,literature,viz,audit,ml,notebook]"]
+all = ["research-os[web,literature,viz,audit,ml,notebook,semantic]"]
 
 # "ci" is the lean install used by GitHub Actions: enough to lint + preflight
 # + run every test (which mocks the heavy bits) WITHOUT pulling shap /

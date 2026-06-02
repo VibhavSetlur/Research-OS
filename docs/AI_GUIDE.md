@@ -72,7 +72,7 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 
 ---
 
-## Protocol categories (87 protocols, organised in 9)
+## Protocol categories (100 protocols, organised in 9)
 
 | Category | What it covers |
 |---|---|
@@ -321,5 +321,5 @@ For a single styled figure: `tool_figure_create` is the preferred path
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 88 protocols indexed
+- `sys_protocol_list` → all 100 protocols indexed
 - `sys_tool_describe(tool_name)` → full schema for a tool

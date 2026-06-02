@@ -1,0 +1,219 @@
+id: uncertainty_quantification
+name: Uncertainty Quantification + Calibration (predictive models)
+version: '1.2.0'
+schema_version: '2.0'
+last_reviewed: '2026-06-02'
+description: |
+  Predictive models report point estimates by default. Calibrated
+  uncertainty — "the model is 80% confident, and over many such
+  predictions 80% are correct" — is what downstream decisions actually
+  need. Without calibrated uncertainty, a risk score, a clinical
+  prediction, or an autonomous-system decision is gambling.
+
+  This protocol scaffolds the REASONING about which uncertainty
+  source(s) matter (aleatoric vs epistemic), which calibration method
+  fits the model and use, how to evaluate (reliability diagrams,
+  scoring rules, coverage), and how to report. It does not default
+  to a single method.
+
+  References: Guo et al. (2017) On Calibration of Modern Neural
+  Networks; Kuleshov et al. (2018) for regression; Gneiting et al.
+  (2007) proper scoring rules; Niculescu-Mizil & Caruana (2005);
+  Hüllermeier & Waegeman (2021) aleatoric vs epistemic.
+
+trigger: |
+  Any of:
+    - model output will be used as a probability / risk score for
+      downstream decisions,
+    - researcher says "calibration", "uncertainty quantification",
+      "predictive interval", "conformal", "reliability diagram",
+      "Brier score", "ECE", "Platt scaling", "isotonic regression",
+      "MC dropout", "deep ensembles", "Bayesian neural net",
+    - clinical / safety / regulatory context requires calibrated
+      probabilities (FDA AI/ML guidance; medical device regs),
+    - fairness_audit step 4 (calibration within groups) flagged
+      poor calibration.
+
+prerequisites:
+  - A trained model exists OR is being designed.
+  - Held-out (or properly cross-validated) data is available for
+    calibration assessment.
+  - The intended downstream use is documented (it dictates which
+    metric matters).
+
+editorial_voice:
+  rules:
+    - "Aleatoric vs epistemic — name what is uncertain.
+       Aleatoric (data) uncertainty cannot be reduced by more data;
+       it's inherent noise. Epistemic (model) uncertainty CAN be
+       reduced by more data or a better model. The methods differ;
+       conflating them produces wrong-sized intervals."
+    - "Calibration is necessary, not sufficient. A perfectly
+       calibrated useless model (predicts the base rate for everyone)
+       is calibrated. Always pair calibration with a discrimination /
+       sharpness measure (AUC, mAP, log-loss, CRPS for regression)."
+    - "Use a PROPER scoring rule for evaluation. Brier (regression /
+       classification), log-loss, CRPS (regression). Accuracy is not
+       proper. Improper scoring rules can be gamed."
+    - "Conformal prediction gives marginal coverage guarantees under
+       exchangeability. It is the most defensible UQ for downstream
+       decision-making in modern ML. But it does not guarantee
+       conditional coverage (per subgroup) without additional work."
+
+steps:
+  - id: clarify_uncertainty_target
+    name: Clarify what kind of uncertainty matters
+    description: |
+      For classification:
+        - per-prediction probability (well-calibrated P(Y=k|x))
+        - prediction set with coverage (conformal classification)
+        - top-k confidence + abstention threshold
+
+      For regression:
+        - predictive interval with coverage (90% PI containing 90%
+          of test outcomes)
+        - full predictive distribution (quantile or density)
+        - calibrated variance (σ̂² that matches squared error)
+
+      For generative / structured output:
+        - text generation: per-token / per-claim confidence; conformal
+          set of completions; abstention.
+        - structured prediction: set-valued prediction with coverage.
+
+      Document the choice + the downstream use that requires it in
+      workspace/.uq/target.md.
+
+  - id: pick_method_per_model_class
+    name: Pick the UQ method that fits the model
+    description: |
+      Reason through method-by-model:
+
+        LOGISTIC REGRESSION / GLMs — usually well-calibrated out of
+          the box; Platt scaling or isotonic regression for
+          fine-tuning.
+
+        TREE / RANDOM FOREST / GBM — out-of-bag prediction +
+          isotonic regression / sigmoid calibration. xgboost +
+          isotonic via sklearn CalibratedClassifierCV.
+
+        NEURAL NETWORKS — temperature scaling (Guo et al. 2017) is
+          the cheap default; matrix / vector scaling for finer
+          control. MC Dropout (Gal & Ghahramani 2016) for epistemic.
+          Deep ensembles (Lakshminarayanan et al. 2017) — stronger
+          but k× compute. Bayesian neural nets (Laplace, SVI) for
+          full posterior but heavy.
+
+        REGRESSION (any model) — quantile regression for predictive
+          intervals; deep ensembles + Gaussian heads;
+          calibrated regression (Kuleshov et al. 2018) via isotonic.
+
+        ANY MODEL — split or full conformal prediction (Vovk et al.
+          2005; Angelopoulos & Bates 2023 tutorial) for distribution-
+          free coverage. Often the most defensible choice when no
+          prior on residuals is justifiable.
+
+      Document choice + computational cost + assumptions.
+
+  - id: calibrate_or_post_hoc_correct
+    name: Calibrate (in-training or post-hoc)
+    description: |
+      Implement via tool_python_exec:
+        - sklearn.calibration.CalibratedClassifierCV (Platt / isotonic)
+        - netcal (Python) for temperature / matrix / vector / beta
+        - mapie (Python) for conformal classification + regression
+        - laplace-torch for Laplace approximation
+        - sklearn-quantile or quantile-forest for quantile regression
+        - R: caret + isoreg, conformalInference, lqr
+
+      Fit on a CALIBRATION split distinct from training + test. If
+      data is scarce, use cross-conformal or jackknife+ variants.
+
+      Persist the fitted calibration (weights, isotonic mapping,
+      temperature, conformal quantile) so deployment uses the same
+      transform.
+
+  - id: evaluate_calibration_and_sharpness
+    name: Evaluate calibration + sharpness on held-out data
+    description: |
+      Calibration metrics:
+        - reliability diagram (predicted probability vs empirical
+          frequency, with bin counts)
+        - Expected Calibration Error (ECE) with the number of bins
+          documented; consider AdaECE for adaptive binning
+        - Brier score (proper) + decomposition into calibration +
+          refinement + uncertainty
+        - log-loss (proper)
+        - CRPS for regression (proper)
+        - coverage of nominal-α intervals (for conformal / quantile)
+
+      Sharpness / discrimination:
+        - AUC, mAP, top-k accuracy (classification)
+        - mean interval width (regression / conformal)
+
+      A well-calibrated model with very wide intervals is useless;
+      a sharp poorly-calibrated model is dangerous. Report both.
+
+      Save reports to workspace/.uq/calibration_report.md + figures
+      via tool_figure_create.
+
+  - id: subgroup_calibration
+    name: Check calibration within subgroups
+    description: |
+      Aggregate calibration can mask subgroup miscalibration. For
+      each relevant subgroup (clinically relevant strata, fairness-
+      audit groups), compute calibration + reliability separately.
+
+      Document subgroup ECEs + a per-subgroup reliability plot.
+      Flag any subgroup with markedly worse calibration; route to
+      methodology/fairness_audit if disparate impact is implied.
+
+  - id: deployment_integration
+    name: Wire the calibrated UQ into the deployment surface
+    description: |
+      Document:
+        - the calibration object's serialisation path (so the
+          deployed model uses the right calibrator)
+        - the inference-time API change (does the model now return
+          a prediction set, an interval, or a probability with a
+          coverage guarantee?)
+        - the decision rule downstream — abstain / escalate / route
+          to human when uncertainty is high (the threshold must be
+          documented + calibrated separately if used for triage)
+        - the monitoring plan: drift in calibration is the early
+          signal of distribution shift in deployment
+
+  - id: report_in_methods_and_results
+    name: Report in Methods + Results
+    description: |
+      Methods: UQ method + citation, calibration split, fit
+      procedure, hyperparameters (e.g. temperature value, number of
+      isotonic knots, conformal α).
+
+      Results: reliability diagram, calibration metric (ECE / Brier
+      decomposition / coverage), sharpness metric, subgroup
+      calibration table when relevant.
+
+      Limitations: the coverage guarantee is MARGINAL (conformal)
+      unless conditional coverage is explicitly demonstrated;
+      out-of-distribution data is not covered.
+
+      mem_methods_append + writing/writing_limitations integration.
+
+expected_outputs:
+  - workspace/.uq/target.md
+  - workspace/.uq/calibration_report.md
+  - workspace/<step>/scripts/<NN>_calibration_v<n>.py
+  - workspace/<step>/outputs/figures/reliability_diagram.png
+  - (entries appended to methods.md + limitations.md)
+
+quality_bar:
+  uncertainty_target_explicitly_chosen: true
+  method_choice_matches_model_class_and_target: true
+  calibration_fit_on_dedicated_split: true
+  calibration_and_sharpness_both_reported: true
+  proper_scoring_rule_used_for_evaluation: true
+  subgroup_calibration_assessed_when_relevant: true
+  deployment_calibrator_serialised_and_documented: true
+
+next_protocol: methodology/fairness_audit
+on_failure: guidance/dead_end_routing

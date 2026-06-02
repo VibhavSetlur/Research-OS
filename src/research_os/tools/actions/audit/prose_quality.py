@@ -399,24 +399,34 @@ def audit_prose(
                 if conc.exists():
                     targets.append(str(conc.relative_to(root)))
 
-    # Domain → reporting standard.
+    # Domain → reporting standard. Domain lives in state.json (written by
+    # tool_intake_autofill); older workspaces may still carry it in
+    # researcher_config.yaml under the legacy `domain:` key.
     domain = ""
-    if is_observational is None:
+    design = ""
+    try:
+        from research_os.project_ops import load_state
+        domain = (load_state(root) or {}).get("domain", "") or ""
+    except Exception:
+        pass
+    if not domain or is_observational is None:
         cfg_path = root / "inputs" / "researcher_config.yaml"
         if cfg_path.exists():
             try:
                 import yaml  # type: ignore
 
                 cfg = yaml.safe_load(cfg_path.read_text()) or {}
-                domain = cfg.get("domain", "") or cfg.get("research_goal", {}).get("domain", "")
+                if not domain:
+                    domain = cfg.get("domain", "") or cfg.get("research_goal", {}).get("domain", "")
                 design = (cfg.get("research_goal") or {}).get("design", "")
-                is_observational = (
-                    "observational" in (domain + design).lower()
-                    or "epidem" in (domain + design).lower()
-                    or "cohort" in (domain + design).lower()
-                )
             except Exception:
-                is_observational = False
+                pass
+    if is_observational is None:
+        is_observational = (
+            "observational" in (domain + design).lower()
+            or "epidem" in (domain + design).lower()
+            or "cohort" in (domain + design).lower()
+        )
     standard = _reporting_standard_for(domain)
 
     per_doc: list[dict[str, Any]] = []

@@ -3,7 +3,7 @@
 The full guide to working with Research OS day-to-day. Read after
 [START.md](START.md) (5-minute install + first project). This document
 covers: the mental model, the file layout, a typical session, the
-canonical 10-stage pipeline, all 88 protocols and 143 MCP tools, the
+canonical 10-stage pipeline, all 100 protocols and 145 MCP tools, the
 config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
@@ -370,40 +370,47 @@ verification).
 ## 8. Configuration (`inputs/researcher_config.yaml`)
 
 Auto-created on `init`. **Every field is optional** — blank fields get
-sensible defaults applied silently. Set only what you care about.
+sensible defaults applied silently. The file is reserved for fields a
+**researcher actively chooses**: who they are, what they want to
+produce, how they want the AI to behave. Domain / research question /
+hypotheses are NOT here — those are AI-inferred via
+`tool_intake_autofill` and written to `inputs/intake.md` +
+`docs/research_overview.md` (with hypotheses also tracked in
+`.os_state/state.json`).
+
+Fields are ordered most → least important:
 
 ```yaml
-project_name: ""                  # blank → uses directory name
-research_question: ""             # blank → tool_intake_autofill proposes
-domain: ""                        # blank → AI classifies from inputs
-hypotheses: []                    # AI tracks via mem_hypothesis_*
-
-researcher:
+researcher:                       # who AI is talking to (most important)
   name: ""
-  field: ""
-  expertise_level: ""             # beginner | intermediate | advanced | pi
+  institution: ""
+  orcid: ""
+  email: ""
 
-interaction:
+project_name: ""                  # blank → uses directory name
+
+research_goal:                    # what you want the AI to produce
+  output_types: []                # paper | abstract | poster |
+                                  # dashboard | report | exploratory
+  target_venue: ""
+  poster_dimensions: "36x48"
+
+interaction:                      # how the AI should behave
   autonomy_level: "supervised"    # manual | supervised | autopilot
+  quality_gate_policy: "enforce"  # enforce | allow_override | warn_only
+  ambiguity_posture: "ask_when_uncertain"
 
 model_profile: "medium"           # small | medium | large
                                   # — drives tool_plan_turn batch size
+
+writing_preferences:
+  citation_style: "apa"
+  language: "en-US"
 
 runtime:
   shared_server: false            # set true on HPC / shared boxes
   long_running_threshold_seconds: 60
   default_n_for_sampling: 1000
-
-research_goal:
-  output_types: []                # paper | abstract | poster |
-                                  # dashboard | report | exploratory
-  target_venue: ""
-  reporting_standard: ""
-  poster_dimensions: "36x48"
-
-writing_preferences:
-  citation_style: "apa"
-  language: "en-US"
 
 api_keys:                         # all optional — NO LLM provider keys
   semantic_scholar: ""
@@ -416,8 +423,10 @@ api_keys:                         # all optional — NO LLM provider keys
 ### One config, no presets
 
 There is ONE template: `templates/researcher_config.yaml`. Every field
-is blank. The AI fills it from your `inputs/` + an `intake_autofill`
-pass — never from a modality-specific preset.
+is blank. The AI never invents identity (`researcher.*`) or goals
+(`research_goal.*`) — those come from you. Research-inferred metadata
+(domain, question, hypotheses) lives outside the config, populated by
+an `intake_autofill` pass.
 
 ---
 
@@ -618,8 +627,8 @@ For more: [FAQ.md](FAQ.md).
 * [USE_CASES.md](USE_CASES.md) — role × goal × output map.
 * [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
-* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 88 protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 143 MCP tools.
+* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 100 protocols.
+* [TOOLS.md](TOOLS.md) — catalogue of all 145 MCP tools.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
 * [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — scaffold-not-script
   principle (for protocol authors / contributors).

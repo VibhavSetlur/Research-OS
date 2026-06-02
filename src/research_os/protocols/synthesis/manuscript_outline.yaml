@@ -1,0 +1,207 @@
+id: manuscript_outline
+name: Manuscript Outline + Narrative Arc (before drafting)
+version: '1.2.0'
+schema_version: '2.0'
+last_reviewed: '2026-06-02'
+description: |
+  Drafting a paper before outlining is the most common source of
+  rewrite-from-scratch revisions. A 30-minute outline saves 20 hours.
+
+  This protocol scaffolds the OUTLINE — the headline message, the
+  narrative arc (what the reader is being persuaded of, in what
+  order), the figure plan (figures are the spine of an empirical
+  paper), the section-by-section beats, and the alignment of each
+  section to the venue's expected structure.
+
+  The protocol does NOT draft the paper — synthesis_paper does that.
+  It produces the outline the AI + researcher review and lock BEFORE
+  drafting begins.
+
+  References: Mensh & Kording (2017) Ten simple rules for structuring
+  papers; Schimel (2012) Writing Science; Gopen & Swan (1990) The
+  Science of Scientific Writing.
+
+trigger: |
+  Any of:
+    - researcher says "outline the paper", "narrative arc", "story
+      board the figures", "what's the headline", "plan the paper",
+    - synthesis_paper is invoked but no outline exists in
+      workspace/.outline/,
+    - revise_and_resubmit reveals that the paper's narrative is the
+      reason for revision (reviewer comments about flow, framing,
+      or "what's the contribution").
+
+prerequisites:
+  - The main results exist (figures + tables drafted, even if
+    they'll be polished later).
+  - A target venue is identified (or this protocol routes back to
+    synthesis/journal_selection first).
+
+editorial_voice:
+  rules:
+    - "The headline is the contract with the reader. One sentence
+       that the entire paper supports. If you cannot state it in
+       one sentence, the outline is not done."
+    - "Figures are the spine. The reader of an empirical paper
+       reads: title → abstract → figures → discussion → method.
+       Order the figures so they TELL the story without prose; the
+       prose is connective tissue. If the figures don't tell the
+       story, no prose will save it."
+    - "Section beats are commitments. 'Methods: how' is not a beat;
+       'Methods: a two-stage matching estimator on the 2014-2022 ACS
+       panel' is a beat. Beats are testable; vague headings are not."
+    - "Find the contribution sentence early. Every section either
+       sets up the contribution, delivers evidence for it, or
+       reflects on it. Anything that doesn't is a candidate for
+       cut. Be ruthless in the outline; lenient in the prose."
+
+steps:
+  - id: lock_the_headline
+    name: Lock the headline sentence (one sentence)
+    description: |
+      Write the ONE-SENTENCE headline the paper will argue. Test it:
+        - is it falsifiable? (a vague "we explore X" is not)
+        - is it surprising / non-obvious to the target audience?
+        - does the evidence in the paper actually support it
+          (not adjacent claims)?
+        - does it fit the venue? (a Cell-tier headline differs from
+          a society-journal headline)
+
+      Write workspace/.outline/headline.md with the sentence + the
+      one-paragraph rationale.
+
+      If the AI cannot write a defensible headline, the project is
+      not ready to draft — route back to the analysis instead of
+      pretending an outline will fix a thin result.
+
+  - id: define_audience_and_contribution_class
+    name: Define the audience + contribution class
+    description: |
+      AUDIENCE — who is the paper aimed at? (sub-discipline,
+      expertise level, motivation for reading). The audience
+      decides the level of explanation in the introduction +
+      depth of method.
+
+      CONTRIBUTION CLASS — what KIND of paper is this?
+        - empirical (new finding)
+        - methodological (new method, applied to existing problem)
+        - replication (re-doing a published finding)
+        - negative result (refuted hypothesis — see
+          synthesis_null_findings for the format)
+        - synthesis / review (systematic / scoping / narrative)
+        - dataset / benchmark / resource
+        - position / opinion / perspective
+        - case study
+
+      The class drives the section template + the relative weights.
+      A methodological paper has a long Methods + short Results; a
+      benchmark paper has a long Dataset + Evaluation.
+
+  - id: storyboard_the_figures
+    name: Storyboard the figures (spine of the paper)
+    description: |
+      For each figure in the planned paper:
+        - one-sentence message (what the figure SHOWS the reader)
+        - position in the narrative (set-up / main result /
+          mechanism / robustness / limitation)
+        - panel-by-panel sketch (A / B / C — what each shows)
+        - the SOURCE workspace output that supports it (so the
+          figure isn't a phantom)
+
+      Order them. The reader who only looks at figures + captions
+      should be able to reconstruct the paper's argument. If they
+      can't, the figure order is wrong OR a figure is missing OR
+      a figure is doing the work of two.
+
+      Write workspace/.outline/figure_storyboard.md.
+
+  - id: section_beats
+    name: Write section beats (one paragraph per beat)
+    description: |
+      For each section of the venue's template (IMRAD by default;
+      adjust for venue), write 2-5 beats — each beat is the
+      one-sentence claim that paragraph will make + which evidence
+      it cites.
+
+      Example beats (Introduction):
+        B1: The problem (one sentence, citing the body of work).
+        B2: The gap (what is missing or wrong).
+        B3: The approach (what THIS paper does).
+        B4: The contribution (one sentence — same as headline).
+        B5: Roadmap (optional, varies by venue).
+
+      Example beats (Discussion):
+        B1: Restate headline + evidence.
+        B2: Compare to prior literature (cite the references the
+            reader expects).
+        B3: Mechanism / interpretation.
+        B4: Implications (for theory, for practice).
+        B5: Limitations (link to writing/writing_limitations).
+        B6: Future work.
+
+      Write workspace/.outline/section_beats.md as a checklist.
+
+  - id: align_to_venue_template
+    name: Align the outline to the venue's section template
+    description: |
+      Pull the venue's section requirements from journal_selection's
+      decision (or from the venue's author instructions if not yet
+      captured). Common variants:
+        - IMRAD (Introduction-Methods-Results-Discussion) — life
+          sciences, social science
+        - IMRaD with separate Conclusion — engineering
+        - Letter format (combined introduction + results) — Nature,
+          Science short articles
+        - Results-Methods (methods at end) — Cell, Nature articles
+        - Case-Method-Result-Discussion — clinical case reports
+        - Conference format (Intro - Related - Method - Eval -
+          Discussion) — CS conferences
+
+      Reorganise the beats from step 4 to fit the template. Verify
+      word-count budgets per section against the venue's cap.
+
+  - id: identify_load_bearing_claims
+    name: Identify load-bearing claims + their evidence
+    description: |
+      For each beat that makes a substantive claim, identify:
+        - the workspace output that supports it (figure, table,
+          number, qualitative quote)
+        - whether the claim is causal (it shouldn't be on
+          observational data without explicit warning)
+        - whether the claim is fully supported by the data or whether
+          it needs caveating
+
+      This is also the input to tool_audit_claims at synthesis time.
+      Surface unsupported beats NOW so the analysis can fill the gap
+      before drafting.
+
+  - id: lock_the_outline
+    name: Lock the outline + route to drafting
+    description: |
+      Show the researcher: headline + audience + storyboard + beats.
+      Ask for confirmation (per ambiguity_posture). On confirmation:
+        - freeze the outline to
+          workspace/.outline/outline_FROZEN_<iso>.md (content-hash)
+        - mem_decision_log "outline locked v<n>"
+        - route to synthesis/synthesis_paper for drafting
+
+      Drafting against a locked outline is much faster + much less
+      likely to need a rewrite.
+
+expected_outputs:
+  - workspace/.outline/headline.md
+  - workspace/.outline/figure_storyboard.md
+  - workspace/.outline/section_beats.md
+  - workspace/.outline/outline_FROZEN_<iso>.md
+
+quality_bar:
+  one_sentence_falsifiable_headline_present: true
+  audience_and_contribution_class_named: true
+  figure_storyboard_in_narrative_order_with_messages: true
+  every_section_has_beats_with_evidence_pointers: true
+  template_matches_target_venue: true
+  load_bearing_claims_have_workspace_outputs: true
+  outline_frozen_with_content_hash_before_drafting: true
+
+next_protocol: synthesis/synthesis_paper
+on_failure: synthesis/journal_selection

@@ -1,30 +1,29 @@
 # Research OS — Researcher Configuration
 #
-# Source of truth for AI behaviour in this workspace.
+# Tells the AI who it's working with and how you want it to behave.
 # Research OS does NOT manage LLM providers — your AI client (Claude Code /
 # OpenCode / Antigravity / Cursor / Claude / VS Code) handles model access.
 #
-# EVERY field below is OPTIONAL. The most common workflow:
-#   1. Drop your data into inputs/raw_data/
-#   2. Drop PDFs into inputs/literature/
-#   3. Drop notes / drafts / past reports into inputs/context/
-#   4. Say to your AI: "fill out the intake" (or just "start the project").
-# The AI will read inputs/, propose a research question + domain, and fill in
-# anything you left blank below.
+# EVERY field is OPTIONAL, but the more you fill in here, the better the
+# AI orients. Domain / research question / hypotheses are NOT in this file
+# — drop data + notes into inputs/ and say "fill out the intake" to the
+# AI; it writes those to inputs/intake.md and docs/research_overview.md.
 
-# ── Project (blank is fine — AI infers from inputs/) ────────────────────
-project_name: ""                 # blank → uses directory name
-research_question: ""            # blank → AI proposes from inputs/context
-domain: ""                       # blank → AI classifies from inputs/raw_data
-hypotheses: []                   # list of strings; AI tracks them with mem_hypothesis_*
-
-# ── Researcher (blank is fine) ──────────────────────────────────────────
+# ── Who you are ─────────────────────────────────────────────────────────
 researcher:
   name: ""
-  field: ""                      # AI infers from data + context if blank
-  expertise_level: ""            # beginner | intermediate | advanced | pi
   institution: ""
   orcid: ""
+  email: ""
+
+# ── This project ────────────────────────────────────────────────────────
+project_name: ""                 # blank → uses directory name
+
+# ── What you want to produce (blank = AI suggests; start exploratory) ───
+research_goal:
+  output_types: []               # paper | abstract | poster | dashboard | report | exploratory
+  target_venue: ""               # journal | conference | preprint | dissertation | report
+  poster_dimensions: "36x48"
 
 # ── How the AI should behave ────────────────────────────────────────────
 interaction:
@@ -42,26 +41,33 @@ interaction:
   #   take_best_default  → AI proceeds, surfaces the chosen default for review
   ambiguity_posture: "ask_when_uncertain"
 
-# ── Model profile (controls protocol verbosity + reasoning depth) ───────
-model_profile: "medium"          # small | medium | large
+# ── Match the AI model class running in your IDE ────────────────────────
+#
+# The single most important knob if you're NOT on a frontier model.
+# Tells Research OS how to batch steps, load protocols, and what to skip.
+#
+#   small  → 1 step/turn, summary-only protocol loads, skip optional
+#            sub-sections, prefer shortcut_tool over decomposition.
+#            Pick for: Claude Haiku 4.5, GPT-4o-mini, Gemini 2.5 Flash,
+#            Llama 3.3-70B, Mistral, Phi-4, any local model.
+#   medium → 3 steps/turn, summary loads with on-demand drill-down.
+#            Pick for: Claude Sonnet 4.5/4.6, GPT-4o / GPT-4.1, Gemini
+#            2.5 Pro, Llama 4 Maverick.
+#   large  → 6 steps/turn, full protocol loads when useful, deeper
+#            multi-step reasoning chains.
+#            Pick for: Claude Opus 4.x, GPT-5 / o-series, Gemini 3 Pro.
+model_profile: "medium"
+
+# ── Writing preferences ─────────────────────────────────────────────────
+writing_preferences:
+  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
+  language: "en-US"
 
 # ── Compute environment ─────────────────────────────────────────────────
 runtime:
   shared_server: false           # set true on HPC / shared boxes
   long_running_threshold_seconds: 60
   default_n_for_sampling: 1000
-
-# ── What you want to produce (blank = AI suggests; start exploratory) ───
-research_goal:
-  output_types: []               # paper | abstract | poster | dashboard | report | exploratory
-  target_venue: ""               # journal | conference | preprint | dissertation | report
-  reporting_standard: ""         # auto-filled by domain_analysis
-  poster_dimensions: "36x48"
-
-# ── Writing preferences ─────────────────────────────────────────────────
-writing_preferences:
-  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
-  language: "en-US"
 
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
