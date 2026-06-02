@@ -6,7 +6,7 @@
 
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://github.com/VibhavSetlur/Research-OS)
 [![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.0.0-orange.svg)](CHANGELOG.md)
+[![version](https://img.shields.io/badge/version-1.1.0-orange.svg)](CHANGELOG.md)
 
 **Turn your AI IDE into a rigorous research collaborator.** Drop your
 data, talk in plain English, get publication-grade outputs with
@@ -73,10 +73,11 @@ server auto-launches. Drop data into `inputs/raw_data/`, PDFs into
 > what's left before I can submit?
 ```
 
-The AI picks the right workflow from **87 protocols**, runs it
+The AI picks the right workflow from **88 protocols**, runs it
 through **143 MCP tools** that enforce real quality gates, and asks
-you when it's uncertain. → [Common phrasings →
-outputs](docs/USE_CASES.md)
+you when it's uncertain — including `guidance/scope_clarification` for
+open-ended or cross-disciplinary asks the router can't pick from.
+→ [Common phrasings → outputs](docs/USE_CASES.md)
 
 ---
 
@@ -117,7 +118,7 @@ on first write, so a fresh project surface stays uncluttered.
 
 ## What it does
 
-Seven capability groups, 87 protocols, 143 MCP tools.
+Seven capability groups, 88 protocols, 143 MCP tools.
 
 | | What you say · what you get |
 |---|---|
@@ -149,7 +150,7 @@ Seven capability groups, 87 protocols, 143 MCP tools.
 | Null findings → file drawer | `synthesis_null_findings` publishable companion for refuted / underpowered / abandoned. |
 | Pre-submission anxiety | `audit/pre_submission_checklist` walks every check journals run — including reviewing every gate bypass logged in `workspace/logs/override_log.md`. |
 | Researcher enters mid-pipeline | `guidance/mid_pipeline_entry` classifies into 7 archetypes; skips redundant intake. |
-| 140+ tools is too many to triage per turn | `tool_route` returns ~10-15 active tools per protocol. |
+| 143 tools is too many to triage per turn | `tool_route` returns ~10-15 active tools per protocol; `sys_active_tools(protocol_name)` returns the same shortlist on demand. |
 | Same project, different AI tomorrow | `sys_session_handoff` snapshots; `tool_session_resume` reconstructs intent in one call. |
 | Long jobs on shared HPC | `tool_task_run` backgrounds them; `tool_slurm_submit` for clusters. |
 

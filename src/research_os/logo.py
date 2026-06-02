@@ -102,6 +102,7 @@ PLAIN_LOGO = """\
 
 
 if __name__ == "__main__":  # pragma: no cover
-    print(render(version="1.0.0"))
+    from research_os import __version__
+    print(render(version=__version__))
     print()
     print(render_compact())

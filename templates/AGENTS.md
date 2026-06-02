@@ -52,9 +52,18 @@ list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.
 Use `sys_active_tools(protocol_name)` to scope your working tool set
 to the protocol's decomposition.
 
-Lost? `sys_help` returns a compact orientation block; pass
-`topic="<category>"` (e.g. `synthesis`, `methodology`, `visualization`,
-`audit`) for category-specific guidance.
+Lost? `sys_help` returns a compact orientation block. Useful topics:
+
+* category orientation — `synthesis`, `methodology`, `visualization`,
+  `audit`, `literature`, `writing`, `categories`
+* operating patterns — `routing`, `iteration`, `overrides`, `recovery`
+* researcher gradient — `fields`, `depth`
+* meta — `anti_patterns`, `docs`
+
+If `tool_route` returns `resolved_level=0` (no trigger matched) OR a
+genuinely cross-disciplinary / open-ended ask, load
+`guidance/scope_clarification` — it asks ONE narrowing question, then
+hands back to `tool_route` with a workable prompt.
 
 Append-only logs (`methods.md`, `analysis.md`, `citations.md`) only via
 `mem_*`. Numbers go in `mem_decision_log` / `mem_methods_append` /
@@ -70,8 +79,10 @@ flags it before synthesis.
 | Need | Look in |
 |---|---|
 | Full tool list | `sys_protocol_list` → `sys_tool_describe(name)` |
+| Tight tool shortlist for one protocol | `sys_active_tools(protocol_name)` (~10-15 tools) |
 | Which project is THIS request for? | `sys_active_project` |
 | Researcher pivoted mid-plan | `tool_plan_clear`, then re-`tool_route` |
+| Vague / cross-disciplinary ask | `guidance/scope_clarification` (narrow before routing) |
 | Step naming | `guidance/analysis_plan` |
 | Deliberate iteration (recolour fig, tighten cutoff) | `tool_step_iterate` (snapshot first), then re-run |
 | Are outputs in sync with their scripts? | `tool_audit_version_coherence` |
@@ -82,6 +93,9 @@ flags it before synthesis.
 | Recovery | `sys_checkpoint_list` → `sys_checkpoint_rollback` |
 | End of session | `sys_session_handoff` |
 | Change autonomy | `sys_config_set key=interaction.autonomy_level value=…` |
+| Cold start (no prior context) | `sys_help` then `sys_help(topic='routing')` |
+| What did a tool do? | `sys_tool_describe(tool_name)` |
+| Bypass a quality gate (researcher-authorised) | `sys_help(topic='overrides')` |
 
 ---
 

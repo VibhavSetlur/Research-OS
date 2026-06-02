@@ -21,7 +21,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from research_os import logo, tui
+from research_os import __version__, logo, tui
 from research_os.tui import _C  # noqa  (re-exported for cli.py's status lines)
 
 # ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ def should_run_wizard(args) -> bool:
 def run_wizard(args) -> WizardResult:
     """Drive the interactive prompts. Honors any flag already passed on
     the command line by skipping the matching question."""
-    print(logo.render(width=68, version="1.0.0"))
+    print(logo.render(width=68, version=__version__))
 
     total = 7
 

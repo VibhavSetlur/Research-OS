@@ -76,17 +76,25 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 
 | Category | What it covers |
 |---|---|
-| guidance | session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree) |
-| discover | intake + question lock-in |
+| guidance | session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree / scope_clarification / revise) |
+| discover | intake + question lock-in + scope_clarification |
 | domain | domain classification + study design |
-| methodology | method picking + per-method protocols (24 protocols) |
+| methodology | method picking + per-method protocols (29 protocols) |
 | literature | search + systematic review + evidence synthesis + comparative review |
 | writing | per-section drafting (methods / results / discussion / limitations / end_matter) |
 | visualization | figures (rules / workflow / critique / multi-panel / arc / a11y) |
 | synthesis | final deliverables (14 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title) |
-| audit + reproducibility | quality audit + pre-submission checklist + repro audit |
+| audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit |
 
 For a category-specific orientation, call `sys_help(topic="<category>")`.
+Useful operational topics that aren't categories:
+
+* `topic="routing"` — the L1 → L2 → L3 decision tree + ambiguity rules
+* `topic="iteration"` — bug-fix versioning vs. deliberate iteration
+* `topic="overrides"` — when / how to bypass a quality gate safely
+* `topic="recovery"` — when stuck (broken workspace, dead end, lost project)
+* `topic="fields"` — how Research-OS stays field-agnostic; subfield pipelines
+* `topic="depth"` — depth gradient (napkin → publication) + expertise levels
 
 ---
 
@@ -224,6 +232,30 @@ audits know what was reasoned vs imported.
 
 ---
 
+## When the researcher's intent is unclear or cross-disciplinary
+
+Load `guidance/scope_clarification`. The protocol distinguishes five
+sources of ambiguity:
+
+* **Unclear intent** — researcher knows; the AI hasn't extracted it.
+* **Unformed intent** — researcher hasn't decided. Routes to
+  `methodology/methodological_consultation` (teach me) or
+  `methodology/exploratory_data_analysis` (find a hypothesis).
+* **Cross-disciplinary** — project spans two subfields. Runs
+  `methodology/deep_domain_research` per subfield.
+* **Wrong entrypoint** — researcher is asking RO for something it
+  shouldn't drive. AI surfaces the closest in-scope option + defers
+  the rest.
+* **Too broad** — bundle's a whole project's worth of work. AI builds
+  an `active_plan` via `tool_route`'s complexity=high path and walks
+  per turn.
+
+Pick the bucket, ask the SINGLE highest-leverage question, then
+re-route on the narrowed prompt. The protocol intentionally never
+locks in a downstream step — it hands control back to `tool_route`.
+
+---
+
 ## Hand-off + resume
 
 End of session — researcher says "wrap up" / "going to lunch":
@@ -289,5 +321,5 @@ For a single styled figure: `tool_figure_create` is the preferred path
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 87 protocols indexed
+- `sys_protocol_list` → all 88 protocols indexed
 - `sys_tool_describe(tool_name)` → full schema for a tool

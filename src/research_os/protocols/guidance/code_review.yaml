@@ -1,6 +1,6 @@
 id: code_review
 name: Code Review (analysis scripts)
-version: '1.0.0'
+version: '1.1.0'
 schema_version: '2.0'
 description: |
   Critically review the analysis scripts in a numbered step (or

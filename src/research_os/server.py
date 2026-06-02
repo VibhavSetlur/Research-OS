@@ -264,7 +264,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_active_tools": {
         "short": "Active tool shortlist for a protocol (essentials + decomposition tools).",
-        "description": "Given a protocol name, return the tight set of tools the AI should prefer while executing it: ~10-15 tools = essentials + everything the protocol's decomposition actually calls. Use after sys_protocol_get to scope your working set instead of triaging all 94 tools per turn.",
+        "description": "Given a protocol name, return the tight set of tools the AI should prefer while executing it: ~10-15 tools = essentials + everything the protocol's decomposition actually calls. Use after sys_protocol_get to scope your working set instead of triaging all 143 tools per turn.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -3950,46 +3950,257 @@ def _handle_sys_help(name, arguments, root):
     # are one `topic=` request away when the AI actually needs them.
     core = {
         "namespaces": {
-            "sys_*":  "workspace / state / files / paths",
+            "sys_*":  "workspace / state / files / paths / checkpoints",
             "tool_*": "research work (search / exec / audit / synthesis / plan)",
-            "mem_*":  "append-only memory",
+            "mem_*":  "append-only memory (methods / decisions / hypotheses / citations)",
         },
         "session_start": (
             "sys_boot once → wait for prompt → tool_route(prompt) → "
             "tool_plan_turn if complexity=high; else shortcut_tool."
         ),
+        "when_uncertain": (
+            "If tool_route returns ask_user, ask THAT question and re-route. "
+            "Never guess. If nothing matches (resolved_level=0), follow the "
+            "fallback's L1 menu prompt instead of loading a random protocol."
+        ),
         "topics": [
             "synthesis", "methodology", "visualization", "audit",
-            "categories", "anti_patterns", "docs",
+            "literature", "writing", "routing", "iteration", "overrides",
+            "recovery", "fields", "depth", "categories",
+            "anti_patterns", "docs",
         ],
         "hint": "Call sys_help again with topic=<one of topics> for detail.",
     }
     if topic in {"categories", "protocols"}:
         return _text(_success({"protocol_categories": {
-            "guidance": "session/flow (boot/resume/handoff/autopilot/casual/mid_entry/disagree)",
-            "discover": "intake + question lock-in",
+            "guidance": "session/flow (boot/resume/handoff/autopilot/casual/mid_entry/disagree/revise)",
+            "discover": "intake + question lock-in + mid-pipeline entry",
             "domain": "domain classification + study design",
-            "methodology": "method picking + per-method protocols",
-            "literature": "search + systematic review + comparative review",
-            "writing": "per-section drafting",
-            "visualization": "figures (rules/workflow/critique/multi-panel/a11y)",
-            "synthesis": "final deliverables (paper/poster/dashboard/slides/...)",
-            "audit": "quality audit + pre-submission",
+            "methodology": "method picking + per-method protocols (29)",
+            "literature": "search + systematic review + GRADE + comparative review",
+            "writing": "per-section drafting (methods/results/discussion/limitations/end-matter)",
+            "visualization": "figures (rules/workflow/critique/multi-panel/arc/a11y)",
+            "synthesis": "final deliverables (14: paper/poster/dashboard/slides/...)",
+            "audit": "quality audit + pre-submission checklist + provenance completeness",
             "reproducibility": "snapshot + verify reruns",
         }}))
     if topic == "anti_patterns":
         return _text(_success({"anti_patterns": [
-            "Don't call sys_state_get + sys_config_get separately — use sys_boot.",
-            "Don't load full protocols when summary suffices.",
-            "Don't one-shot 400-line scripts — tool_plan_step + sub-task pipelines.",
-            "Don't invent citations — synthesis tools VERIFY every citation.",
-            "Don't write under inputs/raw_data or inputs/literature.",
+            "Don't call sys_state_get + sys_config_get + sys_protocol_history separately — sys_boot bundles them.",
+            "Don't load full protocols when summary suffices (~300 tok vs 1.5-3K).",
+            "Don't one-shot 400-line scripts — tool_step_pipeline_define + atomic sub-tasks.",
+            "Don't invent citations — synthesis tools VERIFY every citation against Crossref/S2/PubMed/arXiv.",
+            "Don't pick a method or library from training memory — tool_research_method / tool_research_tool first.",
+            "Don't write under inputs/raw_data or inputs/literature (immutable; server blocks it).",
+            "Don't skip the ask_user from tool_route — asking once costs less than picking wrong.",
+            "Don't re-route after the researcher already picked one — use tool_plan_clear if they pivoted.",
+            "Don't bypass a quality gate without override_rationale — the pre-submission audit will surface every silent bypass.",
+            "Don't reuse a stale _v<n> filename — bump or call tool_step_iterate before editing scripts.",
+            "Don't submit without audit/pre_submission_checklist — it catches what reviewers will catch.",
+            "Don't push back on every choice — load guidance/constructive_disagreement only when evidence is unambiguous and the choice affects claims.",
         ]}))
+    if topic == "routing":
+        return _text(_success({
+            "decision_tree": [
+                "1. sys_boot (always) → returns pause + active_plan + next_protocol.",
+                "2. active_plan in progress → tool_plan_turn → walk it.",
+                "3. pause_classification = ctx_exhaustion / mid_step → guidance/session_resume.",
+                "4. researcher speaks → tool_route(prompt).",
+                "5. resolved_level=3 + complexity=low → call shortcut_tool OR load protocol summary.",
+                "6. resolved_level=3 + complexity=high → tool_plan_turn then advance per step.",
+                "7. resolved_level<3 OR ask_user non-null → ASK the question, re-route.",
+                "8. resolved_level=0 → use the fallback ask_user; never guess a protocol.",
+            ],
+            "ambiguity_handling": (
+                "L1 ties → ask which work-type. L2 ties → ask which sub-intent within the class. "
+                "L3 ties (top two within 2 points) → ask which protocol. ALL three asks are "
+                "one-sentence — cheaper than loading the wrong YAML."
+            ),
+            "complexity_signals": [
+                ">18 words OR multiple verbs OR conjunctions ('and then', 'also', 'plus')",
+                "deliverable phrases: 'full project', 'end to end', 'from scratch', 'wake me when', 'ship it'",
+                "→ persisted active_plan; walk via tool_plan_turn + tool_plan_advance",
+            ],
+            "after_routing": "sys_active_tools(protocol_name) → ~10-15 tool shortlist for that protocol.",
+        }))
+    if topic == "iteration":
+        return _text(_success({
+            "modes": {
+                "bug_fix": (
+                    "Script has a defect. Bump _v<n>, re-run via tool_step_pipeline_run. "
+                    "Content-hash cache invalidates affected nodes automatically. "
+                    "No tool_step_iterate call needed — the live filename history (v1→v2→v3) is the audit trail."
+                ),
+                "deliberate_iteration": (
+                    "Coordinated change (recolour Fig 2, tighten cutoff, swap model spec). "
+                    "FIRST call tool_step_iterate(step_id, rationale=…) — snapshots scripts + "
+                    "outputs + caption / summary / prov sidecars + conclusion into .versions/v<n>/. "
+                    "Live filenames stay stable so cross-step references in conclusions / "
+                    "dashboards don't rot. Then rename via the returned next_script_paths and re-run."
+                ),
+            },
+            "after_either": (
+                "Run tool_audit_version_coherence to confirm every output traces to the "
+                "highest-version script on disk. Drift (a v2 figure produced by a v1 script) "
+                "lands in workspace/logs/version_coherence.md."
+            ),
+            "common_mistake": (
+                "Editing scripts in place without bumping _v<n>. The previous output's .prov.json "
+                "still points at the old script name — content-hash invalidation works but the "
+                "audit trail loses the iteration's history."
+            ),
+        }))
+    if topic == "overrides":
+        return _text(_success({
+            "policy_levels": {
+                "enforce": "default — AI refuses to bypass without an explicit current-message ask.",
+                "allow_override": "AI may bypass when asked; logs the rationale.",
+                "warn_only": "gate blockers become warnings (sandbox use only).",
+            },
+            "how_to_bypass": [
+                "tool_synthesize(override_completeness_gate=true, override_rationale='<why>')",
+                "tool_dashboard_create(override_completeness_gate=true, override_rationale='<why>')",
+                "tool_plan_advance(override_gate=true, override_rationale='<why>')",
+            ],
+            "rules": [
+                "Authorisation must be in the researcher's CURRENT message ('skip the audit', 'just draft it', 'preview only').",
+                "override_rationale is mandatory — silent bypass is a hard rule violation.",
+                "Each bypass appends to workspace/logs/override_log.md.",
+                "audit/pre_submission_checklist surfaces every unresolved bypass; RED if unresolved + no rationale.",
+                "Hard rules (no fabricated citations, no inputs/raw_data writes) are absolute — the quality gate is the ONLY authorised escape hatch.",
+            ],
+        }))
+    if topic == "recovery":
+        return _text(_success({
+            "stuck_paths": {
+                "broken_workspace": "tool_workspace_repair — heals manifest + state-ledger drift, lazy-dir leftovers.",
+                "dead_end_in_step": "sys_path_abandon + tool_dead_end_lessons + tool_plan_next_step.",
+                "context_full": "sys_session_handoff + 'pick up where we left off' in fresh chat → guidance/session_resume.",
+                "lost_active_project": "sys_active_project — returns resolved root + how resolved.",
+                "lost_protocol": "sys_protocol_next (pipeline) or sys_protocol_list (browse).",
+                "mid_plan_pivot": "tool_plan_clear — discard plan; re-tool_route on the new ask.",
+            },
+            "checkpoint_safety": (
+                "sys_checkpoint_create BEFORE risky moves; sys_checkpoint_rollback restores. "
+                "Hardlinked, fast. Always rollback to a checkpoint instead of `git reset --hard`."
+            ),
+            "missing_dependencies": (
+                "sys_dep_inventory reports what failed to import. Tools that need the missing dep raise "
+                "RuntimeError with 'pip install research-os[all]' instructions."
+            ),
+        }))
+    if topic == "fields":
+        return _text(_success({
+            "principle": (
+                "Research OS is FIELD-AGNOSTIC by design. Protocols name questions and "
+                "grounding sources, not domain-specific methods. Every method choice "
+                "comes from the literature via tool_research_method — never from training memory."
+            ),
+            "subfield_pipelines": (
+                "For multi-stage canonical pipelines (snRNA-seq, metagenomics, protein "
+                "embeddings, fMRI, MD), load methodology/deep_domain_research FIRST. It "
+                "identifies the subfield from real signals (file names, columns, context), "
+                "surveys ≥3 cited sources, proposes a stage × tool × runtime skeleton, "
+                "and writes an assumption matrix per stage."
+            ),
+            "domain_specific_protocols": [
+                "clinical_trials (CONSORT)",
+                "qualitative_research (COREQ/SRQR)",
+                "qualitative_quality_audit (saturation + intercoder + reflexivity)",
+                "survey_psychometrics (EFA/CFA/IRT)",
+                "cox_ph_diagnostics (survival)",
+                "meta_analysis (random/fixed effects)",
+                "bayesian_analysis (priors → posterior → checks)",
+                "timeseries_analysis (forecasting / state-space)",
+                "causal_inference_deep (DAG / IV / DiD / RDD)",
+                "ablation_study (component-by-component)",
+                "simulation_studies (ADEMP Monte Carlo)",
+                "mixed_methods (concurrent / sequential)",
+            ],
+            "cross_disciplinary": (
+                "When signals point to two subfields, deep_domain_research recommends running it "
+                "once per subfield. Methodology decisions per stage cite the SUBFIELD's literature, "
+                "not a generic table."
+            ),
+            "reporting_standards": (
+                "domain_analysis classifies the field and picks the canonical reporting standard "
+                "(CONSORT / PRISMA / STROBE / ARRIVE / TRIPOD-AI / SRQR / COREQ / SAGER / etc.). "
+                "pre_submission_checklist verifies the right completed form is on file."
+            ),
+        }))
+    if topic == "depth":
+        return _text(_success({
+            "depth_gradient": [
+                "5-minute napkin     → guidance/casual_exploration",
+                "30-minute appraisal → guidance/quick_paper_review",
+                "Real EDA            → methodology/exploratory_data_analysis",
+                "Per-step pipeline   → guidance/analysis_plan",
+                "Method head-to-head → methodology/method_comparison",
+                "Subfield-canonical  → methodology/deep_domain_research",
+                "Systematic synthesis → literature/systematic_review",
+                "Publication-grade   → synthesis/synthesis_paper",
+            ],
+            "expertise_levels": {
+                "beginner":     "AI explains more; more confirmation gates; offers method consultation freely.",
+                "intermediate": "default — concise; asks only on real ambiguity.",
+                "advanced":     "fewer reminders; expects literature-grounded justifications without prompting.",
+                "pi":           "AI defers to declared direction unless evidence contradicts (constructive_disagreement).",
+            },
+            "model_profile_effect": (
+                "small  → 1 step/turn, terser protocols, lighter tool descriptions; "
+                "medium → 3 steps/turn (default); "
+                "large  → 6 steps/turn, full protocol detail, multi-step planning."
+            ),
+        }))
+    if topic in {"literature"}:
+        return _text(_success({
+            "literature_protocols": {
+                "literature_search": "multi-database search + dedup + PRISMA accounting + forward-citation walk + predatory-venue flag.",
+                "systematic_review": "full PRISMA workflow.",
+                "evidence_synthesis": "GRADE-style grading + contradiction detection.",
+                "comparative_paper_review": "compare-and-contrast 2-N papers (journal club / related work / foundational).",
+            },
+            "search_tools": [
+                "tool_search_semantic_scholar",
+                "tool_search_pubmed",
+                "tool_search_crossref",
+                "tool_search_arxiv",
+                "tool_search_web",
+                "tool_literature_search_and_save  (combined search + download)",
+            ],
+            "after_search": "mem_citations_generate → workspace/citations.md. tool_citations_verify → online resolve every cite.",
+        }))
+    if topic in {"writing"}:
+        return _text(_success({
+            "writing_protocols": {
+                "writing_core": "universal rules — voice, tense, banned phrases, vague quantifiers, anti-bullshit signals, numbered claim grounding.",
+                "writing_methods": "Methods section + workspace/methods.md format.",
+                "writing_results": "Results — report numbers; defer interpretation; full statistical form.",
+                "writing_discussion": "Discussion — principal findings, alternative explanations, scope-limited implications.",
+                "writing_limitations": "Limitations — no boilerplate; each limitation paired with downstream implication.",
+                "writing_conclusions": "Per-step conclusions.md format.",
+                "writing_citations": "workspace/citations.md maintenance.",
+                "writing_readme": "Project + per-step READMEs.",
+                "writing_analysis_log": "Structured entries in workspace/analysis.md.",
+                "writing_data_availability": "End matter — data / code / CRediT / funding / COI / acknowledgements.",
+            },
+            "audits_attached": [
+                "tool_audit_prose (hedging / vague / passive / causal-language)",
+                "tool_audit_claims (every number traces to an artefact or verified citation)",
+            ],
+        }))
     if topic == "docs":
         return _text(_success({"docs_for_humans": [
-            "docs/START.md", "docs/RESEARCHER_GUIDE.md",
-            "docs/USE_CASES.md", "docs/PROTOCOLS.md",
-            "docs/TOOLS.md", "docs/PROTOCOL_DOCTRINE.md", "docs/FAQ.md",
+            "docs/START.md            — install + first project + cheatsheet",
+            "docs/RESEARCHER_GUIDE.md — full workflow walkthrough",
+            "docs/USE_CASES.md        — role × goal × output map",
+            "docs/SETUP.md            — per-IDE wiring",
+            "docs/PROTOCOLS.md        — every protocol + triggers + quality bars",
+            "docs/TOOLS.md            — every MCP tool with example calls",
+            "docs/AI_GUIDE.md         — operating manual for the AI",
+            "docs/PROTOCOL_DOCTRINE.md — scaffold-not-script principle",
+            "docs/FAQ.md              — common questions",
+            "docs/SHARING.md          — share-safe zip + GitHub paths",
         ]}))
 
     if topic in {"synthesis", "deliverable", "deliverables"}:

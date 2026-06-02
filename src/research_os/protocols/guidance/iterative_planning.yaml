@@ -1,6 +1,6 @@
 id: iterative_planning
 name: Iterative Planning
-version: '1.0.0'
+version: '1.1.0'
 schema_version: '2.0'
 description: For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state + literature + tools and recommends the best move.
 trigger: Researcher says "what should I do next?" / "iterate with me" / "propose the next step" — OR analysis_plan finishes a step and autopilot is on.
@@ -36,10 +36,22 @@ steps:
         OPTION C: <action> — pros, cons, time estimate
       Recommend ONE (with rationale). Ask the researcher to pick or refine.
 
+      Source the rationale from grounded evidence — recent literature
+      pulled by the prior step, audit warnings in workspace/logs/, or
+      prior decisions in mem_decision_log. Avoid options whose only
+      support is "AI intuition"; they collapse under
+      constructive_disagreement.
+
       AUTONOMY GATE:
         manual / supervised → wait for the researcher to choose.
         autopilot           → pick OPTION A (your top choice), tell the
                               researcher "I'm going with A — say stop to switch".
+
+      AMBIGUITY POSTURE GATE:
+        ask_when_uncertain → ask + wait when 2+ options are within
+                              striking distance of each other.
+        take_best_default  → announce the chosen default + the runner-up
+                              you nearly picked, then proceed.
 
   - id: branch_or_extend
     name: Branch vs Extend (when ambiguous)

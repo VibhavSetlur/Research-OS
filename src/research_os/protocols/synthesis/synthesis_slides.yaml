@@ -1,6 +1,6 @@
 id: synthesis_slides
 name: Synthesis — Slides / Talk Deck
-version: '1.0.0'
+version: '1.1.0'
 schema_version: '2.0'
 description: |
   Compile a presentation deck — lab meeting, conference talk, defense,

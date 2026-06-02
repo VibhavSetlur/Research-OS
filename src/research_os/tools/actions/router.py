@@ -640,36 +640,65 @@ def _route_advice_hier(
     if has_ask_user:
         return (
             "Ambiguous match — ask the researcher the `ask_user` "
-            "question, then re-call tool_route with their answer."
+            "question verbatim (one sentence), then re-call tool_route "
+            "with their answer. Do NOT guess; do NOT load a YAML at "
+            "format='full' to disambiguate — that's the expensive failure mode."
         )
     if is_complex and resolved_level == 3:
         return (
             "Prompt is complex — decomposition persisted to "
-            ".os_state/active_plan.json. Walk it with tool_plan_advance "
-            "after each step; never one-shot."
+            ".os_state/active_plan.json. Call tool_plan_turn to size the "
+            "batch to your model_profile, then walk via tool_plan_advance "
+            "after each step. Never one-shot. If chat_split_recommended, "
+            "sys_session_handoff + open a fresh chat."
         )
     if shortcut_tool and not primary:
         return (
             f"Single shortcut tool: `{shortcut_tool}`. Call it directly — "
-            "no protocol load needed."
+            "no protocol load needed. After it returns, summarise the "
+            "result to the researcher and wait for the next ask."
         )
     if primary:
         return (
             f"Load `{primary}` with sys_protocol_get format='summary' "
             "first (~300 tokens). Drill into a step with format='step' + "
-            "step_id='<id>' when ready to execute."
+            "step_id='<id>' when ready to execute. For the tool shortlist "
+            f"of this protocol, call sys_active_tools(protocol_name='{primary}')."
         )
-    return "No clear match — call sys_protocol_next or sys_protocol_list."
+    return (
+        "No clear match — call sys_protocol_next for the pipeline-recommended "
+        "next protocol, sys_protocol_list to browse all 88, or sys_help "
+        "(topic='categories') for a one-line summary per category."
+    )
 
 
 def _fallback_response(
     prompt_norm: str, hierarchy: dict, is_complex: bool
 ) -> dict:
-    """When NOTHING matched, suggest the L1 classes as a menu."""
-    menu = [
-        f"{cls} — {data.get('label', cls)}"
-        for cls, data in hierarchy.items()
-    ]
+    """When NOTHING matched, suggest the L1 classes as a menu + light heuristics.
+
+    Adds a per-L1 short trigger hint so the researcher hears a concrete
+    example of what each class accepts; cuts the AI's clarification round
+    from two questions to one.
+    """
+    # Per-L1 short trigger hint — examples the AI can quote to the researcher.
+    L1_EXAMPLES = {
+        "session":     "'start session', 'pick up where we left off', 'going to lunch'",
+        "discover":    "'fill the intake', 'i dropped new data', 'bringing this into RO'",
+        "plan":        "'what should I do next', 'just poke at this'",
+        "execute":     "'run a baseline', 'fit a model', 'dead end'",
+        "methodology": "'which method should I use', 'design the evaluation', 'power analysis'",
+        "literature":  "'literature search', 'systematic review', 'compare these papers'",
+        "synthesize":  "'draft the paper', 'make a poster', 'build the dashboard', 'lay summary'",
+        "audit_wrap":  "'audit the paper', 'is this ready to submit', 'reproducibility check'",
+        "memory":      "'add hypothesis', 'add to glossary'",
+        "review":      "'review this paper', 'review my code', 'critique this figure'",
+    }
+    menu_lines = []
+    for cls, data in hierarchy.items():
+        label = data.get("label", cls)
+        ex = L1_EXAMPLES.get(cls, "")
+        menu_lines.append(f"{cls} — {label}" + (f"  ({ex})" if ex else ""))
     return {
         "status": "success",
         "resolved_level": 0,
@@ -683,17 +712,22 @@ def _fallback_response(
         "matched_triggers": [],
         "complexity": "high" if is_complex else "low",
         "ask_user": (
-            "I couldn't match your prompt to a protocol. Are you trying to "
-            "start a session, intake new data, plan, execute an experiment, "
-            "review someone else's paper, write a synthesis output, or "
-            "audit / wrap up?"
+            "I couldn't match your prompt to a protocol. Which best fits "
+            "what you're after — start a session, intake new data, plan a "
+            "next step, execute an experiment, pick a method, search the "
+            "literature, write a deliverable, review someone else's work, "
+            "or audit + wrap up?"
         ),
         "why": "No trigger matched any protocol or shortcut.",
         "advice": (
             "Ask the researcher the `ask_user` question, then re-call "
-            "tool_route with their answer. Available L1 classes: "
-            + "; ".join(menu)
+            "tool_route with their answer. If they're truly unsure, "
+            "suggest sys_help(topic='categories') for the protocol map "
+            "OR sys_protocol_next for the pipeline-recommended next step. "
+            "L1 classes (trigger hints in parens): "
+            + " | ".join(menu_lines)
         ),
+        "active_tools": list(_ESSENTIAL_TOOLS),
         "token_estimate": None,
     }
 

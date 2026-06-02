@@ -50,7 +50,7 @@ Keep the schema tight:
 ```yaml
 id: <protocol_id>
 name: <Human Name>
-version: '1.0.0'
+version: '1.1.0'
 schema_version: '2.0'
 description: One-line summary.
 trigger: When the AI should run this.
@@ -118,7 +118,7 @@ with at least one test that exercises the new behaviour end-to-end.
 * Type hints required on new functions.
 * One short module docstring at the top of every new file.
 * No emojis in source or markdown unless an existing convention requires it.
-* No backwards-compat shims for code that hasn't shipped. We're at 1.0.0;
+* No backwards-compat shims for code that hasn't shipped. We're at 1.1.0;
   breaking internal refactors are OK as long as the MCP surface
   (`_HANDLERS` keys + JSON schemas) stays stable or has aliases.
 

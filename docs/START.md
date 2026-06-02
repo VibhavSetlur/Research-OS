@@ -118,7 +118,7 @@ The AI translates your plain-English prompt into the right protocol via
   workflows (visualization-only, talks, lay summaries, EDA + hypothesis
   generation, method comparison, reproduction, methodological
   consultation, multi-paper review, mid-pipeline entry).
-* **140 MCP tools** across three namespaces — `sys_*` (system /
+* **143 MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
   (append-only memory).
 

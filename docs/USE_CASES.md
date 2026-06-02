@@ -139,6 +139,15 @@ don't want to redo the intake.
 | Power-justify an upcoming study | "how many subjects do I need" | `methodology/power_analysis` |
 | Pre-register before data lands | "freeze the analysis plan" | `methodology/preregistration` |
 | Choose a study design | "design the study" | `domain/research_design` |
+| You don't know yet what to ask | "help me figure out where to start" | `guidance/scope_clarification` |
+
+### The "this spans more than one field" researcher
+
+| You want to… | Say something like… | Protocol |
+|---|---|---|
+| Pick which subfield drives the analysis | "this spans two fields — which goes first" | `guidance/scope_clarification` |
+| Build the canonical pipeline for each subfield | "best-practice pipeline for X" | `methodology/deep_domain_research` |
+| Pick a method that works across the subfield boundary | "which method fits both subfields" | `methodology/methodology_selection` (after `deep_domain_research` per side) |
 
 ---
 
@@ -207,5 +216,13 @@ X" — the AI re-routes without re-loading the workspace.
 When you genuinely don't know what you want, say so:
 > "I have some data and some ideas — help me figure out where to start."
 
-The AI will ask a clarifying question. The router treats ambiguity as a
-1-sentence follow-up cost, not as a wrong guess.
+The AI loads `guidance/scope_clarification`, classifies the ambiguity
+(unclear intent / unformed intent / cross-disciplinary / wrong
+entrypoint / too broad), asks ONE narrowing question, and re-routes on
+your answer. The router treats ambiguity as a 1-sentence follow-up
+cost, not as a wrong guess.
+
+When the project genuinely spans two subfields (e.g. imaging + RNA-seq,
+surveys + behavioural logs), the AI runs `methodology/deep_domain_research`
+once per subfield and holds both pipelines side-by-side rather than
+force-fitting into one.

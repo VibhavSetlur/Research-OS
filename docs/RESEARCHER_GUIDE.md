@@ -3,7 +3,7 @@
 The full guide to working with Research OS day-to-day. Read after
 [START.md](START.md) (5-minute install + first project). This document
 covers: the mental model, the file layout, a typical session, the
-canonical 10-stage pipeline, all 87 protocols and 140 MCP tools, the
+canonical 10-stage pipeline, all 88 protocols and 143 MCP tools, the
 config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
@@ -294,7 +294,7 @@ verification).
 
 ---
 
-## 7. MCP tools (140 total)
+## 7. MCP tools (143 total)
 
 > All names use underscores. Dot notation + legacy names are
 > auto-rewritten. Full catalogue with example calls:
@@ -618,8 +618,8 @@ For more: [FAQ.md](FAQ.md).
 * [USE_CASES.md](USE_CASES.md) — role × goal × output map.
 * [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
-* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 87 protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 140 MCP tools.
+* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 88 protocols.
+* [TOOLS.md](TOOLS.md) — catalogue of all 143 MCP tools.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
 * [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — scaffold-not-script
   principle (for protocol authors / contributors).

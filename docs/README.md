@@ -16,8 +16,8 @@ Pick the doc that matches what you need.
 
 | Doc | When to read it |
 |---|---|
-| [**PROTOCOLS.md**](PROTOCOLS.md) | Catalogue of all 87 protocols — when each fires, what it does, quality bars. |
-| [**TOOLS.md**](TOOLS.md) | Catalogue of all 140 MCP tools, with example calls. |
+| [**PROTOCOLS.md**](PROTOCOLS.md) | Catalogue of all 88 protocols — when each fires, what it does, quality bars. |
+| [**TOOLS.md**](TOOLS.md) | Catalogue of all 143 MCP tools, with example calls. |
 | [**AI_GUIDE.md**](AI_GUIDE.md) | Operating manual for the AI driving Research OS. Read this when you're debugging "why did the AI do that?" — the runtime equivalent is the `sys_help` tool. |
 
 ## Contributors

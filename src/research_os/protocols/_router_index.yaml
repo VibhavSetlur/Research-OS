@@ -27,7 +27,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 2
+version: 3
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -48,6 +48,7 @@ hierarchy:
     sub_intents:
       intake:     "Read inputs and propose project metadata"
       mid_entry:  "Enter an in-progress project (prior work outside RO)"
+      clarify:    "Narrow a vague / cross-disciplinary ask before picking a protocol"
   plan:
     label: "Planning + iteration"
     sub_intents:
@@ -381,6 +382,31 @@ protocols:
     sub_intent: glossary
     summary: "Extend docs/glossary.md with new terms."
     triggers: ["add to glossary", "glossary", "define term", "explain term"]
+
+  guidance/scope_clarification:
+    intent_class: discover
+    sub_intent: clarify
+    summary: "Narrow a vague / open-ended / cross-disciplinary ask into a workable scope BEFORE picking a protocol."
+    triggers:
+      - "help me figure out where to start"
+      - "help me figure this out"
+      - "i'm not sure what this is"
+      - "i have data and ideas"
+      - "this might be x or y"
+      - "is this even the right tool"
+      - "i'm stuck before i even start"
+      - "what is this problem"
+      - "where should i start"
+      - "where do i begin"
+      - "cross-disciplinary"
+      - "spans two fields"
+      - "i don't know what to ask"
+      - "narrow this down for me"
+      - "scope this"
+    token_estimate: 1200
+    decomposition:
+      - protocol: guidance/scope_clarification
+        purpose: "Classify ambiguity → ask one narrowing question → re-route."
 
 # ─────────────────────────────────────────────────────────────────────
 # DOMAIN + METHODOLOGY protocols

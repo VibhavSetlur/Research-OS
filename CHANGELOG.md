@@ -6,6 +6,159 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.1.0] — Guidance refinement (2026-06-02)
+
+A non-breaking refinement focused on **how the AI navigates Research-OS
+when the researcher's intent isn't a clean match** — open-ended asks,
+cross-disciplinary projects, cold starts after a long handoff, ambiguity
+at any router level. No tool surface changes; the MCP server still ships
+the same 143 tools.
+
+418 tests green (up from 417); preflight 13/13; one new protocol
+brings the total to 88.
+
+### Added
+
+* **`guidance/scope_clarification` — 88th protocol.** Converts vague,
+  open-ended, or cross-disciplinary asks into a workable scope BEFORE
+  the AI picks a downstream protocol. Classifies ambiguity into five
+  buckets (unclear intent / unformed intent / cross-disciplinary /
+  wrong entrypoint / too broad), asks ONE narrowing question, then
+  hands control back to `tool_route` with the narrowed prompt. Reaches
+  `methodology/methodological_consultation` for "teach me" asks,
+  `methodology/exploratory_data_analysis` for "find a hypothesis" asks,
+  and `methodology/deep_domain_research` once per subfield for genuinely
+  multi-field projects.
+  ([`scope_clarification.yaml`](src/research_os/protocols/guidance/scope_clarification.yaml))
+
+* **`discover/clarify` sub-intent.** Indexed in the router hierarchy so
+  triggers like "where should I start", "i have data and ideas",
+  "narrow this down for me", "this spans two fields" resolve cleanly.
+
+* **`sys_help` topics — eight new categories.** Topics that aren't
+  protocol categories but the AI needs on demand:
+  - `routing` — the L1 → L2 → L3 decision tree + ambiguity rules
+  - `iteration` — bug-fix versioning vs. deliberate `tool_step_iterate`
+  - `overrides` — when / how to bypass a quality gate safely
+  - `recovery` — what to do when stuck (broken workspace, lost project,
+    dead-end mid-step, ctx exhaustion)
+  - `fields` — how Research-OS stays field-agnostic; subfield pipelines
+  - `depth` — depth gradient (napkin → publication) + expertise levels
+  - `literature` — literature-search protocols + search-tool catalogue
+  - `writing` — per-section writing protocols + attached audits
+  ([`server.py`](src/research_os/server.py))
+
+* **Router fallback now teaches.** When no trigger matches
+  (`resolved_level=0`), the fallback returns the L1 menu WITH per-class
+  trigger hints (`"start session", "pick up where we left off"` for the
+  session class; `"draft the paper", "make a poster"` for synthesize;
+  etc.) and tells the AI explicitly to prefer `sys_help(topic='categories')`
+  or `sys_protocol_next` over guessing. Cuts the AI's clarification round
+  from two questions to one.
+  ([`router.py`](src/research_os/tools/actions/router.py))
+
+* **Stronger routing advice.** `_route_advice_hier` now spells out:
+  - For complex/L3 matches → tool_plan_turn + chat_split_recommended.
+  - For shortcut-only → "summarise + wait for next ask" closure.
+  - For primary protocols → call `sys_active_tools(protocol_name)` to
+    scope the working tool set.
+  - For ambiguous matches → "ask verbatim; do NOT load a YAML at
+    format='full' to disambiguate".
+
+### Improved
+
+* **`protocol_completion` injected step is now actionable.** Tells the AI
+  to log `status='failed'` (not 'completed') when a quality gate blocks,
+  to confirm the override-log captured any bypass rationale this turn,
+  to skip the trailing summary on shortcut-tool calls (the result IS the
+  answer), and to prefer `tool_route` on the researcher's next message
+  over the pipeline pointer when they redirect.
+  ([`protocol.py`](src/research_os/tools/actions/protocol.py))
+
+* **`sys_help` default + anti-patterns.** Added "when_uncertain"
+  guidance to the lean default; expanded `anti_patterns` from 5 to 12
+  to cover the gate-override silent-bypass case, the stale `_v<n>` reuse
+  case, the redundant constructive-disagreement push-back case, and the
+  re-route-after-the-researcher-already-picked case. `topic="docs"`
+  now lists every doc with a one-line hook.
+  ([`server.py`](src/research_os/server.py))
+
+* **`session_boot` documents the no-match fallback.** When `tool_route`
+  returns `resolved_level=0` AND the researcher's ask is open-ended /
+  cross-disciplinary, the protocol now points at
+  `guidance/scope_clarification` explicitly instead of leaving the AI to
+  improvise.
+  ([`session_boot.yaml`](src/research_os/protocols/guidance/session_boot.yaml))
+
+* **`iterative_planning` enforces grounding + honours
+  `ambiguity_posture`.** The option-presentation step now spells out
+  that rationales must be SOURCED from grounded evidence (literature /
+  audit warnings / decision log) — "AI intuition" rationales collapse
+  under `constructive_disagreement`. Adds an explicit `AMBIGUITY POSTURE
+  GATE` so `take_best_default` users get the runner-up surfaced too.
+  ([`iterative_planning.yaml`](src/research_os/protocols/guidance/iterative_planning.yaml))
+
+* **AGENTS.md template gains 4 quick-lookup rows.** Vague /
+  cross-disciplinary asks → `scope_clarification`; tool shortlist →
+  `sys_active_tools`; cold start → `sys_help(topic='routing')`;
+  override how-to → `sys_help(topic='overrides')`. The Lost? hint now
+  enumerates every `sys_help` topic instead of just listing categories.
+  ([`AGENTS.md`](templates/AGENTS.md))
+
+* **`AI_GUIDE.md` documents new ambiguity path.** New section "When the
+  researcher's intent is unclear or cross-disciplinary" enumerates the
+  five clarification buckets and explains the
+  `tool_route → scope_clarification → tool_route` re-entry pattern.
+
+### Fixed
+
+* **`methodology/tool_discovery` next_protocol pointed at the
+  pre-1.0 `methodology/research_methods`**, which was renamed to
+  `methodology/methodology_selection` during 1.0.0 hardening. The
+  pipeline pointer was silently dangling — preflight didn't catch it
+  because the freshness check only validates `_router_index.yaml`
+  references, not protocol-internal `next_protocol` fields.
+  ([`tool_discovery.yaml`](src/research_os/protocols/methodology/tool_discovery.yaml))
+
+* **`sys_active_tools` description had a stale tool count.** Said
+  "all 94 tools per turn"; actually 143.
+  ([`server.py`](src/research_os/server.py))
+
+* **Tool count drift across docs.** README.md was right at 143; multiple
+  reference docs lagged at 140. Synced
+  `docs/README.md`, `docs/START.md`, `docs/TOOLS.md`,
+  `docs/RESEARCHER_GUIDE.md` (2 places) to 143.
+
+* **Protocol count drift across docs.** Updated 87 → 88 in
+  `README.md`, `docs/README.md`, `docs/RESEARCHER_GUIDE.md`,
+  `docs/AI_GUIDE.md`, `docs/FAQ.md`, `docs/PROTOCOLS.md` (table + total).
+
+* **Version not auto-derived in wizard / logo.** Both hardcoded "1.0.0";
+  now read from `research_os.__version__`. One source of truth across
+  the package.
+
+### Bumped
+
+* `research-os` package: 1.0.0 → 1.1.0
+  ([`pyproject.toml`](pyproject.toml), [`__init__.py`](src/research_os/__init__.py))
+* All 88 protocol YAMLs: version 1.0.0 → 1.1.0 (no schema changes —
+  scaffold doctrine + step structure preserved).
+* Router index version: 2 → 3.
+* `CITATION.cff` version + date.
+
+### Test + quality status
+
+* **418 tests pass** (up from 417 — the new
+  `guidance/scope_clarification` is auto-covered by
+  `tests/integration/test_all_protocols_load.py` + protocol-loader
+  unit tests).
+* Preflight 13/13.
+* 88 protocols indexed; all router refs + tool refs resolve.
+* All protocols at version 1.1.0.
+* 143 MCP tools (unchanged surface).
+
+---
+
 ## [1.0.0] — Hardening (post-review)
 
 15-finding code-review pass fixed in-place against v1.0.0; no version

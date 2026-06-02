@@ -1,6 +1,6 @@
 id: session_boot
 name: Session Boot
-version: '1.0.0'
+version: '1.1.0'
 schema_version: '2.0'
 description: |
   Mandatory first protocol every session. ONE MCP call (`sys_boot`)
@@ -112,6 +112,13 @@ steps:
           to execute.
         - For format="full" loads, charge yourself the ~2K token cost —
           only when you genuinely need every step at once.
+
+      If `resolved_level == 0` AND the researcher's ask is genuinely
+      open-ended / cross-disciplinary ("help me figure out where to
+      start", "this might be X or Y"), prefer
+      `guidance/scope_clarification` over guessing — it classifies the
+      ambiguity in five buckets, asks ONE narrowing question, and hands
+      control back to `tool_route` with a workable prompt.
 
   - id: batch_per_turn
     name: Batch Per Turn (model-profile aware)
