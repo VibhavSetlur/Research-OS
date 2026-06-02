@@ -7,7 +7,7 @@ contribute changes that keep the surface small and the protocols sharp.
 
 The AI IDE is the brain (Cursor / Claude Code / Claude Desktop /
 OpenCode / Antigravity / VS Code / Windsurf / Continue / Aider).
-Research OS is the body: 140 MCP tools and 82 YAML protocols, plus a
+Research OS is the body: 143 MCP tools and 88 YAML protocols, plus a
 hierarchical L1 → L2 → L3 router that turns a user prompt into a
 protocol pick + planned tool sequence without loading every YAML. It
 enforces immutability (`inputs/raw_data/`, `inputs/literature/`) and
@@ -27,12 +27,47 @@ for `.os_state/`.
 ```bash
 git clone https://github.com/VibhavSetlur/Research-OS.git
 cd Research-OS
-pip install -e ".[ci,dev]"           # lean install used by CI
-# or pip install -e ".[all,dev]"     # everything except R / Julia / Docker
-pytest                                # ~376 tests, ~8s
+git checkout dev                      # work happens on dev
+pip install -e ".[ci,dev]"            # lean install used by CI
+# or pip install -e ".[all,dev]"      # everything except R / Julia / Docker
+pytest                                # ~418 tests, ~13s
 ruff check src/ tests/ scripts/
 python scripts/preflight.py           # 13 wiring checks
 ```
+
+## Branch model
+
+```
+main           ← production. Protected. Tag → release.
+└── dev        ← integration. PRs land here first.
+    └── feat/* ← short-lived feature branches off dev.
+    └── fix/*  ← short-lived bug-fix branches off dev.
+```
+
+- **PRs target `dev`** unless they are a hotfix.
+- **Hotfixes branch off `main`**, PR back to `main`, then forward-merge
+  to `dev` so the fix isn't lost.
+- `main` is protected — no direct pushes. Releases happen by merging
+  `dev → main` and tagging from `main`.
+- "Delete branch on merge" is on; your feature branch self-cleans.
+
+Branch naming: `feat/<short-slug>`, `fix/<short-slug>`,
+`hotfix/<short-slug>`, `docs/<short-slug>`. Hyphens, lowercase, ≤40 chars.
+
+Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for the full
+release flow (version bump, CHANGELOG, tag, publish).
+
+## Opening a PR
+
+1. Fork OR (for maintainers) branch off `dev`.
+2. Make focused changes — one feature / fix per PR.
+3. Add a test under `tests/` that exercises the change.
+4. Run the local checks (`pytest`, `ruff`, `preflight`).
+5. Open the PR — the template walks you through what to include.
+6. CI runs lint + preflight + unit + integration + tools + build tests
+   on Python 3.10 / 3.11 / 3.12.
+7. A maintainer reviews. After approval + green CI, the PR is squash-
+   merged into `dev`.
 
 ## Adding or modifying a protocol
 

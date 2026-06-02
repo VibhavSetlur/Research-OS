@@ -2,218 +2,202 @@
   <img src="assets/logo.svg" alt="Research OS — grounded · cited · auditable" width="520">
 </p>
 
-# Research OS
+<h1 align="center">Research OS</h1>
 
-[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://github.com/VibhavSetlur/Research-OS)
-[![license](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.1.0-orange.svg)](CHANGELOG.md)
+<p align="center">
+  <a href="https://pypi.org/project/research-os/"><img src="https://img.shields.io/pypi/v/research-os.svg?color=orange" alt="PyPI"></a>
+  <a href="https://pypi.org/project/research-os/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT"></a>
+  <a href="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml"><img src="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml/badge.svg" alt="tests"></a>
+</p>
 
-**Turn your AI IDE into a rigorous research collaborator.** Drop your
-data, talk in plain English, get publication-grade outputs with
-verified citations, full provenance, and audited quality gates — no
-hallucinated numbers or references leaking into the paper.
+<p align="center">
+  <strong>Talk to your AI in plain English. Get publication-grade research back.</strong><br>
+  No hallucinated citations. No fabricated numbers. Every figure traceable to the script that made it.
+</p>
 
-You touch `inputs/`. The AI touches `workspace/` and `synthesis/`.
-Research OS keeps it honest: every figure has a caption + summary +
-provenance sidecar; every citation is verified online; every
-deliverable passes a completeness gate; every gate bypass is logged
-for your pre-submission audit.
-
-Works with any MCP-speaking AI IDE: **Claude Code, Claude Desktop,
-OpenCode, Antigravity, Cursor, VS Code (MCP), Windsurf, Continue,
-Aider**. Research OS does NOT manage LLM provider keys — your IDE
-owns model access.
-
----
-
-## Install — one command
-
-```bash
-pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
-```
-
-The `research-os` binary is global; install once and it serves every
-project you scaffold. → [Per-IDE wiring & extras](docs/SETUP.md)
+<p align="center">
+  <a href="docs/START.md">Quick start</a> ·
+  <a href="docs/USE_CASES.md">What you can ask for</a> ·
+  <a href="docs/RESEARCHER_GUIDE.md">Full guide</a> ·
+  <a href="docs/FAQ.md">FAQ</a>
+</p>
 
 ---
 
-## Your first project — 60 seconds
+## What is Research OS?
 
-```bash
-mkdir my-project && cd my-project
-research-os init                           # arrow-key wizard
-# or: research-os init my-project --yes    # one-shot for CI/scripts
-```
+It's a layer that sits between **you**, **your data**, and **whatever AI
+coding assistant you already use** (Claude Code, Cursor, Claude Desktop,
+Antigravity, VS Code, Windsurf, OpenCode, Continue, Aider).
 
-The wizard asks:
-- where the project lives and what it's called,
-- which AI IDEs you use (drops MCP configs in the right places),
-- lets you paste a **Slack thread / email / PI message** → parsed and
-  saved into `inputs/context/` with provenance frontmatter,
-- lets you paste **arXiv IDs · DOIs · PDF URLs** → downloaded into
-  `inputs/literature/` (Unpaywall for DOIs),
-- offers to symlink existing data files into `inputs/raw_data/`.
+You drop files in a folder. You chat with your AI. Research OS quietly
+makes sure the AI:
 
-Done in under a minute. → [Full walkthrough](docs/START.md)
+- **doesn't make up citations** — every paper cited is verified online
+- **doesn't make up numbers** — every figure in your paper traces back
+  to a real script and a real dataset
+- **doesn't write one giant unreviewable script** — work is broken into
+  small, cached, reproducible steps
+- **doesn't lose track** — your decisions, hypotheses, dead-ends, and
+  drafts are recorded so the next chat picks up where this one ended
 
----
-
-## Day-to-day — drop files, talk
-
-After the wizard, just open the project in your AI IDE. The MCP
-server auto-launches. Drop data into `inputs/raw_data/`, PDFs into
-`inputs/literature/`, notes into `inputs/context/`. Then in chat:
-
-```
-> fill out the intake
-> what should I do next?
-> run a baseline EDA
-> compare logistic regression and gradient boosting
-> draft the discussion section
-> what's left before I can submit?
-```
-
-The AI picks the right workflow from **88 protocols**, runs it
-through **143 MCP tools** that enforce real quality gates, and asks
-you when it's uncertain — including `guidance/scope_clarification` for
-open-ended or cross-disciplinary asks the router can't pick from.
-→ [Common phrasings → outputs](docs/USE_CASES.md)
+You get the speed of AI. The work is honest enough to publish.
 
 ---
 
-## Your project layout
+## What it can do for you
+
+You don't memorise commands. You just describe what you want.
+
+| You say… | You get… |
+|---|---|
+| *"fill out the intake"* | The AI reads your files, proposes a research question + hypotheses, and asks you to confirm. |
+| *"what should I do next?"* | A short recommended next step — sourced from your state, the literature, and any dead-ends already logged. |
+| *"run a baseline EDA"* | A numbered experiment folder with scripts, figures (with captions), tables, and a written conclusion. |
+| *"compare logistic regression and gradient boosting"* | A head-to-head benchmark — same eval, same metrics, paired test, clear winner. |
+| *"draft the discussion"* | A draft Discussion section that cites your actual results — not invented ones. |
+| *"build me a dashboard"* | A single-file HTML dashboard. Print-friendly, colour-blind safe, plays offline. |
+| *"make a poster for next week"* | A LaTeX conference poster with QR code, ≥300 DPI figures, one headline message. |
+| *"is this ready to submit?"* | A GREEN / YELLOW / RED verdict with a punch list — every check journals run, before they run it. |
+| *"going to lunch"* | A clean handoff so tomorrow's session resumes exactly where you left off. |
+
+→ Full catalogue: **[USE_CASES.md](docs/USE_CASES.md)** (by role · by goal · by output type)
+
+---
+
+## What you actually see
+
+You open your AI IDE. The MCP server auto-connects. Your folder looks like:
 
 ```
 my-project/
-├── inputs/                  ← IMMUTABLE — you drop files here
-│   ├── raw_data/                  CSV / parquet / FASTQ / ...
-│   ├── literature/                PDFs of papers
-│   ├── context/                   notes / drafts / PI messages
-│   ├── intake.md                  short pointer; AI rewrites on autofill
-│   └── researcher_config.yaml     AI behaviour (every field optional)
+├── inputs/             ← you drop files here
+│   ├── raw_data/         (CSVs, parquet, FASTQ, …)
+│   ├── literature/       (PDFs of papers)
+│   └── context/          (notes, Slack threads, PI emails)
 │
-├── workspace/               ← ACTIVE — AI lives here
-│   ├── methods.md · analysis.md · citations.md   (append-only memory)
-│   ├── 01_baseline_eda/                          (numbered experiment)
-│   │   ├── scripts/  (atomic, versioned _v1 → _v2)
-│   │   ├── outputs/{figures,tables,reports}/
-│   │   │       each figure ships .caption.md + .summary.md + .prov.json
-│   │   ├── pipeline.yaml          (sub-task DAG, content-hash cached)
-│   │   ├── conclusions.md
-│   │   └── .versions/v<n>/        (snapshots from tool_step_iterate)
-│   ├── logs/                      audit reports + override ledger
-│   └── scratch/                   AI sandbox (gitignored)
+├── workspace/          ← the AI works here
+│   ├── 01_baseline_eda/   (each experiment in its own numbered folder)
+│   ├── methods.md         (what was done, in plain English)
+│   └── logs/              (every audit + every quality-gate bypass)
 │
-├── synthesis/               ← FINAL — only when you ask for a deliverable
-│   paper · abstract · poster + QR · dashboard · slides · handout · etc.
-│
-└── AGENTS.md · CLAUDE.md · .cursor/ · .claude/ · .windsurfrules · ...
-                            per-IDE rules + MCP configs (auto-dropped)
+└── synthesis/          ← your finished deliverables land here
+    └── paper.md           (or poster.pdf, dashboard.html, slides.pptx…)
 ```
 
-Synthesis and the input subfolders are **lazy** — they materialise
-on first write, so a fresh project surface stays uncluttered.
+You touch `inputs/`. The AI touches `workspace/` and `synthesis/`.
+Things only get created when you ask for them, so a fresh project
+isn't cluttered with empty folders.
+
+→ Deeper tour: **[RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md)**
 
 ---
 
-## What it does
+## How to use it — 60 seconds
 
-Seven capability groups, 88 protocols, 143 MCP tools.
+**1. Install once** (the server is global — it serves every project):
 
-| | What you say · what you get |
-|---|---|
-| **Plan + design** | EDA + hypothesis generation · power analysis · evaluation design (split / CV / paired test) · hyperparameter sweep design · data ethics review (IRB / privacy / fairness) · preregistration |
-| **Run analyses** | iterative experiments with provenance · head-to-head method comparison · data-quality audit · reproduction of published work · causal / Bayesian / time-series / ML / clinical / qualitative / mixed-methods pipelines · dead-end routing |
-| **Build figures** | full viz workflow · multi-panel composition · figure narrative arc · colour-blind + WCAG accessibility audit · reviewer-style critique |
-| **Write** | per-section drafting (methods · results · discussion · limitations · end-matter with CRediT) · title workshop · cover letter · pre-submission gate |
-| **Synthesise** | IMRAD paper · abstract · poster + QR · talk slides (lab / conference / defense) · self-tested HTML dashboard · printable handout + QR · grant narrative · lay summary · PI progress update · null-findings companion |
-| **Read + understand** | quick paper critique · multi-paper comparative review · methodological consultation (teach me X) · literature search with forward-citation walk · full PRISMA systematic review |
-| **Audit + ship** | quality audit · reproducibility verification · code review · peer-review response · collaboration handoff (share-safe zip) · structured AI pushback when grounded evidence disagrees |
-
-→ [docs/USE_CASES.md](docs/USE_CASES.md) — role × goal × output map
-→ [docs/PROTOCOLS.md](docs/PROTOCOLS.md) — every protocol with
-  trigger phrases and quality bars
-→ [docs/TOOLS.md](docs/TOOLS.md) — every MCP tool with example calls
-
----
-
-## Why use it — pain Research OS resolves
-
-| Pain | How Research OS resolves it |
-|---|---|
-| AI hallucinates citations | Synthesis tools verify every cite online; drop the rest. Per-section caps (3 abstract / 12 dashboard / 40 paper). |
-| AI hallucinates numbers | `tool_audit_claims` traces every number in `paper.md` back to a workspace artefact. BLOCKS synthesis if any are ungrounded. |
-| AI guesses methodology | `tool_research_method` mandates literature grounding before any commit. |
-| AI writes 400-line one-shot scripts | A step whose outputs span figures + tables + reports without a `pipeline.yaml` is BLOCKED. Forces atomic, content-hash-cached sub-tasks. |
-| "Iterate Figure 2's look" → ad-hoc edits | `tool_step_iterate` snapshots scripts + outputs + captions + conclusion as a coordinated `.versions/v<n>/` BEFORE you edit; `tool_audit_version_coherence` flags any output whose `.prov.json` still points at an older script. |
-| Pre-registered analyses drift | `tool_preregister_freeze` content-hashes the SAP; `_diff` surfaces every deviation. |
-| Null findings → file drawer | `synthesis_null_findings` publishable companion for refuted / underpowered / abandoned. |
-| Pre-submission anxiety | `audit/pre_submission_checklist` walks every check journals run — including reviewing every gate bypass logged in `workspace/logs/override_log.md`. |
-| Researcher enters mid-pipeline | `guidance/mid_pipeline_entry` classifies into 7 archetypes; skips redundant intake. |
-| 143 tools is too many to triage per turn | `tool_route` returns ~10-15 active tools per protocol; `sys_active_tools(protocol_name)` returns the same shortlist on demand. |
-| Same project, different AI tomorrow | `sys_session_handoff` snapshots; `tool_session_resume` reconstructs intent in one call. |
-| Long jobs on shared HPC | `tool_task_run` backgrounds them; `tool_slurm_submit` for clusters. |
-
-→ [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) §
-  Power-user patterns for the full list.
-
----
-
-## Tune AI behaviour — `inputs/researcher_config.yaml`
-
-Every field is optional. The two knobs that change how the AI
-behaves on edge cases:
-
-```yaml
-interaction:
-  # How quality-gate blockers are treated:
-  #   enforce        → AI refuses bypass unless researcher explicitly
-  #                    authorises AND supplies an override_rationale
-  #                    (recorded to workspace/logs/override_log.md).
-  #   allow_override → bypass on request; rationale logged if provided.
-  #   warn_only      → blockers become warnings (sandbox use only).
-  quality_gate_policy: enforce
-
-  # What the AI does when your request is ambiguous:
-  #   ask_when_uncertain → default; AI asks a one-line follow-up.
-  #   take_best_default  → AI proceeds, surfaces the chosen default
-  #                        for review.
-  ambiguity_posture: ask_when_uncertain
+```bash
+pip install "research-os[all]"
 ```
 
-Every bypass the AI takes is recorded — the pre-submission checklist
-surfaces them so nothing ships without your sign-off.
+**2. Make a project**:
+
+```bash
+mkdir my-project && cd my-project
+research-os init                  # answer the arrow-key wizard
+```
+
+The wizard asks where the project goes, which AI IDEs you use (it drops
+the right MCP config in each), and lets you paste PDFs, DOIs, or notes
+straight in.
+
+**3. Open the folder in your AI IDE and just talk**:
+
+```
+> what's in my inputs folder?
+> fill out the intake
+> run a baseline analysis on the patient data
+> what should I do next?
+```
+
+That's the whole workflow.
+
+→ Full first-hour walkthrough: **[START.md](docs/START.md)**
+→ Per-IDE wiring details: **[SETUP.md](docs/SETUP.md)**
+
+---
+
+## Why use it
+
+Research OS exists because AI coding assistants are *fast* but they
+*cheat* — they invent citations that don't exist, they hallucinate p-values,
+they write 400-line scripts you can't audit, and they lose track of what
+they decided last week. The honest fix isn't a better prompt; it's a
+system that won't let any of those things land in your final paper.
+
+| The problem | What Research OS does about it |
+|---|---|
+| AI invents citations | Every cite is verified against Crossref / Semantic Scholar / PubMed / arXiv. Unverifiable ones are dropped. |
+| AI invents numbers | Every quantitative claim in your paper traces back to a real workspace file. Synthesis blocks if anything is ungrounded. |
+| AI writes massive unreviewable scripts | Work is split into atomic, content-hash-cached sub-tasks. Edit one; only the affected parts re-run. |
+| AI loses context between sessions | Decisions, hypotheses, dead-ends, and drafts persist. Tomorrow's chat picks up where today's ended. |
+| Figures drift from their captions | Every figure ships with a caption, a plain-English summary, a provenance sidecar (script + seed + library versions), and an SVG companion. |
+| "Pre-registered analysis" silently changes | The Statistical Analysis Plan is content-hashed. Every deviation surfaces at synthesis time. |
+| Negative results vanish into the file drawer | First-class workflow for refuted / underpowered / abandoned findings. |
+| Pre-submission anxiety | Final check walks every gate a journal will run — verdict + actionable punch list. |
 
 ---
 
 ## Documentation
 
-| First time | Day-to-day | Reference |
-|---|---|---|
-| [START.md](docs/START.md) — install + first project + cheatsheet | [RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — full workflow walkthrough | [PROTOCOLS.md](docs/PROTOCOLS.md) — every protocol |
-| [SETUP.md](docs/SETUP.md) — install + per-IDE wiring | [USE_CASES.md](docs/USE_CASES.md) — role × goal × output map | [TOOLS.md](docs/TOOLS.md) — every MCP tool |
-| [FAQ.md](docs/FAQ.md) — common questions | [SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths | [PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — for protocol authors |
-| | [AI_GUIDE.md](docs/AI_GUIDE.md) — for the AI itself | |
+| If you're… | Read this |
+|---|---|
+| **New here** | [docs/START.md](docs/START.md) — install + first project in 15 min |
+| **Looking for an example** | [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
+| **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
+| **Wiring an IDE** | [docs/SETUP.md](docs/SETUP.md) — Claude Code, Cursor, VS Code, etc. |
+| **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |
+| **Curious about a protocol** | [docs/PROTOCOLS.md](docs/PROTOCOLS.md) — every workflow with triggers + quality bars |
+| **Looking up a tool** | [docs/TOOLS.md](docs/TOOLS.md) — every MCP tool with examples |
+| **Sharing a finished project** | [docs/SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths |
+| **Contributing a protocol** | [docs/PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle |
+| **Driving the AI side** | [docs/AI_GUIDE.md](docs/AI_GUIDE.md) — what the AI itself reads |
 
-Doc index → [docs/README.md](docs/README.md).
+Doc index: **[docs/README.md](docs/README.md)**
 
 ---
 
-## Verify your install
+## Tune how the AI behaves
 
-```bash
-python scripts/preflight.py            # 13 wiring checks
-pytest -q                              # 417 tests, ~9 s
-ruff check src/ tests/ scripts/
+A single file — `inputs/researcher_config.yaml` — controls everything.
+Every field is optional. The two that matter most:
+
+```yaml
+interaction:
+  quality_gate_policy: enforce        # enforce | allow_override | warn_only
+  ambiguity_posture: ask_when_uncertain  # vs take_best_default
 ```
 
+→ Full reference: **[RESEARCHER_GUIDE.md § config](docs/RESEARCHER_GUIDE.md#9-the-config-file)**
+
 ---
 
-## Contributing + License
+## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) — covers adding a tool, adding
-or modifying a protocol (must follow the scaffold-not-script
-doctrine), and the test conventions. Issues + PRs welcome at
-<https://github.com/VibhavSetlur/Research-OS/issues>.
+Issues and PRs welcome.
 
-License: [MIT](LICENSE).
+- **Found a bug?** → [Open an issue](https://github.com/VibhavSetlur/Research-OS/issues/new?template=bug_report.md)
+- **Want a feature?** → [Request one](https://github.com/VibhavSetlur/Research-OS/issues/new?template=feature_request.md)
+- **Code contribution?** → [CONTRIBUTING.md](CONTRIBUTING.md) covers the workflow, branch model, and test conventions.
+- **Asking a question?** → [GitHub Discussions](https://github.com/VibhavSetlur/Research-OS/discussions)
+- **Security report?** → [SECURITY.md](SECURITY.md)
+
+---
+
+## License
+
+[MIT](LICENSE) · Research OS does not collect telemetry · Research OS does not manage LLM provider keys (your AI IDE owns model access).
+
+If you use Research OS in published work, citation info lives in [CITATION.cff](CITATION.cff).

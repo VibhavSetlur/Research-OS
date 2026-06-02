@@ -1,0 +1,87 @@
+name: Release
+
+# Creates a GitHub Release when a `v*` tag is pushed. Reads the matching
+# section from CHANGELOG.md and uses it as the release body so the
+# changelog and GitHub Releases tab stay in sync.
+#
+# Runs in parallel with publish.yml (which pushes to PyPI). Neither
+# depends on the other; if publishing fails, the GitHub Release still
+# gets created so the tag is discoverable.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v1.1.1)"
+        required: true
+
+permissions:
+  contents: write   # needed to create the release
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (full history for changelog parsing)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "version=${{ inputs.tag }}" | sed 's/=v/=/' >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract this release's CHANGELOG section
+        id: notes
+        run: |
+          set -euo pipefail
+          version="${{ steps.tag.outputs.version }}"
+          echo "Parsing CHANGELOG.md for version $version"
+          # Pull the lines between `## [<version>]` and the next `## [` header.
+          awk -v v="$version" '
+            BEGIN { p = 0 }
+            /^## \[/ {
+              if (p == 1) { exit }
+              if ($0 ~ "\\["v"\\]") { p = 1; next }
+            }
+            p == 1 { print }
+          ' CHANGELOG.md > release_body.md
+          if [ ! -s release_body.md ]; then
+            echo "No CHANGELOG section found for $version — using fallback body" >&2
+            printf "Release %s\n\nSee [CHANGELOG.md](https://github.com/%s/blob/main/CHANGELOG.md) for details.\n" \
+              "$version" "$GITHUB_REPOSITORY" > release_body.md
+          fi
+          echo "First 5 lines of release_body.md:"
+          head -5 release_body.md
+
+      - name: Detect pre-release
+        id: prerelease
+        run: |
+          version="${{ steps.tag.outputs.version }}"
+          if echo "$version" | grep -qE '(a|b|rc|alpha|beta|dev|pre)'; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.ref }}
+          name: ${{ steps.tag.outputs.ref }}
+          body_path: release_body.md
+          prerelease: ${{ steps.prerelease.outputs.value }}
+          draft: false
+          generate_release_notes: false

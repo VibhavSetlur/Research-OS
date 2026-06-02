@@ -6,6 +6,66 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.1.1] — Repo + docs polish (2026-06-02)
+
+A maintenance release focused on **GitHub repo infrastructure** and a
+**user-first README rewrite**. No protocol or tool changes; same 88
+protocols, same 143 MCP tools, same 418-test pass.
+
+### Added — repo infrastructure
+
+* **`SECURITY.md`** — vulnerability reporting policy, supported-version
+  table, scope clarification (in-scope vs out-of-scope).
+* **`CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1, with private
+  reporting address + scaled-response policy.
+* **`.github/PULL_REQUEST_TEMPLATE.md`** — type checklist, protocol /
+  tool sub-checklists, test plan, breaking-change section.
+* **`.github/dependabot.yml`** — weekly bumps for GitHub Actions + Python
+  deps, grouped minor/patch updates, opinionated about `mcp` majors.
+* **`.github/workflows/codeql.yml`** — CodeQL static security analysis on
+  push, PR, and weekly schedule.
+* **`.github/workflows/release.yml`** — auto-creates a GitHub Release on
+  every `v*` tag with the matching CHANGELOG section as the body. Runs
+  in parallel with `publish.yml` (PyPI).
+* **`docs/RELEASING.md`** — maintainer release runbook (versioning,
+  branch model, patch / minor / major / hotfix flows, pre- and
+  post-release checklists, yank procedure).
+
+### Improved — docs
+
+* **README rewrite — user-first.** Reframed around what the project IS,
+  what it DOES, what you SEE, and HOW to use it — with navigation links
+  to the deep docs instead of inlining everything. Tool / protocol
+  counts and architecture details are now one click away in
+  `RESEARCHER_GUIDE.md` and `PROTOCOLS.md`. New top-of-README quick-link
+  bar (Quick start · Use cases · Full guide · FAQ).
+* **`CONTRIBUTING.md`** — adds the `main` / `dev` / `feat-*` / `fix-*` /
+  `hotfix-*` branch model + PR flow, points maintainers at the new
+  `docs/RELEASING.md`. Counts synced (143 tools, 88 protocols, 418 tests).
+* **`README.md` badge bar** — PyPI version + Python versions + license +
+  tests-status badges via shields.io (auto-updating, no more stale
+  hardcoded version badge).
+
+### Improved — CI
+
+* **`test.yml` runs on `dev` branch too.** Previously only `main` push +
+  PR to `main` triggered CI; now `dev` does too, so PRs into `dev` get
+  the same green-or-red signal before they reach `main`.
+
+### Bumped
+
+* `research-os` package: 1.1.0 → 1.1.1
+* `CITATION.cff` version
+
+### Test + quality status
+
+* 418 tests pass (unchanged surface).
+* Preflight 13/13.
+* Ruff clean.
+* 88 protocols, 143 MCP tools (no surface changes).
+
+---
+
 ## [1.1.0] — Guidance refinement (2026-06-02)
 
 A non-breaking refinement focused on **how the AI navigates Research-OS

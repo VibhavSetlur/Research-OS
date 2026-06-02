@@ -1,0 +1,53 @@
+# Dependabot — keep dependencies + Actions current with minimal noise.
+# Docs: https://docs.github.com/en/code-security/dependabot
+
+version: 2
+updates:
+
+  # ── GitHub Actions ─────────────────────────────────────────────────
+  # Bumps action versions in .github/workflows/*.yml weekly.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "ci"
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+
+  # ── Python dependencies ────────────────────────────────────────────
+  # Watches pyproject.toml + the optional-extras lockfile.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    # Group safe minor/patch bumps so the PR queue stays small.
+    groups:
+      python-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+    # Pin policy: don't auto-PR major bumps for runtime deps — they
+    # need a real test pass.
+    ignore:
+      - dependency-name: "mcp"
+        update-types: ["version-update:semver-major"]
