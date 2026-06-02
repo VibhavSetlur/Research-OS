@@ -35,10 +35,16 @@ was resolved (env var / cwd walk / fallback).
 1. `sys_boot` → state + config + history + dep inventory + next protocol
    + pause + any active plan. Replaces 4-5 separate calls.
 2. (await researcher's message)
-3. `tool_route(prompt=…)` → hierarchical L1→L2→L3 picker. Returns
-   `primary_protocol`, `shortcut_tool`, `decomposition`, `complexity`,
-   `ask_user`. If `ask_user` is non-null, ASK that one sentence then
-   re-route. Never guess.
+3. `tool_route(prompt=…)` → hybrid router. Tries SEMANTIC search first
+   (local BGE-small embeddings, no network) and falls back to the
+   hierarchical L1→L2→L3 trigger picker when semantic confidence is
+   low / unavailable. Returns `primary_protocol`, `shortcut_tool`,
+   `decomposition`, `complexity`, `ask_user`, `method`
+   (`semantic`|`trigger`), `confidence`. If `ask_user` is non-null,
+   ASK that one sentence then re-route. Never guess. Need to inspect
+   ranked alternatives directly? Call `tool_semantic_route` — it
+   returns the top-k candidates with cosine scores. Need to find a
+   tool by what it does? Call `sys_semantic_tool_search(query=…)`.
 4. `complexity="high"` → `tool_plan_turn` to batch by `model_profile`
    (small=1 step/turn, medium=3, large=6), execute in order, call
    `tool_plan_advance` after each. If `chat_split_recommended`, run
@@ -80,6 +86,8 @@ flags it before synthesis.
 |---|---|
 | Full tool list | `sys_protocol_list` → `sys_tool_describe(name)` |
 | Tight tool shortlist for one protocol | `sys_active_tools(protocol_name)` (~10-15 tools) |
+| Find a tool by what it does | `sys_semantic_tool_search(query=…)` (top-k by cosine) |
+| See ranked protocol candidates (not just `tool_route`'s primary) | `tool_semantic_route(prompt=…)` |
 | Which project is THIS request for? | `sys_active_project` |
 | Researcher pivoted mid-plan | `tool_plan_clear`, then re-`tool_route` |
 | Vague / cross-disciplinary ask | `guidance/scope_clarification` (narrow before routing) |

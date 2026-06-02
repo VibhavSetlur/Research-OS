@@ -537,6 +537,17 @@ def scaffold_minimal_workspace(
 
     state = default_state()
     state["project_name"] = project_name
+    # Persist wizard-captured research metadata to state (it used to live in
+    # researcher_config.yaml, but that's now reserved for fields a researcher
+    # actively chooses). regenerate_intake reads these on subsequent calls.
+    if config_overrides:
+        if config_overrides.get("domain"):
+            state["domain"] = config_overrides["domain"]
+        if config_overrides.get("research_question"):
+            state["research_question"] = config_overrides["research_question"]
+        questions = config_overrides.get("research_questions") or []
+        if questions:
+            state["research_questions"] = [q for q in questions if isinstance(q, str) and q.strip()]
     save_state(root, state)
 
     # Only regenerate intake.md if there's something real to put in it:
@@ -1181,28 +1192,31 @@ def regenerate_intake(
     """Rewrite ``inputs/intake.md`` with current file hashes + config."""
     config_overrides = config_overrides or {}
     try:
-        state = load_state(root)
-        project_name = project_name or state.get("project_name") or "Research Project"
+        state = load_state(root) or {}
     except Exception:
-        project_name = project_name or "Research Project"
+        state = {}
+    project_name = project_name or state.get("project_name") or "Research Project"
 
-    config_path = root / "inputs" / "researcher_config.yaml"
-    domain = config_overrides.get("domain", "")
-    research_question = config_overrides.get("research_question", "")
+    # Domain / research_question used to live in researcher_config.yaml; they
+    # now live in .os_state/state.json (written by tool_intake_autofill).
+    # Overrides win; state is the fallback; finally a placeholder.
+    domain = (
+        config_overrides.get("domain")
+        or state.get("domain")
+        or ""
+    )
+    research_question = (
+        config_overrides.get("research_question")
+        or state.get("research_question")
+        or ""
+    )
     keywords: list[str] = list(config_overrides.get("keywords", []) or [])
-
-    if config_path.exists() and yaml:
-        try:
-            cfg = yaml.safe_load(config_path.read_text()) or {}
-            domain = config_overrides.get("domain") or cfg.get("domain") or ""
-            research_question = (
-                config_overrides.get("research_question") or cfg.get("research_question") or ""
-            )
-            hints = (cfg.get("domain_hints") or {}).get("expected_columns") or []
-            if hints and not keywords:
-                keywords = hints
-        except Exception:
-            pass
+    if not keywords:
+        keywords = [
+            h.get("statement", "")
+            for h in (state.get("active_hypotheses") or [])
+            if isinstance(h, dict) and h.get("statement")
+        ][:5]
 
     input_files: list[dict[str, Any]] = []
     for subdir in ("raw_data", "literature", "context"):

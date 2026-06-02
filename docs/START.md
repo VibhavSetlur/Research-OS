@@ -98,6 +98,23 @@ explain ANCOVA to me
 The AI translates your plain-English prompt into the right protocol via
 `tool_route`. You don't call MCP tools directly; you just talk.
 
+### Using a small or medium AI? Set `model_profile` first
+
+**The single most important knob if you're not on a frontier model.**
+Open `inputs/researcher_config.yaml` (auto-created) and change:
+
+```yaml
+model_profile: "small"    # for Claude Haiku 4.5, GPT-4o-mini,
+                          # Gemini 2.5 Flash, Llama 3.3, local models
+model_profile: "medium"   # default — Claude Sonnet, GPT-4o, Gemini Pro
+model_profile: "large"    # for Claude Opus, GPT-5/o-series, Gemini 3 Pro
+```
+
+Small models get 1 step/turn, summary-only protocol loads, and prefer
+shortcut tools — designed to keep context lean. If your AI runs out of
+context mid-plan, drop a tier; if it hands off after every step, bump
+up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your-ai).
+
 ---
 
 ## What you get out of the box
@@ -113,11 +130,14 @@ The AI translates your plain-English prompt into the right protocol via
 * **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
   declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
   → fit → diagnose → visualize → report). Content-hash cached.
-* **87 protocols** the AI picks from via `tool_route`. Covers the
+* **100 protocols** the AI picks from via `tool_route`. Covers the
   canonical data → publication pipeline plus partial / off-axis
   workflows (visualization-only, talks, lay summaries, EDA + hypothesis
   generation, method comparison, reproduction, methodological
-  consultation, multi-paper review, mid-pipeline entry).
+  consultation, multi-paper review, mid-pipeline entry, plus pre-data
+  qualitative + survey design, IRR, fairness, calibrated UQ,
+  manuscript outline, venue selection, defense prep, and Data
+  Management Plans).
 * **143 MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
   (append-only memory).

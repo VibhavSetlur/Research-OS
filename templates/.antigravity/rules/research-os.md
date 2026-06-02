@@ -16,9 +16,11 @@ at the project root — read it first.
    `ask_user`. If `ask_user` is non-null, ASK that question and re-route.
 4. For `complexity: high`, `tool_route` persists an `active_plan` to
    `.os_state/active_plan.json`. Call `tool_plan_turn` to get the batch
-   for this turn (sized to your `model_profile`). Walk it with
-   `tool_plan_advance` after each step. If `chat_split_recommended` is
-   true, hand off + tell the researcher to open a fresh chat.
+   for this turn (sized to your `model_profile` — small=1 step/turn,
+   medium=3, large=6; heavyweight tools count for more). Walk it with
+   `tool_plan_advance` after each step. Use `tool_plan_clear` if the
+   researcher pivots. If `chat_split_recommended` is true, hand off +
+   tell the researcher to open a fresh chat.
 5. For `complexity: low`, call the shortcut tool directly OR load the
    primary protocol with `sys_protocol_get format='summary'` (~300
    tokens), then `format='step' + step_id='<id>'` when ready to execute.

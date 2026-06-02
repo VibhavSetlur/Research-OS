@@ -6,6 +6,308 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [Unreleased] — researcher_config simplification
+
+### Removed
+* **`model_tuning` block** in `inputs/researcher_config.yaml`. The five
+  knobs it carried (`context_window_tokens`, `step_max_response_tokens`,
+  `protocol_load_format`, `skip_optional_sections`,
+  `prefer_shortcut_over_plan`) were rarely set in practice and
+  duplicated behaviour already governed by `model_profile`. Existing
+  configs that still carry the block are simply ignored.
+* **`research_question`, `domain`, `hypotheses`** top-level fields.
+  These were AI-inferred (not researcher-chosen) and now live where
+  they're actually used: `inputs/intake.md` +
+  `docs/research_overview.md` for the human view, `.os_state/state.json`
+  for programmatic reads. `tool_intake_autofill` writes to all three.
+* **`researcher.field`, `researcher.expertise_level`** template fields.
+  Both were AI-inferred. Consumers (`router.py`, `server.py`) keep their
+  `"intermediate"` fallback when the key is missing.
+* **`research_goal.reporting_standard`** template field — was always
+  auto-filled by `domain_analysis`; no point seeding it blank.
+
+### Changed
+* `researcher_config.yaml` template now orders fields **most → least
+  important** for a researcher to fill in: `researcher` (name /
+  institution / orcid / email) at the top, then `project_name`,
+  `research_goal`, `interaction`, `model_profile`,
+  `writing_preferences`, `runtime`, `api_keys`.
+* `tool_intake_autofill` returns `state_fields_updated` (was
+  `config_fields_updated`) reflecting that intake metadata now lands in
+  `.os_state/state.json` rather than the config.
+* `regenerate_intake` sources domain / research_question / hypotheses
+  from state (override > state > placeholder) instead of the config.
+
+---
+
+## [1.2.0] — Semantic routing + 12 new protocols + quality sweep (2026-06-02)
+
+A major **routing architecture** release plus a research-quality +
+cross-model pass. **No breaking changes.** **100 protocols** (was 88) ·
+**145 MCP tools** (was 143; +2 semantic) · **438 tests** passing ·
+**preflight 14/14** (was 13; +1 for embedding freshness).
+
+### Headline: semantic protocol + tool routing (replaces 2000-line trigger walk)
+
+The old `tool_route` was a hand-curated trigger-substring index:
+`_router_index.yaml` listed each protocol's matching phrases. As the
+catalog crossed 100 protocols, that approach hit its limits — trigger
+maintenance became painful, fuzzy paraphrases missed, and the index
+file ballooned past 1600 lines.
+
+`tool_route` is now a **hybrid semantic router**:
+
+1. **Local embedding search** — `BAAI/bge-small-en-v1.5` via
+   `fastembed` (ONNX runtime, no network, no LLM API keys, ~150 MiB
+   optional extra). Each protocol's id / name / summary / triggers /
+   description / step names is embedded once at build time and shipped
+   in `protocols/_embeddings.npz` (332 KiB). At request time we embed
+   only the prompt and cosine-rank against the in-memory matrix.
+2. **Length-weighted trigger boost** — exact-phrase matches on a
+   protocol's triggers add a per-protocol boost sized by the LONGEST
+   matched trigger, so "bias audit" beats bare "audit". Deterministic
+   phrases still win when they appear.
+3. **Three-tier decision logic** — high / medium / low / none
+   confidence, with explicit `ask_user` payloads for ambiguous,
+   narrow-spread, and below-floor outcomes.
+4. **Trigger-router fallback** — if `fastembed` isn't installed OR
+   semantic confidence is low, the original hierarchical
+   trigger-substring router serves the request. Nothing breaks for
+   users who don't install the `semantic` extra.
+
+Result: 89% top-1 accuracy on a 35-prompt regression fixture, with
+the correct protocol appearing in the top-3 candidates on the misses.
+The AI gets ranked candidates instead of a single guess, can call
+`tool_semantic_route` directly to inspect alternatives, and the AI's
+context cost no longer scales with the size of the trigger index.
+
+#### What ships for the semantic redesign
+
+- **`src/research_os/tools/actions/semantic.py`** — the runtime module
+  (~250 lines). Loads the embedding bundle, embeds queries with the
+  BGE retrieval prefix, applies the trigger boost, returns ranked
+  matches with a router-shaped payload.
+- **`scripts/build_embeddings.py`** — builds the embedding `.npz` +
+  meta JSON from current protocol YAMLs + `TOOL_DEFINITIONS`.
+  Re-runnable; deterministic source hash so we know when to rebuild.
+- **`src/research_os/protocols/_embeddings.npz`** (332 KiB,
+  L2-normalised float32) and **`_embeddings_meta.json`** — checked
+  into the repo. The trigger-based fallback works without ever
+  rebuilding these.
+- **2 new MCP tools**:
+  - **`tool_semantic_route(prompt, top_k)`** — direct semantic search
+    over protocols. Returns ranked candidates with cosine scores +
+    the high/medium/low confidence verdict. Use when you want to SEE
+    alternatives rather than accept tool_route's primary pick.
+  - **`sys_semantic_tool_search(query, top_k)`** — semantic search
+    over the 145 tool definitions. Find tools by what they DO
+    ("compute kappa for inter-rater agreement on transcript codes" →
+    returns the relevant ranked tool list) when `sys_active_tools`
+    doesn't surface what you need.
+- **`tool_route` now returns `method`** (`"semantic"` or `"trigger"`)
+  and `confidence` so the AI knows which path served it.
+- **Preflight gate**: `check_embeddings_fresh` re-hashes the source
+  documents and refuses to ship if the on-disk embeddings drift.
+  Fix: `python scripts/build_embeddings.py`.
+- **`pip install 'research-os[semantic]'`** pulls `fastembed>=0.4`.
+  `numpy` moved to the core dependency list (was implicit via
+  `pandas`); it's needed to read the embeddings bundle even on the
+  trigger-fallback path.
+
+#### Migration: nothing required
+
+- **Without `[semantic]`** — `tool_route` uses the hierarchical
+  trigger router exactly as before. The new tools return
+  `status: "unavailable"` with a clear install hint.
+- **With `[semantic]`** — `tool_route` automatically picks the
+  semantic path on high-confidence prompts and falls back to triggers
+  otherwise. No prompt or workflow changes needed; AI clients see a
+  superset of the previous response shape.
+
+The driver for the rest of the release: an end-to-end audit of
+protocol quality, cross-model robustness, per-IDE rule files, and gaps
+in research-workflow coverage. The fixes below close the highest-
+leverage gaps that audit surfaced.
+
+### Added — 12 new protocols (covers the audit's highest-impact gaps)
+
+Pre-data-collection qualitative + survey work (previously a hole; the
+existing qualitative + survey_psychometrics protocols both started
+post-collection):
+
+* **`methodology/interview_guide_design`** — design + pilot the
+  interview / topic guide before qualitative collection. Paradigm
+  selection (thematic / grounded / phenomenological / ethnographic),
+  topic mapping, question drafting, sensitive-topic ordering, pilot
+  revision triggers, IRB alignment.
+* **`methodology/coding_scheme_development`** — build + iterate the
+  qualitative codebook. Inductive / deductive / hybrid approach,
+  per-code definition + inclusion / exclusion / canonical example,
+  calibration rounds, freeze + amendment workflow.
+* **`methodology/inter_rater_reliability`** — design + compute + report
+  IRR. Scaffolds the choice of statistic (Cohen's κ / Fleiss' κ /
+  Krippendorff's α / ICC / weighted κ) per rating task, sampling plan,
+  pre-specified threshold + field justification, remediation when the
+  threshold is not met.
+* **`methodology/survey_design`** — instrument development before
+  collection. Existing-instrument review, construct definition, item
+  drafting, response-format choice, cognitive interviewing, pilot for
+  psychometric staging, translation + cultural adaptation.
+
+Statistical reasoning gaps:
+
+* **`methodology/multiple_comparisons`** — family enumeration,
+  FWER vs FDR error-metric choice, correction method (Bonferroni /
+  Holm / Hochberg / BH / BY / permutation / gatekeeping) with
+  dependence-structure rationale, confirmatory vs exploratory split.
+* **`methodology/bootstrapping_design`** — match resampling scheme to
+  dependence structure (ordinary / block / cluster / wild / stratified /
+  Bayesian / jackknife / parametric), interval method (percentile /
+  basic / studentised / BCa / ABC), B-with-MC-error sizing.
+* **`methodology/uncertainty_quantification`** — calibrated predictive
+  uncertainty (conformal / temperature / quantile / deep ensemble /
+  MC dropout / Bayesian NN), reliability + sharpness + proper scoring
+  rules, subgroup calibration, deployment monitoring.
+
+Applied ML + safety:
+
+* **`methodology/fairness_audit`** — group / intersectional fairness
+  audit. Decision-context + harm-structure characterisation, fairness-
+  criterion choice with explicit impossibility trade-offs, disparity
+  metrics with CIs, mitigation options + utility cost, model card +
+  monitoring plan.
+
+Grant + funding compliance:
+
+* **`methodology/data_management_plan`** — funder-compliant DMP
+  (NIH DMSP, NSF DMP, Wellcome, ERC, UKRI) with FAIR alignment.
+  Funder-template identification, data-type inventory, storage +
+  backup + encryption tiers, metadata standard per data type, sharing
+  + access plan, retention + disposal, roles, budget implications.
+
+Pre-submission + venue:
+
+* **`synthesis/journal_selection`** — compare 3-5 candidate venues
+  on scope / evidence / format / timeline / cost / open-science fit;
+  filter for legitimacy (predatory checks); plan resubmission sequence.
+* **`synthesis/manuscript_outline`** — outline + storyboard the paper
+  BEFORE drafting (figures-first narrative). Headline lock,
+  audience + contribution-class definition, figure storyboard, section
+  beats, load-bearing-claims audit, outline freeze.
+* **`synthesis/defense_prep`** — anticipate + rehearse Q&A for thesis
+  defense / job talk / high-stakes presentations. Weak-claim audit,
+  20-40-question bank across framing / method / evidence / limitations
+  / reproducibility / big-picture, draft answers including honest
+  "I don't know" responses.
+
+### Added — cross-model robustness
+
+* **Per-model-tier guidance** in `model_profile` config comments —
+  named model classes (Haiku 4.5, Sonnet 4.5/4.6, Opus 4.x,
+  GPT-4o-mini / 4o / 5, Gemini Flash / Pro / 3, Llama 3.3 / 4) mapped
+  to small / medium / large profiles. No more guessing.
+* **Wizard model-tier prompt** — `research-os init` now asks which AI
+  model class is in use and writes `model_profile` accordingly. The
+  default remains `medium`; researchers can change anytime.
+
+### Added — router-index hierarchy
+
+* **12 new sub-intents** under `hierarchy.methodology` and
+  `hierarchy.synthesize` (dmp, multiplicity, qual_design,
+  qual_coding, irr, survey_design, fairness, bootstrap, uq, venue,
+  outline, defense). Router index `version: 3 → 4`.
+
+### Improved — protocol doctrine sweep (partial — 2 of ~5 flagged)
+
+Following the audit's punch list, two of the most prescriptive
+protocols were softened toward the **scaffold-not-script**
+doctrine documented in `docs/PROTOCOL_DOCTRINE.md`:
+
+* **`methodology/cox_ph_diagnostics`** (`1.1.0 → 1.2.0`) — removed
+  `editorial_voice.mode: prescription`; removed hardcoded
+  `p_value_threshold=0.05`; replaced canned 4-strategy ordered menu
+  with a reasoning scaffold over question + violation shape; removed
+  library-specific function-call prescriptions in favour of "the
+  project's existing tooling".
+* **`methodology/bayesian_analysis`** (`1.1.0 → 1.2.0`) — replaced
+  algorithm-default ("HMC / NUTS is the default for continuous")
+  with a reasoning scaffold over likelihood / parameter space /
+  posterior shape / computational budget; replaced hardcoded
+  thresholds (R-hat ≤ 1.01, ESS ≥ 400, E-BFMI < 0.3) with
+  field-convention pointers + Vehtari et al. (2021) citation.
+
+The remaining flagged doctrine violators
+(`literature_search`, `qualitative_quality_audit`,
+`power_analysis`, `missing_data_strategy`,
+`qualitative_research`) are tracked for `v1.3`.
+
+### Improved — per-IDE template drift
+
+* **Fixed blocking Cursor rules bug**: `.cursor/rules/research-os.mdc`
+  documented the obsolete `sys_config_get` + `sys_state_get` +
+  `sys_protocol_next` bootstrap. Cursor users following the file
+  were spending 3 calls + missing the active-plan logic. Now uses
+  the canonical `sys_boot` + `tool_route` + `tool_plan_turn`
+  sequence from `AGENTS.md`.
+* **Antigravity rules** now mention `tool_plan_clear` + the
+  small=1 / medium=3 / large=6 batch sizes for symmetry with the
+  other per-IDE rule files.
+
+### Improved — docs
+
+* **`docs/START.md`** — new "Using a small or medium AI? Set
+  `model_profile` first" callout in the IDE-and-talk section + the
+  protocol count synced to 100 with a list of the new categories.
+* **`docs/SETUP.md` § 6** — new "Pick the right `model_profile` for
+  your AI" subsection with a model-class lookup table, behavioural
+  description per tier, troubleshooting symptoms, and the
+  `model_tuning` advanced block documented.
+
+### Internal
+
+* `init_config` (`tools/actions/state/config.py`) now accepts
+  `model_profile` as an override key so the wizard's choice flows
+  through.
+* `researcher_config.yaml` clarified — it holds who-the-researcher-is
+  and how-the-AI-behaves; project content (domain / research_question
+  / hypotheses) is persisted to state + `inputs/intake.md` by
+  `tool_intake_autofill`, not to the config. The legacy
+  `domain`/`research_question` override keys to `init_config` were
+  removed (they were no-ops after the architecture change). Stale
+  tests in `tests/unit/test_config.py` + `tests/tools/test_intake.py`
+  updated to read from state instead of config.
+* `numpy >= 1.23` is now a core dependency (the semantic-router
+  loader reads the embeddings `.npz` even on the trigger-fallback
+  path; pandas already required it transitively).
+
+### Migration
+
+None. This release is **fully backwards-compatible**:
+
+* No tool removed, renamed, or schema-changed.
+* No protocol removed or renamed.
+* Existing `researcher_config.yaml` files keep working — the new
+  `model_tuning:` block is optional; absent values stay on the prior
+  defaults.
+
+Set `model_profile` if you haven't (1-line edit) for a noticeable
+quality lift on small / medium models — but **nothing breaks if you
+don't.**
+
+### Stats
+
+* **88 → 100 protocols** (+12 new; 0 removed)
+* **143 → 145 tools** (+`tool_semantic_route`, +`sys_semantic_tool_search`)
+* **13 → 14 preflight gates** (+`check_embeddings_fresh`)
+* **438 tests passing** (was ~418 — semantic-routing suite + IRR /
+  fairness / DMP smoke tests; stale `domain`-in-config tests updated
+  to match the new state-based persistence)
+* **Router index version 3 → 4**
+* **89% semantic top-1 accuracy** on the 35-prompt regression fixture
+  (`tests/tools/test_semantic_routing.py`)
+
+---
+
 ## [1.1.1] — Repo + docs polish (2026-06-02)
 
 A maintenance release focused on **GitHub repo infrastructure** and a

@@ -135,6 +135,8 @@ class WizardResult:
     pending_attachments: list[Path] = field(default_factory=list)
     # API keys captured in Step 6 — written to inputs/researcher_config.yaml.
     api_keys: dict[str, str] = field(default_factory=dict)
+    # Model tier — written into researcher_config.yaml as model_profile.
+    model_profile: str = "medium"
 
 
 # ---------------------------------------------------------------------------
@@ -255,6 +257,22 @@ def run_wizard(args) -> WizardResult:
             warn("No IDE selected — wiring Claude Code by default.")
             ides = ["claude"]
 
+    # Model-profile selector — tunes how the AI batches steps, loads
+    # protocols, and how aggressive optional audits are. Single most
+    # important knob if not on a frontier model.
+    print()
+    model_profile_choices = [
+        ("medium", "medium  — Sonnet 4.5/4.6, GPT-4o/4.1, Gemini 2.5 Pro (default)"),
+        ("large",  "large   — Opus 4.x, GPT-5/o-series, Gemini 3 Pro"),
+        ("small",  "small   — Haiku 4.5, GPT-4o-mini, Gemini 2.5 Flash, Llama 3.3, local"),
+    ]
+    model_profile = tui.select_one(
+        "Which AI model class are you using in your IDE?",
+        model_profile_choices,
+        default_index=0,
+        help_line="Sets `model_profile` in researcher_config.yaml. Change anytime later.",
+    )
+
     # ── Step 5: Bring in your inputs ────────────────────────────────────
     section(5, total, "Bring in your inputs (optional)",
             "Add any data, papers, notes, or images you already have.")
@@ -293,6 +311,7 @@ def run_wizard(args) -> WizardResult:
         pending_papers=pending_papers,
         pending_attachments=pending_attachments,
         api_keys=api_keys,
+        model_profile=model_profile,
     )
 
 

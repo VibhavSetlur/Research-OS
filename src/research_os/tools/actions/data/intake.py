@@ -5,8 +5,10 @@ The most accessible workflow is: the researcher drops files into inputs/
 inspects everything and writes:
   - inputs/intake.md (with proposed research question + domain + key files)
   - docs/research_overview.md   (if currently blank/placeholder)
-  - updates inputs/researcher_config.yaml with inferred domain / question /
-    field — only when those fields are currently empty.
+  - state.json gains inferred domain / research_question / hypotheses so
+    later regenerations of intake.md preserve them. The researcher_config
+    is intentionally NOT touched here — it's reserved for fields a
+    researcher actively chooses (identity, autonomy, model_profile, …).
 """
 
 from __future__ import annotations
@@ -16,8 +18,6 @@ import re
 from collections import Counter
 from pathlib import Path
 from typing import Any
-
-import yaml
 
 logger = logging.getLogger("research_os.tools.intake")
 
@@ -199,27 +199,11 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
         question = _propose_question(context_text, raw_files)
         hypotheses = _propose_hypotheses(context_text)
 
-        # Update researcher_config.yaml — only fill blanks (unless overwrite=True)
-        cfg_path = inputs_dir / "researcher_config.yaml"
-        cfg_changes: list[str] = []
-        if cfg_path.exists():
-            try:
-                cfg = yaml.safe_load(cfg_path.read_text()) or {}
-            except Exception:
-                cfg = {}
-            if overwrite or not cfg.get("domain"):
-                cfg["domain"] = domain
-                cfg_changes.append("domain")
-            if overwrite or not cfg.get("research_question"):
-                cfg["research_question"] = question
-                cfg_changes.append("research_question")
-            if hypotheses and (overwrite or not cfg.get("hypotheses")):
-                cfg["hypotheses"] = hypotheses
-                cfg_changes.append("hypotheses")
-            try:
-                cfg_path.write_text(yaml.dump(cfg, sort_keys=False, default_flow_style=False))
-            except Exception as e:
-                logger.warning(f"Could not write researcher_config: {e}")
+        # NOTE: researcher_config.yaml is no longer touched here. Domain /
+        # research_question / hypotheses are written to state (below) and
+        # to inputs/intake.md (via regenerate_intake at the end of this
+        # function). The config is reserved for fields a researcher
+        # actively chooses.
 
         # Create / update docs/research_overview.md. Scaffold no longer
         # pre-creates this file (the placeholder text was unnecessary
@@ -250,8 +234,16 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             rq_path.write_text(rq_body)
             rq_changed = True
 
-        # Update state hypotheses tracking
+        # Persist intake findings to state so later intake regenerations
+        # (which run without explicit overrides) keep the inferred values.
         state = load_state(root)
+        state_dirty = False
+        if domain and (overwrite or not state.get("domain")):
+            state["domain"] = domain
+            state_dirty = True
+        if question and (overwrite or not state.get("research_question")):
+            state["research_question"] = question
+            state_dirty = True
         if hypotheses:
             existing = state.setdefault("active_hypotheses", [])
             existing_ids = {h.get("id") for h in existing if isinstance(h, dict)}
@@ -259,6 +251,8 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
                 hid = f"H{i}"
                 if hid not in existing_ids:
                     existing.append({"id": hid, "statement": h_text, "status": "testing"})
+                    state_dirty = True
+        if state_dirty:
             save_state(root, state)
 
         # Regenerate intake.md with fresh hashes + the proposed content
@@ -284,7 +278,10 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             "domain_rationale": domain_why,
             "proposed_research_question": question,
             "proposed_hypotheses": hypotheses,
-            "config_fields_updated": cfg_changes,
+            "state_fields_updated": [
+                k for k in ("domain", "research_question", "active_hypotheses")
+                if state.get(k)
+            ],
             "research_question_md_updated": rq_changed,
             "intake_path": intake_path,
             "message": (

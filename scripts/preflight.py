@@ -95,18 +95,22 @@ def check_cli_entrypoint():
 
 
 def check_flat_namespace_is_minimal():
-    """Only protocol.py + router.py + __init__.py should live at tools/actions/.
+    """Only a tiny allowlist of cross-cutting modules at tools/actions/.
 
     Everything else MUST live in a category sub-package (state/, data/,
-    exec/, search/, research/, audit/, synthesis/, memory/). protocol.py
-    and router.py are first-class cross-cutting modules — both touch every
-    category, so keeping them flat avoids a circular sub-package."""
+    exec/, search/, research/, audit/, synthesis/, memory/). The flat
+    allowlist is for modules that touch every category and would create
+    a circular sub-package if nested:
+      - protocol.py — loader + cross-protocol injection
+      - router.py   — trigger-based hierarchical router
+      - semantic.py — embedding-based semantic router (sibling of router)
+    """
     actions_dir = REPO_ROOT / "src" / "research_os" / "tools" / "actions"
     flat = sorted(
         f.name for f in actions_dir.iterdir()
         if f.is_file() and f.suffix == ".py"
     )
-    expected = {"__init__.py", "protocol.py", "router.py"}
+    expected = {"__init__.py", "protocol.py", "router.py", "semantic.py"}
     return set(flat) == expected, f"{flat}"
 
 
@@ -385,6 +389,54 @@ def check_protocol_freshness():
     return True, f"{total} protocols, all reviewed within {STALE_DAYS}d"
 
 
+def check_embeddings_fresh():
+    """The on-disk semantic-routing embeddings must match current sources.
+
+    Re-runs the source-hash computation from scripts/build_embeddings.py
+    and compares it to the hash stamped in _embeddings_meta.json. Stale
+    embeddings cause silent semantic-routing misses (a freshly-added
+    protocol won't be in the index, a renamed protocol points at thin
+    air). Refusing to ship on staleness is the right default.
+
+    Fix when this fails:
+        python scripts/build_embeddings.py
+    """
+    embeds_npz = PROTOCOLS_DIR / "_embeddings.npz"
+    embeds_meta = PROTOCOLS_DIR / "_embeddings_meta.json"
+    if not embeds_npz.exists() or not embeds_meta.exists():
+        return False, (
+            "missing _embeddings.npz / _embeddings_meta.json — run "
+            "`python scripts/build_embeddings.py`"
+        )
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        import importlib
+        be = importlib.import_module("build_embeddings")
+    except Exception as exc:
+        return False, f"failed to import scripts/build_embeddings.py: {exc}"
+    import json
+    protocol_docs = be._load_protocols()
+    tool_docs = be._load_tools()
+    src_hash = be._source_hash(protocol_docs, tool_docs)
+    try:
+        meta = json.loads(embeds_meta.read_text())
+    except Exception as exc:
+        return False, f"could not parse _embeddings_meta.json: {exc}"
+    if meta.get("source_hash") != src_hash:
+        return False, (
+            f"STALE — source hash drifted. "
+            f"Rebuild: python scripts/build_embeddings.py "
+            f"(on-disk={meta.get('source_hash', '?')[:12]}…, "
+            f"now={src_hash[:12]}…)"
+        )
+    if meta.get("model") != be.MODEL_NAME or meta.get("schema_version") != be.SCHEMA_VERSION:
+        return False, "model / schema_version drift — rebuild"
+    return True, (
+        f"{meta.get('n_protocols')} protocols + {meta.get('n_tools')} tools "
+        f"({meta.get('model')}, dim={meta.get('dim')})"
+    )
+
+
 def check_scaffold_smoke():
     """Scaffold a temp workspace + verify the minimum files appear."""
     import tempfile
@@ -446,6 +498,7 @@ def main() -> int:
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
+    tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
 
     print()

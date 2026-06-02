@@ -27,7 +27,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 3
+version: 4
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -91,6 +91,15 @@ hierarchy:
       eval_design:  "Design the train/val/test split, CV, metrics, comparison test"
       sweep:        "Design a hyperparameter sweep (search space, budget, strategy)"
       ethics:       "Data ethics review (IRB / privacy / consent / fairness)"
+      dmp:          "Data Management Plan (funder-compliant, FAIR-aligned)"
+      multiplicity: "Multiple-comparisons / multiplicity correction strategy"
+      qual_design:  "Pre-collection qualitative — interview / topic guide"
+      qual_coding:  "Codebook / coding-scheme development for qualitative data"
+      irr:          "Inter-rater reliability design + computation"
+      survey_design: "Pre-collection survey / questionnaire instrument design"
+      fairness:     "Fairness audit for ML / decision systems"
+      bootstrap:    "Bootstrap / resampling design"
+      uq:           "Uncertainty quantification + calibration"
   literature:
     label: "Literature search + synthesis"
     sub_intents:
@@ -122,6 +131,9 @@ hierarchy:
       figure_arc: "Order figures across a paper / talk / poster"
       a11y:      "Color-blind + WCAG accessibility audit"
       end_matter: "Data / code availability + CRediT + funding + COI + ack"
+      venue:     "Journal / venue selection + fit assessment"
+      outline:   "Manuscript outline + narrative arc (pre-draft)"
+      defense:   "Defense / talk Q&A preparation"
   audit_wrap:
     label: "Audit + reproducibility"
     sub_intents:
@@ -472,6 +484,22 @@ protocols:
                "freeze the methods", "lock the methods"]
     shortcut_tool: tool_preregister_freeze
 
+  methodology/data_management_plan:
+    intent_class: methodology
+    sub_intent: dmp
+    summary: "Funder-compliant Data Management Plan (NIH DMSP, NSF, Wellcome, ERC) with FAIR alignment."
+    triggers: ["dmp", "data management plan", "data sharing plan",
+               "dmsp", "fair plan", "data management",
+               "data sharing requirement"]
+
+  methodology/multiple_comparisons:
+    intent_class: methodology
+    sub_intent: multiplicity
+    summary: "Pick FWER vs FDR and the correction method per hypothesis family."
+    triggers: ["multiple comparisons", "multiple testing", "multiplicity",
+               "bonferroni", "fdr", "benjamini-hochberg", "holm",
+               "family-wise error", "alpha spending", "gatekeeping"]
+
   methodology/causal_inference_deep:
     intent_class: methodology
     sub_intent: causal
@@ -513,6 +541,38 @@ protocols:
     triggers: ["interviews", "thematic", "qualitative", "coding", "coreq",
               "srqr", "grounded theory", "ethnography", "focus group",
               "open coding", "axial coding"]
+
+  methodology/interview_guide_design:
+    intent_class: methodology
+    sub_intent: qual_design
+    summary: "Design the interview / topic guide before qualitative data collection."
+    triggers: ["interview guide", "topic guide", "discussion guide",
+               "interview script", "questions to ask participants",
+               "interview protocol", "focus group guide"]
+
+  methodology/coding_scheme_development:
+    intent_class: methodology
+    sub_intent: qual_coding
+    summary: "Build + iterate the qualitative codebook before full coding."
+    triggers: ["codebook", "coding scheme", "code definitions",
+               "coding manual", "develop codes", "design codebook"]
+
+  methodology/inter_rater_reliability:
+    intent_class: methodology
+    sub_intent: irr
+    summary: "Design + compute + report inter-rater reliability (kappa / alpha / ICC)."
+    triggers: ["inter-rater", "inter-coder", "irr", "kappa",
+               "krippendorff", "alpha", "icc", "agreement",
+               "annotation reliability", "rater agreement"]
+
+  methodology/survey_design:
+    intent_class: methodology
+    sub_intent: survey_design
+    summary: "Design / draft a new survey instrument before collecting data."
+    triggers: ["design a survey", "build a questionnaire",
+               "instrument development", "draft items", "likert",
+               "questionnaire design", "cognitive interview",
+               "pilot survey", "new survey"]
 
   methodology/simulation_studies:
     intent_class: methodology
@@ -569,6 +629,32 @@ protocols:
     triggers: ["time series", "timeseries", "forecasting", "forecast",
                "arima", "ets", "state-space", "kalman", "prophet",
                "interrupted time series", "structural break"]
+
+  methodology/fairness_audit:
+    intent_class: methodology
+    sub_intent: fairness
+    summary: "Group / intersectional fairness audit for ML + decision systems."
+    triggers: ["fairness", "bias audit", "disparate impact",
+               "demographic parity", "equalized odds", "equalised odds",
+               "equal opportunity", "calibration across groups",
+               "model card", "fair ml", "algorithmic fairness"]
+
+  methodology/bootstrapping_design:
+    intent_class: methodology
+    sub_intent: bootstrap
+    summary: "Pick resampling scheme + interval method + B for non-parametric inference."
+    triggers: ["bootstrap", "resample", "permutation test",
+               "jackknife", "block bootstrap", "wild bootstrap",
+               "bca", "stationary bootstrap", "cluster bootstrap"]
+
+  methodology/uncertainty_quantification:
+    intent_class: methodology
+    sub_intent: uq
+    summary: "Calibrated predictive uncertainty (conformal / temperature / quantile / ensemble)."
+    triggers: ["uncertainty quantification", "uq", "calibration",
+               "predictive interval", "conformal", "reliability diagram",
+               "brier score", "ece", "platt scaling", "isotonic",
+               "temperature scaling", "deep ensemble", "mc dropout"]
 
   literature/literature_search:
     intent_class: literature
@@ -638,6 +724,31 @@ protocols:
 # ─────────────────────────────────────────────────────────────────────
 # SYNTHESIS — final deliverables
 # ─────────────────────────────────────────────────────────────────────
+
+  synthesis/manuscript_outline:
+    intent_class: synthesize
+    sub_intent: outline
+    summary: "Outline + storyboard the paper BEFORE drafting (figures-first narrative)."
+    triggers: ["outline the paper", "narrative arc", "story board",
+               "storyboard the figures", "what's the headline",
+               "plan the paper", "paper outline", "manuscript outline"]
+
+  synthesis/journal_selection:
+    intent_class: synthesize
+    sub_intent: venue
+    summary: "Compare 3-5 candidate venues on scope / evidence / cost / timeline / open-science fit."
+    triggers: ["where should i submit", "journal selection",
+               "target journal", "target venue", "venue selection",
+               "is this nature material", "pick a journal", "fit the journal",
+               "conference deadline", "journal fit"]
+
+  synthesis/defense_prep:
+    intent_class: synthesize
+    sub_intent: defense
+    summary: "Anticipate + rehearse Q&A for dissertation defense / job talk / high-stakes talk."
+    triggers: ["defense", "defence", "thesis defense", "job talk",
+               "q&a prep", "anticipate questions", "tough questions",
+               "what will the committee ask", "rehearse questions"]
 
   synthesis/synthesis_paper:
     intent_class: synthesize
