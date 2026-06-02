@@ -211,7 +211,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_route": {
         "short": "Prompt → protocol + decomposition. Call after every researcher message.",
-        "description": "Hierarchical L1→L2→L3 picker. Returns primary_protocol, shortcut_tool, decomposition, complexity, ask_user, alternatives. High-complexity prompts get an active_plan persisted to .os_state/. See guidance/iterative_planning for the workflow.",
+        "description": "Hybrid router. Tries SEMANTIC search first (embeddings cosine over protocol descriptions + triggers) — best for fuzzy intent + as the protocol catalog grows. Falls back to the hierarchical L1→L2→L3 trigger picker when semantic confidence is low / unavailable. Returns primary_protocol, shortcut_tool, decomposition, complexity, ask_user, alternatives, method (=semantic|trigger), confidence (=high|medium|low|none). High-complexity prompts get an active_plan persisted to .os_state/.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -220,6 +220,32 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "persist_plan": {"type": "boolean"},
             },
             "required": ["prompt"],
+        },
+    },
+    "tool_semantic_route": {
+        "short": "Direct semantic search over protocol embeddings. Returns top-k candidates with scores.",
+        "description": "Embed the prompt with BAAI/bge-small-en-v1.5 (local ONNX, no network) and return the top-k protocols by cosine similarity, with the length-weighted trigger-phrase boost applied. Use this when you want to SEE the ranked candidates yourself — tool_route picks a primary; tool_semantic_route surfaces the alternatives so you can route deliberately. Requires the `semantic` extra (`pip install 'research-os[semantic]'`); falls back to status='unavailable' otherwise.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "prompt": {"type": "string"},
+                "top_k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
+            },
+            "required": ["prompt"],
+        },
+    },
+    "sys_semantic_tool_search": {
+        "short": "Find tools by what they do — semantic search over tool descriptions.",
+        "description": "Given a natural-language description of what you want to do (e.g. 'compute kappa for inter-rater agreement on transcript codes'), return the top-k matching tool names ranked by semantic similarity to each tool's short + description + category. Useful when sys_active_tools doesn't surface the right tool because the active protocol's decomposition is narrow. Requires the `semantic` extra; falls back to status='unavailable' otherwise.",
+        "category": "system",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "top_k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 25},
+            },
+            "required": ["query"],
         },
     },
     "tool_plan_advance": {
@@ -315,7 +341,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_list": {
-        "description": "List every available protocol with a one-line summary.",
+        "short": "Full catalog dump (~100+ items). Prefer tool_route / tool_semantic_route — semantic routing scales as the catalog grows.",
+        "description": "Returns every protocol name + one-line summary. Designed for debugging + maintainer browsing; not the primary entrypoint at runtime. For routing a user prompt, call tool_route (hybrid semantic + trigger). For inspecting ranked alternatives, call tool_semantic_route. For finding tools by what they do, call sys_semantic_tool_search. As the catalog grows beyond ~150 protocols, dumping the full list every turn wastes context — semantic retrieval is the AI-friendly path.",
         "category": "protocol",
         "inputSchema": {"type": "object", "properties": {}},
     },
@@ -2124,6 +2151,53 @@ def _handle_tool_route(name, arguments, root):
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "tool_route failed")))
+
+
+def _handle_tool_semantic_route(name, arguments, root):
+    from research_os.tools.actions import semantic
+
+    if not semantic.semantic_available():
+        return _text(_success({
+            "status": "unavailable",
+            "reason": (
+                "Semantic routing requires the `semantic` extra. "
+                "Install with: pip install 'research-os[semantic]' "
+                "and confirm protocols/_embeddings.npz is present "
+                "(run scripts/build_embeddings.py)."
+            ),
+            "fastembed_installed": semantic.fastembed_available(),
+            "embeddings_on_disk": semantic.embeddings_on_disk(),
+        }))
+    prompt = arguments["prompt"]
+    top_k = int(arguments.get("top_k") or 5)
+    matches = semantic.top_k_protocols(prompt, k=top_k)
+    payload = semantic.semantic_route(prompt, k=top_k) or {}
+    payload["status"] = "success"
+    payload["matches"] = [{"id": m.id, "score": round(m.score, 4)} for m in matches]
+    return _text(_success(payload))
+
+
+def _handle_sys_semantic_tool_search(name, arguments, root):
+    from research_os.tools.actions import semantic
+
+    if not semantic.semantic_available():
+        return _text(_success({
+            "status": "unavailable",
+            "reason": (
+                "Semantic tool search requires the `semantic` extra. "
+                "Install with: pip install 'research-os[semantic]'."
+            ),
+            "fastembed_installed": semantic.fastembed_available(),
+            "embeddings_on_disk": semantic.embeddings_on_disk(),
+        }))
+    query = arguments["query"]
+    top_k = int(arguments.get("top_k") or 5)
+    matches = semantic.top_k_tools(query, k=top_k)
+    return _text(_success({
+        "status": "success",
+        "query": query,
+        "matches": [{"name": m.id, "score": round(m.score, 4)} for m in matches],
+    }))
 
 
 def _handle_tool_plan_advance(name, arguments, root):
@@ -4289,6 +4363,8 @@ _HANDLERS = {
     # routing (call these first)
     "sys_boot": _handle_sys_boot,
     "tool_route": _handle_tool_route,
+    "tool_semantic_route": _handle_tool_semantic_route,
+    "sys_semantic_tool_search": _handle_sys_semantic_tool_search,
     "tool_plan_advance": _handle_tool_plan_advance,
     "tool_plan_turn": _handle_tool_plan_turn,
     "tool_plan_clear": _handle_tool_plan_clear,

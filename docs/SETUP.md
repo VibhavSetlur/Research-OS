@@ -270,11 +270,26 @@ Power-user tips for the prompt:
 ## 6. Researcher configuration
 
 `inputs/researcher_config.yaml` is auto-created. **Every field is
-optional** — blank fields get sensible defaults applied silently.
+optional** — blank fields get sensible defaults applied silently. The
+file tells the AI **who it's working with** and **how you want it to
+behave**. Domain / research question / hypotheses are NOT here — drop
+data into `inputs/` and say "fill out the intake"; the AI writes those
+to `inputs/intake.md` + `docs/research_overview.md`.
 
-The minimal useful subset:
+The minimal useful subset (ordered most → least important):
 
 ```yaml
+researcher:
+  name: ""                         # who AI is talking to
+  institution: ""
+  orcid: ""
+
+project_name: ""                   # blank → uses directory name
+
+research_goal:
+  output_types: []                 # paper | abstract | poster | dashboard | report | exploratory
+  target_venue: ""
+
 interaction:
   autonomy_level: "supervised"     # manual | supervised | autopilot
 
@@ -285,6 +300,33 @@ runtime:
 ```
 
 Full schema: [RESEARCHER_GUIDE.md § 8](RESEARCHER_GUIDE.md#8-configuration-inputsresearcher_configyaml).
+
+### Pick the right `model_profile` for your AI
+
+**This is the most important knob if you're not on a frontier model.**
+The default is `medium` — change it the first time you set up if your
+AI doesn't match.
+
+| Set `model_profile:` to | If your IDE is using… |
+|---|---|
+| `small` | Claude **Haiku 4.5**, GPT-4o-mini, Gemini 2.5 Flash, Llama 3.3-70B, Mistral, Phi-4, any local model |
+| `medium` *(default)* | Claude **Sonnet 4.5 / 4.6**, GPT-4o / GPT-4.1, Gemini 2.5 Pro, Llama 4 Maverick |
+| `large` | Claude **Opus 4.x**, GPT-5 / o-series, Gemini 3 Pro |
+
+What it actually changes:
+
+* `small`  → 1 step/turn, summary-only protocol loads, prefers shortcut
+  tools, skips optional audits. Designed to keep context lean.
+* `medium` → 3 steps/turn, summary loads with drill-down, full audits.
+* `large`  → 6 steps/turn, can pull full protocol loads, deeper
+  multi-step plans.
+
+Symptoms that mean you picked wrong:
+
+* AI **runs out of context** mid-plan → drop to `small`.
+* AI **hands off after every step** when you'd expect more progress →
+  bump to `medium` or `large`.
+* AI **skips an audit you wanted** → bump up.
 
 ### API keys (optional)
 

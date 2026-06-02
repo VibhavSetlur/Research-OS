@@ -1,6 +1,6 @@
 # Tool Catalog
 
-**143 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
+**145 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
 Names use underscores; dot notation (`sys.state.get`) and a small set
 of legacy aliases (e.g. `tool_audit_statistical_power` →
 `tool_audit_power`) auto-rewrite. `sys_tool_describe(name)` returns the
@@ -121,7 +121,7 @@ the router picks one for you.
 | `tool_data_sample` | Head / random / tail sample. |
 | `tool_data_profile` | Schema + dtypes + missingness + descriptive stats + suggestions. |
 | `tool_data_convert` | CSV ↔ Parquet ↔ Feather ↔ RDS. |
-| `tool_intake_autofill` | Read inputs/, infer domain + question + hypotheses, fill researcher_config blanks. |
+| `tool_intake_autofill` | Read inputs/, infer domain + question + hypotheses, write to `inputs/intake.md` + `docs/research_overview.md` + `.os_state/state.json`. |
 | `tool_context_intake` | Route mid-flow file drops into the right `inputs/` subfolder. Skips scaffold files. |
 
 ### Audit

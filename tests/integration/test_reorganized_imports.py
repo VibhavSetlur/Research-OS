@@ -124,13 +124,16 @@ def test_subpackage_imports():
 
 
 def test_top_level_actions_namespace_is_minimal():
-    """Only protocol.py + router.py + __init__.py live at the top.
+    """Tightly allowlisted top-level modules at tools/actions/.
 
-    protocol.py is the YAML loader (touches every category). router.py
-    holds sys_boot + tool_route + active-plan persistence (also
-    cross-cutting). Anything else MUST be moved into the appropriate
-    subpackage (state/, data/, exec/, search/, research/, audit/,
-    synthesis/, memory/)."""
+    These are the cross-cutting modules that touch every category and
+    would create a circular sub-package if nested:
+      - protocol.py — YAML loader + protocol-completion injector
+      - router.py   — sys_boot + tool_route + trigger-based hierarchy
+      - semantic.py — embedding-based semantic router (sibling of router)
+
+    Anything else MUST be moved into the appropriate subpackage (state/,
+    data/, exec/, search/, research/, audit/, synthesis/, memory/)."""
     from pathlib import Path
 
     actions_dir = (
@@ -141,7 +144,9 @@ def test_top_level_actions_namespace_is_minimal():
         f.name for f in actions_dir.iterdir()
         if f.is_file() and f.suffix == ".py"
     )
-    assert flat_py_files == ["__init__.py", "protocol.py", "router.py"], (
+    assert flat_py_files == [
+        "__init__.py", "protocol.py", "router.py", "semantic.py",
+    ], (
         f"Unexpected flat .py files in tools/actions/: {flat_py_files}. "
         "Move them into the right subpackage."
     )

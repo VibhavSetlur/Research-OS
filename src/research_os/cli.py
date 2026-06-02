@@ -258,6 +258,7 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
         "research_questions": list(getattr(r, "questions", []) or []),
         "authors": [author.as_dict()],
         "api_keys": dict(getattr(r, "api_keys", {}) or {}),
+        "model_profile": getattr(r, "model_profile", "medium"),
     }
     scaffold_minimal_workspace(
         target_dir,

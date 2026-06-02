@@ -1,8 +1,12 @@
 """Researcher config — read/write/validate ``inputs/researcher_config.yaml``.
 
-This file is the source of truth for how the AI behaves in the workspace.
-The config is created on init via ``init_config`` and edited by the researcher
-(or by the AI on the researcher's behalf during ``project_startup``).
+This file is the source of truth for who the AI is working with + how it
+should behave in the workspace. Domain / research question / hypotheses
+do NOT live here — they're inferred from inputs/ by ``tool_intake_autofill``
+and written to ``inputs/intake.md`` + ``docs/research_overview.md``.
+
+The config is created on init via ``init_config`` and edited by the
+researcher (or by the AI on the researcher's behalf via ``sys_config_set``).
 """
 
 from __future__ import annotations
@@ -20,29 +24,30 @@ logger = logging.getLogger("research_os.tools.config")
 
 CONFIG_TEMPLATE = """# Research OS — Researcher Configuration
 #
-# Source of truth for AI behaviour in this workspace.
+# Tells the AI who it's working with and how you want it to behave.
 # Research OS does NOT manage LLM providers — your AI client (Claude Code /
 # OpenCode / Antigravity / Cursor / Claude / VS Code) handles model access.
 #
-# EVERY field below is OPTIONAL. Leave anything blank — the AI will infer or
-# ask. The most common workflow is: drop data + notes into inputs/ and say
-# "fill out the intake" to the AI. It will populate the rest.
+# EVERY field below is OPTIONAL, but the more you fill in here, the better
+# the AI orients. Domain / research question / hypotheses are NOT in this
+# file — drop data + notes into inputs/ and say "fill out the intake" to
+# the AI; it writes those to inputs/intake.md and docs/research_overview.md.
 
-# ── Project (blank is fine — AI infers from inputs/) ────────────────────
-project_name: "{project_name}"
-research_question: ""            # blank → AI proposes from inputs/context
-domain: ""                       # blank → AI classifies from inputs/raw_data
-hypotheses: []                   # list, free-form — AI tracks them across steps
-
-# ── Researcher (blank is fine) ──────────────────────────────────────────
+# ── Who you are ─────────────────────────────────────────────────────────
 researcher:
   name: ""
-  field: ""                      # blank → AI infers from data + context
-  expertise_level: ""            # blank → AI starts at "intermediate"; bumps
-                                 #         after observing the conversation
-                                 # explicit values: beginner | intermediate | advanced | pi
   institution: ""
   orcid: ""
+  email: ""
+
+# ── This project ────────────────────────────────────────────────────────
+project_name: "{project_name}"
+
+# ── What you want to produce (blank = AI suggests; start exploratory) ───
+research_goal:
+  output_types: []               # any of: paper | abstract | poster | dashboard | report | exploratory
+  target_venue: ""               # journal | conference | preprint | dissertation | report
+  poster_dimensions: "36x48"
 
 # ── How the AI should behave ────────────────────────────────────────────
 interaction:
@@ -68,11 +73,23 @@ interaction:
   #                        and surfaces it in the conclusion for review.
   ambiguity_posture: "ask_when_uncertain"
 
-# ── Model profile (controls protocol verbosity + reasoning depth) ───────
+# ── Match the AI model class running in your IDE ────────────────────────
+#
+# The single most important knob if you're not on a frontier model.
+#   small  → 1 step/turn, summary-only protocol loads, skip optional
+#            sub-sections. Pick for: Claude Haiku 4.5, GPT-4o-mini,
+#            Gemini 2.5 Flash, Llama 3.3, Mistral, Phi-4, local models.
+#   medium → 3 steps/turn, summary loads with on-demand drill-down.
+#            Pick for: Claude Sonnet 4.5/4.6, GPT-4o/4.1, Gemini 2.5 Pro,
+#            Llama 4 Maverick.
+#   large  → 6 steps/turn, full protocol loads when useful, deeper plans.
+#            Pick for: Claude Opus 4.x, GPT-5/o-series, Gemini 3 Pro.
 model_profile: "medium"          # small | medium | large
-# small  → terser tool descriptions, max 1-2 steps/turn, ask often.
-# medium → standard.
-# large  → can plan multi-step work; reasons over more sources at once.
+
+# ── Writing preferences ─────────────────────────────────────────────────
+writing_preferences:
+  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
+  language: "en-US"
 
 # ── Compute environment ─────────────────────────────────────────────────
 runtime:
@@ -80,18 +97,6 @@ runtime:
                                  #        and warns before heavy memory/CPU bursts.
   long_running_threshold_seconds: 60   # jobs longer than this prefer background.
   default_n_for_sampling: 1000   # default head-sample for tabular exploration.
-
-# ── What you want to produce (blank = AI suggests; start exploratory) ───
-research_goal:
-  output_types: []               # any of: paper | abstract | poster | dashboard | report | exploratory
-  target_venue: ""               # journal | conference | preprint | dissertation | report
-  reporting_standard: ""         # auto-filled by domain_analysis
-  poster_dimensions: "36x48"
-
-# ── Writing preferences ─────────────────────────────────────────────────
-writing_preferences:
-  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
-  language: "en-US"
 
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
@@ -189,7 +194,7 @@ def get_config(root: Path) -> dict[str, Any]:
 
 
 def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
-    """Set a single config value with dot notation (e.g. researcher.expertise_level)."""
+    """Set a single config value with dot notation (e.g. researcher.name)."""
     try:
         cfg_path = _config_path(root)
         config = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
@@ -212,7 +217,12 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
 
 
 def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
-    """Create ``inputs/researcher_config.yaml`` if missing, then merge overrides."""
+    """Create ``inputs/researcher_config.yaml`` if missing, then merge overrides.
+
+    Domain / research question / hypotheses are NOT persisted here — the
+    caller (``scaffold_minimal_workspace`` → ``regenerate_intake``) writes
+    those to ``inputs/intake.md`` instead.
+    """
     overrides = overrides or {}
     cfg_path = _config_path(root)
     already_exists = cfg_path.exists()
@@ -221,8 +231,6 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
         cfg_path.write_text(
             CONFIG_TEMPLATE.format(
                 project_name=overrides.get("project_name", ""),
-                research_question=overrides.get("research_question", ""),
-                domain=overrides.get("domain", ""),
             )
         )
 
@@ -231,18 +239,6 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
             config = yaml.safe_load(cfg_path.read_text()) or {}
             if overrides.get("project_name"):
                 config["project_name"] = overrides["project_name"]
-            if overrides.get("domain"):
-                config["domain"] = overrides["domain"]
-            if overrides.get("research_question"):
-                config["research_question"] = overrides["research_question"]
-            # Multi-question: write a `research_questions:` list AND mirror
-            # the first into the singular field so older protocols keep working.
-            if overrides.get("research_questions"):
-                qs = [q for q in overrides["research_questions"] if q.strip()]
-                if qs:
-                    config["research_questions"] = qs
-                    if not config.get("research_question"):
-                        config["research_question"] = qs[0]
             # Multi-researcher: append authors to a top-level list, deduplicated.
             if overrides.get("authors"):
                 existing = config.get("authors") or []
@@ -261,6 +257,8 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                 config["authors"] = existing
             if overrides.get("depth"):
                 config.setdefault("research_goal", {})["target_venue"] = overrides["depth"]
+            if overrides.get("model_profile") in ("small", "medium", "large"):
+                config["model_profile"] = overrides["model_profile"]
             # API keys: merge non-empty values into the api_keys: block.
             if overrides.get("api_keys"):
                 api_keys_in = overrides["api_keys"]
@@ -302,7 +300,7 @@ def validate_config(root: Path) -> dict[str, Any]:
 
     required_paths = [
         ("project_name", config.get("project_name")),
-        ("researcher.expertise_level", (config.get("researcher") or {}).get("expertise_level")),
+        ("researcher.name", (config.get("researcher") or {}).get("name")),
         ("interaction.autonomy_level", (config.get("interaction") or {}).get("autonomy_level")),
         ("model_profile", config.get("model_profile")),
         ("research_goal.output_types", (config.get("research_goal") or {}).get("output_types")),

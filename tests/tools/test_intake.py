@@ -2,7 +2,7 @@
 
 import yaml
 
-from research_os.project_ops import scaffold_minimal_workspace
+from research_os.project_ops import load_state, scaffold_minimal_workspace
 from research_os.tools.actions.data.intake import intake_autofill
 
 
@@ -16,9 +16,12 @@ def test_intake_autofill_with_only_data(tmp_path):
     res = intake_autofill(tmp_path)
     assert res["status"] == "success"
     assert res["proposed_domain"] == "clinical"
-    cfg = yaml.safe_load((tmp_path / "inputs" / "researcher_config.yaml").read_text())
-    assert cfg["domain"] == "clinical"
-    # research_overview.md is created LAZILY by intake_autofill (not at init).
+    # Domain + research_question are persisted to STATE (and intake.md /
+    # research_overview.md) — NOT to researcher_config.yaml. The config
+    # is for who-and-how (researcher / interaction / model_profile);
+    # domain / question are content the AI infers from inputs/.
+    state = load_state(tmp_path)
+    assert state.get("domain") == "clinical"
     rq_path = tmp_path / "docs" / "research_overview.md"
     assert rq_path.exists(), "intake_autofill should write research_overview.md"
     rq = rq_path.read_text()
@@ -47,19 +50,23 @@ def test_intake_autofill_blank_inputs(tmp_path):
     assert res["proposed_domain"] in {"general", "clinical", "epidemiology", "nlp"}
 
 
-def test_intake_autofill_respects_existing_config(tmp_path):
+def test_intake_autofill_respects_existing_state(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Test")
-    cfg_path = tmp_path / "inputs" / "researcher_config.yaml"
-    cfg = yaml.safe_load(cfg_path.read_text())
-    cfg["domain"] = "my_custom_domain"
-    cfg_path.write_text(yaml.dump(cfg, sort_keys=False))
+    # Pre-set a domain in STATE (this is where intake persists it now,
+    # not researcher_config.yaml).
+    from research_os.project_ops import save_state
+    state = load_state(tmp_path)
+    state["domain"] = "my_custom_domain"
+    save_state(tmp_path, state)
 
     (tmp_path / "inputs" / "raw_data").mkdir(parents=True, exist_ok=True)
     (tmp_path / "inputs" / "raw_data" / "trial.csv").write_text(
         "patient_id,treatment\n1,A\n"
     )
     res = intake_autofill(tmp_path)
-    # Without overwrite=True, existing domain is preserved.
-    cfg2 = yaml.safe_load(cfg_path.read_text())
-    assert cfg2["domain"] == "my_custom_domain"
-    assert "domain" not in res["config_fields_updated"]
+    # Without overwrite=True, the existing domain in state is preserved.
+    # The autofill may still propose a domain (returned for review) but
+    # must not overwrite the persisted value.
+    state2 = load_state(tmp_path)
+    assert state2.get("domain") == "my_custom_domain"
+    assert res.get("status") == "success"

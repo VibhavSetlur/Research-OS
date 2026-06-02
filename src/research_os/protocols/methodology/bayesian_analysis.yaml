@@ -1,6 +1,7 @@
 id: bayesian_analysis
 name: Bayesian Analysis Workflow
-version: '1.1.0'
+version: '1.2.0'
+last_reviewed: '2026-06-02'
 schema_version: '2.0'
 description: |
   A first-class Bayesian workflow following Gelman et al.'s Bayesian
@@ -79,37 +80,68 @@ steps:
   - id: fit
     name: Fit the posterior
     description: |
-      Choose an inference algorithm appropriate for the model:
-        - HMC / NUTS (Stan, PyMC, NumPyro) — default for
-          continuous parameter spaces.
-        - Variational inference — only when HMC is too expensive
-          AND the posterior is unimodal-ish.
-        - ABC / SMC — for likelihood-free settings.
+      Pick an inference algorithm by reasoning about the model:
 
-      Run at least 4 chains, ≥1000 warmup + 1000 sampling
-      iterations as a starting point. The diagnostics below tell
-      you whether more is needed.
+        - LIKELIHOOD AVAILABILITY — closed-form likelihood vs
+          likelihood-free (simulator-based).
+        - PARAMETER SPACE — continuous, discrete, mixed; bounded
+          or unbounded; high-dimensional.
+        - POSTERIOR SHAPE — unimodal vs multimodal; well-conditioned
+          vs funnel; heavy tails.
+        - COMPUTATIONAL BUDGET — minutes vs days; single fit vs
+          repeated fits (cross-validation, sensitivity).
+        - REQUIRED OUTPUT — point summaries (variational often
+          sufficient) vs full posterior (HMC / NUTS / SMC) vs
+          model comparison (bridge sampling, SMC).
+
+      Common choices given the reasoning above (cite the reference
+      for the algorithm in methods.md):
+        - HMC / NUTS (Stan, PyMC, NumPyro, Turing) — strong default
+          for continuous, well-conditioned posteriors.
+        - Variational inference (ADVI, normalizing flows) — when
+          posterior summaries are sufficient and HMC is too costly.
+        - SMC (sequential Monte Carlo) — for multimodal posteriors
+          or model evidence estimation.
+        - ABC / likelihood-free — when the simulator is the model.
+        - Gibbs / Metropolis-Hastings — for discrete parameter
+          spaces or conjugate sub-structures.
+
+      Chain count, warmup, and post-warmup iteration counts are
+      field + model conventions. Common starting points are 4
+      chains with warmup + post-warmup of order a few thousand
+      iterations each; verify against the diagnostics below and
+      scale up when they fail. Do not lock to a single chain /
+      iteration template.
 
   - id: diagnostics
     name: MCMC diagnostics (BEFORE looking at the posterior)
     description: |
       The diagnostic gate is strict because looking at the
-      posterior before diagnostics is asking to be biased by it:
-        - R-hat (Gelman-Rubin) — target ≤ 1.01 for every parameter.
-          R-hat > 1.05 = stop and investigate.
-        - Effective sample size (ESS bulk + ESS tail) — target
-          ≥ 400 for inferential parameters.
-        - Divergences (HMC/NUTS) — zero is the target; any
-          divergence demands investigation (reparameterise,
-          tighten the prior, increase `adapt_delta`).
-        - Energy-fraction (E-BFMI) — values < 0.3 = poor mixing
-          in the energy dimension.
-        - Trace plots — visual check for stuck or wandering chains.
+      posterior before diagnostics biases the analysis. Run + report:
 
-      Persist diagnostics into
+        - R-hat (Gelman-Rubin or split-R-hat per Vehtari et al. 2021):
+          values close to 1 indicate convergence; values that
+          remain above the field-accepted threshold (commonly 1.01
+          in modern reporting; some older work uses 1.1) indicate
+          non-convergence. Cite which threshold + reference is used.
+        - Effective sample size (ESS bulk + ESS tail): high enough
+          that posterior quantile estimates are stable. Field
+          conventions suggest several hundred per parameter for
+          point summaries, more for tail quantiles; cite the
+          source.
+        - Divergences (HMC / NUTS): non-zero divergences indicate
+          the sampler missed parts of the posterior; investigate
+          via pair plots, reparameterisation, tighter priors,
+          increased adapt_delta.
+        - Energy-fraction (E-BFMI): low values indicate poor
+          energy-level mixing; see Betancourt (2017).
+        - Trace plots + rank plots (Vehtari et al. 2021): visual
+          check for stuck, wandering, or mixing chains.
+
+      Persist diagnostics + the chosen thresholds + citations into
       `outputs/reports/posterior_diagnostics.md`. The audit gate
-      blocks downstream consumption of the posterior until
-      diagnostics pass.
+      blocks downstream consumption of the posterior until diagnostics
+      pass the pre-specified thresholds.
 
   - id: posterior_predictive_check
     name: Posterior predictive check

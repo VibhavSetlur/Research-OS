@@ -7,9 +7,12 @@ contribute changes that keep the surface small and the protocols sharp.
 
 The AI IDE is the brain (Cursor / Claude Code / Claude Desktop /
 OpenCode / Antigravity / VS Code / Windsurf / Continue / Aider).
-Research OS is the body: 143 MCP tools and 88 YAML protocols, plus a
-hierarchical L1 → L2 → L3 router that turns a user prompt into a
-protocol pick + planned tool sequence without loading every YAML. It
+Research OS is the body: 145 MCP tools and 100 YAML protocols, plus a
+**hybrid semantic + trigger router** that turns a user prompt into a
+protocol pick + planned tool sequence without the AI ever loading the
+trigger index itself. The semantic path uses local BGE-small ONNX
+embeddings (no network, no LLM API keys, optional `[semantic]` extra);
+the trigger path serves as the deterministic fallback. The system also
 enforces immutability (`inputs/raw_data/`, `inputs/literature/`) and
 provenance (`workspace/methods.md`, `workspace/analysis.md`,
 `.os_state/protocol_execution_log.jsonl`, `.os_state/active_plan.json`).
@@ -30,9 +33,11 @@ cd Research-OS
 git checkout dev                      # work happens on dev
 pip install -e ".[ci,dev]"            # lean install used by CI
 # or pip install -e ".[all,dev]"      # everything except R / Julia / Docker
-pytest                                # ~418 tests, ~13s
+pytest                                # 438+ tests, ~12s
 ruff check src/ tests/ scripts/
-python scripts/preflight.py           # 13 wiring checks
+python scripts/preflight.py           # 14 wiring checks (incl. embedding freshness)
+# After editing any protocol YAML or tool definition:
+python scripts/build_embeddings.py    # rebuilds protocols/_embeddings.npz
 ```
 
 ## Branch model

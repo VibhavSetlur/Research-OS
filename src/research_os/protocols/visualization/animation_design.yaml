@@ -1,0 +1,216 @@
+id: animation_design
+name: Animation Design (time-series, model behaviour, talks)
+version: '1.2.1'
+schema_version: '2.0'
+last_reviewed: '2026-06-02'
+description: |
+  Animation earns its place when CHANGE OVER TIME (or another
+  continuous parameter) IS the story — model training trajectory,
+  posterior evolution, epidemic spread, attention shifts, agent
+  paths through state space, simulation runs. Misused, it hides
+  data behind motion the audience can't pause; used well, it shows
+  what no static panel can.
+
+  Static-first principle: every animation must have a defensible
+  static-only fallback (small multiples, summary statistic over
+  time, key-frame highlights). If the static fallback already
+  tells the story, the animation is decoration. If it doesn't,
+  the animation earns its place.
+
+  References: Robertson et al. (2008) on animation vs small
+  multiples for trends; Heer & Robertson (2007) on animated
+  transitions; Tversky et al. (2002) on animation comprehension.
+
+trigger: |
+  Any of:
+    - researcher says "animate", "animation", "video", "gif",
+      "movie", "evolve", "trajectory over time", "training curve
+      animation", "rotating 3d", "talk video",
+    - the deliverable is a talk / slides where motion can
+      communicate (vs a journal paper where static is required),
+    - methodology/timeseries_analysis or simulation_studies has
+      run-by-run output that begs for an animated reveal.
+
+prerequisites:
+  - The data has a meaningful continuous dimension (time, epoch,
+    parameter sweep, agent step).
+  - The deliverable allows animated output (talk, dashboard, web
+    page). Static journals get the static fallback.
+
+editorial_voice:
+  rules:
+    - "Animation is for CONTINUOUS change the audience needs to
+       FEEL. For discrete comparison, small multiples win — a
+       reader can compare two panels side-by-side but cannot
+       compare a frame to a frame they saw 4 seconds ago."
+    - "Frame rate + duration are budgets. Sustained > 12 fps for
+       smooth motion; total length capped by audience patience
+       (15-30s for talks; ≤8s for autoplay on web). Slow when
+       precision matters; fast when only the shape matters."
+    - "Pause-on-key-frame is mandatory for talks. Don't autoplay
+       through a critical moment. Build the figure so the
+       presenter can stop on the most important frame and
+       interpret."
+    - "Static fallback is non-negotiable for any deliverable that
+       will be archived (journal supplement, paper appendix, slide
+       PDF). Animation that can't print loses half its audience."
+
+steps:
+  - id: pick_animated_variable
+    name: Pick what is animated (and what stays still)
+    description: |
+      Animation is one channel; it competes with size, colour,
+      position, etc. Pick what changes and what stays:
+
+        TIME — most common; data evolves frame-by-frame.
+        PARAMETER SWEEP — show model output as a hyperparameter
+          changes.
+        VIEWPOINT — rotate a 3D plot to reveal structure (UMAP /
+          PCA / molecular structures); see also
+          visualization/dimensionality_reduction_viz.
+        TRANSITION between two states — A → B animation with the
+          path made explicit (e.g. small-multiples staggered into
+          a single chart, then explode).
+        REVEAL — progressively add layers to a complex figure
+          (build the story step by step for a talk).
+
+      Document workspace/.animation/spec.md with the animated
+      variable + everything that stays fixed.
+
+  - id: justify_animation_over_small_multiples
+    name: Justify animation vs static small multiples
+    description: |
+      Sketch the small-multiples version of the same data: N panels
+      side-by-side, one per time step. Ask:
+        - does it convey the change WELL ENOUGH for the deliverable?
+        - is the eye saccade between panels easier than tracking a
+          moving element?
+
+      Research finding (Robertson et al. 2008): small multiples
+      often outperform animation for trend analysis tasks; animation
+      helps when the path / trajectory itself is the message.
+
+      If small multiples win, exit + route to
+      visualization/multi_panel_composition. If animation wins,
+      document WHY in spec.md.
+
+  - id: design_frame_sequence
+    name: Design the frame sequence + pacing
+    description: |
+      Capture in the spec:
+        - frame count + frame rate (fps) + total duration
+        - SCALES locked across frames (do NOT let axes auto-scale
+          frame-by-frame; the audience reads motion, not numbers,
+          if axes shift)
+        - any pause-on-key-frame instructions (for talks)
+        - colour mappings stable across frames (no flicker)
+        - the SINGLE most important frame (the headline)
+        - which frame appears on the static fallback
+
+      Auto-scaling axes is the most common rookie mistake — the
+      eye reads change in axis ticks as data change.
+
+  - id: implement_the_animation
+    name: Implement via the right library
+    description: |
+      Libraries (Python):
+        - matplotlib.animation.FuncAnimation → mp4 / gif (FFmpeg
+          required for mp4).
+        - plotly with frames= argument (interactive HTML; works in
+          dashboards).
+        - holoviews + bokeh (interactive web with slider).
+        - manim (3Blue1Brown's library — for didactic talk
+          animations of equations / geometry).
+        - bokeh + Server (interactive widget animations).
+
+      R: gganimate (declarative, ggplot-extending), magick (for
+      animated GIFs).
+
+      Web (top-tier):
+        - D3 + transition (canonical for publication / journalism)
+        - deck.gl animated layers (large-scale geospatial / 3D)
+        - Three.js + react-three-fiber for WebGL 3D scene
+          animations (molecular, neural-network architectures,
+          embeddings traversed in time)
+        - Lottie / Rive for hand-animated micro-interactions
+          (think "interactive Distill article")
+        - Vega-Lite signals for declarative-reactive transitions
+
+      For showcase-tier animations (paper landing pages, demos),
+      route to visualization/showcase_visualization. Don't ship
+      a low-fps matplotlib gif as "the animation" for a
+      conference demo.
+
+      The script must:
+        - set + record the RNG seed if any stochastic element
+        - render to mp4 (h264) + gif (with lower fps; ~10 fps and
+          loop) for embed contexts
+        - export the static fallback (the headline frame or
+          small-multiples) to PNG + SVG
+        - emit the standard sidecars + a .frames/ directory of
+          PNGs if downstream tools need them
+        - persist the spec.md hash so the audit can verify the
+          spec wasn't drift-edited.
+
+  - id: deliverable_integration
+    name: Wire the animation into the deliverable
+    description: |
+      For TALK SLIDES (synthesis_slides):
+        - embed mp4 (or animated gif as fallback)
+        - mark the slide as "click to play" rather than autoplay
+        - script a 2-sentence interpretation of the headline frame
+        - include the static fallback in the slide PDF export.
+
+      For DASHBOARDS (synthesis_dashboard):
+        - embed the interactive plotly / bokeh version
+        - include play/pause + a slider for scrubbing
+        - the static export of the dashboard should pick the
+          headline frame.
+
+      For TALKS WITH POSTER (synthesis_poster + companion video):
+        - QR code on the poster linking to the video
+        - poster shows static + URL.
+
+  - id: audit_for_talk_realism
+    name: Audit on a real screen / projector
+    description: |
+      Animation problems often only show on:
+        - projector at low brightness (subtle colour changes
+          disappear)
+        - the venue's screen aspect ratio
+        - low frame rate when the player is loaded
+        - autoplay disabled in some PDF viewers / web browsers
+
+      Test on the actual target environment + fall back gracefully.
+      For talks, the presenter should have a static slide as
+      "plan B" if the video doesn't play.
+
+  - id: caption_and_methods
+    name: Caption + methods entry
+    description: |
+      Caption must state:
+        - what is animated + what stays fixed
+        - time span / frame count / total duration / fps
+        - any pause / loop points (for self-running displays)
+        - the rendering library + version
+        - the URL of the static fallback in the supplement
+
+      mem_methods_append the animation choices + the rationale for
+      animation over small multiples.
+
+expected_outputs:
+  - workspace/.animation/spec.md
+  - workspace/<step>/outputs/figures/animation_<topic>.{mp4,gif}
+  - workspace/<step>/outputs/figures/animation_<topic>_static.{png,svg}
+  - workspace/<step>/outputs/figures/animation_<topic>.{caption.md,summary.md,prov.json}
+
+quality_bar:
+  animated_variable_explicit_and_justified: true
+  small_multiples_alternative_considered: true
+  axes_locked_across_frames: true
+  static_fallback_present: true
+  fps_and_duration_within_audience_budget: true
+  works_on_target_deliverable_environment: true
+
+next_protocol: visualization/figure_critique
+on_failure: visualization/multi_panel_composition

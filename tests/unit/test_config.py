@@ -39,15 +39,17 @@ class TestInitConfig:
         assert cfg["interaction"]["autonomy_level"] == "supervised"
 
     def test_overrides_apply(self, tmp_root):
+        # researcher_config.yaml now only holds the who-and-how (researcher
+        # / interaction / model_profile / api_keys). Project content like
+        # domain / research_question is persisted to state + intake.md by
+        # tool_intake_autofill, not to the config.
         init_config(tmp_root, overrides={
             "project_name": "Cohort 2024",
-            "domain": "clinical",
-            "research_question": "Does X help Y?",
+            "model_profile": "small",
         })
         cfg = yaml.safe_load((tmp_root / "inputs" / "researcher_config.yaml").read_text())
         assert cfg["project_name"] == "Cohort 2024"
-        assert cfg["domain"] == "clinical"
-        assert cfg["research_question"] == "Does X help Y?"
+        assert cfg["model_profile"] == "small"
 
     def test_permissions_are_600(self, tmp_root):
         init_config(tmp_root)
