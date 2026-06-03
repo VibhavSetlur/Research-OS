@@ -114,6 +114,64 @@ def _config_path(root: Path) -> Path:
     return root / "inputs" / "researcher_config.yaml"
 
 
+# ---------------------------------------------------------------------------
+# Cross-project profile (v1.3.0)
+# ---------------------------------------------------------------------------
+#
+# Researchers run `research-os init` repeatedly — once per project. Re-typing
+# name / email / ORCID / institution / API keys + writing_preferences for
+# every fresh project is friction worth removing. The cross-project profile
+# at ``$XDG_CONFIG_HOME/research-os/profile.yaml`` (default
+# ``~/.config/research-os/profile.yaml``) holds the researcher's defaults;
+# the wizard reads it as initial values, and writes it back when the
+# researcher opts in ("save my profile for future projects").
+#
+# Per-project ``inputs/researcher_config.yaml`` ALWAYS wins on conflict —
+# the profile is a starting point, not an override.
+
+
+def profile_path() -> Path:
+    """Return the cross-project profile path (XDG-compliant; default ~/.config)."""
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = Path(xdg) if xdg else (Path.home() / ".config")
+    return base / "research-os" / "profile.yaml"
+
+
+def load_profile() -> dict[str, Any]:
+    """Load the cross-project profile, or {} if absent / unreadable."""
+    p = profile_path()
+    if not p.exists():
+        return {}
+    try:
+        data = yaml.safe_load(p.read_text()) or {}
+        return data if isinstance(data, dict) else {}
+    except Exception as e:
+        logger.warning("Cross-project profile at %s unreadable: %s", p, e)
+        return {}
+
+
+def save_profile(profile: dict[str, Any]) -> dict[str, Any]:
+    """Persist the cross-project profile (chmod 600 — keys may be present)."""
+    p = profile_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(
+        "# Research OS — cross-project researcher profile.\n"
+        "# Read by `research-os init` as default values for every new\n"
+        "# project. Per-project inputs/researcher_config.yaml ALWAYS wins\n"
+        "# on conflict — this file is a starting point.\n"
+        "#\n"
+        "# Edit by hand, or run `research-os init` and answer 'yes' when\n"
+        "# the wizard asks whether to save your answers as defaults.\n\n"
+        + yaml.dump(profile, default_flow_style=False, sort_keys=False)
+    )
+    if os.name != "nt":
+        try:
+            os.chmod(p, 0o600)
+        except Exception:
+            pass
+    return {"status": "success", "profile_path": str(p)}
+
+
 VALID_GATE_POLICIES = ("enforce", "allow_override", "warn_only")
 VALID_AMBIGUITY_POSTURES = ("ask_when_uncertain", "take_best_default")
 
@@ -222,10 +280,16 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     Domain / research question / hypotheses are NOT persisted here — the
     caller (``scaffold_minimal_workspace`` → ``regenerate_intake``) writes
     those to ``inputs/intake.md`` instead.
+
+    v1.3.0: cross-project profile at ``~/.config/research-os/profile.yaml``
+    is loaded as the starting point — researcher.name / email / orcid /
+    institution / api_keys / writing_preferences seeded from there if
+    present. Per-project overrides still win on conflict.
     """
     overrides = overrides or {}
     cfg_path = _config_path(root)
     already_exists = cfg_path.exists()
+    profile = load_profile()
     if not already_exists:
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
         cfg_path.write_text(
@@ -233,6 +297,27 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                 project_name=overrides.get("project_name", ""),
             )
         )
+        # Seed researcher fields + api_keys + writing_preferences from the
+        # cross-project profile so a fresh init doesn't ask for the same
+        # things every time.
+        if profile:
+            try:
+                config = yaml.safe_load(cfg_path.read_text()) or {}
+                for top_key in ("researcher", "api_keys", "writing_preferences"):
+                    profile_block = profile.get(top_key)
+                    if isinstance(profile_block, dict):
+                        config_block = config.get(top_key) or {}
+                        for k, v in profile_block.items():
+                            if isinstance(v, str) and v.strip() and not (config_block.get(k) or "").strip():
+                                config_block[k] = v
+                        config[top_key] = config_block
+                if isinstance(profile.get("model_profile"), str):
+                    config["model_profile"] = profile["model_profile"]
+                cfg_path.write_text(
+                    yaml.dump(config, default_flow_style=False, sort_keys=False)
+                )
+            except Exception as e:
+                logger.warning("Failed to apply cross-project profile: %s", e)
 
     if overrides:
         try:
@@ -266,6 +351,14 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                     for k, v in api_keys_in.items():
                         if isinstance(v, str) and v.strip():
                             config.setdefault("api_keys", {})[k] = v.strip()
+            # v1.3.0: researcher identity (name / email / institution / orcid).
+            if overrides.get("researcher"):
+                r_in = overrides["researcher"]
+                if isinstance(r_in, dict):
+                    r_block = config.setdefault("researcher", {})
+                    for k, v in r_in.items():
+                        if isinstance(v, str) and v.strip():
+                            r_block[k] = v.strip()
             cfg_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
         except Exception as e:
             logger.warning(f"Failed to apply config overrides: {e}")

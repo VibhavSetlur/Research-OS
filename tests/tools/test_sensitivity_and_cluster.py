@@ -19,7 +19,7 @@ from research_os.tools.actions.exec.sensitivity import (
 
 def _scaffold(tmp_path: Path):
     scaffold_minimal_workspace(tmp_path, project_name="P", git_init=False, ide_flags=[])
-    create_numbered_experiment(tmp_path, "fit")
+    create_numbered_experiment(tmp_path, "fit", enforce_predecessor_finalized=False)
 
 
 def test_sensitivity_define(tmp_path: Path):

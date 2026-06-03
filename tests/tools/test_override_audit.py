@@ -86,13 +86,18 @@ def _payload(result):
 
 def test_sys_file_list_lazy_dir_returns_empty(tmp_path):
     """Bug: sys_file_list on a lazy dir that hasn't been materialised
-    returned 'Directory not found', breaking protocols that probe
-    inputs/raw_data on a fresh project. Now: empty list + lazy hint."""
+    returned 'Directory not found', breaking protocols that probe it
+    on a fresh project. Now: empty list + lazy hint.
+
+    Note (v1.3.0): inputs/{raw_data,literature,context}/ are now
+    EAGER (so `cp foo.csv inputs/raw_data/` works without `mkdir -p`).
+    `synthesis/` is the canonical remaining lazy dir — switched the
+    test to use it."""
     from research_os.server import _handle_sys_file_list
 
     root = _scaffold(tmp_path)
     res = _handle_sys_file_list(
-        "sys_file_list", {"directory": "inputs/raw_data"}, root,
+        "sys_file_list", {"directory": "synthesis"}, root,
     )
     payload = _payload(res)
     assert payload["status"] == "success", payload

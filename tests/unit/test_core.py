@@ -54,7 +54,7 @@ def test_path_create_creates_full_subtree():
         root = Path(d)
         scaffold_minimal_workspace(root, "Test Project")
 
-        res = create_numbered_experiment(root, "data_preparation", hypothesis="Clean data")
+        res = create_numbered_experiment(root, "data_preparation", hypothesis="Clean data", enforce_predecessor_finalized=False)
         assert "data_preparation" in res["path_id"]
         assert res["path_id"].startswith("01_")
         exp = root / "workspace" / res["path_id"]
@@ -76,8 +76,8 @@ def test_path_create_auto_numbers():
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         scaffold_minimal_workspace(root, "Test")
-        r1 = create_numbered_experiment(root, "first")
-        r2 = create_numbered_experiment(root, "second")
+        r1 = create_numbered_experiment(root, "first", enforce_predecessor_finalized=False)
+        r2 = create_numbered_experiment(root, "second", enforce_predecessor_finalized=False)
         assert r1["path_id"] == "01_first"
         assert r2["path_id"] == "02_second"
 

@@ -18,7 +18,7 @@ with the following structure::
       "@id": "workspace/03_baseline/outputs/figures/03_curve.png",
       "produced_by": {
         "script": "scripts/03_baseline_v1.py",
-        "tool":   "tool_figure_create",
+        "tool":   "ai_authored_script",
         "git_sha": "a1b2c3d…" | null,
         "wf_node": "fit"               // sub-task DAG node, if available
       },

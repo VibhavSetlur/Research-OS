@@ -16,7 +16,7 @@ from research_os.tools.actions.exec.step_pipeline import (
 
 def _scaffold(tmp_path: Path):
     scaffold_minimal_workspace(tmp_path, project_name="T", git_init=False, ide_flags=[])
-    create_numbered_experiment(tmp_path, "baseline")
+    create_numbered_experiment(tmp_path, "baseline", enforce_predecessor_finalized=False)
 
 
 def test_define_pipeline_seeds_template(tmp_path: Path):

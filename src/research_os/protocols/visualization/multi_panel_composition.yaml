@@ -1,12 +1,12 @@
 id: multi_panel_composition
 name: Multi-Panel Figure Composition (Figure 2 = A / B / C / D)
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: |
   Compose a multi-panel figure — the kind where Figure 2 has panels
   A, B, C, D each making a related point. Real papers spend a lot of
   visual budget on multi-panel composites; this protocol handles the
-  composition discipline that `tool_figure_create` (single-panel)
+  composition discipline that an AI-authored plotting script (see `visualization/figure_guidelines`) (single-panel)
   does not address.
 
   Topics covered: which panels belong together, how to label them,
@@ -125,10 +125,10 @@ steps:
       ylim / clim args.
 
   - id: build_panels_individually
-    name: Build each panel individually via tool_figure_create
+    name: Build each panel individually in an AI-authored plotting script
     description: |
       For each panel:
-        tool_figure_create
+        an AI-authored plotting script
           step_id="<NN_slug>"
           name="<figure_slug>_panel<letter>"
           kind=<chart family>

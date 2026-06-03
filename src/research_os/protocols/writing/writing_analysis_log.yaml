@@ -1,8 +1,13 @@
 id: writing_analysis_log
 name: Writing — Analysis Log
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
-description: Format for structured entries appended to workspace/analysis.md via mem_analysis_log.
+description: |
+  Format for structured entries appended to `workspace/analysis.md` —
+  the project-wide narrative log a fresh AI session reads top-to-bottom
+  to reconstruct what was done. Each entry: a timestamped block per
+  numbered analysis step or major decision. The AI calls
+  `mem_analysis_log` to append; this protocol is the format reference.
 
 entry_template: |
   [{timestamp}] **{step_id} — {status}**

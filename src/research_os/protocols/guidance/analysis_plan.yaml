@@ -1,6 +1,6 @@
 id: analysis_plan
 name: Analysis Plan (Core Loop)
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
@@ -168,9 +168,45 @@ steps:
       writes a .pipeline_run/run_<ts>.json audit trail, and drops a
       .prov.json sidecar for every output a node produces.
 
-      One script per sub-task. Naming:
-        workspace/<step>/scripts/<step_number>_<short_name>_v<n>.<ext>
-        e.g. 03_fit_baseline_v1.py / 03_calibration_v1.R / 03_feature_eng_v1.ipynb
+      One script per sub-task. Two equivalent naming styles —
+      pick the one that fits the step's shape:
+
+      A) **Letter-suffix chronological order** (preferred when the
+         sub-tasks ARE meant to run end-to-end in a fixed sequence
+         and a fresh reader should run `ls scripts/` and immediately
+         see the order):
+
+           workspace/<step>/scripts/
+              <NN>a_<short_name>_v<k>.<ext>   # runs first
+              <NN>b_<short_name>_v<k>.<ext>   # runs second
+              <NN>c_<short_name>_v<k>.<ext>   # ...
+              <NN>d_<short_name>_v<k>.<ext>
+
+         e.g.
+           01a_load_counts_v1.py
+           01b_library_size_qc_v1.py
+           01c_sample_correlation_v1.py
+           01d_pca_v1.py
+
+         The letter encodes execution order; `ls` shows it naturally.
+         The pipeline.yaml DAG can omit explicit dependencies because
+         the alphabetical order IS the dependency order.
+
+      B) **Descriptive-only** (when sub-tasks form a true DAG with
+         non-linear dependencies — `pipeline.yaml` declares the edges,
+         not the filename):
+
+           workspace/<step>/scripts/
+              <NN>_fit_baseline_v<k>.<ext>
+              <NN>_calibration_v<k>.<ext>
+              <NN>_feature_eng_v<k>.<ext>
+
+      Use style A by default — chronological order is the common case
+      and the encoded order survives someone re-running the step
+      manually. Use style B only when sub-tasks branch.
+
+      In BOTH styles: `_v<k>` is the iteration suffix; bump it via
+      `tool_step_iterate` when materially changing a sub-task.
 
       Server-enforced gates (no fast path through them):
         - tool_audit_step_completeness BLOCKS multi-script steps (>2)
@@ -222,7 +258,7 @@ steps:
         - FIGURES (outputs/figures/, PNG ≥ 300 DPI): at least one
           FOCAL figure named <step_number>_<short_descriptor>.png
           (e.g. 03_attitude_by_demographic.png). PREFER
-          tool_figure_create which auto-applies SciencePlots /
+          an AI-authored script (visualization/figure_guidelines covers
           Okabe-Ito / DPI / dual PNG+SVG export / both caption
           sidecars in one call. The focal figure is the one
           promoted into the dashboard + paper.
@@ -248,7 +284,7 @@ steps:
           Pair every figure with a sibling <name>.caption.md
           (technical; one-sentence finding) AND <name>.summary.md
           (plain-English; 2-3 short paragraphs for non-expert
-          audiences). tool_figure_create writes both when you pass
+          audiences). An AI-authored script writes both when you pass
           `caption` + `plain_english`. Otherwise
           tool_figure_caption_synthesise auto-drafts the summary from
           the caption + the step's Findings.
@@ -383,7 +419,7 @@ steps:
       Captions: each figure MUST have a sibling `<name>.caption.md`
       describing what the reader is looking at (one technical
       sentence). Add one whenever you save a figure;
-      `tool_figure_create caption=… plain_english=…` writes both
+      `an AI-authored script (write both sidecars inline)` writes both
       sidecars in one call.
 
       Idempotent — safe to re-run after edits.

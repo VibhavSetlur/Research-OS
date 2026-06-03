@@ -1177,9 +1177,11 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
                     f"Provenance sidecar coverage {pct}% "
                     f"({prov['with_provenance']}/{prov['total_outputs']} "
                     "outputs have .prov.json). Future reviewers cannot "
-                    "trace where the rest came from. Use tool_figure_create "
-                    "for figures and tool_step_pipeline_run for scripted "
-                    "outputs to drop sidecars automatically."
+                    "trace where the rest came from. Run "
+                    "tool_step_pipeline_run for scripted outputs to drop "
+                    "provenance sidecars automatically; for figures, write "
+                    "a `<name>.prov.json` next to each output (see "
+                    "audit/provenance_completeness protocol)."
                 )
 
     except Exception as e:

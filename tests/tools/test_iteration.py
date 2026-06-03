@@ -23,7 +23,7 @@ from research_os.tools.actions.state.iteration import (
 
 def _make_step(tmp_path: Path, slug: str = "baseline_eda") -> str:
     scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
-    res = create_numbered_experiment(tmp_path, slug, hypothesis="H1")
+    res = create_numbered_experiment(tmp_path, slug, hypothesis="H1", enforce_predecessor_finalized=False)
     return res["path_id"]
 
 
@@ -460,8 +460,8 @@ def test_env_snapshot_step_id_param(tmp_path):
     from research_os.project_ops import create_numbered_experiment, scaffold_minimal_workspace
     from research_os.tools.actions.exec.environment import env_snapshot
     scaffold_minimal_workspace(tmp_path, "EnvScopeTest", ide_flags=[], copy_agents=False)
-    a = create_numbered_experiment(tmp_path, "alpha")["path_id"]
-    b = create_numbered_experiment(tmp_path, "beta")["path_id"]   # most recent
+    a = create_numbered_experiment(tmp_path, "alpha", enforce_predecessor_finalized=False)["path_id"]
+    b = create_numbered_experiment(tmp_path, "beta", enforce_predecessor_finalized=False)["path_id"]   # most recent
     res = env_snapshot(tmp_path, step_id=a)
     assert res["status"] == "success"
     # The snapshot must land in alpha, NOT beta (the active one).
@@ -547,7 +547,7 @@ def test_finalize_figure_inventory_filters_sidecars(tmp_path):
 
 
 def test_from_step_does_not_copy_outputs(tmp_path):
-    """create_numbered_experiment(from_step=X) must NOT duplicate X's
+    """create_numbered_experiment(from_step=X, enforce_predecessor_finalized=False) must NOT duplicate X's
     outputs/scripts into the new step. The intent of from_step is only
     'wire data/input from X's output'."""
     from research_os.project_ops import (
@@ -555,7 +555,7 @@ def test_from_step_does_not_copy_outputs(tmp_path):
     )
     scaffold_minimal_workspace(tmp_path, "FromStepTest",
                                 ide_flags=[], copy_agents=False)
-    a = create_numbered_experiment(tmp_path, "alpha")["path_id"]
+    a = create_numbered_experiment(tmp_path, "alpha", enforce_predecessor_finalized=False)["path_id"]
     # Plant some artefacts in alpha's outputs/scripts so we can check
     # they're NOT carried over.
     aa = tmp_path / "workspace" / a
@@ -563,7 +563,7 @@ def test_from_step_does_not_copy_outputs(tmp_path):
     (aa / "outputs" / "figures" / "marker.png").write_bytes(b"PNG")
     (aa / "scripts" / "marker.py").write_text("# marker\n")
 
-    b = create_numbered_experiment(tmp_path, "beta", from_step=a)["path_id"]
+    b = create_numbered_experiment(tmp_path, "beta", from_step=a, enforce_predecessor_finalized=False)["path_id"]
     bb = tmp_path / "workspace" / b
     # outputs/figures must be empty in beta.
     assert not (bb / "outputs" / "figures" / "marker.png").exists()
@@ -614,3 +614,115 @@ def test_intake_extracts_markdown_hypotheses(tmp_path):
     assert "Bill length" in hs[0]
     assert "deeper bills" in hs[1]
     assert "allometrically" in hs[2]
+
+
+# ── v1.3.0 round-2: STATE.md, multi-language env, finalize audit ─────
+
+
+def test_state_md_at_project_root_with_research_question(tmp_path):
+    """v1.3.0 round-2: the human-readable status file is STATE.md at
+    the project root, not buried under .os_state/. The content must
+    surface what a fresh AI session needs."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, save_state, load_state,
+    )
+    scaffold_minimal_workspace(tmp_path, "Round2 Test",
+                                ide_flags=[], copy_agents=False,
+                                config_overrides={
+                                    "research_question": "Test Q",
+                                    "domain": "biology_ecology",
+                                })
+    # Save state to make sure the trigger fires.
+    save_state(tmp_path, load_state(tmp_path))
+    state_md = tmp_path / "STATE.md"
+    assert state_md.exists()
+    text = state_md.read_text()
+    # New fresh-chat directions section.
+    assert "How to resume in a fresh chat" in text
+    # No internal-tool jargon for the reader.
+    assert "mem_analysis_log" not in text
+    # Old buried copy gone after the migration in save_state.
+    assert not (tmp_path / ".os_state" / "os_state.md").exists()
+
+
+def test_env_snapshot_skips_python_for_r_only_project(tmp_path):
+    """A project whose only scripts are R should NOT receive a stray
+    pip-freeze. v1.3.0 detects languages from the workspace."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, create_numbered_experiment,
+    )
+    from research_os.tools.actions.exec.environment import env_snapshot
+    scaffold_minimal_workspace(tmp_path, "R Only",
+                                ide_flags=[], copy_agents=False)
+    step_id = create_numbered_experiment(tmp_path, "r_analysis", enforce_predecessor_finalized=False)["path_id"]
+    # Drop a single R script — no Python anywhere.
+    r_script = (tmp_path / "workspace" / step_id / "scripts" / "01_fit.R")
+    r_script.write_text("library(MASS)\n")
+    res = env_snapshot(tmp_path, step_id=step_id)
+    assert res["status"] == "success"
+    captured = res.get("languages_captured", [])
+    assert "R" in captured, (
+        f"R script in workspace should trigger R capture, got {captured}"
+    )
+    assert "python" not in captured, (
+        f"R-only project should NOT get python capture, got {captured}"
+    )
+
+
+def test_env_snapshot_picks_up_quarto_and_julia(tmp_path):
+    """v1.3.0 round-2: workspace scan picks up .qmd (Quarto) and
+    .jl (Julia) files and captures both."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, create_numbered_experiment,
+    )
+    from research_os.tools.actions.exec.environment import env_snapshot
+    scaffold_minimal_workspace(tmp_path, "Mixed",
+                                ide_flags=[], copy_agents=False)
+    step_id = create_numbered_experiment(tmp_path, "mixed", enforce_predecessor_finalized=False)["path_id"]
+    s = tmp_path / "workspace" / step_id / "scripts"
+    (s / "01_report.qmd").write_text("---\ntitle: X\n---\n")
+    (s / "02_fit.jl").write_text("using Plots\n")
+    res = env_snapshot(tmp_path, step_id=step_id)
+    captured = res.get("languages_captured", [])
+    assert "quarto" in captured
+    assert "julia" in captured
+
+
+def test_finalize_runs_figure_audit_per_figure(tmp_path):
+    """v1.3.0 round-2: tool_path_finalize now runs the figure audit
+    on every figure and returns the results under `figure_audit` +
+    rolls blockers into warnings."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=2)
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n- finding\n\n## Decision\nproceed.\n"
+    )
+    res = finalize_path(path_name=step_id, root=tmp_path)
+    assert res["status"] == "success"
+    fa = res.get("figure_audit", {})
+    assert len(fa) == 2, (
+        f"expected per-figure audit for 2 figures, got {len(fa)}"
+    )
+    # The fake .png bytes _populate_step writes have no real DPI;
+    # PIL either errors out or reports defaults. Either way we expect
+    # the audit dict to have blockers OR warnings keys present.
+    for fig_name, entry in fa.items():
+        assert "blockers" in entry and "warnings" in entry
+
+
+def test_workspace_logs_has_a_readme_after_init(tmp_path):
+    """v1.3.0 round-2: workspace/logs/ ships with a README explaining
+    what kinds of logs land there. Previously it was a dead empty
+    folder."""
+    from research_os.project_ops import scaffold_minimal_workspace
+    scaffold_minimal_workspace(tmp_path, "Logs Test",
+                                ide_flags=[], copy_agents=False)
+    logs_readme = tmp_path / "workspace" / "logs" / "README.md"
+    assert logs_readme.exists()
+    text = logs_readme.read_text()
+    # Must mention the standard log files researchers grep for.
+    assert "audit_report.md" in text
+    assert "search_log.md" in text
+    assert "override_log.md" in text

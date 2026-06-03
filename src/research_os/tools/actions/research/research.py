@@ -533,8 +533,9 @@ def plan_step_grounded(
                 "literature entries the action will consult._",
                 "  - e.g. `inputs/context/protocol_v2.md` (researcher's spec)",
                 "  - e.g. `literature/smith2023.pdf` (canonical reference for the method)",
-                "- **Action**: _the tool call(s) — `tool_step_pipeline_run` / "
-                "`tool_figure_create` / etc._",
+                "- **Action**: _the tool call(s) — `tool_step_pipeline_run`, "
+                "`tool_python_exec` / `tool_r_exec` for AI-authored scripts, "
+                "`tool_search_*` for literature, etc._",
                 "- **Expected outputs**: _files this sub-task should produce."
                 " Provenance sidecars auto-emit._",
                 "- **Verification** (CoVe): _the question that would falsify "

@@ -1,6 +1,6 @@
 id: data_quality_audit
 name: Data Quality Audit (standalone QC pass)
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: |
   Standalone data quality audit — for the case where the researcher
@@ -101,7 +101,7 @@ steps:
           "Unknown") and whether they have been converted to
           true nulls
 
-      Build a missingness HEATMAP via tool_figure_create kind=heatmap
+      Build a missingness HEATMAP in an AI-authored plotting script kind=heatmap
       with cells coloured by missing-flag; the visual is what catches
       systematic missingness fast.
 

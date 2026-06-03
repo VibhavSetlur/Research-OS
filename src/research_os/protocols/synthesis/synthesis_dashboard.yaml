@@ -1,6 +1,6 @@
 id: synthesis_dashboard
 name: Synthesis — Dashboard (research-summary)
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: |
   Generate a polished single-file HTML dashboard that reads as a real
@@ -116,7 +116,7 @@ steps:
 
       If missing_figures is non-empty, return to the step in question and
       add at least one focal PNG before re-running (preferably via
-      tool_figure_create which guarantees compliance).
+      AI-authored scripts that follow visualization/figure_guidelines).
 
   - id: author_synthesis_spec
     name: Author synthesis/synthesis_spec.yaml (optional but recommended)

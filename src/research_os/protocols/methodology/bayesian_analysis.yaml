@@ -1,6 +1,6 @@
 id: bayesian_analysis
 name: Bayesian Analysis Workflow
-version: '1.2.0'
+version: '1.3.0'
 last_reviewed: '2026-06-02'
 schema_version: '2.0'
 description: |
@@ -185,7 +185,7 @@ steps:
           model-vs-model; the inference / decision rule should
           drive whether BF is the right summary.
 
-      The viz library's `tool_figure_create kind=posterior` renders
+      The viz library's `a `posterior`` chart per the guidance in visualization/figure_guidelines renders
       the posterior with HDI + optional ROPE band.
 
   - id: decision_or_conclusion

@@ -39,6 +39,53 @@ def package_install(packages: list[str]) -> dict[str, Any]:
         return {"status": "error", "error": str(e), "code": 1}
 
 
+def _detect_languages_in_use(root: Path) -> set[str]:
+    """Scan workspace + project root for evidence of each language.
+
+    v1.3.0: env_snapshot used to capture Python unconditionally and
+    only capture R/Julia/conda when their lock files existed at
+    project root. Researchers running an R-only or Julia-only project
+    saw a meaningless Python pip-freeze in their environment/ folder
+    and no R/Julia capture. This helper looks at what scripts actually
+    EXIST under workspace/ to decide which captures matter.
+
+    Returns the set of detected language tags:
+      {"python", "r", "julia", "quarto", "rmarkdown", "shell", "node"}
+    """
+    detected: set[str] = set()
+    ext_to_lang = {
+        ".py": "python", ".ipynb": "python",
+        ".r": "r", ".R": "r", ".Rmd": "rmarkdown",
+        ".jl": "julia",
+        ".qmd": "quarto",
+        ".sh": "shell", ".bash": "shell",
+        ".js": "node", ".ts": "node", ".mjs": "node",
+    }
+    ws = root / "workspace"
+    if ws.exists():
+        for p in ws.rglob("*"):
+            if not p.is_file():
+                continue
+            suffix = p.suffix
+            if suffix in ext_to_lang:
+                detected.add(ext_to_lang[suffix])
+            # Also check the lowercased suffix for ".R" vs ".r".
+            elif suffix.lower() in ext_to_lang:
+                detected.add(ext_to_lang[suffix.lower()])
+    # Project-root lock files are also signal.
+    if (root / "renv.lock").exists() or (root / "DESCRIPTION").exists():
+        detected.add("r")
+    if (root / "Project.toml").exists():
+        detected.add("julia")
+    if (root / "environment.yml").exists() or (root / "environment.yaml").exists():
+        detected.add("conda")
+    # Default fallback: if nothing detected (fresh project), assume the
+    # researcher will use python — it remains the most common.
+    if not detected:
+        detected = {"python"}
+    return detected
+
+
 def _active_experiment_dir(root: Path) -> Path | None:
     ws = root / "workspace"
     if not ws.exists():
@@ -85,52 +132,151 @@ def env_snapshot(
         env_dir.mkdir(parents=True, exist_ok=True)
         session: dict[str, Any] = {"languages": []}
 
-        # Python
-        try:
-            res = subprocess.run(
-                [sys.executable, "-m", "pip", "freeze"],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-            if res.returncode == 0:
-                (env_dir / "requirements.txt").write_text(res.stdout)
-                session["languages"].append(
-                    {
+        # v1.3.0: detect which languages this project actually uses by
+        # scanning workspace scripts. Capture all of them — not just
+        # Python — so R-only and Julia-only projects don't end up with
+        # a meaningless pip-freeze.
+        in_use = _detect_languages_in_use(root)
+        session["detected_languages"] = sorted(in_use)
+
+        # ── Python ────────────────────────────────────────────────
+        if "python" in in_use:
+            try:
+                res = subprocess.run(
+                    [sys.executable, "-m", "pip", "freeze"],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if res.returncode == 0:
+                    (env_dir / "requirements.txt").write_text(res.stdout)
+                    session["languages"].append({
                         "name": "python",
                         "version": sys.version.split()[0],
                         "manager": "pip",
-                    }
+                        "file": "requirements.txt",
+                    })
+            except Exception as e:
+                logger.warning(f"Python snapshot failed: {e}")
+
+        # ── R ─────────────────────────────────────────────────────
+        if "r" in in_use or "rmarkdown" in in_use:
+            captured = []
+            # renv.lock at project root → copy it.
+            r_lock = root / "renv.lock"
+            if r_lock.exists():
+                shutil.copy(r_lock, env_dir / "renv.lock")
+                captured.append("renv.lock")
+            # DESCRIPTION file (R package manifest) → copy it.
+            desc = root / "DESCRIPTION"
+            if desc.exists():
+                shutil.copy(desc, env_dir / "DESCRIPTION")
+                captured.append("DESCRIPTION")
+            # Try `R --version` for record-keeping (best-effort).
+            r_version = None
+            try:
+                r_v = subprocess.run(
+                    ["R", "--version"], capture_output=True, text=True, timeout=10,
                 )
-        except Exception as e:
-            logger.warning(f"Python snapshot failed: {e}")
+                if r_v.returncode == 0:
+                    r_version = r_v.stdout.splitlines()[0]
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+            session["languages"].append({
+                "name": "R",
+                "version": r_version,
+                "manager": "renv" if "renv.lock" in captured else "(no lock file)",
+                "files": captured or ["(none — add renv.lock or DESCRIPTION)"],
+            })
 
-        # R (renv)
-        r_lock = root / "renv.lock"
-        if r_lock.exists():
-            shutil.copy(r_lock, env_dir / "renv.lock")
-            session["languages"].append({"name": "R", "manager": "renv"})
+        # ── Julia ─────────────────────────────────────────────────
+        if "julia" in in_use:
+            captured = []
+            for fname in ("Project.toml", "Manifest.toml"):
+                p = root / fname
+                if p.exists():
+                    shutil.copy(p, env_dir / fname)
+                    captured.append(fname)
+            julia_version = None
+            try:
+                jv = subprocess.run(
+                    ["julia", "--version"], capture_output=True, text=True,
+                    timeout=10,
+                )
+                if jv.returncode == 0:
+                    julia_version = jv.stdout.strip()
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+            session["languages"].append({
+                "name": "julia",
+                "version": julia_version,
+                "manager": "Pkg",
+                "files": captured or ["(none — run Pkg.activate(); Pkg.instantiate() then commit Project.toml + Manifest.toml)"],
+            })
 
-        # Julia (Project.toml + Manifest.toml)
-        proj = root / "Project.toml"
-        if proj.exists():
-            shutil.copy(proj, env_dir / "Project.toml")
-            man = root / "Manifest.toml"
-            if man.exists():
-                shutil.copy(man, env_dir / "Manifest.toml")
-            session["languages"].append({"name": "julia", "manager": "Pkg"})
+        # ── Quarto ────────────────────────────────────────────────
+        if "quarto" in in_use:
+            q_yml = root / "_quarto.yml"
+            if q_yml.exists():
+                shutil.copy(q_yml, env_dir / "_quarto.yml")
+            qv = None
+            try:
+                qr = subprocess.run(
+                    ["quarto", "--version"], capture_output=True, text=True,
+                    timeout=10,
+                )
+                if qr.returncode == 0:
+                    qv = qr.stdout.strip()
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+            session["languages"].append({
+                "name": "quarto",
+                "version": qv,
+                "manager": "quarto",
+                "files": ["_quarto.yml"] if q_yml.exists() else [],
+            })
 
-        # Conda
-        conda_env = root / "environment.yml"
-        if conda_env.exists():
-            shutil.copy(conda_env, env_dir / "environment.yml")
-            session["languages"].append({"name": "conda", "manager": "conda"})
+        # ── Shell / Bash ──────────────────────────────────────────
+        if "shell" in in_use:
+            session["languages"].append({
+                "name": "shell",
+                "manager": "system",
+                "files": [],
+                "note": "Shell scripts captured by version control; "
+                        "list system-package dependencies (apt/brew/yum) "
+                        "in a Dockerfile or environment/README.md.",
+            })
+
+        # ── Node ──────────────────────────────────────────────────
+        if "node" in in_use:
+            captured = []
+            for fname in ("package.json", "package-lock.json", "yarn.lock"):
+                p = root / fname
+                if p.exists():
+                    shutil.copy(p, env_dir / fname)
+                    captured.append(fname)
+            session["languages"].append({
+                "name": "node",
+                "manager": "npm / yarn",
+                "files": captured,
+            })
+
+        # ── Conda (project-level) ─────────────────────────────────
+        for fname in ("environment.yml", "environment.yaml"):
+            conda_env = root / fname
+            if conda_env.exists():
+                shutil.copy(conda_env, env_dir / fname)
+                session["languages"].append({
+                    "name": "conda",
+                    "manager": "conda",
+                    "files": [fname],
+                })
+                break
 
         (env_dir / "session.yaml").write_text(yaml.dump(session, sort_keys=False))
         return {
             "status": "success",
             "session": session,
             "snapshot_dir": str(env_dir.relative_to(root)),
+            "languages_captured": [lang["name"] for lang in session["languages"]],
             "message": "Environment snapshotted.",
         }
     except Exception as e:

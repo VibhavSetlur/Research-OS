@@ -1,6 +1,6 @@
 id: project_startup
 name: Project Startup
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
 trigger: Second protocol every new project — and any time inputs/ changes substantially.
@@ -66,6 +66,45 @@ steps:
       environment/requirements.txt. Per-experiment environments inherit from
       this baseline. R / Julia / conda lockfiles are picked up automatically
       if they exist at the project root.
+
+  - id: ground_in_recent_literature
+    name: Ground the project in CURRENT literature (mandatory)
+    description: |
+      Before declaring startup complete, run AT LEAST ONE online
+      literature pass. The AI's pre-training cutoff is months old; the
+      research-recency story has to start with whatever's actually
+      published THIS year, not what the model remembers.
+
+      Required calls (parallel; use whichever providers the
+      researcher has API keys for — see researcher_config.api_keys):
+
+        tool_search_semantic_scholar query=<domain + research_question>
+                                     year_min=<current_year-3>
+        tool_search_pubmed         query=<domain + research_question>
+                                     year_min=<current_year-3>
+        tool_search_web            query=<central method or dataset name>
+                                     recency_days=180
+        tool_research_method       method=<the canonical method the
+                                           PI likely expects> domain=<domain>
+
+      Specific patterns:
+        - PI brief named papers ("Cite Himes 2014", "GTEx airway
+          atlas") → tool_literature_search_and_save for each.
+        - intake_autofill returned a `named_paper_references` list
+          (v1.3.0) → fetch every entry.
+        - Domain is a recently-active area (single-cell, foundation
+          models, LLM-as-judge, …) → also do a -1-year
+          tool_search_arxiv pass.
+
+      Save successful hits to inputs/literature/. Record the search
+      itself in workspace/logs/search_log.md (tool_search_* logs
+      automatically). Note the empty searches too — "no hits" is a
+      meaningful finding.
+
+      Why this is mandatory: the AI must NOT silently pretend its
+      pre-training memory is current literature. A reviewer will ask
+      "did you check the 2026 work on X?" and the answer must be
+      verifiable in the search log.
 
   - id: present_startup_summary
     name: Summarise to Researcher

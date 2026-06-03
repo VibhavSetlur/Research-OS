@@ -1,6 +1,6 @@
 id: power_analysis
 name: Power Analysis / Sample Size Justification (standalone)
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: |
   Standalone power / sample-size justification — for the case where the
@@ -165,7 +165,7 @@ steps:
   - id: visualise_the_power_curve
     name: Build the canonical power-curve figure
     description: |
-      tool_figure_create kind=line
+      a `line` chart per the guidance in visualization/figure_guidelines
         data="<power_grid.csv>"
         x="effect_size" y="power"
         with one line per (alpha, allocation, attrition) combination

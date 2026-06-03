@@ -11,7 +11,7 @@ from research_os.tools.actions.exec import step_env_lock
 
 def test_step_env_lock_writes_requirements_and_pin(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Step Env Lock Test")
-    step = create_numbered_experiment(tmp_path, "baseline", hypothesis="")
+    step = create_numbered_experiment(tmp_path, "baseline", hypothesis="", enforce_predecessor_finalized=False)
     res = step_env_lock(tmp_path, step_id=step["path_id"])
     assert res["status"] == "success"
     env_dir = tmp_path / "workspace" / step["path_id"] / "environment"
@@ -34,7 +34,7 @@ def test_step_env_lock_missing_step_returns_error(tmp_path):
 
 def test_step_env_lock_defaults_with_warning(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Default Step Test")
-    create_numbered_experiment(tmp_path, "baseline", hypothesis="")
+    create_numbered_experiment(tmp_path, "baseline", hypothesis="", enforce_predecessor_finalized=False)
     res = step_env_lock(tmp_path)  # no step_id
     assert res["status"] == "success"
     assert "warning" in res
@@ -43,7 +43,7 @@ def test_step_env_lock_defaults_with_warning(tmp_path):
 
 def test_step_env_lock_writes_conda_yaml(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Conda Spec Test")
-    step = create_numbered_experiment(tmp_path, "baseline", hypothesis="")
+    step = create_numbered_experiment(tmp_path, "baseline", hypothesis="", enforce_predecessor_finalized=False)
     res = step_env_lock(
         tmp_path, step_id=step["path_id"], write_conda_yaml=True
     )
@@ -61,7 +61,7 @@ def test_step_env_lock_writes_conda_yaml(tmp_path):
 
 def test_step_env_lock_writes_dockerfile(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Dockerfile Test")
-    step = create_numbered_experiment(tmp_path, "baseline", hypothesis="")
+    step = create_numbered_experiment(tmp_path, "baseline", hypothesis="", enforce_predecessor_finalized=False)
     res = step_env_lock(
         tmp_path, step_id=step["path_id"], write_dockerfile=True
     )

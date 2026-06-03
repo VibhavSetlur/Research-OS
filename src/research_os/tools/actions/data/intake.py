@@ -154,22 +154,29 @@ def _propose_question(context_text: str, raw_files: list[Path]) -> str:
 
 
 def _propose_hypotheses(context_text: str) -> list[str]:
-    """Pick out any H1/H2/H3 style hypotheses from context notes.
+    """Pick out hypotheses from context notes.
 
-    Handles common styles:
+    Handles common explicit styles AND falls back to natural-language
+    extraction so PI briefs written in prose don't yield zero hypotheses.
+
+    Explicit styles:
       H1: text
       Hypothesis 1: text
       - H1 — text
       - **H1** — text             (markdown bold)
       * H1: text                  (bullet)
       1. **Hypothesis** — text
+
+    Natural-language fallback (only used when no explicit hypotheses found):
+      - Sentences starting with "We hypothesise" / "We predict" / "We expect".
+      - Sentences containing "is associated with" / "differs across" /
+        "replicates the" / "is modulated by".
     """
     if not context_text:
         return []
+
     hits: list[str] = []
-    # Pattern 1: explicit "H<n>" or "Hypothesis <n>" labels, optionally
-    # wrapped in markdown bullets / bold / hashes. Separator can be
-    # ":", "-", "—", "–".
+    # Pattern 1: explicit "H<n>" or "Hypothesis <n>" labels.
     pat = re.compile(
         r"""(?ixm)
         ^\s*                       # leading whitespace
@@ -177,9 +184,9 @@ def _propose_hypotheses(context_text: str) -> list[str]:
         (?:[*_]{1,2})?             # optional opening bold/italic
         (?:hypothesis|h)           # word "hypothesis" or letter H
         (?:[*_]{1,2})?             # optional close of bold around the word
-        \s*(\d+)\b                 # the index (mandatory — we need H1 vs noise)
+        \s*(\d+)\b                 # the index
         (?:[*_]{1,2})?             # optional close after number
-        \s*[:\-–—]\s*    # separator
+        \s*[:\-–—]\s*              # separator
         (.{15,400}?)               # the hypothesis text
         \s*$
         """
@@ -188,7 +195,69 @@ def _propose_hypotheses(context_text: str) -> list[str]:
         text = re.sub(r"^[*_]+|[*_]+$", "", m.group(2)).strip()
         if text:
             hits.append(text)
+
+    if hits:
+        return hits[:6]
+
+    # Fallback: natural-language sentences that read like hypotheses.
+    nl_pat = re.compile(
+        r"""(?ix)
+        ([A-Z][^.\n]{15,400}?
+          \b(?:
+              hypothesi[sz]e|hypothesi[sz]ed|
+              predict|predicts|predicted|
+              expect|expects|expected\s+to|
+              is\s+associated\s+with|are\s+associated\s+with|
+              differs?\s+(?:across|between|by)|
+              replicates?\s+(?:the\s+)?|
+              is\s+modulated\s+by
+          )
+          \b[^.\n]{5,300})
+        \.
+        """
+    )
+    for m in nl_pat.finditer(context_text):
+        text = m.group(1).strip()
+        if text and text not in hits:
+            hits.append(text)
+
     return hits[:6]
+
+
+def _extract_named_papers(context_text: str) -> list[str]:
+    """Pull plausible paper references out of a PI brief.
+
+    PI briefs typically say things like "Cite Himes et al 2014" or
+    "Compare with the GTEx airway atlas" or "see Verhaak 2010". These
+    are not formal citations the AI can resolve from a DOI — they're
+    cues the AI should run a literature search for.
+
+    Returns a deduplicated list of human-readable reference strings.
+    """
+    if not context_text:
+        return []
+    hits: list[str] = []
+    # Pattern: "(Author) et al (YYYY)" or "Author YYYY" or "Author and
+    # Author YYYY" — case-sensitive on first letter so we don't grab
+    # random capitalised words.
+    patterns = [
+        re.compile(r"\b([A-Z][a-z]+(?:\s+and\s+[A-Z][a-z]+)?\s+et\s+al\.?\s*\(?(\d{4})\)?)"),
+        re.compile(r"\b([A-Z][a-z]+\s+\(?(\d{4})\)?)\b"),
+        re.compile(r"\b(?:the\s+)?([A-Z][A-Z]{2,}\s+(?:atlas|dataset|cohort|database|consortium))",
+                   re.IGNORECASE),
+    ]
+    for p in patterns:
+        for m in p.finditer(context_text):
+            ref = m.group(1).strip()
+            if ref and ref not in hits and len(ref) < 80:
+                hits.append(ref)
+    # De-dupe similar refs (e.g. "Himes 2014" + "Himes et al 2014")
+    canonicalised: list[str] = []
+    for ref in hits:
+        key = re.sub(r"\s+et\s+al\.?", "", ref).lower()
+        if not any(re.sub(r"\s+et\s+al\.?", "", c).lower() == key for c in canonicalised):
+            canonicalised.append(ref)
+    return canonicalised[:8]
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +322,21 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             else question_auto
         )
         hypotheses = _propose_hypotheses(context_text)
+        # v1.3.0 fallback: if context yields zero hypotheses but we DO have a
+        # research question (from --question flag or context inference), at
+        # least register the question itself as the central testable claim
+        # so downstream protocols have something to ground against. Strip
+        # the question mark and prefix with "We test whether".
+        if not hypotheses and question:
+            q_stripped = question.rstrip("?").strip()
+            if len(q_stripped) >= 12:
+                hypotheses = [f"We test whether {q_stripped[0].lower()}{q_stripped[1:]}."]
+
+        # v1.3.0: surface named-paper references (e.g. "Cite Himes 2014") as
+        # explicit fetch suggestions so the AI knows to run a literature
+        # search rather than silently hoping the PDF is already in
+        # inputs/literature/.
+        named_papers = _extract_named_papers(context_text)
 
         # NOTE: researcher_config.yaml is no longer touched here. Domain /
         # research_question / hypotheses are written to state (below) and
@@ -322,6 +406,26 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
         )
 
         # Build the autofill report
+        next_actions = []
+        if named_papers:
+            already_have = {p.stem.lower() for p in literature_files}
+            missing = [
+                ref for ref in named_papers
+                if not any(part.lower() in already_have for part in ref.split() if len(part) > 3)
+            ]
+            for ref in missing[:6]:
+                next_actions.append(
+                    f"Run tool_literature_search_and_save query=\"{ref}\" — "
+                    "the PI brief names this reference but it's not in "
+                    "inputs/literature/ yet."
+                )
+        if not hypotheses:
+            next_actions.append(
+                "No testable hypotheses inferable from inputs/context. Ask the "
+                "researcher: 'What's the central claim you want this project "
+                "to test? Phrasing it as H1 will sharpen everything downstream.'"
+            )
+
         summary = {
             "status": "success",
             "files_seen": {
@@ -333,6 +437,8 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             "domain_rationale": domain_why,
             "proposed_research_question": question,
             "proposed_hypotheses": hypotheses,
+            "named_paper_references": named_papers,
+            "next_actions": next_actions,
             "state_fields_updated": [
                 k for k in ("domain", "research_question", "active_hypotheses")
                 if state.get(k)
@@ -340,8 +446,10 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             "research_question_md_updated": rq_changed,
             "intake_path": intake_path,
             "message": (
-                "Intake autofilled. The AI should review with the researcher: "
-                "'I read your inputs. I propose domain=<X>, question=<Y>. Approve?'"
+                "Intake autofilled. Review with the researcher: 'I read your "
+                "inputs. I propose domain=<X>, question=<Y>, "
+                f"{len(hypotheses)} hypotheses, {len(named_papers)} named "
+                "paper references to fetch. Approve?'"
             ),
         }
         return summary

@@ -1,6 +1,6 @@
 id: synthesis_paper
 name: Synthesis — Paper (IMRAD, venue-tailored)
-version: '1.1.0'
+version: '1.3.0'
 schema_version: '2.0'
 description: |
   Compile the final IMRAD paper into synthesis/paper.md (and
@@ -97,7 +97,7 @@ steps:
       figure, missing caption sidecar, missing summary sidecar, stub
       conclusions sections), tool_synthesize REFUSES to assemble and
       this protocol cannot proceed. Fix the blockers in the listed
-      steps (use tool_figure_create for missing figures —
+      steps (use an AI-authored plotting script for missing figures —
       auto-generates both sidecars) and re-run.
 
       Override only when the researcher explicitly asks for a partial

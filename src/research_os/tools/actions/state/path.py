@@ -794,17 +794,25 @@ def finalize_path(
     ] if ctx_dir.exists() else []
     plain_summary_from_context = ""
     notes_path = ctx_dir / "notes.md"
-    if notes_path.exists():
+    # v1.3.0: scan both context/notes.md AND conclusions.md for the
+    # plain-language summary block. Earlier behaviour only checked
+    # notes.md, so an AI that wrote the summary inside conclusions.md
+    # (the natural place) was flagged as missing it. Accept several
+    # heading variants the AI is likely to use.
+    summary_pat = re.compile(
+        r"##\s*(?:Plain[- ]language\s+summary|Plain[- ]English\s+summary|TL;DR|Lay\s+summary)\s*\n(.+?)(?=^##|\Z)",
+        flags=re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    )
+    for path in (notes_path, exp_dir / "conclusions.md"):
+        if plain_summary_from_context:
+            break
+        if not path.exists():
+            continue
         try:
-            notes_text = notes_path.read_text()
-            m = re.search(
-                r"##\s*Plain-language summary\s*\n(.+?)(?=^##|\Z)",
-                notes_text,
-                flags=re.MULTILINE | re.DOTALL | re.IGNORECASE,
-            )
+            txt = path.read_text()
+            m = summary_pat.search(txt)
             if m:
                 body = m.group(1).strip()
-                # Drop the seed italicised placeholder.
                 if body and not body.startswith("_If you"):
                     plain_summary_from_context = body
         except Exception:
@@ -1021,23 +1029,145 @@ def finalize_path(
     except Exception as e:
         logger.debug("citations.md regen skipped: %s", e)
 
+    # 7c-ii. workspace/tools.md — append a step-tagged section listing the
+    #        Research-OS tools used, 3rd-party packages, external services,
+    #        and any custom scripts the step depends on. Idempotent on the
+    #        per-step heading marker.
+    tools_md = root / "workspace" / "tools.md"
+    if conc_path.exists() and tools_md.exists():
+        try:
+            conc_full = conc_path.read_text()
+            existing_t = tools_md.read_text()
+            marker = f"\n### Step `{path_name}` — tools used\n"
+            if marker not in existing_t:
+                # Extract from conclusions.md: Methods section + any explicit
+                # `## Tools` or `## Software` section.
+                tools_body = (
+                    _section(conc_full, "Tools used")
+                    or _section(conc_full, "Tools")
+                    or _section(conc_full, "Software")
+                    or ""
+                ).strip()
+                # Fall back to scanning the scripts dir for top-level imports.
+                if not tools_body:
+                    scripts_dir = exp_dir / "scripts"
+                    imports: set[str] = set()
+                    if scripts_dir.exists():
+                        import re as _re_mod
+                        py_import = _re_mod.compile(
+                            r"^\s*(?:from|import)\s+([a-zA-Z_][\w.]*)",
+                            _re_mod.MULTILINE,
+                        )
+                        r_library = _re_mod.compile(
+                            r"\blibrary\(([a-zA-Z_][\w.]*)\)|require\(([a-zA-Z_][\w.]*)\)"
+                        )
+                        for script in scripts_dir.rglob("*"):
+                            if script.suffix.lower() not in {".py", ".r", ".qmd", ".rmd"}:
+                                continue
+                            try:
+                                txt = script.read_text(errors="ignore")
+                                for m in py_import.finditer(txt):
+                                    imports.add(m.group(1).split(".")[0])
+                                for m in r_library.finditer(txt):
+                                    imports.add(m.group(1) or m.group(2))
+                            except OSError:
+                                continue
+                    bullets = sorted(i for i in imports if i and len(i) > 1)[:30]
+                    if bullets:
+                        tools_body = "\n".join(
+                            f"- `{i}` — used by step scripts." for i in bullets
+                        )
+                if tools_body:
+                    tools_md.write_text(
+                        existing_t.rstrip() + "\n"
+                        + f"\n### Step `{path_name}` — tools used\n\n"
+                        + tools_body
+                        + "\n"
+                    )
+                    project_updates.append("workspace/tools.md ← step tools")
+        except OSError as e:
+            logger.debug("tools.md append skipped: %s", e)
+
     # 7d. Per-step environment snapshot — if outputs/figures, tables, or
-    #     reports exist (i.e. work happened) and no environment file
-    #     other than README.md is present, hint that a snapshot would be
-    #     helpful. We do NOT auto-snapshot (the env may have been
-    #     captured globally at init); we surface it so the AI can decide.
-    if (
-        (inv["figures"] or inv["tables"] or inv["reports"])
-        and not env_files
-        and not (root / "environment" / "requirements.txt").exists()
-    ):
-        warnings.append(
-            f"Neither `workspace/{path_name}/environment/` nor "
-            "`environment/requirements.txt` is populated. Call "
-            "`sys_env_snapshot` (optionally with "
-            f"`step_id='{path_name}'` for a per-step snapshot) so the "
-            "reproducibility report has something to point at."
+    #     reports exist (i.e. work happened) the step's runtime stack
+    #     MUST be captured. v1.3.0 changes the behaviour from "warn" to
+    #     "auto-snapshot the project-global env if requirements.txt is
+    #     still the comment-only template", then warn if even that fails
+    #     or if a per-step environment would have been more appropriate
+    #     (different lang stack than the project default).
+    work_happened = bool(inv["figures"] or inv["tables"] or inv["reports"])
+    project_req = root / "environment" / "requirements.txt"
+    is_template_empty = (
+        project_req.exists()
+        and "# Project-global Python packages" in project_req.read_text()
+        and "\n" in project_req.read_text()
+        and not any(
+            ln.strip() and not ln.strip().startswith("#")
+            for ln in project_req.read_text().splitlines()
         )
+    )
+    if work_happened and (is_template_empty or not project_req.exists()):
+        try:
+            from research_os.tools.actions.exec.environment import env_snapshot
+
+            snap = env_snapshot(root)
+            if snap.get("status") == "success":
+                project_updates.append(
+                    "environment/requirements.txt ← auto-snapshot at finalize"
+                )
+            else:
+                warnings.append(
+                    "Auto-env-snapshot at finalize failed: "
+                    + snap.get("message", "unknown error")
+                    + ". Call `sys_env_snapshot` manually."
+                )
+        except Exception as e:
+            warnings.append(
+                f"Auto-env-snapshot at finalize raised {type(e).__name__}: {e}. "
+                "Call `sys_env_snapshot` manually."
+            )
+    if work_happened and not env_files and (root / "environment" / "requirements.txt").exists():
+        # Per-step env folder still empty even after the project-global
+        # snapshot — only worth flagging if the step uses a bespoke stack.
+        warnings.append(
+            f"`workspace/{path_name}/environment/` is empty. If this step "
+            f"uses a different package stack than the project default, "
+            f"call `sys_env_snapshot step_id='{path_name}'` for a "
+            f"per-step capture."
+        )
+
+    # 7e. (v1.3.0 round-2) Per-figure quality audit gate.
+    #     Every figure that landed in outputs/figures/ is run through
+    #     the same DPI / dimension / sidecar / aspect-ratio checks the
+    #     pre-submission audit uses. Blockers and warnings surface here
+    #     so the AI sees them now, not at synthesis time. This
+    #     enforces the "audit visualizations at the per-step gate"
+    #     rule the user requested for v1.3.0.
+    figure_audit: dict[str, dict[str, list[str]]] = {}
+    if inv["figures"]:
+        try:
+            from research_os.tools.actions.viz.figures import (
+                audit_figure_quality,
+            )
+        except Exception:
+            audit_figure_quality = None
+        if audit_figure_quality is not None:
+            for fig_name in inv["figures"]:
+                rel = (exp_dir / "outputs" / "figures" / fig_name
+                       ).relative_to(root).as_posix()
+                try:
+                    fr = audit_figure_quality(rel, root)
+                except Exception as e:
+                    fr = {"status": "error", "message": str(e)}
+                fblockers = fr.get("blockers", []) or []
+                fwarn = fr.get("warnings", []) or []
+                figure_audit[fig_name] = {
+                    "blockers": fblockers, "warnings": fwarn,
+                }
+                for b in fblockers:
+                    warnings.append(f"figure `{fig_name}` BLOCKER: {b}")
+                for w in fwarn:
+                    warnings.append(f"figure `{fig_name}` warning: {w}")
 
     return {
         "status": "success",
@@ -1045,11 +1175,20 @@ def finalize_path(
         "changes": changes,
         "project_updates": project_updates,
         "warnings": warnings,
+        "figure_audit": figure_audit,
         "decisions_linked": len(decisions),
+        # Renamed in v1.3.0 — `output_files` was ambiguous (counted
+        # data/output/ only, while researchers expected the total of
+        # outputs/figures + tables + reports + data/output). Both kept
+        # for back-compat; the count fields now read more naturally.
+        "data_output_files": len(out_files),
         "output_files": len(out_files),
         "figures": len(inv["figures"]),
         "tables": len(inv["tables"]),
         "reports": len(inv["reports"]),
+        "total_user_visible_artefacts": (
+            len(out_files) + len(inv["figures"]) + len(inv["tables"]) + len(inv["reports"])
+        ),
         "plain_english_summary_present": bool(plain_summary_from_context),
         "figure_summaries_synthesised": summaries_written,
     }
