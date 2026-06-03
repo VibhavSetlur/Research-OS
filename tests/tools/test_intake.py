@@ -1,7 +1,5 @@
 """Tests for tool_intake_autofill."""
 
-import yaml
-
 from research_os.project_ops import load_state, scaffold_minimal_workspace
 from research_os.tools.actions.data.intake import intake_autofill
 
@@ -70,3 +68,26 @@ def test_intake_autofill_respects_existing_state(tmp_path):
     state2 = load_state(tmp_path)
     assert state2.get("domain") == "my_custom_domain"
     assert res.get("status") == "success"
+
+
+def test_extract_named_papers_excludes_months_and_journals():
+    """v1.3.1: regex must NOT match month names ("Nov 2014", "Mar 2015")
+    or bare journal names ("Biology 2014", "Genet 2007"). These false
+    matches surfaced in the v1.3.0 PI-level e2e and were noise."""
+    from research_os.tools.actions.data.intake import _extract_named_papers
+    text = (
+        "Sarah pre-processed Himes-style bulk RNA-seq counts in Nov 2014 "
+        "from Mar 2015. Cite Himes BE, et al. PLOS ONE 2014 - the canonical "
+        "study. See Love MI, Huber W, Anders S. Genome Biology 2014 - DESeq2. "
+        "Also Leek JT, Storey JD. PLoS Genet 2007 - SVA. "
+        "Subramanian A, et al. PNAS 2005 - GSEA."
+    )
+    refs = _extract_named_papers(text)
+    # Real refs MUST be there
+    assert any("Himes" in r for r in refs), f"missed Himes — got {refs}"
+    assert any("Subramanian" in r for r in refs), f"missed Subramanian — got {refs}"
+    # False matches MUST be absent
+    assert not any(r.startswith("Nov ") for r in refs), f"'Nov YYYY' matched: {refs}"
+    assert not any(r.startswith("Mar ") for r in refs), f"'Mar YYYY' matched: {refs}"
+    assert not any(r.startswith("Biology ") for r in refs), f"'Biology YYYY' matched: {refs}"
+    assert not any(r.startswith("Genet ") for r in refs), f"'Genet YYYY' matched: {refs}"

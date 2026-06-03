@@ -1,6 +1,6 @@
 id: exploratory_data_analysis
 name: Exploratory Data Analysis (EDA + hypothesis generation)
-version: '1.1.0'
+version: '1.3.2'
 schema_version: '2.0'
 description: |
   Real EDA workflow — open-ended, hypothesis-GENERATING, NOT a
@@ -117,7 +117,7 @@ steps:
       that type (histogram for continuous, bar for categorical-few,
       barh for categorical-many, time-series line for time).
 
-      tool_figure_create handles palette / DPI / sidecars in one
+      An AI-authored script per visualization/figure_guidelines handles palette / DPI / sidecars in one
       call. Each figure ends with both caption sidecars (technical +
       plain-English). The univariate pass is the foundation — every
       downstream bivariate / multivariate move references these.
@@ -135,7 +135,7 @@ steps:
       Walk the comparisons named in the pre-registered scope. For
       each:
         - pick the chart family per the chart_chooser
-        - build via tool_figure_create
+        - build in an AI-authored plotting script
         - write the substantive caption ("X and Y co-move; the
           relationship is steeper above threshold Z") — NOT just
           "scatter of X vs Y"

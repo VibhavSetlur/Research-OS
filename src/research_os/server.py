@@ -518,6 +518,39 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                         "alongside the current one rather than replacing it."
                     ),
                 },
+                "from_step": {
+                    "type": "string",
+                    "description": (
+                        "Optional upstream step id to source data/input from "
+                        "(e.g. '03_normalization'). When omitted, the new step's "
+                        "data/input symlinks to the previous numbered step's "
+                        "data/output (or to inputs/raw_data/ for step 01). Use "
+                        "when the linear-predecessor inheritance is wrong — "
+                        "e.g. step 07 should read step 05's output, not step 06's."
+                    ),
+                },
+                "allow_unfinalized_predecessor": {
+                    "type": "boolean",
+                    "description": (
+                        "v1.3.0+: by default, create_numbered_experiment REFUSES "
+                        "to scaffold step N+1 while step N's README + conclusions.md "
+                        "are still placeholder text — preventing the 'forgot to "
+                        "finalize step 01 before starting step 02' pattern. Set this "
+                        "to true ONLY when the researcher explicitly authorises the "
+                        "bypass (e.g. step N is pure data plumbing with nothing to "
+                        "conclude). Pair with `override_rationale` so the bypass is "
+                        "logged to workspace/logs/override_log.md."
+                    ),
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": (
+                        "Required when allow_unfinalized_predecessor=true. The "
+                        "researcher's reason for bypassing the finalize gate. "
+                        "Surfaced verbatim in the override log + the pre-submission "
+                        "audit so the bypass is never hidden."
+                    ),
+                },
             },
             "required": ["name"],
         },
@@ -681,9 +714,22 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
     # ── Environment ───────────────────────────────────────────────────
     "sys_env_snapshot": {
-        "description": "Snapshot the current Python (and optionally R/Julia) environment to workspace/<step>/environment/requirements.txt.",
+        "description": "Snapshot the current Python (and optionally R/Julia) environment. Target by step_id='NN_slug' for a per-step snapshot, scope='project' for the eager-scaffolded project-global environment/ folder, or omit both for the legacy default (most-recent numbered step, or project-global when none exist).",
         "category": "environment",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {
+                    "type": "string",
+                    "description": "Optional. NN_slug of the numbered step to snapshot into. Mutually exclusive with scope.",
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project"],
+                    "description": "Optional. Set to 'project' to snapshot into the project-global environment/ folder.",
+                },
+            },
+        },
     },
     "sys_env_docker_generate": {
         "description": "Generate a Dockerfile from the environment snapshot for full reproducibility.",
@@ -1068,37 +1114,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "properties": {
                 "step_id": {"type": "string", "description": "Optional — audit one step instead of every active step."},
             },
-        },
-    },
-    "tool_figure_create": {
-        "short": "Publication-grade figure with enforced palette / DPI / dual PNG+SVG export + caption sidecars.",
-        "description": "Build a figure that clears the figure_guidelines bar in one call: SciencePlots-style typography (or built-in equivalent), Okabe-Ito / viridis / PuOr palettes, mandatory axis labels with units, inline n annotation, 95% CI band on regression overlays. Writes <step>/outputs/figures/<step_num>_<name>.{png,svg} + <name>.caption.md + (when plain_english is given) <name>.summary.md. Supported `kind`: bar, barh, line, scatter, hist, box, violin, heatmap, forest. `data` accepts a list-of-dicts, column-dict, or a path to CSV/TSV/JSON/Parquet. Set `interactive=true` (or `backend='plotly'`) for an interactive HTML companion when plotly is installed.",
-        "category": "viz",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string", "description": "Numbered step folder, e.g. '03_logistic_baseline'."},
-                "name": {"type": "string", "description": "Short descriptor — step number auto-prefixed if missing."},
-                "kind": {"type": "string", "description": "bar | barh | line | scatter | hist | box | violin | heatmap | forest"},
-                "data": {"description": "list of row-dicts, column-dict, OR string path to CSV/TSV/JSON/Parquet."},
-                "x": {"type": "string"},
-                "y": {"type": "string"},
-                "z": {"type": "string", "description": "heatmap value column"},
-                "error": {"type": "string", "description": "column with error/CI radius"},
-                "color_by": {"type": "string", "description": "grouping column for line / scatter"},
-                "bins": {"type": "number", "description": "histogram bin count (default 30)"},
-                "regression": {"type": "boolean", "description": "scatter: add OLS line + 95% CI band"},
-                "palette": {"type": "string", "description": "qualitative (default) | sequential | diverging | accent"},
-                "style": {"type": "string", "description": "default | nature | ieee | notebook | no_latex"},
-                "title": {"type": "string"},
-                "xlabel": {"type": "string"},
-                "ylabel": {"type": "string"},
-                "caption": {"type": "string", "description": "Technical caption for the figure sidecar."},
-                "plain_english": {"type": "string", "description": "Plain-language summary for the .summary.md sidecar."},
-                "interactive": {"type": "boolean", "description": "Also write an HTML plotly companion (requires plotly)."},
-                "backend": {"type": "string", "description": "matplotlib (default) | plotnine | plotly"},
-            },
-            "required": ["step_id", "name", "kind", "data"],
         },
     },
     "tool_figure_caption_synthesise": {
@@ -2510,12 +2525,27 @@ def _handle_sys_path_create(name, arguments, root):
     from research_os.project_ops import create_numbered_experiment
 
     try:
+        # v1.3.0 round-3: the MCP handler defaults to enforcing
+        # previous-step finalization. Researcher can opt out by passing
+        # `allow_unfinalized_predecessor=true` (logged to override_log).
+        allow_bypass = bool(arguments.get("allow_unfinalized_predecessor", False))
         res = create_numbered_experiment(
             root,
             arguments["name"],
             hypothesis=arguments.get("hypothesis", ""),
             branch_of=arguments.get("branch_of"),
+            from_step=arguments.get("from_step"),
+            enforce_predecessor_finalized=not allow_bypass,
         )
+        if allow_bypass:
+            from research_os.project_ops import log_override
+            log_override(
+                root,
+                tool="sys_path_create",
+                gate="enforce_predecessor_finalized",
+                rationale=arguments.get("override_rationale"),
+                extra={"new_step": res.get("path_id")},
+            )
         return _text(_success(res))
     except Exception as e:
         return _text(_error(str(e)))
@@ -2642,7 +2672,9 @@ def _handle_sys_session_handoff(name, arguments, root):
 
 
 def _handle_sys_env_snapshot(name, arguments, root):
-    res = env_snapshot(root)
+    step_id = arguments.get("step_id") if arguments else None
+    scope = arguments.get("scope") if arguments else None
+    res = env_snapshot(root, step_id=step_id, scope=scope)
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "snapshot failed")))
@@ -3185,43 +3217,6 @@ def _handle_tool_audit_version_coherence(name, arguments, root):
     return _text(_success(audit_version_coherence(
         root, step_id=arguments.get("step_id"),
     )))
-
-
-def _handle_tool_figure_create(name, arguments, root):
-    from research_os.tools.actions.viz import figure_create
-
-    try:
-        res = figure_create(
-            root=root,
-            step_id=arguments["step_id"],
-            name=arguments["name"],
-            kind=arguments["kind"],
-            data=arguments["data"],
-            x=arguments.get("x"),
-            y=arguments.get("y"),
-            z=arguments.get("z"),
-            error=arguments.get("error"),
-            color_by=arguments.get("color_by"),
-            bins=int(arguments.get("bins", 30)),
-            regression=bool(arguments.get("regression", False)),
-            palette=arguments.get("palette", "qualitative"),
-            style=arguments.get("style", "default"),
-            title=arguments.get("title", ""),
-            xlabel=arguments.get("xlabel", ""),
-            ylabel=arguments.get("ylabel", ""),
-            caption=arguments.get("caption", ""),
-            plain_english=arguments.get("plain_english"),
-            interactive=bool(arguments.get("interactive", False)),
-            backend=arguments.get("backend", "matplotlib"),
-            extra=arguments.get("extra"),
-        )
-    except KeyError as e:
-        return _text(_error(f"Missing required parameter: {e}"))
-    except Exception as e:
-        return _text(_error(f"figure_create failed: {e}"))
-    if res.get("status") == "success":
-        return _text(_success(res))
-    return _text(_error(res.get("message", "figure_create failed")))
 
 
 def _handle_tool_figure_caption_synthesise(name, arguments, root):
@@ -4456,7 +4451,6 @@ _HANDLERS = {
     "tool_audit_version_coherence": _handle_tool_audit_version_coherence,
     "tool_step_iterate": _handle_tool_step_iterate,
     "tool_step_iterations_list": _handle_tool_step_iterations_list,
-    "tool_figure_create": _handle_tool_figure_create,
     "tool_figure_caption_synthesise": _handle_tool_figure_caption_synthesise,
     "tool_audit_figure_full": _handle_tool_audit_figure_full,
     "tool_figure_palette": _handle_tool_figure_palette,
@@ -4563,11 +4557,29 @@ def _resolve_tool_name(name: str) -> str:
     return _ALIASES.get(canonical, canonical)
 
 
+# Tools removed in v1.3.0 — friendly error pointing the AI at the new path.
+# Old plans, scripts, or third-party callers that still name these get a
+# clear message instead of a generic "unknown tool" dead end.
+_REMOVED_TOOLS = {
+    "tool_figure_create": (
+        "tool_figure_create was removed in v1.3.0. Research-OS no longer ships "
+        "premade chart code — write your own matplotlib / ggplot2 / Altair / "
+        "plotnine / Vega-Lite / d3 script tailored to the data. Load the "
+        "guidance with sys_protocol_get(protocol_name='visualization/figure_guidelines', "
+        "format='summary'); call tool_research_method or tool_search_web first if "
+        "you're unsure which plotting library is canonical for this data type. "
+        "tool_figure_palette + tool_audit_figure_full are unchanged."
+    ),
+}
+
+
 def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
     if not _rate_limiter.is_allowed():
         return _text(_error("Rate limit exceeded — slow down."))
     resolved = _resolve_tool_name(name)
     logger.info(f"Tool call: {name} -> {resolved}")
+    if resolved in _REMOVED_TOOLS:
+        return _text(_error(_REMOVED_TOOLS[resolved]))
     handler = _HANDLERS.get(resolved)
     if handler is None:
         return _text(

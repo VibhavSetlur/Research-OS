@@ -1,6 +1,6 @@
 id: synthesis_from_inputs
 name: Synthesis — From Inputs (no workspace analysis required)
-version: '1.1.0'
+version: '1.3.2'
 schema_version: '2.0'
 description: |
   Synthesis for the case where the researcher has finished analyses,
@@ -167,7 +167,7 @@ steps:
           copy into workspace/<step>/outputs/figures/ with a manifest
           line recording the source.
         - if the input figure is sub-quality but the SOURCE DATA is
-          present → rebuild via tool_figure_create. The rebuild's
+          present → rebuild in an AI-authored plotting script. The rebuild's
           caption.md states it was reconstructed from the source data.
         - if the source data is NOT present → either keep the input
           figure as-is and label the caption "figure provided by the

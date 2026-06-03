@@ -1,27 +1,22 @@
-"""Publication-grade visualisation toolkit.
+"""Figure utilities — palette lookup, caption sidecars, quality audit.
 
-Most analysis scripts produce throw-away exploratory charts. The handful of
-plots that make it into a paper, dashboard, or poster need to clear a much
-higher bar — colour-blind safe palettes, journal-style typography, axis
-units, error bars, accessible captions. This module provides:
+Research-OS is a **guidance system**, not a chart library. The AI writes
+its own visualization scripts (matplotlib / ggplot2 / Altair / d3 / …);
+the ``visualization/figure_guidelines`` protocol tells it HOW to think
+about that script, and this module provides:
 
-* ``tool_figure_create`` (alias ``figure_create``) — declarative wrapper that
-  reads a CSV/JSON table, applies a publication preset (Nature / IEEE /
-  default), and writes the figure at both PNG (≥300 DPI) and SVG.
-* ``tool_figure_palette`` — return the recommended palette for a given
-  encoding (sequential / diverging / qualitative). Defaults: viridis,
-  PuOr, Okabe-Ito (colour-blind safe).
-* ``tool_figure_caption_synthesise`` — turn a technical caption + the
-  step's findings into a 2-3 sentence plain-language sibling
-  (``<name>.summary.md``) for W3C-style "long descriptions".
-* ``tool_figure_audit_quality`` — beyond the existing DPI check: looks at
-  palette, axis labels, units, error bars, font sizes.
+* ``palette_for`` — colour-blind-safe palette lookup (Okabe-Ito,
+  viridis, PuOr) the AI's script can call.
+* ``caption_synthesise`` — write a plain-English ``<name>.summary.md``
+  next to a figure when the AI hasn't yet drafted one in its own voice.
+* ``audit_figure_quality`` — DPI + dimensions + sidecar presence + SVG
+  companion + SVG label-overlap heuristic. Surfaces warnings + blockers
+  consumed by ``tool_path_finalize`` / ``tool_audit_step_completeness``.
+* ``step_figure_inventory`` — used by the completeness gate.
 
-The plotting library priority is **matplotlib + the Okabe-Ito / viridis
-palette**, with SciencePlots styles applied when available (``science``,
-``nature``, ``ieee``). Optional backends (plotnine, plotly, altair) are
-detected at runtime; the wrapper gracefully degrades to matplotlib when
-they are absent.
+Removed in v1.3.0: ``figure_create`` / ``tool_figure_create`` and the
+30+ ``_render_*`` chart-kind dispatchers. The AI writes its own
+plotting code now. See CHANGELOG migration notes.
 """
 
 from research_os.tools.actions.viz.dashboard_tests import (
@@ -31,15 +26,15 @@ from research_os.tools.actions.viz.dashboard_tests import (
 from research_os.tools.actions.viz.figures import (
     audit_figure_quality,
     caption_synthesise,
-    figure_create,
     palette_for,
+    step_figure_inventory,
 )
 
 __all__ = [
     "audit_figure_quality",
     "caption_synthesise",
-    "figure_create",
     "generate_dashboard_test_suite",
     "palette_for",
     "run_dashboard_tests",
+    "step_figure_inventory",
 ]

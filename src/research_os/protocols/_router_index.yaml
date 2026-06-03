@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 7
+version: 9
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -301,13 +301,29 @@ protocols:
     triggers:
       - "fill the intake"
       - "fill intake"
+      - "fill out the intake"
+      - "fill out intake"
+      - "do the intake"
+      - "do intake"
+      - "run the intake"
+      - "run intake"
+      - "intake autofill"
       - "autofill"
+      - "autofill the intake"
+      - "autofill intake"
       - "read my data"
+      - "read my inputs"
+      - "read the inputs"
       - "what do I have"
       - "what's in inputs"
       - "i dropped some files"
+      - "i dropped a csv"
+      - "dropped a csv"
+      - "dropped some data"
+      - "dropped a note"
       - "new project"
       - "figure out what's going on"
+      - "tell me what you're going to do"
     shortcut_tool: tool_intake_autofill
     token_estimate: 1400
     decomposition:
@@ -829,6 +845,22 @@ protocols:
                "letter-value plot", "distribution comparison",
                "compare distributions", "strip plot", "ecdf"]
 
+  visualization/interactive_figure_design:
+    # v1.3.1 fix: `visualize` is NOT a top-level intent_class in the
+    # hierarchy block above; it was a typo in v1.3.0 that made this
+    # protocol unroutable. Mapped to `synthesize/interactive` (the
+    # closest valid hierarchy node) so semantic + trigger routing both
+    # surface it.
+    intent_class: synthesize
+    sub_intent: interactive
+    summary: "Design ONE interactive figure (hover, brush, zoom, lasso) as a companion to a static PNG/SVG. Plotly / Altair / mpld3 / pyvis / igv.js / cellxgene / glimma — pick by data type. Static fallback REQUIRED."
+    triggers: ["interactive figure", "interactive plot", "make this plot interactive",
+               "add hover tooltips", "interactive volcano", "interactive umap",
+               "interactive scatter", "interactive heatmap", "interactive network",
+               "plotly version", "altair version", "vega-lite figure",
+               "let me hover", "let me brush", "let me zoom", "explore the points",
+               "click to filter", "html companion to figure"]
+
   visualization/interactive_dashboard_design:
     intent_class: synthesize
     sub_intent: interactive
@@ -1028,11 +1060,9 @@ protocols:
     token_estimate: 1300
     decomposition:
       - protocol: audit/provenance_completeness
-        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running through tool_figure_create or write_output_provenance."
+        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running by re-running the figure script (which should drop the provenance sidecar) or by calling tool_write_provenance_sidecar manually."
       - tool: tool_python_exec
         purpose: "Re-run any artefact-producing script under provenance to backfill missing sidecars."
-      - tool: tool_figure_create
-        purpose: "Re-route figure rendering through the tool that writes the sidecar automatically."
 
   reproducibility/reproducibility:
     intent_class: audit_wrap
@@ -1076,9 +1106,7 @@ protocols:
     token_estimate: 1500
     decomposition:
       - protocol: visualization/visualization_workflow
-        purpose: "Scope + plan figures, then build via tool_figure_create."
-      - tool: tool_figure_create
-        purpose: "Build each figure with palette / DPI / sidecars in one call."
+        purpose: "Scope + plan figures, then build via an AI-authored plotting script (see visualization/figure_guidelines)."
       - tool: tool_audit_figure_full
         purpose: "Audit each figure."
 
@@ -1240,8 +1268,6 @@ protocols:
       - protocol: methodology/exploratory_data_analysis
         purpose: "Pre-register scope, profile, build univariate + bivariate views."
       - tool: tool_data_profile
-      - tool: tool_figure_create
-
   methodology/method_comparison:
     intent_class: methodology
     sub_intent: comparison
@@ -1606,8 +1632,6 @@ protocols:
     decomposition:
       - protocol: visualization/multi_panel_composition
         purpose: "Name the story, design the grid, build panels, compose, caption."
-      - tool: tool_figure_create
-
   visualization/figure_narrative_arc:
     intent_class: synthesize
     sub_intent: figure_arc

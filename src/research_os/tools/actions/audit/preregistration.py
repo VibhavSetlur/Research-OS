@@ -199,6 +199,8 @@ def freeze_preregistration(
         from research_os.project_ops import load_state
         state_rq = (load_state(root) or {}).get("research_question", "")
     except Exception:
+        # State unreadable / not initialised — fall through to the legacy
+        # researcher_config locations below.
         pass
     rq = (
         state_rq

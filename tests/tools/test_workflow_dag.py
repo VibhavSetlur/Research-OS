@@ -17,7 +17,7 @@ def test_dag_with_no_steps_returns_empty(tmp_path):
 
 def test_dag_writes_mermaid_with_one_step(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Single Step DAG")
-    create_numbered_experiment(tmp_path, "baseline_eda", hypothesis="H0")
+    create_numbered_experiment(tmp_path, "baseline_eda", hypothesis="H0", enforce_predecessor_finalized=False)
     res = workflow_dag(tmp_path)
     assert res["status"] == "success"
     assert res["nodes"] == 1
@@ -33,11 +33,11 @@ def test_dag_writes_mermaid_with_one_step(tmp_path):
 
 def test_dag_derives_edges_from_data_input_symlinks(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Edges DAG")
-    create_numbered_experiment(tmp_path, "data_prep", hypothesis="")
+    create_numbered_experiment(tmp_path, "data_prep", hypothesis="", enforce_predecessor_finalized=False)
     # Step 2 omits from_step → create_numbered_experiment auto-links
     # data/input to step 1's data/output. That symlink is what
     # workflow_dag walks to derive the edge.
-    create_numbered_experiment(tmp_path, "modeling", hypothesis="")
+    create_numbered_experiment(tmp_path, "modeling", hypothesis="", enforce_predecessor_finalized=False)
     res = workflow_dag(tmp_path)
     assert res["status"] == "success"
     assert res["nodes"] == 2
@@ -50,7 +50,7 @@ def test_dag_derives_edges_from_data_input_symlinks(tmp_path):
 def test_dag_auto_refreshes_on_path_create(tmp_path):
     """create_numbered_experiment should now write the DAG file too."""
     scaffold_minimal_workspace(tmp_path, "Auto-refresh DAG")
-    create_numbered_experiment(tmp_path, "first_step", hypothesis="")
+    create_numbered_experiment(tmp_path, "first_step", hypothesis="", enforce_predecessor_finalized=False)
     dag = tmp_path / "docs" / "workflow_dag.mermaid"
     assert dag.exists()
     assert "01_first_step" in dag.read_text()

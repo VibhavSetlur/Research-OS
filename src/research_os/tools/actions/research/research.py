@@ -533,8 +533,9 @@ def plan_step_grounded(
                 "literature entries the action will consult._",
                 "  - e.g. `inputs/context/protocol_v2.md` (researcher's spec)",
                 "  - e.g. `literature/smith2023.pdf` (canonical reference for the method)",
-                "- **Action**: _the tool call(s) — `tool_step_pipeline_run` / "
-                "`tool_figure_create` / etc._",
+                "- **Action**: _the tool call(s) — `tool_step_pipeline_run`, "
+                "`tool_python_exec` / `tool_r_exec` for AI-authored scripts, "
+                "`tool_search_*` for literature, etc._",
                 "- **Expected outputs**: _files this sub-task should produce."
                 " Provenance sidecars auto-emit._",
                 "- **Verification** (CoVe): _the question that would falsify "
@@ -555,10 +556,8 @@ def plan_step_grounded(
             "",
             "## After execution",
             "",
-            "- For each completed sub-task: `tool_grounding_register` with the "
-            "evidence consulted + `tool_claim_verify` with the CoVe question.",
-            "- `tool_lessons_record outcome=<...> reflection=<one paragraph>` "
-            "for the step as a whole.",
+            "- For each completed sub-task: `tool_grounding_register` with the evidence consulted + `tool_claim_verify` with the CoVe question.",
+            "- `tool_lessons_record outcome=<...> reflection=<one paragraph>` for the step as a whole.",
             "- `tool_audit_quality_full` before synthesis.",
         ])
 
@@ -786,16 +785,14 @@ def alternative_path_propose(
         lines.extend([
             "",
             "## How to act on this",
-            "1. The AI reads the evidence above and decides which ONE "
-            "alternative is best supported.",
-            "2. If `commit_user_method`: tell the researcher you considered "
-            "alternatives and stuck with their choice (one-line note in "
-            "analysis.md is enough).",
-            "3. If `branch_to_alternative`: phrase the proposal to the "
-            "researcher exactly once. On confirmation, call "
-            f"`sys_path_create name=\"<slug>_alt\" branch_of=\"{current or '<current>'}\"` "
-            "— that produces an `NN_<slug>_alt_path_<k>` folder that runs "
-            "alongside the primary without disturbing it.",
+            "1. The AI reads the evidence above and decides which ONE alternative is best supported.",
+            "2. If `commit_user_method`: tell the researcher you considered alternatives and stuck with their choice (one-line note in analysis.md is enough).",
+            (
+                "3. If `branch_to_alternative`: phrase the proposal to the researcher exactly once. "
+                "On confirmation, call "
+                f"`sys_path_create name=\"<slug>_alt\" branch_of=\"{current or '<current>'}\"` "
+                "— that produces an `NN_<slug>_alt_path_<k>` folder that runs alongside the primary without disturbing it."
+            ),
             "4. Log the decision with `mem_decision_log`.",
         ])
 

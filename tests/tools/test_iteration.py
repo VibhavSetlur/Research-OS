@@ -23,7 +23,7 @@ from research_os.tools.actions.state.iteration import (
 
 def _make_step(tmp_path: Path, slug: str = "baseline_eda") -> str:
     scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
-    res = create_numbered_experiment(tmp_path, slug, hypothesis="H1")
+    res = create_numbered_experiment(tmp_path, slug, hypothesis="H1", enforce_predecessor_finalized=False)
     return res["path_id"]
 
 
@@ -385,3 +385,493 @@ def test_step_completeness_quiet_when_table_exists(tmp_path):
         w for step in res.get("steps", []) for w in step.get("warnings", [])
     )
     assert "no table" not in all_warnings.lower()
+
+
+# ── v1.3.0: finalize_path now writes back into project-scope logs ────
+
+
+def test_finalize_appends_step_entry_to_analysis_md(tmp_path):
+    """finalize_path should add a step-finalized heading + headline +
+    output counts to workspace/analysis.md (idempotent)."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1, tables=1, reports=1)
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n\n"
+        "- Hazard ratio = 1.42 (95% CI 1.10-1.84), p = 0.008.\n"
+        "## Decision\nproceed.\n"
+    )
+    res = finalize_path(path_name=step_id, root=tmp_path)
+    assert res["status"] == "success"
+    assert any("analysis.md" in u for u in res.get("project_updates", []))
+    analysis = (tmp_path / "workspace" / "analysis.md").read_text()
+    assert f"### Step `{step_id}` finalized" in analysis
+    assert "Hazard ratio" in analysis
+
+    # Idempotency: running finalize again should NOT duplicate the
+    # heading.
+    finalize_path(path_name=step_id, root=tmp_path)
+    again = (tmp_path / "workspace" / "analysis.md").read_text()
+    assert again.count(f"### Step `{step_id}` finalized") == 1
+
+
+def test_finalize_mirrors_methods_section_into_methods_md(tmp_path):
+    """If conclusions.md has `## Methods (full detail)`, finalize_path
+    should mirror it into workspace/methods.md under a step heading."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1)
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n- something\n\n"
+        "## Methods (full detail)\n"
+        "Cox proportional hazards model on n=152 subjects with "
+        "right-censoring, fit via lifelines==0.27.4, seed=42.\n\n"
+        "## Decision\nproceed.\n"
+    )
+    finalize_path(path_name=step_id, root=tmp_path)
+    methods = (tmp_path / "workspace" / "methods.md").read_text()
+    assert f"### Step `{step_id}` — methods" in methods
+    assert "Cox proportional hazards" in methods
+
+
+def test_finalize_warns_on_stub_findings(tmp_path):
+    """finalize_path should surface a warning when conclusions.md
+    Findings / Decision are still stubs — not a blocker, just a
+    nudge."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1)
+    # Leave conclusions.md as the stub template (the create_numbered_experiment
+    # scaffolder already wrote it with the placeholders).
+    res = finalize_path(path_name=step_id, root=tmp_path)
+    assert res["status"] == "success"
+    warnings = res.get("warnings", [])
+    assert any("Findings" in w for w in warnings) or any(
+        "stub" in w.lower() for w in warnings
+    ), f"expected stub-conclusions warning, got: {warnings}"
+
+
+def test_env_snapshot_step_id_param(tmp_path):
+    """sys_env_snapshot(step_id=…) should write into the named step's
+    environment folder, not the most-recent active one."""
+    from research_os.project_ops import create_numbered_experiment, scaffold_minimal_workspace
+    from research_os.tools.actions.exec.environment import env_snapshot
+    scaffold_minimal_workspace(tmp_path, "EnvScopeTest", ide_flags=[], copy_agents=False)
+    a = create_numbered_experiment(tmp_path, "alpha", enforce_predecessor_finalized=False)["path_id"]
+    b = create_numbered_experiment(tmp_path, "beta", enforce_predecessor_finalized=False)["path_id"]   # most recent
+    res = env_snapshot(tmp_path, step_id=a)
+    assert res["status"] == "success"
+    # The snapshot must land in alpha, NOT beta (the active one).
+    assert (tmp_path / "workspace" / a / "environment" / "requirements.txt").exists()
+    # Beta should still be empty of step-specific requirements.
+    assert not (tmp_path / "workspace" / b / "environment" / "requirements.txt").exists()
+
+
+def test_env_snapshot_project_scope(tmp_path):
+    """sys_env_snapshot(scope='project') should write to the
+    project-global environment/ folder (eager-scaffolded in v1.3.0)."""
+    from research_os.project_ops import scaffold_minimal_workspace
+    from research_os.tools.actions.exec.environment import env_snapshot
+    scaffold_minimal_workspace(tmp_path, "ScopeTest", ide_flags=[], copy_agents=False)
+    res = env_snapshot(tmp_path, scope="project")
+    assert res["status"] == "success"
+    snap = tmp_path / "environment" / "requirements.txt"
+    assert snap.exists()
+    # Snapshot overwrites the init stub; new content should be a real
+    # pip freeze, not the placeholder header.
+    text = snap.read_text()
+    assert "# Project-global Python packages" not in text
+
+
+# ── v1.3.0 e2e-surfaced patches ──────────────────────────────────────
+
+
+def test_finalize_headline_strips_markdown_bold(tmp_path):
+    """Headline extraction must remove **bold** markers even when the
+    bullet's leading list marker would otherwise eat the opening **."""
+    from research_os.tools.actions.state.path import _headline_from_findings
+    sample = (
+        "## Findings\n\n"
+        "- **Species main effect**: F(2, 322) = 744.8, p < 0.001, "
+        "ω² = 0.821.\n"
+        "## Decision\n"
+    )
+    headline = _headline_from_findings(sample)
+    assert "Species main effect" in headline
+    assert "**" not in headline, headline
+
+
+def test_finalize_input_data_section_backfilled(tmp_path):
+    """The README's `## Input data` stub should be replaced with the
+    step's data/input listing once finalize_path runs."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1)
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n- finding\n\n## Decision\nproceed.\n"
+    )
+    # Drop a pipeline.yaml so the input inventory has something to find.
+    (step_dir / "pipeline.yaml").write_text(
+        "nodes:\n  - id: clean\n    inputs: ['inputs/raw_data/penguins.csv']\n"
+    )
+    finalize_path(path_name=step_id, root=tmp_path)
+    readme = (step_dir / "README.md").read_text()
+    assert "*(list inputs used)*" not in readme
+    assert "inputs/raw_data/penguins.csv" in readme
+
+
+def test_finalize_figure_inventory_filters_sidecars(tmp_path):
+    """The Outputs section + the returned figure count should reflect
+    REAL image files, not the .caption.md / .summary.md / .svg
+    sidecars."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=2)
+    # _populate_step writes caption + summary sidecars per figure; we
+    # also add an SVG companion to verify the dedup branch.
+    figs = step_dir / "outputs" / "figures"
+    (figs / "01_curve_0.svg").write_text("<svg/>")
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n- finding\n\n## Decision\nproceed.\n"
+    )
+    res = finalize_path(path_name=step_id, root=tmp_path)
+    assert res["figures"] == 2, (
+        f"expected 2 real figures, got {res['figures']} — sidecars are "
+        "leaking into the inventory"
+    )
+
+
+def test_from_step_does_not_copy_outputs(tmp_path):
+    """create_numbered_experiment(from_step=X, enforce_predecessor_finalized=False) must NOT duplicate X's
+    outputs/scripts into the new step. The intent of from_step is only
+    'wire data/input from X's output'."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, create_numbered_experiment,
+    )
+    scaffold_minimal_workspace(tmp_path, "FromStepTest",
+                                ide_flags=[], copy_agents=False)
+    a = create_numbered_experiment(tmp_path, "alpha", enforce_predecessor_finalized=False)["path_id"]
+    # Plant some artefacts in alpha's outputs/scripts so we can check
+    # they're NOT carried over.
+    aa = tmp_path / "workspace" / a
+    (aa / "outputs" / "figures").mkdir(parents=True, exist_ok=True)
+    (aa / "outputs" / "figures" / "marker.png").write_bytes(b"PNG")
+    (aa / "scripts" / "marker.py").write_text("# marker\n")
+
+    b = create_numbered_experiment(tmp_path, "beta", from_step=a, enforce_predecessor_finalized=False)["path_id"]
+    bb = tmp_path / "workspace" / b
+    # outputs/figures must be empty in beta.
+    assert not (bb / "outputs" / "figures" / "marker.png").exists()
+    assert not (bb / "scripts" / "marker.py").exists()
+    # But data/input MUST be wired to alpha's data/output.
+    link = bb / "data" / "input"
+    assert link.is_symlink()
+    assert link.resolve() == (aa / "data" / "output").resolve()
+
+
+def test_intake_biology_domain_recognised(tmp_path):
+    """v1.3.0 added a biology_ecology domain so penguin-style datasets
+    no longer fall through to 'economics'."""
+    from research_os.project_ops import scaffold_minimal_workspace
+    from research_os.tools.actions.data.intake import _classify_domain
+    scaffold_minimal_workspace(tmp_path, "BioTest",
+                                ide_flags=[], copy_agents=False)
+    raw = tmp_path / "inputs" / "raw_data"
+    raw.mkdir(parents=True, exist_ok=True)
+    csv = raw / "penguins.csv"
+    csv.write_text(
+        "species,sex,island,bill_length_mm,bill_depth_mm,body_mass_g\n"
+        "Adelie,male,Torgersen,39.1,18.7,3750\n"
+    )
+    context = "Working with Pygoscelis penguin morphometric data."
+    domain, why = _classify_domain([csv], context)
+    assert domain == "biology_ecology", (
+        f"penguin CSV + 'pygoscelis' keyword should classify as "
+        f"biology_ecology, got {domain!r} (why: {why})"
+    )
+
+
+def test_intake_extracts_markdown_hypotheses(tmp_path):
+    """v1.3.0 hypothesis regex must handle the markdown-bullet-with-
+    bold pattern advisors actually use:
+        - **H1** — text
+        - **H2**: text
+    """
+    from research_os.tools.actions.data.intake import _propose_hypotheses
+    notes = (
+        "## Open hypotheses\n\n"
+        "- **H1** — Bill length differs by species.\n"
+        "- **H2** — Within each species, males have deeper bills.\n"
+        "- **H3** — Dimorphism scales allometrically with body mass.\n"
+    )
+    hs = _propose_hypotheses(notes)
+    assert len(hs) == 3, f"expected 3 hypotheses, got {len(hs)}: {hs}"
+    assert "Bill length" in hs[0]
+    assert "deeper bills" in hs[1]
+    assert "allometrically" in hs[2]
+
+
+# ── v1.3.0 round-2: STATE.md, multi-language env, finalize audit ─────
+
+
+def test_state_md_at_project_root_with_research_question(tmp_path):
+    """v1.3.0 round-2: the human-readable status file is STATE.md at
+    the project root, not buried under .os_state/. The content must
+    surface what a fresh AI session needs."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, save_state, load_state,
+    )
+    scaffold_minimal_workspace(tmp_path, "Round2 Test",
+                                ide_flags=[], copy_agents=False,
+                                config_overrides={
+                                    "research_question": "Test Q",
+                                    "domain": "biology_ecology",
+                                })
+    # Save state to make sure the trigger fires.
+    save_state(tmp_path, load_state(tmp_path))
+    state_md = tmp_path / "STATE.md"
+    assert state_md.exists()
+    text = state_md.read_text()
+    # New fresh-chat directions section.
+    assert "How to resume in a fresh chat" in text
+    # No internal-tool jargon for the reader.
+    assert "mem_analysis_log" not in text
+    # Old buried copy gone after the migration in save_state.
+    assert not (tmp_path / ".os_state" / "os_state.md").exists()
+
+
+def test_env_snapshot_skips_python_for_r_only_project(tmp_path):
+    """A project whose only scripts are R should NOT receive a stray
+    pip-freeze. v1.3.0 detects languages from the workspace."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, create_numbered_experiment,
+    )
+    from research_os.tools.actions.exec.environment import env_snapshot
+    scaffold_minimal_workspace(tmp_path, "R Only",
+                                ide_flags=[], copy_agents=False)
+    step_id = create_numbered_experiment(tmp_path, "r_analysis", enforce_predecessor_finalized=False)["path_id"]
+    # Drop a single R script — no Python anywhere.
+    r_script = (tmp_path / "workspace" / step_id / "scripts" / "01_fit.R")
+    r_script.write_text("library(MASS)\n")
+    res = env_snapshot(tmp_path, step_id=step_id)
+    assert res["status"] == "success"
+    captured = res.get("languages_captured", [])
+    assert "R" in captured, (
+        f"R script in workspace should trigger R capture, got {captured}"
+    )
+    assert "python" not in captured, (
+        f"R-only project should NOT get python capture, got {captured}"
+    )
+
+
+def test_env_snapshot_picks_up_quarto_and_julia(tmp_path):
+    """v1.3.0 round-2: workspace scan picks up .qmd (Quarto) and
+    .jl (Julia) files and captures both."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace, create_numbered_experiment,
+    )
+    from research_os.tools.actions.exec.environment import env_snapshot
+    scaffold_minimal_workspace(tmp_path, "Mixed",
+                                ide_flags=[], copy_agents=False)
+    step_id = create_numbered_experiment(tmp_path, "mixed", enforce_predecessor_finalized=False)["path_id"]
+    s = tmp_path / "workspace" / step_id / "scripts"
+    (s / "01_report.qmd").write_text("---\ntitle: X\n---\n")
+    (s / "02_fit.jl").write_text("using Plots\n")
+    res = env_snapshot(tmp_path, step_id=step_id)
+    captured = res.get("languages_captured", [])
+    assert "quarto" in captured
+    assert "julia" in captured
+
+
+def test_finalize_runs_figure_audit_per_figure(tmp_path):
+    """v1.3.0 round-2: tool_path_finalize now runs the figure audit
+    on every figure and returns the results under `figure_audit` +
+    rolls blockers into warnings."""
+    from research_os.tools.actions.state.path import finalize_path
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=2)
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n- finding\n\n## Decision\nproceed.\n"
+    )
+    res = finalize_path(path_name=step_id, root=tmp_path)
+    assert res["status"] == "success"
+    fa = res.get("figure_audit", {})
+    assert len(fa) == 2, (
+        f"expected per-figure audit for 2 figures, got {len(fa)}"
+    )
+    # The fake .png bytes _populate_step writes have no real DPI;
+    # PIL either errors out or reports defaults. Either way we expect
+    # the audit dict to have blockers OR warnings keys present.
+    for fig_name, entry in fa.items():
+        assert "blockers" in entry and "warnings" in entry
+
+
+def test_workspace_logs_has_a_readme_after_init(tmp_path):
+    """v1.3.0 round-2: workspace/logs/ ships with a README explaining
+    what kinds of logs land there. Previously it was a dead empty
+    folder."""
+    from research_os.project_ops import scaffold_minimal_workspace
+    scaffold_minimal_workspace(tmp_path, "Logs Test",
+                                ide_flags=[], copy_agents=False)
+    logs_readme = tmp_path / "workspace" / "logs" / "README.md"
+    assert logs_readme.exists()
+    text = logs_readme.read_text()
+    # Must mention the standard log files researchers grep for.
+    assert "audit_report.md" in text
+    assert "search_log.md" in text
+    assert "override_log.md" in text
+
+
+# ---------------------------------------------------------------------------
+# v1.3.1 regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_finalize_scrapes_references_into_citations_md(tmp_path):
+    """v1.3.1: finalize must scrape `## References to ground` from
+    conclusions.md into the project-wide citations.md."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "test_step",
+        enforce_predecessor_finalized=False,
+    )
+    conc = tmp_path / "workspace" / step["path_id"] / "conclusions.md"
+    conc.write_text(
+        "# Conclusions — test_step\n\n"
+        "## Decision\nPROCEED to step 02.\n\n"
+        "## References to ground\n"
+        "- Smith J, et al. Nature 2024 — fictional canonical reference.\n"
+        "- Doe A. PLOS ONE 2023 — fictional second reference.\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    citations = (tmp_path / "workspace" / "citations.md").read_text()
+    assert "Smith J" in citations, (
+        "References to ground should have been scraped into citations.md"
+    )
+    assert "Doe A" in citations
+    # And per-step key_papers.md
+    kp = tmp_path / "workspace" / step["path_id"] / "literature" / "key_papers.md"
+    assert kp.exists(), "literature/key_papers.md should have been auto-filled"
+    assert "Smith J" in kp.read_text()
+
+
+def test_finalize_mirrors_decision_into_log(tmp_path):
+    """v1.3.1: finalize must mirror the conclusions.md `## Decision`
+    block into workspace/analysis.md as a Decision · timestamp entry."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "decision_test", enforce_predecessor_finalized=False,
+    )
+    conc = tmp_path / "workspace" / step["path_id"] / "conclusions.md"
+    conc.write_text(
+        "# Conclusions — decision_test\n\n"
+        "## Decision\nPROCEED — model is well-calibrated.\n\n"
+        "## References to ground\n- Test 2024\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    analysis_md = (tmp_path / "workspace" / "analysis.md").read_text()
+    assert "PROCEED" in analysis_md, "decision verb should be in analysis.md"
+    assert f"step={step['path_id']}" in analysis_md, (
+        "the marker line for idempotency must be present"
+    )
+
+
+def test_finalize_flips_step_status_to_completed(tmp_path):
+    """v1.3.1: finalize must flip the state-ledger path status from
+    'active' to 'completed' so STATE.md shows ✓ instead of →."""
+    from research_os.project_ops import (
+        create_numbered_experiment, load_state, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "status_test", enforce_predecessor_finalized=False,
+    )
+    pre = load_state(tmp_path)["paths"][step["path_id"]]["status"]
+    assert pre == "active"
+    conc = tmp_path / "workspace" / step["path_id"] / "conclusions.md"
+    conc.write_text(
+        "# Conclusions\n## Decision\nPROCEED.\n## Findings\n- All good.\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    post = load_state(tmp_path)["paths"][step["path_id"]]["status"]
+    assert post == "completed"
+
+
+def test_finalize_env_snapshot_uses_project_scope(tmp_path):
+    """v1.3.1: env auto-snapshot at finalize must land in
+    environment/requirements.txt (project-global), NOT in the active
+    step's environment folder."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "env_test", enforce_predecessor_finalized=False,
+    )
+    # Produce work so the env-snapshot trigger fires
+    step_dir = tmp_path / "workspace" / step["path_id"]
+    (step_dir / "outputs" / "figures").mkdir(parents=True, exist_ok=True)
+    (step_dir / "outputs" / "figures" / "01_fake.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    (step_dir / "outputs" / "figures" / "01_fake.caption.md").write_text("caption.")
+    conc = step_dir / "conclusions.md"
+    conc.write_text(
+        "# Conclusions\n## Decision\nPROCEED.\n## Findings\n- All good.\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    proj_req = tmp_path / "environment" / "requirements.txt"
+    text = proj_req.read_text()
+    # Post-snapshot, the file should have at least one non-comment
+    # package line (e.g. 'pytest==X.Y' or similar).
+    has_package = any(
+        ln.strip() and not ln.strip().startswith("#")
+        for ln in text.splitlines()
+    )
+    assert has_package, (
+        "project environment/requirements.txt should have pinned packages "
+        "after finalize, not stay as the comment-only template"
+    )
+
+
+def test_tools_md_filters_stdlib(tmp_path):
+    """v1.3.1: workspace/tools.md must exclude stdlib modules
+    (pathlib, sys, warnings) from the auto-import scan."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "imports_test", enforce_predecessor_finalized=False,
+    )
+    step_dir = tmp_path / "workspace" / step["path_id"]
+    (step_dir / "scripts").mkdir(exist_ok=True)
+    (step_dir / "scripts" / "main_v1.py").write_text(
+        "import pathlib\nimport sys\nimport warnings\nimport pandas\nimport numpy\n"
+    )
+    conc = step_dir / "conclusions.md"
+    conc.write_text(
+        "# Conclusions\n## Decision\nPROCEED.\n## Findings\n- ok.\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    tools_md = (tmp_path / "workspace" / "tools.md").read_text()
+    assert "pandas" in tools_md
+    assert "numpy" in tools_md
+    assert "`pathlib`" not in tools_md, "stdlib `pathlib` should be filtered"
+    assert "`sys`" not in tools_md, "stdlib `sys` should be filtered"
+    assert "`warnings`" not in tools_md, "stdlib `warnings` should be filtered"

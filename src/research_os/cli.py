@@ -251,6 +251,12 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     author = collab.whoami(target_dir if target_dir.exists() else None)
 
     # 2. Scaffold.
+    researcher_block = {
+        "name": getattr(r, "researcher_name", "") or "",
+        "email": getattr(r, "researcher_email", "") or "",
+        "institution": getattr(r, "researcher_institution", "") or "",
+        "orcid": getattr(r, "researcher_orcid", "") or "",
+    }
     config_overrides = {
         "project_name": r.project_name,
         "domain": r.domain,
@@ -259,6 +265,7 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
         "authors": [author.as_dict()],
         "api_keys": dict(getattr(r, "api_keys", {}) or {}),
         "model_profile": getattr(r, "model_profile", "medium"),
+        "researcher": researcher_block,
     }
     scaffold_minimal_workspace(
         target_dir,
@@ -268,6 +275,30 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
         copy_agents=True,
     )
     wizard.ok("Workspace scaffolded", str(target_dir))
+
+    # 2a. v1.3.0: opt-in cross-project profile save.
+    if getattr(r, "save_as_profile", False) and any(researcher_block.values()):
+        try:
+            from research_os.tools.actions.state.config import (
+                load_profile, save_profile,
+            )
+            profile = load_profile()
+            existing_r = profile.get("researcher") if isinstance(profile.get("researcher"), dict) else {}
+            existing_r.update({k: v for k, v in researcher_block.items() if v})
+            profile["researcher"] = existing_r
+            # Persist non-empty api_keys + model_profile too.
+            api_keys = config_overrides.get("api_keys") or {}
+            if api_keys:
+                profile.setdefault("api_keys", {}).update(
+                    {k: v for k, v in api_keys.items() if v}
+                )
+            if config_overrides.get("model_profile"):
+                profile["model_profile"] = config_overrides["model_profile"]
+            res = save_profile(profile)
+            wizard.ok("Saved cross-project profile",
+                      f"→ {res.get('profile_path')}")
+        except Exception as e:
+            wizard.warn("Cross-project profile save failed", str(e))
 
     # 3. Link any pre-existing input files the user agreed to.
     linked: list[str] = []
@@ -344,13 +375,11 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     if r.start_server:
         _try_start_server(target_dir)
 
-    # 10. Record the contributor row.
-    try:
-        collab.log_action(target_dir, author,
-                          "Initialized workspace" if not already_initialized
-                          else "Re-scaffolded workspace (--force)")
-    except OSError:
-        pass
+    # NOTE (v1.3.0): `CONTRIBUTORS.md` is no longer created automatically
+    # at init time. The previous default produced an opaque audit file in
+    # every fresh project that confused new users. It now only gets
+    # written when an action explicitly logs to it (e.g. `research-os ide
+    # add ...`, which is a deliberate change to project wiring).
 
     # 11. Final report.
     stats = _count_scaffold(target_dir)

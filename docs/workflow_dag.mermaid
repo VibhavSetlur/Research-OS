@@ -1,0 +1,7 @@
+graph TD
+    classDef active fill:#fff3cd,stroke:#856404,color:#333
+    classDef completed fill:#d4edda,stroke:#28a745,color:#155724
+    classDef dead_end fill:#f8d7da,stroke:#dc3545,color:#721c24
+    01_de_analysis["01_de_analysis"]:::active
+    01_qc_and_eda["01_qc_and_eda"]:::active
+    01_qc_and_eda --> 01_de_analysis

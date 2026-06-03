@@ -17,14 +17,26 @@ def test_scaffold_creates_complete_workspace():
         scaffold_minimal_workspace(root, "Test Project")
 
         # Eager dirs always exist.
-        for top in (".os_state", "docs", "inputs", "workspace"):
+        # v1.3.0: environment/ moved from LAZY → EAGER so researchers
+        # see the reproducibility scaffold the moment they `init` — the
+        # folder ships with a requirements.txt + README stub explaining
+        # what goes there.
+        for top in (".os_state", "docs", "inputs", "workspace", "environment"):
             assert (root / top).exists(), top
-        # Lazy dirs (synthesis/, environment/) are deferred to first
-        # write — keeps the project surface clean.
-        for lazy in ("synthesis", "environment"):
+        # environment/ scaffolding: stub files exist.
+        assert (root / "environment" / "requirements.txt").exists()
+        assert (root / "environment" / "README.md").exists()
+        # Lazy dirs (synthesis/) are still deferred to first write —
+        # keeps the project surface clean.
+        for lazy in ("synthesis",):
             assert not (root / lazy).exists(), (
                 f"{lazy}/ should NOT exist after a cold scaffold"
             )
+        # v1.3.0: CONTRIBUTORS.md is no longer created at init.
+        assert not (root / "CONTRIBUTORS.md").exists(), (
+            "CONTRIBUTORS.md should be opt-in (created on first IDE add / "
+            "share), not auto-written at init."
+        )
         assert (root / "workspace" / "workflow.mermaid").exists()
         assert (root / "inputs" / "researcher_config.yaml").exists()
         assert (root / "AGENTS.md").exists()
@@ -42,7 +54,7 @@ def test_path_create_creates_full_subtree():
         root = Path(d)
         scaffold_minimal_workspace(root, "Test Project")
 
-        res = create_numbered_experiment(root, "data_preparation", hypothesis="Clean data")
+        res = create_numbered_experiment(root, "data_preparation", hypothesis="Clean data", enforce_predecessor_finalized=False)
         assert "data_preparation" in res["path_id"]
         assert res["path_id"].startswith("01_")
         exp = root / "workspace" / res["path_id"]
@@ -64,8 +76,8 @@ def test_path_create_auto_numbers():
     with tempfile.TemporaryDirectory() as d:
         root = Path(d)
         scaffold_minimal_workspace(root, "Test")
-        r1 = create_numbered_experiment(root, "first")
-        r2 = create_numbered_experiment(root, "second")
+        r1 = create_numbered_experiment(root, "first", enforce_predecessor_finalized=False)
+        r2 = create_numbered_experiment(root, "second", enforce_predecessor_finalized=False)
         assert r1["path_id"] == "01_first"
         assert r2["path_id"] == "02_second"
 
