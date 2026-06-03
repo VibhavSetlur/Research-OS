@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 7
+version: 8
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -301,11 +301,24 @@ protocols:
     triggers:
       - "fill the intake"
       - "fill intake"
+      - "fill out the intake"
+      - "fill out intake"
+      - "do the intake"
+      - "do intake"
+      - "run the intake"
+      - "run intake"
+      - "intake autofill"
       - "autofill"
+      - "autofill the intake"
+      - "autofill intake"
       - "read my data"
+      - "read my inputs"
+      - "read the inputs"
       - "what do I have"
       - "what's in inputs"
       - "i dropped some files"
+      - "dropped a csv"
+      - "dropped some data"
       - "new project"
       - "figure out what's going on"
     shortcut_tool: tool_intake_autofill
@@ -440,6 +453,19 @@ protocols:
       - "i don't know what to ask"
       - "narrow this down for me"
       - "scope this"
+      - "is this enough"
+      - "is this enough to publish"
+      - "is this dataset enough"
+      - "is this dataset enough to publish"
+      - "is the dataset enough"
+      - "is my data publishable"
+      - "is my dataset publishable"
+      - "is this dataset sufficient"
+      - "is this big enough"
+      - "is this study enough"
+      - "should i collect more"
+      - "do i need more data"
+      - "can i publish this"
     token_estimate: 1200
     decomposition:
       - protocol: guidance/scope_clarification
@@ -889,8 +915,23 @@ protocols:
     intent_class: synthesize
     sub_intent: paper
     summary: "Write IMRAD paper with verified citations + numbered figures."
-    triggers: ["write the paper", "draft the paper", "write a manuscript",
-              "the manuscript", "imrad", "for a journal", "for the journal"]
+    triggers:
+      - "write the paper"
+      - "draft the paper"
+      - "write a manuscript"
+      - "write the manuscript"
+      - "draft the manuscript"
+      - "the manuscript"
+      - "imrad"
+      - "for a journal"
+      - "for the journal"
+      - "journal submission"
+      - "for a journal submission"
+      - "write up the paper"
+      - "write the journal paper"
+      - "draft the journal paper"
+      - "we're done — write"
+      - "now write the paper"
     shortcut_tool: tool_synthesize
     decomposition:
       - tool: tool_synthesize_plan

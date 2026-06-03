@@ -6,6 +6,57 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.2.3] — End-to-end routing patches surfaced by graduate-level simulation (2026-06-03)
+
+Same-day follow-up to v1.2.2. **No protocol or tool changes.** Three
+canonical-prompt routing gaps surfaced by an end-to-end simulation
+where Claude played both researcher and AI through a 10-turn
+graduate-level penguin-bill-dimorphism study.
+
+### Fixed — canonical-prompt routing
+
+* **`"fill out the intake"` no longer falls through to `ask_user`.**
+  This is the literal first prompt printed in `GETTING_STARTED.md`
+  (written by `research-os init`) and in `docs/START.md`'s
+  cheat-sheet. The trigger list had `"fill the intake"` (without
+  `"out"`) — substring match missed the natural English phrasing.
+  Added: `"fill out the intake"`, `"fill out intake"`, `"do the
+  intake"`, `"do intake"`, `"run the intake"`, `"intake autofill"`,
+  `"autofill the intake"`, `"read my inputs"`, `"read the inputs"`,
+  `"dropped a csv"`, `"dropped some data"`.
+* **Publish-readiness questions now reach `scope_clarification`
+  instead of misrouting.** Prompts like `"is this dataset enough to
+  publish?"`, `"is my data publishable"`, `"can I publish this"`,
+  `"should I collect more"`, `"do I need more data"` are textbook
+  scope-clarification asks but were silently routing to
+  `writing/writing_data_availability` (semantic mismatch on
+  `"publish"` + `"data"`) or `sys_boot` (trigger fallback). Eleven
+  new triggers added to `guidance/scope_clarification`.
+* **`synthesis/synthesis_paper` triggers broadened.** `"write the
+  paper for a journal submission"` was being grabbed by
+  `audit/pre_submission_checklist` (semantic match on the trailing
+  clause). Added: `"journal submission"`, `"for a journal
+  submission"`, `"write the manuscript"`, `"draft the manuscript"`,
+  `"write up the paper"`, `"write the journal paper"`, `"draft the
+  journal paper"`, `"now write the paper"`, `"we're done — write"`.
+
+### Test + quality status
+
+```
+preflight  : 14 / 14 ✓
+pytest     : 453 / 453 ✓
+ruff       : clean ✓
+```
+
+### Bumped
+
+* `research-os` package: 1.2.2 → 1.2.3
+* `_router_index.yaml`: 7 → 8
+* `CITATION.cff` version + date
+* Embeddings rebuilt against the updated trigger lists.
+
+---
+
 ## [1.2.2] — Session-pattern phrasing + output coverage + routing patches (2026-06-03)
 
 A bug-fix audit. **No protocol or tool removals.** 453 tests pass
