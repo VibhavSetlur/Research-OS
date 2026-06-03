@@ -151,10 +151,18 @@ def test_route_context_intake_shortcut(tmp_path):
 
 
 def test_semantic_leaf_no_decomposition_downgrades_complexity(tmp_path):
-    """When semantic picks a leaf protocol (no decomposition) for a
-    prompt the heuristic flagged as complex, the response should
+    """When the SEMANTIC path picks a leaf protocol (no decomposition)
+    for a prompt the heuristic flagged as complex, the response should
     downgrade complexity to 'low' rather than promise a plan it never
-    persisted."""
+    persisted. (Only meaningful when semantic routing is available —
+    CI environments without `fastembed` use only the trigger router,
+    where this path doesn't apply.)"""
+    import pytest
+
+    from research_os.tools.actions import semantic
+    if not semantic.semantic_available():
+        pytest.skip("semantic routing not available — fastembed not installed")
+
     scaffold_minimal_workspace(tmp_path, "Leaf Downgrade Test")
     # writing/writing_methods has no decomposition in the index.
     # The prompt is wordy enough to trip _is_complex but really is
@@ -165,14 +173,14 @@ def test_semantic_leaf_no_decomposition_downgrades_complexity(tmp_path):
         tmp_path,
     )
     assert res["status"] == "success"
-    if res["primary_protocol"] == "writing/writing_methods":
-        # No decomposition → must NOT claim complexity=high (no plan was
-        # persisted). Confirm complexity is consistent with the
-        # decomposition we have.
-        assert (
-            res["complexity"] == "low"
-            or res.get("decomposition")
-        )
+    if (
+        res.get("method") == "semantic"
+        and res["primary_protocol"] == "writing/writing_methods"
+    ):
+        # Semantic + no decomposition → must NOT claim complexity=high.
+        assert res["complexity"] == "low"
+        # And no active_plan_path should have been written.
+        assert "active_plan_path" not in res
 
 
 def test_advance_plan_walks_decomposition(tmp_path):
