@@ -53,25 +53,54 @@ def _detect_languages_in_use(root: Path) -> set[str]:
       {"python", "r", "julia", "quarto", "rmarkdown", "shell", "node"}
     """
     detected: set[str] = set()
-    ext_to_lang = {
+    script_ext_to_lang = {
         ".py": "python", ".ipynb": "python",
-        ".r": "r", ".R": "r", ".Rmd": "rmarkdown",
+        ".r": "r", ".rmd": "rmarkdown",
         ".jl": "julia",
         ".qmd": "quarto",
         ".sh": "shell", ".bash": "shell",
         ".js": "node", ".ts": "node", ".mjs": "node",
+    }
+    # v1.3.2: ALSO infer language from the data file types in
+    # inputs/raw_data/. Bioinformatics file types (FASTQ/BAM/VCF/CRAM/
+    # FASTA) typically pull in an R+Bioconductor or pysam + biopython
+    # stack; matrix files (HDF5/H5AD/loom) suggest scanpy / Seurat;
+    # neuro (NIfTI/DICOM) → nibabel/dcm2niix; geo (shp/geojson) →
+    # geopandas; survey (sav/sas7bdat/dta) → pyreadstat. Surface these
+    # as "domain_hint:<X>" tags so env_snapshot can pin the right
+    # ecosystem even before the AI has written its first script.
+    data_ext_hints = {
+        ".fastq": "bioinformatics", ".fq": "bioinformatics",
+        ".fasta": "bioinformatics", ".fa": "bioinformatics",
+        ".bam": "bioinformatics", ".sam": "bioinformatics",
+        ".cram": "bioinformatics", ".vcf": "bioinformatics",
+        ".gtf": "bioinformatics", ".gff": "bioinformatics",
+        ".h5ad": "single_cell", ".loom": "single_cell",
+        ".nii": "neuroimaging", ".dcm": "neuroimaging",
+        ".shp": "geospatial", ".geojson": "geospatial",
+        ".tif": "geospatial",  # ambiguous; common in geo + microscopy
+        ".sav": "survey", ".sas7bdat": "survey", ".dta": "survey",
+        ".edf": "eeg", ".bdf": "eeg",
+        ".mat": "matlab_interop",
     }
     ws = root / "workspace"
     if ws.exists():
         for p in ws.rglob("*"):
             if not p.is_file():
                 continue
-            suffix = p.suffix
-            if suffix in ext_to_lang:
-                detected.add(ext_to_lang[suffix])
-            # Also check the lowercased suffix for ".R" vs ".r".
-            elif suffix.lower() in ext_to_lang:
-                detected.add(ext_to_lang[suffix.lower()])
+            suffix = p.suffix.lower()
+            if suffix in script_ext_to_lang:
+                detected.add(script_ext_to_lang[suffix])
+    # Inputs hint at the analysis ecosystem.
+    raw_data = root / "inputs" / "raw_data"
+    if raw_data.exists():
+        for p in raw_data.rglob("*"):
+            if not p.is_file():
+                continue
+            suffix = p.suffix.lower()
+            hint = data_ext_hints.get(suffix)
+            if hint:
+                detected.add(f"domain_hint:{hint}")
     # Project-root lock files are also signal.
     if (root / "renv.lock").exists() or (root / "DESCRIPTION").exists():
         detected.add("r")
@@ -79,11 +108,182 @@ def _detect_languages_in_use(root: Path) -> set[str]:
         detected.add("julia")
     if (root / "environment.yml").exists() or (root / "environment.yaml").exists():
         detected.add("conda")
-    # Default fallback: if nothing detected (fresh project), assume the
-    # researcher will use python — it remains the most common.
-    if not detected:
-        detected = {"python"}
+    if (root / "package.json").exists():
+        detected.add("node")
+    if (root / "Cargo.toml").exists():
+        detected.add("rust")
+    if (root / "go.mod").exists():
+        detected.add("go")
+    # Default fallback: if no scripts and no data detected (fresh
+    # project), assume the researcher will use python.
+    scripts_seen = {d for d in detected if not d.startswith("domain_hint:")}
+    if not scripts_seen:
+        detected.add("python")
     return detected
+
+
+def _domain_package_recommendations(
+    domain_hints: list[str], in_use: set[str],
+) -> dict[str, list[str]]:
+    """For each domain hint, return the canonical package stack.
+
+    v1.3.2 — gives the AI a concrete starting point for the dependency
+    pin in `environment/requirements.txt` (or the R / Julia equivalent)
+    before it has written its first analysis script.
+    """
+    py = "python" in in_use or "python" not in in_use  # python default
+    has_r = "r" in in_use or "rmarkdown" in in_use
+    recs: dict[str, list[str]] = {}
+    for hint in domain_hints:
+        if hint == "bioinformatics":
+            recs[hint] = (
+                ["bioconductor-base", "edgeR", "DESeq2", "limma", "biomaRt"]
+                if has_r else
+                ["pysam>=0.22", "pybedtools", "biopython", "scikit-bio"]
+            )
+        elif hint == "single_cell":
+            recs[hint] = (
+                ["Seurat>=5", "SingleCellExperiment", "scran", "scater"]
+                if has_r else
+                ["scanpy>=1.10", "anndata>=0.10", "scvi-tools", "leidenalg"]
+            )
+        elif hint == "neuroimaging":
+            recs[hint] = (
+                ["nibabel>=5", "nilearn>=0.10", "dcm2niix"]
+                if py else
+                ["FSL", "ANTs", "AFNI", "freesurfer"]
+            )
+        elif hint == "geospatial":
+            recs[hint] = (
+                ["geopandas>=0.14", "shapely>=2", "rasterio", "pyproj"]
+                if py else
+                ["sf", "terra", "tmap", "ggplot2"]
+            )
+        elif hint == "survey":
+            recs[hint] = (
+                ["pyreadstat>=1.2", "pandas>=2"]
+                if py else
+                ["haven", "survey", "srvyr"]
+            )
+        elif hint == "eeg":
+            recs[hint] = (
+                ["mne>=1.6", "pyedflib"]
+                if py else
+                ["eegkit", "edfReader"]
+            )
+        elif hint == "matlab_interop":
+            recs[hint] = ["scipy.io (built-in to scipy)", "mat73"]
+    return recs
+
+
+def _render_language_recommendations(
+    domain_hints: list[str], in_use: set[str], recs: dict[str, list[str]],
+) -> str:
+    lines = [
+        "# Language + package recommendations",
+        "",
+        "*Auto-generated by `sys_env_snapshot` from the files in "
+        "`inputs/raw_data/` + the scripts under `workspace/`.*",
+        "",
+        "## Detected languages (from your scripts)",
+        "",
+    ]
+    real_langs = sorted(d for d in in_use if not d.startswith("domain_hint:"))
+    if real_langs:
+        for lang in real_langs:
+            lines.append(f"- **{lang}**")
+    else:
+        lines.append("_(no scripts yet — Python will be assumed as the default)_")
+    lines.extend([
+        "",
+        "## Domain hints (from input data file types)",
+        "",
+    ])
+    if domain_hints:
+        for hint in domain_hints:
+            pkgs = recs.get(hint, [])
+            pkgs_str = ", ".join(f"`{p}`" for p in pkgs) if pkgs else "_(no recommendation)_"
+            lines.append(f"- **{hint}** → {pkgs_str}")
+    else:
+        lines.append("_(no domain-specific file types detected)_")
+    lines.extend([
+        "",
+        "## What to do",
+        "",
+        "1. Skim the recommended packages above and add the ones you'll use to ",
+        "   `environment/requirements.txt` (Python) / `DESCRIPTION` (R) / ",
+        "   `Project.toml` (Julia).",
+        "2. Re-run `sys_env_snapshot` after `pip install -r requirements.txt` ",
+        "   (or the equivalent) so the lock files reflect what's actually ",
+        "   installed.",
+        "3. If multiple languages, an auto-suggested `Dockerfile.suggested` ",
+        "   may be in this folder — review + rename to `Dockerfile` when ",
+        "   ready to containerise.",
+    ])
+    return "\n".join(lines) + "\n"
+
+
+def _render_multi_lang_dockerfile_stub(langs: list[str]) -> str:
+    """Generate a starting-point Dockerfile that picks up multi-language
+    projects (Python + R, Python + Julia, etc.).
+
+    NOT a finished Dockerfile — the researcher should review + tighten
+    before publishing; this is a sane starting point that beats blank.
+    """
+    lines = [
+        "# Suggested multi-language Dockerfile (review before using)",
+        "# Auto-generated by sys_env_snapshot when >= 2 languages were ",
+        "# detected. Rename to `Dockerfile` after review.",
+        "",
+        "FROM ubuntu:24.04",
+        "",
+        "ENV DEBIAN_FRONTEND=noninteractive",
+        "RUN apt-get update && apt-get install -y --no-install-recommends \\",
+        "    ca-certificates curl git build-essential \\",
+        " && rm -rf /var/lib/apt/lists/*",
+        "",
+    ]
+    if "python" in langs:
+        lines.extend([
+            "# Python",
+            "RUN apt-get update && apt-get install -y --no-install-recommends \\",
+            "    python3 python3-pip python3-venv \\",
+            " && rm -rf /var/lib/apt/lists/*",
+            "RUN python3 -m pip install --no-cache-dir --upgrade pip",
+            "COPY requirements.txt /tmp/requirements.txt",
+            "RUN python3 -m pip install --no-cache-dir -r /tmp/requirements.txt",
+            "",
+        ])
+    if "r" in langs or "rmarkdown" in langs:
+        lines.extend([
+            "# R",
+            "RUN apt-get update && apt-get install -y --no-install-recommends \\",
+            "    r-base r-base-dev libcurl4-openssl-dev libxml2-dev libssl-dev \\",
+            " && rm -rf /var/lib/apt/lists/*",
+            "COPY renv.lock /tmp/renv.lock",
+            "RUN R -e \"install.packages('renv'); renv::restore(lockfile='/tmp/renv.lock')\" || true",
+            "",
+        ])
+    if "julia" in langs:
+        lines.extend([
+            "# Julia",
+            "RUN curl -fsSL https://install.julialang.org | sh -s -- --yes",
+            "ENV PATH=/root/.juliaup/bin:$PATH",
+            "COPY Project.toml Manifest.toml /tmp/",
+            "RUN julia --project=/tmp -e 'using Pkg; Pkg.instantiate()'",
+            "",
+        ])
+    if "quarto" in langs:
+        lines.extend([
+            "# Quarto",
+            "RUN curl -fsSL https://quarto.org/install.sh | sh",
+            "",
+        ])
+    lines.extend([
+        "WORKDIR /work",
+        "CMD [\"bash\"]",
+    ])
+    return "\n".join(lines) + "\n"
 
 
 def _active_experiment_dir(root: Path) -> Path | None:
@@ -271,12 +471,41 @@ def env_snapshot(
                 })
                 break
 
+        # v1.3.2: surface domain hints + per-domain package
+        # recommendations. The AI uses these when picking which library
+        # to bring into the project's environment.
+        domain_hints = sorted(
+            d.split(":", 1)[1] for d in in_use if d.startswith("domain_hint:")
+        )
+        session["domain_hints"] = domain_hints
+        if domain_hints:
+            recs = _domain_package_recommendations(domain_hints, in_use)
+            session["domain_recommendations"] = recs
+            (env_dir / "language_recommendations.md").write_text(
+                _render_language_recommendations(domain_hints, in_use, recs)
+            )
+        # v1.3.2: auto-generate a Dockerfile when multiple languages
+        # are in play — single-language projects don't need one, but
+        # multi-language R+Python or Python+Julia projects need
+        # containerisation to be reproducible. Researchers can override
+        # with `sys_env_docker_generate`.
+        non_hint_langs = sorted(
+            d for d in in_use
+            if not d.startswith("domain_hint:") and d != "shell"
+        )
+        if len(non_hint_langs) >= 2 and not (env_dir / "Dockerfile").exists():
+            (env_dir / "Dockerfile.suggested").write_text(
+                _render_multi_lang_dockerfile_stub(non_hint_langs)
+            )
+            session["dockerfile_suggested"] = True
+
         (env_dir / "session.yaml").write_text(yaml.dump(session, sort_keys=False))
         return {
             "status": "success",
             "session": session,
             "snapshot_dir": str(env_dir.relative_to(root)),
             "languages_captured": [lang["name"] for lang in session["languages"]],
+            "domain_hints": domain_hints,
             "message": "Environment snapshotted.",
         }
     except Exception as e:

@@ -108,10 +108,48 @@ def session_handoff(root: Path) -> dict[str, Any]:
                     f"- `{d['path_id']}`: " + " ".join(head)[:200]
                 )
 
+        # v1.3.2: surface the researcher_config in the handoff so a
+        # fresh AI sees autonomy / quality_gate_policy / ambiguity
+        # posture / model_profile / writing prefs / api keys present
+        # without separately calling sys_config_get. Mask secrets.
+        try:
+            from research_os.tools.actions.state.config import get_config
+            cfg_res = get_config(root)
+            cfg = cfg_res.get("config", {}) if cfg_res.get("status") == "success" else {}
+        except Exception:
+            cfg = {}
+        config_summary_lines = []
+        if cfg:
+            interaction = cfg.get("interaction", {}) or {}
+            rg = cfg.get("research_goal", {}) or {}
+            wp = cfg.get("writing_preferences", {}) or {}
+            researcher = cfg.get("researcher", {}) or {}
+            api_keys = cfg.get("api_keys", {}) or {}
+            keys_set = [k for k, v in api_keys.items() if isinstance(v, str) and v.strip()]
+            config_summary_lines.extend([
+                f"- Autonomy: `{interaction.get('autonomy_level', 'supervised')}` "
+                f"· quality_gate: `{interaction.get('quality_gate_policy', 'enforce')}` "
+                f"· ambiguity: `{interaction.get('ambiguity_posture', 'ask_when_uncertain')}`",
+                f"- Model profile: `{cfg.get('model_profile', 'medium')}` "
+                f"· shared_server: `{(cfg.get('runtime') or {}).get('shared_server', False)}`",
+                f"- Writing: `{wp.get('citation_style', 'apa')}` / `{wp.get('language', 'en-US')}`",
+                f"- Output types requested: {rg.get('output_types') or '(none specified)'}",
+                f"- Target venue: `{rg.get('target_venue') or '(unset)'}`",
+                f"- Researcher: {researcher.get('name') or '(unset)'}"
+                + (f" ({researcher.get('institution')})" if researcher.get('institution') else "")
+                + (f" · {researcher.get('orcid')}" if researcher.get('orcid') else ""),
+                f"- API keys configured: {', '.join(keys_set) if keys_set else '(none)'}",
+            ])
+
         content_lines = [
             f"# Session Handoff — {project_name}",
             f"Generated: {now_iso()}",
             f"Rollback checkpoint: `{cp_id}` (use `sys_checkpoint_rollback`)",
+            "",
+            "## Researcher config (consult before acting)",
+        ]
+        content_lines.extend(config_summary_lines or ["- (no researcher_config loaded)"])
+        content_lines.extend([
             "",
             "## State",
             f"- Current path: `{current_path}`",
@@ -123,7 +161,7 @@ def session_handoff(root: Path) -> dict[str, Any]:
             f"`{next_info.get('next_protocol') or '(pipeline complete)'}`",
             "",
             "## Open hypotheses",
-        ]
+        ])
         content_lines.extend(hyp_lines or ["- (none registered)"])
 
         content_lines.extend(["", "## Background tasks still running"])

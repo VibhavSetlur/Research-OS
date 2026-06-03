@@ -380,20 +380,126 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             is_placeholder = any(m in current.lower() for m in placeholders)
             write = overwrite or is_placeholder or len(current.strip()) < 60
         if write:
-            rq_body = (
-                f"# Research Question\n\n"
-                f"{question}\n\n"
-            )
+            # v1.3.2: richer research_overview.md — background pulled
+            # from inputs/context/*.md, sample-table inferred from a
+            # quick CSV row-count, named-paper references surfaced as
+            # a citations-to-find checklist, planned-analyses block
+            # so a fresh PI / reviewer can read the file alone and
+            # know what the project is about + where it's going.
+            rq_body_parts = [
+                f"# {state_pre.get('project_name') or 'Research Project'} — Overview",
+                "",
+                f"*Auto-populated by `tool_intake_autofill` at {now_iso()}.* "
+                "*Edit freely; re-running intake will preserve your edits if the "
+                "file is non-placeholder.*",
+                "",
+                "## Domain",
+                "",
+                f"**{domain or '_(not yet classified)_'}**",
+            ]
+            if domain_why:
+                rq_body_parts.append("")
+                rq_body_parts.append(
+                    "_Why this domain:_ " + "; ".join(str(r) for r in domain_why)
+                )
+            rq_body_parts.extend([
+                "",
+                "## Research question",
+                "",
+                question or "_(not yet set)_",
+                "",
+                "## Background (auto-extracted from `inputs/context/*.md`)",
+                "",
+            ])
+            if context_text.strip():
+                # First ~600 chars of context, truncated cleanly at a paragraph.
+                snippet = context_text.strip()[:600]
+                if len(context_text.strip()) > 600:
+                    snippet = snippet.rsplit("\n\n", 1)[0] + "\n\n_(truncated — see `inputs/context/` for the full PI brief / prior notes)_"
+                rq_body_parts.append("> " + snippet.replace("\n", "\n> "))
+            else:
+                rq_body_parts.append(
+                    "_(no context files present — drop a PI brief / prior report / lab notes into `inputs/context/` and re-run intake)_"
+                )
+            rq_body_parts.append("")
+            rq_body_parts.append("## Hypotheses")
+            rq_body_parts.append("")
             if hypotheses:
-                rq_body += "## Hypotheses (inferred from inputs/context)\n\n"
                 for i, h in enumerate(hypotheses, 1):
-                    rq_body += f"- H{i}: {h}\n"
-                rq_body += "\n"
-            rq_body += (
-                "## Last updated\n\n"
-                f"{now_iso()} — populated by `tool_intake_autofill`.\n"
-            )
-            rq_path.write_text(rq_body)
+                    rq_body_parts.append(f"- **H{i}**: {h}")
+            else:
+                rq_body_parts.append(
+                    "_(none yet — refine the research question with the PI, then "
+                    "re-run intake or call `mem_hypothesis_add` directly)_"
+                )
+            # Sample / data table — quick scan of raw_data
+            rq_body_parts.extend(["", "## Input data (auto-inventoried)", ""])
+            if raw_files:
+                rq_body_parts.append("| File | Size | Rows (CSV/TSV only) |")
+                rq_body_parts.append("|---|---|---|")
+                for f in raw_files[:15]:
+                    size_kb = f.stat().st_size / 1024
+                    size_str = (f"{size_kb:.0f} KB" if size_kb < 1024
+                                else f"{size_kb/1024:.1f} MB")
+                    n_rows = ""
+                    if f.suffix.lower() in {".csv", ".tsv"}:
+                        try:
+                            with open(f, errors="replace") as fh:
+                                n_rows = str(sum(1 for _ in fh) - 1)
+                        except OSError:
+                            n_rows = "?"
+                    rq_body_parts.append(
+                        f"| `{f.relative_to(root)}` | {size_str} | {n_rows} |"
+                    )
+                if len(raw_files) > 15:
+                    rq_body_parts.append(f"| _… and {len(raw_files)-15} more_ | | |")
+            else:
+                rq_body_parts.append(
+                    "_(no files in `inputs/raw_data/` yet — drop CSV / Parquet / "
+                    "FASTQ / NIfTI / etc. and re-run intake)_"
+                )
+
+            # Planned analyses placeholder — the AI fills this in as it
+            # walks through `methodology_selection` + `analysis_plan`.
+            rq_body_parts.extend([
+                "",
+                "## Planned analyses (filled in as the project progresses)",
+                "",
+                "_(`workspace/analysis.md` is the canonical narrative log. "
+                "This section is a high-level roadmap — link to the numbered "
+                "step folders as they're created.)_",
+                "",
+            ])
+            for i, p in enumerate((root / "workspace").iterdir() if (root / "workspace").exists() else [], 1):
+                if p.is_dir() and p.name[:2].isdigit():
+                    rq_body_parts.append(f"- `workspace/{p.name}/` — *(see step README)*")
+
+            # Literature-to-find checklist
+            rq_body_parts.extend(["", "## Literature to ground the work", ""])
+            if named_papers:
+                rq_body_parts.append(
+                    "References named in `inputs/context/` — fetch + save to "
+                    "`inputs/literature/`:"
+                )
+                rq_body_parts.append("")
+                for ref in named_papers:
+                    rq_body_parts.append(f"- [ ] {ref}")
+            else:
+                rq_body_parts.append(
+                    "_(no named references found in context. The "
+                    "`guidance/analysis_plan` ground_methods step will surface "
+                    "candidate methods + their canonical citations once the AI "
+                    "starts scoping the first analysis step.)_"
+                )
+
+            rq_body_parts.extend([
+                "",
+                "## Last updated",
+                "",
+                f"{now_iso()} — `tool_intake_autofill`.",
+                "",
+            ])
+            rq_path.write_text("\n".join(rq_body_parts))
             rq_changed = True
 
         # Persist intake findings to state so later intake regenerations

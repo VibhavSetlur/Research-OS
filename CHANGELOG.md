@@ -6,6 +6,109 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.3.2] — Multi-language env hardening + richer intake + comment-preserving config + exploratory hardening (2026-06-03)
+
+Post-v1.3.1 patch focused on three explicit researcher asks +
+exploratory hardening surfaced by the e2e test bed.
+
+**Stats:** 110 protocols, 149 MCP tools. 473 tests pass.
+Preflight 14/14, ruff clean.
+
+### Added — multi-language environment hardening
+
+* `_detect_languages_in_use` now reads BOTH `workspace/` scripts AND
+  `inputs/raw_data/` file types. FASTQ/BAM/VCF → `domain_hint:bioinformatics`;
+  H5AD/loom → `single_cell`; NIfTI/DICOM → `neuroimaging`; shp/geojson →
+  `geospatial`; sav/sas7bdat/dta → `survey`; edf/bdf → `eeg`; mat →
+  `matlab_interop`. Also detects Rust (`Cargo.toml`), Go (`go.mod`),
+  Node (`package.json`).
+* `sys_env_snapshot` returns a `domain_hints` field + writes a
+  `environment/language_recommendations.md` listing the canonical
+  package stack per detected hint (e.g. bioinformatics →
+  Bioconductor/DESeq2/edgeR if R is present, pysam/biopython if
+  Python-only).
+* When ≥2 non-shell languages detected, auto-generates
+  `environment/Dockerfile.suggested` (Python + R + Julia + Quarto
+  base layers as needed). Researcher reviews and renames to
+  `Dockerfile` when ready.
+
+### Added — richer `docs/research_overview.md`
+
+`tool_intake_autofill` now writes a multi-section overview instead
+of just question + hypotheses:
+
+* Project + domain header with "_Why this domain_" rationale
+* Research question
+* Background (auto-extracted snippet from `inputs/context/*.md`)
+* Hypotheses (with explicit fallback prompt when none inferable)
+* Input data inventory table (file path, size, row count for
+  CSV/TSV)
+* Planned analyses placeholder + back-links to existing numbered
+  steps
+* Literature-to-find checklist from extracted named-paper
+  references — checkbox-style for trackable progress
+
+### Added — comment-preserving `researcher_config.yaml` writer
+
+`config.py` now uses `ruamel.yaml` (added to core deps) for
+round-trip YAML. The rich inline help comments in `CONFIG_TEMPLATE`
+survive every override write — previously every `cli.py init` /
+wizard / `sys_config_set` call stripped them via PyYAML. Falls back
+to PyYAML with a logged warning if `ruamel.yaml` isn't installed.
+
+### Added — researcher_config consultation in session handoff
+
+`sys_session_handoff` now prepends a "Researcher config (consult
+before acting)" section to the handoff doc summarising autonomy /
+quality_gate_policy / ambiguity_posture / model_profile /
+shared_server / writing_preferences / output types / target venue /
+researcher identity / API keys configured. A fresh AI session
+reading the handoff doc sees these without a separate
+`sys_config_get` call.
+
+### Added — `analysis_plan.ground_methods` is now a HARD GATE
+
+(Continued from v1.3.1 round 2; explicitly named here for the
+release notes.) Replaced prose with 4-action sequence; anti-pattern
+"We use X because it's standard" rejected; correct form names
+paper + DOI + saved PDF + why.
+
+### Added — anti-hallucination grounding warning at finalize
+
+(Continued from v1.3.1 round 2.) `tool_path_finalize` scans
+`workspace/logs/searches.log` and warns when `conclusions.md` cites
+references but zero `tool_search_*` calls were ever logged.
+
+### Hardened — exploratory fixes
+
+* **`slugify`**: caps at 40 chars + explicit defence against
+  `..` / `/` path-traversal sequences (in addition to the existing
+  regex strip).
+* **`_load_active_plan`**: auto-archives plans older than 7 days
+  (with `status: in_progress`) into `.os_state/handoffs/` so a
+  stale abandoned plan doesn't keep being surfaced as the
+  "active next-action" by `sys_boot`.
+* **`_update_workflow_mermaid`**: silently no-ops when `root` isn't
+  a Research-OS project (no `.os_state/`). v1.3.1 confirmed the
+  pollution-prevention pattern via raise-on-write in
+  `create_numbered_experiment`; this generalises to every other
+  writer.
+* **`branch_of` validation**: confirmed `create_numbered_experiment`
+  raises `ValueError` with a clear message when `branch_of` names
+  a step that doesn't exist on disk (was already correct; verified
+  + documented).
+
+### Maintainer
+
+* Added `TODO.md` (gitignored) for deferred work: project_ops folder
+  refactor, `tool_pi_review`, `tool_synthesis_curate_figures`,
+  `tool_protocol_freshness_check`, `methodology/small_n_studies`
+  protocol, `tool_figure_html_smoke_test`, Bloom-filter author
+  check, DOI/PMID extractor, `tool_step_initial_inspect`,
+  decision-verb-shape audit gate, length-based stub check.
+
+---
+
 ## [1.3.1] — PI-level e2e gap-closure: finalize completes the picture + grounding + aesthetics + paper PDF + dashboard-as-paper (2026-06-03)
 
 ### Round 2 — additional gap-closures the same day

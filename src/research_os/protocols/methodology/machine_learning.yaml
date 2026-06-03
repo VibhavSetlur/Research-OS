@@ -1,6 +1,6 @@
 id: machine_learning
 name: Machine Learning / Predictive Modelling
-version: '1.3.1'
+version: '1.3.2'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for a predictive-modelling workflow. Names the

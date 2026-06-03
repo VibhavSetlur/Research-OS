@@ -1048,13 +1048,43 @@ def _persist_active_plan(
 
 
 def _load_active_plan(root: Path) -> dict | None:
+    """Load the active plan, auto-archiving stale plans (v1.3.2).
+
+    A plan that hasn't been advanced in >7 days is almost certainly
+    abandoned (researcher pivoted, AI session crashed). Auto-archive
+    so it doesn't keep being surfaced in sys_boot as the active
+    next-action — that bad signal misroutes fresh sessions.
+    """
     p = _active_plan_path(root)
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text())
+        plan = json.loads(p.read_text())
     except Exception:
         return None
+    # Staleness check.
+    try:
+        from datetime import datetime, timezone
+        created = plan.get("created_at")
+        if created:
+            try:
+                ts = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                age_days = (datetime.now(timezone.utc) - ts).days
+                if age_days > 7 and plan.get("status") == "in_progress":
+                    # Move to handoffs/ as stale-N.json
+                    archive_dir = root / ".os_state" / "handoffs"
+                    archive_dir.mkdir(parents=True, exist_ok=True)
+                    stale_name = f"plan_stale_{age_days}d_{ts.strftime('%Y%m%d')}.json"
+                    try:
+                        p.rename(archive_dir / stale_name)
+                    except OSError:
+                        pass
+                    return None
+            except (ValueError, TypeError):
+                pass
+    except Exception:
+        pass
+    return plan
 
 
 def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 id: synthesis_poster
 name: Synthesis — Poster (audience-tailored)
-version: '1.3.1'
+version: '1.3.2'
 schema_version: '2.0'
 description: |
   Generate a poster (LaTeX → PDF) sized and styled for the target

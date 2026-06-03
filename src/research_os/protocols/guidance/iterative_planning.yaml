@@ -1,6 +1,6 @@
 id: iterative_planning
 name: Iterative Planning
-version: '1.3.1'
+version: '1.3.2'
 schema_version: '2.0'
 description: For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state + literature + tools and recommends the best move.
 trigger: Researcher says "what should I do next?" / "iterate with me" / "propose the next step" — OR analysis_plan finishes a step and autopilot is on.

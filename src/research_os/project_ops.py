@@ -194,8 +194,19 @@ def _resolve_root(root: Path | None = None) -> Path:
     return r
 
 
-def slugify(value: str, fallback: str = "path") -> str:
+def slugify(value: str, fallback: str = "path", *, max_len: int = 40) -> str:
+    """Sanitise + truncate a slug for safe filesystem use.
+
+    v1.3.2: hardened — strips path-traversal sequences and caps length
+    to prevent absurdly-long step folder names. Returns ``fallback``
+    if the input contains no usable characters.
+    """
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
+    # Defence-in-depth against path traversal (the regex already strips
+    # `..` and `/`, but make the intent explicit).
+    slug = slug.replace("..", "_").replace("/", "_").strip("_")
+    if max_len and len(slug) > max_len:
+        slug = slug[:max_len].rstrip("_")
     return slug or fallback
 
 

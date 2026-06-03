@@ -22,6 +22,47 @@ import yaml
 logger = logging.getLogger("research_os.tools.config")
 
 
+# v1.3.2: prefer ruamel.yaml for round-trip writes so the rich inline
+# help comments in CONFIG_TEMPLATE survive every override. Falls back
+# to PyYAML when ruamel.yaml isn't installed — the structure is
+# preserved either way, only the comments are lost on the fallback path.
+try:
+    from ruamel.yaml import YAML as _RuamelYAML  # type: ignore
+    _ruamel = _RuamelYAML()
+    _ruamel.preserve_quotes = True
+    _ruamel.indent(mapping=2, sequence=4, offset=2)
+    _ruamel.width = 4096  # don't reflow long strings
+    _RUAMEL_AVAILABLE = True
+except ImportError:
+    _ruamel = None
+    _RUAMEL_AVAILABLE = False
+
+
+def _load_config_roundtrip(path: Path):
+    """Load YAML preserving comments + format if ruamel.yaml is present."""
+    txt = path.read_text()
+    if _RUAMEL_AVAILABLE:
+        return _ruamel.load(txt)
+    return yaml.safe_load(txt) or {}
+
+
+def _dump_config_roundtrip(path: Path, data) -> None:
+    """Dump YAML preserving comments + format if ruamel.yaml is present;
+    fall back to PyYAML otherwise (loses comments — log once)."""
+    if _RUAMEL_AVAILABLE:
+        import io
+        buf = io.StringIO()
+        _ruamel.dump(data, buf)
+        path.write_text(buf.getvalue())
+    else:
+        path.write_text(yaml.dump(data, default_flow_style=False, sort_keys=False))
+        logger.info(
+            "ruamel.yaml not installed — researcher_config.yaml comments will "
+            "be stripped on this override write. `pip install ruamel.yaml` to "
+            "preserve them."
+        )
+
+
 CONFIG_TEMPLATE = """# Research OS — Researcher Configuration
 #
 # Tells the AI who it's working with and how you want it to behave.
@@ -302,7 +343,7 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
         # things every time.
         if profile:
             try:
-                config = yaml.safe_load(cfg_path.read_text()) or {}
+                config = _load_config_roundtrip(cfg_path)
                 for top_key in ("researcher", "api_keys", "writing_preferences"):
                     profile_block = profile.get(top_key)
                     if isinstance(profile_block, dict):
@@ -313,15 +354,13 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                         config[top_key] = config_block
                 if isinstance(profile.get("model_profile"), str):
                     config["model_profile"] = profile["model_profile"]
-                cfg_path.write_text(
-                    yaml.dump(config, default_flow_style=False, sort_keys=False)
-                )
+                _dump_config_roundtrip(cfg_path, config)
             except Exception as e:
                 logger.warning("Failed to apply cross-project profile: %s", e)
 
     if overrides:
         try:
-            config = yaml.safe_load(cfg_path.read_text()) or {}
+            config = _load_config_roundtrip(cfg_path)
             if overrides.get("project_name"):
                 config["project_name"] = overrides["project_name"]
             # Multi-researcher: append authors to a top-level list, deduplicated.
@@ -359,7 +398,7 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                     for k, v in r_in.items():
                         if isinstance(v, str) and v.strip():
                             r_block[k] = v.strip()
-            cfg_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
+            _dump_config_roundtrip(cfg_path, config)
         except Exception as e:
             logger.warning(f"Failed to apply config overrides: {e}")
 

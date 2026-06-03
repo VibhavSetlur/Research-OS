@@ -1,6 +1,6 @@
 id: revise_and_resubmit
 name: Revise & Resubmit (full R&R orchestration)
-version: '1.3.1'
+version: '1.3.2'
 schema_version: '2.0'
 description: |
   End-to-end orchestration for a Revise & Resubmit decision from a
