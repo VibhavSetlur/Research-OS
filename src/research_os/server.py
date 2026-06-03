@@ -306,7 +306,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_help": {
         "short": "AI orientation — how to use Research OS efficiently (protocols + tools + routing).",
-        "description": "Returns a compact orientation block for the AI: the routing pattern (sys_boot → tool_route → sys_protocol_get → sys_active_tools), the protocol categories with one-line summaries, the tool namespaces (sys_* / tool_* / mem_*), and the canonical session-start flow. Use this when starting cold (no prior session memory), when a new AI takes over from a handoff, or when a tool / protocol mention is ambiguous and the orientation block clarifies it.",
+        "description": "Returns a compact orientation block for the AI: the session-start sequence (every turn is triggered by a researcher message — on the first turn, sys_boot is your 1st MCP call and tool_route(prompt=their message) is your 2nd, followed by sys_protocol_get / sys_active_tools as needed), the protocol categories with one-line summaries, and the tool namespaces (sys_* / tool_* / mem_*). Use this when starting cold (no prior session memory), when a new AI takes over from a handoff, or when a tool / protocol mention is ambiguous and the orientation block clarifies it.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -4029,8 +4029,12 @@ def _handle_sys_help(name, arguments, root):
             "mem_*":  "append-only memory (methods / decisions / hypotheses / citations)",
         },
         "session_start": (
-            "sys_boot once → wait for prompt → tool_route(prompt) → "
-            "tool_plan_turn if complexity=high; else shortcut_tool."
+            "Every turn starts with a researcher message. On the FIRST "
+            "turn of the session, sys_boot is your 1st MCP call and "
+            "tool_route(prompt=their message) is your 2nd — fire them "
+            "back-to-back. Then: tool_plan_turn if complexity=high; else "
+            "shortcut_tool. On subsequent turns, skip sys_boot and go "
+            "straight to tool_route."
         ),
         "when_uncertain": (
             "If tool_route returns ask_user, ask THAT question and re-route. "
@@ -4076,14 +4080,16 @@ def _handle_sys_help(name, arguments, root):
     if topic == "routing":
         return _text(_success({
             "decision_tree": [
-                "1. sys_boot (always) → returns pause + active_plan + next_protocol.",
-                "2. active_plan in progress → tool_plan_turn → walk it.",
+                "0. Every turn is triggered by a researcher message — you don't act before one arrives.",
+                "1. First turn of the session: sys_boot is your 1st MCP call. Returns pause + active_plan + next_protocol.",
+                "2. active_plan in progress (from a previous turn) → tool_plan_turn → walk it.",
                 "3. pause_classification = ctx_exhaustion / mid_step → guidance/session_resume.",
-                "4. researcher speaks → tool_route(prompt).",
+                "4. Otherwise: tool_route(prompt=their verbatim message) is your 2nd MCP call.",
                 "5. resolved_level=3 + complexity=low → call shortcut_tool OR load protocol summary.",
                 "6. resolved_level=3 + complexity=high → tool_plan_turn then advance per step.",
                 "7. resolved_level<3 OR ask_user non-null → ASK the question, re-route.",
                 "8. resolved_level=0 → use the fallback ask_user; never guess a protocol.",
+                "9. Subsequent turns: skip sys_boot — its payload is still in context — go straight to tool_route or continue the active plan.",
             ],
             "ambiguity_handling": (
                 "L1 ties → ask which work-type. L2 ties → ask which sub-intent within the class. "

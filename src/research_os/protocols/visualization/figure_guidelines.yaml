@@ -43,6 +43,49 @@ mandatory_per_step_figure:
     summary_sidecar: required — <name>.summary.md (plain-English; auto-synthesised
                      by tool_figure_caption_synthesise or tool_path_finalize)
 
+figure_family_when_step_has_a_model:
+  rule: |
+    For any analysis step that fits a statistical or ML model,
+    generate the publication-quality FAMILY of figures by default —
+    not just the single focal chart. Only the focal counts toward
+    the mandatory_per_step_figure gate, but the others are what
+    reviewers actually look for. Skip ONLY if the researcher
+    explicitly asks for "just the headline figure". Interpret what
+    the step needs and emit the optimal set unless told otherwise.
+  default_family: |
+    - diagnostic — residuals / QQ / calibration / assumption checks
+      (whichever the model demands: Schoenfeld for Cox, posterior
+      predictive checks for Bayesian, ROC + PR + calibration for an
+      ML classifier, funnel + Q for meta-analysis)
+    - summary — the effect / coefficient / metric WITH 95% CI
+    - comparison — vs baseline or alternative spec (forest, gain,
+      overlay), only when a baseline exists
+  why: |
+    A model without diagnostics is a one-sided claim. A summary plot
+    without a CI is decoration. The comparison plot is how a
+    reviewer decides whether the new method actually wins. Emit
+    them once per step and tool_synthesize promotes the best ones
+    into the paper / poster / dashboard with no extra work later.
+  domain_specific_picks:
+    survival:      "KM curve + Schoenfeld + cumulative hazard"
+    bayesian:      "trace + posterior + posterior predictive"
+    ml_classifier: "ROC + PR + calibration + confusion (heatmap)"
+    meta_analysis: "forest + funnel + L'Abbe (when binary)"
+    causal:        "balance + sensitivity + E-value contour"
+    timeseries:    "decomposition + ACF/PACF + residual diagnostics"
+    network:       "adjacency / louvain layout + degree distribution"
+    geospatial:    "choropleth + cluster overlay + uncertainty band"
+  go_deeper_protocols: |
+    For non-trivial figures, load the matching specialist protocol
+    rather than freehand-coding the chart:
+      - visualization/uncertainty_visualization
+      - visualization/distribution_comparison
+      - visualization/network_visualization
+      - visualization/geospatial_visualization
+      - visualization/animation_design        (when motion adds clarity)
+      - visualization/interactive_dashboard_design  (HTML deliverables)
+      - visualization/showcase_visualization  (one figure carries the paper / talk)
+
 preferred_tool:
   rule: |
     Prefer tool_figure_create over hand-rolled matplotlib for any figure

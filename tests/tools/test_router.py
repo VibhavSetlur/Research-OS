@@ -111,6 +111,70 @@ def test_route_empty_prompt(tmp_path):
     assert res["status"] == "error"
 
 
+def test_route_punctuation_does_not_block_shortcut(tmp_path):
+    """Regression: shortcut triggers must match across trailing
+    punctuation like commas. Pre-v1.2.2 the matcher required exact
+    space-bounded substrings, so 'the workspace looks broken, fix it'
+    silently fell through to no-match."""
+    scaffold_minimal_workspace(tmp_path, "Punct Shortcut Test")
+    res = route_request("the workspace looks broken, fix it", tmp_path)
+    assert res["status"] == "success"
+    assert res["shortcut_tool"] == "tool_workspace_repair"
+
+
+def test_route_baseline_eda_prompt_resolves(tmp_path):
+    """Regression: 'baseline EDA' is named verbatim in the docs as a
+    canonical prompt but did not match any trigger before v1.2.2."""
+    scaffold_minimal_workspace(tmp_path, "Baseline EDA Test")
+    res = route_request("I want to do a baseline EDA on my CSV", tmp_path)
+    assert res["status"] == "success"
+    # Either guidance/analysis_plan (trigger path) or
+    # methodology/exploratory_data_analysis (semantic path) is fine —
+    # both correctly route this ask.
+    assert res["primary_protocol"] in {
+        "guidance/analysis_plan",
+        "methodology/exploratory_data_analysis",
+    }
+    assert res["ask_user"] is None
+
+
+def test_route_context_intake_shortcut(tmp_path):
+    """Regression: 'I just dropped a paper' should trigger
+    tool_context_intake. Pre-v1.2.2 there was no shortcut entry, so
+    the prompt fell through to ask_user."""
+    scaffold_minimal_workspace(tmp_path, "Context Intake Test")
+    res = route_request(
+        "I just dropped a new paper in literature, integrate it", tmp_path,
+    )
+    assert res["status"] == "success"
+    assert res["shortcut_tool"] == "tool_context_intake"
+
+
+def test_semantic_leaf_no_decomposition_downgrades_complexity(tmp_path):
+    """When semantic picks a leaf protocol (no decomposition) for a
+    prompt the heuristic flagged as complex, the response should
+    downgrade complexity to 'low' rather than promise a plan it never
+    persisted."""
+    scaffold_minimal_workspace(tmp_path, "Leaf Downgrade Test")
+    # writing/writing_methods has no decomposition in the index.
+    # The prompt is wordy enough to trip _is_complex but really is
+    # one ask.
+    res = route_request(
+        "help me write the methods section of my paper thoroughly with "
+        "every detail of the model and the assumptions included",
+        tmp_path,
+    )
+    assert res["status"] == "success"
+    if res["primary_protocol"] == "writing/writing_methods":
+        # No decomposition → must NOT claim complexity=high (no plan was
+        # persisted). Confirm complexity is consistent with the
+        # decomposition we have.
+        assert (
+            res["complexity"] == "low"
+            or res.get("decomposition")
+        )
+
+
 def test_advance_plan_walks_decomposition(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Advance Test")
     prompt = "run a baseline EDA and then fit a random forest and audit"

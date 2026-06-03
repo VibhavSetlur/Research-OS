@@ -6,6 +6,157 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.2.2] — Session-pattern phrasing + output coverage + routing patches (2026-06-03)
+
+A bug-fix audit. **No protocol or tool removals.** 453 tests pass
+(was 447; +6 regression tests for the fixes below). Same 109
+protocols + 145 MCP tools.
+
+### Fixed — session-pattern phrasing (the headline bug)
+
+Docs and templates described the session sequence as `1. sys_boot →
+2. (await researcher's message) → 3. tool_route`, suggesting the AI
+fires `sys_boot` *before* a message arrives. An AI client cannot
+call any tool until a researcher message triggers its turn — the
+ordering as written was logically impossible. Rewritten throughout
+to say: every turn is triggered by a researcher message, and on the
+first turn the AI fires `sys_boot` as its 1st MCP call and
+`tool_route(prompt=their verbatim message)` as its 2nd, back-to-back.
+
+Files corrected:
+* `docs/AI_GUIDE.md`, `docs/RESEARCHER_GUIDE.md`, `docs/PROTOCOLS.md`
+* `templates/AGENTS.md`, `templates/CLAUDE.md`,
+  `templates/.windsurfrules`, `templates/.continuerules`,
+  `templates/.claude/rules/research-os.md`,
+  `templates/.antigravity/rules/research-os.md`,
+  `templates/.cursor/rules/research-os.mdc`
+* `src/research_os/protocols/guidance/session_boot.yaml` — removed
+  the contradictory `await_first_message` step; renamed the
+  remaining flow so `boot` is explicitly "your first MCP call AFTER
+  the researcher's message arrives" and `route_first_message` is the
+  second call.
+* `src/research_os/server.py` — `sys_help`'s `session_start` text +
+  `routing` decision-tree + the `sys_help` tool description.
+
+### Fixed — routing gaps surfaced by stress-testing
+
+Stress-tested the router with 10 researcher personas (terse PI,
+chatty grad, hesitant beginner, jargon-heavy senior, vague /
+cross-disciplinary, kitchen-sink ambitious, pivot mid-session,
+collaboration / handoff, recovery, edge / adversarial). Findings
+fixed:
+
+* **`baseline EDA` didn't route.** `_router_index.yaml` listed
+  `"exploratory data analysis"` and `"do an eda"` as triggers for
+  `guidance/analysis_plan` but not the natural-voice variants
+  documented in `RESEARCHER_GUIDE.md` Section 4.2 as the canonical
+  first-analysis prompt. Added `baseline eda`, `do a baseline`,
+  `baseline analysis`, `eda on my`, `eda pass`, `first analysis`,
+  `first experiment`.
+* **"I just dropped a paper" had no shortcut.** Added a
+  `context_intake` entry to `shortcut_intents` with the natural
+  phrasings researchers actually use ("integrate this paper", "pi
+  sent me a paper", "new paper in literature", …) → `tool_context_intake`.
+* **Punctuation broke shortcut matching.** `_match_shortcut` did
+  exact space-bounded substring matching, so "the workspace looks
+  broken, fix it" didn't match the `broken` trigger because of the
+  trailing comma. `route_request` now strips `,.;:!?` from the
+  prompt before normalising — sub-string triggers match across
+  punctuation now.
+* **`workspace_repair` + `step_iterate` shortcuts gained natural
+  variants** (`workspace looks broken`, `repair the workspace`,
+  `recolor figure`, `tighten the cutoff`, `iterate on figure`, …).
+* **Semantic path mis-handled complex multi-step prompts.** When the
+  semantic router picked a narrow leaf protocol (e.g.
+  `writing/writing_methods`) for a prompt the heuristic flagged
+  complex, it would set `complexity="high"` without persisting an
+  `active_plan` (because the leaf has no decomposition). Fixed in
+  two ways:
+  * If a stronger top-3 trigger-router candidate has its own
+    decomposition, the semantic path defers to it — multi-protocol
+    prompts now reach `guidance/analysis_plan` (or similar parent
+    with a real plan) as before.
+  * Otherwise the response keeps the semantic primary but downgrades
+    `complexity` to `low` so the response shape is internally
+    consistent (no plan promised when none was persisted).
+* Bumped router index `version: 6 → 7` and rebuilt embeddings
+  (`_embeddings.npz`, dim=384, 109 protocols + 145 tools).
+
+### Improved — analysis-step doctrine (length + when to split + outputs)
+
+`guidance/analysis_plan.yaml`:
+* New **"STEPS CAN GROW"** note in `scope_step`: a step can be long
+  when the researcher wants depth on one coherent goal — there is no
+  artificial cap.
+* New **"WHEN TO SUGGEST A NEW STEP"** block in `create_step_folder`
+  with operational heuristics (covering ≥2 unrelated hypotheses,
+  scope drift past the ≤2-sentence charter, estimator-family change,
+  sub-population restriction added mid-stream, hard-to-caption with
+  ONE focal figure) plus AUTONOMY-aware behaviour: surface to the
+  researcher in supervised mode, call `tool_branch_recommendation`
+  in autopilot. **Never force a new step** — long focused steps are
+  preferable to step-fragmentation.
+* **Output coverage** rewritten in `write_atomic_scripts`. Reports +
+  tables + figures are now equal first-class outputs (was: reports
+  + figures required, tables advisory). Each script defaults to
+  emitting all three unless the step is genuinely non-numeric.
+
+`visualization/figure_guidelines.yaml`:
+* New top-level section `figure_family_when_step_has_a_model`. For
+  any step that fits a statistical or ML model, generate the
+  publication-quality FAMILY (diagnostic + summary + comparison) by
+  default — not just the single focal chart. Domain-specific
+  recommendations baked in (Cox → KM + Schoenfeld + cumulative
+  hazard; Bayesian → trace + posterior + posterior predictive; ML
+  classifier → ROC + PR + calibration + confusion; meta-analysis →
+  forest + funnel + L'Abbé; etc.). Skip only when the researcher
+  explicitly asks for "just the headline figure".
+* Added pointers to the v1.2.1 deep-figure specialist protocols
+  (`uncertainty_visualization`, `distribution_comparison`,
+  `network_visualization`, `geospatial_visualization`,
+  `animation_design`, `interactive_dashboard_design`,
+  `showcase_visualization`) so the AI reaches for them automatically
+  when the focal chart is non-trivial.
+
+### Fixed — audit gap on numeric findings without a table
+
+`src/research_os/tools/actions/audit/audit.py` →
+`_step_completeness` now emits a non-blocking WARNING when a step
+has a figure + numeric findings (≥2 numeric / statistical signals
+in `## Findings`) but no CSV / TSV / parquet in `outputs/tables/`.
+Reviewers and `tool_synthesize` expect a machine-readable companion
+to every chart (coefficient table for a model, metric matrix for a
+comparison). Threshold is soft — qualitative steps with no numeric
+content are exempt automatically.
+
+### Added — regression tests (+6)
+
+* `tests/tools/test_router.py`
+  * `test_route_punctuation_does_not_block_shortcut`
+  * `test_route_baseline_eda_prompt_resolves`
+  * `test_route_context_intake_shortcut`
+  * `test_semantic_leaf_no_decomposition_downgrades_complexity`
+* `tests/tools/test_iteration.py`
+  * `test_step_completeness_warns_on_numeric_findings_without_table`
+  * `test_step_completeness_quiet_when_table_exists`
+
+### Bumped
+
+* `research-os` package: 1.2.1 → 1.2.2
+* `_router_index.yaml`: 6 → 7
+* `CITATION.cff` version + date
+* Embeddings rebuilt against the updated index + protocol bodies.
+
+### Test + quality status
+
+```
+preflight  : 14 / 14 ✓
+pytest     : 453 / 453 ✓  (was 447 in v1.2.1)
+ruff       : clean ✓
+```
+
+---
+
 ## [1.2.1] — Showcase-tier visualization + tool / MCP integration + 100% routing (2026-06-02)
 
 Patch release bundling everything in the never-tagged v1.2.0 work

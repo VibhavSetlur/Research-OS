@@ -40,12 +40,15 @@ For the format of a protocol file, see
 
 ## How the AI picks a protocol (the hierarchical router)
 
-The AI does **not** load every YAML to find the right one. Instead:
+The AI does **not** load every YAML to find the right one. The AI only
+ever acts AFTER a researcher message arrives; on the first turn of a
+session it fires these two calls back-to-back:
 
-1. **`sys_boot`** — single call returns workspace state + recommended
-   pipeline-next protocol + advice.
-2. **`tool_route(prompt=<researcher's message>)`** — hierarchical
-   L1 → L2 → L3 picker. Returns the deepest unambiguous level:
+1. **`sys_boot`** — FIRST MCP call (first turn only). Returns workspace
+   state + recommended pipeline-next protocol + advice.
+2. **`tool_route(prompt=<researcher's verbatim message>)`** — SECOND
+   MCP call. Hierarchical L1 → L2 → L3 picker. Returns the deepest
+   unambiguous level:
    * L1 `intent_class` — one of `session | discover | plan | execute |
      methodology | literature | synthesize | audit_wrap | memory |
      review`

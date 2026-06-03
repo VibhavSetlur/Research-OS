@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 6
+version: 7
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -327,6 +327,13 @@ protocols:
       - "run an analysis"
       - "fit a model"
       - "do an eda"
+      - "do a baseline"
+      - "baseline eda"
+      - "baseline analysis"
+      - "eda on my"
+      - "eda pass"
+      - "first analysis"
+      - "first experiment"
       - "exploratory data analysis"
       - "start the analysis"
       - "next experiment"
@@ -1803,6 +1810,22 @@ shortcut_intents:
     triggers: ["progress", "status", "where are we", "what's done", "digest"]
     tool: tool_progress_digest
 
+  context_intake:
+    triggers:
+      - "i just dropped a paper"
+      - "dropped a new paper"
+      - "i just added a paper"
+      - "integrate this paper"
+      - "integrate the new paper"
+      - "ingest this paper"
+      - "added a new dataset"
+      - "added context"
+      - "pi sent me a paper"
+      - "new paper in literature"
+      - "new paper in context"
+      - "pull in this file"
+    tool: tool_context_intake
+
   dead_end_lessons:
     triggers: ["lessons", "what did we learn", "past mistakes",
               "previous dead ends"]
@@ -1817,7 +1840,14 @@ shortcut_intents:
     tool: sys_dep_inventory
 
   workspace_repair:
-    triggers: ["broken", "workspace is broken", "fix workspace", "repair"]
+    triggers:
+      - "broken"
+      - "workspace is broken"
+      - "workspace looks broken"
+      - "fix workspace"
+      - "fix the workspace"
+      - "repair"
+      - "repair the workspace"
     tool: tool_workspace_repair
 
   background_task:
@@ -1833,7 +1863,14 @@ shortcut_intents:
       - "iterate on this step"
       - "iterate the figure"
       - "iterate the analysis"
+      - "iterate on figure"
+      - "iterate on the figure"
       - "rerun with different"
+      - "recolor figure"
+      - "recolour figure"
+      - "tighten the cutoff"
+      - "tighten cutoff"
+      - "swap the model"
       - "snapshot this version"
       - "version this iteration"
       - "design iteration"

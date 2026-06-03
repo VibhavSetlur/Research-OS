@@ -944,6 +944,30 @@ def _is_section_stub(text: str, header: str) -> bool:
     return any(m in body for m in _CONCLUSIONS_STUB_MARKERS)
 
 
+_NUMERIC_HINT = re.compile(
+    r"(?:\d+\.\d+|\d+%|p\s*[<=>]\s*0?\.\d+|95%\s*ci|n\s*=\s*\d+|"
+    r"AUROC|AUC|R\^?2|RMSE|MAE|hazard\s*ratio|odds\s*ratio|"
+    r"mean\s*=|median\s*=)",
+    re.IGNORECASE,
+)
+
+
+def _findings_look_numeric(text: str) -> bool:
+    """True iff the Findings section contains at least two distinct
+    numeric / statistical signals — a heuristic for "this step has
+    real numbers a reader would want in a table".
+
+    Used as the trigger for the "numeric findings without a table"
+    warning in step completeness. False positives (e.g. a Findings
+    section that quotes a paper's percentages) are acceptable — the
+    cost of a spurious warning is small.
+    """
+    body = _section_body(text, "Findings")
+    if not body:
+        return False
+    return len(_NUMERIC_HINT.findall(body)) >= 2
+
+
 def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
     """Score one step's completeness — used both for finalize gates and
     server-enforced anti-one-shot guards.
@@ -1076,12 +1100,39 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
         return False
 
     figures_from_step = [f for f in figures if f.startswith(f"{step_num}_")]
+    has_tables = _has_step_artifact(tables_dir, (".csv", ".tsv", ".parquet"))
+    has_reports = _has_step_artifact(reports_dir, (".md", ".txt", ".html"))
     categories_hit = sum([
-        bool(figures_from_step),                                       # figures/
-        _has_step_artifact(tables_dir, (".csv", ".tsv", ".parquet")),  # tables/
-        _has_step_artifact(reports_dir, (".md", ".txt", ".html")),     # reports/
+        bool(figures_from_step),  # figures/
+        has_tables,               # tables/
+        has_reports,              # reports/
     ])
     info["output_categories"] = categories_hit
+    info["has_tables"] = has_tables
+    info["has_reports"] = has_reports
+
+    # Soft check: numeric findings without a table.
+    #
+    # If the step has substantive numeric findings (Findings section
+    # with multiple numbers / units / CIs) but emitted no CSV / TSV /
+    # parquet table, surface as a WARNING — research-record gap, not a
+    # block-the-paper gap. Reviewers expect coefficient / metric
+    # tables alongside narrative; the synthesis/paper pipeline will
+    # struggle to assemble a Results section without them.
+    if (
+        conc.exists()
+        and bool(figures_from_step)
+        and not has_tables
+        and _findings_look_numeric(conc.read_text())
+    ):
+        warnings.append(
+            "Step has numeric findings + a figure but no table in "
+            "outputs/tables/. Reviewers (and tool_synthesize) expect a "
+            "machine-readable companion to the chart: coefficient table "
+            "for a model, metric matrix for a comparison, summary CSV "
+            "for descriptive stats. Add at least one CSV named "
+            f"{step_num}_<descriptor>.csv."
+        )
 
     if len(scripts) > 2 and not pipeline_yaml.exists():
         warnings.append(
