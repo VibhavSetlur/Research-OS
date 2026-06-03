@@ -54,10 +54,24 @@ def test_save_state_updates_timestamp(tmp_path):
     assert "updated_at" in saved
 
 
-def test_save_state_writes_os_state_md(tmp_path):
+def test_save_state_writes_state_md_at_root(tmp_path):
+    """v1.3.0 round-2: the canonical human-readable status file is now
+    STATE.md at the project root (was `.os_state/os_state.md`). The
+    project-root location means a fresh AI session finds it without
+    inside knowledge of the `.os_state/` directory structure."""
     scaffold_minimal_workspace(tmp_path, "Test")
-    md = tmp_path / ".os_state" / "os_state.md"
-    assert md.exists()
+    state_md = tmp_path / "STATE.md"
+    assert state_md.exists(), "STATE.md should be at project root"
+    content = state_md.read_text()
+    # Sanity: it should be researcher-readable, no internal jargon.
+    assert "Research question" in content or "Pipeline phase" in content
+    # The old buried path should not exist either (init-time scaffold
+    # never wrote it, and the migration in _write_os_state_summary
+    # removes it if present).
+    old = tmp_path / ".os_state" / "os_state.md"
+    assert not old.exists(), (
+        "old `.os_state/os_state.md` shouldn't exist on a fresh init"
+    )
 
 
 # ── ResearchLedger ────────────────────────────────────────────────────
@@ -161,7 +175,7 @@ def test_checkpoint_rollback_unknown(tmp_path):
 
 def test_create_numbered_experiment(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Test")
-    res = create_numbered_experiment(tmp_path, "data_prep", hypothesis="Clean data")
+    res = create_numbered_experiment(tmp_path, "data_prep", hypothesis="Clean data", enforce_predecessor_finalized=False)
     state = load_state(tmp_path)
     assert res["path_id"] in state["paths"]
     assert state["current_path"] == res["path_id"]
@@ -169,7 +183,7 @@ def test_create_numbered_experiment(tmp_path):
 
 def test_numbered_experiments_auto_increment(tmp_path):
     scaffold_minimal_workspace(tmp_path, "Test")
-    r1 = create_numbered_experiment(tmp_path, "first")
-    r2 = create_numbered_experiment(tmp_path, "second")
+    r1 = create_numbered_experiment(tmp_path, "first", enforce_predecessor_finalized=False)
+    r2 = create_numbered_experiment(tmp_path, "second", enforce_predecessor_finalized=False)
     assert r1["path_id"].startswith("01_")
     assert r2["path_id"].startswith("02_")

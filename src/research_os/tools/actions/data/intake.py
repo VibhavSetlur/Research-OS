@@ -39,6 +39,20 @@ DOMAIN_HINTS = {
         "cols": ["gene_id", "log2fc", "padj", "chromosome"],
         "keywords": ["rna-seq", "genome", "gene expression", "variant", "alignment"],
     },
+    "biology_ecology": {
+        "exts": [".csv", ".tsv"],
+        "cols": [
+            "species", "sex", "island", "habitat", "site", "taxon",
+            "bill_length_mm", "bill_depth_mm", "flipper_length_mm",
+            "body_mass_g", "wing_chord", "tarsus", "morphotype",
+        ],
+        "keywords": [
+            "species", "ecology", "biology", "morphology", "morphometric",
+            "dimorphism", "allometric", "phenotype", "population", "fauna",
+            "flora", "wildlife", "field study", "pygoscelis", "passerine",
+            "vertebrate", "invertebrate",
+        ],
+    },
     "nlp": {
         "exts": [".jsonl", ".txt", ".arrow"],
         "cols": ["text", "label", "tokens"],
@@ -51,7 +65,7 @@ DOMAIN_HINTS = {
     },
     "economics": {
         "exts": [".dta", ".csv", ".xlsx"],
-        "cols": ["country", "year", "gdp", "inflation", "unemployment"],
+        "cols": ["country", "gdp", "inflation", "unemployment"],
         "keywords": ["panel", "macro", "monetary", "gdp", "labor"],
     },
     "geospatial": {
@@ -140,15 +154,133 @@ def _propose_question(context_text: str, raw_files: list[Path]) -> str:
 
 
 def _propose_hypotheses(context_text: str) -> list[str]:
-    """Pick out any H1/H2/H3 style hypotheses from context notes."""
+    """Pick out hypotheses from context notes.
+
+    Handles common explicit styles AND falls back to natural-language
+    extraction so PI briefs written in prose don't yield zero hypotheses.
+
+    Explicit styles:
+      H1: text
+      Hypothesis 1: text
+      - H1 — text
+      - **H1** — text             (markdown bold)
+      * H1: text                  (bullet)
+      1. **Hypothesis** — text
+
+    Natural-language fallback (only used when no explicit hypotheses found):
+      - Sentences starting with "We hypothesise" / "We predict" / "We expect".
+      - Sentences containing "is associated with" / "differs across" /
+        "replicates the" / "is modulated by".
+    """
+    if not context_text:
+        return []
+
+    hits: list[str] = []
+    # Pattern 1: explicit "H<n>" or "Hypothesis <n>" labels.
+    pat = re.compile(
+        r"""(?ixm)
+        ^\s*                       # leading whitespace
+        (?:[-*+]\s+|\d+[.)]\s+)?   # optional list marker
+        (?:[*_]{1,2})?             # optional opening bold/italic
+        (?:hypothesis|h)           # word "hypothesis" or letter H
+        (?:[*_]{1,2})?             # optional close of bold around the word
+        \s*(\d+)\b                 # the index
+        (?:[*_]{1,2})?             # optional close after number
+        \s*[:\-–—]\s*              # separator
+        (.{15,400}?)               # the hypothesis text
+        \s*$
+        """
+    )
+    for m in pat.finditer(context_text):
+        text = re.sub(r"^[*_]+|[*_]+$", "", m.group(2)).strip()
+        if text:
+            hits.append(text)
+
+    if hits:
+        return hits[:6]
+
+    # Fallback: natural-language sentences that read like hypotheses.
+    nl_pat = re.compile(
+        r"""(?ix)
+        ([A-Z][^.\n]{15,400}?
+          \b(?:
+              hypothesi[sz]e|hypothesi[sz]ed|
+              predict|predicts|predicted|
+              expect|expects|expected\s+to|
+              is\s+associated\s+with|are\s+associated\s+with|
+              differs?\s+(?:across|between|by)|
+              replicates?\s+(?:the\s+)?|
+              is\s+modulated\s+by
+          )
+          \b[^.\n]{5,300})
+        \.
+        """
+    )
+    for m in nl_pat.finditer(context_text):
+        text = m.group(1).strip()
+        if text and text not in hits:
+            hits.append(text)
+
+    return hits[:6]
+
+
+def _extract_named_papers(context_text: str) -> list[str]:
+    """Pull plausible paper references out of a PI brief.
+
+    PI briefs typically say things like "Cite Himes et al 2014" or
+    "Compare with the GTEx airway atlas" or "see Verhaak 2010". These
+    are not formal citations the AI can resolve from a DOI — they're
+    cues the AI should run a literature search for.
+
+    Returns a deduplicated list of human-readable reference strings.
+    """
     if not context_text:
         return []
     hits: list[str] = []
-    for m in re.finditer(
-        r"(?im)^(?:hypothesis|h)\s*(\d+)?\s*[:\-]\s*(.{15,400})$", context_text
-    ):
-        hits.append(m.group(2).strip())
-    return hits[:6]
+    # Pattern: "(Author) et al (YYYY)" or "Author YYYY" or "Author and
+    # Author YYYY" — case-sensitive on first letter so we don't grab
+    # random capitalised words. Excludes month names + common non-
+    # author capitalised words via a stop-list (a regex can't easily
+    # tell "Himes 2014" from "Nov 2014").
+    NON_AUTHOR = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+        "Sep", "Oct", "Nov", "Dec",
+        "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December",
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+        "Saturday", "Sunday",
+        "Biology", "Cell", "Nature", "Science", "PNAS", "Genet",
+        "Genome", "Methods", "Genetics", "Lancet", "BMJ", "JAMA",
+        "Cancer", "Brain", "Heart", "Kidney", "Blood",
+    }
+    patterns = [
+        # "Himes BE, et al PLOS ONE 2014" or "Himes et al 2014" or
+        # "Himes BE et al. 2014"
+        re.compile(
+            r"\b([A-Z][a-z]+(?:\s+[A-Z]{1,3},?)?(?:\s+and\s+[A-Z][a-z]+)?"
+            r"\s*,?\s*et\s+al\.?(?:\s+[A-Za-z][\w]*){0,5}\s*\(?(\d{4})\)?)"
+        ),
+        # "Himes 2014" (bare surname + year)
+        re.compile(r"\b([A-Z][a-z]+\s+\(?(\d{4})\)?)\b"),
+        # "the GTEx atlas" / "the TCGA cohort"
+        re.compile(r"\b(?:the\s+)?([A-Z][A-Z]{2,}\s+(?:atlas|dataset|cohort|database|consortium))",
+                   re.IGNORECASE),
+    ]
+    def _is_author(ref: str) -> bool:
+        first = ref.split()[0]
+        return first not in NON_AUTHOR and not first.isdigit()
+    for p in patterns:
+        for m in p.finditer(context_text):
+            ref = m.group(1).strip()
+            if ref and ref not in hits and len(ref) < 80 and _is_author(ref):
+                hits.append(ref)
+    # De-dupe similar refs (e.g. "Himes 2014" + "Himes et al 2014")
+    canonicalised: list[str] = []
+    for ref in hits:
+        key = re.sub(r"\s+et\s+al\.?", "", ref).lower()
+        if not any(re.sub(r"\s+et\s+al\.?", "", c).lower() == key for c in canonicalised):
+            canonicalised.append(ref)
+    return canonicalised[:8]
 
 
 # ---------------------------------------------------------------------------
@@ -194,10 +326,40 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
                     pass
         context_text = "\n\n".join(context_text_parts)
 
-        # Classify + propose
-        domain, domain_why = _classify_domain(raw_files, context_text)
-        question = _propose_question(context_text, raw_files)
+        # Classify + propose. Respect existing state when already set —
+        # init's --domain / --question flags land in state before this
+        # tool runs, and rewriting them here was overwriting the
+        # researcher's deliberate input with weaker auto-inferences.
+        state_pre = load_state(root)
+        existing_domain = (state_pre.get("domain") or "").strip()
+        existing_question = (state_pre.get("research_question") or "").strip()
+        domain_auto, domain_why = _classify_domain(raw_files, context_text)
+        domain = existing_domain or domain_auto
+        if existing_domain:
+            domain_why = [f"preserved from state.domain = {existing_domain!r}"]
+        question_auto = _propose_question(context_text, raw_files)
+        # Keep state's question unless it was the placeholder.
+        question = (
+            existing_question if existing_question
+            and "*(AI-proposed placeholder" not in existing_question
+            else question_auto
+        )
         hypotheses = _propose_hypotheses(context_text)
+        # v1.3.0 fallback: if context yields zero hypotheses but we DO have a
+        # research question (from --question flag or context inference), at
+        # least register the question itself as the central testable claim
+        # so downstream protocols have something to ground against. Strip
+        # the question mark and prefix with "We test whether".
+        if not hypotheses and question:
+            q_stripped = question.rstrip("?").strip()
+            if len(q_stripped) >= 12:
+                hypotheses = [f"We test whether {q_stripped[0].lower()}{q_stripped[1:]}."]
+
+        # v1.3.0: surface named-paper references (e.g. "Cite Himes 2014") as
+        # explicit fetch suggestions so the AI knows to run a literature
+        # search rather than silently hoping the PDF is already in
+        # inputs/literature/.
+        named_papers = _extract_named_papers(context_text)
 
         # NOTE: researcher_config.yaml is no longer touched here. Domain /
         # research_question / hypotheses are written to state (below) and
@@ -218,20 +380,126 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             is_placeholder = any(m in current.lower() for m in placeholders)
             write = overwrite or is_placeholder or len(current.strip()) < 60
         if write:
-            rq_body = (
-                f"# Research Question\n\n"
-                f"{question}\n\n"
-            )
+            # v1.3.2: richer research_overview.md — background pulled
+            # from inputs/context/*.md, sample-table inferred from a
+            # quick CSV row-count, named-paper references surfaced as
+            # a citations-to-find checklist, planned-analyses block
+            # so a fresh PI / reviewer can read the file alone and
+            # know what the project is about + where it's going.
+            rq_body_parts = [
+                f"# {state_pre.get('project_name') or 'Research Project'} — Overview",
+                "",
+                f"*Auto-populated by `tool_intake_autofill` at {now_iso()}.* "
+                "*Edit freely; re-running intake will preserve your edits if the "
+                "file is non-placeholder.*",
+                "",
+                "## Domain",
+                "",
+                f"**{domain or '_(not yet classified)_'}**",
+            ]
+            if domain_why:
+                rq_body_parts.append("")
+                rq_body_parts.append(
+                    "_Why this domain:_ " + "; ".join(str(r) for r in domain_why)
+                )
+            rq_body_parts.extend([
+                "",
+                "## Research question",
+                "",
+                question or "_(not yet set)_",
+                "",
+                "## Background (auto-extracted from `inputs/context/*.md`)",
+                "",
+            ])
+            if context_text.strip():
+                # First ~600 chars of context, truncated cleanly at a paragraph.
+                snippet = context_text.strip()[:600]
+                if len(context_text.strip()) > 600:
+                    snippet = snippet.rsplit("\n\n", 1)[0] + "\n\n_(truncated — see `inputs/context/` for the full PI brief / prior notes)_"
+                rq_body_parts.append("> " + snippet.replace("\n", "\n> "))
+            else:
+                rq_body_parts.append(
+                    "_(no context files present — drop a PI brief / prior report / lab notes into `inputs/context/` and re-run intake)_"
+                )
+            rq_body_parts.append("")
+            rq_body_parts.append("## Hypotheses")
+            rq_body_parts.append("")
             if hypotheses:
-                rq_body += "## Hypotheses (inferred from inputs/context)\n\n"
                 for i, h in enumerate(hypotheses, 1):
-                    rq_body += f"- H{i}: {h}\n"
-                rq_body += "\n"
-            rq_body += (
-                "## Last updated\n\n"
-                f"{now_iso()} — populated by `tool_intake_autofill`.\n"
-            )
-            rq_path.write_text(rq_body)
+                    rq_body_parts.append(f"- **H{i}**: {h}")
+            else:
+                rq_body_parts.append(
+                    "_(none yet — refine the research question with the PI, then "
+                    "re-run intake or call `mem_hypothesis_add` directly)_"
+                )
+            # Sample / data table — quick scan of raw_data
+            rq_body_parts.extend(["", "## Input data (auto-inventoried)", ""])
+            if raw_files:
+                rq_body_parts.append("| File | Size | Rows (CSV/TSV only) |")
+                rq_body_parts.append("|---|---|---|")
+                for f in raw_files[:15]:
+                    size_kb = f.stat().st_size / 1024
+                    size_str = (f"{size_kb:.0f} KB" if size_kb < 1024
+                                else f"{size_kb/1024:.1f} MB")
+                    n_rows = ""
+                    if f.suffix.lower() in {".csv", ".tsv"}:
+                        try:
+                            with open(f, errors="replace") as fh:
+                                n_rows = str(sum(1 for _ in fh) - 1)
+                        except OSError:
+                            n_rows = "?"
+                    rq_body_parts.append(
+                        f"| `{f.relative_to(root)}` | {size_str} | {n_rows} |"
+                    )
+                if len(raw_files) > 15:
+                    rq_body_parts.append(f"| _… and {len(raw_files)-15} more_ | | |")
+            else:
+                rq_body_parts.append(
+                    "_(no files in `inputs/raw_data/` yet — drop CSV / Parquet / "
+                    "FASTQ / NIfTI / etc. and re-run intake)_"
+                )
+
+            # Planned analyses placeholder — the AI fills this in as it
+            # walks through `methodology_selection` + `analysis_plan`.
+            rq_body_parts.extend([
+                "",
+                "## Planned analyses (filled in as the project progresses)",
+                "",
+                "_(`workspace/analysis.md` is the canonical narrative log. "
+                "This section is a high-level roadmap — link to the numbered "
+                "step folders as they're created.)_",
+                "",
+            ])
+            for i, p in enumerate((root / "workspace").iterdir() if (root / "workspace").exists() else [], 1):
+                if p.is_dir() and p.name[:2].isdigit():
+                    rq_body_parts.append(f"- `workspace/{p.name}/` — *(see step README)*")
+
+            # Literature-to-find checklist
+            rq_body_parts.extend(["", "## Literature to ground the work", ""])
+            if named_papers:
+                rq_body_parts.append(
+                    "References named in `inputs/context/` — fetch + save to "
+                    "`inputs/literature/`:"
+                )
+                rq_body_parts.append("")
+                for ref in named_papers:
+                    rq_body_parts.append(f"- [ ] {ref}")
+            else:
+                rq_body_parts.append(
+                    "_(no named references found in context. The "
+                    "`guidance/analysis_plan` ground_methods step will surface "
+                    "candidate methods + their canonical citations once the AI "
+                    "starts scoping the first analysis step.)_"
+                )
+
+            rq_body_parts.extend([
+                "",
+                "## Last updated",
+                "",
+                f"{now_iso()} — `tool_intake_autofill`.",
+                "",
+            ])
+            rq_path.write_text("\n".join(rq_body_parts))
             rq_changed = True
 
         # Persist intake findings to state so later intake regenerations
@@ -267,6 +535,26 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
         )
 
         # Build the autofill report
+        next_actions = []
+        if named_papers:
+            already_have = {p.stem.lower() for p in literature_files}
+            missing = [
+                ref for ref in named_papers
+                if not any(part.lower() in already_have for part in ref.split() if len(part) > 3)
+            ]
+            for ref in missing[:6]:
+                next_actions.append(
+                    f"Run tool_literature_search_and_save query=\"{ref}\" — "
+                    "the PI brief names this reference but it's not in "
+                    "inputs/literature/ yet."
+                )
+        if not hypotheses:
+            next_actions.append(
+                "No testable hypotheses inferable from inputs/context. Ask the "
+                "researcher: 'What's the central claim you want this project "
+                "to test? Phrasing it as H1 will sharpen everything downstream.'"
+            )
+
         summary = {
             "status": "success",
             "files_seen": {
@@ -278,6 +566,8 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             "domain_rationale": domain_why,
             "proposed_research_question": question,
             "proposed_hypotheses": hypotheses,
+            "named_paper_references": named_papers,
+            "next_actions": next_actions,
             "state_fields_updated": [
                 k for k in ("domain", "research_question", "active_hypotheses")
                 if state.get(k)
@@ -285,8 +575,10 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             "research_question_md_updated": rq_changed,
             "intake_path": intake_path,
             "message": (
-                "Intake autofilled. The AI should review with the researcher: "
-                "'I read your inputs. I propose domain=<X>, question=<Y>. Approve?'"
+                "Intake autofilled. Review with the researcher: 'I read your "
+                "inputs. I propose domain=<X>, question=<Y>, "
+                f"{len(hypotheses)} hypotheses, {len(named_papers)} named "
+                "paper references to fetch. Approve?'"
             ),
         }
         return summary

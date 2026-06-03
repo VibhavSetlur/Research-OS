@@ -408,6 +408,8 @@ def audit_prose(
         from research_os.project_ops import load_state
         domain = (load_state(root) or {}).get("domain", "") or ""
     except Exception:
+        # State unreadable / not initialised — fall through to the cfg
+        # fallback; domain stays empty if neither source has it.
         pass
     if not domain or is_observational is None:
         cfg_path = root / "inputs" / "researcher_config.yaml"
@@ -420,6 +422,9 @@ def audit_prose(
                     domain = cfg.get("domain", "") or cfg.get("research_goal", {}).get("domain", "")
                 design = (cfg.get("research_goal") or {}).get("design", "")
             except Exception:
+                # Malformed YAML / unreadable — leave domain + design
+                # empty; the observational heuristic below assumes
+                # "experimental" by default.
                 pass
     if is_observational is None:
         is_observational = (

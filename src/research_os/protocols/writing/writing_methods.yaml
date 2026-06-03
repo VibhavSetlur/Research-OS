@@ -1,6 +1,6 @@
 id: writing_methods
 name: Writing — Methods
-version: '1.1.0'
+version: '1.3.2'
 schema_version: '2.0'
 description: Document the methods used in an experiment in workspace/methods.md (append-only).
 trigger: Whenever a method, library, or parameter is chosen — either inside analysis_plan or as a standalone task.

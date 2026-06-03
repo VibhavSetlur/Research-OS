@@ -247,7 +247,7 @@ _DEFAULT_TEMPLATE_NODES = [
      "outputs": ["outputs/figures/<NN>_residual_diagnostics.png",
                  "outputs/figures/<NN>_calibration.png"]},
     {"id": "visualize",
-     "purpose": "Publication-grade figures (use tool_figure_create).",
+     "purpose": "Publication-grade figures — AI writes the script (matplotlib / ggplot2 / Altair / d3); load visualization/figure_guidelines for the chart-chooser + palette + pre-publish self-review checklist.",
      "inputs":  ["data/output/model.pkl", "data/output/coefficients.csv"],
      "outputs": ["outputs/figures/<NN>_focal.png"]},
     {"id": "report",

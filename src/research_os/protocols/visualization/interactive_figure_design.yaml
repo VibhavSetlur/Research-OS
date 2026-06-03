@@ -1,0 +1,194 @@
+id: interactive_figure_design
+name: Interactive Figure Design (per-figure, NOT dashboard-scale)
+version: '1.3.2'
+schema_version: '2.0'
+last_reviewed: '2026-06-03'
+description: |
+  When a SINGLE figure is best served by interactivity — hover-to-
+  identify a gene in a 5,000-point volcano, brush-to-select cells on
+  a UMAP, click-to-drill into a heatmap cell, lasso a subset on a
+  scatter — this protocol scaffolds the design. NOT a dashboard
+  (that's `visualization/interactive_dashboard_design`); not a static
+  paper figure (that's `visualization/figure_guidelines`); not a
+  multi-panel composition (that's `visualization/multi_panel_composition`).
+
+  Doctrine
+  --------
+  Every interactive figure MUST ALSO ship a static fallback (PNG +
+  SVG). Reasons:
+    1. Paper PDFs can't host HTML / JavaScript.
+    2. Reviewers print figures.
+    3. Accessibility (screen readers, keyboard-only navigation).
+    4. Long-term archive: HTML/JS deliverables rot; a static SVG
+       opens 20 years from now.
+
+  The interactive version is a *companion* to the static, not a
+  replacement. The static carries the headline; the interactive lets
+  the reader explore.
+
+trigger: |
+  Use when:
+    - n > 200 marks on a scatter / volcano / UMAP and the reader
+      needs to identify specific points (gene symbols, sample IDs).
+    - Heatmap > 50 rows or > 50 columns — hover for value, click for
+      row/column detail.
+    - Network with > 30 nodes — hover for node attributes, drag for
+      layout exploration.
+    - Time series with > 1000 points — zoom + brush.
+    - Geo map — pan + zoom + click feature for popover.
+    - Stakeholder is going to *use* the figure (not just read it) to
+      answer their own follow-up questions.
+
+  Do NOT use when:
+    - Figure goes into a paper PDF as Figure N (static only).
+    - Figure has < 30 marks (interactivity adds noise without payoff).
+    - Project is a one-off literature review with no live deliverable.
+
+prerequisites:
+  - The underlying static figure has been drafted (matplotlib /
+    ggplot2 / Altair). The interactive version translates the same
+    encoding to an interactive library; it does not re-invent the
+    chart from scratch.
+  - The figure's `<name>.caption.md` exists — interactivity adds an
+    affordance, not a meaning.
+
+steps:
+  - id: pick_library
+    name: Pick the interactive library that matches the data + audience
+    description: |
+      Quick decision tree:
+
+        Single bespoke figure, you already wrote it in matplotlib:
+          → **mpld3** (drop-in matplotlib → interactive HTML;
+                       hover labels, zoom; ~10 lines).
+          → **plotly** (`plotly.express.scatter(...).write_html(...)`)
+                       — best when hover tooltips need formatted data.
+
+        Statistical figures with grammar-of-graphics ergonomics:
+          → **Altair / Vega-Lite** (declarative; brush + cross-filter
+                                    + selection are first-class).
+          → **plotly** for everything else.
+
+        Genomics / single-cell:
+          → **scanpy.pl + sc.pl.umap(legend_loc='on data')**
+                       + Vega-Lite for interactive UMAP. cellxgene
+                       for sharable browser.
+          → **igv.js** for genomic tracks.
+          → **EnhancedVolcano** stays static; pair with `glimma::glXYPlot`
+                       (R) for the interactive volcano companion.
+
+        Networks:
+          → **pyvis** (networkx → HTML; physics drag, hover).
+          → **vis.js / cytoscape.js** when more control is needed.
+
+        Geo:
+          → **folium / leafmap** (Leaflet under the hood).
+          → **kepler.gl** for large-data interactive maps.
+
+        Web-native publishable artefact:
+          → **D3 / Observable Plot** (steepest curve, most flexible).
+
+      Pin the library in `environment/requirements.txt` so the
+      deliverable replays after a re-clone.
+
+  - id: design_the_interactions
+    name: Decide WHICH interactions, not "make it interactive"
+    description: |
+      Map interactions to questions the reader will ask:
+
+      | Reader question | Affordance |
+      |---|---|
+      | "What's this point?" | Hover tooltip with gene symbol + log2FC + padj |
+      | "Show me only the significant ones" | Brush over volcano + cross-filter table |
+      | "What does this cluster look like in 3D?" | 3D scatter with rotate (only when 3D adds info) |
+      | "Zoom into the dense region" | Pan + zoom; auto-rebin density |
+      | "Filter to one condition" | Legend click to hide/show series |
+      | "Drill into a row of this heatmap" | Click → modal with that row's full vector |
+      | "Lasso a subset and download the IDs" | Selection → CSV export |
+
+      Each interaction MUST answer a specific reader question. If
+      you can't name the question, don't add the interaction.
+
+  - id: tooltips_are_the_baseline
+    name: Tooltips are the floor, not an upgrade
+    description: |
+      Every interactive figure MUST have informative hover tooltips.
+      What goes in a tooltip:
+        - Identifier (gene symbol / sample ID / feature name)
+        - The value being encoded (log2FC, padj, expression)
+        - One disambiguator (cell line, treatment, cohort)
+      What does NOT belong in a tooltip:
+        - Raw row indices.
+        - Pre-transformed strings the reader needs to mentally parse.
+        - Long sentences (move those to a side panel).
+
+      Plotly format strings + Altair `tooltip=[...]` make this cheap.
+
+  - id: write_the_static_companion_first
+    name: Static fallback is REQUIRED, not optional
+    description: |
+      Save `<NN>_<descriptor>.png` and `<NN>_<descriptor>.svg`
+      alongside `<NN>_<descriptor>.html`. The paper PDF embeds the
+      static; the dashboard / supplementary material links the HTML.
+      If you only ship the HTML, you've broken the paper pipeline.
+
+      The protocol convention: same stem, three suffixes.
+
+  - id: write_caption_and_summary
+    name: Caption + summary describe BOTH the static + interactive forms
+    description: |
+      `<NN>_<descriptor>.caption.md` — technical caption mentions the
+      static figure's encoding AND notes "interactive companion at
+      `<NN>_<descriptor>.html` supports hover-tooltip + brush
+      selection".
+      `<NN>_<descriptor>.summary.md` — plain-English includes "click
+      and drag to explore" if the audience will see the HTML.
+
+  - id: reproducibility_block
+    name: Reproducibility block in the script
+    description: |
+      The script that emits the .html should also print its env to
+      stderr (library versions, Python/R version, RNG seed if any
+      stochastic layout). HTML deliverables don't carry their
+      dependencies inline; the script does.
+
+  - id: ship_offline_capable_html
+    name: Ship offline-capable HTML (no CDN dependency)
+    description: |
+      Reviewers behind firewalls + archival readers years from now must
+      be able to open the file with NO network. Use the inline-JS
+      option, not the CDN one.
+
+      Plotly (Python): `fig.write_html(path, include_plotlyjs='inline')`
+        (NOT 'cdn'; NOT True without an explicit value).
+      Bokeh:  `bokeh.io.output_file(path, mode='inline')`.
+      Altair: `chart.save(path, embed_options={'actions': False})`
+              + ensure `usermeta={'embedOptions': {'mode': 'vega-lite',
+              'externalUrlPathPrefix': ''}}` is unset.
+
+      The file will be ~2-4 MB larger but it WORKS offline. Worth it.
+
+  - id: audit
+    name: Audit the static (gate) — the HTML is best-effort
+    description: |
+      `tool_audit_figure_full filepath="<NN>_<descriptor>.png"` —
+      the static is what the audit gate checks. The HTML is a
+      companion artefact; it doesn't pass through the gate.
+
+      Optionally `tool_dashboard_test_generate` if the HTML is
+      complex enough to need its own smoke test.
+
+expected_outputs:
+  - workspace/*/outputs/figures/<NN>_<descriptor>.png
+  - workspace/*/outputs/figures/<NN>_<descriptor>.svg
+  - workspace/*/outputs/figures/<NN>_<descriptor>.html
+  - workspace/*/outputs/figures/<NN>_<descriptor>.caption.md
+  - workspace/*/outputs/figures/<NN>_<descriptor>.summary.md
+
+quality_bar:
+  every_interactive_has_static_fallback: true
+  every_hover_tooltip_answers_a_reader_question: true
+  pinned_library_in_requirements_txt: true
+
+next_protocol: null
+on_failure: visualization/figure_guidelines

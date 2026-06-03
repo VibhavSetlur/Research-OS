@@ -150,12 +150,15 @@ flags it before synthesis.
    `tool_poster_create` when `tool_audit_quality_full` finds blockers.
 10. **Every figure carries four sidecars** — `.caption.md` (technical),
     `.summary.md` (plain-English), `.prov.json` (provenance), and an
-    SVG companion. PREFER `tool_figure_create`, which writes all of
-    them in one call across 25+ publication-grade chart kinds (ROC,
-    PR, calibration, QQ, residual diagnostics, forest, dot-and-
-    whisker, raincloud, posterior, …). Every number in
-    `synthesis/paper.md` must trace to a workspace output —
-    `tool_audit_claims` flags hallucinations.
+    SVG companion. **You write the plotting script yourself** in
+    matplotlib / ggplot2 / Altair / plotly / d3 per
+    `visualization/figure_guidelines` (Research-OS does NOT ship a
+    parametric chart-builder as of v1.3.0). `tool_figure_palette` +
+    `tool_audit_figure_full` + `tool_figure_caption_synthesise` are the
+    support utilities. For one figure that needs hover-tooltips, use
+    `visualization/interactive_figure_design` — static PNG/SVG fallback
+    is REQUIRED. Every number in `synthesis/paper.md` must trace to a
+    workspace output — `tool_audit_claims` flags hallucinations.
 11. **Multi-script steps need a `pipeline.yaml`** — defined via
     `tool_step_pipeline_define`, run via `tool_step_pipeline_run`.
     The runner topologically orders + content-hash-caches; one

@@ -68,29 +68,37 @@ TOP_LEVEL_DIRS = (
 )
 
 # Directories created EAGERLY (always populated, never empty after init).
+# inputs/{raw_data,literature,context} are eager from v1.3.0 — GETTING_STARTED
+# tells the researcher to drop files there, and the dirs must exist for that
+# `cp` to work without `mkdir -p` friction. Each is seeded with a tiny README
+# explaining what belongs there so an empty folder isn't a dead end.
 EAGER_DIRS = (
     ".os_state",
     "docs",
     "inputs",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-)
-
-# Directories created LAZILY (only when the first artefact lands in them).
-# Keeping these absent on a fresh init avoids "what are these empty folders?"
-# friction. Tools that write into them MUST call ``ensure_lazy_dir`` first.
-LAZY_DIRS = (
     "inputs/raw_data",
     "inputs/literature",
     "inputs/context",
-    "synthesis",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
     "environment",
+)
+
+# Directories created LAZILY (only when the first artefact lands in them).
+# Tools that write into them MUST call ``ensure_lazy_dir`` first.
+LAZY_DIRS = (
+    "synthesis",
 )
 
 
 def _has_user_inputs(root: Path) -> bool:
-    """True iff the researcher has dropped real files into inputs/."""
+    """True iff the researcher has dropped real files into inputs/.
+
+    Skips scaffold-seeded ``README.md`` files in each input subfolder
+    (added in v1.3.0 round-3 so an empty folder isn't a dead end) —
+    those don't count as user content.
+    """
     for sub in ("raw_data", "literature", "context"):
         d = root / "inputs" / sub
         if not d.exists():
@@ -99,6 +107,10 @@ def _has_user_inputs(root: Path) -> bool:
             if not p.is_file():
                 continue
             if p.name.startswith(".") or p.name == ".gitkeep":
+                continue
+            if p.name == "README.md" and p.parent.name in {
+                "raw_data", "literature", "context"
+            }:
                 continue
             return True
     return False
@@ -182,8 +194,19 @@ def _resolve_root(root: Path | None = None) -> Path:
     return r
 
 
-def slugify(value: str, fallback: str = "path") -> str:
+def slugify(value: str, fallback: str = "path", *, max_len: int = 40) -> str:
+    """Sanitise + truncate a slug for safe filesystem use.
+
+    v1.3.2: hardened — strips path-traversal sequences and caps length
+    to prevent absurdly-long step folder names. Returns ``fallback``
+    if the input contains no usable characters.
+    """
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
+    # Defence-in-depth against path traversal (the regex already strips
+    # `..` and `/`, but make the intent explicit).
+    slug = slug.replace("..", "_").replace("/", "_").strip("_")
+    if max_len and len(slug) > max_len:
+        slug = slug[:max_len].rstrip("_")
     return slug or fallback
 
 
@@ -299,7 +322,23 @@ def save_state(root: Path, state: dict) -> dict:
 
 
 def _write_os_state_summary(root: Path) -> None:
-    """Render ``.os_state/os_state.md`` — a human-readable status snapshot."""
+    """Render the canonical project status — a researcher- AND AI-readable
+    snapshot of what's going on.
+
+    v1.3.0: This file used to be ``.os_state/os_state.md`` (buried). It
+    is now ``STATE.md`` at the PROJECT ROOT so a fresh AI session can
+    find it without inside knowledge, and so a collaborator opening
+    the project sees the status immediately. The contents are richer:
+    not just "which paths exist" but the active research question,
+    the open hypotheses with status, the most-recent step finalized,
+    the next pipeline-recommended protocol, and the key files. A
+    plain-English "where to go from here" footer points new sessions
+    at AGENTS.md + sys_boot.
+
+    Old ``.os_state/os_state.md`` is removed by the caller (save_state)
+    on first save after upgrade so the working tree doesn't end up
+    with two copies.
+    """
     try:
         state = load_state(root)
     except Exception:
@@ -315,43 +354,120 @@ def _write_os_state_summary(root: Path) -> None:
     name = state.get("project_name") or "Research Project"
     stage = state.get("pipeline_stage", "init")
     current = state.get("current_path", "main")
+    question = (state.get("research_question") or "").strip()
+    domain = (state.get("domain") or "").strip()
+    hyps = state.get("active_hypotheses") or []
+
+    # Last protocol log entry (so a fresh chat knows what happened most
+    # recently without digging through workspace/analysis.md).
+    last_protocol = None
+    try:
+        log = root / ".os_state" / "protocol_execution_log.jsonl"
+        if log.exists():
+            for line in reversed(log.read_text().splitlines()):
+                if line.strip():
+                    last_protocol = json.loads(line)
+                    break
+    except Exception:
+        last_protocol = None
 
     lines = [
-        f"# OS State — {name}",
-        f"*Last updated: {now_iso()}*",
+        f"# {name}",
         "",
-        f"## Phase: `{stage}`",
-        f"## Active path: `{current}`",
+        "*The canonical status file. A new AI session reads this first.*",
+        f"*Last updated: {now_iso()}.*",
         "",
-        "## Experiment paths",
+        "## What this project is",
+        "",
+        f"- **Research question:** {question or '_(not yet set — run `tool_intake_autofill` or set in `inputs/researcher_config.yaml`)_'}",
+        f"- **Domain:** {domain or '_(unset)_'}",
+        f"- **Pipeline phase:** `{stage}`",
+        f"- **Active path:** `{current}`",
+        "",
+        "## Open hypotheses",
+        "",
     ]
-    if not paths:
-        lines.append("- (none yet)")
-    for p in paths:
-        icon = {
-            "completed": "✅",
-            "active": "🔄",
-            "dead_end": "❌",
-        }.get(p.get("status", "active"), "•")
-        lines.append(f"- {icon} `{p.get('path_id')}` — {p.get('status')}")
+    if not hyps:
+        lines.append("_(none registered yet)_")
+    else:
+        lines.append("| ID | Status | Statement |")
+        lines.append("|---|---|---|")
+        for h in hyps:
+            hid = h.get("id", "?")
+            status = h.get("status", "testing")
+            stmt = (h.get("statement") or "")[:140]
+            lines.append(f"| {hid} | {status} | {stmt} |")
 
-    lines.extend(["", "## Key files"])
-    for f in [
-        "inputs/intake.md",
-        "docs/research_overview.md",
-        "docs/domain_summary.md",
-        "workspace/methods.md",
-        "workspace/analysis.md",
-        "workspace/citations.md",
-        "workspace/logs/audit_report.md",
-        "synthesis/paper.md",
+    lines.extend([
+        "",
+        "## Analysis steps",
+        "",
+    ])
+    if not paths:
+        lines.append("_(no numbered steps yet)_")
+    else:
+        for p in paths:
+            icon = {
+                "completed": "✓",
+                "active": "→",
+                "dead_end": "✗",
+            }.get(p.get("status", "active"), "•")
+            pid = p.get("path_id", "?")
+            hyp = (p.get("hypothesis") or "").strip()[:80]
+            extra = f" — {hyp}" if hyp else ""
+            lines.append(f"- {icon} `{pid}`{extra}")
+
+    if last_protocol:
+        lines.extend([
+            "",
+            "## Most recent action",
+            "",
+            f"- Protocol `{last_protocol.get('protocol', '?')}`"
+            f" ({last_protocol.get('status', '?')}) at "
+            f"{last_protocol.get('timestamp', '?')}",
+        ])
+
+    lines.extend([
+        "",
+        "## Key files (✓ exists / ⚪ not yet)",
+        "",
+    ])
+    for f, label in [
+        ("inputs/intake.md", "intake summary"),
+        ("inputs/researcher_config.yaml", "config + autonomy"),
+        ("docs/research_overview.md", "research question + overview"),
+        ("workspace/analysis.md", "narrative log of every step"),
+        ("workspace/methods.md", "methods log (assembles into paper)"),
+        ("workspace/citations.md", "auto bibliography"),
+        ("environment/requirements.txt", "reproducibility env"),
+        ("synthesis/paper.md", "draft paper"),
     ]:
         exists = (root / f).exists()
-        lines.append(f"- {'✅' if exists else '⚪'} `{f}`")
+        lines.append(f"- {'✓' if exists else '⚪'} `{f}` — {label}")
 
-    out = root / ".os_state" / "os_state.md"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text("\n".join(lines) + "\n")
+    lines.extend([
+        "",
+        "## How to resume in a fresh chat",
+        "",
+        "1. Read `AGENTS.md` at project root (the AI's operating rules).",
+        "2. Read THIS file (status + open hypotheses + what was last done).",
+        "3. On your first turn, call `sys_boot` for the live state +"
+        " active plan + pause classification.",
+        "4. Then `tool_route(prompt=<the researcher's message>)`.",
+    ])
+
+    # Write the canonical version at project root.
+    state_md = root / "STATE.md"
+    state_md.write_text("\n".join(lines) + "\n")
+
+    # Migration: remove the old buried copy if it exists from a prior
+    # version. Best-effort — never raise.
+    old = root / ".os_state" / "os_state.md"
+    if old.exists():
+        try:
+            old.unlink()
+        except OSError:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -463,10 +579,52 @@ def scaffold_minimal_workspace(
 
     # 4. Append-only workspace logs — start EMPTY but with a header so the
     #    AI knows the file is initialised.
+    #    v1.3.0: researcher-facing wording. These files are read by
+    #    humans (you, your PI, a collaborator on a fresh chat). They
+    #    should not name internal tools by their MCP function name —
+    #    you don't care that `mem_analysis_log` is what writes here;
+    #    you care what the file IS and how to read it.
     for fname, header in [
-        ("methods.md", "# Methods Log\n\n*Append-only via `mem_methods_append`.*\n"),
-        ("analysis.md", "# Analysis Log\n\n*Append-only via `mem_analysis_log`.*\n"),
-        ("citations.md", "# Citations\n\n*Auto-populated by `mem_citations_generate`.*\n"),
+        ("methods.md",
+         "# Methods\n\n"
+         "Chronological record of every methodological choice made in "
+         "this project — which model, why, with what parameters, citing "
+         "what literature. The Methods section of your eventual paper "
+         "is assembled from this file. Each analysis step appends a "
+         "subsection here when it finalizes.\n"),
+        ("analysis.md",
+         "# Analysis log\n\n"
+         "Running narrative of what was done in each numbered analysis "
+         "step (`workspace/01_...`, `02_...`, …) — the headline finding, "
+         "the figures and tables it produced, the decision taken at the "
+         "end. Read top-to-bottom to retrace the project's reasoning; "
+         "a fresh AI session can resume from this file alone.\n"),
+        ("citations.md",
+         "# Citations\n\n"
+         "Auto-generated bibliography across the project + every per-"
+         "step `literature/` folder. The Discussion / References of "
+         "your paper draws from here. Regenerated whenever a step is "
+         "finalized so newly-added PDFs appear automatically.\n"),
+        # v1.3.0 round-3: tools.md — append-only log of which Research-OS
+        # tools (and which 3rd-party packages, external services, web
+        # searches) were used in this project, when, and why. Surfaces
+        # the *provenance of the workflow* for reviewers + future
+        # collaborators in a single place — methods.md tells WHAT the
+        # analysis did; tools.md tells WHICH MACHINERY enabled it.
+        ("tools.md",
+         "# Tools log\n\n"
+         "Chronological record of the tooling stack actually used by "
+         "this project — Research-OS MCP calls (route, search, audit, "
+         "finalize), 3rd-party packages (statsmodels, scanpy, DESeq2, "
+         "Cytoscape, …), external services (Semantic Scholar, PubMed, "
+         "GTEx, GEO), and any custom scripts the analyses depend on.\n\n"
+         "Format: one bullet per usage, grouped by analysis step + "
+         "synthesis stage. The synthesis dashboard surfaces this so a "
+         "reviewer can audit reproducibility without re-deriving the "
+         "stack from the scripts.\n\n"
+         "Each step's `tool_path_finalize` appends a section here from "
+         "its `conclusions.md` Methods + the per-step provenance "
+         "sidecars; manual additions are welcome.\n"),
     ]:
         p = root / "workspace" / fname
         if not p.exists():
@@ -479,6 +637,73 @@ def scaffold_minimal_workspace(
             "graph TD\n"
             "    init[Initialised]:::complete\n"
             "    classDef complete fill:#d4edda,stroke:#28a745\n"
+        )
+
+    # 5a. environment/ — project-global env scaffold (v1.3.0).
+    #     Previously a LAZY_DIR (empty until sys_env_snapshot wrote into
+    #     it). Researchers reported they couldn't tell whether the
+    #     workspace had a reproducible env story at all. Now eager: an
+    #     empty folder with two header files is enough for a fresh
+    #     researcher to know what goes here and how it gets filled.
+    env_dir = root / "environment"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    env_req = env_dir / "requirements.txt"
+    if not env_req.exists():
+        env_req.write_text(
+            "# Project-global Python packages.\n"
+            "#\n"
+            "# Add packages here as you install them, or call\n"
+            "# `sys_env_snapshot` from the AI to regenerate this from\n"
+            "# the active interpreter. Pin to a major when stability\n"
+            "# matters (e.g. `pandas>=2.0,<3`).\n"
+            "#\n"
+            "# Per-step requirements (when one step needs different\n"
+            "# versions) live in `workspace/<NN_slug>/environment/\n"
+            "# requirements.txt` — see that step's README.\n"
+        )
+    env_readme = env_dir / "README.md"
+    if not env_readme.exists():
+        env_readme.write_text(
+            "# Project environment\n\n"
+            "Single source of truth for the Python (and other-language)\n"
+            "packages this project depends on. Reproducibility starts here.\n\n"
+            "* `requirements.txt` — pip-installable package list. Hand-add\n"
+            "  or regenerate via `sys_env_snapshot`.\n"
+            "* `Dockerfile` — generated on demand by `sys_docker_generate`.\n"
+            "* Conda export, R session info, system pkgs — pile in as\n"
+            "  needed; `sys_env_snapshot` accepts language hints.\n\n"
+            "When a single analysis step needs a bespoke environment\n"
+            "different from the project default, snapshot inside that\n"
+            "step instead: `sys_env_snapshot step_id=NN_slug`.\n"
+        )
+
+    # 5a-b. workspace/logs/ — append-only audit/search/override trail.
+    #       Previously eager-scaffolded as an empty folder. v1.3.0:
+    #       ships with a README so researchers know what lands here
+    #       and can grep across audit reports without first finding
+    #       out the folder exists.
+    logs_dir = root / "workspace" / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    logs_readme = logs_dir / "README.md"
+    if not logs_readme.exists():
+        logs_readme.write_text(
+            "# `workspace/logs/` — audit + activity trail\n\n"
+            "Aggregated logs that every step (and every audit tool)\n"
+            "appends to. Files here are append-only and machine-written;\n"
+            "to read across steps, grep here:\n\n"
+            "* `audit_report.md` — every `tool_audit_quality_full` run.\n"
+            "* `search_log.md` — every literature / web search\n"
+            "  (`tool_search_*` and `tool_literature_search_and_save`).\n"
+            "* `repair_log.md` — every `tool_workspace_repair` invocation\n"
+            "  (file moves, broken-link fixes).\n"
+            "* `override_log.md` — every `override_completeness_gate=true`\n"
+            "  bypass with the rationale that authorised it. Surfaced at\n"
+            "  pre-submission audit time.\n"
+            "* `task_*.log` — stdout/stderr of `tool_python_exec` /\n"
+            "  `tool_task_run` script invocations.\n"
+            "* `notifications.log` — `sys_notify` messages.\n"
+            "* `version_coherence.md` — drift between scripts and the\n"
+            "  outputs that cite them (from `tool_audit_version_coherence`).\n"
         )
 
     # 5b. workspace/scratch/ — AI sandbox. Gitignored.
@@ -524,6 +749,36 @@ def scaffold_minimal_workspace(
             "intake** — `tool_intake_autofill` rewrites this file.\n"
         )
 
+    # 8a. Seed each input sub-folder with a one-paragraph README so an
+    #     empty folder isn't a dead end for a fresh researcher.
+    _SEEDED_INPUT_READMES = {
+        "raw_data": (
+            "# `inputs/raw_data/`\n\n"
+            "Drop datasets here — CSV, Parquet, FASTQ, NIfTI, .h5, .xlsx, "
+            "VCF, JSON, whatever your project consumes. The AI reads files "
+            "from here but **never modifies them**; derived data lives under "
+            "`workspace/<NN_slug>/data/output/`.\n"
+        ),
+        "literature": (
+            "# `inputs/literature/`\n\n"
+            "PDFs / EPUBs of papers + theses + protocols. The AI extracts "
+            "citations and quotes from here when grounding methodology "
+            "(`tool_research_method`) and when assembling the bibliography "
+            "(`tool_citations_verify`, `mem_citations_generate`).\n"
+        ),
+        "context": (
+            "# `inputs/context/`\n\n"
+            "Free-form context that doesn't fit raw_data or literature: PI "
+            "emails, protocols, drafts, prior reports, lab notebook excerpts, "
+            "screenshots of Slack threads. The AI reads these for project "
+            "framing during `tool_intake_autofill` and step planning.\n"
+        ),
+    }
+    for sub, body in _SEEDED_INPUT_READMES.items():
+        rp = root / "inputs" / sub / "README.md"
+        if not rp.exists():
+            rp.write_text(body)
+
     # 9. Manifest + state.
     manifest = {
         "schema_version": "2.0",
@@ -566,6 +821,7 @@ def scaffold_minimal_workspace(
     _setup_mcp_configs(root, ide_flags)
     _setup_gitignore(root)
     _write_getting_started(root, project_name)
+    _write_project_root_readme(root, project_name, state)
     _write_sharing_scripts(root, project_name)
     _update_manifest(root)
     _prune_stale_gitkeeps(root)
@@ -959,6 +1215,73 @@ def _prune_stale_gitkeeps(root: Path) -> None:
                 pass
 
 
+def _write_project_root_readme(root: Path, project_name: str, state: dict) -> None:
+    """Drop a project-root README.md — the GitHub / repo-browser front page.
+
+    Distinct from GETTING_STARTED.md (which targets the *researcher driving
+    this Research OS workspace*); README.md targets anyone who lands on the
+    folder cold — a collaborator, a PI, a reviewer cloning from GitHub.
+    Researcher-facing AND tooling-neutral: never mentions MCP tool names.
+    """
+    dest = root / "README.md"
+    if dest.exists():
+        return
+    domain = (state.get("domain") or "").strip()
+    question = (state.get("research_question") or "").strip()
+    domain_line = f"**Domain:** {domain}\n\n" if domain else ""
+    q_line = f"**Research question:** {question}\n\n" if question else ""
+    dest.write_text(
+        f"""# {project_name}
+
+{q_line}{domain_line}> A research project scaffolded with [Research OS](https://github.com/vsetlur/Research-OS) — a structured AI-collaboration workspace for grounded, reproducible research.
+
+## What's in this folder
+
+| Folder | Purpose |
+|---|---|
+| `inputs/raw_data/` | Datasets you (or collaborators) provide. Immutable; the AI reads but never writes here. |
+| `inputs/literature/` | PDFs / EPUBs of papers, theses, protocols the project draws on. |
+| `inputs/context/` | Free-form context: PI emails, lab-notebook entries, prior reports. |
+| `workspace/NN_slug/` | Numbered analysis steps. Each has its own scripts, data, outputs, conclusions. |
+| `workspace/methods.md` · `analysis.md` · `citations.md` | Append-only project-wide logs (the narrative). |
+| `synthesis/` | Final deliverables — paper, poster, dashboard, slides — generated on request. |
+| `environment/` | Reproducibility surface — `requirements.txt`, conda exports, optional Dockerfile. |
+| `STATE.md` | Canonical project status. A fresh session reads this first to know where things stand. |
+
+## How to read the project
+
+1. Open `STATE.md` for the snapshot: research question, active hypotheses, what's been done.
+2. `workspace/analysis.md` gives the chronological narrative.
+3. Each `workspace/NN_*/conclusions.md` has the full statistics + decisions for that step.
+4. Final outputs (when generated) live in `synthesis/`.
+
+## Reproducing the analysis
+
+```bash
+# 1. Install Python + the project's package list
+pip install -r environment/requirements.txt
+
+# 2. Run any analysis step end-to-end
+cd workspace/01_<slug>
+python scripts/01_<slug>_v1.py
+```
+
+Each step's `data/input/` is symlinked from the project's `inputs/raw_data/`
+or from the previous step's `data/output/`. Outputs land under
+`workspace/<step>/outputs/{{figures,tables,reports}}`.
+
+## Working on this project with an AI
+
+* Researcher onboarding: `GETTING_STARTED.md`
+* AI operating rules: `AGENTS.md`
+
+## License
+
+_(set by you in this README — the scaffold leaves it blank by default.)_
+"""
+    )
+
+
 def _write_getting_started(root: Path, project_name: str) -> None:
     """Drop a friendly GETTING_STARTED.md the researcher reads first."""
     dest = root / "GETTING_STARTED.md"
@@ -1043,9 +1366,10 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 
 ## 7. Working with collaborators
 
-* `CONTRIBUTORS.md` — auto-updated activity log. Every `research-os init`
-  / `ide add` / `ide remove` appends a row with date + researcher +
-  action, so a fresh collaborator can see who set the project up.
+* `CONTRIBUTORS.md` — opt-in activity log. Created on the first
+  `research-os ide add` / `ide remove` / explicit share action so a
+  fresh collaborator can see who changed wiring. Fresh projects do not
+  ship one until something changes.
 * `research-os ide add <name>` — wire a new AI IDE for *you* without
   re-scaffolding the workspace (so nothing your teammate did breaks).
 * `research-os ide list` — see which IDE configs are wired.
@@ -1531,6 +1855,8 @@ def create_numbered_experiment(
     hypothesis: str = "",
     from_step: str | None = None,
     branch_of: str | None = None,
+    *,
+    enforce_predecessor_finalized: bool = True,
 ) -> dict:
     """Create the next numbered experiment folder + wire up its data link.
 
@@ -1545,9 +1871,72 @@ def create_numbered_experiment(
 
     Dead-ends keep the existing ``__DEAD_END`` convention and stack with
     branch tags: ``05_glmm_path_1`` → ``05_glmm_path_1__DEAD_END``.
+
+    Root validation
+    ---------------
+    Raises ``ValueError`` if ``root`` is not a Research-OS project (no
+    ``.os_state/`` directory present). Prevents accidental pollution of
+    arbitrary cwd when a misconfigured caller passes the wrong root.
     """
+    if not (root / ".os_state").is_dir():
+        raise ValueError(
+            f"{root} is not a Research-OS project (no .os_state/ directory). "
+            f"Run `research-os init` here first, or pass the correct project root."
+        )
     workspace = root / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
+
+    # v1.3.0 round-3: enforce previous-step finalization. The user
+    # surfaced a case where the AI created step 02 with step 01 left in
+    # placeholder form (README + conclusions never filled, analysis.md
+    # missing step 01 entry). The fix is to refuse to scaffold step N+1
+    # while the most-recent main-path step (N) still has placeholder
+    # text in its README. The caller can override via
+    # ``enforce_predecessor_finalized=False`` — used by tests that
+    # exercise multi-step scaffolding without going through the full
+    # finalize workflow, and by ``sys_path_create`` when the researcher
+    # explicitly authorises bypass (logged to workspace/logs/override_log.md).
+    existing_main_steps = sorted(
+        p for p in workspace.iterdir()
+        if p.is_dir()
+        and re.match(r"^\d{2,3}_", p.name)
+        and _extract_path_lineage(p.name) is None
+        and not p.name.endswith("__DEAD_END")
+    )
+    if enforce_predecessor_finalized and existing_main_steps and not branch_of:
+        prev = existing_main_steps[-1]
+        prev_readme = prev / "README.md"
+        prev_conc = prev / "conclusions.md"
+        if prev_readme.exists() and prev_conc.exists():
+            r_txt = prev_readme.read_text()
+            c_txt = prev_conc.read_text()
+            placeholder_markers_readme = (
+                "*(list inputs used)*",
+                "*(name the method;",
+                "*(the single most important result",
+                "*(proceed | branch | dead-end)*",
+            )
+            placeholder_markers_conc = (
+                "*(2-3 sentences",
+                "*(method name",
+                "*(the single most important",
+            )
+            unfilled_readme = sum(m in r_txt for m in placeholder_markers_readme)
+            unfilled_conc = sum(m in c_txt for m in placeholder_markers_conc)
+            if unfilled_readme >= 3 or unfilled_conc >= 2:
+                raise ValueError(
+                    f"Cannot scaffold the next step: previous step "
+                    f"`{prev.name}` is still in placeholder form "
+                    f"(README has {unfilled_readme} unfilled stubs, "
+                    f"conclusions.md has {unfilled_conc}). Call "
+                    f"`tool_path_finalize` on `{prev.name}` first to "
+                    "lock its findings into workspace/analysis.md + "
+                    "methods.md + tools.md + citations.md. If this is a "
+                    "data-plumbing step that legitimately has nothing "
+                    "to conclude, the AI should explicitly write 'No "
+                    "substantive findings — see step purpose in README' "
+                    "into the conclusions stubs before re-trying."
+                )
 
     max_num = 0
     for p in workspace.iterdir():
@@ -1598,16 +1987,40 @@ def create_numbered_experiment(
 
     check_write_permitted(exp_dir)
 
+    # v1.3.0: `from_step` USED to `shutil.copytree` the whole source step
+    # into the new step, leaving outputs/figures/tables/reports/scripts
+    # all duplicated. That bloated the workspace, broke per-step
+    # provenance (the new step's outputs/ contained the previous step's
+    # artefacts before any code ran), and confused tool_path_finalize's
+    # inventory. The intent of `from_step` is "wire data/input from this
+    # step's output instead of the previous numbered step" — and now
+    # that's all it does. Everything else is scaffolded fresh.
+    exp_dir.mkdir(parents=True, exist_ok=True)
+    for sub in EXPERIMENT_SUBDIRS:
+        (exp_dir / sub).mkdir(parents=True, exist_ok=True)
+    # v1.3.0: ALWAYS expose the project's inputs/raw_data/ via a
+    # `data/project_inputs` symlink so an analysis step can reach the
+    # original data when its `data/input` (which prefers the upstream
+    # step's data/output/) is empty — common pitfall surfaced by the
+    # genomics e2e where step 02 inherited step 01's empty data/output.
+    raw_inputs = root / "inputs" / "raw_data"
+    raw_inputs.mkdir(parents=True, exist_ok=True)
+    project_inputs_link = exp_dir / "data" / "project_inputs"
+    if not project_inputs_link.exists():
+        try:
+            project_inputs_link.symlink_to(raw_inputs.absolute())
+        except OSError:
+            pass
     if from_step:
-        src_dir = workspace / from_step
-        if not src_dir.exists():
-            raise ValueError(f"Source step '{from_step}' not found")
-        shutil.copytree(src_dir, exp_dir, symlinks=True, dirs_exist_ok=True)
+        src_step_output = workspace / from_step / "data" / "output"
+        src_step_output.mkdir(parents=True, exist_ok=True)
+        data_input = exp_dir / "data" / "input"
+        try:
+            data_input.rmdir()
+            data_input.symlink_to(src_step_output.absolute())
+        except OSError:
+            pass
     else:
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        for sub in EXPERIMENT_SUBDIRS:
-            (exp_dir / sub).mkdir(parents=True, exist_ok=True)
-
         # Wire data/input/ — branch steps draw from their parent's output;
         # non-branch steps draw from the prior numbered step's output (or
         # raw_data for step 01).
@@ -1810,7 +2223,22 @@ def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
 
 
 def _update_workflow_mermaid(root: Path) -> None:
-    """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG."""
+    """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG.
+
+    v1.3.1: refuse to write into ``root/workspace/`` unless ``root`` is a
+    valid Research-OS project (``.os_state/`` present). The pollution
+    surfaced in v1.3.0 e2e: a misconfigured caller wrote
+    ``workspace/workflow.mermaid`` into the Research-OS source repo
+    because the writer didn't validate root.
+    """
+    if not (root / ".os_state").is_dir():
+        # v1.3.1 guard against the pollution surfaced in v1.3.0 e2e:
+        # a misconfigured caller had written workspace/workflow.mermaid
+        # into the Research-OS source repo because this writer didn't
+        # check for `.os_state/`. Silent return is fine — the
+        # consequence of NOT writing the mermaid in a non-project dir
+        # is exactly what we want.
+        return
     try:
         from research_os.tools.actions.state.path import list_paths
 
@@ -1880,12 +2308,49 @@ def generate_citations_md(root: Path) -> str:
         except Exception:
             pass
 
-    # 2. Per-step literature indexes + sidecars.
+    # 2. Per-step literature indexes + sidecars + conclusions.md
+    # "References to ground" sections.
     workspace = root / "workspace"
     if workspace.exists():
         for step_dir in sorted(workspace.iterdir()):
             if not (step_dir.is_dir() and re.match(r"^\d{2,3}_", step_dir.name)):
                 continue
+            # 2a. v1.3.1: scrape `## References to ground` from each
+            # step's conclusions.md so prose-cited refs (the AI's most
+            # common pattern) make it into the project bibliography
+            # without requiring a per-paper sidecar.
+            conc = step_dir / "conclusions.md"
+            if conc.exists():
+                try:
+                    txt = conc.read_text()
+                    m = re.search(
+                        r"##\s*References?\s+to\s+ground\s*\n(.+?)(?=^##|\Z)",
+                        txt, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+                    )
+                    if m:
+                        for line in m.group(1).splitlines():
+                            line = line.strip()
+                            if not line.startswith(("-", "*", "+")):
+                                continue
+                            ref_text = re.sub(r"^[-*+]\s*", "", line).strip()
+                            if len(ref_text) < 5:
+                                continue
+                            # Derive a citation key from the first author-year-ish chunk.
+                            author_m = re.match(r"([A-Z][a-zA-Z'-]+)", ref_text)
+                            year_m = re.search(r"(19|20)\d{2}", ref_text)
+                            if author_m and year_m:
+                                key = f"{author_m.group(1).lower()}{year_m.group(0)}"
+                            else:
+                                key = "conc_" + re.sub(r"[^a-z0-9]+", "_", ref_text[:30].lower()).strip("_")
+                            entries.setdefault(key, {
+                                "citation_key": key,
+                                "title": ref_text,
+                                "scope": f"step:{step_dir.name}",
+                                "verified": False,
+                                "source": "conclusions.md/References to ground",
+                            })
+                except Exception:
+                    pass
             lit_dir = step_dir / "literature"
             if not lit_dir.exists():
                 continue

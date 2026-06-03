@@ -9,7 +9,7 @@ Limitations → Open questions → Glossary → References.
 The dashboard is built from whatever the project already records:
 
 * ``inputs/researcher_config.yaml`` — project name, audience, intake
-* ``.os_state/state_ledger.yaml`` — hypothesis tracker (drives verdicts)
+* ``.os_state/state_ledger.json`` — hypothesis tracker (drives verdicts)
 * ``workspace/<step>/conclusions.md`` — section-level extraction
 * ``synthesis/figures/*.png`` + sibling ``.caption.md`` — curated figures
 * ``workspace/<step>/outputs/figures/<step>_*.png`` — per-step focal fig

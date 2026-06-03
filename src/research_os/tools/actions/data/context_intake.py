@@ -50,6 +50,12 @@ _SCAFFOLD_NAMES = {
     "CLAUDE.md",
     "GETTING_STARTED.md",
     "README.md",
+    # v1.3.0 round-2: STATE.md is the canonical project-status file
+    # written by save_state at PROJECT ROOT (was buried at
+    # .os_state/os_state.md). context_intake must never scoop it into
+    # inputs/ — it's not researcher input, it's the AI's status board.
+    "STATE.md",
+    "CONTRIBUTORS.md",
     "opencode.json",
     "mcp_config.json",
     ".aider.conf.yml",

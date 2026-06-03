@@ -4,7 +4,9 @@
 Single source of truth for every pipeline run. Replaces fragmented
 manifest/registry/log files with one authoritative object.
 
-Location: .os_state/state_ledger.json (primary) and .os_state/state_ledger.yaml (human-readable copy)
+Location: .os_state/state_ledger.json (primary). Human-readable
+project status lives at STATE.md at the project root, NOT at
+.os_state/state_ledger.yaml (removed in v1.3.0 — was a duplicate).
 """
 
 import json
@@ -75,23 +77,17 @@ class ResearchLedger:
                     os.unlink(tmp_path)
                 raise
 
-            # Also write a YAML copy alongside for human readability
-            if yaml:
-                yaml_path = self._path.with_suffix(".yaml")
-                fd2, tmp2 = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
+            # v1.3.0: stopped writing the .yaml mirror. STATE.md at the
+            # project root + state_ledger.json are sufficient. The yaml
+            # was duplicate, hard to keep in sync, and contributed to the
+            # .os_state "too many files" friction the user surfaced.
+            # Clean up any stale yaml from a previous Research-OS version.
+            stale_yaml = self._path.with_suffix(".yaml")
+            if stale_yaml.exists():
                 try:
-                    with os.fdopen(fd2, "w") as f:
-                        yaml.dump(
-                            data,
-                            f,
-                            default_flow_style=False,
-                            sort_keys=False,
-                            allow_unicode=True,
-                        )
-                    os.replace(tmp2, str(yaml_path))
-                except Exception:
-                    if os.path.exists(tmp2):
-                        os.unlink(tmp2)
+                    stale_yaml.unlink()
+                except OSError:
+                    pass
         finally:
             if lock_fd is not None and fcntl is not None:
                 try:

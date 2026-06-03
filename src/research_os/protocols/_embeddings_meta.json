@@ -1,8 +1,8 @@
 {
   "dim": 384,
   "model": "BAAI/bge-small-en-v1.5",
-  "n_protocols": 109,
-  "n_tools": 145,
+  "n_protocols": 110,
+  "n_tools": 144,
   "schema_version": "1",
-  "source_hash": "97ea33cf5fcd219f2065880314a08f0e4bfde4aaf23c48dc5eb9479802eb88ca"
+  "source_hash": "0c52cdc79b2b204906f8a38570560c4c70cd17eaffb7b5b3a08344d9976e5d71"
 }

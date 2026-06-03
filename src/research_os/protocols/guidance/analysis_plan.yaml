@@ -1,6 +1,6 @@
 id: analysis_plan
 name: Analysis Plan (Core Loop)
-version: '1.1.0'
+version: '1.3.2'
 schema_version: '2.0'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
@@ -48,34 +48,74 @@ steps:
       create_step_folder below.
 
   - id: ground_methods
-    name: Ground Methodology in Literature (mandatory) — STEP-SCOPED
+    name: Ground Methodology in Literature (HARD GATE) — STEP-SCOPED
     description: |
       You MUST search literature BEFORE choosing any method. Selecting from
-      training memory alone is forbidden.
+      training memory alone is FORBIDDEN — `tool_path_finalize` warns if
+      `conclusions.md` cites references but no `tool_search_*` calls
+      were logged for the project (workspace/logs/searches.log). The
+      pre-submission audit BLOCKS synthesis on this warning.
 
-      For each candidate method, do ONE of:
-        (a) DEEP: tool_research_method query="<method> for <data structure>"
-            — writes a structured report into outputs/reports/.
-        (b) LIGHT: tool_search_semantic_scholar + tool_search_web in parallel.
+      The rule isn't "feel free to skip when you remember a relevant
+      paper". The rule is: every method decision is grounded in a
+      RECENT, VERIFIABLE online lookup that the audit gate can replay.
+      The reviewer will ask "where did this prior come from?" and the
+      answer must be a DOI in `inputs/literature/` or
+      `workspace/<step>/literature/`, not the AI's training cutoff.
 
-      Save the 2-3 most important papers into THIS step's literature folder
-      (NOT inputs/literature, unless they ground the whole project):
-        tool_literature_search_and_save
-          query="<method canonical paper>"
-          source="semantic_scholar"
-          step_id="<this step's NN_slug>"
-          limit=5  download_top=2
+      MANDATORY per step (do ALL of these — they are cheap):
 
-      Each PDF gets a .meta.yaml sidecar (title/authors/year/doi). Synthesis
-      later pulls these into the paper's references with proper numbering.
+        (1) **Surface candidate methods online.** For the analytical
+            question this step targets, run:
+              tool_research_method query="<question> + <data shape>"
+                — writes a structured report into outputs/reports/
+                  comparing 2-3 candidate methods.
+            OR (if you already know the candidates):
+              parallel:
+                tool_search_semantic_scholar query="<method> <domain>"
+                tool_search_pubmed         query="<method> <domain>"
+                tool_search_web            query="best <method> 2024 2025"
 
-      For each method actually chosen:
-        - mem_methods_append (full structured fields: method, dataset,
-          dataset_hash, implementation, parameters, justification with
-          citation_key, assumptions list).
-        - mem_decision_log (context / selected / rationale / options
-          considered / linked citation_keys).
-        - mem_hypothesis_update for each hypothesis touched, status='testing'.
+        (2) **Ground each decision in a SPECIFIC paper.** For each
+            non-trivial methods choice (which normalization, which
+            FDR cutoff, which model family, which sensitivity test),
+            cite the actual paper that justifies the choice. The
+            citation MUST be saved into the step's literature folder:
+              tool_literature_search_and_save
+                query="<canonical paper for the method>"
+                source="semantic_scholar"
+                step_id="<this step's NN_slug>"
+                limit=5  download_top=2
+            Each PDF gets a .meta.yaml sidecar (title/authors/year/doi).
+            `tool_path_finalize` auto-folds the per-step
+            `conclusions.md` `## References to ground` section into
+            project-wide `workspace/citations.md` AND
+            per-step `literature/key_papers.md`.
+
+        (3) **Compare findings to current literature.** If your DEG
+            count / pathway enrichment / effect size differs from
+            recent published work, NOTE the divergence + the
+            specific paper you're comparing against. Reviewers will
+            ask whether your numbers replicate; you should have
+            already checked.
+
+        (4) **Record the decision-with-citation chain.**
+              mem_methods_append (method, dataset, dataset_hash,
+                implementation, parameters, justification WITH
+                citation_key, assumptions list).
+              mem_decision_log (context / selected / rationale /
+                options considered / linked citation_keys).
+              mem_hypothesis_update for each hypothesis touched,
+                status='testing'.
+
+      Anti-pattern (caught at audit):
+        "We use DESeq2 because it's standard." → not grounded.
+        Correct:
+        "We use DESeq2 (Love, Huber, Anders 2014, Genome Biology
+        15:550, doi:10.1186/s13059-014-0550-8 — saved at
+        `literature/love2014_deseq2.pdf`) because the n=8 design
+        benefits from its empirical-Bayes dispersion shrinkage
+        (Section 2.3 of that paper)."
 
   - id: pick_tools
     name: Pick Tools / Libraries (validated, not guessed)
@@ -168,9 +208,45 @@ steps:
       writes a .pipeline_run/run_<ts>.json audit trail, and drops a
       .prov.json sidecar for every output a node produces.
 
-      One script per sub-task. Naming:
-        workspace/<step>/scripts/<step_number>_<short_name>_v<n>.<ext>
-        e.g. 03_fit_baseline_v1.py / 03_calibration_v1.R / 03_feature_eng_v1.ipynb
+      One script per sub-task. Two equivalent naming styles —
+      pick the one that fits the step's shape:
+
+      A) **Letter-suffix chronological order** (preferred when the
+         sub-tasks ARE meant to run end-to-end in a fixed sequence
+         and a fresh reader should run `ls scripts/` and immediately
+         see the order):
+
+           workspace/<step>/scripts/
+              <NN>a_<short_name>_v<k>.<ext>   # runs first
+              <NN>b_<short_name>_v<k>.<ext>   # runs second
+              <NN>c_<short_name>_v<k>.<ext>   # ...
+              <NN>d_<short_name>_v<k>.<ext>
+
+         e.g.
+           01a_load_counts_v1.py
+           01b_library_size_qc_v1.py
+           01c_sample_correlation_v1.py
+           01d_pca_v1.py
+
+         The letter encodes execution order; `ls` shows it naturally.
+         The pipeline.yaml DAG can omit explicit dependencies because
+         the alphabetical order IS the dependency order.
+
+      B) **Descriptive-only** (when sub-tasks form a true DAG with
+         non-linear dependencies — `pipeline.yaml` declares the edges,
+         not the filename):
+
+           workspace/<step>/scripts/
+              <NN>_fit_baseline_v<k>.<ext>
+              <NN>_calibration_v<k>.<ext>
+              <NN>_feature_eng_v<k>.<ext>
+
+      Use style A by default — chronological order is the common case
+      and the encoded order survives someone re-running the step
+      manually. Use style B only when sub-tasks branch.
+
+      In BOTH styles: `_v<k>` is the iteration suffix; bump it via
+      `tool_step_iterate` when materially changing a sub-task.
 
       Server-enforced gates (no fast path through them):
         - tool_audit_step_completeness BLOCKS multi-script steps (>2)
@@ -222,7 +298,7 @@ steps:
         - FIGURES (outputs/figures/, PNG ≥ 300 DPI): at least one
           FOCAL figure named <step_number>_<short_descriptor>.png
           (e.g. 03_attitude_by_demographic.png). PREFER
-          tool_figure_create which auto-applies SciencePlots /
+          an AI-authored script (visualization/figure_guidelines covers
           Okabe-Ito / DPI / dual PNG+SVG export / both caption
           sidecars in one call. The focal figure is the one
           promoted into the dashboard + paper.
@@ -248,7 +324,7 @@ steps:
           Pair every figure with a sibling <name>.caption.md
           (technical; one-sentence finding) AND <name>.summary.md
           (plain-English; 2-3 short paragraphs for non-expert
-          audiences). tool_figure_create writes both when you pass
+          audiences). An AI-authored script writes both when you pass
           `caption` + `plain_english`. Otherwise
           tool_figure_caption_synthesise auto-drafts the summary from
           the caption + the step's Findings.
@@ -319,40 +395,74 @@ steps:
       Also: mem_analysis_log entry="<step_id> done: <one-line summary>".
 
   - id: snapshot_step_environment
-    name: Snapshot Step Environment (only if step-specific)
+    name: Snapshot the Environment (every step that actually ran code)
     description: |
-      ONLY run sys_env_snapshot if this step needs different package
-      versions than the project-global env at environment/requirements.txt.
-      If it does not (the common case), SKIP this step — leave the
-      step's environment/ folder empty and let finalize_step normalise
-      the README to "used the project-global environment".
+      Default (v1.3.0): call sys_env_snapshot EVERY step that ran code.
+      It's cheap, idempotent, and the cost of skipping is a published
+      result you can't rerun.
 
-      Snapshotting redundantly on every step bloats the workspace and
-      makes the dashboard noisier without improving reproducibility.
+        sys_env_snapshot                              # legacy default
+        sys_env_snapshot step_id="<NN_slug>"          # explicit per-step
+        sys_env_snapshot scope="project"              # project-global
+
+      Variants:
+        - The step uses identical packages to every prior step →
+          `sys_env_snapshot scope="project"` once is enough; per-step
+          snapshots add noise without information.
+        - The step needs a different version of even one package →
+          `sys_env_snapshot step_id="<NN_slug>"` so the per-step
+          requirements.txt captures the variance.
+        - Pure-data step (no scripts ran) → skip. finalize_step will
+          surface a warning, which is fine.
+
+      Reproducibility is the deal you make with future-you. If the
+      audit warns "no environment snapshotted", treat it as a real
+      gap to close, not noise.
 
   - id: finalize_step
-    name: Finalize Step READMEs (mandatory before decide_next)
+    name: Finalize the Step (mandatory before decide_next)
     description: |
-      tool_path_finalize — rewrites the step's stub README + every
-      subfolder README from what actually got produced. Specifically:
-        - environment/README.md ← either "used the project-global env"
-          OR a list of bespoke requirements.
-        - literature/README.md ← either "used the project-global corpus"
-          + this step's decision-log entries OR a list of step-specific
-          sources + the decisions they informed.
+      tool_path_finalize — runs the v1.3.0 finalize sequence:
+
+      Per-step file refresh (rewrites the step's stub README + every
+      subfolder README from what actually got produced):
+        - environment/README.md ← "used global env" OR bespoke listing.
+        - literature/README.md ← "used global corpus + decisions"
+          OR step-specific sources + the decisions they informed.
+        - context/README.md ← "no prose needed" OR narrative inventory
+          + plain-language summary from notes.md.
         - data/output/README.md ← every persisted artefact + which
-          downstream step consumes it (derived from the workflow DAG).
+          downstream step consumes it (from the workflow DAG).
         - outputs/README.md ← inventory of figures / tables / reports.
         - README.md ← stub Methods / Outputs / Decision sections
           populated from conclusions.md + per-step decision log.
 
-      Idempotent. Run it again after any post-hoc edit to refresh.
+      Project-scope log refresh (the v1.3.0 piece — used to be
+      manual):
+        - workspace/analysis.md ← step-finalized heading + headline
+          + output counts + decision count (idempotent on the marker).
+        - workspace/methods.md ← if conclusions.md has a `## Methods
+          (full detail)` or `## Methods` section, mirror it under a
+          step-tagged subsection (idempotent on the marker).
+        - workspace/citations.md ← regenerated from project +
+          per-step literature/.meta.yaml sidecars.
 
-      Captions: each figure SHOULD also have a sibling
-      <name>.caption.md describing what the reader is looking at — the
-      synthesis dashboard embeds the caption inline. Add one whenever
-      you save a figure; finalize_step does NOT generate them
-      automatically (they require the analyst's interpretation).
+      Plain-English summaries: for every figure without
+      `<name>.summary.md`, the caption synthesiser drafts one from the
+      caption + Findings.
+
+      Warnings returned (act on these before decide_next):
+        - conclusions.md > Findings / Decision still a stub
+        - Plain-language summary still a stub
+        - No environment snapshot for a step that produced outputs
+
+      Captions: each figure MUST have a sibling `<name>.caption.md`
+      describing what the reader is looking at (one technical
+      sentence). Add one whenever you save a figure;
+      `an AI-authored script (write both sidecars inline)` writes both
+      sidecars in one call.
+
+      Idempotent — safe to re-run after edits.
 
   - id: lightweight_step_audit
     name: Lightweight In-Step Audit

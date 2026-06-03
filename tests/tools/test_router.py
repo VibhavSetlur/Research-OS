@@ -745,8 +745,12 @@ def test_plan_turn_recommends_chat_split_when_long(tmp_path):
     cfg_path.write_text(_yaml.dump(cfg, sort_keys=False))
 
     # Manually persist a long fake active plan.
+    # v1.3.2: use a recent timestamp — plans older than 7 days auto-
+    # archive in _load_active_plan, which is correct production
+    # behaviour but breaks this test if the fixture date is stale.
+    from datetime import datetime, timezone
     fake_plan = {
-        "created_at": "2026-01-01T00:00:00Z",
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "user_prompt": "test",
         "primary_protocol": "guidance/analysis_plan",
         "shortcut_tool": None,

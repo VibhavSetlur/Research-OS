@@ -1,6 +1,6 @@
 id: uncertainty_visualization
 name: Uncertainty Visualization (intervals, fans, ensembles, posteriors)
-version: '1.2.1'
+version: '1.3.2'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -103,7 +103,7 @@ steps:
         POSTERIOR DENSITY — solid curve with HDI (highest density
           interval) shaded; mark the posterior mean / median; add a
           ROPE band when defined (Bayesian decision context).
-          Use tool_figure_create kind=posterior or arviz.
+          Use a `posterior` chart per the guidance in visualization/figure_guidelines or arviz.
 
         PREDICTIVE PROBABILITY ATLAS — pixel-level uncertainty on
           a map / image. Bivariate colour scheme (value + uncertainty)

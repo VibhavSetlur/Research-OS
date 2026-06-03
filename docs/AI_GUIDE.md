@@ -81,7 +81,7 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 
 ---
 
-## Protocol categories (100 protocols, organised in 9)
+## Protocol categories (110 protocols, organised in 9)
 
 | Category | What it covers |
 |---|---|
@@ -308,7 +308,7 @@ Before submission:
 
 ## Visualization protocol layering
 
-The visualization category has six protocols for distinct needs:
+The visualization category has 14 protocols for distinct needs:
 
 | Protocol | Use when |
 |---|---|
@@ -319,8 +319,11 @@ The visualization category has six protocols for distinct needs:
 | `figure_narrative_arc` | Ordering figures across a paper / talk / poster |
 | `color_accessibility_audit` | Color-blind simulation + WCAG contrast + grayscale |
 
-For a single styled figure: `tool_figure_create` is the preferred path
-(applies palette / DPI / sidecars in one call).
+Research-OS does NOT ship a parametric chart-builder. You (the AI) write
+the plotting script in the appropriate language — matplotlib / ggplot2 /
+plotnine / Altair / d3 / plotly — guided by `figure_guidelines`. The
+server enforces DPI, sidecars, palette via `tool_audit_figure_full` and
+`tool_path_finalize`.
 
 ---
 
@@ -330,5 +333,5 @@ For a single styled figure: `tool_figure_create` is the preferred path
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 100 protocols indexed
+- `sys_protocol_list` → all 110 protocols indexed
 - `sys_tool_describe(tool_name)` → full schema for a tool

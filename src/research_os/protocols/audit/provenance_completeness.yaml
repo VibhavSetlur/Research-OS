@@ -1,6 +1,6 @@
 id: provenance_completeness
 name: Provenance Completeness Audit (every output has a .prov.json sidecar)
-version: '1.1.0'
+version: '1.3.2'
 schema_version: '2.0'
 description: |
   Every figure, table, model artefact, and report output in the workspace
@@ -25,13 +25,13 @@ description: |
   Research OS provides the underlying API
   (`research_os.tools.actions.state.provenance.write_output_provenance`)
   which is invoked AUTOMATICALLY by several tools:
-    - `tool_figure_create`   — writes the sidecar for the figure,
+    - `an AI-authored plotting script`   — writes the sidecar for the figure,
     - `tool_notebook_exec`   — writes per-notebook provenance,
     - `tool_sensitivity_run` — writes the spec-curve sidecar.
 
   Scripts run via `tool_python_exec` / `tool_r_exec` MUST call
   `write_output_provenance` themselves at the end of every artefact
-  write, OR funnel their figures through `tool_figure_create` (which
+  write, OR funnel their figures through an AI-authored plotting script (see visualization/figure_guidelines) (which
   takes the data path + chart kind and handles the sidecar).
 
   This audit walks every output under `workspace/<step>/outputs/`
@@ -62,7 +62,7 @@ editorial_voice:
        value is realised when a re-run diverges and the audit can
        pinpoint why."
     - "If a script produces a figure, the script writes the
-       sidecar. If the AI uses `tool_figure_create`, the tool
+       sidecar. If the AI uses an AI-authored plotting script (see `visualization/figure_guidelines`), the tool
        writes the sidecar. If the AI uses `tool_python_exec` to
        run a custom plotting script, the script MUST call
        `write_output_provenance` before the script exits."
@@ -182,7 +182,7 @@ steps:
             )
 
           OR — preferred for FIGURES — re-route the figure call
-          through `tool_figure_create`, which writes the sidecar
+          through an AI-authored plotting script (see visualization/figure_guidelines), which writes the sidecar
           for you.
 
         - Re-runs the script via `tool_python_exec` (or

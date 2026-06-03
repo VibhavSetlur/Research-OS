@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -620,17 +621,43 @@ def _extract_step_decisions(root: Path, branch_id: str) -> list[str]:
     return hits
 
 
+_FIGURE_EXTS = {".png", ".jpg", ".jpeg", ".svg", ".pdf", ".webp"}
+_TABLE_EXTS = {".csv", ".tsv", ".parquet", ".feather", ".xlsx"}
+_REPORT_EXTS = {".md", ".txt", ".html", ".rst"}
+
+
 def _figure_table_inventory(exp_dir: Path) -> dict[str, list[str]]:
+    """Inventory of REAL artefacts under outputs/{figures,tables,reports}.
+
+    v1.3.0: filter by extension so caption / summary / prov sidecars
+    don't pollute the figure list — that was producing READMEs that
+    looked like the step had 16 figures when it actually had 4 figures
+    plus 12 metadata files for them.
+    """
+    bucket_exts = {
+        "figures": _FIGURE_EXTS,
+        "tables": _TABLE_EXTS,
+        "reports": _REPORT_EXTS,
+    }
     out: dict[str, list[str]] = {"figures": [], "tables": [], "reports": []}
-    for sub in ("figures", "tables", "reports"):
+    for sub, exts in bucket_exts.items():
         d = exp_dir / "outputs" / sub
         if not d.exists():
             continue
         for f in sorted(d.iterdir()):
-            if f.name.startswith("."):
+            if not f.is_file():
                 continue
-            if f.name == "README.md":
+            if f.name.startswith(".") or f.name == "README.md":
                 continue
+            if f.suffix.lower() not in exts:
+                # Sidecar / metadata file — skip it; the figure / table
+                # / report it accompanies is the actual artefact.
+                continue
+            # Defensive: ignore the SVG companion when its PNG sibling
+            # is also present (we count one logical figure, not two).
+            if sub == "figures" and f.suffix.lower() == ".svg":
+                if (d / (f.stem + ".png")).exists():
+                    continue
             out[sub].append(f.name)
     return out
 
@@ -714,6 +741,46 @@ def finalize_path(
         changes.append("environment/README.md → bespoke-env listing")
 
     lit_dir = exp_dir / "literature"
+    # v1.3.1: auto-populate the step's literature/key_papers.md from the
+    # `## References to ground` section the AI wrote in conclusions.md.
+    # Previously this file stayed as a seed template for every step
+    # because the AI rarely opened it to manually fill it in.
+    _early_conc_path = exp_dir / "conclusions.md"
+    if _early_conc_path.exists() and lit_dir.exists():
+        try:
+            conc_full = _early_conc_path.read_text()
+            m = re.search(
+                r"##\s*References?\s+to\s+ground\s*\n(.+?)(?=^##|\Z)",
+                conc_full, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+            )
+            if m:
+                refs_block = m.group(1).strip()
+                ref_lines = [
+                    ln.strip().lstrip("-*+ ").strip()
+                    for ln in refs_block.splitlines()
+                    if ln.strip().startswith(("-", "*", "+"))
+                ]
+                ref_lines = [r for r in ref_lines if len(r) >= 5]
+                if ref_lines:
+                    kp = lit_dir / "key_papers.md"
+                    kp_body = (
+                        f"# `{path_name}` — key papers\n\n"
+                        "Auto-extracted from `conclusions.md` "
+                        "`## References to ground` at finalize time. "
+                        "Drop the PDFs into `inputs/literature/` (project-wide) "
+                        "or this folder (step-specific); verify via "
+                        "`tool_citations_verify`.\n\n"
+                    )
+                    for r in ref_lines:
+                        kp_body += f"- {r}\n"
+                    kp.write_text(kp_body)
+                    changes.append(
+                        f"{lit_dir.relative_to(exp_dir)}/key_papers.md ← "
+                        f"{len(ref_lines)} ref(s) from conclusions.md"
+                    )
+        except Exception as e:
+            logger.debug("key_papers.md auto-fill skipped: %s", e)
+
     lit_files = [
         p for p in lit_dir.iterdir()
         if lit_dir.exists() and p.name not in {"README.md", ".gitkeep"}
@@ -767,17 +834,25 @@ def finalize_path(
     ] if ctx_dir.exists() else []
     plain_summary_from_context = ""
     notes_path = ctx_dir / "notes.md"
-    if notes_path.exists():
+    # v1.3.0: scan both context/notes.md AND conclusions.md for the
+    # plain-language summary block. Earlier behaviour only checked
+    # notes.md, so an AI that wrote the summary inside conclusions.md
+    # (the natural place) was flagged as missing it. Accept several
+    # heading variants the AI is likely to use.
+    summary_pat = re.compile(
+        r"##\s*(?:Plain[- ]language\s+summary|Plain[- ]English\s+summary|TL;DR|Lay\s+summary)\s*\n(.+?)(?=^##|\Z)",
+        flags=re.MULTILINE | re.DOTALL | re.IGNORECASE,
+    )
+    for path in (notes_path, exp_dir / "conclusions.md"):
+        if plain_summary_from_context:
+            break
+        if not path.exists():
+            continue
         try:
-            notes_text = notes_path.read_text()
-            m = re.search(
-                r"##\s*Plain-language summary\s*\n(.+?)(?=^##|\Z)",
-                notes_text,
-                flags=re.MULTILINE | re.DOTALL | re.IGNORECASE,
-            )
+            txt = path.read_text()
+            m = summary_pat.search(txt)
             if m:
                 body = m.group(1).strip()
-                # Drop the seed italicised placeholder.
                 if body and not body.startswith("_If you"):
                     plain_summary_from_context = body
         except Exception:
@@ -875,6 +950,7 @@ def finalize_path(
         new_readme = _finalize_step_readme(
             readme_text, conc_text, decisions, inv, path_name,
             plain_summary=plain_summary_from_context,
+            exp_dir=exp_dir,
         )
         if new_readme != readme_text:
             step_readme.write_text(new_readme)
@@ -903,15 +979,383 @@ def finalize_path(
                 f"plain-English summaries → {len(summaries_written)} figure(s)"
             )
 
+    # ---- 6. (v1.3.0) Stub detection — surface as warnings so the AI
+    #         knows what's still empty before walking off the step. We do
+    #         NOT block: a researcher / autopilot AI may genuinely have
+    #         decided some sections aren't applicable. The warnings
+    #         themselves are the audit trail.
+    warnings: list[str] = []
+    if conc_path.exists():
+        conc_text_now = conc_path.read_text()
+        for hdr in ("Findings", "Decision"):
+            if _is_stub_section(conc_text_now, hdr):
+                warnings.append(
+                    f"conclusions.md > {hdr} is still a stub — fill it before "
+                    "the next step or before synthesis (gate will block there)."
+                )
+        if _is_stub_section(conc_text_now, "Plain-language summary"):
+            warnings.append(
+                "conclusions.md > Plain-language summary is still a stub — "
+                "the dashboard's executive / teaching views will fall back to "
+                "the technical text."
+            )
+
+    # ---- 7. (v1.3.0) Per-step → project-scope file refresh.
+    #         The original finalize was purely *observational* — it
+    #         summarised what existed without writing into the
+    #         project-scope append-only logs (workspace/methods.md,
+    #         analysis.md, citations.md). That made it easy to ship a
+    #         step whose work never reached the project's running record.
+    #         Now finalize touches all three idempotently.
+    project_updates: list[str] = []
+
+    # 7a. workspace/analysis.md — append a step-complete heading + the
+    #     headline finding extracted from conclusions.md. Idempotent: we
+    #     only append if there isn't already a heading for this step.
+    analysis_md = root / "workspace" / "analysis.md"
+    if conc_path.exists() and analysis_md.exists():
+        try:
+            existing = analysis_md.read_text()
+            marker = f"\n### Step `{path_name}` finalized"
+            if marker not in existing:
+                headline = _headline_from_findings(conc_path.read_text())
+                stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+                entry = (
+                    f"\n### Step `{path_name}` finalized — {stamp}\n\n"
+                    f"- **Headline:** {headline or '(no findings recorded)'}\n"
+                    f"- **Outputs:** {len(inv['figures'])} figure(s), "
+                    f"{len(inv['tables'])} table(s), "
+                    f"{len(inv['reports'])} report(s).\n"
+                    f"- **Decisions linked:** {len(decisions)} entries in "
+                    f"`mem_decision_log` (see `literature/README.md`).\n"
+                )
+                analysis_md.write_text(existing.rstrip() + "\n" + entry)
+                project_updates.append("workspace/analysis.md ← step entry")
+        except OSError as e:
+            logger.debug("analysis.md append skipped: %s", e)
+
+    # 7b. workspace/methods.md — if conclusions.md has a `## Methods`
+    #     (or `## Methods (full detail)`) section, mirror its content into
+    #     a step-tagged subsection in the project-scope log. Idempotent
+    #     on the heading marker.
+    methods_md = root / "workspace" / "methods.md"
+    if conc_path.exists() and methods_md.exists():
+        try:
+            conc_full = conc_path.read_text()
+            methods_body = _section(conc_full, "Methods (full detail)") or \
+                _section(conc_full, "Methods")
+            if methods_body:
+                existing_m = methods_md.read_text()
+                marker = f"\n### Step `{path_name}` — methods\n"
+                if marker not in existing_m:
+                    methods_md.write_text(
+                        existing_m.rstrip() + "\n"
+                        + f"\n### Step `{path_name}` — methods\n\n"
+                        + methods_body.strip()
+                        + "\n"
+                    )
+                    project_updates.append("workspace/methods.md ← step methods")
+        except OSError as e:
+            logger.debug("methods.md append skipped: %s", e)
+
+    # 7c. workspace/citations.md — regenerate from the union of
+    #     inputs/literature_index.yaml + every per-step literature
+    #     .meta.yaml sidecar. Idempotent (full rewrite).
+    try:
+        from research_os.project_ops import generate_citations_md
+        citations_path = generate_citations_md(root)
+        if citations_path:
+            project_updates.append("workspace/citations.md ← regenerated")
+    except Exception as e:
+        logger.debug("citations.md regen skipped: %s", e)
+
+    # 7c-0. (v1.3.1) Anti-hallucination: if conclusions.md cites
+    #       references but the project's searches.log has NO
+    #       `tool_search_*` entries, warn loudly. Researcher needs to
+    #       know the citations weren't grounded in actual lookups.
+    if conc_path.exists():
+        try:
+            conc_full_for_lit = conc_path.read_text()
+            cites_refs = bool(
+                re.search(
+                    r"##\s*References?\s+to\s+ground\s*\n.+?(?:\b\d{4}\b|doi\.org)",
+                    conc_full_for_lit, re.DOTALL | re.IGNORECASE,
+                )
+            )
+            if cites_refs:
+                searches_log = root / "workspace" / "logs" / "searches.log"
+                search_count = 0
+                if searches_log.exists():
+                    search_count = sum(
+                        1 for line in searches_log.read_text().splitlines()
+                        if line.strip()
+                    )
+                if search_count == 0:
+                    warnings.append(
+                        "conclusions.md cites references but NO `tool_search_*` "
+                        "calls have been logged in workspace/logs/searches.log. "
+                        "The citations may be from training memory, not verified "
+                        "literature. Run `tool_search_semantic_scholar` / "
+                        "`tool_search_pubmed` / `tool_literature_search_and_save` "
+                        "to ground the cited references — required before any "
+                        "synthesis deliverable."
+                    )
+        except Exception as e:
+            logger.debug("search-grounding check skipped: %s", e)
+
+    # 7c-i. (v1.3.1) Mirror conclusions.md's `## Decision` block into
+    #       workspace/analysis.md as a formal decision-log entry via
+    #       `log_decision`. Previously the AI had to call mem_decision_log
+    #       manually and rarely did (0 calls across 10 e2e steps); the
+    #       decision text WAS in conclusions.md the whole time.
+    DECISION_VERBS = {"PROCEED", "BRANCH", "DEAD-END", "DEAD_END", "HOLD", "ABANDON"}
+    if conc_path.exists():
+        try:
+            conc_full = conc_path.read_text()
+            m = re.search(
+                r"##\s*Decision\s*\n(.+?)(?=^##|\Z)",
+                conc_full, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+            )
+            if m:
+                body = m.group(1).strip()
+                # Skip if it's still the seed placeholder.
+                if body and not body.startswith("*(") and not body.startswith("_("):
+                    first_line = body.splitlines()[0].strip().lstrip("-*+ ").strip()
+                    # Try to extract the verb (first word, normalised).
+                    verb = first_line.split()[0].upper().rstrip(":,.") if first_line else ""
+                    if verb in DECISION_VERBS:
+                        # Idempotency: skip if an existing analysis.md decision
+                        # for this step already exists.
+                        analysis_md_path = root / "workspace" / "analysis.md"
+                        existing_a = analysis_md_path.read_text() if analysis_md_path.exists() else ""
+                        marker_d = f"step={path_name}; verb={verb}"
+                        if marker_d not in existing_a:
+                            from research_os.project_ops import log_decision
+                            log_decision(
+                                context=f"Finalize of {path_name} (mirrored from conclusions.md)",
+                                selected=f"{verb} ({marker_d})",
+                                rationale=first_line[len(verb):].strip(" :—-") or body,
+                                root=root,
+                            )
+                            project_updates.append(
+                                f"mem_decision_log ← {verb} from {path_name}"
+                            )
+        except Exception as e:
+            logger.debug("decision mirror skipped: %s", e)
+
+    # 7c-ii. workspace/tools.md — append a step-tagged section listing the
+    #        Research-OS tools used, 3rd-party packages, external services,
+    #        and any custom scripts the step depends on. Idempotent on the
+    #        per-step heading marker.
+    tools_md = root / "workspace" / "tools.md"
+    if conc_path.exists() and tools_md.exists():
+        try:
+            conc_full = conc_path.read_text()
+            existing_t = tools_md.read_text()
+            marker = f"\n### Step `{path_name}` — tools used\n"
+            if marker not in existing_t:
+                # Extract from conclusions.md: Methods section + any explicit
+                # `## Tools` or `## Software` section.
+                tools_body = (
+                    _section(conc_full, "Tools used")
+                    or _section(conc_full, "Tools")
+                    or _section(conc_full, "Software")
+                    or ""
+                ).strip()
+                # Fall back to scanning the scripts dir for top-level imports.
+                if not tools_body:
+                    scripts_dir = exp_dir / "scripts"
+                    imports: set[str] = set()
+                    # v1.3.1: filter out the Python stdlib + Research-OS
+                    # bookkeeping modules so tools.md captures the ACTUAL
+                    # analysis stack (statsmodels / scanpy / DESeq2 / ...)
+                    # not noise (pathlib / sys / warnings / json / re).
+                    STDLIB_SKIP = {
+                        # core stdlib (most common imports)
+                        "abc", "argparse", "ast", "asyncio", "base64", "collections",
+                        "contextlib", "copy", "csv", "datetime", "decimal", "enum",
+                        "errno", "fnmatch", "functools", "gc", "glob", "gzip",
+                        "hashlib", "heapq", "html", "http", "importlib", "inspect",
+                        "io", "ipaddress", "itertools", "json", "logging", "math",
+                        "mimetypes", "operator", "os", "pathlib", "pickle", "pprint",
+                        "queue", "random", "re", "secrets", "shlex", "shutil",
+                        "signal", "socket", "sqlite3", "statistics", "string",
+                        "struct", "subprocess", "sys", "tempfile", "textwrap",
+                        "threading", "time", "tomllib", "traceback", "typing",
+                        "unicodedata", "unittest", "urllib", "uuid", "warnings",
+                        "weakref", "xml", "zipfile", "zlib",
+                        # __future__
+                        "__future__",
+                    }
+                    if scripts_dir.exists():
+                        import re as _re_mod
+                        py_import = _re_mod.compile(
+                            r"^\s*(?:from|import)\s+([a-zA-Z_][\w.]*)",
+                            _re_mod.MULTILINE,
+                        )
+                        r_library = _re_mod.compile(
+                            r"\blibrary\(([a-zA-Z_][\w.]*)\)|require\(([a-zA-Z_][\w.]*)\)"
+                        )
+                        for script in scripts_dir.rglob("*"):
+                            if script.suffix.lower() not in {".py", ".r", ".qmd", ".rmd"}:
+                                continue
+                            try:
+                                txt = script.read_text(errors="ignore")
+                                for m in py_import.finditer(txt):
+                                    imports.add(m.group(1).split(".")[0])
+                                for m in r_library.finditer(txt):
+                                    imports.add(m.group(1) or m.group(2))
+                            except OSError:
+                                continue
+                    # Drop stdlib + tiny names.
+                    bullets = sorted(
+                        i for i in imports
+                        if i
+                        and len(i) > 1
+                        and i.lower() not in STDLIB_SKIP
+                        and not i.startswith("_")
+                    )[:30]
+                    if bullets:
+                        tools_body = "\n".join(
+                            f"- `{i}` — third-party / domain package used by step scripts." for i in bullets
+                        )
+                if tools_body:
+                    tools_md.write_text(
+                        existing_t.rstrip() + "\n"
+                        + f"\n### Step `{path_name}` — tools used\n\n"
+                        + tools_body
+                        + "\n"
+                    )
+                    project_updates.append("workspace/tools.md ← step tools")
+        except OSError as e:
+            logger.debug("tools.md append skipped: %s", e)
+
+    # 7d. Per-step environment snapshot — if outputs/figures, tables, or
+    #     reports exist (i.e. work happened) the step's runtime stack
+    #     MUST be captured. v1.3.0 changes the behaviour from "warn" to
+    #     "auto-snapshot the project-global env if requirements.txt is
+    #     still the comment-only template", then warn if even that fails
+    #     or if a per-step environment would have been more appropriate
+    #     (different lang stack than the project default).
+    work_happened = bool(inv["figures"] or inv["tables"] or inv["reports"])
+    project_req = root / "environment" / "requirements.txt"
+    is_template_empty = (
+        project_req.exists()
+        and "# Project-global Python packages" in project_req.read_text()
+        and "\n" in project_req.read_text()
+        and not any(
+            ln.strip() and not ln.strip().startswith("#")
+            for ln in project_req.read_text().splitlines()
+        )
+    )
+    if work_happened and (is_template_empty or not project_req.exists()):
+        try:
+            from research_os.tools.actions.exec.environment import env_snapshot
+
+            # v1.3.1: pass `scope='project'` explicitly so the snapshot
+            # lands in the project-global environment/ folder (the auto-
+            # target rule for no-args lands in the most-recent active
+            # step's folder, NOT project-global — that's the wrong target
+            # when finalize is updating the GLOBAL requirements.txt).
+            snap = env_snapshot(root, scope="project")
+            if snap.get("status") == "success":
+                project_updates.append(
+                    "environment/requirements.txt ← auto-snapshot at finalize"
+                )
+            else:
+                warnings.append(
+                    "Auto-env-snapshot at finalize failed: "
+                    + snap.get("message", "unknown error")
+                    + ". Call `sys_env_snapshot` manually."
+                )
+        except Exception as e:
+            warnings.append(
+                f"Auto-env-snapshot at finalize raised {type(e).__name__}: {e}. "
+                "Call `sys_env_snapshot` manually."
+            )
+    # 7d-ii. (v1.3.1) Flip this step's state-ledger status to "completed"
+    #        + regenerate STATE.md so the project front page shows
+    #        ✓ instead of → after finalize. Previously, even a fully-
+    #        finalized step kept status="active" until next sys_path_create
+    #        flipped it as a side effect, leaving STATE.md misleading
+    #        between steps.
+    try:
+        from research_os.project_ops import load_state, save_state
+        s = load_state(root)
+        paths_state = s.get("paths") or {}
+        if path_name in paths_state and paths_state[path_name].get("status") != "completed":
+            paths_state[path_name]["status"] = "completed"
+            paths_state[path_name]["completed_at"] = (
+                datetime.now(timezone.utc).isoformat()
+            )
+            save_state(root, s)
+            project_updates.append("STATE.md ← step status flipped to ✓")
+    except Exception as e:
+        logger.debug("STATE.md status flip skipped: %s", e)
+
+    if work_happened and not env_files and (root / "environment" / "requirements.txt").exists():
+        # Per-step env folder still empty even after the project-global
+        # snapshot — only worth flagging if the step uses a bespoke stack.
+        warnings.append(
+            f"`workspace/{path_name}/environment/` is empty. If this step "
+            f"uses a different package stack than the project default, "
+            f"call `sys_env_snapshot step_id='{path_name}'` for a "
+            f"per-step capture."
+        )
+
+    # 7e. (v1.3.0 round-2) Per-figure quality audit gate.
+    #     Every figure that landed in outputs/figures/ is run through
+    #     the same DPI / dimension / sidecar / aspect-ratio checks the
+    #     pre-submission audit uses. Blockers and warnings surface here
+    #     so the AI sees them now, not at synthesis time. This
+    #     enforces the "audit visualizations at the per-step gate"
+    #     rule the user requested for v1.3.0.
+    figure_audit: dict[str, dict[str, list[str]]] = {}
+    if inv["figures"]:
+        try:
+            from research_os.tools.actions.viz.figures import (
+                audit_figure_quality,
+            )
+        except Exception:
+            audit_figure_quality = None
+        if audit_figure_quality is not None:
+            for fig_name in inv["figures"]:
+                rel = (exp_dir / "outputs" / "figures" / fig_name
+                       ).relative_to(root).as_posix()
+                try:
+                    fr = audit_figure_quality(rel, root)
+                except Exception as e:
+                    fr = {"status": "error", "message": str(e)}
+                fblockers = fr.get("blockers", []) or []
+                fwarn = fr.get("warnings", []) or []
+                figure_audit[fig_name] = {
+                    "blockers": fblockers, "warnings": fwarn,
+                }
+                for b in fblockers:
+                    warnings.append(f"figure `{fig_name}` BLOCKER: {b}")
+                for w in fwarn:
+                    warnings.append(f"figure `{fig_name}` warning: {w}")
+
     return {
         "status": "success",
         "path_name": path_name,
         "changes": changes,
+        "project_updates": project_updates,
+        "warnings": warnings,
+        "figure_audit": figure_audit,
         "decisions_linked": len(decisions),
+        # Renamed in v1.3.0 — `output_files` was ambiguous (counted
+        # data/output/ only, while researchers expected the total of
+        # outputs/figures + tables + reports + data/output). Both kept
+        # for back-compat; the count fields now read more naturally.
+        "data_output_files": len(out_files),
         "output_files": len(out_files),
         "figures": len(inv["figures"]),
         "tables": len(inv["tables"]),
         "reports": len(inv["reports"]),
+        "total_user_visible_artefacts": (
+            len(out_files) + len(inv["figures"]) + len(inv["tables"]) + len(inv["reports"])
+        ),
         "plain_english_summary_present": bool(plain_summary_from_context),
         "figure_summaries_synthesised": summaries_written,
     }
@@ -989,16 +1433,106 @@ def _shorten(body: str, max_chars: int = 800) -> str:
 
 
 def _headline_from_findings(conclusions: str) -> str:
-    """Pull the most quotable headline from the conclusions' Findings section.
-    Returns the first non-empty bullet, stripped of markdown markers."""
+    """Pull the most quotable headline from the conclusions' Findings.
+
+    v1.3.0 changes:
+      * Joins continuation lines under the first bullet (markdown
+        bullets often wrap; previously we cut at the first newline,
+        producing fragments like 'n = 334 retained from 337 raw rows;').
+      * Cuts at the first sentence end (period/semicolon) AFTER a
+        minimum length so the headline is one sentence, not a paragraph.
+      * Strips markdown emphasis (`**bold**`) from the headline.
+    """
     body = _section(conclusions, "Findings")
     if not body:
         return ""
-    for line in body.splitlines():
-        line = line.strip()
-        if line.startswith(("-", "*")):
-            return line.lstrip("-* ").strip()
-    return body.splitlines()[0].strip() if body.splitlines() else ""
+
+    # Walk lines; collect the first bullet + any continuation lines
+    # (indented, not starting a new bullet, not a section).
+    lines = body.splitlines()
+    first_idx = None
+    for i, line in enumerate(lines):
+        if line.strip().startswith(("-", "*")):
+            first_idx = i
+            break
+    if first_idx is None:
+        # No bullets — fall back to first non-empty paragraph.
+        for line in lines:
+            line = line.strip()
+            if line:
+                bullet_text = line
+                break
+        else:
+            return ""
+    else:
+        # Strip the leading list marker (- or *) ONCE, plus surrounding
+        # whitespace. Using `lstrip("-* ")` would eat markdown bold's
+        # opening `**` too, leaving the closing `**` orphaned and
+        # ineligible for the emphasis-strip regex below.
+        raw = lines[first_idx]
+        m = re.match(r"^\s*[-*+]\s+", raw)
+        bullet_text = raw[m.end():] if m else raw.strip()
+        for j in range(first_idx + 1, len(lines)):
+            nxt = lines[j]
+            stripped = nxt.strip()
+            if not stripped:
+                break
+            if stripped.startswith(("-", "*", "#")):
+                break
+            # Continuation — single-space join.
+            bullet_text = bullet_text.rstrip() + " " + stripped
+    # Clean up: strip markdown emphasis + collapse whitespace.
+    bullet_text = re.sub(r"\*\*?(.+?)\*\*?", r"\1", bullet_text)
+    bullet_text = re.sub(r"`(.+?)`", r"\1", bullet_text)
+    bullet_text = re.sub(r"\s+", " ", bullet_text).strip()
+    # First sentence: stop at . ? ! that's followed by whitespace +
+    # capital, OR end-of-string. Don't break on ; (mid-clause).
+    m = re.search(r"^(.{30,200}?[.!?])(\s+[A-Z(]|$)", bullet_text)
+    if m:
+        return m.group(1).strip()
+    # If the bullet is shorter than the floor, just return it whole.
+    return bullet_text[:200]
+
+
+def _input_inventory_for_readme(exp_dir: Path) -> str:
+    """Best-effort inventory of this step's inputs for the README.
+
+    Scans `data/input/` symlinks (each one usually points at the prior
+    step's `data/output/<file>`) and falls back to listing files
+    referenced from the cleaning pipeline script(s) when no symlinks
+    exist yet.
+    """
+    inp_dir = exp_dir / "data" / "input"
+    items: list[str] = []
+    if inp_dir.is_dir():
+        for entry in sorted(inp_dir.iterdir()):
+            if entry.name in {"README.md", "_input_readme.md", ".gitkeep"}:
+                continue
+            if entry.is_symlink():
+                try:
+                    target = entry.resolve()
+                    items.append(
+                        f"- `data/input/{entry.name}` → "
+                        f"`{target.relative_to(exp_dir.parent.parent)}`"
+                    )
+                    continue
+                except (OSError, ValueError):
+                    pass
+            items.append(f"- `data/input/{entry.name}`")
+    # Also surface raw_data references found in pipeline.yaml so the
+    # very-first step (no symlinks yet) doesn't read as "no inputs".
+    pipeline_yaml = exp_dir / "pipeline.yaml"
+    if pipeline_yaml.exists():
+        try:
+            text = pipeline_yaml.read_text()
+            raw_refs = sorted(set(re.findall(r"inputs/raw_data/[^\s\"']+", text)))
+            for r in raw_refs:
+                line = f"- `{r}` (project-scope raw input)"
+                if line not in items:
+                    items.append(line)
+        except OSError:
+            pass
+    return "\n".join(items)
 
 
 def _finalize_step_readme(
@@ -1009,6 +1543,7 @@ def _finalize_step_readme(
     path_name: str,
     *,
     plain_summary: str = "",
+    exp_dir: Path | None = None,
 ) -> str:
     """Backfill stub README sections from conclusions + decisions + outputs.
 
@@ -1031,6 +1566,14 @@ def _finalize_step_readme(
         )
         if body:
             text = _replace_section(text, "In plain English", _shorten(body, 700))
+
+    # Input data — list data/input/ symlinks + raw_data refs found in
+    # pipeline.yaml. The "Input data" stub used to stay un-backfilled
+    # because the original finalize never wrote it; now it does.
+    if exp_dir is not None and _is_stub_section(text, "Input data"):
+        inventory = _input_inventory_for_readme(exp_dir)
+        if inventory:
+            text = _replace_section(text, "Input data", inventory)
 
     # Methods (one-line each).
     if _is_stub_section(text, "Methods (one line each)") or _is_stub_section(text, "Methods"):

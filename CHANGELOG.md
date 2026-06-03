@@ -6,6 +6,727 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.3.2] — Multi-language env hardening + richer intake + comment-preserving config + exploratory hardening (2026-06-03)
+
+Post-v1.3.1 patch focused on three explicit researcher asks +
+exploratory hardening surfaced by the e2e test bed.
+
+**Stats:** 110 protocols, 149 MCP tools. 473 tests pass.
+Preflight 14/14, ruff clean.
+
+### Added — multi-language environment hardening
+
+* `_detect_languages_in_use` now reads BOTH `workspace/` scripts AND
+  `inputs/raw_data/` file types. FASTQ/BAM/VCF → `domain_hint:bioinformatics`;
+  H5AD/loom → `single_cell`; NIfTI/DICOM → `neuroimaging`; shp/geojson →
+  `geospatial`; sav/sas7bdat/dta → `survey`; edf/bdf → `eeg`; mat →
+  `matlab_interop`. Also detects Rust (`Cargo.toml`), Go (`go.mod`),
+  Node (`package.json`).
+* `sys_env_snapshot` returns a `domain_hints` field + writes a
+  `environment/language_recommendations.md` listing the canonical
+  package stack per detected hint (e.g. bioinformatics →
+  Bioconductor/DESeq2/edgeR if R is present, pysam/biopython if
+  Python-only).
+* When ≥2 non-shell languages detected, auto-generates
+  `environment/Dockerfile.suggested` (Python + R + Julia + Quarto
+  base layers as needed). Researcher reviews and renames to
+  `Dockerfile` when ready.
+
+### Added — richer `docs/research_overview.md`
+
+`tool_intake_autofill` now writes a multi-section overview instead
+of just question + hypotheses:
+
+* Project + domain header with "_Why this domain_" rationale
+* Research question
+* Background (auto-extracted snippet from `inputs/context/*.md`)
+* Hypotheses (with explicit fallback prompt when none inferable)
+* Input data inventory table (file path, size, row count for
+  CSV/TSV)
+* Planned analyses placeholder + back-links to existing numbered
+  steps
+* Literature-to-find checklist from extracted named-paper
+  references — checkbox-style for trackable progress
+
+### Added — comment-preserving `researcher_config.yaml` writer
+
+`config.py` now uses `ruamel.yaml` (added to core deps) for
+round-trip YAML. The rich inline help comments in `CONFIG_TEMPLATE`
+survive every override write — previously every `cli.py init` /
+wizard / `sys_config_set` call stripped them via PyYAML. Falls back
+to PyYAML with a logged warning if `ruamel.yaml` isn't installed.
+
+### Added — researcher_config consultation in session handoff
+
+`sys_session_handoff` now prepends a "Researcher config (consult
+before acting)" section to the handoff doc summarising autonomy /
+quality_gate_policy / ambiguity_posture / model_profile /
+shared_server / writing_preferences / output types / target venue /
+researcher identity / API keys configured. A fresh AI session
+reading the handoff doc sees these without a separate
+`sys_config_get` call.
+
+### Added — `analysis_plan.ground_methods` is now a HARD GATE
+
+(Continued from v1.3.1 round 2; explicitly named here for the
+release notes.) Replaced prose with 4-action sequence; anti-pattern
+"We use X because it's standard" rejected; correct form names
+paper + DOI + saved PDF + why.
+
+### Added — anti-hallucination grounding warning at finalize
+
+(Continued from v1.3.1 round 2.) `tool_path_finalize` scans
+`workspace/logs/searches.log` and warns when `conclusions.md` cites
+references but zero `tool_search_*` calls were ever logged.
+
+### Hardened — exploratory fixes
+
+* **`slugify`**: caps at 40 chars + explicit defence against
+  `..` / `/` path-traversal sequences (in addition to the existing
+  regex strip).
+* **`_load_active_plan`**: auto-archives plans older than 7 days
+  (with `status: in_progress`) into `.os_state/handoffs/` so a
+  stale abandoned plan doesn't keep being surfaced as the
+  "active next-action" by `sys_boot`.
+* **`_update_workflow_mermaid`**: silently no-ops when `root` isn't
+  a Research-OS project (no `.os_state/`). v1.3.1 confirmed the
+  pollution-prevention pattern via raise-on-write in
+  `create_numbered_experiment`; this generalises to every other
+  writer.
+* **`branch_of` validation**: confirmed `create_numbered_experiment`
+  raises `ValueError` with a clear message when `branch_of` names
+  a step that doesn't exist on disk (was already correct; verified
+  + documented).
+
+### Maintainer
+
+* Added `TODO.md` (gitignored) for deferred work: project_ops folder
+  refactor, `tool_pi_review`, `tool_synthesis_curate_figures`,
+  `tool_protocol_freshness_check`, `methodology/small_n_studies`
+  protocol, `tool_figure_html_smoke_test`, Bloom-filter author
+  check, DOI/PMID extractor, `tool_step_initial_inspect`,
+  decision-verb-shape audit gate, length-based stub check.
+
+---
+
+## [1.3.1] — PI-level e2e gap-closure: finalize completes the picture + grounding + aesthetics + paper PDF + dashboard-as-paper (2026-06-03)
+
+### Round 2 — additional gap-closures the same day
+
+After the round-1 fixes shipped, the researcher surfaced a deeper
+set of gaps the same day. Round 2 closes the next layer:
+
+**FIXED — workspace-pollution guard.** `_update_workflow_mermaid`
+now refuses to write into ``root/workspace/`` unless ``root`` is a
+valid Research-OS project (``.os_state/`` present). A v1.3.0
+misconfigured caller had silently written
+`workspace/workflow.mermaid` into the Research-OS source repo;
+guard prevents this class of bug across every writer.
+
+**ADDED — anti-hallucination grounding warning at finalize.**
+`tool_path_finalize` now scans `workspace/logs/searches.log` and
+warns when `conclusions.md` cites references but ZERO
+`tool_search_*` calls have been logged for the project. The
+citations may be coming from training memory rather than
+verifiable lookups; the warning makes that visible at every step
+finalize so the AI / researcher can run actual searches before
+submission. Surfaces as a BLOCKER at pre-submission audit.
+
+**STRENGTHENED — `analysis_plan` `ground_methods` is now a HARD
+GATE.** Replaced "you SHOULD search literature" prose with explicit
+4-action sequence:
+  (1) surface candidate methods online (`tool_research_method` +
+      parallel `tool_search_semantic_scholar` + `tool_search_pubmed`
+      + `tool_search_web` "best <method> 2024 2025"),
+  (2) ground each decision in a SPECIFIC paper saved into the
+      step's literature folder via `tool_literature_search_and_save`,
+  (3) compare findings to current literature (flag divergence
+      from recent published numbers),
+  (4) record the decision-with-citation chain via
+      `mem_methods_append` + `mem_decision_log` + `mem_hypothesis_update`.
+Anti-pattern explicitly named:
+  "We use DESeq2 because it's standard" → ungrounded; rejected.
+  "We use DESeq2 (Love, Huber, Anders 2014, doi:10.1186/...) because
+   the n=8 design benefits from empirical-Bayes shrinkage..." → correct.
+
+**ADDED — `figure_guidelines` publication-aesthetics block.**
+Past the existing pitfall catalog: a `publication_aesthetics`
+section spelling out the moves that lift figures from "default
+ggplot output" to publication-grade:
+  - pick a stylesheet (SciencePlots / theme_classic / latimes), patch
+    rcParams once in a project-wide `viz_style.py`
+  - pin a font stack (Inter / Helvetica Neue / Source Sans / Roboto
+    / Liberation Sans → DejaVu Sans fallback)
+  - set `figsize` from the destination (single-column = 3.5", two-
+    column = 7.2", 16:9 slide = 13.3×7.5") BEFORE adjusting fonts
+  - annotate the data, not the chart (inline callouts > caption-only)
+  - color palettes beyond Okabe-Ito (`glasbey` via `colorcet` for
+    >8 categories; `cmocean` for continuous; `TwoSlopeNorm` for
+    diverging-with-emphasis)
+  - iconography for categorical encodings (inline labels > legend)
+Plus references the AI should consult online before unfamiliar chart
+kinds: Wong 2011 (Okabe-Ito), Wilke 2019 (Fundamentals of Data Viz),
+Tufte 2001, Cleveland & McGill 1984, Heer & Bostock 2010, Healy 2018,
+Frank Harrell BBR.
+
+**OVERHAULED — `synthesis_paper` `compile_pdf` step.** Was
+optional; now DEFAULT for any serious draft. Decision tree maps
+the venue/output to LaTeX (journal class files) vs Typst (modern
+preprint / thesis / general manuscript) vs poster vs dashboard.
+Typst conversion is explicitly supported with proper preamble,
+inline figure embedding, and CSL bibliography style. paper.md is
+the WORKING DRAFT; paper.pdf is the deliverable. Markdown alone
+is not a publication artefact.
+
+**OVERHAULED — `synthesis_dashboard` reframed as paper-as-interactive.**
+Was a metrics-overview screenshot gallery. Now: the paper, told as
+an interactive guided walk-through. Section order mirrors the paper
+1:1 (TL;DR/abstract → intro → methods → findings → discussion →
+limitations → reproducibility → references). Every figure ships
+with BOTH its `.caption.md` AND its `.summary.md` inline (the
+paper has only the caption; the dashboard adds the accessible
+summary — that's what makes it "guided"). Findings ordered by
+HYPOTHESIS, not by step number. Inline "Why?" expanders next to
+methods sentences reveal the conclusions.md `## Methods (full
+detail)` block + linked citation. Hover/lightbox opens the full
+SVG. Visual coherence with the paper PDF (same font, palette,
+spacing).
+
+**VALIDATION (round 2):** preflight 14/14, pytest 473 passed
+(round 1 already brought this up), ruff clean.
+
+### Round 1 — initial gap-closures (earlier same day)
+
+Patch release after a 10-step PI-level genomics e2e (Himes 2014
+airway-DE replication with 6 cell lines × 2 conditions × 2 sequencing
+batches; produced a 12-section paper.md + abstract.md + dashboard.html
++ 17 PNG/SVG figures + 1 interactive Plotly companion). Three parallel
+sub-agents (PI-walks-in-cold audit / Research-OS-system judge /
+improvement-priorities engineer) surfaced 21 + 18 + 12 specific gaps;
+v1.3.1 closes the P0/P1 set.
+
+**Stats:** 110 protocols, 149 MCP tools. **473 tests** pass (was 467;
++6 regressions for the new finalize behaviors + the named-paper false-
+match guard). Preflight 14/14, ruff clean.
+
+### Fixed — `tool_path_finalize` now actually completes the picture
+
+Six finalize-time behaviors were either missing or wired to the wrong
+target. The e2e exposed each. All six fixed:
+
+* **Env auto-snapshot lands in the PROJECT-GLOBAL folder.**
+  v1.3.0 added the auto-snapshot but called `env_snapshot(root)` with
+  no `scope=`, which lands in the most-recent active step's folder
+  rather than `environment/requirements.txt` at project root.
+  v1.3.1 passes `scope='project'` so the project-global file actually
+  populates with pinned versions (the e2e's was a comment-only template
+  through all 10 finalizes).
+* **`workspace/citations.md` scrapes `## References to ground` from
+  every step's `conclusions.md`.** Previously the project bibliography
+  only assembled from `inputs/literature_index.yaml` + per-step
+  `*.meta.yaml` sidecars, which the AI typically doesn't write. Now the
+  citations file actually fills in (the e2e's went from empty → 20+
+  scoped entries across the 10 steps).
+* **Per-step `literature/key_papers.md` auto-populates** from the same
+  `## References to ground` section. Was a seed template the AI never
+  filled in across all 10 e2e steps.
+* **`mem_decision_log` mirrors the `## Decision` verb at finalize.**
+  Across all 10 e2e steps the decision-log was empty even though
+  every `conclusions.md` had a clean `## Decision\nPROCEED ...` block.
+  Finalize now extracts the verb (PROCEED / BRANCH / DEAD-END / HOLD /
+  ABANDON), validates it, and calls `log_decision`. Idempotent on the
+  marker `step=<id>; verb=<V>`.
+* **Step status flips `active → completed`.** Previously even a fully
+  finalized step kept `status: active` in the ledger, so STATE.md
+  showed `→` instead of `✓` until the next `sys_path_create` flipped
+  it as a side effect. Finalize now updates the ledger directly and
+  re-renders STATE.md.
+* **`workspace/tools.md` filters stdlib noise** (pathlib, sys,
+  warnings, json, re, …). v1.3.0's auto-import scan listed every
+  imported module; v1.3.1 keeps only the third-party / domain stack
+  (statsmodels, pandas, plotly, scipy, …).
+
+### Fixed — `visualization/interactive_figure_design` was unroutable
+
+The new v1.3.0 protocol was registered with `intent_class: visualize`
++ `sub_intent: interactive_figure` — neither exists in the router's
+`hierarchy:` block, so semantic + trigger routing both silently
+ignored it. Re-mapped to `intent_class: synthesize` +
+`sub_intent: interactive` (the closest valid hierarchy node).
+
+### Fixed — `audit_figure_quality` SVG label-overlap heuristic now sees matplotlib output
+
+The v1.3.0 regex expected `<text x= y= >...</text>`. matplotlib's
+`savefig(*.svg)` actually emits
+`<g transform="translate(X Y)"><text>...</text></g>` — the v1.3.0
+regex missed every matplotlib SVG. Added a second pattern that parses
+the `transform="translate(...)"` wrapper, so the heuristic now fires
+on the figures most AI agents actually produce.
+
+### Fixed — `_extract_named_papers` false-matches
+
+Patched in the round-3 work but solidified here with regression test
+(`tests/tools/test_intake.py::test_extract_named_papers_excludes_months_and_journals`).
+Stop-list now covers month abbreviations + names + days + common
+journal-name first-words (Biology, Cell, Nature, Science, PNAS, Genet,
+Genome, Methods, Genetics, Lancet, BMJ, JAMA, Cancer, Brain, Heart,
+Kidney, Blood). The "Himes BE, et al PLOS ONE 2014" pattern still
+matches; "Nov 2014" / "Biology 2014" do not.
+
+### Fixed — AGENTS.md template no longer references `tool_figure_create`
+
+`templates/AGENTS.md` rule #10 still recommended the removed v1.3.0
+tool. Rewrote to point at `visualization/figure_guidelines` +
+`tool_figure_palette` + `tool_audit_figure_full` +
+`visualization/interactive_figure_design`.
+
+### Added — `sys_path_create` inputSchema exposes the finalize-gate bypass
+
+The v1.3.0 finalize gate (refuse step N+1 while step N is placeholder)
+worked but was undiscoverable — the bypass field wasn't in the public
+schema, so the AI couldn't ask for it. v1.3.1 adds
+`allow_unfinalized_predecessor` + `override_rationale` + `from_step`
+to the inputSchema. When the AI bypasses, the rationale is logged to
+`workspace/logs/override_log.md` and surfaced at pre-submission audit.
+
+### Added — `figure_guidelines` pitfalls catalog: 3 new entries from the e2e
+
+* `legend_missing_shape_or_color_key` — when color + shape both encode
+  variables but only one has a legend (e2e step 04 PCA).
+* `invisible_legend_swatches` — white-fill `mpatches.Patch` with thin
+  black edge becomes invisible at small sizes (e2e step 01).
+* `bar_chart_with_zero_range_artifact` — three bars at 305/340/395
+  look identical when y starts at 0; annotate values or crop axis
+  (e2e step 06).
+
+### Added — `interactive_figure_design` gains "ship offline-capable HTML" step
+
+Plotly's default `include_plotlyjs=True` embeds the CDN URL. For
+reviewers behind firewalls or archival readers, the file must use
+`include_plotlyjs='inline'`. Protocol now lists the offline-capable
+variant per library (Plotly / Bokeh / Altair).
+
+### Changed — Docs counts refreshed
+
+`docs/{TOOLS,PROTOCOLS,README,START,RESEARCHER_GUIDE}.md` +
+`CONTRIBUTING.md` now say **149 MCP tools** + **110 protocols** to
+match the actual count. (v1.3.0 docs claimed 143-145 tools + 88-100
+protocols depending on file.)
+
+### Changed — Every protocol YAML bumped to `version: 1.3.1`
+
+Per maintainer guidance (any release that touches a finalize-time
+behavior is a behavior change visible to every protocol). 110
+protocols updated.
+
+### Migration
+
+None. All v1.3.0 callers continue to work. The new finalize behaviors
+fire automatically; the new `sys_path_create` schema fields are
+optional. If a v1.3.0 project's `workspace/citations.md` or per-step
+`literature/key_papers.md` is stale, re-run
+`tool_path_finalize` on each step to back-fill.
+
+---
+
+## [1.3.0] — Guidance-not-code doctrine + cross-project profile + step-gate enforcement (2026-06-03)
+
+Three audit rounds against a graduate-level genomics e2e (Himes 2014
+airway RNA-seq differential expression) + a parallel
+"PI-walks-into-the-project-cold" sub-agent audit. Each round surfaced
+architectural gaps that needed protocol + scaffold fixes rather than
+patches.
+
+**Stats:** 110 protocols (+1 new: `visualization/interactive_figure_design`).
+144 MCP tools (-1: `tool_figure_create` removed, see Migration). 467
+tests pass (was 453; +14 regressions across the rounds). Preflight 14/14,
+ruff clean.
+
+### Migration — `tool_figure_create` removed (guidance, not code)
+
+The doctrine: **Research-OS is a guidance system, not a chart library.**
+The AI writes its own matplotlib / ggplot2 / Altair / plotnine / d3 /
+plotly script tailored to its dataset and field — guided by
+`visualization/figure_guidelines`. Tools support that workflow with
+audit + sidecar + palette utilities, not premade chart code.
+
+* `tool_figure_create` is gone. Old callers receive a friendly
+  deprecation message via the `_REMOVED_TOOLS` dispatcher entry that
+  points at the protocol.
+* The 30+ `_render_*` chart-kind dispatchers in
+  `tools/actions/viz/figures.py` are gone with it. The module is now
+  ~400 lines of palette + caption-sidecar + audit utilities.
+* `tests/unit/test_viz_renderers.py` removed.
+* `tool_figure_palette`, `tool_figure_caption_synthesise`, and
+  `tool_audit_figure_full` are unchanged.
+* All 21 protocol YAMLs that referenced `tool_figure_create` were
+  updated to point at `visualization/figure_guidelines` instead.
+
+### Added — `visualization/interactive_figure_design` protocol
+
+Per-figure interactivity (hover, brush, zoom, lasso) as a companion to
+the static PNG/SVG — NOT a dashboard, not a paper figure.
+Library-by-data-type table (plotly / Altair / mpld3 / pyvis / igv.js /
+cellxgene / glimma), interaction-design checklist, mandatory static
+fallback. Router-indexed at `intent_class=visualize,
+sub_intent=interactive_figure`.
+
+### Added — `workspace/tools.md` (4th project-scope log)
+
+Joins `methods.md` / `analysis.md` / `citations.md` as an append-only
+project log. Tracks which Research-OS tools, 3rd-party packages, and
+external services each step depended on — so a reviewer can audit
+reproducibility without re-deriving the stack from scripts.
+`tool_path_finalize` auto-appends a per-step section from
+`conclusions.md` (Tools/Software/Methods) plus a fallback that scans
+`scripts/` for top-level imports.
+
+### Added — Project-root `README.md` from init
+
+The GitHub / repo-browser-cold-open front page (distinct from
+`GETTING_STARTED.md`, which targets the researcher actively driving
+this project). Pre-fills the project name + research question +
+domain when set via the wizard. Includes a "Reproducing the analysis"
+block so a fresh clone can be re-run without inside knowledge.
+
+### Added — Cross-project researcher profile
+
+`~/.config/research-os/profile.yaml` (XDG-compliant) seeds the wizard
+with the researcher's saved name / email / institution / ORCID +
+api_keys + writing_preferences. The wizard's Step 6b asks once; future
+projects auto-populate. Per-project `inputs/researcher_config.yaml`
+always wins on conflict. Chmod 600 (api keys may be present).
+
+### Added — Eager `inputs/{raw_data,literature,context}/` with seeded READMEs
+
+`GETTING_STARTED.md` told researchers to drop files at these paths but
+the directories were lazy and didn't exist yet (`cp foo.csv
+inputs/raw_data/` failed without `mkdir -p`). Now eager + each ships a
+one-paragraph README explaining what belongs there.
+
+### Added — Step-finalization enforcement gate
+
+`create_numbered_experiment` now refuses to scaffold step N+1 while
+step N is still in placeholder form (README has stub markers,
+conclusions.md is template). Audit surfaced the failure mode: the AI
+moved from step 01 to step 02 without finalizing step 01, leaving
+`workspace/analysis.md` missing the step 01 entry. The MCP
+`sys_path_create` handler accepts
+`allow_unfinalized_predecessor=true` (with rationale logged to
+override_log) for legitimate data-plumbing-only steps.
+
+### Added — `data/project_inputs` symlink on every step
+
+Steps with `from_step` symlinked `data/input` to the previous step's
+`data/output/`, which is empty when the upstream step wrote to
+`outputs/` (figures/tables/reports) rather than `data/output/`.
+Audit surfaced: step 02 inherited an empty data/input. Every step now
+also gets a `data/project_inputs` symlink pointing back at the
+project's `inputs/raw_data/` as a fallback.
+
+### Added — `create_numbered_experiment` validates root
+
+Refuses to scaffold if `root/.os_state/` is missing. Audit surfaced
+a real bug: a misconfigured caller had silently created a step
+folder in the Research-OS source repo. No more silent cwd pollution.
+
+### Added — Online-research step in `guidance/project_startup`
+
+Before declaring startup complete, the AI MUST run at least one
+`tool_search_*` / `tool_research_method` pass on the research
+question + named-paper references the PI brief surfaced. Search log
+goes to `workspace/logs/search_log.md`. Closes the "AI relies on
+pre-training memory instead of current literature" gap.
+
+### Added — `intake_autofill` smarter extraction
+
+* Natural-language hypothesis detection — when an explicit
+  H1/H2/H3 list is absent, picks out sentences like "We
+  hypothesise…", "X is associated with Y", "replicates the…",
+  "differs across…".
+* Named-paper extraction — PI brief references like "Himes 2014",
+  "the GTEx airway atlas" surface as `named_paper_references` +
+  concrete `next_actions` ("run `tool_literature_search_and_save
+  query=…`").
+* Fallback hypothesis from research_question when nothing else found
+  ("We test whether …").
+
+### Added — Multi-script chronological naming (`01a_`, `01b_`, `01c_`)
+
+`guidance/analysis_plan.yaml` `write_atomic_scripts` step now
+explicitly recommends letter-suffix naming for sub-tasks meant to
+run in a fixed sequence — `01a_load_counts_v1.py` /
+`01b_library_size_qc_v1.py` / `01c_pca_v1.py`. The descriptive-only
+naming stays available for true DAGs with non-linear dependencies.
+
+### Added — `figure_guidelines` pitfall catalog expansion
+
+New pitfalls added from the e2e:
+
+* `label_overlap_on_scatter_or_volcano` — use ggrepel / adjustText.
+* `y_axis_clipped_by_extreme_values` — cap p-values at 1e-30, annotate.
+* `filtered_but_labeled_points` — don't plot a label at coordinates
+  the point doesn't truly occupy (e.g. IL6 + CCL2 below low-count
+  filter showing at y=0 with full labels).
+* `heatmap_columns_not_grouped_by_annotation` — sort columns BEFORE
+  plotting; the eye can't see treatment blocks if conditions
+  alternate.
+* `heatmap_title_overlapping_annotation_strip` — use gridspec, not
+  `add_patch` at negative y-coords.
+* `font_size_too_small_at_paper_scale` — set figsize to final print
+  slot.
+* New `pick_library` step: research the right plotting stack for the
+  data type FIRST (RNA-seq → ggplot2 + EnhancedVolcano; single-cell
+  → scanpy; GWAS → qqman; not always matplotlib).
+
+### Added — `audit_figure_quality` SVG label-overlap heuristic
+
+When the figure is SVG, scans `<text>` elements for nominal
+bounding-box collisions and surfaces ~N suspected overlaps as
+warnings. PNG-only figures get a "ship the SVG too" warning so the
+deeper audit can run.
+
+### Added — `tool_path_finalize` auto-snapshots env
+
+If a step produced outputs (figures/tables/reports) but
+`environment/requirements.txt` is still the comment-only template,
+finalize calls `sys_env_snapshot` automatically. Closes "env folder
+is generic, not project-specific" gap from the e2e audit.
+
+### Added — `plain_english_summary` detection from `conclusions.md`
+
+Previously only checked `context/notes.md` — but the AI wrote the
+summary inside `conclusions.md` (the natural place), so finalize
+flagged it as missing. Now scans both, plus accepts several heading
+variants ("Plain-language summary", "Plain-English summary", "TL;DR",
+"Lay summary").
+
+### Removed — `.os_state/state_ledger.yaml` duplicate
+
+The yaml mirror of `state_ledger.json` was redundant — STATE.md at
+project root + the JSON ledger cover both human + machine reading.
+`.os_state/` is now 3 files instead of 4 (manifest.json,
+state_ledger.json, state_ledger.lock; active_plan.json appears only
+during live planning).
+
+### Changed — Every protocol YAML bumped to `version: 1.3.0`
+
+Per maintainer guidance (MINOR bump = bump every protocol). 108
+protocols updated.
+
+### Changed — Researcher-facing docs counts
+
+`docs/{START,FAQ,README,AI_GUIDE,RESEARCHER_GUIDE}.md` updated:
+"100 protocols" → "110 protocols", "six visualization protocols" →
+"14 visualization protocols".
+
+### Fixed
+
+* `_has_user_inputs` no longer counts the seeded
+  `inputs/{raw_data,literature,context}/README.md` as user content
+  (would have re-triggered intake regen on cold init).
+* `_REMOVED_TOOLS` dispatcher entry routes `tool_figure_create`
+  callers to a clear migration message instead of "Unknown tool".
+* `_router_index.yaml` decomposition entries that contained
+  `tool_figure_create` were cleaned up (would otherwise emit
+  "unknown tool 'an AI-authored plotting script'" preflight errors
+  after the bulk sed).
+* `_write_project_root_readme` f-string escaping fixed
+  (`{figures,tables,reports}` was interpreted as a format spec).
+
+### Validation — full graduate-level e2e analysis
+
+After the structural changes below, an end-to-end research project
+(Pygoscelis penguin bill morphometrics, n = 334) was driven through
+Research-OS as the AI client would: 3 numbered steps (baseline EDA →
+two-way ANOVA + Tukey + Kruskal-Wallis sensitivity → allometric
+regression), each with its own `pipeline.yaml` + 2–4 atomic scripts +
+4/2/2 publication-grade figures + 3/4/2 tables + 2/2/1 reports +
+substantive `conclusions.md` (~120 lines each). The synthesis paper
+weighs in at ~1,400 words. Every per-step finalize updated
+`workspace/analysis.md`, `workspace/methods.md`, and
+`workspace/citations.md` without manual intervention. The e2e run
+surfaced six follow-on bugs (see below) — all fixed in this same
+release with regression tests pinning each one.
+
+### Added — `sys_env_snapshot` accepts a target scope
+
+`sys_env_snapshot` previously only wrote into the most-recent active
+numbered step (a hidden global), which made it impossible to snapshot
+the project-wide environment, or a specific step that wasn't the
+latest. v1.3.0 adds:
+
+* `step_id="NN_slug"` — snapshot into `workspace/NN_slug/environment/`.
+* `scope="project"` — snapshot into the project-global `environment/`
+  folder (newly eager-scaffolded — see below).
+* Omit both → legacy behavior (most-recent step, or project-global
+  when no numbered steps exist yet).
+
+### Added — `tool_path_finalize` now updates the project-scope logs
+
+`finalize_path` was purely observational (rewrote per-step READMEs
+from on-disk state). v1.3.0 extends it to refresh the project-scope
+append-only logs the AI was supposed to be touching manually but
+typically forgot:
+
+* `workspace/analysis.md` ← step-finalized heading + headline from
+  Findings + output counts + decision count (idempotent on the
+  step-named marker).
+* `workspace/methods.md` ← if `conclusions.md` has a `## Methods
+  (full detail)` (or `## Methods`) section, mirrored under a
+  step-tagged subsection.
+* `workspace/citations.md` ← regenerated from project-level
+  `inputs/literature_index.yaml` + every per-step
+  `literature/.meta.yaml` sidecar.
+
+`finalize_path` also returns a `warnings` list surfacing:
+* stub `Findings` / `Decision` / `Plain-language summary` sections in
+  `conclusions.md`,
+* missing environment snapshot when the step produced outputs.
+
+These are nudges, not blockers — the AI can override with a
+`mem_decision_log` rationale if the omission was deliberate.
+
+### Improved — init scaffolding (`research-os init`)
+
+* **`CONTRIBUTORS.md` is no longer created at init.** The previous
+  default produced an opaque audit file in every fresh project that
+  confused new researchers and was outdated the moment they added an
+  IDE. It's now opt-in — written on the first `research-os ide
+  add|remove` (or explicit share action). Behavior in tests:
+  `tests/unit/test_core.py::test_scaffold_creates_complete_workspace`
+  now asserts it does NOT exist after a cold scaffold.
+* **`environment/` is now eager + scaffolded.** Previously a LAZY_DIR
+  (folder absent until something wrote into it). Researchers reported
+  not knowing whether the project even had a reproducibility story.
+  v1.3.0 ships:
+  * `environment/requirements.txt` — pip stub with a header pointing
+    at `sys_env_snapshot` and per-step alternatives.
+  * `environment/README.md` — explains the global vs per-step split
+    and the Dockerfile / conda / R / Julia hooks.
+
+### Improved — `guidance/analysis_plan.yaml` doctrine
+
+Two protocol steps were rewritten to match the new tool behaviors and
+to make per-step file hygiene less optional:
+
+* `snapshot_step_environment` — used to say "SKIP in the common case";
+  now says "call every step that ran code". Variants spell out
+  `step_id=` vs `scope="project"`. Reproducibility is treated as the
+  default deal, not an opt-in.
+* `finalize_step` — the description now lists everything `finalize_path`
+  does, including the new project-scope log refresh + warning surface,
+  so the AI knows the call is the canonical end-of-step ritual rather
+  than just "rewrite some READMEs".
+
+### Improved — visualization defaults (publication-grade)
+
+Quick hits in `tools/actions/viz/figures.py`:
+* **Chart-kind-aware gridlines.** Scatter / forest / dot_whisker /
+  raincloud / slope / alluvial / consort_flow / funnel / calibration
+  now render with NO gridlines (they competed with the marks). Bar /
+  line / hist / box / violin / heatmap keep a faint horizontal grid
+  to help the eye land on values.
+* **Lighter sample-size annotation.** The boxed `n = ...` corner
+  label became a plain light-grey text — same information, less
+  visual weight.
+* **Title padding.** `ax.set_title(..., pad=8)` so titles no longer
+  collide with top spines or top-most tick labels.
+
+### Fixed — six follow-on bugs surfaced by the e2e analysis
+
+1. **`intake_autofill` misclassified the penguin dataset as
+   "economics".** No `biology` / `ecology` domain existed in
+   `DOMAIN_HINTS`. Added a `biology_ecology` bucket with the columns
+   and keywords actual ecology / morphometric datasets carry
+   (`species`, `sex`, `island`, `bill_*`, `body_mass_g`,
+   `Pygoscelis`, `dimorphism`, `allometric`, etc.). Also dropped
+   `year` from the `economics` columns since it false-positives every
+   longitudinal study.
+2. **`intake_autofill` overwrote researcher-supplied `--domain` /
+   `--question`.** Init-time wizard input was being clobbered by
+   weaker auto-inferences. v1.3.0 respects existing
+   `state.domain` / `state.research_question` unless they're
+   placeholders.
+3. **`_propose_hypotheses` regex missed markdown bullets-with-bold.**
+   Advisor notes commonly use `- **H1** — text` or
+   `- **H2**: text` but the regex required a bare `H1: text`. New
+   regex handles list markers, bold/italic emphasis, and `:`/`-`/`—`
+   separators.
+4. **`finalize_path` headline extraction was eating `**` opening
+   markers.** `lstrip("-* ")` consumed the bullet's leading `**`,
+   leaving the trailing `**` orphaned and surviving emphasis-strip.
+   Replaced with a precise list-marker strip so the regex finds both
+   ends of the bold pair. Side-fix: continuation lines under the
+   first bullet are now joined (the headline used to truncate
+   mid-sentence).
+5. **`finalize_path` Outputs section listed sidecars as figures.**
+   The figure inventory walked every file under `outputs/figures/`
+   including `.caption.md`, `.summary.md`, and `.svg` companions —
+   producing READMEs with "16 figures" when the step had 4 real
+   PNGs. New `_figure_table_inventory` filters by extension and
+   dedups the SVG companion when a PNG sibling exists.
+6. **`create_numbered_experiment(from_step=X)` deep-copied X's
+   whole step** (scripts, outputs, environment, everything) via
+   `shutil.copytree`. The intent of `from_step` is "wire data/input
+   from X's data/output"; the deep copy bloated workspaces, polluted
+   per-step provenance, and broke `tool_path_finalize`'s artefact
+   inventory. v1.3.0 strips it to symlink-only.
+
+Also surfaced + auto-fixed by the new finalize doctrine: the
+README's `## Input data` section was previously left as the
+`*(list inputs used)*` stub. v1.3.0's
+`_input_inventory_for_readme` populates it from `data/input/`
+symlinks + `pipeline.yaml`-referenced raw inputs.
+
+### Added — regression tests (+11 = 5 initial + 6 e2e)
+
+Initial pass:
+* `tests/tools/test_iteration.py`
+  * `test_finalize_appends_step_entry_to_analysis_md`
+  * `test_finalize_mirrors_methods_section_into_methods_md`
+  * `test_finalize_warns_on_stub_findings`
+  * `test_env_snapshot_step_id_param`
+  * `test_env_snapshot_project_scope`
+* `tests/unit/test_core.py::test_scaffold_creates_complete_workspace`
+  updated: asserts `environment/` IS scaffolded, `CONTRIBUTORS.md`
+  is NOT.
+
+E2e pass (one per bug above):
+* `tests/tools/test_iteration.py`
+  * `test_finalize_headline_strips_markdown_bold`
+  * `test_finalize_input_data_section_backfilled`
+  * `test_finalize_figure_inventory_filters_sidecars`
+  * `test_from_step_does_not_copy_outputs`
+  * `test_intake_biology_domain_recognised`
+  * `test_intake_extracts_markdown_hypotheses`
+
+### Bumped
+
+* `research-os` package: 1.2.2 → 1.3.0
+* `CITATION.cff` version + date
+* Embeddings rebuilt against the updated protocol bodies.
+
+### Deferred (logged for v1.4.0)
+
+* **Router slim refactor.** `_router_index.yaml` still holds the
+  centralized trigger + decomposition + hierarchy + shortcut
+  metadata. Audit confirmed it's correctly used server-side
+  (so it does NOT cost AI tokens directly), but it has grown large
+  (~76 KB) and per-protocol metadata would be cleaner in each
+  protocol's own YAML frontmatter, with a build-time aggregation
+  step. Scoped for v1.4.0 to avoid churn during a patch cycle.
+
+### Test + quality status
+
+```
+preflight  : 14 / 14 ✓
+pytest     : 464 / 464 ✓  (was 453 in v1.2.2)
+ruff       : clean ✓
+```
+
+---
+
 ## [1.2.2] — Session-pattern phrasing + output coverage + routing patches (2026-06-03)
 
 A bug-fix audit. **No protocol or tool removals.** 453 tests pass

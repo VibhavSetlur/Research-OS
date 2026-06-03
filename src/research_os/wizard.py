@@ -137,6 +137,14 @@ class WizardResult:
     api_keys: dict[str, str] = field(default_factory=dict)
     # Model tier — written into researcher_config.yaml as model_profile.
     model_profile: str = "medium"
+    # v1.3.0: researcher identity, written into researcher_config.yaml AND
+    # (when researcher opts in) ~/.config/research-os/profile.yaml so the
+    # next `research-os init` pre-fills these without asking.
+    researcher_name: str = ""
+    researcher_email: str = ""
+    researcher_institution: str = ""
+    researcher_orcid: str = ""
+    save_as_profile: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +294,38 @@ def run_wizard(args) -> WizardResult:
             "inputs/researcher_config.yaml (chmod 600).")
     api_keys = _collect_api_keys()
 
+    # ── Step 6b: Researcher identity (defaults from cross-project profile)─
+    from research_os.tools.actions.state.config import load_profile
+    profile = load_profile()
+    profile_researcher = profile.get("researcher") if isinstance(profile.get("researcher"), dict) else {}
+    if profile_researcher and any(profile_researcher.values()):
+        ok("Using your saved profile for name / email / institution / ORCID")
+        researcher_name = profile_researcher.get("name", "") or ""
+        researcher_email = profile_researcher.get("email", "") or ""
+        researcher_institution = profile_researcher.get("institution", "") or ""
+        researcher_orcid = profile_researcher.get("orcid", "") or ""
+        save_as_profile = False
+    else:
+        print()
+        skip_id = tui.confirm(
+            f"Set your researcher identity? "
+            f"{_C.GREY}(name / email / institution / ORCID — used in citations + sharing){_C.RESET}",
+            default=False,
+        )
+        if skip_id:
+            researcher_name = tui.text("Name", default="", allow_empty=True)
+            researcher_email = tui.text("Email", default="", allow_empty=True)
+            researcher_institution = tui.text("Institution", default="", allow_empty=True)
+            researcher_orcid = tui.text("ORCID (optional)", default="", allow_empty=True)
+            save_as_profile = tui.confirm(
+                "Save these as defaults for future `research-os init` runs? "
+                f"{_C.GREY}(stored at ~/.config/research-os/profile.yaml chmod 600){_C.RESET}",
+                default=True,
+            )
+        else:
+            researcher_name = researcher_email = researcher_institution = researcher_orcid = ""
+            save_as_profile = False
+
     # ── Step 7: Post-init actions ───────────────────────────────────────
     section(7, total, "After scaffolding",
             "Final touches. Defaults are safe — Enter to accept.")
@@ -312,6 +352,11 @@ def run_wizard(args) -> WizardResult:
         pending_attachments=pending_attachments,
         api_keys=api_keys,
         model_profile=model_profile,
+        researcher_name=researcher_name,
+        researcher_email=researcher_email,
+        researcher_institution=researcher_institution,
+        researcher_orcid=researcher_orcid,
+        save_as_profile=save_as_profile,
     )
 
 
@@ -655,8 +700,6 @@ def show_done_card(r: WizardResult, scaffold_stats: dict, verify_summary: str | 
                     suffix = f"  {_C.GREY}manual: {p.manual_url}{_C.RESET}" if p.manual_url else ""
                     print(f"        {_C.YELLOW}✗{_C.RESET} {p.token}  "
                           f"{_C.GREY}— {p.error}{_C.RESET}{suffix}")
-    if author:
-        ok("Recorded contributor", author.display())
     if verify_summary:
         ok("Smoke check passed", verify_summary)
     print()

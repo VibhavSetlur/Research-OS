@@ -1,6 +1,6 @@
 # Tool Catalog
 
-**145 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
+**149 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
 Names use underscores; dot notation (`sys.state.get`) and a small set
 of legacy aliases (e.g. `tool_audit_statistical_power` →
 `tool_audit_power`) auto-rewrite. `sys_tool_describe(name)` returns the
@@ -222,16 +222,27 @@ tool ships its `short` field, full description available on demand.
 * `tool_lessons_record` / `tool_lessons_consult` — Reflexion-style
   lessons across sessions.
 
-**Visualisation (25 chart kinds)**
-* `tool_figure_create kind=<roc|pr|calibration|qq|residual_diagnostics|
-  partial_dependence|dot_whisker|ridgeline|raincloud|hexbin|slope|
-  posterior|var_importance|funnel|alluvial|hierarchical_heatmap|
-  consort_flow|...>` — auto colour-blind palette, ≥300 DPI, dual
-  PNG + SVG, four sidecars (caption, summary, prov, optional HTML).
-* `tool_figure_caption_synthesise` — plain-English `.summary.md`.
-* `tool_audit_figure_full` — strict figure audit (DPI, caption,
-  summary, SVG companion, aspect ratio).
-* `tool_figure_palette` — Okabe-Ito / viridis / PuOr palettes.
+**Visualisation (AI writes the script; tools support audit + sidecars)**
+
+Research-OS does not ship a parametric chart-builder. The AI writes its
+own matplotlib / ggplot2 / Altair / plotnine / d3 / plotly script per
+the `visualization/figure_guidelines` protocol. The tools below support
+that workflow:
+
+* `tool_figure_palette` — Okabe-Ito (qualitative, CVD-safe), viridis
+  (sequential), PuOr (diverging), or the dashboard accent set.
+* `tool_figure_caption_synthesise` — drafts a plain-English
+  `<name>.summary.md` sidecar from the figure's existing
+  `.caption.md` + the step's Findings (W3C two-part guidance).
+* `tool_audit_figure_full` — strict figure audit: DPI ≥ 300, sidecar
+  presence (caption + summary), SVG companion, aspect-ratio sanity for
+  time-series-named figures, AND an SVG text-overlap heuristic for the
+  "stacked labels" pitfall.
+
+> **Removed in v1.3.0:** `tool_figure_create` and the 30+ `_render_*`
+> chart-kind dispatchers. The AI writes its own plotting code now.
+> Old callers receive a deprecation message pointing at
+> `visualization/figure_guidelines`.
 
 **Quality auditors**
 * `tool_audit_quality_full` — runs every gate in one call.
