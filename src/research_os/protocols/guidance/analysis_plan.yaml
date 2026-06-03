@@ -319,40 +319,74 @@ steps:
       Also: mem_analysis_log entry="<step_id> done: <one-line summary>".
 
   - id: snapshot_step_environment
-    name: Snapshot Step Environment (only if step-specific)
+    name: Snapshot the Environment (every step that actually ran code)
     description: |
-      ONLY run sys_env_snapshot if this step needs different package
-      versions than the project-global env at environment/requirements.txt.
-      If it does not (the common case), SKIP this step — leave the
-      step's environment/ folder empty and let finalize_step normalise
-      the README to "used the project-global environment".
+      Default (v1.3.0): call sys_env_snapshot EVERY step that ran code.
+      It's cheap, idempotent, and the cost of skipping is a published
+      result you can't rerun.
 
-      Snapshotting redundantly on every step bloats the workspace and
-      makes the dashboard noisier without improving reproducibility.
+        sys_env_snapshot                              # legacy default
+        sys_env_snapshot step_id="<NN_slug>"          # explicit per-step
+        sys_env_snapshot scope="project"              # project-global
+
+      Variants:
+        - The step uses identical packages to every prior step →
+          `sys_env_snapshot scope="project"` once is enough; per-step
+          snapshots add noise without information.
+        - The step needs a different version of even one package →
+          `sys_env_snapshot step_id="<NN_slug>"` so the per-step
+          requirements.txt captures the variance.
+        - Pure-data step (no scripts ran) → skip. finalize_step will
+          surface a warning, which is fine.
+
+      Reproducibility is the deal you make with future-you. If the
+      audit warns "no environment snapshotted", treat it as a real
+      gap to close, not noise.
 
   - id: finalize_step
-    name: Finalize Step READMEs (mandatory before decide_next)
+    name: Finalize the Step (mandatory before decide_next)
     description: |
-      tool_path_finalize — rewrites the step's stub README + every
-      subfolder README from what actually got produced. Specifically:
-        - environment/README.md ← either "used the project-global env"
-          OR a list of bespoke requirements.
-        - literature/README.md ← either "used the project-global corpus"
-          + this step's decision-log entries OR a list of step-specific
-          sources + the decisions they informed.
+      tool_path_finalize — runs the v1.3.0 finalize sequence:
+
+      Per-step file refresh (rewrites the step's stub README + every
+      subfolder README from what actually got produced):
+        - environment/README.md ← "used global env" OR bespoke listing.
+        - literature/README.md ← "used global corpus + decisions"
+          OR step-specific sources + the decisions they informed.
+        - context/README.md ← "no prose needed" OR narrative inventory
+          + plain-language summary from notes.md.
         - data/output/README.md ← every persisted artefact + which
-          downstream step consumes it (derived from the workflow DAG).
+          downstream step consumes it (from the workflow DAG).
         - outputs/README.md ← inventory of figures / tables / reports.
         - README.md ← stub Methods / Outputs / Decision sections
           populated from conclusions.md + per-step decision log.
 
-      Idempotent. Run it again after any post-hoc edit to refresh.
+      Project-scope log refresh (the v1.3.0 piece — used to be
+      manual):
+        - workspace/analysis.md ← step-finalized heading + headline
+          + output counts + decision count (idempotent on the marker).
+        - workspace/methods.md ← if conclusions.md has a `## Methods
+          (full detail)` or `## Methods` section, mirror it under a
+          step-tagged subsection (idempotent on the marker).
+        - workspace/citations.md ← regenerated from project +
+          per-step literature/.meta.yaml sidecars.
 
-      Captions: each figure SHOULD also have a sibling
-      <name>.caption.md describing what the reader is looking at — the
-      synthesis dashboard embeds the caption inline. Add one whenever
-      you save a figure; finalize_step does NOT generate them
-      automatically (they require the analyst's interpretation).
+      Plain-English summaries: for every figure without
+      `<name>.summary.md`, the caption synthesiser drafts one from the
+      caption + Findings.
+
+      Warnings returned (act on these before decide_next):
+        - conclusions.md > Findings / Decision still a stub
+        - Plain-language summary still a stub
+        - No environment snapshot for a step that produced outputs
+
+      Captions: each figure MUST have a sibling `<name>.caption.md`
+      describing what the reader is looking at (one technical
+      sentence). Add one whenever you save a figure;
+      `tool_figure_create caption=… plain_english=…` writes both
+      sidecars in one call.
+
+      Idempotent — safe to re-run after edits.
 
   - id: lightweight_step_audit
     name: Lightweight In-Step Audit

@@ -344,13 +344,11 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     if r.start_server:
         _try_start_server(target_dir)
 
-    # 10. Record the contributor row.
-    try:
-        collab.log_action(target_dir, author,
-                          "Initialized workspace" if not already_initialized
-                          else "Re-scaffolded workspace (--force)")
-    except OSError:
-        pass
+    # NOTE (v1.3.0): `CONTRIBUTORS.md` is no longer created automatically
+    # at init time. The previous default produced an opaque audit file in
+    # every fresh project that confused new users. It now only gets
+    # written when an action explicitly logs to it (e.g. `research-os ide
+    # add ...`, which is a deliberate change to project wiring).
 
     # 11. Final report.
     stats = _count_scaffold(target_dir)

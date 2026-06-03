@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 7
+version: 8
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -301,13 +301,29 @@ protocols:
     triggers:
       - "fill the intake"
       - "fill intake"
+      - "fill out the intake"
+      - "fill out intake"
+      - "do the intake"
+      - "do intake"
+      - "run the intake"
+      - "run intake"
+      - "intake autofill"
       - "autofill"
+      - "autofill the intake"
+      - "autofill intake"
       - "read my data"
+      - "read my inputs"
+      - "read the inputs"
       - "what do I have"
       - "what's in inputs"
       - "i dropped some files"
+      - "i dropped a csv"
+      - "dropped a csv"
+      - "dropped some data"
+      - "dropped a note"
       - "new project"
       - "figure out what's going on"
+      - "tell me what you're going to do"
     shortcut_tool: tool_intake_autofill
     token_estimate: 1400
     decomposition:

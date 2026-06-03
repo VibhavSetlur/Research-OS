@@ -39,6 +39,20 @@ DOMAIN_HINTS = {
         "cols": ["gene_id", "log2fc", "padj", "chromosome"],
         "keywords": ["rna-seq", "genome", "gene expression", "variant", "alignment"],
     },
+    "biology_ecology": {
+        "exts": [".csv", ".tsv"],
+        "cols": [
+            "species", "sex", "island", "habitat", "site", "taxon",
+            "bill_length_mm", "bill_depth_mm", "flipper_length_mm",
+            "body_mass_g", "wing_chord", "tarsus", "morphotype",
+        ],
+        "keywords": [
+            "species", "ecology", "biology", "morphology", "morphometric",
+            "dimorphism", "allometric", "phenotype", "population", "fauna",
+            "flora", "wildlife", "field study", "pygoscelis", "passerine",
+            "vertebrate", "invertebrate",
+        ],
+    },
     "nlp": {
         "exts": [".jsonl", ".txt", ".arrow"],
         "cols": ["text", "label", "tokens"],
@@ -51,7 +65,7 @@ DOMAIN_HINTS = {
     },
     "economics": {
         "exts": [".dta", ".csv", ".xlsx"],
-        "cols": ["country", "year", "gdp", "inflation", "unemployment"],
+        "cols": ["country", "gdp", "inflation", "unemployment"],
         "keywords": ["panel", "macro", "monetary", "gdp", "labor"],
     },
     "geospatial": {
@@ -140,14 +154,40 @@ def _propose_question(context_text: str, raw_files: list[Path]) -> str:
 
 
 def _propose_hypotheses(context_text: str) -> list[str]:
-    """Pick out any H1/H2/H3 style hypotheses from context notes."""
+    """Pick out any H1/H2/H3 style hypotheses from context notes.
+
+    Handles common styles:
+      H1: text
+      Hypothesis 1: text
+      - H1 — text
+      - **H1** — text             (markdown bold)
+      * H1: text                  (bullet)
+      1. **Hypothesis** — text
+    """
     if not context_text:
         return []
     hits: list[str] = []
-    for m in re.finditer(
-        r"(?im)^(?:hypothesis|h)\s*(\d+)?\s*[:\-]\s*(.{15,400})$", context_text
-    ):
-        hits.append(m.group(2).strip())
+    # Pattern 1: explicit "H<n>" or "Hypothesis <n>" labels, optionally
+    # wrapped in markdown bullets / bold / hashes. Separator can be
+    # ":", "-", "—", "–".
+    pat = re.compile(
+        r"""(?ixm)
+        ^\s*                       # leading whitespace
+        (?:[-*+]\s+|\d+[.)]\s+)?   # optional list marker
+        (?:[*_]{1,2})?             # optional opening bold/italic
+        (?:hypothesis|h)           # word "hypothesis" or letter H
+        (?:[*_]{1,2})?             # optional close of bold around the word
+        \s*(\d+)\b                 # the index (mandatory — we need H1 vs noise)
+        (?:[*_]{1,2})?             # optional close after number
+        \s*[:\-–—]\s*    # separator
+        (.{15,400}?)               # the hypothesis text
+        \s*$
+        """
+    )
+    for m in pat.finditer(context_text):
+        text = re.sub(r"^[*_]+|[*_]+$", "", m.group(2)).strip()
+        if text:
+            hits.append(text)
     return hits[:6]
 
 
@@ -194,9 +234,24 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
                     pass
         context_text = "\n\n".join(context_text_parts)
 
-        # Classify + propose
-        domain, domain_why = _classify_domain(raw_files, context_text)
-        question = _propose_question(context_text, raw_files)
+        # Classify + propose. Respect existing state when already set —
+        # init's --domain / --question flags land in state before this
+        # tool runs, and rewriting them here was overwriting the
+        # researcher's deliberate input with weaker auto-inferences.
+        state_pre = load_state(root)
+        existing_domain = (state_pre.get("domain") or "").strip()
+        existing_question = (state_pre.get("research_question") or "").strip()
+        domain_auto, domain_why = _classify_domain(raw_files, context_text)
+        domain = existing_domain or domain_auto
+        if existing_domain:
+            domain_why = [f"preserved from state.domain = {existing_domain!r}"]
+        question_auto = _propose_question(context_text, raw_files)
+        # Keep state's question unless it was the placeholder.
+        question = (
+            existing_question if existing_question
+            and "*(AI-proposed placeholder" not in existing_question
+            else question_auto
+        )
         hypotheses = _propose_hypotheses(context_text)
 
         # NOTE: researcher_config.yaml is no longer touched here. Domain /

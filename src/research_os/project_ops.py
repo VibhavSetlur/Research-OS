@@ -75,6 +75,7 @@ EAGER_DIRS = (
     "workspace",
     "workspace/logs",
     "workspace/scratch",
+    "environment",
 )
 
 # Directories created LAZILY (only when the first artefact lands in them).
@@ -85,7 +86,6 @@ LAZY_DIRS = (
     "inputs/literature",
     "inputs/context",
     "synthesis",
-    "environment",
 )
 
 
@@ -479,6 +479,44 @@ def scaffold_minimal_workspace(
             "graph TD\n"
             "    init[Initialised]:::complete\n"
             "    classDef complete fill:#d4edda,stroke:#28a745\n"
+        )
+
+    # 5a. environment/ — project-global env scaffold (v1.3.0).
+    #     Previously a LAZY_DIR (empty until sys_env_snapshot wrote into
+    #     it). Researchers reported they couldn't tell whether the
+    #     workspace had a reproducible env story at all. Now eager: an
+    #     empty folder with two header files is enough for a fresh
+    #     researcher to know what goes here and how it gets filled.
+    env_dir = root / "environment"
+    env_dir.mkdir(parents=True, exist_ok=True)
+    env_req = env_dir / "requirements.txt"
+    if not env_req.exists():
+        env_req.write_text(
+            "# Project-global Python packages.\n"
+            "#\n"
+            "# Add packages here as you install them, or call\n"
+            "# `sys_env_snapshot` from the AI to regenerate this from\n"
+            "# the active interpreter. Pin to a major when stability\n"
+            "# matters (e.g. `pandas>=2.0,<3`).\n"
+            "#\n"
+            "# Per-step requirements (when one step needs different\n"
+            "# versions) live in `workspace/<NN_slug>/environment/\n"
+            "# requirements.txt` — see that step's README.\n"
+        )
+    env_readme = env_dir / "README.md"
+    if not env_readme.exists():
+        env_readme.write_text(
+            "# Project environment\n\n"
+            "Single source of truth for the Python (and other-language)\n"
+            "packages this project depends on. Reproducibility starts here.\n\n"
+            "* `requirements.txt` — pip-installable package list. Hand-add\n"
+            "  or regenerate via `sys_env_snapshot`.\n"
+            "* `Dockerfile` — generated on demand by `sys_docker_generate`.\n"
+            "* Conda export, R session info, system pkgs — pile in as\n"
+            "  needed; `sys_env_snapshot` accepts language hints.\n\n"
+            "When a single analysis step needs a bespoke environment\n"
+            "different from the project default, snapshot inside that\n"
+            "step instead: `sys_env_snapshot step_id=NN_slug`.\n"
         )
 
     # 5b. workspace/scratch/ — AI sandbox. Gitignored.
@@ -1043,9 +1081,10 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 
 ## 7. Working with collaborators
 
-* `CONTRIBUTORS.md` — auto-updated activity log. Every `research-os init`
-  / `ide add` / `ide remove` appends a row with date + researcher +
-  action, so a fresh collaborator can see who set the project up.
+* `CONTRIBUTORS.md` — opt-in activity log. Created on the first
+  `research-os ide add` / `ide remove` / explicit share action so a
+  fresh collaborator can see who changed wiring. Fresh projects do not
+  ship one until something changes.
 * `research-os ide add <name>` — wire a new AI IDE for *you* without
   re-scaffolding the workspace (so nothing your teammate did breaks).
 * `research-os ide list` — see which IDE configs are wired.
@@ -1598,16 +1637,27 @@ def create_numbered_experiment(
 
     check_write_permitted(exp_dir)
 
+    # v1.3.0: `from_step` USED to `shutil.copytree` the whole source step
+    # into the new step, leaving outputs/figures/tables/reports/scripts
+    # all duplicated. That bloated the workspace, broke per-step
+    # provenance (the new step's outputs/ contained the previous step's
+    # artefacts before any code ran), and confused tool_path_finalize's
+    # inventory. The intent of `from_step` is "wire data/input from this
+    # step's output instead of the previous numbered step" — and now
+    # that's all it does. Everything else is scaffolded fresh.
+    exp_dir.mkdir(parents=True, exist_ok=True)
+    for sub in EXPERIMENT_SUBDIRS:
+        (exp_dir / sub).mkdir(parents=True, exist_ok=True)
     if from_step:
-        src_dir = workspace / from_step
-        if not src_dir.exists():
-            raise ValueError(f"Source step '{from_step}' not found")
-        shutil.copytree(src_dir, exp_dir, symlinks=True, dirs_exist_ok=True)
+        src_step_output = workspace / from_step / "data" / "output"
+        src_step_output.mkdir(parents=True, exist_ok=True)
+        data_input = exp_dir / "data" / "input"
+        try:
+            data_input.rmdir()
+            data_input.symlink_to(src_step_output.absolute())
+        except OSError:
+            pass
     else:
-        exp_dir.mkdir(parents=True, exist_ok=True)
-        for sub in EXPERIMENT_SUBDIRS:
-            (exp_dir / sub).mkdir(parents=True, exist_ok=True)
-
         # Wire data/input/ — branch steps draw from their parent's output;
         # non-branch steps draw from the prior numbered step's output (or
         # raw_data for step 01).

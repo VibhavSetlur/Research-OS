@@ -655,8 +655,6 @@ def show_done_card(r: WizardResult, scaffold_stats: dict, verify_summary: str | 
                     suffix = f"  {_C.GREY}manual: {p.manual_url}{_C.RESET}" if p.manual_url else ""
                     print(f"        {_C.YELLOW}✗{_C.RESET} {p.token}  "
                           f"{_C.GREY}— {p.error}{_C.RESET}{suffix}")
-    if author:
-        ok("Recorded contributor", author.display())
     if verify_summary:
         ok("Smoke check passed", verify_summary)
     print()

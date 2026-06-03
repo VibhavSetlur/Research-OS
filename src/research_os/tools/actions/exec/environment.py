@@ -54,11 +54,34 @@ def _active_experiment_dir(root: Path) -> Path | None:
     return sorted(active)[-1] if active else None
 
 
-def env_snapshot(root: Path) -> dict[str, Any]:
-    """Snapshot Python (always) and any detected R/Julia/Conda configs."""
+def env_snapshot(
+    root: Path, *, step_id: str | None = None, scope: str | None = None,
+) -> dict[str, Any]:
+    """Snapshot Python (always) and any detected R/Julia/Conda configs.
+
+    Target directory rules (v1.3.0):
+      * If ``step_id`` is given, snapshot into
+        ``workspace/<step_id>/environment/``.
+      * Else if ``scope='project'``, snapshot into the project-global
+        ``environment/`` (the eager-scaffolded folder created at init).
+      * Else (legacy default), snapshot into the most-recent active
+        numbered step's environment, or the project-global folder if
+        there are no numbered steps yet.
+    """
     try:
-        active = _active_experiment_dir(root)
-        env_dir = (active or root) / "environment"
+        if step_id:
+            target = root / "workspace" / step_id
+            if not target.is_dir():
+                return {
+                    "status": "error",
+                    "message": f"step_id '{step_id}' not found under workspace/",
+                }
+            env_dir = target / "environment"
+        elif scope == "project":
+            env_dir = root / "environment"
+        else:
+            active = _active_experiment_dir(root)
+            env_dir = (active or root) / "environment"
         env_dir.mkdir(parents=True, exist_ok=True)
         session: dict[str, Any] = {"languages": []}
 

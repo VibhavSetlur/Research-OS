@@ -6,6 +6,212 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.3.0] — Per-step doctrine + init cleanup + viz quality (2026-06-03)
+
+A user-reported audit cycle. The v1.2.x patches surfaced architectural
+gaps that needed a minor bump rather than another patch — specifically
+around what the AI actually does to per-step files between scripts and
+synthesis.
+
+**Stats:** Same 109 protocols + 145 MCP tools (no removals). 464 tests
+pass (was 453; +11 regression tests across two passes: 5 for the
+initial v1.3.0 behaviors and 6 more surfaced by the end-to-end
+graduate-level analysis described below). No breaking changes to the
+MCP tool surface.
+
+### Validation — full graduate-level e2e analysis
+
+After the structural changes below, an end-to-end research project
+(Pygoscelis penguin bill morphometrics, n = 334) was driven through
+Research-OS as the AI client would: 3 numbered steps (baseline EDA →
+two-way ANOVA + Tukey + Kruskal-Wallis sensitivity → allometric
+regression), each with its own `pipeline.yaml` + 2–4 atomic scripts +
+4/2/2 publication-grade figures + 3/4/2 tables + 2/2/1 reports +
+substantive `conclusions.md` (~120 lines each). The synthesis paper
+weighs in at ~1,400 words. Every per-step finalize updated
+`workspace/analysis.md`, `workspace/methods.md`, and
+`workspace/citations.md` without manual intervention. The e2e run
+surfaced six follow-on bugs (see below) — all fixed in this same
+release with regression tests pinning each one.
+
+### Added — `sys_env_snapshot` accepts a target scope
+
+`sys_env_snapshot` previously only wrote into the most-recent active
+numbered step (a hidden global), which made it impossible to snapshot
+the project-wide environment, or a specific step that wasn't the
+latest. v1.3.0 adds:
+
+* `step_id="NN_slug"` — snapshot into `workspace/NN_slug/environment/`.
+* `scope="project"` — snapshot into the project-global `environment/`
+  folder (newly eager-scaffolded — see below).
+* Omit both → legacy behavior (most-recent step, or project-global
+  when no numbered steps exist yet).
+
+### Added — `tool_path_finalize` now updates the project-scope logs
+
+`finalize_path` was purely observational (rewrote per-step READMEs
+from on-disk state). v1.3.0 extends it to refresh the project-scope
+append-only logs the AI was supposed to be touching manually but
+typically forgot:
+
+* `workspace/analysis.md` ← step-finalized heading + headline from
+  Findings + output counts + decision count (idempotent on the
+  step-named marker).
+* `workspace/methods.md` ← if `conclusions.md` has a `## Methods
+  (full detail)` (or `## Methods`) section, mirrored under a
+  step-tagged subsection.
+* `workspace/citations.md` ← regenerated from project-level
+  `inputs/literature_index.yaml` + every per-step
+  `literature/.meta.yaml` sidecar.
+
+`finalize_path` also returns a `warnings` list surfacing:
+* stub `Findings` / `Decision` / `Plain-language summary` sections in
+  `conclusions.md`,
+* missing environment snapshot when the step produced outputs.
+
+These are nudges, not blockers — the AI can override with a
+`mem_decision_log` rationale if the omission was deliberate.
+
+### Improved — init scaffolding (`research-os init`)
+
+* **`CONTRIBUTORS.md` is no longer created at init.** The previous
+  default produced an opaque audit file in every fresh project that
+  confused new researchers and was outdated the moment they added an
+  IDE. It's now opt-in — written on the first `research-os ide
+  add|remove` (or explicit share action). Behavior in tests:
+  `tests/unit/test_core.py::test_scaffold_creates_complete_workspace`
+  now asserts it does NOT exist after a cold scaffold.
+* **`environment/` is now eager + scaffolded.** Previously a LAZY_DIR
+  (folder absent until something wrote into it). Researchers reported
+  not knowing whether the project even had a reproducibility story.
+  v1.3.0 ships:
+  * `environment/requirements.txt` — pip stub with a header pointing
+    at `sys_env_snapshot` and per-step alternatives.
+  * `environment/README.md` — explains the global vs per-step split
+    and the Dockerfile / conda / R / Julia hooks.
+
+### Improved — `guidance/analysis_plan.yaml` doctrine
+
+Two protocol steps were rewritten to match the new tool behaviors and
+to make per-step file hygiene less optional:
+
+* `snapshot_step_environment` — used to say "SKIP in the common case";
+  now says "call every step that ran code". Variants spell out
+  `step_id=` vs `scope="project"`. Reproducibility is treated as the
+  default deal, not an opt-in.
+* `finalize_step` — the description now lists everything `finalize_path`
+  does, including the new project-scope log refresh + warning surface,
+  so the AI knows the call is the canonical end-of-step ritual rather
+  than just "rewrite some READMEs".
+
+### Improved — visualization defaults (publication-grade)
+
+Quick hits in `tools/actions/viz/figures.py`:
+* **Chart-kind-aware gridlines.** Scatter / forest / dot_whisker /
+  raincloud / slope / alluvial / consort_flow / funnel / calibration
+  now render with NO gridlines (they competed with the marks). Bar /
+  line / hist / box / violin / heatmap keep a faint horizontal grid
+  to help the eye land on values.
+* **Lighter sample-size annotation.** The boxed `n = ...` corner
+  label became a plain light-grey text — same information, less
+  visual weight.
+* **Title padding.** `ax.set_title(..., pad=8)` so titles no longer
+  collide with top spines or top-most tick labels.
+
+### Fixed — six follow-on bugs surfaced by the e2e analysis
+
+1. **`intake_autofill` misclassified the penguin dataset as
+   "economics".** No `biology` / `ecology` domain existed in
+   `DOMAIN_HINTS`. Added a `biology_ecology` bucket with the columns
+   and keywords actual ecology / morphometric datasets carry
+   (`species`, `sex`, `island`, `bill_*`, `body_mass_g`,
+   `Pygoscelis`, `dimorphism`, `allometric`, etc.). Also dropped
+   `year` from the `economics` columns since it false-positives every
+   longitudinal study.
+2. **`intake_autofill` overwrote researcher-supplied `--domain` /
+   `--question`.** Init-time wizard input was being clobbered by
+   weaker auto-inferences. v1.3.0 respects existing
+   `state.domain` / `state.research_question` unless they're
+   placeholders.
+3. **`_propose_hypotheses` regex missed markdown bullets-with-bold.**
+   Advisor notes commonly use `- **H1** — text` or
+   `- **H2**: text` but the regex required a bare `H1: text`. New
+   regex handles list markers, bold/italic emphasis, and `:`/`-`/`—`
+   separators.
+4. **`finalize_path` headline extraction was eating `**` opening
+   markers.** `lstrip("-* ")` consumed the bullet's leading `**`,
+   leaving the trailing `**` orphaned and surviving emphasis-strip.
+   Replaced with a precise list-marker strip so the regex finds both
+   ends of the bold pair. Side-fix: continuation lines under the
+   first bullet are now joined (the headline used to truncate
+   mid-sentence).
+5. **`finalize_path` Outputs section listed sidecars as figures.**
+   The figure inventory walked every file under `outputs/figures/`
+   including `.caption.md`, `.summary.md`, and `.svg` companions —
+   producing READMEs with "16 figures" when the step had 4 real
+   PNGs. New `_figure_table_inventory` filters by extension and
+   dedups the SVG companion when a PNG sibling exists.
+6. **`create_numbered_experiment(from_step=X)` deep-copied X's
+   whole step** (scripts, outputs, environment, everything) via
+   `shutil.copytree`. The intent of `from_step` is "wire data/input
+   from X's data/output"; the deep copy bloated workspaces, polluted
+   per-step provenance, and broke `tool_path_finalize`'s artefact
+   inventory. v1.3.0 strips it to symlink-only.
+
+Also surfaced + auto-fixed by the new finalize doctrine: the
+README's `## Input data` section was previously left as the
+`*(list inputs used)*` stub. v1.3.0's
+`_input_inventory_for_readme` populates it from `data/input/`
+symlinks + `pipeline.yaml`-referenced raw inputs.
+
+### Added — regression tests (+11 = 5 initial + 6 e2e)
+
+Initial pass:
+* `tests/tools/test_iteration.py`
+  * `test_finalize_appends_step_entry_to_analysis_md`
+  * `test_finalize_mirrors_methods_section_into_methods_md`
+  * `test_finalize_warns_on_stub_findings`
+  * `test_env_snapshot_step_id_param`
+  * `test_env_snapshot_project_scope`
+* `tests/unit/test_core.py::test_scaffold_creates_complete_workspace`
+  updated: asserts `environment/` IS scaffolded, `CONTRIBUTORS.md`
+  is NOT.
+
+E2e pass (one per bug above):
+* `tests/tools/test_iteration.py`
+  * `test_finalize_headline_strips_markdown_bold`
+  * `test_finalize_input_data_section_backfilled`
+  * `test_finalize_figure_inventory_filters_sidecars`
+  * `test_from_step_does_not_copy_outputs`
+  * `test_intake_biology_domain_recognised`
+  * `test_intake_extracts_markdown_hypotheses`
+
+### Bumped
+
+* `research-os` package: 1.2.2 → 1.3.0
+* `CITATION.cff` version + date
+* Embeddings rebuilt against the updated protocol bodies.
+
+### Deferred (logged for v1.4.0)
+
+* **Router slim refactor.** `_router_index.yaml` still holds the
+  centralized trigger + decomposition + hierarchy + shortcut
+  metadata. Audit confirmed it's correctly used server-side
+  (so it does NOT cost AI tokens directly), but it has grown large
+  (~76 KB) and per-protocol metadata would be cleaner in each
+  protocol's own YAML frontmatter, with a build-time aggregation
+  step. Scoped for v1.4.0 to avoid churn during a patch cycle.
+
+### Test + quality status
+
+```
+preflight  : 14 / 14 ✓
+pytest     : 464 / 464 ✓  (was 453 in v1.2.2)
+ruff       : clean ✓
+```
+
+---
+
 ## [1.2.2] — Session-pattern phrasing + output coverage + routing patches (2026-06-03)
 
 A bug-fix audit. **No protocol or tool removals.** 453 tests pass

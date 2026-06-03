@@ -681,9 +681,22 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
     # ── Environment ───────────────────────────────────────────────────
     "sys_env_snapshot": {
-        "description": "Snapshot the current Python (and optionally R/Julia) environment to workspace/<step>/environment/requirements.txt.",
+        "description": "Snapshot the current Python (and optionally R/Julia) environment. Target by step_id='NN_slug' for a per-step snapshot, scope='project' for the eager-scaffolded project-global environment/ folder, or omit both for the legacy default (most-recent numbered step, or project-global when none exist).",
         "category": "environment",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {
+                    "type": "string",
+                    "description": "Optional. NN_slug of the numbered step to snapshot into. Mutually exclusive with scope.",
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": ["project"],
+                    "description": "Optional. Set to 'project' to snapshot into the project-global environment/ folder.",
+                },
+            },
+        },
     },
     "sys_env_docker_generate": {
         "description": "Generate a Dockerfile from the environment snapshot for full reproducibility.",
@@ -2642,7 +2655,9 @@ def _handle_sys_session_handoff(name, arguments, root):
 
 
 def _handle_sys_env_snapshot(name, arguments, root):
-    res = env_snapshot(root)
+    step_id = arguments.get("step_id") if arguments else None
+    scope = arguments.get("scope") if arguments else None
+    res = env_snapshot(root, step_id=step_id, scope=scope)
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "snapshot failed")))

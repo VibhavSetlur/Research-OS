@@ -1647,7 +1647,7 @@ def _render_matplotlib(
         _render_consort_flow(fig, rows, palette=palette_colors)
 
     if title:
-        ax.set_title(title)
+        ax.set_title(title, pad=8)
     if xlabel:
         ax.set_xlabel(xlabel)
     elif x:
@@ -1657,13 +1657,28 @@ def _render_matplotlib(
     elif y:
         ax.set_ylabel(y)
 
-    # Inline sample-size annotation. Researchers want to see n at a glance.
+    # v1.3.0: chart-kind-aware spine + grid cleanup. The default
+    # rcParams turn the grid on for every chart; that reads as noisy
+    # ggplot-grade output on scatter / forest / dot_whisker / slope /
+    # raincloud where gridlines compete with the marks themselves.
+    # Categorical + distribution charts keep a light grid because it
+    # helps the eye land on a value.
+    _grid_off_kinds = {
+        "scatter", "forest", "dot_whisker", "raincloud", "slope",
+        "alluvial", "consort_flow", "funnel", "calibration",
+    }
+    if kind in _grid_off_kinds:
+        ax.grid(False)
+    else:
+        ax.yaxis.grid(True, color="#E5E7EB", linewidth=0.5, alpha=0.8)
+        ax.xaxis.grid(False)
+
+    # Inline sample-size annotation. Researchers want to see n at a
+    # glance. v1.3.0: lighter footprint — no box, just light grey text.
     n_annotation = f"n = {len(rows)}"
-    ax.text(0.98, 0.02, n_annotation,
+    ax.text(0.99, 0.02, n_annotation,
             transform=ax.transAxes, ha="right", va="bottom",
-            fontsize=8.5, color="#6b7280",
-            bbox={"facecolor": "white", "edgecolor": "#E2E8F0",
-                  "boxstyle": "round,pad=0.25"})
+            fontsize=8, color="#9ca3af")
 
     plt.tight_layout()
     fig.savefig(dest_png, dpi=300, bbox_inches="tight", facecolor="white")
