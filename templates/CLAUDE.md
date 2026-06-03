@@ -3,18 +3,19 @@
 This is a Research OS workspace. **Read `AGENTS.md` at the project root
 first** — it contains the canonical operating rules.
 
-Every session boots in **two MCP calls + hierarchical routing**:
+You only act AFTER a researcher message arrives. On the **first turn
+of a session**, fire two MCP calls back-to-back before doing anything
+else:
 
-1. `sys_boot` — one call returns project state + researcher config +
-   protocol history + dep inventory + recommended next protocol +
-   pause classification + any active plan. Do NOT call the individual
+1. `sys_boot` — your FIRST MCP call. Returns project state + researcher
+   config + protocol history + dep inventory + recommended next protocol
+   + pause classification + any active plan. Do NOT call the individual
    `sys_state_get` / `sys_config_get` / `sys_protocol_next` /
    `sys_dep_inventory` / `sys_protocol_history` calls separately.
-2. After the researcher's first message, call
-   `tool_route(prompt=<their message>)`. It picks the right protocol via
-   a hierarchical L1 (`intent_class`) → L2 (`sub_intent`) → L3 (protocol)
-   walk. If `ask_user` is non-null, ASK that one-sentence question and
-   re-route — never guess.
+2. `tool_route(prompt=<their verbatim message>)` — your SECOND MCP
+   call. Picks the right protocol via a hierarchical L1 (`intent_class`)
+   → L2 (`sub_intent`) → L3 (protocol) walk. If `ask_user` is non-null,
+   ASK that one-sentence question and re-route — never guess.
 3. For `complexity: high`, the router persisted an `active_plan`.
    Call `tool_plan_turn` to get the batch sized to your `model_profile`
    (small=1, medium=3, large=6 steps per turn, weighted for heavy tools).

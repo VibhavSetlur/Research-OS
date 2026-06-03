@@ -117,6 +117,33 @@ def _try_semantic_route(
     intent_class = primary_data.get("intent_class")
     sub_intent = primary_data.get("sub_intent")
 
+    # If the prompt LOOKS complex (multi-clause) AND the semantic
+    # winner is a narrow leaf with no decomposition (typical for
+    # writing/* and other single-step protocols), let the trigger
+    # router try — its multi-protocol scoring often picks a parent
+    # (e.g. guidance/analysis_plan) whose decomposition CAN be
+    # persisted as an active_plan. We only fall through when the
+    # trigger router's top pick has its own decomposition and a
+    # higher trigger-score than what semantic surfaced; otherwise
+    # we keep the semantic primary but DOWNGRADE complexity to "low"
+    # below so the response is internally consistent (no plan
+    # promised, none persisted).
+    fall_through = False
+    if is_complex and not decomposition:
+        scored = _score_protocols(prompt.lower(), protocols)
+        for cand in scored[:3]:
+            cand_data = cand["data"]
+            if cand_data.get("decomposition"):
+                fall_through = True
+                break
+    if fall_through:
+        return None
+
+    # No decomposition + complex but no better trigger-router pick:
+    # surface the protocol, but call it complexity=low so the AI
+    # doesn't look for an active_plan that was never persisted.
+    effective_complexity = "high" if (is_complex and decomposition) else "low"
+
     alternatives = [
         c["id"] for c in (sem.get("candidates") or [])
         if c.get("id") != primary_id and c.get("id") in protocols
@@ -133,7 +160,7 @@ def _try_semantic_route(
         "alternatives": alternatives,
         "ambiguous_alternatives": [],
         "matched_triggers": [],         # semantic path doesn't surface raw triggers
-        "complexity": "high" if is_complex else "low",
+        "complexity": effective_complexity,
         "ask_user": None,
         "why": (
             f"Semantic match (confidence={confidence}) on protocol description + "
@@ -141,7 +168,7 @@ def _try_semantic_route(
             f"{sem['candidates'][0]['score']:.3f}."
         ),
         "advice": _route_advice_hier(
-            3, is_complex, primary_id, shortcut_tool, False
+            3, effective_complexity == "high", primary_id, shortcut_tool, False
         ),
         "token_estimate": primary_data.get("token_estimate"),
         "active_tools": _active_tools_for(primary_data, shortcut_tool),
@@ -152,7 +179,7 @@ def _try_semantic_route(
 
     # Persist the active plan only when complex + decomposition exists,
     # same rule as the trigger path.
-    if persist_plan and is_complex and decomposition:
+    if persist_plan and effective_complexity == "high" and decomposition:
         plan_path = _persist_active_plan(
             root, prompt, primary_id, decomposition, shortcut_tool,
         )
@@ -486,7 +513,14 @@ def route_request(
         shortcuts = index.get("shortcut_intents", {}) or {}
         hierarchy = index.get("hierarchy", {}) or {}
 
-        prompt_norm = " " + prompt.lower().strip() + " "
+        # Normalise: lowercase, strip, pad with spaces, and turn common
+        # punctuation into whitespace so triggers like " broken " can
+        # still match prompts like "...broken, fix it...".
+        prompt_norm = " " + re.sub(
+            r"[,.;:!?]+", " ", prompt.lower().strip()
+        ) + " "
+        # Collapse multiple spaces from the substitution.
+        prompt_norm = re.sub(r"\s+", " ", prompt_norm)
         is_complex = _is_complex(prompt_norm)
 
         # ── Step 0: cross-intent shortcut wins outright ───────────────

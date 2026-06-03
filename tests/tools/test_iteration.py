@@ -339,3 +339,49 @@ def test_audit_version_coherence_warns_on_empty_snapshot_dir(tmp_path):
     assert res["status"] == "warning"
     assert any("malformed" in w or "scrubbed" in w
                for w in res["steps"][0]["warnings"])
+
+
+# ── v1.2.2: numeric findings without a table → warning ────────────────
+
+
+def test_step_completeness_warns_on_numeric_findings_without_table(tmp_path):
+    """When a step has a figure + numeric findings but no CSV/TSV in
+    outputs/tables/, surface a 'numeric findings + figure but no table'
+    warning. Pre-v1.2.2 the audit accepted figures + reports with no
+    machine-readable table, which is a research-record gap."""
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1, reports=1)
+    # Findings with several numeric signals.
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n\n"
+        "- AUROC = 0.823 (95% CI 0.79–0.85), n = 1532.\n"
+        "- Calibration slope 0.91, intercept -0.04 (p < 0.001).\n"
+        "## Decision\n\nproceed.\n"
+    )
+    res = audit_step_completeness(tmp_path, step_id=step_id)
+    # Either status='ok' or 'warning', but the warning must be present.
+    all_warnings = " ".join(
+        w for step in res.get("steps", []) for w in step.get("warnings", [])
+    )
+    assert "no table" in all_warnings.lower(), (
+        f"expected 'no table' warning, got warnings: {all_warnings}"
+    )
+
+
+def test_step_completeness_quiet_when_table_exists(tmp_path):
+    """The 'no table' warning should NOT fire when outputs/tables/
+    contains a step-prefixed CSV — even if findings are numeric."""
+    step_id = _make_step(tmp_path)
+    step_dir = tmp_path / "workspace" / step_id
+    _populate_step(step_dir, scripts=1, figures=1, tables=1)
+    (step_dir / "conclusions.md").write_text(
+        "## Findings\n\n"
+        "- AUROC = 0.823 (95% CI 0.79–0.85), n = 1532.\n"
+        "## Decision\n\nproceed.\n"
+    )
+    res = audit_step_completeness(tmp_path, step_id=step_id)
+    all_warnings = " ".join(
+        w for step in res.get("steps", []) for w in step.get("warnings", [])
+    )
+    assert "no table" not in all_warnings.lower()
