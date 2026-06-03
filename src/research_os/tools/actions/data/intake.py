@@ -239,17 +239,40 @@ def _extract_named_papers(context_text: str) -> list[str]:
     hits: list[str] = []
     # Pattern: "(Author) et al (YYYY)" or "Author YYYY" or "Author and
     # Author YYYY" — case-sensitive on first letter so we don't grab
-    # random capitalised words.
+    # random capitalised words. Excludes month names + common non-
+    # author capitalised words via a stop-list (a regex can't easily
+    # tell "Himes 2014" from "Nov 2014").
+    NON_AUTHOR = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug",
+        "Sep", "Oct", "Nov", "Dec",
+        "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December",
+        "Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+        "Saturday", "Sunday",
+        "Biology", "Cell", "Nature", "Science", "PNAS", "Genet",
+        "Genome", "Methods", "Genetics", "Lancet", "BMJ", "JAMA",
+        "Cancer", "Brain", "Heart", "Kidney", "Blood",
+    }
     patterns = [
-        re.compile(r"\b([A-Z][a-z]+(?:\s+and\s+[A-Z][a-z]+)?\s+et\s+al\.?\s*\(?(\d{4})\)?)"),
+        # "Himes BE, et al PLOS ONE 2014" or "Himes et al 2014" or
+        # "Himes BE et al. 2014"
+        re.compile(
+            r"\b([A-Z][a-z]+(?:\s+[A-Z]{1,3},?)?(?:\s+and\s+[A-Z][a-z]+)?"
+            r"\s*,?\s*et\s+al\.?(?:\s+[A-Za-z][\w]*){0,5}\s*\(?(\d{4})\)?)"
+        ),
+        # "Himes 2014" (bare surname + year)
         re.compile(r"\b([A-Z][a-z]+\s+\(?(\d{4})\)?)\b"),
+        # "the GTEx atlas" / "the TCGA cohort"
         re.compile(r"\b(?:the\s+)?([A-Z][A-Z]{2,}\s+(?:atlas|dataset|cohort|database|consortium))",
                    re.IGNORECASE),
     ]
+    def _is_author(ref: str) -> bool:
+        first = ref.split()[0]
+        return first not in NON_AUTHOR and not first.isdigit()
     for p in patterns:
         for m in p.finditer(context_text):
             ref = m.group(1).strip()
-            if ref and ref not in hits and len(ref) < 80:
+            if ref and ref not in hits and len(ref) < 80 and _is_author(ref):
                 hits.append(ref)
     # De-dupe similar refs (e.g. "Himes 2014" + "Himes et al 2014")
     canonicalised: list[str] = []

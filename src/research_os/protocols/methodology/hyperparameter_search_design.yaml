@@ -1,6 +1,6 @@
 id: hyperparameter_search_design
 name: Hyperparameter Search Design (sweeps + budgets)
-version: '1.3.0'
+version: '1.3.1'
 schema_version: '2.0'
 description: |
   Design a hyperparameter sweep — the search space, the budget, the

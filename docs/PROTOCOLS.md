@@ -1,6 +1,6 @@
 # Protocol Reference
 
-Research OS ships **88 YAML protocols** organised into nine categories.
+Research OS ships **110 YAML protocols** organised into nine categories.
 Each protocol is a sequence of steps the AI should follow, with explicit
 `expected_outputs`, a `next_protocol` pointer, and a `quality_bar`. All
 are indexed in `src/research_os/protocols/_router_index.yaml` for

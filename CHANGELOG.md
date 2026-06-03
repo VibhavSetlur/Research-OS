@@ -6,6 +6,140 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.3.1] — PI-level e2e gap-closure: finalize completes the picture (2026-06-03)
+
+Patch release after a 10-step PI-level genomics e2e (Himes 2014
+airway-DE replication with 6 cell lines × 2 conditions × 2 sequencing
+batches; produced a 12-section paper.md + abstract.md + dashboard.html
++ 17 PNG/SVG figures + 1 interactive Plotly companion). Three parallel
+sub-agents (PI-walks-in-cold audit / Research-OS-system judge /
+improvement-priorities engineer) surfaced 21 + 18 + 12 specific gaps;
+v1.3.1 closes the P0/P1 set.
+
+**Stats:** 110 protocols, 149 MCP tools. **473 tests** pass (was 467;
++6 regressions for the new finalize behaviors + the named-paper false-
+match guard). Preflight 14/14, ruff clean.
+
+### Fixed — `tool_path_finalize` now actually completes the picture
+
+Six finalize-time behaviors were either missing or wired to the wrong
+target. The e2e exposed each. All six fixed:
+
+* **Env auto-snapshot lands in the PROJECT-GLOBAL folder.**
+  v1.3.0 added the auto-snapshot but called `env_snapshot(root)` with
+  no `scope=`, which lands in the most-recent active step's folder
+  rather than `environment/requirements.txt` at project root.
+  v1.3.1 passes `scope='project'` so the project-global file actually
+  populates with pinned versions (the e2e's was a comment-only template
+  through all 10 finalizes).
+* **`workspace/citations.md` scrapes `## References to ground` from
+  every step's `conclusions.md`.** Previously the project bibliography
+  only assembled from `inputs/literature_index.yaml` + per-step
+  `*.meta.yaml` sidecars, which the AI typically doesn't write. Now the
+  citations file actually fills in (the e2e's went from empty → 20+
+  scoped entries across the 10 steps).
+* **Per-step `literature/key_papers.md` auto-populates** from the same
+  `## References to ground` section. Was a seed template the AI never
+  filled in across all 10 e2e steps.
+* **`mem_decision_log` mirrors the `## Decision` verb at finalize.**
+  Across all 10 e2e steps the decision-log was empty even though
+  every `conclusions.md` had a clean `## Decision\nPROCEED ...` block.
+  Finalize now extracts the verb (PROCEED / BRANCH / DEAD-END / HOLD /
+  ABANDON), validates it, and calls `log_decision`. Idempotent on the
+  marker `step=<id>; verb=<V>`.
+* **Step status flips `active → completed`.** Previously even a fully
+  finalized step kept `status: active` in the ledger, so STATE.md
+  showed `→` instead of `✓` until the next `sys_path_create` flipped
+  it as a side effect. Finalize now updates the ledger directly and
+  re-renders STATE.md.
+* **`workspace/tools.md` filters stdlib noise** (pathlib, sys,
+  warnings, json, re, …). v1.3.0's auto-import scan listed every
+  imported module; v1.3.1 keeps only the third-party / domain stack
+  (statsmodels, pandas, plotly, scipy, …).
+
+### Fixed — `visualization/interactive_figure_design` was unroutable
+
+The new v1.3.0 protocol was registered with `intent_class: visualize`
++ `sub_intent: interactive_figure` — neither exists in the router's
+`hierarchy:` block, so semantic + trigger routing both silently
+ignored it. Re-mapped to `intent_class: synthesize` +
+`sub_intent: interactive` (the closest valid hierarchy node).
+
+### Fixed — `audit_figure_quality` SVG label-overlap heuristic now sees matplotlib output
+
+The v1.3.0 regex expected `<text x= y= >...</text>`. matplotlib's
+`savefig(*.svg)` actually emits
+`<g transform="translate(X Y)"><text>...</text></g>` — the v1.3.0
+regex missed every matplotlib SVG. Added a second pattern that parses
+the `transform="translate(...)"` wrapper, so the heuristic now fires
+on the figures most AI agents actually produce.
+
+### Fixed — `_extract_named_papers` false-matches
+
+Patched in the round-3 work but solidified here with regression test
+(`tests/tools/test_intake.py::test_extract_named_papers_excludes_months_and_journals`).
+Stop-list now covers month abbreviations + names + days + common
+journal-name first-words (Biology, Cell, Nature, Science, PNAS, Genet,
+Genome, Methods, Genetics, Lancet, BMJ, JAMA, Cancer, Brain, Heart,
+Kidney, Blood). The "Himes BE, et al PLOS ONE 2014" pattern still
+matches; "Nov 2014" / "Biology 2014" do not.
+
+### Fixed — AGENTS.md template no longer references `tool_figure_create`
+
+`templates/AGENTS.md` rule #10 still recommended the removed v1.3.0
+tool. Rewrote to point at `visualization/figure_guidelines` +
+`tool_figure_palette` + `tool_audit_figure_full` +
+`visualization/interactive_figure_design`.
+
+### Added — `sys_path_create` inputSchema exposes the finalize-gate bypass
+
+The v1.3.0 finalize gate (refuse step N+1 while step N is placeholder)
+worked but was undiscoverable — the bypass field wasn't in the public
+schema, so the AI couldn't ask for it. v1.3.1 adds
+`allow_unfinalized_predecessor` + `override_rationale` + `from_step`
+to the inputSchema. When the AI bypasses, the rationale is logged to
+`workspace/logs/override_log.md` and surfaced at pre-submission audit.
+
+### Added — `figure_guidelines` pitfalls catalog: 3 new entries from the e2e
+
+* `legend_missing_shape_or_color_key` — when color + shape both encode
+  variables but only one has a legend (e2e step 04 PCA).
+* `invisible_legend_swatches` — white-fill `mpatches.Patch` with thin
+  black edge becomes invisible at small sizes (e2e step 01).
+* `bar_chart_with_zero_range_artifact` — three bars at 305/340/395
+  look identical when y starts at 0; annotate values or crop axis
+  (e2e step 06).
+
+### Added — `interactive_figure_design` gains "ship offline-capable HTML" step
+
+Plotly's default `include_plotlyjs=True` embeds the CDN URL. For
+reviewers behind firewalls or archival readers, the file must use
+`include_plotlyjs='inline'`. Protocol now lists the offline-capable
+variant per library (Plotly / Bokeh / Altair).
+
+### Changed — Docs counts refreshed
+
+`docs/{TOOLS,PROTOCOLS,README,START,RESEARCHER_GUIDE}.md` +
+`CONTRIBUTING.md` now say **149 MCP tools** + **110 protocols** to
+match the actual count. (v1.3.0 docs claimed 143-145 tools + 88-100
+protocols depending on file.)
+
+### Changed — Every protocol YAML bumped to `version: 1.3.1`
+
+Per maintainer guidance (any release that touches a finalize-time
+behavior is a behavior change visible to every protocol). 110
+protocols updated.
+
+### Migration
+
+None. All v1.3.0 callers continue to work. The new finalize behaviors
+fire automatically; the new `sys_path_create` schema fields are
+optional. If a v1.3.0 project's `workspace/citations.md` or per-step
+`literature/key_papers.md` is stale, re-run
+`tool_path_finalize` on each step to back-fill.
+
+---
+
 ## [1.3.0] — Guidance-not-code doctrine + cross-project profile + step-gate enforcement (2026-06-03)
 
 Three audit rounds against a graduate-level genomics e2e (Himes 2014

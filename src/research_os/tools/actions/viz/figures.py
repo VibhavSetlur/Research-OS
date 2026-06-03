@@ -265,10 +265,28 @@ def audit_figure_quality(
 
             txt = p.read_text(errors="ignore")
             texts: list[tuple[float, float, str]] = []
+            # Pattern 1: <text x="..." y="...">...</text> (Altair, manual SVG)
             for m in re.finditer(
                 r"<text[^>]*?x=\"([\d.\-]+)\"[^>]*?y=\"([\d.\-]+)\"[^>]*?>([^<]{1,40})</text>",
                 txt,
             ):
+                try:
+                    texts.append(
+                        (float(m.group(1)), float(m.group(2)), m.group(3).strip())
+                    )
+                except ValueError:
+                    continue
+            # v1.3.1 — Pattern 2: matplotlib wraps every text in a <g
+            # transform="translate(X Y)" ...><text>...</text></g> with
+            # the text element itself having no x/y. Parse the translate
+            # so the e2e's matplotlib SVGs actually get audited.
+            mpl_pat = re.compile(
+                r"<g[^>]*?transform=\"translate\(([\d.\-]+)\s+([\d.\-]+)\)\"[^>]*?>"
+                r"\s*(?:<g[^>]*?>\s*)?"
+                r"<text[^>]*?>([^<]{1,40})</text>",
+                re.DOTALL,
+            )
+            for m in mpl_pat.finditer(txt):
                 try:
                     texts.append(
                         (float(m.group(1)), float(m.group(2)), m.group(3).strip())
@@ -280,6 +298,8 @@ def audit_figure_quality(
                 for j in range(i + 1, len(texts)):
                     x1, y1, t1 = texts[i]
                     x2, y2, t2 = texts[j]
+                    if not t1 or not t2:
+                        continue
                     w1 = len(t1) * 5
                     w2 = len(t2) * 5
                     if abs(x1 - x2) < (w1 + w2) / 2 and abs(y1 - y2) < 8:

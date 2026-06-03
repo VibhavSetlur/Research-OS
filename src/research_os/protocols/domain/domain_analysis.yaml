@@ -1,6 +1,6 @@
 id: domain_analysis
 name: Domain Analysis
-version: '1.3.0'
+version: '1.3.1'
 schema_version: '2.0'
 description: Classify the research domain, surface the relevant reporting standards, and list domain-specific biases to watch for.
 trigger: After project_startup, OR whenever the data class changes (e.g. new modality added to inputs/raw_data/).

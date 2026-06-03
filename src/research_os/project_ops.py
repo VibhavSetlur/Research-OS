@@ -2282,12 +2282,49 @@ def generate_citations_md(root: Path) -> str:
         except Exception:
             pass
 
-    # 2. Per-step literature indexes + sidecars.
+    # 2. Per-step literature indexes + sidecars + conclusions.md
+    # "References to ground" sections.
     workspace = root / "workspace"
     if workspace.exists():
         for step_dir in sorted(workspace.iterdir()):
             if not (step_dir.is_dir() and re.match(r"^\d{2,3}_", step_dir.name)):
                 continue
+            # 2a. v1.3.1: scrape `## References to ground` from each
+            # step's conclusions.md so prose-cited refs (the AI's most
+            # common pattern) make it into the project bibliography
+            # without requiring a per-paper sidecar.
+            conc = step_dir / "conclusions.md"
+            if conc.exists():
+                try:
+                    txt = conc.read_text()
+                    m = re.search(
+                        r"##\s*References?\s+to\s+ground\s*\n(.+?)(?=^##|\Z)",
+                        txt, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+                    )
+                    if m:
+                        for line in m.group(1).splitlines():
+                            line = line.strip()
+                            if not line.startswith(("-", "*", "+")):
+                                continue
+                            ref_text = re.sub(r"^[-*+]\s*", "", line).strip()
+                            if len(ref_text) < 5:
+                                continue
+                            # Derive a citation key from the first author-year-ish chunk.
+                            author_m = re.match(r"([A-Z][a-zA-Z'-]+)", ref_text)
+                            year_m = re.search(r"(19|20)\d{2}", ref_text)
+                            if author_m and year_m:
+                                key = f"{author_m.group(1).lower()}{year_m.group(0)}"
+                            else:
+                                key = "conc_" + re.sub(r"[^a-z0-9]+", "_", ref_text[:30].lower()).strip("_")
+                            entries.setdefault(key, {
+                                "citation_key": key,
+                                "title": ref_text,
+                                "scope": f"step:{step_dir.name}",
+                                "verified": False,
+                                "source": "conclusions.md/References to ground",
+                            })
+                except Exception:
+                    pass
             lit_dir = step_dir / "literature"
             if not lit_dir.exists():
                 continue

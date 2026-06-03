@@ -1,6 +1,6 @@
 id: visualization_workflow
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '1.3.0'
+version: '1.3.1'
 schema_version: '2.0'
 description: |
   Workflow protocol for when a researcher wants FIGURES — one, a few, or a

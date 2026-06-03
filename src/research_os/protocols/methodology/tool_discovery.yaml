@@ -1,6 +1,6 @@
 id: tool_discovery
 name: Tool / Library Discovery
-version: '1.3.0'
+version: '1.3.1'
 schema_version: '2.0'
 description: Find the right Python / R / Julia library for a specific task and verify it can be installed.
 trigger: AI needs a library for a task but is uncertain which one to use.

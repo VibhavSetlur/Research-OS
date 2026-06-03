@@ -1,6 +1,6 @@
 id: figure_guidelines
 name: Figure Guidelines
-version: '1.3.0'
+version: '1.3.1'
 schema_version: '2.0'
 description: |
   The reasoning scaffold for producing publication-grade figures.
@@ -236,6 +236,57 @@ common_pitfalls_to_avoid:
     fix: |
       `ax.legend(title="Species")` or
       `+ guides(color = guide_legend(title = "Species"))` in ggplot.
+
+  legend_missing_shape_or_color_key:
+    rule: |
+      A PCA / scatter that uses BOTH color (treatment) AND shape (cell
+      line) for two different variables, but the legend only shows one
+      of them, leaves the reader guessing which marker is which group.
+      Surfaced in v1.3.0 PI-level e2e: step 04 PCA showed 6 distinct
+      shapes for 6 cell lines but the legend covered only color.
+    fix: |
+      Every encoded variable gets its own legend block. matplotlib:
+        from matplotlib.lines import Line2D
+        shape_handles = [
+          Line2D([0], [0], marker=m, color="white",
+                 markerfacecolor="gray", markeredgecolor="black",
+                 label=cl, markersize=8)
+          for cl, m in marker_map.items()
+        ]
+        leg1 = ax.legend(handles=color_handles, title="Treatment",
+                         loc="upper left", bbox_to_anchor=(1.02, 1.0))
+        ax.add_artist(leg1)
+        ax.legend(handles=shape_handles, title="Cell line",
+                  loc="upper left", bbox_to_anchor=(1.02, 0.55))
+      ggplot2: combine `scale_color_manual` + `scale_shape_manual` —
+      each appears as a separate legend automatically.
+
+  invisible_legend_swatches:
+    rule: |
+      `mpatches.Patch(facecolor="white", edgecolor="black", label="...")`
+      renders as an invisible white box with a thin black outline — at
+      small figure sizes the swatch disappears. Surfaced in v1.3.0 e2e:
+      step 01 library-size figure encoded batch via white-with-edge
+      patches; the legend was unreadable.
+    fix: |
+      Use distinct fill colors for legend swatches. If you must
+      represent a categorical via edge / hatch / pattern, use
+      `mpatches.Patch(facecolor="#f0f0f0", edgecolor="black",
+      linewidth=1.2, label="...")` with a non-white fill, OR use a
+      separate row of small annotated circles below the axis.
+
+  bar_chart_with_zero_range_artifact:
+    rule: |
+      A bar chart whose y-axis starts at 0 and whose values are 305 /
+      340 / 395 looks like all three bars are the same height; the eye
+      cannot read off the ~30% relative differences. The 'three bars
+      all the same' visual is misleading even though the numbers are
+      correctly plotted.
+    fix: |
+      Annotate the bar values inline (`ax.bar_label(bars)`) AND/OR
+      crop the y-axis to start above zero (`ax.set_ylim(min*0.95,
+      max*1.05)`) when the relative comparison is the headline. Note
+      the truncation in the caption.
 
   heatmap_columns_not_grouped_by_annotation:
     rule: |

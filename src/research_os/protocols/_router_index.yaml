@@ -846,8 +846,13 @@ protocols:
                "compare distributions", "strip plot", "ecdf"]
 
   visualization/interactive_figure_design:
-    intent_class: visualize
-    sub_intent: interactive_figure
+    # v1.3.1 fix: `visualize` is NOT a top-level intent_class in the
+    # hierarchy block above; it was a typo in v1.3.0 that made this
+    # protocol unroutable. Mapped to `synthesize/interactive` (the
+    # closest valid hierarchy node) so semantic + trigger routing both
+    # surface it.
+    intent_class: synthesize
+    sub_intent: interactive
     summary: "Design ONE interactive figure (hover, brush, zoom, lasso) as a companion to a static PNG/SVG. Plotly / Altair / mpld3 / pyvis / igv.js / cellxgene / glimma — pick by data type. Static fallback REQUIRED."
     triggers: ["interactive figure", "interactive plot", "make this plot interactive",
                "add hover tooltips", "interactive volcano", "interactive umap",

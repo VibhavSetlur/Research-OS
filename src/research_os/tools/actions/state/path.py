@@ -741,6 +741,46 @@ def finalize_path(
         changes.append("environment/README.md → bespoke-env listing")
 
     lit_dir = exp_dir / "literature"
+    # v1.3.1: auto-populate the step's literature/key_papers.md from the
+    # `## References to ground` section the AI wrote in conclusions.md.
+    # Previously this file stayed as a seed template for every step
+    # because the AI rarely opened it to manually fill it in.
+    _early_conc_path = exp_dir / "conclusions.md"
+    if _early_conc_path.exists() and lit_dir.exists():
+        try:
+            conc_full = _early_conc_path.read_text()
+            m = re.search(
+                r"##\s*References?\s+to\s+ground\s*\n(.+?)(?=^##|\Z)",
+                conc_full, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+            )
+            if m:
+                refs_block = m.group(1).strip()
+                ref_lines = [
+                    ln.strip().lstrip("-*+ ").strip()
+                    for ln in refs_block.splitlines()
+                    if ln.strip().startswith(("-", "*", "+"))
+                ]
+                ref_lines = [r for r in ref_lines if len(r) >= 5]
+                if ref_lines:
+                    kp = lit_dir / "key_papers.md"
+                    kp_body = (
+                        f"# `{path_name}` — key papers\n\n"
+                        "Auto-extracted from `conclusions.md` "
+                        "`## References to ground` at finalize time. "
+                        "Drop the PDFs into `inputs/literature/` (project-wide) "
+                        "or this folder (step-specific); verify via "
+                        "`tool_citations_verify`.\n\n"
+                    )
+                    for r in ref_lines:
+                        kp_body += f"- {r}\n"
+                    kp.write_text(kp_body)
+                    changes.append(
+                        f"{lit_dir.relative_to(exp_dir)}/key_papers.md ← "
+                        f"{len(ref_lines)} ref(s) from conclusions.md"
+                    )
+        except Exception as e:
+            logger.debug("key_papers.md auto-fill skipped: %s", e)
+
     lit_files = [
         p for p in lit_dir.iterdir()
         if lit_dir.exists() and p.name not in {"README.md", ".gitkeep"}
@@ -1029,6 +1069,46 @@ def finalize_path(
     except Exception as e:
         logger.debug("citations.md regen skipped: %s", e)
 
+    # 7c-i. (v1.3.1) Mirror conclusions.md's `## Decision` block into
+    #       workspace/analysis.md as a formal decision-log entry via
+    #       `log_decision`. Previously the AI had to call mem_decision_log
+    #       manually and rarely did (0 calls across 10 e2e steps); the
+    #       decision text WAS in conclusions.md the whole time.
+    DECISION_VERBS = {"PROCEED", "BRANCH", "DEAD-END", "DEAD_END", "HOLD", "ABANDON"}
+    if conc_path.exists():
+        try:
+            conc_full = conc_path.read_text()
+            m = re.search(
+                r"##\s*Decision\s*\n(.+?)(?=^##|\Z)",
+                conc_full, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+            )
+            if m:
+                body = m.group(1).strip()
+                # Skip if it's still the seed placeholder.
+                if body and not body.startswith("*(") and not body.startswith("_("):
+                    first_line = body.splitlines()[0].strip().lstrip("-*+ ").strip()
+                    # Try to extract the verb (first word, normalised).
+                    verb = first_line.split()[0].upper().rstrip(":,.") if first_line else ""
+                    if verb in DECISION_VERBS:
+                        # Idempotency: skip if an existing analysis.md decision
+                        # for this step already exists.
+                        analysis_md_path = root / "workspace" / "analysis.md"
+                        existing_a = analysis_md_path.read_text() if analysis_md_path.exists() else ""
+                        marker_d = f"step={path_name}; verb={verb}"
+                        if marker_d not in existing_a:
+                            from research_os.project_ops import log_decision
+                            log_decision(
+                                context=f"Finalize of {path_name} (mirrored from conclusions.md)",
+                                selected=f"{verb} ({marker_d})",
+                                rationale=first_line[len(verb):].strip(" :—-") or body,
+                                root=root,
+                            )
+                            project_updates.append(
+                                f"mem_decision_log ← {verb} from {path_name}"
+                            )
+        except Exception as e:
+            logger.debug("decision mirror skipped: %s", e)
+
     # 7c-ii. workspace/tools.md — append a step-tagged section listing the
     #        Research-OS tools used, 3rd-party packages, external services,
     #        and any custom scripts the step depends on. Idempotent on the
@@ -1052,6 +1132,27 @@ def finalize_path(
                 if not tools_body:
                     scripts_dir = exp_dir / "scripts"
                     imports: set[str] = set()
+                    # v1.3.1: filter out the Python stdlib + Research-OS
+                    # bookkeeping modules so tools.md captures the ACTUAL
+                    # analysis stack (statsmodels / scanpy / DESeq2 / ...)
+                    # not noise (pathlib / sys / warnings / json / re).
+                    STDLIB_SKIP = {
+                        # core stdlib (most common imports)
+                        "abc", "argparse", "ast", "asyncio", "base64", "collections",
+                        "contextlib", "copy", "csv", "datetime", "decimal", "enum",
+                        "errno", "fnmatch", "functools", "gc", "glob", "gzip",
+                        "hashlib", "heapq", "html", "http", "importlib", "inspect",
+                        "io", "ipaddress", "itertools", "json", "logging", "math",
+                        "mimetypes", "operator", "os", "pathlib", "pickle", "pprint",
+                        "queue", "random", "re", "secrets", "shlex", "shutil",
+                        "signal", "socket", "sqlite3", "statistics", "string",
+                        "struct", "subprocess", "sys", "tempfile", "textwrap",
+                        "threading", "time", "tomllib", "traceback", "typing",
+                        "unicodedata", "unittest", "urllib", "uuid", "warnings",
+                        "weakref", "xml", "zipfile", "zlib",
+                        # __future__
+                        "__future__",
+                    }
                     if scripts_dir.exists():
                         import re as _re_mod
                         py_import = _re_mod.compile(
@@ -1072,10 +1173,17 @@ def finalize_path(
                                     imports.add(m.group(1) or m.group(2))
                             except OSError:
                                 continue
-                    bullets = sorted(i for i in imports if i and len(i) > 1)[:30]
+                    # Drop stdlib + tiny names.
+                    bullets = sorted(
+                        i for i in imports
+                        if i
+                        and len(i) > 1
+                        and i.lower() not in STDLIB_SKIP
+                        and not i.startswith("_")
+                    )[:30]
                     if bullets:
                         tools_body = "\n".join(
-                            f"- `{i}` — used by step scripts." for i in bullets
+                            f"- `{i}` — third-party / domain package used by step scripts." for i in bullets
                         )
                 if tools_body:
                     tools_md.write_text(
@@ -1110,7 +1218,12 @@ def finalize_path(
         try:
             from research_os.tools.actions.exec.environment import env_snapshot
 
-            snap = env_snapshot(root)
+            # v1.3.1: pass `scope='project'` explicitly so the snapshot
+            # lands in the project-global environment/ folder (the auto-
+            # target rule for no-args lands in the most-recent active
+            # step's folder, NOT project-global — that's the wrong target
+            # when finalize is updating the GLOBAL requirements.txt).
+            snap = env_snapshot(root, scope="project")
             if snap.get("status") == "success":
                 project_updates.append(
                     "environment/requirements.txt ← auto-snapshot at finalize"
@@ -1126,6 +1239,26 @@ def finalize_path(
                 f"Auto-env-snapshot at finalize raised {type(e).__name__}: {e}. "
                 "Call `sys_env_snapshot` manually."
             )
+    # 7d-ii. (v1.3.1) Flip this step's state-ledger status to "completed"
+    #        + regenerate STATE.md so the project front page shows
+    #        ✓ instead of → after finalize. Previously, even a fully-
+    #        finalized step kept status="active" until next sys_path_create
+    #        flipped it as a side effect, leaving STATE.md misleading
+    #        between steps.
+    try:
+        from research_os.project_ops import load_state, save_state
+        s = load_state(root)
+        paths_state = s.get("paths") or {}
+        if path_name in paths_state and paths_state[path_name].get("status") != "completed":
+            paths_state[path_name]["status"] = "completed"
+            paths_state[path_name]["completed_at"] = (
+                datetime.now(timezone.utc).isoformat()
+            )
+            save_state(root, s)
+            project_updates.append("STATE.md ← step status flipped to ✓")
+    except Exception as e:
+        logger.debug("STATE.md status flip skipped: %s", e)
+
     if work_happened and not env_files and (root / "environment" / "requirements.txt").exists():
         # Per-step env folder still empty even after the project-global
         # snapshot — only worth flagging if the step uses a bespoke stack.

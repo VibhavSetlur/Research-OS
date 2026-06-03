@@ -518,6 +518,39 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                         "alongside the current one rather than replacing it."
                     ),
                 },
+                "from_step": {
+                    "type": "string",
+                    "description": (
+                        "Optional upstream step id to source data/input from "
+                        "(e.g. '03_normalization'). When omitted, the new step's "
+                        "data/input symlinks to the previous numbered step's "
+                        "data/output (or to inputs/raw_data/ for step 01). Use "
+                        "when the linear-predecessor inheritance is wrong — "
+                        "e.g. step 07 should read step 05's output, not step 06's."
+                    ),
+                },
+                "allow_unfinalized_predecessor": {
+                    "type": "boolean",
+                    "description": (
+                        "v1.3.0+: by default, create_numbered_experiment REFUSES "
+                        "to scaffold step N+1 while step N's README + conclusions.md "
+                        "are still placeholder text — preventing the 'forgot to "
+                        "finalize step 01 before starting step 02' pattern. Set this "
+                        "to true ONLY when the researcher explicitly authorises the "
+                        "bypass (e.g. step N is pure data plumbing with nothing to "
+                        "conclude). Pair with `override_rationale` so the bypass is "
+                        "logged to workspace/logs/override_log.md."
+                    ),
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": (
+                        "Required when allow_unfinalized_predecessor=true. The "
+                        "researcher's reason for bypassing the finalize gate. "
+                        "Surfaced verbatim in the override log + the pre-submission "
+                        "audit so the bypass is never hidden."
+                    ),
+                },
             },
             "required": ["name"],
         },
