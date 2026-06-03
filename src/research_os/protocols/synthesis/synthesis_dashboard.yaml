@@ -1,24 +1,61 @@
 id: synthesis_dashboard
-name: Synthesis — Dashboard (research-summary)
+name: Synthesis — Dashboard (paper-as-interactive)
 version: '1.3.1'
 schema_version: '2.0'
 description: |
-  Generate a polished single-file HTML dashboard that reads as a real
-  research deliverable. Layout adapts to the audience:
+  Generate a polished single-file HTML dashboard that reads as
+  **the paper, told as an interactive guided walk-through**. Not a
+  metrics overview, not a screenshot gallery. The reader scrolls
+  top-to-bottom and gets the same understanding the paper delivers —
+  with the figures HOVERABLE, the captions / plain-English summaries
+  INLINE, and the audit trail one click away.
 
-  academic  | executive  | technical | teaching
+  Layout adapts to the audience: academic | executive | technical | teaching
 
-  Sections (universal): Abstract → Research overview → Workflow →
-  Verdicts at a glance → per-hypothesis Findings (with figures, plain-
-  English framing, captions, and accessible summaries) → Evidence
-  traceability matrix → Methodological considerations → Open questions →
-  Limitations → Per-step appendix → Outstanding artefacts (server audit
-  trail) → Statistical glossary → References.
+  Universal sections (in order, with paper-equivalent counterpart):
+    1. Headline + TL;DR        ← paper's title + abstract
+    2. Research overview       ← paper's introduction
+    3. Workflow diagram        ← paper's methods overview
+    4. Findings by hypothesis  ← paper's results (one section per H,
+                                  embeds the focal figure WITH the
+                                  caption AND the .summary.md plain-
+                                  English description side-by-side;
+                                  hover/lightbox opens the SVG full-
+                                  screen; ALL plain-English summaries
+                                  surface — that's what makes this
+                                  "guided", not just "embedded")
+    5. Methods deep-dive       ← paper's methods (collapsible per
+                                  step; each click reveals the
+                                  step's conclusions.md
+                                  ## Methods (full detail) block)
+    6. Mechanism / discussion  ← paper's discussion
+    7. Limitations             ← paper's limitations
+    8. Per-step appendix       ← paper's supplementary
+    9. Reproducibility         ← code + environment + provenance
+   10. Glossary + References   ← paper's bibliography
+
+  v1.3.1 reframing (from the PI-level e2e audit):
+    - The dashboard is THE PAPER IN INTERACTIVE FORM, not a status
+      overview. Every figure ships with BOTH its `.caption.md` AND
+      its `.summary.md` inline (paper has only the caption; dashboard
+      adds the accessible summary as a sibling block — that's what
+      makes it "guided").
+    - The narrative is the spine; figures support it. Don't dump
+      figures grouped by step number — order them by HYPOTHESIS so a
+      reader who cares about H2 sees only H2 figures together.
+    - Hover or click any figure → full-size SVG lightbox + DOI link
+      to the cited paper that grounds the methods choice.
+    - Inline "Why?" expanders next to every methods sentence
+      ("Why DESeq2?", "Why FDR<0.05?", "Why blocked on cell line?")
+      → click reveals the conclusions.md `## Methods (full detail)`
+      paragraph that justifies it + the linked citation.
+    - Visual coherence: same font stack, same palette, same spacing
+      as the paper PDF. The dashboard is a SIBLING deliverable.
 
   The dashboard is project-agnostic. Structure auto-derives from the
   hypothesis tracker, conclusions, and curated figures; an optional
-  synthesis/synthesis_spec.yaml (legacy: dashboard_spec.yaml) lets a
-  project author key sections directly.
+  synthesis/synthesis_spec.yaml lets a project author key sections
+  directly.
 
 trigger: |
   Researcher asks for "a dashboard"; OR research_goal.output_types

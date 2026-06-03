@@ -192,11 +192,48 @@ steps:
       citations, causal-language hits). Re-assemble.
 
   - id: compile_pdf
-    name: Compile to PDF (when requested)
+    name: Compile to PDF (DEFAULT for any serious draft, not optional)
     description: |
-      If venue_profile.file_format includes "latex" OR researcher asked for PDF:
-        tool_latex_compile
-      Verify synthesis/paper.pdf exists; show warnings from compile log.
+      v1.3.1: paper.md is the WORKING DRAFT. A markdown file is not a
+      publication artefact. EVERY journal-track / grant-track / poster-
+      track deliverable must compile to PDF — either via LaTeX or
+      Typst. Skip ONLY for purely-internal lab-meeting summaries.
+
+      Decision tree:
+        Target journal accepts .tex / has a class file
+          (Nature, Cell, Science, PLOS, eLife, JCO, NEJM, PNAS, ...)
+            → LaTeX. `tool_latex_compile`. Use the journal's bst /
+              class file from inputs/literature/templates/.
+        Target is a preprint / thesis / general manuscript
+            → **Typst** (modern LaTeX alternative; faster compile,
+              cleaner syntax, growing journal support). Convert the
+              paper.md to paper.typ via the rules below.
+        Target is a poster
+            → Use `synthesis/synthesis_poster` (separate protocol).
+        Target is HTML/dashboard
+            → Use `synthesis/synthesis_dashboard` (separate protocol).
+
+      Typst conversion when requested:
+        - Write `synthesis/paper.typ` with proper #set page() +
+          #set text(font: "...") + #show heading.where(level: 1):
+          set text(size: 18pt, weight: "bold") preamble.
+        - Inline figures via `#figure(image("../workspace/<step>/
+          outputs/figures/<NN>.svg", width: 80%), caption: [...])`.
+        - Bibliography via `#bibliography("references.bib",
+          style: "ieee")` or any IEEE/APA/Vancouver/Nature CSL.
+        - Compile: `typst compile synthesis/paper.typ
+          synthesis/paper.pdf`.
+
+      LaTeX conversion when requested:
+        - Standard `\documentclass{...}` per journal; preamble
+          loads graphicx, hyperref, natbib OR biblatex.
+        - Generate via tool_latex_compile (handles pdflatex →
+          biber → pdflatex × 2).
+
+      The PDF lives at `synthesis/paper.pdf` regardless of source.
+      `tool_audit_synthesis` MUST re-run on the compiled artefact
+      (PDF text extraction) to catch any LaTeX-only hallucination
+      (citations resolving differently after \bibliography expansion).
 
   - id: workshop_the_title
     name: Workshop the title (single most-read sentence)

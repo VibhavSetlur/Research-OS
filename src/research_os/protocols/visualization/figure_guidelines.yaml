@@ -443,6 +443,79 @@ formatting:
       regression: shaded 95% CI band
       forest_plot: lines for 95% CI
 
+# v1.3.1: aesthetic-not-just-functional. matplotlib defaults look like
+# "ggplot output" — fine for an internal report, NOT for a paper or
+# poster. The protocols below name the additional move-the-needle steps.
+publication_aesthetics:
+  rule: |
+    "Publication-grade" means more than "clears the audit gate". The
+    figure should communicate the answer at a glance + be visually
+    coherent with sibling figures in the same paper. Default
+    matplotlib (DejaVu Sans, default colors, fixed axes spines, busy
+    grid) reads as "I didn't have time to polish this." The audit
+    won't catch that; reviewers will.
+  steps: |
+    - **Pick a stylesheet, not the default.** matplotlib:
+      `plt.style.use(['science', 'nature'])` (SciencePlots package);
+      ggplot2: `theme_classic() + theme(...)` overrides; Altair:
+      `alt.themes.enable('latimes')`. Then patch rcParams per project
+      — set font, size, spine treatment, grid color — ONCE in a
+      `viz_style.py` helper imported by every figure script.
+    - **Pin a font stack BEFORE first save.** `Inter` / `Helvetica
+      Neue` / `Source Sans Pro` / `Roboto` / `Liberation Sans` (any
+      open-source modern sans) → `Arial` → `DejaVu Sans` fallback.
+      `plt.rcParams['font.sans-serif']` is the right knob.
+    - **Use the figure's job to drive the layout, not the default
+      figsize.** Single-column paper figure = ~3.5" wide. Two-column
+      = ~7.2". Slide = 16:9 at 1920×1080 → 13.3" × 7.5". Set
+      `figsize` to the destination FIRST, then adjust font sizes so
+      labels render at ≥9pt at that size.
+    - **Annotate the data, not the chart.** A well-placed inline
+      callout ("12% improvement", "p < 1e-30, capped") on the data
+      itself reads faster than a separate caption sentence. Use
+      `ax.text` + `ax.annotate` with arrows where the chart has dense
+      points; let the caption do the structural / methodological work.
+    - **Color palettes beyond Okabe-Ito.** When the number of
+      categories ≤ 8, Okabe-Ito is the default. Past 8, switch to
+      `glasbey` (well-spaced, CVD-safe, up to 256 categories) via
+      `colorcet`. For continuous time / ordinal data, `cmocean` has
+      perceptually-uniform sequential palettes built for science. For
+      diverging-with-emphasis, `RdBu_r` + `vcenter=0` via
+      `mpl.colors.TwoSlopeNorm`.
+    - **Iconography for categorical encodings.** Replace "treatment
+      = blue, control = orange" with a clear inline annotation
+      ("Dexamethasone 1 µM, 18 h" on the treated cluster directly).
+      The legend then only carries variables that NEED both color and
+      shape simultaneously.
+  references_to_consult_online:
+    - "Wong, B. (2011). Points of view: Color blindness. *Nature
+       Methods* 8:441 — origin of Okabe-Ito palette + WHY."
+    - "Wilke, C. (2019). *Fundamentals of Data Visualization* (free
+       online: clauswilke.com/dataviz) — the canonical modern
+       reference. Read ch. 4-6 + ch. 19 (proportional ink) + ch. 28
+       (don't use 3D)."
+    - "Tufte, E. R. (2001). *The Visual Display of Quantitative
+       Information* (2nd ed.) — data-ink-ratio, small multiples,
+       sparklines."
+    - "Cleveland, W. S., & McGill, R. (1984). Graphical perception:
+       theory, experimentation, and application. *JASA* — the
+       Cleveland hierarchy of perceptual tasks (length > angle >
+       area > volume > color saturation)."
+    - "Heer & Bostock (2010). Crowdsourcing graphical perception:
+       using Mechanical Turk to assess visualization design. *CHI
+       2010* — empirical update of Cleveland for the web era."
+    - "Healy, K. (2018). *Data Visualization: A Practical
+       Introduction* — ggplot2 case studies in modern aesthetic."
+    - "BBR / R Cookbook by Frank Harrell — clinical-statistical
+       figure conventions; forest, calibration, residual diagnostics."
+  research_online_before_coding: |
+    For figure kinds you're unfamiliar with, run a quick literature
+    pass BEFORE coding:
+      tool_search_web query="best <chart_kind> python 2025 publication"
+      tool_research_tool topic="<chart_kind> for <data type>"
+    Read 1-2 results, note any tool / package recommendation that
+    consistently appears, and pin it in `environment/requirements.txt`.
+
 caption_rules:
   technical_caption:
     file: <name>.caption.md (mandatory — BLOCKER if missing)

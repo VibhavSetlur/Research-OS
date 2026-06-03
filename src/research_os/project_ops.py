@@ -2212,7 +2212,22 @@ def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
 
 
 def _update_workflow_mermaid(root: Path) -> None:
-    """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG."""
+    """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG.
+
+    v1.3.1: refuse to write into ``root/workspace/`` unless ``root`` is a
+    valid Research-OS project (``.os_state/`` present). The pollution
+    surfaced in v1.3.0 e2e: a misconfigured caller wrote
+    ``workspace/workflow.mermaid`` into the Research-OS source repo
+    because the writer didn't validate root.
+    """
+    if not (root / ".os_state").is_dir():
+        # v1.3.1 guard against the pollution surfaced in v1.3.0 e2e:
+        # a misconfigured caller had written workspace/workflow.mermaid
+        # into the Research-OS source repo because this writer didn't
+        # check for `.os_state/`. Silent return is fine — the
+        # consequence of NOT writing the mermaid in a non-project dir
+        # is exactly what we want.
+        return
     try:
         from research_os.tools.actions.state.path import list_paths
 

@@ -48,34 +48,74 @@ steps:
       create_step_folder below.
 
   - id: ground_methods
-    name: Ground Methodology in Literature (mandatory) — STEP-SCOPED
+    name: Ground Methodology in Literature (HARD GATE) — STEP-SCOPED
     description: |
       You MUST search literature BEFORE choosing any method. Selecting from
-      training memory alone is forbidden.
+      training memory alone is FORBIDDEN — `tool_path_finalize` warns if
+      `conclusions.md` cites references but no `tool_search_*` calls
+      were logged for the project (workspace/logs/searches.log). The
+      pre-submission audit BLOCKS synthesis on this warning.
 
-      For each candidate method, do ONE of:
-        (a) DEEP: tool_research_method query="<method> for <data structure>"
-            — writes a structured report into outputs/reports/.
-        (b) LIGHT: tool_search_semantic_scholar + tool_search_web in parallel.
+      The rule isn't "feel free to skip when you remember a relevant
+      paper". The rule is: every method decision is grounded in a
+      RECENT, VERIFIABLE online lookup that the audit gate can replay.
+      The reviewer will ask "where did this prior come from?" and the
+      answer must be a DOI in `inputs/literature/` or
+      `workspace/<step>/literature/`, not the AI's training cutoff.
 
-      Save the 2-3 most important papers into THIS step's literature folder
-      (NOT inputs/literature, unless they ground the whole project):
-        tool_literature_search_and_save
-          query="<method canonical paper>"
-          source="semantic_scholar"
-          step_id="<this step's NN_slug>"
-          limit=5  download_top=2
+      MANDATORY per step (do ALL of these — they are cheap):
 
-      Each PDF gets a .meta.yaml sidecar (title/authors/year/doi). Synthesis
-      later pulls these into the paper's references with proper numbering.
+        (1) **Surface candidate methods online.** For the analytical
+            question this step targets, run:
+              tool_research_method query="<question> + <data shape>"
+                — writes a structured report into outputs/reports/
+                  comparing 2-3 candidate methods.
+            OR (if you already know the candidates):
+              parallel:
+                tool_search_semantic_scholar query="<method> <domain>"
+                tool_search_pubmed         query="<method> <domain>"
+                tool_search_web            query="best <method> 2024 2025"
 
-      For each method actually chosen:
-        - mem_methods_append (full structured fields: method, dataset,
-          dataset_hash, implementation, parameters, justification with
-          citation_key, assumptions list).
-        - mem_decision_log (context / selected / rationale / options
-          considered / linked citation_keys).
-        - mem_hypothesis_update for each hypothesis touched, status='testing'.
+        (2) **Ground each decision in a SPECIFIC paper.** For each
+            non-trivial methods choice (which normalization, which
+            FDR cutoff, which model family, which sensitivity test),
+            cite the actual paper that justifies the choice. The
+            citation MUST be saved into the step's literature folder:
+              tool_literature_search_and_save
+                query="<canonical paper for the method>"
+                source="semantic_scholar"
+                step_id="<this step's NN_slug>"
+                limit=5  download_top=2
+            Each PDF gets a .meta.yaml sidecar (title/authors/year/doi).
+            `tool_path_finalize` auto-folds the per-step
+            `conclusions.md` `## References to ground` section into
+            project-wide `workspace/citations.md` AND
+            per-step `literature/key_papers.md`.
+
+        (3) **Compare findings to current literature.** If your DEG
+            count / pathway enrichment / effect size differs from
+            recent published work, NOTE the divergence + the
+            specific paper you're comparing against. Reviewers will
+            ask whether your numbers replicate; you should have
+            already checked.
+
+        (4) **Record the decision-with-citation chain.**
+              mem_methods_append (method, dataset, dataset_hash,
+                implementation, parameters, justification WITH
+                citation_key, assumptions list).
+              mem_decision_log (context / selected / rationale /
+                options considered / linked citation_keys).
+              mem_hypothesis_update for each hypothesis touched,
+                status='testing'.
+
+      Anti-pattern (caught at audit):
+        "We use DESeq2 because it's standard." → not grounded.
+        Correct:
+        "We use DESeq2 (Love, Huber, Anders 2014, Genome Biology
+        15:550, doi:10.1186/s13059-014-0550-8 — saved at
+        `literature/love2014_deseq2.pdf`) because the n=8 design
+        benefits from its empirical-Bayes dispersion shrinkage
+        (Section 2.3 of that paper)."
 
   - id: pick_tools
     name: Pick Tools / Libraries (validated, not guessed)

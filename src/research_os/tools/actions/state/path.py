@@ -1069,6 +1069,40 @@ def finalize_path(
     except Exception as e:
         logger.debug("citations.md regen skipped: %s", e)
 
+    # 7c-0. (v1.3.1) Anti-hallucination: if conclusions.md cites
+    #       references but the project's searches.log has NO
+    #       `tool_search_*` entries, warn loudly. Researcher needs to
+    #       know the citations weren't grounded in actual lookups.
+    if conc_path.exists():
+        try:
+            conc_full_for_lit = conc_path.read_text()
+            cites_refs = bool(
+                re.search(
+                    r"##\s*References?\s+to\s+ground\s*\n.+?(?:\b\d{4}\b|doi\.org)",
+                    conc_full_for_lit, re.DOTALL | re.IGNORECASE,
+                )
+            )
+            if cites_refs:
+                searches_log = root / "workspace" / "logs" / "searches.log"
+                search_count = 0
+                if searches_log.exists():
+                    search_count = sum(
+                        1 for line in searches_log.read_text().splitlines()
+                        if line.strip()
+                    )
+                if search_count == 0:
+                    warnings.append(
+                        "conclusions.md cites references but NO `tool_search_*` "
+                        "calls have been logged in workspace/logs/searches.log. "
+                        "The citations may be from training memory, not verified "
+                        "literature. Run `tool_search_semantic_scholar` / "
+                        "`tool_search_pubmed` / `tool_literature_search_and_save` "
+                        "to ground the cited references — required before any "
+                        "synthesis deliverable."
+                    )
+        except Exception as e:
+            logger.debug("search-grounding check skipped: %s", e)
+
     # 7c-i. (v1.3.1) Mirror conclusions.md's `## Decision` block into
     #       workspace/analysis.md as a formal decision-log entry via
     #       `log_decision`. Previously the AI had to call mem_decision_log

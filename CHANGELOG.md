@@ -6,7 +6,93 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
-## [1.3.1] — PI-level e2e gap-closure: finalize completes the picture (2026-06-03)
+## [1.3.1] — PI-level e2e gap-closure: finalize completes the picture + grounding + aesthetics + paper PDF + dashboard-as-paper (2026-06-03)
+
+### Round 2 — additional gap-closures the same day
+
+After the round-1 fixes shipped, the researcher surfaced a deeper
+set of gaps the same day. Round 2 closes the next layer:
+
+**FIXED — workspace-pollution guard.** `_update_workflow_mermaid`
+now refuses to write into ``root/workspace/`` unless ``root`` is a
+valid Research-OS project (``.os_state/`` present). A v1.3.0
+misconfigured caller had silently written
+`workspace/workflow.mermaid` into the Research-OS source repo;
+guard prevents this class of bug across every writer.
+
+**ADDED — anti-hallucination grounding warning at finalize.**
+`tool_path_finalize` now scans `workspace/logs/searches.log` and
+warns when `conclusions.md` cites references but ZERO
+`tool_search_*` calls have been logged for the project. The
+citations may be coming from training memory rather than
+verifiable lookups; the warning makes that visible at every step
+finalize so the AI / researcher can run actual searches before
+submission. Surfaces as a BLOCKER at pre-submission audit.
+
+**STRENGTHENED — `analysis_plan` `ground_methods` is now a HARD
+GATE.** Replaced "you SHOULD search literature" prose with explicit
+4-action sequence:
+  (1) surface candidate methods online (`tool_research_method` +
+      parallel `tool_search_semantic_scholar` + `tool_search_pubmed`
+      + `tool_search_web` "best <method> 2024 2025"),
+  (2) ground each decision in a SPECIFIC paper saved into the
+      step's literature folder via `tool_literature_search_and_save`,
+  (3) compare findings to current literature (flag divergence
+      from recent published numbers),
+  (4) record the decision-with-citation chain via
+      `mem_methods_append` + `mem_decision_log` + `mem_hypothesis_update`.
+Anti-pattern explicitly named:
+  "We use DESeq2 because it's standard" → ungrounded; rejected.
+  "We use DESeq2 (Love, Huber, Anders 2014, doi:10.1186/...) because
+   the n=8 design benefits from empirical-Bayes shrinkage..." → correct.
+
+**ADDED — `figure_guidelines` publication-aesthetics block.**
+Past the existing pitfall catalog: a `publication_aesthetics`
+section spelling out the moves that lift figures from "default
+ggplot output" to publication-grade:
+  - pick a stylesheet (SciencePlots / theme_classic / latimes), patch
+    rcParams once in a project-wide `viz_style.py`
+  - pin a font stack (Inter / Helvetica Neue / Source Sans / Roboto
+    / Liberation Sans → DejaVu Sans fallback)
+  - set `figsize` from the destination (single-column = 3.5", two-
+    column = 7.2", 16:9 slide = 13.3×7.5") BEFORE adjusting fonts
+  - annotate the data, not the chart (inline callouts > caption-only)
+  - color palettes beyond Okabe-Ito (`glasbey` via `colorcet` for
+    >8 categories; `cmocean` for continuous; `TwoSlopeNorm` for
+    diverging-with-emphasis)
+  - iconography for categorical encodings (inline labels > legend)
+Plus references the AI should consult online before unfamiliar chart
+kinds: Wong 2011 (Okabe-Ito), Wilke 2019 (Fundamentals of Data Viz),
+Tufte 2001, Cleveland & McGill 1984, Heer & Bostock 2010, Healy 2018,
+Frank Harrell BBR.
+
+**OVERHAULED — `synthesis_paper` `compile_pdf` step.** Was
+optional; now DEFAULT for any serious draft. Decision tree maps
+the venue/output to LaTeX (journal class files) vs Typst (modern
+preprint / thesis / general manuscript) vs poster vs dashboard.
+Typst conversion is explicitly supported with proper preamble,
+inline figure embedding, and CSL bibliography style. paper.md is
+the WORKING DRAFT; paper.pdf is the deliverable. Markdown alone
+is not a publication artefact.
+
+**OVERHAULED — `synthesis_dashboard` reframed as paper-as-interactive.**
+Was a metrics-overview screenshot gallery. Now: the paper, told as
+an interactive guided walk-through. Section order mirrors the paper
+1:1 (TL;DR/abstract → intro → methods → findings → discussion →
+limitations → reproducibility → references). Every figure ships
+with BOTH its `.caption.md` AND its `.summary.md` inline (the
+paper has only the caption; the dashboard adds the accessible
+summary — that's what makes it "guided"). Findings ordered by
+HYPOTHESIS, not by step number. Inline "Why?" expanders next to
+methods sentences reveal the conclusions.md `## Methods (full
+detail)` block + linked citation. Hover/lightbox opens the full
+SVG. Visual coherence with the paper PDF (same font, palette,
+spacing).
+
+**VALIDATION (round 2):** preflight 14/14, pytest 473 passed
+(round 1 already brought this up), ruff clean.
+
+### Round 1 — initial gap-closures (earlier same day)
 
 Patch release after a 10-step PI-level genomics e2e (Himes 2014
 airway-DE replication with 6 cell lines × 2 conditions × 2 sequencing
