@@ -35,18 +35,22 @@ back.
 
 ## 2. The session pattern (how the AI is supposed to use Research OS)
 
+The AI only ever acts AFTER your message arrives — there is no
+"pre-boot" pass before you type. On the **first turn of a session**,
+the AI fires two MCP calls back-to-back:
+
 ```
-1. sys_boot                            # one MCP call: state + config
-                                       # + history + dep inventory +
-                                       # next protocol + pause
-                                       # classification + active plan
-2. (await researcher's message)
-3. tool_route(prompt=<their message>)  # hierarchical L1 → L2 → L3
-                                       # picker; returns
+(your message arrives — every turn starts here)
+1. sys_boot                            # FIRST MCP call (first turn only):
+                                       # state + config + history + dep
+                                       # inventory + next protocol +
+                                       # pause classification + active plan
+2. tool_route(prompt=<their message>)  # SECOND MCP call: hierarchical
+                                       # L1 → L2 → L3 picker; returns
                                        # primary_protocol, shortcut_tool,
                                        # decomposition, complexity,
                                        # ask_user
-4. If complexity = "high":
+3. If complexity = "high":
      a. tool_plan_turn               # batch sized to model_profile
      b. execute every entry in this_turn IN ORDER
      c. tool_plan_advance after each
@@ -57,6 +61,10 @@ back.
      • sys_protocol_get format='summary' (~300 tokens) →
        format='step' + step_id=<id> when ready to execute
 ```
+
+On subsequent turns of the same session, `sys_boot`'s payload is still
+in context — the AI skips it and goes straight to `tool_route` (or
+continues an in-flight plan via `tool_plan_advance`).
 
 A typical session boot is ~1.2K tokens (vs ~5K with naive multi-call).
 

@@ -3,11 +3,17 @@ name: Session Boot
 version: '1.1.0'
 schema_version: '2.0'
 description: |
-  Mandatory first protocol every session. ONE MCP call (`sys_boot`)
-  returns state + config + history tail + dep inventory + recommended
-  next protocol + pause classification. Then ONE call to `tool_route`
-  with the researcher's first message picks the right protocol without
-  loading every YAML on disk. Two MCP calls total, ~1K tokens.
+  Mandatory boot sequence on the FIRST TURN of every session. Every
+  turn is triggered by a researcher message — the AI never acts before
+  one arrives. On that first turn, two MCP calls fire back-to-back
+  before anything else:
+    1. `sys_boot` (FIRST call) — state + config + history tail + dep
+       inventory + recommended next protocol + pause classification.
+    2. `tool_route(prompt=<their verbatim message>)` (SECOND call) —
+       picks the right protocol without loading every YAML on disk.
+  Two MCP calls total, ~1K tokens. On subsequent turns of the same
+  session, sys_boot's payload is still in context; the AI skips it and
+  goes straight to `tool_route`.
 trigger: First message of every chat / IDE session.
 prerequisites: []
 inputs:
@@ -16,9 +22,12 @@ inputs:
 
 steps:
   - id: boot
-    name: One-Call Bootstrap
+    name: One-Call Bootstrap (your FIRST MCP call on the first turn)
     description: |
-      Call sys_boot — nothing else.
+      The researcher's first message has arrived (turns always start
+      that way). Before you do anything else this session, call
+      `sys_boot` — nothing else, no parallel sister calls.
+
       The single response contains:
         - project_name, pipeline_stage, current_path, domain
         - autonomy + expertise + model_profile + shared_server
@@ -49,8 +58,8 @@ steps:
     name: Branch on Pause Classification
     description: |
       pause_classification drives routing:
-        fresh_session       → continue to `await_first_message` step
-        completed_step      → continue to `await_first_message`
+        fresh_session       → continue to `route_first_message` step
+        completed_step      → continue to `route_first_message`
         mid_step            → load guidance/session_resume (cheap, lean)
         long_running_job    → load guidance/session_resume
         ctx_exhaustion      → load guidance/session_resume — read the
@@ -63,22 +72,17 @@ steps:
       BEFORE accepting a new ask — tool_plan_advance walks the planned
       sequence; only call tool_plan_clear if the researcher pivots.
 
-  - id: await_first_message
-    name: Await Researcher's First Message
-    description: |
-      Greet in ONE line containing: project name + stage + autonomy +
-      next-pipeline protocol. Then WAIT. Do NOT pre-load any protocol.
-
-      Example:
-        "Penguin Bill Dimorphism · stage: analysis · supervised mode.
-         Pipeline suggests guidance/analysis_plan next. What do you want
-         to do?"
-
   - id: route_first_message
-    name: Route the First Message Through tool_route
+    name: Route the First Message Through tool_route (your SECOND MCP call)
     description: |
-      When the researcher speaks, call:
+      You already have the researcher's verbatim message in your
+      context — it's what triggered this turn. Immediately after the
+      boot summary above, your second MCP call is:
         tool_route(prompt="<their verbatim message>")
+
+      Do NOT pre-load any protocol before calling tool_route. The
+      response tells you which protocol fits — loading the wrong one
+      first wastes ~2K tokens.
 
       The response is a HIERARCHICAL routing decision:
         resolved_level       0 | 1 | 2 | 3 — how deep we resolved.
@@ -151,9 +155,11 @@ next_protocol: null    # routing drives the next step, not a hardcoded link
 on_failure: guidance/dead_end_routing
 
 quality_bar: |
-  - sys_boot is the FIRST tool call. No state/config/history calls before it.
-  - tool_route is the SECOND tool call (after the researcher speaks). No
-    bulk protocol loads before it.
+  - The researcher's first message has already arrived (turns always
+    start that way). Your FIRST tool call on the session is sys_boot —
+    no state/config/history calls before it.
+  - tool_route is your SECOND tool call. Its `prompt` argument is the
+    researcher's verbatim message. No bulk protocol loads before it.
   - sys_protocol_get defaults to format="summary"; full loads are deliberate.
   - Complex prompts trigger an active_plan; the AI walks it with
     tool_plan_advance instead of one-shotting.

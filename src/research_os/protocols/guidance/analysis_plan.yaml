@@ -40,6 +40,13 @@ steps:
       OR custom pipelines, you MUST call tool_plan_step before coding. The
       plan markdown becomes part of the experiment record.
 
+      STEPS CAN GROW. A single step is allowed to get long (many
+      sub-tasks, dozens of figures, a 500-line conclusions.md) when the
+      researcher wants that depth on ONE coherent goal. There is no
+      artificial cap. What changes the answer is the GOAL, not the line
+      count — see the "When to suggest a new step" block in
+      create_step_folder below.
+
   - id: ground_methods
     name: Ground Methodology in Literature (mandatory) — STEP-SCOPED
     description: |
@@ -115,6 +122,28 @@ steps:
       Creates workspace/NN_<slug>/{scripts,literature,data/{input,output},outputs/{reports,figures,tables},environment}
       and sets it as current_path. NN is auto-assigned (next free number).
 
+      WHEN TO SUGGEST A NEW STEP (proactive — surface to researcher,
+      don't just decide on your own unless autopilot):
+        - conclusions.md > Findings now covers ≥2 distinct hypothesis
+          IDs that aren't tightly coupled (mem_hypothesis_list shows
+          H1 + H3 in this step's evidence)
+        - the scope has drifted past its original ≤2 sentence charter
+          ("we also tried…", "while we were at it…")
+        - methodology changed: switching estimator family (linear →
+          tree-based) or unit of analysis (subject → cluster) — that
+          usually deserves its own slug
+        - sub-population restriction was added mid-stream (was "all
+          patients", now mostly "patients < 65"): create a sibling step
+          for the restricted analysis so the original stays clean
+        - the conclusion would be hard to caption with ONE focal figure
+
+      How to suggest: in supervised/manual mode, say once: "this step
+      is starting to cover two questions — want me to spin off a new
+      step for <X> so both stay easy to read?" In autopilot, call
+      `tool_branch_recommendation reason="<why>"` and act on its
+      output. NEVER force a new step on the researcher — long, focused
+      steps are fine and often preferable to step-fragmentation.
+
       For script filenames inside the step, the convention is
       `<NN>_<slug>_v<n>.<ext>` for the main script, and
       `<NN>_<slug>_<subtask>_v<n>.<ext>` for atomic sub-tasks. Sub-task
@@ -168,31 +197,69 @@ steps:
       poll tool_task_status. Tell the researcher "task <id> backgrounded;
       checking every <interval>".
 
-      Every script MUST:
+      Every script MUST produce all three OUTPUT CATEGORIES — reports,
+      tables, figures — unless the step is genuinely non-numeric
+      (qualitative coding, pure data plumbing, etc.). Default to all
+      three; explain the omission in conclusions.md if you skip one.
+
         - Read from workspace/<step>/data/input/ (auto-symlinked).
         - Write derived data to workspace/<step>/data/output/.
-        - Write at least one report to outputs/reports/ (markdown summary
-          WITH numbers + interpretation).
-        - Write AT LEAST ONE focal figure (PNG ≥ 300 DPI) to
-          outputs/figures/, named <step_number>_<short_descriptor>.png
-          (e.g. 03_attitude_by_demographic.png). PREFER tool_figure_create
-          which auto-applies SciencePlots / Okabe-Ito / DPI / dual PNG+SVG
-          export / both caption sidecars in one call. Even steps that
-          don't contribute to the final synthesis benefit from a figure —
-          the researcher follows the analysis visually. The focal figure
-          is the one promoted into the dashboard + paper.
-        - Pair every figure with a sibling <name>.caption.md (technical;
-          one-sentence finding) AND <name>.summary.md (plain-English;
-          2-3 short paragraphs for non-expert audiences). tool_figure_create
-          writes both when you pass `caption` + `plain_english`. Otherwise
-          tool_figure_caption_synthesise auto-drafts the summary from the
-          caption + the step's Findings.
-        - Write tables to outputs/tables/ as CSV (one table per analytic
-          question; bare numbers go in tables, narrative stays in reports).
+
+        - REPORTS (outputs/reports/, .md): at least one markdown
+          summary with numbers + interpretation. This is the readable
+          narrative of what the script did and what it found.
+
+        - TABLES (outputs/tables/, .csv preferred, .tsv / .parquet
+          allowed): at least one CSV when the step has numeric
+          findings. One table per analytic question; bare numbers go
+          in tables so the report can stay narrative. Filename
+          convention: <step_number>_<descriptor>.csv. For a fitted
+          model: include a coefficients table (param, estimate,
+          ci_lo, ci_hi, p_value) at minimum. For a comparison: a
+          methods × metrics row/column matrix. Skip ONLY when the
+          step has no numeric outputs at all (rare).
+
+        - FIGURES (outputs/figures/, PNG ≥ 300 DPI): at least one
+          FOCAL figure named <step_number>_<short_descriptor>.png
+          (e.g. 03_attitude_by_demographic.png). PREFER
+          tool_figure_create which auto-applies SciencePlots /
+          Okabe-Ito / DPI / dual PNG+SVG export / both caption
+          sidecars in one call. The focal figure is the one
+          promoted into the dashboard + paper.
+
+          BEYOND THE FOCAL FIGURE: for any step producing a
+          statistical or ML model, also emit the diagnostic +
+          comparison family (high-quality is the default; basic only
+          when the researcher explicitly asks for "just the headline
+          figure"):
+            * diagnostic suite (residuals, QQ, calibration, etc.)
+            * summary (effect + 95% CI)
+            * comparison (vs baseline or alternative spec)
+          For domain-specific steps, generate the figure types that
+          domain expects (survival curve + Schoenfeld for Cox; trace
+          + posterior predictive for Bayesian; ROC + PR + calibration
+          for ML classifiers; forest + funnel for meta-analysis). Use
+          the visualization protocol that matches the work
+          (visualization/uncertainty_visualization,
+          visualization/distribution_comparison,
+          visualization/network_visualization, etc.) when the focal
+          chart is non-trivial.
+
+          Pair every figure with a sibling <name>.caption.md
+          (technical; one-sentence finding) AND <name>.summary.md
+          (plain-English; 2-3 short paragraphs for non-expert
+          audiences). tool_figure_create writes both when you pass
+          `caption` + `plain_english`. Otherwise
+          tool_figure_caption_synthesise auto-drafts the summary from
+          the caption + the step's Findings.
+
         - Set RNG seeds explicitly; print library versions to stderr.
 
       Empty outputs/figures/ is a HARD FAIL — tool_audit_step_completeness
-      BLOCKS the final synthesis until cleared.
+      BLOCKS the final synthesis until cleared. A step with numeric
+      findings but empty outputs/tables/ surfaces as a WARNING from
+      the same audit (a missing table is a research-record gap, not a
+      block-the-paper gap).
 
       Outputs spanning multiple categories (figures + tables + reports)
       WITHOUT a pipeline.yaml is ALSO a HARD FAIL — the mega-script

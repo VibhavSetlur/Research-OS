@@ -30,28 +30,37 @@ was resolved (env var / cwd walk / fallback).
 
 ---
 
-## Every session — boot in two MCP calls
+## Every session — boot in two MCP calls (first turn only)
+
+Every turn starts when a researcher message arrives — you don't act
+before one. On the **first turn of a session**, fire two MCP calls
+back-to-back before doing anything else:
 
 1. `sys_boot` → state + config + history + dep inventory + next protocol
-   + pause + any active plan. Replaces 4-5 separate calls.
-2. (await researcher's message)
-3. `tool_route(prompt=…)` → hybrid router. Tries SEMANTIC search first
-   (local BGE-small embeddings, no network) and falls back to the
-   hierarchical L1→L2→L3 trigger picker when semantic confidence is
-   low / unavailable. Returns `primary_protocol`, `shortcut_tool`,
-   `decomposition`, `complexity`, `ask_user`, `method`
-   (`semantic`|`trigger`), `confidence`. If `ask_user` is non-null,
-   ASK that one sentence then re-route. Never guess. Need to inspect
-   ranked alternatives directly? Call `tool_semantic_route` — it
-   returns the top-k candidates with cosine scores. Need to find a
-   tool by what it does? Call `sys_semantic_tool_search(query=…)`.
-4. `complexity="high"` → `tool_plan_turn` to batch by `model_profile`
+   + pause + any active plan. Your FIRST MCP call. Replaces 4-5
+   separate calls.
+2. `tool_route(prompt=<their verbatim message>)` → hybrid router.
+   Your SECOND MCP call. Tries SEMANTIC search first (local BGE-small
+   embeddings, no network) and falls back to the hierarchical L1→L2→L3
+   trigger picker when semantic confidence is low / unavailable.
+   Returns `primary_protocol`, `shortcut_tool`, `decomposition`,
+   `complexity`, `ask_user`, `method` (`semantic`|`trigger`),
+   `confidence`. If `ask_user` is non-null, ASK that one sentence then
+   re-route. Never guess. Need to inspect ranked alternatives directly?
+   Call `tool_semantic_route` — it returns the top-k candidates with
+   cosine scores. Need to find a tool by what it does? Call
+   `sys_semantic_tool_search(query=…)`.
+3. `complexity="high"` → `tool_plan_turn` to batch by `model_profile`
    (small=1 step/turn, medium=3, large=6), execute in order, call
    `tool_plan_advance` after each. If `chat_split_recommended`, run
    `sys_session_handoff`.
-5. `complexity="low"` → call `shortcut_tool` directly OR load the
+4. `complexity="low"` → call `shortcut_tool` directly OR load the
    protocol via `sys_protocol_get format='summary'` (~300 tokens),
    drill in with `format='step' step_id=<id>` when ready.
+
+On **subsequent turns** of the same session, skip `sys_boot` (its
+payload is still in context) and go straight to `tool_route` — or
+continue an in-flight `active_plan` via `tool_plan_advance`.
 
 Use `sys_protocol_get format='summary'` — never `format='full'` just to
 list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.

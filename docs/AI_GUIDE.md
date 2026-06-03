@@ -17,29 +17,38 @@ entry). One install, one **global** server, per-project init.
 
 ## The session pattern (every session, in order)
 
-1. **`sys_boot`** — one call. Returns state + researcher config +
-   protocol history tail + dep inventory + recommended next protocol +
-   pause classification + any active plan from a previous turn.
+Every turn is triggered by a researcher message — you don't act before
+one arrives. On the **first turn of a session**, fire two MCP calls
+back-to-back before doing anything else:
+
+1. **`sys_boot`** — your FIRST MCP call on the first turn of the
+   session, regardless of what the researcher asked. Returns state +
+   researcher config + protocol history tail + dep inventory +
+   recommended next protocol + pause classification + any active plan
+   from a previous turn.
    - Do **not** call `sys_state_get` / `sys_config_get` /
      `sys_protocol_history` / `sys_protocol_next` /
      `sys_dep_inventory` separately while `sys_boot`'s payload is
      fresh.
-2. **(await the researcher's first message)**
-3. **`tool_route(prompt=<their message>)`** — hierarchical L1 → L2 → L3
-   protocol picker. Returns `resolved_level`, `intent_class`,
-   `sub_intent`, `primary_protocol`, `shortcut_tool`, `decomposition`,
-   `complexity`, `ask_user`.
+2. **`tool_route(prompt=<their verbatim message>)`** — your SECOND
+   MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns
+   `resolved_level`, `intent_class`, `sub_intent`, `primary_protocol`,
+   `shortcut_tool`, `decomposition`, `complexity`, `ask_user`.
    - If `ask_user` is non-null, ask THAT one-sentence question and
      re-route. Never guess.
    - If `complexity == "high"`, the router persisted an `active_plan`
      to `.os_state/active_plan.json`.
-4. **For `complexity: high`**: `tool_plan_turn` → execute every entry
+3. **For `complexity: high`**: `tool_plan_turn` → execute every entry
    in `this_turn` in order; `tool_plan_advance` after each. If
    `chat_split_recommended` is true, hand off + tell the researcher
    to open a fresh chat.
-5. **For `complexity: low`**: call the `shortcut_tool` directly OR
+4. **For `complexity: low`**: call the `shortcut_tool` directly OR
    load the protocol with `sys_protocol_get format='summary'`
    (~300 tokens) and execute.
+
+On **subsequent turns** of the same session, skip `sys_boot` — its
+payload is already in context — and go straight to `tool_route` (or
+continue an in-flight `active_plan` via `tool_plan_advance`).
 
 ---
 
