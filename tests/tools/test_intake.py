@@ -1,7 +1,5 @@
 """Tests for tool_intake_autofill."""
 
-import yaml
-
 from research_os.project_ops import load_state, scaffold_minimal_workspace
 from research_os.tools.actions.data.intake import intake_autofill
 
