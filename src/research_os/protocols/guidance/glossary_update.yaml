@@ -1,6 +1,6 @@
 id: glossary_update
 name: Glossary Update
-version: '1.3.2'
+version: '1.3.3'
 schema_version: '2.0'
 description: Add or refine a definition in docs/glossary.md. Run this protocol the first time any non-trivial term appears in the project.
 trigger: A jargon term, acronym, or domain-specific concept appears in methods/analysis/conclusions for the first time.

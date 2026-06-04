@@ -97,6 +97,94 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
 
         has_bibliography = "## references" in lower or "\\bibliography" in text
 
+        # v1.3.3: quality-bar gates against the available workspace evidence.
+        # The previous audit only checked structural completeness (sections
+        # exist, citations cited). It missed the actual failure mode the
+        # v1.3.2 e2e surfaced: paper.md was 900 words and used 10 of 17
+        # workspace figures — structurally fine, substantively a sketch.
+        workspace = root / "workspace"
+        figures_available = []
+        if workspace.is_dir():
+            for step_dir in workspace.iterdir():
+                if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
+                    continue
+                figs = step_dir / "outputs" / "figures"
+                if figs.is_dir():
+                    figures_available.extend(
+                        f"workspace/{step_dir.name}/outputs/figures/{p.name}"
+                        for p in figs.iterdir()
+                        if p.suffix.lower() in {".png", ".svg"}
+                    )
+        n_available = len(figures_available)
+        # Count any workspace figure that's referenced (anywhere) in the paper.
+        figures_used_from_workspace = sum(
+            1 for fig_path in figures_available
+            if any(stem in text for stem in (
+                fig_path,
+                Path(fig_path).name,
+                Path(fig_path).stem,
+            ))
+        )
+        coverage = (figures_used_from_workspace / n_available) if n_available else 1.0
+
+        # Word counts per IMRAD section.
+        section_word_counts: dict[str, int] = {}
+        for sec in ("abstract", "introduction", "methods", "results", "discussion"):
+            m = re.search(
+                rf"^##\s+{sec}\s*\n(.+?)(?=^##|\Z)",
+                text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+            )
+            section_word_counts[sec] = len((m.group(1) if m else "").split())
+        total_words = sum(section_word_counts.values()) or word_count
+
+        # MIN bar (target = informal paper); HARD bar (target = real journal).
+        MIN_BAR = {
+            "abstract": 150, "introduction": 300, "methods": 400,
+            "results": 400, "discussion": 300, "total": 1500,
+        }
+        short_sections = [
+            s for s, n in section_word_counts.items() if n < MIN_BAR[s]
+        ]
+
+        quality_gates = {
+            "word_counts": section_word_counts,
+            "total_words": total_words,
+            "min_word_bar": MIN_BAR,
+            "short_sections": short_sections,
+            "figures_available_in_workspace": n_available,
+            "figures_used_from_workspace": figures_used_from_workspace,
+            "figure_coverage_ratio": round(coverage, 3),
+            "figure_coverage_target": 0.8,
+        }
+        # Map to specific revision instructions the AI can act on.
+        gate_blockers: list[str] = []
+        if total_words < MIN_BAR["total"]:
+            gate_blockers.append(
+                f"Paper is {total_words} words — minimum publishable bar is "
+                f"{MIN_BAR['total']}. Expand the {', '.join(short_sections)} "
+                "section(s); each per-step `step_summary.yaml` has structured "
+                "material to draw from."
+            )
+        if n_available and coverage < 0.8:
+            unused = [
+                p for p in figures_available
+                if not any(stem in text for stem in (p, Path(p).name, Path(p).stem))
+            ]
+            gate_blockers.append(
+                f"Only {figures_used_from_workspace} of {n_available} workspace "
+                f"figures ({int(coverage*100)}%) are referenced. Target ≥80%. "
+                f"Unused: {', '.join(unused[:5])}"
+                + (f" + {len(unused)-5} more" if len(unused) > 5 else "")
+            )
+        for sec in short_sections:
+            if sec != "abstract":
+                gate_blockers.append(
+                    f"{sec.title()} is {section_word_counts[sec]} words — "
+                    f"min {MIN_BAR[sec]}. Pull more from "
+                    "`workspace/<step>/step_summary.yaml` and the per-step "
+                    "`## Findings` blocks."
+                )
+
         report = {
             "missing_sections": missing_sections,
             "causal_language_hits": causal_hits[:10],
@@ -106,6 +194,8 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
             "figures_present": [f for f in figures_present if f["exists"]],
             "figures_missing": [f for f in figures_present if not f["exists"]],
             "has_bibliography": has_bibliography,
+            "quality_gates": quality_gates,
+            "gate_blockers": gate_blockers,
         }
 
         out = _report_path(root, "synthesis_audit.md")
@@ -121,14 +211,41 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
             f"- Bibliography present: {has_bibliography}\n"
         )
 
-        warning = bool(missing_sections or causal_hits or not has_bibliography)
+        # v1.3.3: gate_blockers (quality bars) escalate to status='error'
+        # — but ONLY when the paper is large enough to plausibly be a real
+        # submission attempt. A 50-word stub fixture / early-draft scratch
+        # gets only warnings; the BLOCKER status fires once the paper has
+        # crossed the "looks like an actual paper" threshold (≥500 words
+        # total OR the AI explicitly called final_assembly).
+        looks_like_real_paper = total_words >= 500
+        if gate_blockers and looks_like_real_paper:
+            status = "error"
+            message = (
+                f"{len(gate_blockers)} quality-bar blocker(s) — paper isn't "
+                "publication-shape yet. Address each before final_assembly."
+            )
+        elif gate_blockers:
+            # Stub-shaped paper: surface the gaps as warnings so the AI
+            # knows where to expand, but don't block.
+            status = "warning"
+            message = (
+                f"Paper is a stub ({total_words} words). The "
+                f"{len(gate_blockers)} quality-bar gap(s) below will become "
+                "BLOCKERs once total_words ≥ 500. Expand the sections + "
+                "incorporate the workspace figures listed."
+            )
+        elif missing_sections or causal_hits or not has_bibliography:
+            status = "warning"
+            message = "Synthesis audit produced warnings."
+        else:
+            status = "success"
+            message = "Synthesis passed audit."
         return {
-            "status": "warning" if warning else "success",
+            "status": status,
             "report": report,
             "report_path": str(out.relative_to(root)),
-            "message": (
-                "Synthesis audit produced warnings." if warning else "Synthesis passed audit."
-            ),
+            "blockers": gate_blockers,
+            "message": message,
         }
     except Exception as e:
         logger.exception("audit_synthesis failed")

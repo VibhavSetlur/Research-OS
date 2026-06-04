@@ -278,6 +278,25 @@ def sys_boot(root: Path) -> dict[str, Any]:
         except Exception:
             paths_summary = []
 
+        # v1.3.3: long-context handoff hint. Once the project has 5+
+        # finalized analysis steps, the AI is recommended to suggest
+        # `sys_session_handoff` + a fresh chat before the next step.
+        # Prevents the "AI one-shots step 6, 7, 8 in lossy context"
+        # failure mode.
+        n_finalized = sum(
+            1 for p in paths_summary if p.get("status") == "completed"
+        )
+        handoff_recommended = n_finalized >= 5
+        handoff_hint = ""
+        if handoff_recommended:
+            handoff_hint = (
+                f"This project has {n_finalized} finalized step(s). "
+                "Context is getting long — strongly recommend "
+                "`sys_session_handoff` + a fresh chat before the next "
+                "analysis step or synthesis pass. The handoff doc + "
+                "STATE.md will let the next chat resume cleanly."
+            )
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -305,6 +324,9 @@ def sys_boot(root: Path) -> dict[str, Any]:
             "next_protocol": next_proto,
             "dep_inventory": dep_inv,
             "active_plan": active_plan,
+            "handoff_recommended": handoff_recommended,
+            "handoff_hint": handoff_hint,
+            "n_finalized_steps": n_finalized,
             "advice": _boot_advice(pause, active_plan, state, cfg),
         }
     except Exception as e:

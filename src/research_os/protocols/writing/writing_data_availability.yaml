@@ -1,6 +1,6 @@
 id: writing_data_availability
 name: Writing — Data + Code Availability + CRediT
-version: '1.3.2'
+version: '1.3.3'
 schema_version: '2.0'
 description: |
   Draft the Data Availability, Code Availability, Author Contributions
