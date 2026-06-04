@@ -1550,6 +1550,9 @@ def curate_figures(root: Path) -> dict[str, Any]:
                 if not dest_cap.exists() or dest_cap.stat().st_mtime < focal_cap.stat().st_mtime:
                     _shutil.copy2(focal_cap, dest_cap)
             except Exception:
+                # Best-effort sidecar copy. Read-only source dirs or perm
+                # mismatches must not crash the dashboard render — the
+                # else-branch below already writes a fallback caption.
                 pass
         else:
             missing_captions.append(p.name)
