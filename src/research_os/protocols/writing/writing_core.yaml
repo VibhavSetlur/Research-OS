@@ -1,6 +1,6 @@
 id: writing_core
 name: Writing — Core Rules
-version: '1.3.4'
+version: '1.4.0'
 schema_version: '2.0'
 description: |
   Universal writing rules. Loaded implicitly by every writing/* and
@@ -164,6 +164,30 @@ steps:
       citation, ensure the citation is verified
       (`tool_citations_verify`). If it lives in neither, either
       remove the claim or generate the supporting artefact first.
+
+      v1.4.0 — CoVe-style verification on the top-N most load-bearing
+      claims (the ones that anchor abstract / discussion paragraphs):
+
+        tool_claim_verify
+            claim="<verbatim from draft>"
+            questions=[
+              "Does the cited paper measure the same thing?",
+              "Same effect direction?",
+              "Same population / cohort / units?",
+              "Quantitative anchor in the same range?",
+            ]
+            supports=[true|false per question]
+
+      A claim is VERIFIED only if all questions support==true. Any
+      `false` flips the draft sentence into a caveated form ("…in
+      contrast to <paper>, which reports …") OR the claim is removed.
+
+      tool_grounding_verify (project-wide scan) runs the audit gate
+      at finalize:
+        - walks workspace/analysis.md decision blocks
+        - confirms each decision has a grounding record or inline cite
+        - writes workspace/logs/grounding_audit.md
+        - BLOCKS pre-submission checklist if any decision is bare
 
   - id: banned_phrase_check
     name: Banned phrases + causal over-reach

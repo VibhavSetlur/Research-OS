@@ -1076,6 +1076,20 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "tool_audit_step_literature": {
+        "short": "Per-step literature-loop gate. Blocks if findings_vs_literature.md missing or DISAGREES verdicts lack discussion. v1.4.0.",
+        "description": "Companion to tool_audit_step_completeness — gates the literature loop scaffolded by `research/literature_per_step`. For every step with a non-stub Findings section, verifies: (a) workspace/<step>/literature/findings_vs_literature.md exists and has at least one `## Claim:` block; (b) every claim has a Verdict line (AGREES|DISAGREES|EXTENDS|DEFERRED); (c) every DISAGREES verdict has a matching Discussion implication block; (d) all-DEFERRED steps have at least one PDF in workspace/<step>/literature/ OR a documented literature_deferred reason; (e) step_summary.yaml carries a `literature:` block with the roll-up. Blockers are hard stops for tool_path_finalize unless override_literature_gate=true is passed. Writes workspace/logs/step_literature_audit.md.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {
+                    "type": "string",
+                    "description": "Optional — audit one step instead of every step with conclusions.md.",
+                }
+            },
+        },
+    },
     "tool_step_revision_options": {
         "short": "After a step finalize, surface the pause-and-revise heuristic + alternative paths + handoff hint.",
         "description": "Call AFTER tool_path_finalize. Returns: would_benefit_from_revision (bool); suggested_revisions (list of specific fixes); alternative_paths (stratified / sensitivity / method-comparison branches the researcher could consider); handoff_recommended (bool, true when 5+ steps have been finalized in this conversation — context is getting long); risk_signals (e.g. citations claimed but no tool_search_* calls logged). The AI MUST present these options VERBATIM to the researcher and WAIT for their choice (proceed | revise | branch | handoff). Do NOT auto-scaffold the next step unless researcher_config.interaction.autonomy_level == 'autopilot' AND would_benefit_from_revision is False. This is the anti-one-shot gate: AI agents tend to complete long plans as fast as possible which hurts quality; forcing a mandatory pause at well-defined checkpoints — with concrete revision options — gives the researcher a moment to redirect.",
@@ -3196,6 +3210,14 @@ def _handle_tool_audit_step_completeness(name, arguments, root):
     )))
 
 
+def _handle_tool_audit_step_literature(name, arguments, root):
+    from research_os.tools.actions.audit.step_literature import audit_step_literature
+
+    return _text(_success(audit_step_literature(
+        root, step_id=arguments.get("step_id"),
+    )))
+
+
 def _handle_tool_step_revision_options(name, arguments, root):
     from research_os.tools.actions.state.revision import step_revision_options
 
@@ -4472,6 +4494,7 @@ _HANDLERS = {
     "tool_audit_citations": _handle_tool_audit_citations,
     "tool_audit_reproducibility": _handle_tool_audit_reproducibility,
     "tool_audit_step_completeness": _handle_tool_audit_step_completeness,
+    "tool_audit_step_literature": _handle_tool_audit_step_literature,
     "tool_audit_version_coherence": _handle_tool_audit_version_coherence,
     "tool_step_revision_options": _handle_tool_step_revision_options,
     "tool_step_iterate": _handle_tool_step_iterate,

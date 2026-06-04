@@ -170,6 +170,22 @@ def caption_synthesise(
             parts.append(
                 "**Why it matters.** " + bullets[0].rstrip(".") + "."
             )
+        else:
+            import re as _re
+            stripped = "\n".join(
+                ln for ln in findings_context.splitlines()
+                if not ln.lstrip().startswith("|") and ln.strip()
+            ).strip()
+            if stripped:
+                sentences = _re.split(r"(?<=[.!?])\s+(?=[A-Z(`])", stripped)
+                first = next(
+                    (s.strip() for s in sentences if len(s.strip()) > 20),
+                    "",
+                )
+                if first:
+                    parts.append(
+                        "**Why it matters.** " + first.rstrip(".") + "."
+                    )
     if len(parts) == 1:
         parts.append(
             "**How to read it.** _Plain-language description pending — "

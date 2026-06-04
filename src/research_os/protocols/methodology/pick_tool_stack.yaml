@@ -1,0 +1,144 @@
+id: pick_tool_stack
+name: Pick Tool Stack (language + library matrix per analysis sub-task)
+version: '1.4.0'
+schema_version: '2.0'
+last_reviewed: '2026-06-04'
+description: |
+  Sister protocol to `visualization/figure_guidelines`'s `pick_library`
+  step — but for the ANALYSIS side, not the figure side. Asks the AI to
+  pick the language + library combo per sub-task based on the domain +
+  the method, NOT to default-to-Python because Python is what it knows
+  best.
+
+  Doctrine
+  --------
+  Research-OS is deliberately language-agnostic. `python_exec`,
+  `r_exec`, `julia_exec`, `bash_exec` all exist. The AI's job is to
+  match the implementation to the field practice, not to commit to one
+  language for the whole project.
+
+  Field practice in the biological / clinical sciences:
+    - Bulk RNA-seq DE testing → R Bioconductor (DESeq2, edgeR, limma).
+      Python alternatives (pydeseq2, anndata) work but are not where
+      the field validates findings.
+    - Single-cell RNA-seq → Python scanpy IS field practice now;
+      Seurat (R) is the alternative. Pick scanpy unless the upstream
+      pipeline is R-only.
+    - Survival analysis (Cox PH, Kaplan-Meier) → R `survival` /
+      `survminer` is field standard; lifelines (Python) is fine but
+      reviewers expect R output for clinical papers.
+    - Network analysis (WGCNA, PPI) → R for WGCNA; Python for PPI
+      (networkx / pyvis) unless integrating with Cytoscape.
+    - Genomic alignment / variant calling → tools (bwa, samtools,
+      GATK) are command-line C/Java; wrap in bash + capture stderr.
+    - Geospatial → Python geopandas / rasterio.
+    - Statistical psychometrics → R (psych, lavaan).
+    - Time-series forecasting → Python (statsmodels, prophet) OR R
+      (forecast); judge by audience.
+
+trigger: |
+  Use when:
+    - Starting a new analysis step and the language choice isn't
+      already locked by the methodology_selection protocol's pick_tools.
+    - The methodology requires a tool whose canonical implementation
+      is in a language not currently used in the project.
+    - The previous step used language X but the literature consensus
+      for this step's method is in language Y.
+    - The AI is about to default to Python without checking field
+      practice.
+
+  Do NOT use when:
+    - The project's methodology_selection has already pinned a
+      specific package (e.g. "use DESeq2") — proceed to write the
+      R script directly.
+    - The step is glue / reporting / data-shuffling with no
+      method-specific tool dependency — Python is fine.
+
+prerequisites:
+  - The step's method has been settled (via methodology_selection or
+    inherited from analysis_plan).
+  - The project's environment supports the candidate languages — check
+    `workspace/environment/README.md` and `workspace/<step>/environment/`.
+
+steps:
+  - id: enumerate_language_candidates
+    name: List the candidate languages for this method
+    description: |
+      For the method picked in `pick_method`, name the 1-3 languages
+      where it has a maintained, field-validated implementation.
+      Example: "differential expression on bulk RNA-seq" →
+      [R: DESeq2, edgeR, limma | Python: pydeseq2 | Julia: none].
+      For each candidate, name the canonical library.
+
+      Capture the candidates in the step's scratch/stack_plan.md.
+
+  - id: query_field_practice
+    name: Query field practice (literature signal)
+    description: |
+      For the top-2 candidates, run a quick literature check:
+        tool_search_pubmed query="<method> <domain> <library>" max_results=5
+      Or for non-biomedical fields:
+        tool_search_semantic_scholar query="<method> <domain> <library>"
+
+      Score: which library appears in the methods section of recent
+      papers in this domain? The winning library is the one a reviewer
+      will expect to see, not the one the AI is most fluent in.
+
+      If the literature doesn't break the tie, document that in
+      stack_plan.md and pick the library with the better
+      reproducibility story (active maintenance, semver discipline,
+      Docker image available).
+
+  - id: check_env_compatibility
+    name: Check env compatibility before committing
+    description: |
+      sys_env_snapshot scope="step" step_id="<NN_slug>"
+      Confirm the chosen language is installed in the project env. If
+      R Bioconductor isn't installed but DESeq2 is the right call,
+      surface the install requirement:
+        - Update environment/environment.yml or DESCRIPTION.
+        - Note the install command in stack_plan.md.
+        - Don't silently fall back to a Python equivalent — that's how
+          projects end up with non-field-standard analyses.
+
+  - id: decide_on_mixing
+    name: Decide whether to mix languages within the step
+    description: |
+      If the analysis spans multiple sub-tasks where field practice
+      differs (e.g. WGCNA in R + visualization in Python), consider:
+
+        Option A — split into separate steps, one language per step
+                   (cleaner, easier to reproduce, more boilerplate)
+        Option B — single step, mix Python + R via subprocess
+                   (faster, but logs + tools.md must cover both)
+
+      Default: Option A unless the data hand-off would be expensive
+      (large objects, slow re-load) or the step is genuinely a
+      pipeline (R model fit → Python plot of same model object).
+
+      If picking Option B, route through:
+        methodology/mixed_language_orchestration
+
+  - id: record_choice
+    name: Record choice in stack_plan.md + analysis.md
+    description: |
+      Write a 3-line block to workspace/<step>/scratch/stack_plan.md:
+        - language: <python|R|julia|bash|mixed>
+        - library: <name + version pin>
+        - rationale: <one-line "field practice for this method is X" + citation_key>
+
+      Append the same block to workspace/analysis.md via
+      `mem_analysis_log` so the project narrative captures the choice.
+
+expected_outputs:
+  - workspace/<step>/scratch/stack_plan.md
+  - workspace/analysis.md (appended block)
+  - workspace/<step>/environment/* (updated for the chosen language)
+
+quality_bar:
+  language_choice_grounded_in_field_practice: true
+  library_pinned_to_version_in_env_snapshot: true
+  rationale_cites_literature_or_documents_why_not: true
+
+next_protocol: guidance/analysis_plan
+on_failure: methodology/methodology_selection

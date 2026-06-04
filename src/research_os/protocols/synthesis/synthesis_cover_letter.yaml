@@ -1,6 +1,6 @@
 id: synthesis_cover_letter
 name: Synthesis — Journal Cover Letter
-version: '1.3.4'
+version: '1.4.0'
 schema_version: '2.0'
 description: |
   Draft the cover letter that accompanies a journal submission. The
