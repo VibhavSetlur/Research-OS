@@ -79,6 +79,10 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
         if m:
             findings_section = m.group(1).strip()
     except Exception:
+        # Best-effort Findings extraction: an unreadable conclusions.md
+        # (decode error, transient I/O) falls through to the stub-block
+        # below, which is itself a blocker — so the audit fails closed
+        # rather than silently skipping the step.
         pass
     if not findings_section or len(findings_section) < 40:
         # v1.4.1: a stub Findings section is a REGRESSION, not a free pass.
@@ -199,6 +203,9 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
                     "Call tool_grounding_register per claim."
                 )
         except Exception:
+            # Best-effort grounding-record count: a malformed JSONL line or
+            # a transient read error must not crash the literature audit —
+            # the warnings the rest of the function emits are still useful.
             pass
     else:
         info["grounding_records_for_step"] = 0
