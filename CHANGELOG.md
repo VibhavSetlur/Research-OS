@@ -6,6 +6,30 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.4.3] — Roadmap published (2026-06-04)
+
+PATCH release. Docs-only — no code or behaviour change. Publishes
+`docs/ROADMAP.md` so the v1.5.0 → v2.0.0 plan is on `main` and
+available to future contributor / maintainer sessions without
+relying on conversation history.
+
+### Added
+
+- **`docs/ROADMAP.md`.** 25-theme plan from v1.5.0 (close v1.4.0
+  audit gaps + reliability log + paywall memory) through v2.0.0
+  (consolidation cut). Includes per-theme MCP-capability framing
+  (what the MCP CAN and CANNOT do), per-release effort estimate,
+  and the suggested release sequence table.
+
+### Validation
+
+- `python scripts/preflight.py` — 14/14
+- `python -m pytest -q` — 492 passed
+- `ruff check src/ tests/ scripts/` — clean
+- No code changes; docs-only.
+
+---
+
 ## [1.4.2] — README PyPI badge cache-bust (2026-06-04)
 
 PATCH release. README-only — no code or behaviour change. Forces image
