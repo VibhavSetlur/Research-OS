@@ -6,6 +6,37 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.4.2] — README PyPI badge cache-bust (2026-06-04)
+
+PATCH release. README-only — no code or behaviour change. Forces image
+proxies (GitHub `camo.githubusercontent.com` + PyPI's README image
+cache) to refresh the PyPI version badge, which was still showing
+`v1.3.3` for some viewers after v1.4.0 / v1.4.1 shipped.
+
+### Fixed
+
+- **README PyPI badge.** Added `&cacheSeconds=300` to the shields.io
+  badge URL (`img.shields.io/pypi/v/research-os.svg`). Tells shields.io
+  to refresh every 5 minutes instead of using the default longer
+  cache. The new URL also breaks GitHub's stale camo proxy cache (a
+  new src URL forces a re-proxy) and the new sdist upload regenerates
+  PyPI's rendered README. Both viewers should now see the correct
+  current version within minutes of the next release.
+- **Note on reality:** the shields.io URL itself was always returning
+  the correct version (confirmed via `curl`); only the downstream
+  image proxies were serving stale frames. There was never a packaging
+  / release-pipeline bug — purely a CDN/proxy cache issue.
+
+### Validation
+
+- No tests touched. preflight 14/14, pytest 492 passed, ruff clean.
+
+### Migration
+
+None — README-only release.
+
+---
+
 ## [1.4.1] — Docs sync to v1.4.0 surfaces (2026-06-04)
 
 PATCH release. Docs-only — no code or behaviour change. Closes the gap
