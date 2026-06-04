@@ -58,7 +58,7 @@ endpoints (Crossref, PubMed, arXiv) automatically and only enables the
 paid / rate-limited search backend when its key is present. No restart
 needed — the server re-reads the file each session.
 
-### Do I have to read all 110 protocols to know which to use?
+### Do I have to read all 113 protocols to know which to use?
 
 No. You never browse protocols. You speak in plain English; `tool_route`
 maps your message to the right protocol. As of v1.2.0 it tries
