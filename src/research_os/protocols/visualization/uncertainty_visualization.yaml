@@ -1,6 +1,6 @@
 id: uncertainty_visualization
 name: Uncertainty Visualization (intervals, fans, ensembles, posteriors)
-version: '1.3.3'
+version: '1.4.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |

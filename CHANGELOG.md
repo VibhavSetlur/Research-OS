@@ -6,6 +6,140 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.4.0] — Literature loop + language/tool-stack doctrine + summary fill-rate fix (2026-06-04)
+
+Rolls v1.3.4 fixes + four new pillars driven by user feedback after the 22-turn stress test:
+(a) summary.md still empty in places,
+(b) literature must be downloaded + cited per step (not just method-grounding at start),
+(c) language + tool-set must be chosen carefully (and mixable),
+(d) cited-literature must validate or guide each analysis step.
+
+**Stats:** 113 protocols (all bumped to 1.4.0), 146 MCP tools, **491 tests pass** (+10 v1.4.0 regression). Preflight 14/14, ruff clean.
+
+### Added — per-step literature loop
+
+- **NEW protocol** `literature/literature_per_step.yaml` — invoked from `analysis_plan` after `document_conclusions`. Walk: extract top-5 claims from `conclusions.md` → search Semantic Scholar / PubMed / Crossref per claim → download top-3 PDFs into `workspace/<step>/literature/` → write `findings_vs_literature.md` with one `## Claim:` block per finding (Verdict: AGREES | DISAGREES | EXTENDS | DEFERRED + Evidence + Discussion implication) → register `tool_grounding_register` per non-deferred claim → CoVe-verify top-3 with `tool_claim_verify` → update `step_summary.yaml` with a structured `literature:` roll-up.
+- **NEW tool** `tool_audit_step_literature` — per-step gate before `tool_path_finalize`. BLOCKS when `findings_vs_literature.md` is missing, any claim lacks a verdict, any DISAGREES verdict lacks a Discussion implication block, all-DEFERRED step has no PDFs in `workspace/<step>/literature/`, or `step_summary.yaml.literature.claims_grounded == 0` without `literature_required: false`. Writes `workspace/logs/step_literature_audit.md`.
+- **Extended `audit_synthesis`** (was already v1.3.4 aggregation): now also aggregates per-step `literature_deferred` lists and `literature.claims_grounded == 0` across the workspace and BLOCKS final assembly. Override path: `override_completeness_gate=true` + `override_rationale=…`.
+- **Wired 4 grounding tools** into existing protocols (they were orphan in v1.3.x):
+  - `tool_ground_from_context` — `guidance/project_startup` registers the PI brief / context files as the upstream grounding anchor.
+  - `tool_grounding_register` — `literature_per_step` calls per non-deferred claim.
+  - `tool_claim_verify` — `writing/writing_core` + `literature_per_step` call on top-3 load-bearing claims.
+  - `tool_grounding_verify` — `analysis_plan.lightweight_step_audit` + `audit/pre_submission_checklist.claim_grounding_audit` run as project-wide gates.
+
+### Added — language + tool-stack doctrine
+
+- **NEW protocol** `methodology/pick_tool_stack.yaml` — sister to `figure_guidelines.pick_library` but at the ANALYSIS level. Domain-to-library matrix: bulk RNA-seq → R Bioconductor (DESeq2/edgeR/limma), scRNA-seq → Python scanpy, Cox PH → R survival/survminer, WGCNA → R, PPI → Python networkx, geospatial → Python geopandas, psychometrics → R psych/lavaan. Steps: enumerate candidates → query field practice via PubMed/Semantic Scholar → check env compatibility → decide on mixing → record in `workspace/<step>/scratch/stack_plan.md`. Routed via `tool_route` triggers ("pick language", "deseq2 or pydeseq2", "seurat or scanpy", …).
+- **NEW protocol** `methodology/mixed_language_orchestration.yaml` — explicit doctrine for Python ↔ R ↔ Bash composition WITHIN a single step. Hand-off-file contracts, serialization matrix (TSV / Parquet / .mtx / RDS / pickle / JSON / BED), per-language `pipeline.yaml` tags, schema assertions at consumer entry, per-language env snapshots, tools.md coverage.
+- **researcher_config.yaml `tool_stack` block** — new fields: `preferred_languages: [python, R]`, `allow_mixed_language_steps: bool`, `field_practice_overrides_preference: bool`, `cite_field_practice_when_choosing: bool`.
+- **Wired `tool_thought_log`, `tool_lessons_record`, `tool_lessons_consult`, `tool_plan_step_grounded`** into `analysis_plan` (consult before step / log decision at decide_next / record reflection after step).
+- **Wired `tool_thought_trace`** into `pre_submission_checklist` (replay decision chains during reviewer-response prep).
+
+### Fixed — summary.md fill-rate
+
+- `figures.py::caption_synthesise` — when conclusions.md `## Findings` is prose (no bullets), now sentence-splits the prose + drops markdown table rows + uses the first ≥20-char sentence as "Why it matters." Same root-cause fix as v1.3.4's `path.py::_bullet_lines`, ported to the figure-sidecar code path. Empty "Why it matters" was the dominant cause of stub summary.md files in the stress test.
+- `audit.py` — missing `.summary.md` now BLOCKS (was WARN in v1.3.x). Matches `visualization_workflow.yaml`'s stated doctrine ("Any figure WITHOUT .caption.md AND .summary.md is a BLOCKER") that the audit was contradicting.
+
+### Orphan tool resolution (Pillar 4)
+
+The 43-tool orphan-sweep deferred in v1.3.4 was approached additively: wire what's useful, defer removal to v2.0.0. All 9 grounded-reasoning tools (`thought_log`, `thought_trace`, `grounding_register`, `ground_from_context`, `claim_verify`, `grounding_verify`, `lessons_record`, `lessons_consult`, `plan_step_grounded`) now have at least one protocol reference. The remaining ~34 unused tools will be evaluated per-tool in v1.5.0 (wire-or-remove); removal of any non-aliased tool is MAJOR (v2.0.0).
+
+### Validation
+
+- preflight 14/14, pytest 491 passed (+10 v1.4.0 regression tests covering: `audit_step_literature` missing/disagrees-without-discussion/complete-loop/skipped-data-eng-step, `audit_synthesis` literature_deferred BLOCK, `caption_synthesise` prose fallback, `audit` missing-summary BLOCK escalation), ruff clean
+- 113 protocols (3 new, all bumped to 1.4.0), 146 MCP tools (1 new), embeddings rebuilt
+- pyproject.toml + __init__.py + CITATION.cff + 110 existing protocol YAMLs all bumped together
+- `_router_index.yaml` bumped 9 → 10; 3 new entries (`literature/literature_per_step`, `methodology/pick_tool_stack`, `methodology/mixed_language_orchestration`)
+
+### Stress-test driven additions (post 3-agent audit)
+
+After the in-conversation 8-turn verification + 3 parallel audit agents (PI cold review + RO-creator judge + improvement-priorities verifier) converged:
+
+- **`audit/step_literature.py`** — closed a silent-skip loophole: a step whose `conclusions.md` exists but whose `## Findings` section is < 40 chars previously returned `info["skipped"]` and was exempt from the literature gate. This let regenerated step-summary stubs (`findings: []`, truncated headline) opt out of the loop entirely. v1.4.0 now BLOCKS on stub-Findings + non-stub-conclusions; the AI must either repopulate Findings OR explicitly tag `literature_required: false`.
+- **`audit/audit.py`** — `audit_step_completeness` now WARNS when a step has scripts but no `scratch/stack_plan.md` (the `methodology/pick_tool_stack` artefact). Promotes to BLOCKER in v1.5.0.
+- **`analysis_plan.scope_step`** — added explicit pointer to `methodology/pick_tool_stack` when the step's method choice is non-trivial. Cheap wiring fix; addresses the audit finding that `pick_tool_stack` was orphan in the common path.
+
+### Deferred to v1.5.0 / v2.0.0
+
+Audit-surfaced gaps that ARE real but too large for a v1.4.0 patch:
+
+- **v1.5.0: ingest `findings_vs_literature.md` into `writing/writing_core` Discussion synthesis.** Audit converged-on issue A — DISAGREES verdicts currently never reach the manuscript prose; the sidecar is a write-only side-channel. Fix: `writing/writing_core` discussion-drafting step must read every step's `findings_vs_literature.md` and produce one Discussion paragraph per non-AGREES verdict, citing the contested literature.
+- **v1.5.0: default-deny synthesis when `papers_downloaded == 0` across all literature-required steps.** Audit converged-on issue C — `tool_audit_step_literature` only blocks when ALL claims are DEFERRED with no PDFs; mixed AGREES + 0 PDFs sails through, leaving the loop confabulation-anchored.
+- **v1.5.0: inject `literature_per_step` into `analysis_plan` decomposition (mandatory between findings-write and `path_finalize`).** Audit converged-on issue D — currently trigger-routed, not pipeline-mandatory; coverage gap (2 of 10 steps had files in the baseline).
+- **v1.5.0: promote stack_plan.md from WARN to BLOCK** + auto-invoke `pick_tool_stack` from `methodology/methodology_selection.pick_tools` when the method choice spans language boundaries.
+- **v1.5.0: evaluate the ~34 remaining orphan tools** (9 grounding tools now wired); wire-or-recommend-removal per tool.
+- **v2.0.0 (MAJOR): tool removal pass** — recommended-for-removal tools dropped.
+
+### Migration notes (v1.3.x → v1.4.0)
+
+- **Backwards-compatible additions.** Existing projects work unchanged; the literature loop is opt-in via `analysis_plan.ground_findings_in_literature` (only fires when AI invokes the new sub-protocol) AND via the new audit gate (which only blocks when run; existing `tool_path_finalize` callers don't auto-invoke it yet — opt in by calling `tool_audit_step_literature` before finalize OR `override_literature_gate=true`).
+- **One enforcement tightening:** missing `.summary.md` now BLOCKS at `audit_step_completeness`. Projects with stub summaries that v1.3.x silently warned-but-passed will fail audit at v1.4.0. Resolve by calling `tool_figure_caption_synthesise` per figure OR rerunning `tool_path_finalize`.
+- The `tool_stack` block in `researcher_config.yaml` is OPTIONAL; defaults preserve v1.3.x behaviour (`preferred_languages: ["python", "R"]`, `field_practice_overrides_preference: true`).
+
+---
+
+## [1.3.4] — 22-turn stress-test fixes: synthesis audit aggregation + pending-citation block + sub-section regex + dashboard embed_figures (2026-06-04)
+
+Patch driven by a 22-turn agent stress test against a multi-modal Alzheimer's progression project (10 analysis steps including WGCNA + Cox PH + cross-cohort validation). Three audit agents (PI cold review + RO-creator judge + improvement priorities) converged on the same gaps. v1.3.4 closes the P0/P1 set.
+
+**Stats:** 110 protocols (all bumped to 1.3.4), 145 MCP tools, **481 tests pass** (+4 v1.3.4 regression). Preflight 14/14, ruff clean.
+
+### Fixed — `audit_synthesis` is no longer structural-only
+
+The 22-turn test exposed that v1.3.3's audit could pass a 5,529-word paper with 10 per-step "literature grounding deferred" warnings silently — it never opened any `step_summary.yaml`. v1.3.4:
+
+* Aggregates `warnings:` from every `workspace/<step>/step_summary.yaml`.
+* `recurring_blockers[]` surfaces signatures that recur across ≥3 steps OR match literature-deferred / pending-verification patterns.
+* HARD BLOCKER on `pending verification` citations: `workspace/citations.md` scanned; any unverified count > 0 escalates the audit to `status='error'`. Override via `override_completeness_gate=true + override_rationale=...`.
+* New report fields: `propagated_step_warnings`, `recurring_blockers`, `unverified_citations`, `citation_count_pandoc`, `citation_count_authoryear`.
+
+### Fixed — `_section` regex no longer truncates at `###` / `####` sub-headers
+
+`audit.py:134` IMRAD word-count regex was `(?=^##|\Z)` — `###` matched the terminator and clobbered all sub-section content from the parent count. v1.3.4 changes to `(?=^##\s|\Z)`. Turn 22 of the stress test had to demote `### N.M` sub-headers to bold so the audit would count properly; that workaround is no longer needed.
+
+### Fixed — `_bullet_lines` falls back to sentence-split for prose / table Findings
+
+When `## Findings` was prose-led or table-led (no `-`/`*`/`+` bullets), the v1.3.3 extractor returned `[]` and `step_summary.yaml.findings` was silently empty. Turn 8 (step 04 WGCNA) and turn 12 (step 06 hubs) both wrote table-led Findings — both ended up with empty findings in their sidecars, breaking the v1.3.3 "synthesis composes by deterministic merge" promise. v1.3.4 falls back to sentence-split on the prose body, strips markdown table rows.
+
+### Fixed — `audit_synthesis` also counts author-year prose citations
+
+v1.3.3 regex was `\[@key\]|\\cite{key}` only. A paper written in `(Mostafavi et al. 2018)` Markdown style got a misleading `citation_count: 0`. v1.3.4 adds an author-year pattern; report exposes BOTH `citation_count_pandoc` and `citation_count_authoryear`; `citation_count` is the sum.
+
+### Added — `render_dashboard(embed_figures="auto" | "inline" | "relative")`
+
+22-turn test produced a 5 MB `dashboard.html` (95% base64 image data). v1.3.4:
+
+* `"auto"` (default): inline if ≤3 figures AND ≤1 MB total, else `"relative"`.
+* `"relative"`: emit `<img src="../workspace/<step>/outputs/figures/<file>.png">` — HTML drops from ~5 MB to ~80 KB, git diffs stay readable, browsers cache figures across regenerations.
+* `"inline"`: preserves the legacy base64 single-file behavior — right for `sys_export_share_archive` / email attachments.
+
+Also: `figures_embedded` count now derived from the RENDERED HTML (counts `data:image/` + `<img src="...">`), not from the spec — under-reported by 90%+ on auto-derived dashboards.
+
+### Fixed — STATE.md grammar (truncated "We test whether <q> and " fragment)
+
+22-turn test's research question was compound ("Which gene co-expression modules...and which DEGs are cell-line-specific vs shared?"). The fallback hypothesis template lowercased + prefixed → "We test whether which gene...and " (mid-clause dangle). v1.3.4 detects compound questions (commas + "and"/"or", multiple "?"s, or length >160) and uses a quoted form: `Central question: "<original>"`. Simple questions still get the `"We test whether ..."` rewrite with trailing-conjunction stripping.
+
+### Fixed — `tools.md` regex no longer extracts English stopwords as packages
+
+22-turn test had `tools.md` containing `` `the` — third-party / domain package ``. v1.3.4:
+
+* Tightened regex anchors at line-start (no leading whitespace) so import-like prose in docstrings doesn't match.
+* Captured module name must be ≥3 chars.
+* New `ENGLISH_STOPWORDS` filter on top of `STDLIB_SKIP`.
+* When NO third-party imports are detected, writes an explicit `_(No third-party packages detected ...)_` note so the section marker is created — fixes the idempotency bug where stdlib-only steps wrote NO entry, then got skipped on every subsequent finalize. The 22-turn test had steps 02/06/08/09/10 missing despite being finalized.
+
+### Validation
+
+* preflight 14/14 · pytest 481 passed (+4 new regression tests) · ruff clean
+* All 4 v1.3.4 regression tests cover: step-warning aggregation → BLOCKER; pending-verification BLOCKER; author-year citation counter; `###` sub-section word count preservation.
+
+### Deferred to v1.4.0 (MAJOR, deprecation pass)
+
+* Orphan tool sweep — 43 of 145 tools are never referenced from any protocol or shortcut. Includes the entire "grounded reasoning" cluster (`tool_thought_log`/`_trace`, `tool_grounding_register`, `tool_ground_from_context`, `tool_claim_verify`, `tool_lessons_record`/`_consult`, `tool_plan_step_grounded`) — 7 tools, zero protocol uptake. Removing requires MAJOR bump per maintainer rules.
+* `_router_index.yaml` decomposition stress: only 51 unique tools referenced; protocol YAMLs collectively reference 111. The gap suggests the router itself under-uses the surface.
+
+---
+
 ## [1.3.3] — Anti-one-shot enforcement + step_summary.yaml + synthesis quality gates + dashboard paper-as-interactive (2026-06-03)
 
 The deepest fix in the 1.3.x cycle. AI agents tend to "complete" long

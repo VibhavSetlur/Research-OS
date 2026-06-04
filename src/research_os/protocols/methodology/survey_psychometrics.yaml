@@ -1,6 +1,6 @@
 id: survey_psychometrics
 name: Survey & Psychometrics
-version: '1.3.3'
+version: '1.4.0'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for analysing survey / multi-item-scale /

@@ -1,0 +1,255 @@
+id: literature_per_step
+name: Per-Step Literature Loop (find → download → cite → validate)
+version: '1.4.0'
+schema_version: '2.0'
+last_reviewed: '2026-06-04'
+description: |
+  After every analysis step writes its findings, RO grounds those
+  findings in the published literature: searches → downloads PDFs to
+  `workspace/<step>/literature/` → writes a structured
+  `findings_vs_literature.md` (agrees / disagrees / extends) →
+  registers grounding records → appends to `workspace/citations.md`.
+
+  Doctrine
+  --------
+  A finding is not a finding until it has been compared to what the
+  literature says. Three outcomes per finding:
+    1. AGREES — literature confirms the result. Strengthens the claim;
+       cite to anchor the paragraph.
+    2. DISAGREES — literature reports the opposite or qualifies it.
+       Either the analysis is wrong, the dataset / cohort differs, or
+       the literature consensus has shifted. Discussion MUST address.
+    3. EXTENDS — finding goes beyond what's published. Novel claim;
+       discussion must justify the leap + acknowledge limits.
+
+  Silent third state: NO LITERATURE FOUND. That's a deferral, NOT a
+  free pass. Goes into `literature_deferred` in step_summary.yaml and
+  audit_synthesis will block synthesis until resolved.
+
+  This protocol is invoked AFTER `analysis_plan` writes the findings
+  but BEFORE `path_finalize` closes the step. The grounding tools
+  (`tool_grounding_register`, `tool_claim_verify`) capture the
+  audit trail; `tool_audit_step_literature` is the gate.
+
+trigger: |
+  Use when:
+    - An analysis step has produced numeric / qualitative findings
+      in `workspace/<step>/conclusions.md` and is about to finalize.
+    - The researcher asked for "literature-grounded" or "evidence-
+      based" analysis at intake.
+    - Synthesis is about to start and any step is missing per-step
+      literature.
+
+  Do NOT use when:
+    - The step is pure data engineering (QC, normalization, format
+      conversion) with no claims to ground. tag step with
+      `literature_required: false` in step_summary.yaml instead.
+    - The step's findings are exploratory / null (the literature
+      check would be circular).
+
+prerequisites:
+  - "`workspace/<step>/conclusions.md` exists with at least `## Findings`."
+  - "`inputs/researcher_config.yaml.api_keys` is at least partially populated (Semantic Scholar + Crossref are free + keyless; PubMed is free + keyless)."
+  - "Network access. If offline (no DNS), tag step `literature_deferred: ['offline']` and proceed; gate will block synthesis until resolved."
+
+steps:
+  - id: extract_step_claims
+    name: Extract the step's groundable claims
+    description: |
+      Read `workspace/<step>/conclusions.md` → `## Findings` section.
+      For each finding, identify:
+        - the EFFECT (gene X up-regulated, module Y enriched, hazard
+          ratio Z significant)
+        - the CONDITION (cohort, tissue, contrast)
+        - the QUANTITATIVE anchor (log2FC, padj, HR, CI)
+
+      Write the claim list to
+      `workspace/<step>/literature/claims_to_ground.md`. Cap at the
+      top 5 claims per step — comprehensive grounding of every
+      sub-claim is for the synthesis stage, not the per-step loop.
+
+  - id: build_search_queries
+    name: Build a search query per claim
+    description: |
+      For each claim, construct two queries:
+        - SPECIFIC: "<gene/module/method> <condition> <effect_direction>"
+          e.g. "APOE Alzheimer's disease hippocampus down-regulated"
+        - METHODOLOGICAL: "<method_family> <condition>"
+          e.g. "WGCNA module preservation cross-cohort"
+
+      Specific catches confirmations; methodological catches papers
+      that validate the analytical approach.
+
+  - id: search_literature
+    name: Search literature per claim
+    description: |
+      Per claim, batch the search calls:
+        tool_search_semantic_scholar query="<specific>" max_results=5
+        tool_search_pubmed query="<specific>" max_results=5
+        tool_search_crossref query="<methodological>" max_results=3
+
+      Domain notes:
+        - Biomedical / clinical → PubMed + Semantic Scholar are most
+          authoritative.
+        - Quantitative / methods → Semantic Scholar + arXiv.
+        - Social / behavioral → Crossref + Semantic Scholar.
+        - Geoscience / hard sciences → Crossref + arXiv.
+
+      Capture results in `workspace/<step>/literature/search_results.yaml`.
+
+  - id: download_relevant
+    name: Download top-3 PDFs per claim
+    description: |
+      Filter search results by:
+        1. Recency: published in last 10 years (or earlier classics).
+        2. Citations: ≥ 20 cumulative citations (proxy for landmark
+           status; relax to ≥ 5 for niche methods).
+        3. Title relevance: drop reviews unless your finding is itself
+           a review-level claim.
+
+      For each survivor:
+        tool_literature_download url="<pdf_url>" filename="<key>.pdf"
+            step_id="<NN_slug>"
+            metadata={"title":..., "year":..., "authors":[...],
+                      "doi":..., "url":...}
+
+      `tool_literature_download` auto-skips paywalls (Unpaywall check);
+      paywalled hits go to `workspace/logs/errors.log` but don't
+      block. Annotate paywalled-but-relevant entries in
+      `claims_to_ground.md` with "PAYWALL — read abstract only".
+
+  - id: write_findings_vs_literature
+    name: Write findings_vs_literature.md (structured comparison)
+    description: |
+      For each claim, write a block in
+      `workspace/<step>/literature/findings_vs_literature.md`:
+
+        ## Claim: <one-line restatement>
+
+        **Our finding:** <effect + condition + quantitative anchor>
+
+        **Literature says:** <consensus from the downloaded papers>
+
+        **Verdict:** AGREES | DISAGREES | EXTENDS | DEFERRED
+
+        **Evidence:**
+        - [@key1] (year) — one-sentence relevant finding
+        - [@key2] (year) — …
+
+        **Discussion implication:**
+        <one paragraph: if AGREES, where to anchor the synthesis;
+         if DISAGREES, what to investigate or qualify; if EXTENDS,
+         what novelty boundary to acknowledge; if DEFERRED, why
+         + what would unblock>
+
+      Save the file at `workspace/<step>/literature/findings_vs_literature.md`.
+
+  - id: register_grounding
+    name: Register grounding records per claim
+    description: |
+      For every claim with verdict ≠ DEFERRED:
+        tool_grounding_register
+            decision="<step>_claim_<n>"
+            sources=[{type: "paper", key: "<cite_key>", relevance: "high"}, ...]
+            confidence="high"|"medium"|"low"
+            notes="<one-line summary of how literature supports/refutes>"
+
+      Writes to `workspace/.grounding/grounding.jsonl`. The synthesis
+      audit will cross-check that every cited claim has a grounding
+      entry.
+
+  - id: verify_key_claims
+    name: CoVe-style claim verification on top-3
+    description: |
+      For the top-3 highest-stakes claims (those that will lead
+      paragraphs in the synthesis):
+        tool_claim_verify
+            claim="<original claim>"
+            questions=[
+              "Does <paper1> measure the same effect direction?",
+              "Was the cohort comparable (sample size, demographics)?",
+              "Is the quantitative anchor (log2FC, HR) in the same range?",
+            ]
+            supports=[true|false per question]
+
+      A claim is VERIFIED only if all questions support==true.
+      Failures route to discussion as caveats.
+
+  - id: append_citations_md
+    name: Append citation entries to workspace/citations.md
+    description: |
+      For every downloaded PDF, ensure an entry exists in
+      `workspace/citations.md`:
+
+        ### `<cite_key>`
+        - Status: ✅ verified  (or ⏳ pending verification if no DOI)
+        - Scope: step:<NN_slug>
+        - Title: <full title>
+        - Authors: <Last1, F. & Last2, F.>
+        - Year: <YYYY>
+        - DOI: <doi or empty>
+        - URL: <url>
+
+      `tool_path_finalize` auto-regenerates citations.md from per-step
+      literature_index.yaml — manual edits here will be overwritten.
+      If a citation needs to live ONLY in narrative (no PDF on disk),
+      add it to `inputs/literature_index.yaml` directly.
+
+  - id: update_step_summary
+    name: Update step_summary.yaml with literature fields
+    description: |
+      Append to (or update) `workspace/<step>/step_summary.yaml`:
+
+        literature:
+          claims_grounded: <int>           # number of claims with verdict ≠ DEFERRED
+          claims_deferred: <int>           # number with verdict == DEFERRED
+          papers_downloaded: <int>
+          verdicts: {agrees: N, disagrees: N, extends: N}
+          findings_vs_literature_path: "workspace/<step>/literature/findings_vs_literature.md"
+        literature_deferred:               # list of deferral reasons
+          - "offline"          # if applicable
+          - "claim_3: no relevant publications found in 10y window"
+
+      `tool_audit_step_literature` reads this block.
+
+  - id: gate
+    name: Gate — block step finalize if literature loop incomplete
+    description: |
+      Before `tool_path_finalize`:
+        tool_audit_step_literature step_id="<NN_slug>"
+
+      BLOCKS when:
+        - `findings_vs_literature.md` missing
+        - `step_summary.yaml.literature.claims_grounded` == 0 AND
+          `claims_deferred` does not justify it
+        - Any claim with verdict DISAGREES lacks a discussion block
+        - `literature_deferred` non-empty without override
+
+      Override path:
+        tool_path_finalize override_literature_gate=true
+            override_rationale="<why deferral is acceptable here>"
+
+      Override logged to `workspace/logs/override_log.md` and
+      resurfaced by `audit_synthesis`.
+
+expected_outputs:
+  - workspace/<step>/literature/claims_to_ground.md
+  - workspace/<step>/literature/search_results.yaml
+  - workspace/<step>/literature/findings_vs_literature.md
+  - workspace/<step>/literature/<key>.pdf  (one per downloaded paper)
+  - workspace/<step>/literature/<key>.pdf.meta.yaml  (sidecar)
+  - workspace/<step>/literature/literature_index.yaml  (regenerated)
+  - workspace/<step>/step_summary.yaml  (literature: block appended)
+  - workspace/.grounding/grounding.jsonl  (grounding records appended)
+  - workspace/.grounding/verifications.jsonl  (CoVe records appended)
+  - workspace/citations.md  (regenerated by path_finalize)
+
+quality_bar:
+  every_step_with_findings_has_findings_vs_literature_md: true
+  every_claim_verdict_is_one_of_AGREES_DISAGREES_EXTENDS_DEFERRED: true
+  every_DISAGREES_has_discussion_block: true
+  every_non_deferred_claim_has_grounding_record: true
+  top_3_claims_have_cove_verification: true
+
+next_protocol: null
+on_failure: null

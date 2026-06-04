@@ -1187,14 +1187,31 @@ def finalize_path(
                         # __future__
                         "__future__",
                     }
+                    # v1.3.4: drop common-English fake-package words that
+                    # leak in when a docstring or comment-stripped pass
+                    # accidentally matches the import regex (the 22-turn
+                    # stress test surfaced tools.md showing `"the"` as a
+                    # package). Stricter regex + an English-stopword
+                    # filter both apply.
+                    ENGLISH_STOPWORDS = {
+                        "the", "a", "an", "and", "or", "of", "for", "to",
+                        "in", "on", "at", "by", "as", "is", "it", "be",
+                        "we", "i", "this", "that", "with", "from", "into",
+                        "import", "uses", "use",
+                    }
                     if scripts_dir.exists():
                         import re as _re_mod
+                        # Tighter: regex anchors the verb at line start
+                        # with NO leading non-whitespace; the captured
+                        # module name must be ≥3 chars (single-letter
+                        # imports like `import a` are real but rare; the
+                        # ≥3 cutoff avoids most false positives).
                         py_import = _re_mod.compile(
-                            r"^\s*(?:from|import)\s+([a-zA-Z_][\w.]*)",
+                            r"^(?:from|import)\s+([a-zA-Z_][\w.]{2,})",
                             _re_mod.MULTILINE,
                         )
                         r_library = _re_mod.compile(
-                            r"\blibrary\(([a-zA-Z_][\w.]*)\)|require\(([a-zA-Z_][\w.]*)\)"
+                            r"\blibrary\(([a-zA-Z_][\w.]{2,})\)|require\(([a-zA-Z_][\w.]{2,})\)"
                         )
                         for script in scripts_dir.rglob("*"):
                             if script.suffix.lower() not in {".py", ".r", ".qmd", ".rmd"}:
@@ -1207,17 +1224,33 @@ def finalize_path(
                                     imports.add(m.group(1) or m.group(2))
                             except OSError:
                                 continue
-                    # Drop stdlib + tiny names.
+                    # Drop stdlib + tiny names + English stopwords.
                     bullets = sorted(
                         i for i in imports
                         if i
                         and len(i) > 1
                         and i.lower() not in STDLIB_SKIP
+                        and i.lower() not in ENGLISH_STOPWORDS
                         and not i.startswith("_")
                     )[:30]
                     if bullets:
                         tools_body = "\n".join(
                             f"- `{i}` — third-party / domain package used by step scripts." for i in bullets
+                        )
+                    else:
+                        # v1.3.4: always emit SOMETHING under the section
+                        # so the marker is written and the next finalize
+                        # is idempotent. Prior behaviour skipped the
+                        # whole tools.md append on empty-bullets, which
+                        # caused steps with stdlib-only scripts to leave
+                        # NO entry — the 22-turn stress test had steps
+                        # 02/06/08/09/10 missing despite all 10 being
+                        # finalized.
+                        tools_body = (
+                            "_(No third-party packages detected in this "
+                            "step's scripts beyond the Python stdlib + "
+                            "Research-OS internals. Verify the step's "
+                            "scripts exist + run if this is unexpected.)_"
                         )
                 if tools_body:
                     tools_md.write_text(
@@ -1494,7 +1527,15 @@ def _section(text: str, header: str) -> str:
 
 
 def _bullet_lines(section_text: str) -> list[str]:
-    """Pull `- bullet` / `* bullet` / `+ bullet` lines from a section."""
+    """Pull `- bullet` / `* bullet` / `+ bullet` lines from a section.
+
+    v1.3.4: if no bullets are found but the section IS non-empty
+    (prose-led or table-led Findings), fall back to sentence-split
+    so the structured `step_summary.yaml.findings` is never silently
+    empty. The 22-turn stress test surfaced this: step 01 wrote
+    prose Findings, step 04 wrote table-led Findings — both came
+    out as `findings: []` in their step_summary.yaml.
+    """
     if not section_text:
         return []
     out: list[str] = []
@@ -1502,6 +1543,24 @@ def _bullet_lines(section_text: str) -> list[str]:
         s = ln.strip()
         if s.startswith(("-", "*", "+")) and len(s) > 2:
             out.append(s.lstrip("-*+ ").strip())
+    if out:
+        return out
+    # No bullets — fall back to sentence-split on the prose body.
+    # Strip markdown table rows entirely; keep the prose around them.
+    prose_lines = [
+        ln for ln in section_text.splitlines()
+        if ln.strip() and not ln.strip().startswith("|") and not ln.strip().startswith("---")
+    ]
+    if not prose_lines:
+        return []
+    prose = " ".join(prose_lines)
+    import re as _re_mod
+    sentences = [
+        s.strip()
+        for s in _re_mod.split(r"(?<=[.!?])\s+(?=[A-Z(`])", prose)
+        if len(s.strip()) > 20
+    ]
+    return sentences[:8] or [prose[:500]]
     return out
 
 

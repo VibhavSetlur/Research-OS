@@ -69,6 +69,15 @@ runtime:
   long_running_threshold_seconds: 60
   default_n_for_sampling: 1000
 
+# ── Language + tool-stack preferences ──────────────────────────────────
+# Read by `methodology/pick_tool_stack`. AI uses these as hints (NOT
+# hard constraints); field-practice for a given method still wins.
+tool_stack:
+  preferred_languages: ["python", "R"]   # order = tie-breaker; empty = no preference
+  allow_mixed_language_steps: true        # false → split mixed work into separate steps
+  field_practice_overrides_preference: true   # true → R Bioconductor wins for DE even if Python listed first
+  cite_field_practice_when_choosing: true     # require literature citation per language choice
+
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
 api_keys:

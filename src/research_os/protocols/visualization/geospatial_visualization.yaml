@@ -1,6 +1,6 @@
 id: geospatial_visualization
 name: Geospatial Visualization (choropleth, points, flow, raster)
-version: '1.3.3'
+version: '1.4.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
