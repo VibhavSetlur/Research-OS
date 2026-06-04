@@ -1,6 +1,6 @@
 # Tool Catalog
 
-**149 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
+**146 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
 Names use underscores; dot notation (`sys.state.get`) and a small set
 of legacy aliases (e.g. `tool_audit_statistical_power` →
 `tool_audit_power`) auto-rewrite. `sys_tool_describe(name)` returns the
@@ -128,7 +128,9 @@ the router picks one for you.
 
 | Tool | Purpose |
 |---|---|
-| `tool_audit_synthesis` | Audit a manuscript: claim grounding, citation coverage, causal language. |
+| `tool_audit_synthesis` | Audit a manuscript: claim grounding, citation coverage, causal language. v1.3.4+ aggregates per-step `step_summary.yaml` warnings and BLOCKs on pending-verification citations; v1.4.0+ BLOCKs on per-step `literature_deferred` + `literature.claims_grounded == 0`. |
+| `tool_audit_step_completeness` | Per-step gate: focal figure + caption + summary sidecars + non-stub conclusions + no mega-script. v1.4.0+ BLOCKs on missing `.summary.md` (was WARN) + WARNs on missing `scratch/stack_plan.md`. |
+| `tool_audit_step_literature` | **v1.4.0.** Per-step literature-loop gate. BLOCKs if `workspace/<step>/literature/findings_vs_literature.md` missing, any claim lacks a Verdict (AGREES \| DISAGREES \| EXTENDS \| DEFERRED), any DISAGREES verdict lacks a Discussion implication block, all-DEFERRED with no PDFs, or stub `## Findings`. Override: `override_literature_gate=true` + rationale. Writes `workspace/logs/step_literature_audit.md`. |
 | `tool_audit_power` | Post-hoc statistical power. |
 | `tool_audit_assumptions` | Normality + homoscedasticity + independence on residuals. |
 | `tool_audit_figure` | DPI / colorblind palette / axis labels / error bars. |

@@ -6,6 +6,49 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.4.1] — Docs sync to v1.4.0 surfaces (2026-06-04)
+
+PATCH release. Docs-only — no code or behaviour change. Closes the gap
+between the v1.4.0 release notes and what user-facing docs actually say,
+so a fresh reader landing on README / RESEARCHER_GUIDE / USE_CASES sees
+the literature loop + language doctrine documented, not just mentioned in
+CHANGELOG.
+
+### Fixed
+
+- **Count refs across 8 docs.** `110 protocols` → `113 protocols`,
+  `149 MCP tools` → `146 MCP tools` in README.md, FAQ.md, PROTOCOLS.md,
+  START.md, AI_GUIDE.md, RESEARCHER_GUIDE.md, TOOLS.md, CONTRIBUTING.md.
+- **PROTOCOLS.md category table.** Updated stale per-category counts
+  (methodology 29 → 42, synthesis 14 → 17, visualization 6 → 14,
+  literature 4 → 5) and total (88 → 113). Added inline v1.4.0 callouts
+  per category.
+- **TOOLS.md audit section.** Added `tool_audit_step_completeness`
+  + new `tool_audit_step_literature` entries with v1.4.0 behaviour
+  notes (BLOCK on missing `.summary.md`, WARN on missing
+  `stack_plan.md`, BLOCK on missing `findings_vs_literature.md`).
+- **RESEARCHER_GUIDE.md.** Surface `literature_per_step`,
+  `pick_tool_stack`, and `mixed_language_orchestration` in the
+  category inventory with one-line descriptions.
+- **AI_GUIDE.md.** Category table now flags which categories grew
+  in v1.4.0 + names the new protocols.
+- **USE_CASES.md.** New "What's new in v1.4.0" section + 3 new
+  rows in the "By output type" table (literature_per_step,
+  pick_tool_stack, mixed_language_orchestration).
+
+### Validation
+
+- preflight 14/14, pytest 492 passed, ruff clean — no functional
+  changes; tests run for safety only.
+- All count references now reflect the authoritative counts from
+  `len(TOOL_DEFINITIONS)` (146) and the protocol YAML inventory (113).
+
+### Migration
+
+None — docs-only release.
+
+---
+
 ## [1.4.0] — Literature loop + language/tool-stack doctrine + summary fill-rate fix (2026-06-04)
 
 Rolls v1.3.4 fixes + four new pillars driven by user feedback after the 22-turn stress test:
