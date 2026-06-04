@@ -6,6 +6,68 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.3.4] — 22-turn stress-test fixes: synthesis audit aggregation + pending-citation block + sub-section regex + dashboard embed_figures (2026-06-04)
+
+Patch driven by a 22-turn agent stress test against a multi-modal Alzheimer's progression project (10 analysis steps including WGCNA + Cox PH + cross-cohort validation). Three audit agents (PI cold review + RO-creator judge + improvement priorities) converged on the same gaps. v1.3.4 closes the P0/P1 set.
+
+**Stats:** 110 protocols (all bumped to 1.3.4), 145 MCP tools, **481 tests pass** (+4 v1.3.4 regression). Preflight 14/14, ruff clean.
+
+### Fixed — `audit_synthesis` is no longer structural-only
+
+The 22-turn test exposed that v1.3.3's audit could pass a 5,529-word paper with 10 per-step "literature grounding deferred" warnings silently — it never opened any `step_summary.yaml`. v1.3.4:
+
+* Aggregates `warnings:` from every `workspace/<step>/step_summary.yaml`.
+* `recurring_blockers[]` surfaces signatures that recur across ≥3 steps OR match literature-deferred / pending-verification patterns.
+* HARD BLOCKER on `pending verification` citations: `workspace/citations.md` scanned; any unverified count > 0 escalates the audit to `status='error'`. Override via `override_completeness_gate=true + override_rationale=...`.
+* New report fields: `propagated_step_warnings`, `recurring_blockers`, `unverified_citations`, `citation_count_pandoc`, `citation_count_authoryear`.
+
+### Fixed — `_section` regex no longer truncates at `###` / `####` sub-headers
+
+`audit.py:134` IMRAD word-count regex was `(?=^##|\Z)` — `###` matched the terminator and clobbered all sub-section content from the parent count. v1.3.4 changes to `(?=^##\s|\Z)`. Turn 22 of the stress test had to demote `### N.M` sub-headers to bold so the audit would count properly; that workaround is no longer needed.
+
+### Fixed — `_bullet_lines` falls back to sentence-split for prose / table Findings
+
+When `## Findings` was prose-led or table-led (no `-`/`*`/`+` bullets), the v1.3.3 extractor returned `[]` and `step_summary.yaml.findings` was silently empty. Turn 8 (step 04 WGCNA) and turn 12 (step 06 hubs) both wrote table-led Findings — both ended up with empty findings in their sidecars, breaking the v1.3.3 "synthesis composes by deterministic merge" promise. v1.3.4 falls back to sentence-split on the prose body, strips markdown table rows.
+
+### Fixed — `audit_synthesis` also counts author-year prose citations
+
+v1.3.3 regex was `\[@key\]|\\cite{key}` only. A paper written in `(Mostafavi et al. 2018)` Markdown style got a misleading `citation_count: 0`. v1.3.4 adds an author-year pattern; report exposes BOTH `citation_count_pandoc` and `citation_count_authoryear`; `citation_count` is the sum.
+
+### Added — `render_dashboard(embed_figures="auto" | "inline" | "relative")`
+
+22-turn test produced a 5 MB `dashboard.html` (95% base64 image data). v1.3.4:
+
+* `"auto"` (default): inline if ≤3 figures AND ≤1 MB total, else `"relative"`.
+* `"relative"`: emit `<img src="../workspace/<step>/outputs/figures/<file>.png">` — HTML drops from ~5 MB to ~80 KB, git diffs stay readable, browsers cache figures across regenerations.
+* `"inline"`: preserves the legacy base64 single-file behavior — right for `sys_export_share_archive` / email attachments.
+
+Also: `figures_embedded` count now derived from the RENDERED HTML (counts `data:image/` + `<img src="...">`), not from the spec — under-reported by 90%+ on auto-derived dashboards.
+
+### Fixed — STATE.md grammar (truncated "We test whether <q> and " fragment)
+
+22-turn test's research question was compound ("Which gene co-expression modules...and which DEGs are cell-line-specific vs shared?"). The fallback hypothesis template lowercased + prefixed → "We test whether which gene...and " (mid-clause dangle). v1.3.4 detects compound questions (commas + "and"/"or", multiple "?"s, or length >160) and uses a quoted form: `Central question: "<original>"`. Simple questions still get the `"We test whether ..."` rewrite with trailing-conjunction stripping.
+
+### Fixed — `tools.md` regex no longer extracts English stopwords as packages
+
+22-turn test had `tools.md` containing `` `the` — third-party / domain package ``. v1.3.4:
+
+* Tightened regex anchors at line-start (no leading whitespace) so import-like prose in docstrings doesn't match.
+* Captured module name must be ≥3 chars.
+* New `ENGLISH_STOPWORDS` filter on top of `STDLIB_SKIP`.
+* When NO third-party imports are detected, writes an explicit `_(No third-party packages detected ...)_` note so the section marker is created — fixes the idempotency bug where stdlib-only steps wrote NO entry, then got skipped on every subsequent finalize. The 22-turn test had steps 02/06/08/09/10 missing despite being finalized.
+
+### Validation
+
+* preflight 14/14 · pytest 481 passed (+4 new regression tests) · ruff clean
+* All 4 v1.3.4 regression tests cover: step-warning aggregation → BLOCKER; pending-verification BLOCKER; author-year citation counter; `###` sub-section word count preservation.
+
+### Deferred to v1.4.0 (MAJOR, deprecation pass)
+
+* Orphan tool sweep — 43 of 145 tools are never referenced from any protocol or shortcut. Includes the entire "grounded reasoning" cluster (`tool_thought_log`/`_trace`, `tool_grounding_register`, `tool_ground_from_context`, `tool_claim_verify`, `tool_lessons_record`/`_consult`, `tool_plan_step_grounded`) — 7 tools, zero protocol uptake. Removing requires MAJOR bump per maintainer rules.
+* `_router_index.yaml` decomposition stress: only 51 unique tools referenced; protocol YAMLs collectively reference 111. The gap suggests the router itself under-uses the surface.
+
+---
+
 ## [1.3.3] — Anti-one-shot enforcement + step_summary.yaml + synthesis quality gates + dashboard paper-as-interactive (2026-06-03)
 
 The deepest fix in the 1.3.x cycle. AI agents tend to "complete" long

@@ -348,12 +348,41 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
         # v1.3.0 fallback: if context yields zero hypotheses but we DO have a
         # research question (from --question flag or context inference), at
         # least register the question itself as the central testable claim
-        # so downstream protocols have something to ground against. Strip
-        # the question mark and prefix with "We test whether".
+        # so downstream protocols have something to ground against.
+        #
+        # v1.3.4: the original `"We test whether " + lowercased question`
+        # template silently produced grammatically broken sentences when
+        # the question contained "and" / "or" / commas (the 22-turn stress
+        # test surfaced this: "We test whether which gene co-expression
+        # modules ... and " ran off mid-clause because the trailing "and"
+        # left a dangling conjunction). The fix: detect compound questions
+        # and either truncate at the first conjunction or wrap the full
+        # question in parentheses as a quoted hypothesis instead of a
+        # forced prose rewrite.
         if not hypotheses and question:
-            q_stripped = question.rstrip("?").strip()
+            q_stripped = question.rstrip("?").strip().rstrip(".,;: ")
             if len(q_stripped) >= 12:
-                hypotheses = [f"We test whether {q_stripped[0].lower()}{q_stripped[1:]}."]
+                # Detect a compound question (contains ", and" / ", or"
+                # / multiple "?"): use the QUOTE form so we don't try to
+                # rewrite grammar we can't control.
+                is_compound = (
+                    ", and " in q_stripped.lower()
+                    or ", or " in q_stripped.lower()
+                    or q_stripped.count("?") >= 1
+                    or len(q_stripped) > 160
+                )
+                if is_compound:
+                    hypotheses = [
+                        f"Central question: \"{q_stripped}\""
+                    ]
+                else:
+                    # Strip any trailing dangling conjunction.
+                    for tail in (" and", " or", " but", " while", " yet"):
+                        if q_stripped.lower().endswith(tail):
+                            q_stripped = q_stripped[: -len(tail)].rstrip(",; ")
+                    hypotheses = [
+                        f"We test whether {q_stripped[0].lower()}{q_stripped[1:]}."
+                    ]
 
         # v1.3.0: surface named-paper references (e.g. "Cite Himes 2014") as
         # explicit fetch suggestions so the AI knows to run a literature

@@ -32,6 +32,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -427,7 +428,30 @@ def _md_inline(text: str) -> str:
     return out
 
 
+# v1.3.4: module-level toggle set at the top of render_dashboard so
+# _b64_img can emit relative-src or base64 depending on the configured
+# embed mode without threading it through every builder.
+_FIGURE_EMBED_MODE: str = "inline"  # "inline" | "relative"
+_DASHBOARD_OUTPUT_DIR: Path | None = None  # for relative-path computation
+
+
 def _b64_img(path: Path) -> str | None:
+    """Return an `<img src=...>` string for ``path``.
+
+    v1.3.4: if `_FIGURE_EMBED_MODE == "relative"`, returns a path
+    relative to the dashboard's own location (so the HTML loads
+    figures from the workspace at view time). Otherwise base64-embeds
+    the file (legacy single-file behavior). Set both module-level
+    state vars at the top of `render_dashboard` before any builder
+    runs; restore on exit.
+    """
+    if _FIGURE_EMBED_MODE == "relative" and _DASHBOARD_OUTPUT_DIR is not None:
+        try:
+            rel = os.path.relpath(path, _DASHBOARD_OUTPUT_DIR)
+            return rel.replace(os.sep, "/")
+        except (ValueError, OSError) as e:
+            logger.warning("relative-path embed failed for %s: %s", path, e)
+            # Fall through to base64 as graceful degradation.
     try:
         suffix = path.suffix.lower().lstrip(".")
         mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg",
@@ -1251,13 +1275,56 @@ def _build_per_step_appendix(
 
 def render_dashboard(root: Path, title: str | None = None,
                      audience: str = "academic",
-                     suppress_audit_panel: bool = False) -> dict[str, Any]:
+                     suppress_audit_panel: bool = False,
+                     embed_figures: str = "auto") -> dict[str, Any]:
     """Generate the polished research-summary dashboard.
 
     When ``suppress_audit_panel`` is true (researcher-authorised
     override), the step-completeness audit section is dropped from the
     rendered HTML. The override is still logged at the handler layer.
+
+    v1.3.4 ``embed_figures`` modes:
+
+    * ``"inline"`` — base64-embed every figure into a single-file HTML.
+      Right for ``sys_export_share_archive`` / email attachments where
+      the dashboard must travel without its asset directory.
+    * ``"relative"`` — emit ``<img src="../workspace/<step>/outputs/
+      figures/<name>.png">`` relative links. Right for in-project
+      dashboards that live next to the workspace; HTML stays small
+      (~80 KB instead of 5 MB), git diffs stay readable, browsers can
+      cache figures across regenerations.
+    * ``"auto"`` (default) — count the figures + sum their sizes; use
+      ``inline`` if ≤3 figures AND total ≤1 MB, else ``relative``.
+      Picks the right design for the common case.
+
+    The 22-turn stress test surfaced this: a 10-step project produced
+    a 5 MB ``dashboard.html`` (95% of which was base64 image data) —
+    too large to share, slow to regenerate. ``relative`` mode drops
+    that to ~80 KB.
     """
+    global _FIGURE_EMBED_MODE, _DASHBOARD_OUTPUT_DIR
+    # Resolve embed_figures mode before any builder runs.
+    if embed_figures == "auto":
+        total_bytes, n_figs = 0, 0
+        ws = root / "workspace"
+        if ws.is_dir():
+            for fig_dir in ws.rglob("outputs/figures"):
+                if not fig_dir.is_dir():
+                    continue
+                for fp in fig_dir.iterdir():
+                    if fp.suffix.lower() in {".png", ".jpg", ".jpeg", ".svg"}:
+                        try:
+                            total_bytes += fp.stat().st_size
+                            n_figs += 1
+                        except OSError:
+                            pass
+        resolved_mode = "inline" if (n_figs <= 3 and total_bytes <= 1_048_576) else "relative"
+    elif embed_figures in {"inline", "relative"}:
+        resolved_mode = embed_figures
+    else:
+        resolved_mode = "inline"  # safety: invalid value falls back to legacy
+    _FIGURE_EMBED_MODE = resolved_mode
+    _DASHBOARD_OUTPUT_DIR = root / "synthesis"  # dashboard.html lives here
     try:
         state = _load_state(root)
         cfg = _load_config(root)
@@ -1381,18 +1448,32 @@ def render_dashboard(root: Path, title: str | None = None,
         ])
 
         out_path.write_text(body)
-        return {
+        # v1.3.4: count figures actually embedded by scanning the rendered
+        # HTML (base64 data-URLs OR relative `<img src="...">`), not by
+        # asking the spec — the latter under-reports because builders
+        # auto-derive figures past what spec lists.
+        figures_embedded = (
+            body.count("data:image/")
+            + len(re.findall(r"<img[^>]+src=\"(?!data:)[^\"]+\.(?:png|svg|jpg|jpeg)\"", body))
+        )
+        result = {
             "status": "success",
             "dashboard_path": str(out_path.relative_to(root)),
             "size_kb": round(out_path.stat().st_size / 1024, 1),
-            "figures_embedded": sum(1 for f in curated_figs if f["path"].exists()),
+            "figures_embedded": figures_embedded,
+            "embed_mode": resolved_mode,
             "steps": len(steps),
             "hypotheses": len(state.get("active_hypotheses") or []),
             "uses_spec": bool(spec),
         }
+        return result
     except Exception as e:
         logger.exception("render_dashboard failed")
         return {"status": "error", "message": str(e)}
+    finally:
+        # Restore module state so subsequent calls aren't affected.
+        _FIGURE_EMBED_MODE = "inline"
+        _DASHBOARD_OUTPUT_DIR = None
 
 
 def curate_figures(root: Path) -> dict[str, Any]:

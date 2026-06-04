@@ -80,8 +80,16 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
                 causal_hits.append({"term": term.strip("\\b "), "context": lower[start:end]})
 
         # Citation density: count [@key] or \cite{key}
-        citations = re.findall(r"\[@[^\]]+\]|\\cite\{[^}]+\}", text)
-        citation_count = len(citations)
+        # v1.3.4: ALSO count author-year prose form `(Author 2024)` / `(Author
+        # et al. 2024)` / `(Author, 2024)` since most modern Markdown drafts
+        # use that style instead of Pandoc citekeys. v1.3.3 over-reported
+        # citation_count=0 on a 5,500-word draft that had 35 author-year refs.
+        citations_pandoc = re.findall(r"\[@[^\]]+\]|\\cite\{[^}]+\}", text)
+        citations_authoryear = re.findall(
+            r"\(([A-Z][a-zA-Z\-]+(?:\s+et\s+al\.?)?(?:\s*&\s*[A-Z][a-zA-Z\-]+)?(?:\s*,)?\s+(?:19|20)\d{2}[a-z]?)\)",
+            text,
+        )
+        citation_count = len(citations_pandoc) + len(set(citations_authoryear))
         word_count = len(text.split())
         citation_density = citation_count / max(1, word_count) * 1000  # per 1000 words
 
@@ -128,10 +136,14 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
         coverage = (figures_used_from_workspace / n_available) if n_available else 1.0
 
         # Word counts per IMRAD section.
+        # v1.3.4: terminator `^##\s` (require space) so `###` / `####`
+        # sub-section headers don't truncate the parent section. Previous
+        # form `^##` was the bug that forced turn-22 of the stress test
+        # to demote sub-headers to bold so the audit would count properly.
         section_word_counts: dict[str, int] = {}
         for sec in ("abstract", "introduction", "methods", "results", "discussion"):
             m = re.search(
-                rf"^##\s+{sec}\s*\n(.+?)(?=^##|\Z)",
+                rf"^##\s+{sec}\s*\n(.+?)(?=^##\s|\Z)",
                 text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
             )
             section_word_counts[sec] = len((m.group(1) if m else "").split())
@@ -185,6 +197,13 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
                     "`## Findings` blocks."
                 )
 
+        # v1.3.4: pre-initialise the new aggregation fields so the
+        # report dict builds before the step-warning + citations-md
+        # walks (which run below + populate them).
+        propagated_step_warnings: list[dict[str, Any]] = []
+        recurring_blockers: list[str] = []
+        unverified_citations = 0
+
         report = {
             "missing_sections": missing_sections,
             "causal_language_hits": causal_hits[:10],
@@ -196,6 +215,11 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
             "has_bibliography": has_bibliography,
             "quality_gates": quality_gates,
             "gate_blockers": gate_blockers,
+            "propagated_step_warnings": propagated_step_warnings,
+            "recurring_blockers": recurring_blockers,
+            "unverified_citations": unverified_citations,
+            "citation_count_pandoc": len(citations_pandoc),
+            "citation_count_authoryear": len(set(citations_authoryear)),
         }
 
         out = _report_path(root, "synthesis_audit.md")
@@ -210,6 +234,91 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
             f"missing {len([f for f in figures_present if not f['exists']])})\n"
             f"- Bibliography present: {has_bibliography}\n"
         )
+
+        # v1.3.4: aggregate per-step warnings from every step_summary.yaml.
+        # The audit was previously structural-only — it never opened the
+        # per-step ledger, so a project where 10 steps each carried
+        # "literature grounding deferred" silently passed synthesis. Now
+        # we walk every workspace step's yaml, pull `warnings: [...]`,
+        # and dedupe by signature; any signature that recurs across ≥3
+        # steps (or any signature matching the literature-deferred
+        # pattern, regardless of count) escalates to a gate_blocker.
+        try:
+            import yaml as _yaml_mod
+            sig_to_steps: dict[str, list[str]] = {}
+            for step_dir in (root / "workspace").iterdir():
+                if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
+                    continue
+                ss_path = step_dir / "step_summary.yaml"
+                if not ss_path.exists():
+                    continue
+                try:
+                    ss = _yaml_mod.safe_load(ss_path.read_text()) or {}
+                except Exception:
+                    continue
+                for w in (ss.get("warnings") or []):
+                    # Signature = first 60 chars normalised, lowercased.
+                    sig = re.sub(r"\s+", " ", str(w))[:60].lower().strip()
+                    sig_to_steps.setdefault(sig, []).append(step_dir.name)
+            for sig, steps_seen in sig_to_steps.items():
+                propagated_step_warnings.append({
+                    "signature": sig,
+                    "step_count": len(steps_seen),
+                    "steps": sorted(steps_seen),
+                })
+                # Literature-grounding deferral OR repeated warning ≥3 steps
+                # → escalate.
+                if (
+                    any(kw in sig for kw in (
+                        "literature", "pending verification",
+                        "tool_search", "grounding"
+                    ))
+                    or len(steps_seen) >= 3
+                ):
+                    recurring_blockers.append(
+                        f"`{sig}` recurs across {len(steps_seen)} step(s) "
+                        f"({', '.join(sorted(steps_seen)[:5])}). Address "
+                        "before synthesis — the deferred-pattern audit gate "
+                        "blocks v1.3.4 final assembly until resolved."
+                    )
+        except Exception as e:
+            logger.debug("step-warning aggregation skipped: %s", e)
+
+        # v1.3.4: hard-block on `pending verification` citations.
+        # citations.md aggregates per-step ## References to ground + per-PDF
+        # sidecars; if ANY entry is still pending after the synthesis
+        # paper has been drafted, the audit must block (override via
+        # `override_completeness_gate=true` if the researcher explicitly
+        # accepts an unverified draft).
+        try:
+            cit_md = root / "workspace" / "citations.md"
+            if cit_md.exists():
+                cit_text = cit_md.read_text()
+                unverified_citations = cit_text.count("pending verification")
+            if unverified_citations > 0:
+                recurring_blockers.append(
+                    f"workspace/citations.md has {unverified_citations} "
+                    "citation(s) still marked `⏳ pending verification`. "
+                    "Run `tool_literature_search_and_save` (or "
+                    "`tool_citations_verify`) for each before "
+                    "final_assembly; OR call tool_synthesize with "
+                    "`override_completeness_gate=true` + "
+                    "`override_rationale=...` if the researcher accepts "
+                    "an unverified draft."
+                )
+        except Exception as e:
+            logger.debug("citations.md scan skipped: %s", e)
+
+        # Merge recurring_blockers into gate_blockers so the existing
+        # escalation logic below treats them with full BLOCKER weight.
+        gate_blockers.extend(recurring_blockers)
+        # Reflect populated values back into the report dict (they were
+        # pre-initialised empty above so the dict constructor succeeded
+        # before the walks ran).
+        report["propagated_step_warnings"] = propagated_step_warnings
+        report["recurring_blockers"] = recurring_blockers
+        report["unverified_citations"] = unverified_citations
+        report["gate_blockers"] = gate_blockers
 
         # v1.3.3: gate_blockers (quality bars) escalate to status='error'
         # — but ONLY when the paper is large enough to plausibly be a real
