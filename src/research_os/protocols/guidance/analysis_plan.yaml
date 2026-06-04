@@ -1,6 +1,6 @@
 id: analysis_plan
 name: Analysis Plan (Core Loop)
-version: '1.3.2'
+version: '1.3.3'
 schema_version: '2.0'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
@@ -473,23 +473,107 @@ steps:
         - tool_audit_assumptions if residuals were saved.
       Append warnings to conclusions.md > Limitations.
 
+  - id: present_to_researcher
+    name: Present to Researcher (anti-one-shot MANDATORY pause)
+    description: |
+      v1.3.3 MANDATORY GATE — must run after `finalize_step`. The AI
+      MUST stop here and present the step's status to the researcher,
+      then WAIT for their choice before any further tool call.
+
+      Why: AI agents tend to "complete" long plans as fast as possible.
+      Context fills, the AI stops introspecting, and the researcher
+      loses oversight. The output is poor because no one paused to
+      ask "is this actually good?" between steps. Forcing a mandatory
+      pause at this checkpoint — with concrete revision options the
+      AI generates from the step's actual artefacts — gives the
+      researcher a moment to redirect.
+
+      Mechanics:
+
+        1. Call `tool_step_revision_options step_id="<NN_slug>"`.
+           This returns:
+             - would_benefit_from_revision (bool)
+             - risk_signals (e.g. citations claimed but no
+               tool_search_* calls logged)
+             - suggested_revisions (specific fixes; e.g. "Findings
+               section is only 120 chars — should be ≥300 with
+               specific numbers")
+             - alternative_paths (stratified / sensitivity / method-
+               comparison branches the researcher could fork)
+             - handoff_recommended (true when ≥5 steps finalized
+               this conversation — context is getting long)
+
+        2. Present those VERBATIM to the researcher. Format:
+
+             **Step `<NN_slug>` complete.**
+             - Headline: <conclusions.md headline>
+             - Outputs: <N figures, M tables, K reports>
+             - Audit warnings: <count> (see workspace/logs/audit_report.md)
+
+             *Suggested revisions (would_benefit_from_revision={bool}):*
+             - <each suggested_revision>
+
+             *Alternative paths to consider:*
+             - <each alternative_path>
+
+             *What would you like to do?*
+               (a) Proceed to the next analysis step
+               (b) Revise this step — I'll walk you through the
+                   suggested fixes
+               (c) Branch into an alternative (stratified /
+                   sensitivity / method-comparison)
+               (d) Pause + handoff for a fresh chat (recommended
+                   when handoff_recommended=true)
+
+        3. WAIT for the researcher's choice. DO NOT auto-scaffold
+           the next step in the same turn — even when autopilot is
+           on, the pause-and-present is mandatory; only the
+           auto-proceed afterwards is autopilot-dependent.
+
+      AUTONOMY GATE:
+        manual / supervised → wait for the researcher's reply (a/b/c/d).
+        autopilot           → present the summary + options; if
+                              would_benefit_from_revision is False
+                              AND audit warnings == 0, proceed to
+                              decide_next in the SAME turn. Otherwise
+                              still wait for the researcher.
+
+      ONE-SHOT GUARD: if the AI calls `sys_path_create` immediately
+      after `tool_path_finalize` without calling
+      `tool_step_revision_options` first, the next routing log will
+      flag this as a protocol violation. Don't do it.
+
   - id: decide_next
     name: Decide Next Step (don't loop forever)
     description: |
-      One of:
+      ONLY reachable AFTER `present_to_researcher` has surfaced the
+      pause-and-revise options + the researcher has chosen.
+
+      One of (per researcher choice):
         - Proceed → return to scope_step for the next experiment.
-        - Branch → create a parallel experiment via sys_path_create with a
-                  different methodology (kept active alongside this one).
-        - Abandon → sys_path_abandon + load guidance/dead_end_routing.
-        - Advance to reproducibility — only when ALL planned experiments
-          have non-empty conclusions.md (decisions are 'proceed' or 'branch',
-          NONE 'dead-end') AND at least one terminal experiment has a
-          publishable finding.
+        - Revise → load `guidance/scope_clarification` for a focused
+                   revision pass on the same step (re-iterate the
+                   sub-task that needs fixing; bump the script's
+                   `_v<n>` via `tool_step_iterate`).
+        - Branch → create a parallel experiment via `sys_path_create`
+                   with `branch_of=<this step>` and a different
+                   methodology (kept active alongside this one).
+        - Handoff → load `guidance/chat_handoff` + run
+                    `sys_session_handoff` so the next chat resumes
+                    cleanly with all the step's state intact.
+        - Abandon → `sys_path_abandon` + load
+                    `guidance/dead_end_routing`.
+        - Advance to reproducibility — only when ALL planned
+          experiments have non-empty `conclusions.md` (decisions are
+          'proceed' or 'branch', NONE 'dead-end') AND at least one
+          terminal experiment has a publishable finding.
 
       AUTONOMY GATE:
-        manual / supervised → present the recommendation; ask researcher.
-        autopilot           → pick the most-likely next step; tell the
-                              researcher what you're starting; proceed.
+        manual / supervised → wait for the explicit answer from
+                              `present_to_researcher`.
+        autopilot           → already-confirmed in
+                              `present_to_researcher`; proceed to the
+                              chosen action.
 
 expected_outputs:
   - workspace/*/README.md

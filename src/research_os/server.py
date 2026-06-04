@@ -1076,6 +1076,18 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "tool_step_revision_options": {
+        "short": "After a step finalize, surface the pause-and-revise heuristic + alternative paths + handoff hint.",
+        "description": "Call AFTER tool_path_finalize. Returns: would_benefit_from_revision (bool); suggested_revisions (list of specific fixes); alternative_paths (stratified / sensitivity / method-comparison branches the researcher could consider); handoff_recommended (bool, true when 5+ steps have been finalized in this conversation — context is getting long); risk_signals (e.g. citations claimed but no tool_search_* calls logged). The AI MUST present these options VERBATIM to the researcher and WAIT for their choice (proceed | revise | branch | handoff). Do NOT auto-scaffold the next step unless researcher_config.interaction.autonomy_level == 'autopilot' AND would_benefit_from_revision is False. This is the anti-one-shot gate: AI agents tend to complete long plans as fast as possible which hurts quality; forcing a mandatory pause at well-defined checkpoints — with concrete revision options — gives the researcher a moment to redirect.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {"type": "string", "description": "Numbered step folder, e.g. '03_fit_baseline'."},
+            },
+            "required": ["step_id"],
+        },
+    },
     "tool_step_iterate": {
         "short": "Take a coordinated iteration snapshot of a step (script+figure+caption+conclusion) into .versions/v<n>/.",
         "description": "Bumps an analysis step into a new named iteration. Use when the researcher wants to DELIBERATELY iterate (re-colour a figure, tighten a cutoff, swap a model spec) — distinct from a bug fix. Copies the selected scripts / figures / tables AND every sidecar (.caption.md / .summary.md / .prov.json) AND conclusions.md into workspace/<step>/.versions/v<n>/, appends a row to workspace/<step>/iterations.yaml with the (REQUIRED) rationale, and returns the recommended _v<n+1> rename for each script. The live files keep their stable names so cross-step references in conclusions / dashboards don't rot; the snapshot preserves the prior version for audit. After this call, re-run via tool_step_pipeline_run (for code iteration) or regenerate figures live (for cosmetic iteration).",
@@ -3184,6 +3196,18 @@ def _handle_tool_audit_step_completeness(name, arguments, root):
     )))
 
 
+def _handle_tool_step_revision_options(name, arguments, root):
+    from research_os.tools.actions.state.revision import step_revision_options
+
+    try:
+        res = step_revision_options(arguments["step_id"], root)
+        if res.get("status") == "success":
+            return _text(_success(res))
+        return _text(_error(res.get("message", "step_revision_options failed")))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
 def _handle_tool_step_iterate(name, arguments, root):
     from research_os.tools.actions.state.iteration import iterate_step
 
@@ -4449,6 +4473,7 @@ _HANDLERS = {
     "tool_audit_reproducibility": _handle_tool_audit_reproducibility,
     "tool_audit_step_completeness": _handle_tool_audit_step_completeness,
     "tool_audit_version_coherence": _handle_tool_audit_version_coherence,
+    "tool_step_revision_options": _handle_tool_step_revision_options,
     "tool_step_iterate": _handle_tool_step_iterate,
     "tool_step_iterations_list": _handle_tool_step_iterations_list,
     "tool_figure_caption_synthesise": _handle_tool_figure_caption_synthesise,

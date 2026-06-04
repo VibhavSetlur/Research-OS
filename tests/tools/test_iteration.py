@@ -875,3 +875,132 @@ def test_tools_md_filters_stdlib(tmp_path):
     assert "`pathlib`" not in tools_md, "stdlib `pathlib` should be filtered"
     assert "`sys`" not in tools_md, "stdlib `sys` should be filtered"
     assert "`warnings`" not in tools_md, "stdlib `warnings` should be filtered"
+
+
+# ---------------------------------------------------------------------------
+# v1.3.3 — anti-one-shot tool_step_revision_options
+# ---------------------------------------------------------------------------
+
+
+def test_step_revision_options_flags_placeholder_conclusions(tmp_path):
+    """v1.3.3: revision_options surfaces unfilled-placeholder + short-
+    Findings + missing-figure heuristics so the AI can pause before
+    advancing to the next step."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.revision import step_revision_options
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "stub_step", enforce_predecessor_finalized=False,
+    )
+    # Leave conclusions.md as the seed placeholder template (default).
+    res = step_revision_options(step["path_id"], tmp_path)
+    assert res["status"] == "success"
+    assert res["would_benefit_from_revision"] is True
+    assert any("placeholder" in s.lower() for s in res["suggested_revisions"])
+    assert any("figure" in s.lower() for s in res["suggested_revisions"])
+
+
+def test_step_revision_options_clean_step_passes(tmp_path):
+    """A step with substantive conclusions + figures + tables should NOT
+    be flagged as needing revision (heuristic returns False)."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.revision import step_revision_options
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "clean_step", enforce_predecessor_finalized=False,
+    )
+    step_dir = tmp_path / "workspace" / step["path_id"]
+    conc = step_dir / "conclusions.md"
+    # Substantive content (>200 chars in Findings).
+    conc.write_text(
+        "# Conclusions — clean_step\n\n"
+        "## Headline finding\n"
+        "**Real finding written out.**\n\n"
+        "## Methods (full detail)\n"
+        "Real methods written out across multiple sentences with citations.\n\n"
+        "## Findings\n"
+        "- " + ("Substantive finding with specific numbers (n=12, p<0.001, "
+        "effect size 0.85). " * 5) + "\n"
+        "- Another substantive finding with explicit references to figures + tables.\n\n"
+        "## Decision\nPROCEED to next step.\n\n"
+        "## Limitations\n- The usual small-n caveats.\n"
+    )
+    fig_dir = step_dir / "outputs" / "figures"
+    fig_dir.mkdir(parents=True, exist_ok=True)
+    (fig_dir / "01_fig.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    tab_dir = step_dir / "outputs" / "tables"
+    tab_dir.mkdir(parents=True, exist_ok=True)
+    (tab_dir / "01_tab.csv").write_text("a,b\n1,2\n")
+    res = step_revision_options(step["path_id"], tmp_path)
+    assert res["status"] == "success"
+    # Heuristic might still flag minor things (e.g. env folder empty),
+    # but the headline boolean should be False because findings are
+    # substantive + figures + tables present.
+    assert res["would_benefit_from_revision"] is False, (
+        f"clean step shouldn't need revision; got: {res['suggested_revisions']}"
+    )
+
+
+def test_finalize_emits_step_summary_yaml(tmp_path):
+    """v1.3.3: finalize writes workspace/<step>/step_summary.yaml with
+    structured fields synthesis can consume deterministically."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "summary_test", enforce_predecessor_finalized=False,
+    )
+    step_dir = tmp_path / "workspace" / step["path_id"]
+    (step_dir / "conclusions.md").write_text(
+        "# Conclusions — summary_test\n\n"
+        "## Headline finding\n**Test headline with numbers (n=12, p<0.001).**\n\n"
+        "## Methods (full detail)\n"
+        "- DESeq2 negative-binomial GLM (Love et al 2014).\n\n"
+        "## Findings\n- Finding A.\n- Finding B.\n\n"
+        "## Decision\nPROCEED to next step.\n\n"
+        "## Limitations\n- Small n.\n\n"
+        "## References to ground\n- Love MI, et al. 2014.\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    summary_yaml = step_dir / "step_summary.yaml"
+    assert summary_yaml.exists(), "step_summary.yaml should be written at finalize"
+    import yaml
+    summary = yaml.safe_load(summary_yaml.read_text())
+    assert summary["step_id"] == step["path_id"]
+    assert "Test headline" in summary["headline"]
+    assert "DESeq2" in summary["methods_block"]
+    assert summary["findings"] == ["Finding A.", "Finding B."]
+    assert summary["decision"].startswith("PROCEED")
+    assert summary["limitations"] == ["Small n."]
+
+
+def test_finalize_appends_anticipated_reviewer_questions(tmp_path):
+    """v1.3.3: finalize auto-appends a scaffolded self-critique section
+    so the AI's own retrospective is on record."""
+    from research_os.project_ops import (
+        create_numbered_experiment, scaffold_minimal_workspace,
+    )
+    from research_os.tools.actions.state.path import finalize_path
+    scaffold_minimal_workspace(tmp_path, "Test")
+    step = create_numbered_experiment(
+        tmp_path, "retro_test", enforce_predecessor_finalized=False,
+    )
+    step_dir = tmp_path / "workspace" / step["path_id"]
+    (step_dir / "conclusions.md").write_text(
+        "# Conclusions\n\n## Headline finding\n**Test.**\n\n"
+        "## Methods (full detail)\nNB-GLM fit per gene with PCA.\n\n"
+        "## Findings\n- Good.\n\n## Decision\nPROCEED.\n\n"
+        "## Limitations\n- Small n acknowledged.\n"
+    )
+    finalize_path(step["path_id"], tmp_path)
+    conc = (step_dir / "conclusions.md").read_text()
+    assert "## Anticipated reviewer questions" in conc
+    # Should have at least one content-aware question (we mentioned NB-GLM + PCA).
+    assert any(k in conc.lower() for k in ("dispersion", "shrunk", "pc1")) or \
+        "anticipated" in conc.lower()

@@ -6,6 +6,65 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.3.3] — Anti-one-shot enforcement + step_summary.yaml + synthesis quality gates + dashboard paper-as-interactive (2026-06-03)
+
+The deepest fix in the 1.3.x cycle. AI agents tend to "complete" long
+plans as fast as possible — context fills, the AI stops introspecting,
+and the output is a sketch. The v1.3.2 e2e exposed this: a 10-step
+analysis produced a 900-word paper that used 10 of 17 workspace
+figures. v1.3.3 forces mandatory pauses + concrete revision options
++ real quality gates so the AI cannot one-shot through a quality output.
+
+**Stats:** 110 protocols, **145 MCP tools** (+1: `tool_step_revision_options`).
+**477 tests pass** (+4 v1.3.3 regression tests). Preflight 14/14. Ruff clean.
+
+### Added — `tool_step_revision_options` (the anti-one-shot gate)
+
+New tool the AI calls AFTER `tool_path_finalize`. Returns:
+* `would_benefit_from_revision: bool` — composite heuristic
+* `risk_signals: [...]` — e.g. "citations claimed but zero `tool_search_*` calls logged"
+* `suggested_revisions: [...]` — specific fixes ("Findings is only 120 chars — should be ≥300 with explicit numbers + figure refs")
+* `alternative_paths: [...]` — stratified / sensitivity / method-comparison branches the researcher could fork via `branch_of=<step>`
+* `handoff_recommended: bool` — true when ≥5 steps have been finalized this conversation
+* `n_finalized_steps_this_project: int`
+
+The AI MUST present these VERBATIM to the researcher and WAIT for their choice (`proceed | revise | branch | handoff`). Refuses to auto-scaffold the next step unless `autonomy_level == 'autopilot'` AND `would_benefit_from_revision is False`.
+
+### Added — `analysis_plan.present_to_researcher` mandatory pause step
+
+New mandatory step in `guidance/analysis_plan` that runs IMMEDIATELY after `finalize_step`. Calls `tool_step_revision_options`, formats the output as a 4-choice question, and explicitly forbids auto-scaffolding the next step in the same turn. New ONE-SHOT GUARD: if the AI calls `sys_path_create` immediately after `tool_path_finalize` without calling `tool_step_revision_options` first, the routing log flags this as a protocol violation.
+
+### Added — `step_summary.yaml` sidecar at finalize
+
+Structured machine-readable mirror of `conclusions.md` the synthesis pipeline consumes deterministically (no NLP parsing). Fields: `headline`, `methods_block`, `plain_language_summary`, `findings: [...]`, `decision`, `limitations: [...]`, `references_to_ground: [...]`, `figures: [{name, path, caption_path, summary_path, audit}]`, `tables: [...]`, `reports: [...]`, `warnings: [...]`.
+
+### Added — `synthesis_paper` multi-turn enforcement doctrine
+
+The protocol description now enforces ONE section per researcher prompt (turn 1: outline → turn 2: methods → turn 3: results → … → turn 10: cover letter). The AI refuses to chain >1 section per turn. A real paper deserves the deliberative pace + the context window stays healthy.
+
+### Added — quality-bar gates on `tool_audit_synthesis`
+
+`audit_synthesis` now computes per-section word counts vs MIN_BAR (abstract 150 / introduction 300 / methods 400 / results 400 / discussion 300; total ≥1500) AND `figure_coverage_ratio = figures_used / figures_available_in_workspace` (target ≥0.8). Emits `gate_blockers: [...]` with specific revision instructions per gap. Escalates to `status='error'` (BLOCKER) ONLY when total ≥500 words — stub-shaped papers get the same gaps as warnings so the AI sees where to expand but isn't blocked on a sketch.
+
+### Added — per-step retrospective at finalize (Anticipated reviewer questions)
+
+`tool_path_finalize` auto-appends `## Anticipated reviewer questions` to conclusions.md (idempotent). Content-aware questions based on methods + limitations + figure/table counts (e.g. "On n=12, how reliable are dispersion estimates?"). Self-critique scaffold so the AI sees its weaknesses before synthesis.
+
+### Added — dashboard.py paper-as-interactive rewrite
+
+`_figure_block` now emits, per figure: clickable static image (lightbox via `<a target='_blank'>`), technical caption, **`.summary.md` plain-English sidecar in `<aside class='figsummary'>`**, and **interactive HTML companion in `<details><summary>↗ Open interactive companion</summary><iframe ...></iframe></details>`** when one exists. Plus CSS for the new blocks. The dashboard now actually implements what the v1.3.1 protocol described.
+
+### Added — long-context handoff hint in `sys_boot`
+
+`sys_boot` response now includes `handoff_recommended: bool` (true when ≥5 finalized steps) + a `handoff_hint` string the AI surfaces to the researcher. Prevents the "AI one-shots step 6, 7, 8 in lossy context" failure mode.
+
+### Validation
+
+* preflight 14/14 · pytest 477 passed · ruff clean
+* 4 new regression tests: `test_step_revision_options_flags_placeholder_conclusions`, `test_step_revision_options_clean_step_passes`, `test_finalize_emits_step_summary_yaml`, `test_finalize_appends_anticipated_reviewer_questions`
+
+---
+
 ## [1.3.2] — Multi-language env hardening + richer intake + comment-preserving config + exploratory hardening (2026-06-03)
 
 Post-v1.3.1 patch focused on three explicit researcher asks +
