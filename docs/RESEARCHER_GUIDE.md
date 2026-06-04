@@ -3,7 +3,7 @@
 The full guide to working with Research OS day-to-day. Read after
 [START.md](START.md) (5-minute install + first project). This document
 covers: the mental model, the file layout, a typical session, the
-canonical 10-stage pipeline, all 110 protocols and 149 MCP tools, the
+canonical 10-stage pipeline, all 113 protocols and 146 MCP tools, the
 config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
@@ -246,7 +246,7 @@ For the full role × goal × output map, see [USE_CASES.md](USE_CASES.md).
 
 ---
 
-## 6. The on-demand protocol surface (82 total)
+## 6. The on-demand protocol surface (113 total)
 
 For per-protocol triggers + quality bars, see
 [PROTOCOLS.md](PROTOCOLS.md). High-level inventory:
@@ -259,7 +259,7 @@ For per-protocol triggers + quality bars, see
 `hypothesis_tracking` / `glossary_update` / `mid_pipeline_entry` /
 `constructive_disagreement`.
 
-**Domain + methodology (24)** — `domain_analysis` / `research_design` /
+**Domain + methodology (42)** — `domain_analysis` / `research_design` /
 `methodology_selection` / `deep_domain_research` / `preregistration` /
 `tool_discovery` + per-method: `causal_inference_deep` /
 `machine_learning` / `clinical_trials` / `meta_analysis` /
@@ -269,11 +269,21 @@ For per-protocol triggers + quality bars, see
 design / workflow: `exploratory_data_analysis` / `method_comparison` /
 `data_quality_audit` / `power_analysis` / `evaluation_design` /
 `hyperparameter_search_design` / `data_ethics_review` /
-`reproduction_attempt` / `methodological_consultation`.
+`reproduction_attempt` / `methodological_consultation` +
+**v1.4.0** language/tool-stack doctrine: **`pick_tool_stack`** (R vs
+Python per sub-task — bulk RNA-seq → R Bioconductor, scRNA-seq →
+Python scanpy, Cox PH → R survival, WGCNA → R, geospatial → Python
+geopandas, psychometrics → R psych/lavaan; persists to
+`workspace/<step>/scratch/stack_plan.md`) / **`mixed_language_orchestration`**
+(Python↔R↔Bash composition: hand-off file contracts, serialization
+matrix, per-language `pipeline.yaml` tags, schema assertions).
 
-**Literature (4)** — `literature_search` (with forward-citation walk +
+**Literature (5)** — `literature_search` (with forward-citation walk +
 predatory-venue check) / `systematic_review` / `evidence_synthesis` /
-`comparative_paper_review`.
+`comparative_paper_review` / **`literature_per_step`** (v1.4.0 —
+per-step search → download → cite → write `findings_vs_literature.md`
+with AGREES \| DISAGREES \| EXTENDS \| DEFERRED verdicts; gated by
+`tool_audit_step_literature` before `tool_path_finalize`).
 
 **Writing (9)** — `writing_core` (universal rules) + per-section:
 `writing_methods` / `writing_results` / `writing_discussion` /
@@ -302,7 +312,7 @@ verification).
 
 ---
 
-## 7. MCP tools (143 total)
+## 7. MCP tools (146 total)
 
 > All names use underscores. Dot notation + legacy names are
 > auto-rewritten. Full catalogue with example calls:
@@ -635,8 +645,8 @@ For more: [FAQ.md](FAQ.md).
 * [USE_CASES.md](USE_CASES.md) — role × goal × output map.
 * [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
-* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 110 protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 149 MCP tools.
+* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 113 protocols.
+* [TOOLS.md](TOOLS.md) — catalogue of all 146 MCP tools.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
 * [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — scaffold-not-script
   principle (for protocol authors / contributors).

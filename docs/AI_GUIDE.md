@@ -81,19 +81,19 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 
 ---
 
-## Protocol categories (110 protocols, organised in 9)
+## Protocol categories (113 protocols, organised in 9)
 
 | Category | What it covers |
 |---|---|
 | guidance | session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree / scope_clarification / revise) |
 | discover | intake + question lock-in + scope_clarification |
 | domain | domain classification + study design |
-| methodology | method picking + per-method protocols (29 protocols) |
-| literature | search + systematic review + evidence synthesis + comparative review |
+| methodology | method picking + per-method protocols (42 protocols, incl. **v1.4.0** `pick_tool_stack` + `mixed_language_orchestration`) |
+| literature | search + systematic review + evidence synthesis + comparative review + **v1.4.0** `literature_per_step` (per-step findings_vs_literature.md loop) |
 | writing | per-section drafting (methods / results / discussion / limitations / end_matter) |
-| visualization | figures (rules / workflow / critique / multi-panel / arc / a11y) |
-| synthesis | final deliverables (14 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title) |
-| audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit |
+| visualization | figures (rules / workflow / critique / multi-panel / arc / a11y / interactive) |
+| synthesis | final deliverables (17 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title) |
+| audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + **v1.4.0** `tool_audit_step_literature` gate |
 
 For a category-specific orientation, call `sys_help(topic="<category>")`.
 Useful operational topics that aren't categories:
@@ -333,5 +333,5 @@ server enforces DPI, sidecars, palette via `tool_audit_figure_full` and
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 110 protocols indexed
+- `sys_protocol_list` → all 113 protocols indexed
 - `sys_tool_describe(tool_name)` → full schema for a tool

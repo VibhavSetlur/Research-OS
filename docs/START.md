@@ -130,7 +130,7 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
 * **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
   declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
   → fit → diagnose → visualize → report). Content-hash cached.
-* **110 protocols** the AI picks from via `tool_route`. Covers the
+* **113 protocols** the AI picks from via `tool_route`. Covers the
   canonical data → publication pipeline plus partial / off-axis
   workflows (visualization-only, talks, lay summaries, EDA + hypothesis
   generation, method comparison, reproduction, methodological
@@ -138,7 +138,7 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
   qualitative + survey design, IRR, fairness, calibrated UQ,
   manuscript outline, venue selection, defense prep, and Data
   Management Plans).
-* **149 MCP tools** across three namespaces — `sys_*` (system /
+* **146 MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
   (append-only memory).
 

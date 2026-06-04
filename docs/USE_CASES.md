@@ -203,6 +203,51 @@ don't want to redo the intake.
 | Data ethics review document | `methodology/data_ethics_review` |
 | Data-quality audit report | `methodology/data_quality_audit` |
 | Methodological consultation notes (optional) | `methodology/methodological_consultation` |
+| Per-step literature grounding (`findings_vs_literature.md`) | `literature/literature_per_step` *(v1.4.0)* |
+| Language / tool-stack decision (R vs Python per sub-task) | `methodology/pick_tool_stack` *(v1.4.0)* |
+| Mixed-language step (Python ↔ R ↔ Bash composition) | `methodology/mixed_language_orchestration` *(v1.4.0)* |
+
+---
+
+## What's new in v1.4.0
+
+- **Per-step literature loop** — after every analysis step writes
+  `## Findings` in `conclusions.md`, the AI now searches Semantic
+  Scholar / PubMed / Crossref per claim, downloads top PDFs into
+  `workspace/<step>/literature/`, and writes
+  `findings_vs_literature.md` with a `## Claim:` block per finding
+  (AGREES | DISAGREES | EXTENDS | DEFERRED + Evidence +
+  Discussion implication). `tool_audit_step_literature` BLOCKS
+  `tool_path_finalize` if missing or DISAGREES has no discussion.
+  Trigger: *"ground this step"*, *"compare to literature"*, *"is
+  this novel"*, or invoked automatically from
+  `analysis_plan.ground_findings_in_literature`.
+- **Language + tool-stack doctrine** — RO no longer defaults to
+  Python out of habit. `pick_tool_stack` enumerates language
+  candidates per sub-task, queries field practice (R Bioconductor
+  for bulk DE, Python scanpy for scRNA-seq, R survival for Cox PH,
+  WGCNA → R, geopandas → Python, …), and persists the choice + the
+  citation that grounds it to
+  `workspace/<step>/scratch/stack_plan.md`. Audit warns when this
+  artefact is missing.
+- **Mixed-language steps** — Python ↔ R ↔ Bash composition is now a
+  first-class protocol (`mixed_language_orchestration`) with
+  hand-off file contracts, serialization matrix (TSV / Parquet /
+  .mtx / RDS — never cross-language pickle), per-language
+  `pipeline.yaml` tags, and schema assertions at consumer entry.
+- **Summary fill-rate fix** — `tool_figure_caption_synthesise` now
+  pulls a "Why it matters" sentence from prose `## Findings`
+  sections (no longer requires bullets); missing `.summary.md`
+  sidecars now BLOCK at audit (were WARN).
+- **9 grounding tools wired into protocols** — `thought_log`,
+  `thought_trace`, `grounding_register`, `ground_from_context`,
+  `claim_verify`, `grounding_verify`, `lessons_record`,
+  `lessons_consult`, `plan_step_grounded` were orphan in v1.3.x;
+  now invoked from `project_startup`, `analysis_plan`,
+  `literature_per_step`, `writing_core`, and
+  `pre_submission_checklist`.
+
+See [CHANGELOG.md](../CHANGELOG.md) `[1.4.0]` for the full diff.
 
 ---
 

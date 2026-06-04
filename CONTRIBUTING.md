@@ -7,7 +7,7 @@ contribute changes that keep the surface small and the protocols sharp.
 
 The AI IDE is the brain (Cursor / Claude Code / Claude Desktop /
 OpenCode / Antigravity / VS Code / Windsurf / Continue / Aider).
-Research OS is the body: 149 MCP tools and 110 YAML protocols, plus a
+Research OS is the body: 146 MCP tools and 113 YAML protocols, plus a
 **hybrid semantic + trigger router** that turns a user prompt into a
 protocol pick + planned tool sequence without the AI ever loading the
 trigger index itself. The semantic path uses local BGE-small ONNX
