@@ -271,6 +271,25 @@ tbody tr:hover { background: var(--primary-soft); }
   padding: 0.6rem 0.9rem; border-radius: 4px; border: 1px dashed var(--warn);
   font-style: italic; display: block;
 }
+/* v1.3.3 paper-as-interactive: plain-English summary panel + interactive companion */
+.figure .figsummary {
+  margin-top: 0.8rem; padding: 0.8rem 1rem; border-left: 3px solid var(--accent, #2C5282);
+  background: var(--soft-bg-alt, #f7f9fb); border-radius: 0 4px 4px 0;
+  font-size: 0.92rem; line-height: 1.55; color: var(--fg);
+}
+.figure .figsummary-label {
+  display: block; font-weight: 600; font-size: 0.78rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--accent, #2C5282); margin-bottom: 0.3rem;
+}
+.figure .figsummary-body { display: block; }
+.figure .figinteractive { margin-top: 0.8rem; }
+.figure .figinteractive summary {
+  cursor: pointer; padding: 0.5rem 0.8rem; background: var(--soft-bg);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 0.88rem; color: var(--accent, #2C5282); font-weight: 500;
+}
+.figure .figinteractive summary:hover { background: var(--soft-bg-alt, #eef2f7); }
 
 #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.92);
   display: none; align-items: center; justify-content: center; z-index: 100; cursor: zoom-out; padding: 2rem; }
@@ -605,9 +624,19 @@ def _verdict_label(status: str) -> str:
 
 def _figure_block(idx: int | str, fig: dict[str, Any] | None,
                   label: str = "", fallback_caption: str = "") -> str:
-    """Render a single figure block. If figure is missing, render an
-    inline note explaining how to add one (placeholder — not silently
-    blank)."""
+    """Render a single figure block.
+
+    v1.3.3 (paper-as-interactive doctrine):
+      - Embed BOTH the technical caption AND the plain-English summary
+        (`.summary.md` sidecar) inline. The paper has only the caption;
+        the dashboard adds the summary — that's what makes it "guided".
+      - If a `.html` interactive companion exists next to the static
+        figure, surface a link AND inline the interactive in a
+        `<details><summary>` toggle so the static loads first + the
+        interactive opens on demand.
+      - Lightbox-style click-to-zoom on the static image (no JS needed;
+        wrap in `<a target='_blank'>` to open at full resolution).
+    """
     if not fig:
         if not fallback_caption:
             return ""
@@ -629,10 +658,45 @@ def _figure_block(idx: int | str, fig: dict[str, Any] | None,
             "next to the figure. Captions should lead with the substantive "
             "finding the figure shows.</span>"
         )
+    # Plain-English summary sidecar (paper-as-interactive guidance layer)
+    summary_html = ""
+    summary_path = fig["path"].with_suffix("").parent / (fig["path"].stem + ".summary.md")
+    if summary_path.exists():
+        try:
+            summary_text = summary_path.read_text().strip()
+            if summary_text:
+                summary_html = (
+                    "<div class='figsummary'>"
+                    "<span class='figsummary-label'>Plain-English summary</span>"
+                    f"<span class='figsummary-body'>{_md_inline(summary_text)}</span>"
+                    "</div>"
+                )
+        except OSError:
+            pass
+    # Interactive HTML companion (e.g. plotly volcano).
+    interactive_html = ""
+    html_companion = fig["path"].with_suffix(".html")
+    if html_companion.exists():
+        try:
+            relative_src = html_companion.relative_to(html_companion.parents[3])
+        except (ValueError, IndexError):
+            relative_src = html_companion.name
+        interactive_html = (
+            "<details class='figinteractive'>"
+            "<summary>↗ Open interactive companion (hover, brush, zoom)</summary>"
+            f"<iframe src='{_escape(str(relative_src))}' loading='lazy' "
+            "style='width:100%;height:600px;border:1px solid #e5e5e5;border-radius:4px;margin-top:0.5em;'>"
+            "</iframe>"
+            "</details>"
+        )
     return (
         f"<figure class='figure' id='figure-{idx}'>"
+        f"<a href='{src}' target='_blank' title='Open at full resolution'>"
         f"<img src='{src}' alt='{_escape(label)}'>"
+        "</a>"
         f"<figcaption><span class='figlabel'>{_escape(label)}</span>{cap_html}</figcaption>"
+        f"{summary_html}"
+        f"{interactive_html}"
         "</figure>"
     )
 

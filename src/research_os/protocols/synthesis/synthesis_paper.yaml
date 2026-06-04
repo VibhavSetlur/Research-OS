@@ -1,6 +1,6 @@
 id: synthesis_paper
 name: Synthesis — Paper (IMRAD, venue-tailored)
-version: '1.3.2'
+version: '1.3.3'
 schema_version: '2.0'
 description: |
   Compile the final IMRAD paper into synthesis/paper.md (and
@@ -9,6 +9,36 @@ description: |
   inline-formatting + table-aware fallback (no more raw-escaped text).
   Server-side completeness gate blocks the assembly until every active
   step has a focal figure + caption + summary + non-stub conclusions.
+
+  **v1.3.3 multi-turn enforcement.** A paper is the highest-stakes
+  artefact in the project. Producing a publishable draft in ONE
+  research-os call is the anti-pattern — context fills, the AI stops
+  introspecting between sections, and the result is a 900-word sketch
+  that uses 10 of 17 figures (the failure mode observed in the v1.3.2
+  e2e). This protocol now enforces ONE section per researcher prompt:
+
+    - turn 1: "outline the paper" → produces synthesis/outline.md
+    - turn 2: "draft methods" → writes ONLY the Methods section
+    - turn 3: "draft results" → writes ONLY the Results section
+    - turn 4: "draft discussion" → writes ONLY the Discussion section
+    - turn 5: "draft introduction" → writes ONLY the Introduction
+    - turn 6: "draft abstract" → writes ONLY the Abstract
+    - turn 7: "assemble + compile to PDF" → final_assembly + compile_pdf
+    - turn 8: "workshop the title" → title.md
+    - turn 9: "audit + revise" → audit_synthesis + revision pass
+    - turn 10: "build end matter + cover letter"
+
+  The AI refuses to chain >1 of these sections in a single turn. The
+  researcher initiates each section as a separate prompt — that
+  enforces the deliberative pace a real paper deserves AND keeps the
+  context window healthy. If `interaction.autonomy_level` is
+  `autopilot` the AI may proceed automatically through turns 2-10
+  WITHOUT a fresh prompt, but each section is still its own
+  tool_synthesize call + its own audit pass.
+
+  Citation auto-verify is now part of final_assembly — `tool_citations_verify`
+  runs as a HARD gate; any citation still in `pending verification`
+  state blocks the assembly until the AI runs the actual lookup.
 
   Related per-section / supporting protocols this one calls into:
     - `synthesis/synthesis_title_workshop` — workshop the title
