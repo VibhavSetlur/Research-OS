@@ -1,6 +1,6 @@
 id: project_startup
 name: Project Startup
-version: '1.3.4'
+version: '1.4.0'
 schema_version: '2.0'
 description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
 trigger: Second protocol every new project — and any time inputs/ changes substantially.
@@ -105,6 +105,18 @@ steps:
       pre-training memory is current literature. A reviewer will ask
       "did you check the 2026 work on X?" and the answer must be
       verifiable in the search log.
+
+      v1.4.0 — register the PI brief / context files as the FIRST
+      grounding records, so every downstream decision can trace back
+      to the source brief:
+        tool_ground_from_context
+            decision="project_intake"
+            context_files=["inputs/context/<brief.md>", ...]
+            notes="initial project framing — used to derive the
+                   question, hypotheses, and per-step scope"
+      Writes to workspace/.grounding/grounding.jsonl. Subsequent
+      grounding_register / grounding_verify calls can reference
+      decision_id="project_intake" as the upstream anchor.
 
   - id: present_startup_summary
     name: Summarise to Researcher

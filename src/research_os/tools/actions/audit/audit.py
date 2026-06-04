@@ -246,6 +246,8 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
         try:
             import yaml as _yaml_mod
             sig_to_steps: dict[str, list[str]] = {}
+            lit_deferred_steps: list[str] = []
+            lit_no_grounding_steps: list[str] = []
             for step_dir in (root / "workspace").iterdir():
                 if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
                     continue
@@ -257,17 +259,28 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
                 except Exception:
                     continue
                 for w in (ss.get("warnings") or []):
-                    # Signature = first 60 chars normalised, lowercased.
                     sig = re.sub(r"\s+", " ", str(w))[:60].lower().strip()
                     sig_to_steps.setdefault(sig, []).append(step_dir.name)
+                # v1.4.0: per-step literature deferrals are first-class.
+                ld = ss.get("literature_deferred") or []
+                if isinstance(ld, list) and ld:
+                    lit_deferred_steps.append(step_dir.name)
+                # v1.4.0: literature.claims_grounded == 0 means the step
+                # ran the loop but found nothing — also a deferral signal.
+                lit_block = ss.get("literature") or {}
+                if (
+                    isinstance(lit_block, dict)
+                    and ss.get("literature_required") is not False
+                    and (step_dir / "conclusions.md").exists()
+                    and lit_block.get("claims_grounded", -1) == 0
+                ):
+                    lit_no_grounding_steps.append(step_dir.name)
             for sig, steps_seen in sig_to_steps.items():
                 propagated_step_warnings.append({
                     "signature": sig,
                     "step_count": len(steps_seen),
                     "steps": sorted(steps_seen),
                 })
-                # Literature-grounding deferral OR repeated warning ≥3 steps
-                # → escalate.
                 if (
                     any(kw in sig for kw in (
                         "literature", "pending verification",
@@ -279,8 +292,28 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
                         f"`{sig}` recurs across {len(steps_seen)} step(s) "
                         f"({', '.join(sorted(steps_seen)[:5])}). Address "
                         "before synthesis — the deferred-pattern audit gate "
-                        "blocks v1.3.4 final assembly until resolved."
+                        "blocks final assembly until resolved."
                     )
+            # v1.4.0: surface per-step literature_deferred + zero-grounding.
+            if lit_deferred_steps:
+                recurring_blockers.append(
+                    f"{len(lit_deferred_steps)} step(s) have non-empty "
+                    f"literature_deferred in step_summary.yaml: "
+                    f"{', '.join(lit_deferred_steps[:5])}"
+                    f"{'…' if len(lit_deferred_steps) > 5 else ''}. Resolve "
+                    "via research/literature_per_step OR pass "
+                    "`override_completeness_gate=true` with rationale."
+                )
+            if lit_no_grounding_steps:
+                recurring_blockers.append(
+                    f"{len(lit_no_grounding_steps)} step(s) ran without "
+                    "grounding any claims (literature.claims_grounded == 0): "
+                    f"{', '.join(lit_no_grounding_steps[:5])}"
+                    f"{'…' if len(lit_no_grounding_steps) > 5 else ''}. "
+                    "Either run literature_per_step or set "
+                    "`literature_required: false` if the step is pure "
+                    "data engineering."
+                )
         except Exception as e:
             logger.debug("step-warning aggregation skipped: %s", e)
 
@@ -1269,9 +1302,10 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
                 + ("…" if len(missing_caps) > 5 else "")
             )
         if missing_sums:
-            warnings.append(
+            blockers.append(
                 f"{len(missing_sums)} figure(s) missing plain-English summary "
-                "(call tool_figure_caption_synthesise or run tool_path_finalize)."
+                "sidecar (.summary.md). Call tool_figure_caption_synthesise "
+                "or rerun tool_path_finalize."
             )
         info["missing_captions"] = missing_caps
         info["missing_summaries"] = missing_sums
@@ -1292,6 +1326,23 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
             "No script files under scripts/ — step's outputs may not be "
             "reproducible from this folder alone."
         )
+
+    # v1.4.0: warn when a step has scripts but no stack_plan.md. The
+    # `methodology/pick_tool_stack` protocol asks the AI to persist its
+    # language/library choice + the field-practice rationale before
+    # coding; a missing artefact means the choice was implicit (typically
+    # default-to-Python). Promoted to BLOCKER in v1.5.0.
+    if scripts:
+        stack_plan = step_dir / "scratch" / "stack_plan.md"
+        if not stack_plan.exists():
+            warnings.append(
+                f"{step_dir.name}: no scratch/stack_plan.md — language + "
+                "library choice not documented. Run methodology/pick_tool_stack "
+                "to record the field-practice rationale (R Bioconductor for "
+                "bulk DE, Python scanpy for scRNA-seq, R survival for Cox PH, "
+                "etc.). v1.4.0 warns; v1.5.0 will block."
+            )
+            info["missing_stack_plan"] = True
 
     # 5. Multi-script steps must declare a pipeline.yaml (sub-task DAG).
     #    Tightened in v1.0.0: a step that emits outputs in MULTIPLE

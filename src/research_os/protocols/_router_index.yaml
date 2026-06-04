@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 9
+version: 10
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -516,6 +516,23 @@ protocols:
     summary: "Choose statistical / computational method given design + data."
     triggers: ["pick method", "which method", "choose model", "what should i use"]
 
+  methodology/pick_tool_stack:
+    intent_class: methodology
+    sub_intent: pick
+    summary: "Pick language + library per sub-task (R Bioconductor for DE, Python scanpy for scRNA, R survival for Cox PH, etc.) — sister to figure_guidelines.pick_library at the analysis level."
+    triggers: ["pick language", "which language", "python or r", "r or python",
+               "tool stack", "which library", "implementation choice",
+               "language choice", "deseq2 or pydeseq2", "seurat or scanpy",
+               "survminer or lifelines", "field practice"]
+
+  methodology/mixed_language_orchestration:
+    intent_class: methodology
+    sub_intent: pick
+    summary: "Compose Python ↔ R ↔ bash within one step: hand-off files, serialization format, schema assertions, pipeline.yaml language tags."
+    triggers: ["mix languages", "mixed language", "python and r", "r and python",
+               "subprocess r", "subprocess rscript", "polyglot pipeline",
+               "cross language", "hand-off between", "rscript from python"]
+
   methodology/preregistration:
     intent_class: methodology
     sub_intent: prereg
@@ -745,6 +762,20 @@ protocols:
     sub_intent: evidence_grade
     summary: "Grade body of evidence (GRADE-style)."
     triggers: ["grade the evidence", "evidence synthesis", "body of evidence"]
+
+  literature/literature_per_step:
+    intent_class: literature
+    sub_intent: per_step_grounding
+    summary: "After a step writes Findings, search → download → cite → write findings_vs_literature.md (AGREES|DISAGREES|EXTENDS|DEFERRED) → register grounding. Gated by tool_audit_step_literature. v1.4.0 literature loop."
+    triggers: ["ground this step", "literature for this step", "validate findings",
+               "compare to literature", "literature check", "is this novel",
+               "does the literature support", "findings vs literature",
+               "per-step literature", "per step literature", "ground my findings"]
+    decomposition:
+      - protocol: literature/literature_per_step
+        purpose: "Find + download + cite + write structured comparison per claim."
+      - tool: tool_audit_step_literature
+        purpose: "Gate before path_finalize: blocks if findings_vs_literature.md missing or DISAGREES lacks discussion."
 
 # ─────────────────────────────────────────────────────────────────────
 # WRITING + VISUALIZATION (granular rules)

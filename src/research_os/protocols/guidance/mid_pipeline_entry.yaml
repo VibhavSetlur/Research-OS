@@ -1,6 +1,6 @@
 id: mid_pipeline_entry
 name: Mid-Pipeline Entry (entering an in-progress project)
-version: '1.3.4'
+version: '1.4.0'
 schema_version: '2.0'
 description: |
   Routing protocol for researchers entering Research-OS with WORK ALREADY

@@ -1,6 +1,6 @@
 id: pre_submission_checklist
 name: Pre-Submission Checklist (final ready-to-submit gate)
-version: '1.3.4'
+version: '1.4.0'
 schema_version: '2.0'
 description: |
   Final ready-to-submit gate. Walks the project through every
@@ -223,6 +223,19 @@ steps:
       been grounded in PROV-O sources. Ungrounded commitments
       are YELLOW (the discussion / limitations should
       acknowledge them).
+
+      v1.4.0 — also surface the ReAct trace + per-step literature
+      audit in the bundle:
+        tool_thought_trace decision_id=<any flagged decision>
+          — replays the Thought/Plan/Action/Observation/Reflection
+            chain for a specific decision. Useful when claim_grounding
+            flags an unsupported claim and the reviewer asks "what
+            was the AI thinking?". Read-only.
+        tool_audit_step_literature   # project-wide
+          — aggregates per-step findings_vs_literature.md verdicts
+            into workspace/logs/step_literature_audit.md. Surfaces
+            steps where DISAGREES verdicts lack discussion or all
+            claims are DEFERRED.
 
   - id: override_audit_review
     name: Override audit — every quality-gate bypass surfaces here
