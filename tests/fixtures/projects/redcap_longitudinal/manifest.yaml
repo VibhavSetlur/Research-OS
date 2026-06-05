@@ -1,0 +1,33 @@
+# Reference project: redcap_longitudinal
+#
+# Longitudinal REDCap study with data dictionary + export.
+# Exercises the redcap adapter: dictionary + export detection,
+# event/instrument inference, PHI flagging via Identifier? = y.
+
+domain: biomedical
+expected_pack: null         # uses core protocols only
+
+protocols_expected:
+  - guidance/project_startup
+  - methodology/exploratory_data_analysis
+
+gates_expected_pass:
+  - guidance/project_startup:intake_complete
+  - methodology/exploratory_data_analysis:assumptions_logged
+
+artifacts_required:
+  - inputs/context/study_brief.md
+  - inputs/raw_data/study_DataDictionary.csv
+  - inputs/raw_data/study_DATA.csv
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+canned_responses:
+  intake_files: "Surveyed inputs/raw_data/ and inputs/context/. Detected REDCap data dictionary + longitudinal export (3 events)."
+  classify_project: "Domain=biomedical, sub_domain=clinical_longitudinal_cohort, output_type=paper."
+  lock_in_question: "Question locked: trajectory of functional recovery (Barthel Index, NIHSS) over 12 months post-stroke in N=60 cohort."
+  pick_method: "Selected mixed-effects model for repeated measures across baseline / 6mo / 12mo events; logged justification."
+  fit_model: "Fitted lme4 random-intercept model; saved results to workspace/01_recovery_trajectory/results.csv."

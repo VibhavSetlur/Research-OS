@@ -1,0 +1,36 @@
+# Reference project: slurm_snakemake
+#
+# Bulk RNA-seq pipeline expressed as a Snakefile plus an sbatch wrapper.
+# Exercises both the slurm adapter (parsing #SBATCH headers + module
+# loads) and the snakemake adapter (rule graph extraction).
+
+domain: biology
+expected_pack: null         # uses core protocols only
+
+protocols_expected:
+  - guidance/project_startup
+  - methodology/exploratory_data_analysis
+  - audit/audit_and_validation
+
+gates_expected_pass:
+  - guidance/project_startup:intake_complete
+  - methodology/exploratory_data_analysis:assumptions_logged
+  - audit/audit_and_validation:audit_master_green
+
+artifacts_required:
+  - inputs/data/Snakefile
+  - inputs/scripts/run_pipeline.sh
+  - inputs/context/research_question.md
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+canned_responses:
+  intake_files: "Surveyed inputs/data/Snakefile, inputs/scripts/run_pipeline.sh, inputs/context/. Detected Snakemake workflow with 6 rules and an sbatch wrapper carrying 7 #SBATCH headers."
+  classify_project: "Domain=biology, sub_domain=bulk_rnaseq_pipeline, output_type=pipeline."
+  lock_in_question: "Question locked: differential expression of TCGA-BRCA primary tumor vs adjacent-normal samples (N=200) using STAR + featureCounts + DESeq2."
+  pick_method: "Selected Snakemake-orchestrated STAR alignment + featureCounts + DESeq2 Wald test; sbatch profile on Slurm; logged justification."
+  fit_model: "Fitted DESeq2 model ~ condition; saved results to workspace/05_deseq2/results.tsv."
+  audit_master: "audit_master ran; 0 blockers."

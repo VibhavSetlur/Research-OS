@@ -1,0 +1,35 @@
+# Reference project: nextflow_chipseq
+#
+# ChIP-seq analysis using Nextflow DSL2. ERα binding-site comparison
+# between MCF-7 and T47D breast cancer cell lines. Exercises the
+# nextflow adapter (process discovery, container resolution, executor
+# config) without actually executing the pipeline.
+
+domain: biology
+expected_pack: null         # uses core protocols only
+
+protocols_expected:
+  - guidance/project_startup
+  - methodology/exploratory_data_analysis
+
+gates_expected_pass:
+  - guidance/project_startup:intake_complete
+  - methodology/exploratory_data_analysis:assumptions_logged
+
+artifacts_required:
+  - inputs/context/research_question.md
+  - inputs/pipeline/main.nf
+  - inputs/pipeline/nextflow.config
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+canned_responses:
+  intake_files: "Surveyed inputs/context/ and inputs/pipeline/. Found Nextflow DSL2 pipeline (main.nf) with 4 processes + nextflow.config with test/full profiles."
+  classify_project: "Domain=biology, sub_domain=chipseq_transcription_factor, output_type=paper. Nextflow workflow declared; adapter=nextflow."
+  lock_in_question: "Question locked: differential ERα binding-site occupancy in MCF-7 vs T47D ER-positive breast cancer cell lines, with downstream motif-enrichment comparison."
+  pick_method: "Selected BWA-MEM alignment + MACS2 narrow-peak calling (q<0.01) + HOMER motif enrichment on consensus peaks; logged justification."
+  fit_model: "Pipeline structure verified: FASTQC -> BWA -> MACS2_PEAKCALL -> MOTIF_ENRICH. Container images pinned; SLURM executor configured."
+  audit_master: "audit_master ran; 0 blockers. Nextflow adapter parsed 4 processes; all required directives (container/cpus/memory/time) present."

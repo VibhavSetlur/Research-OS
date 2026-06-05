@@ -201,6 +201,51 @@ def check_dispatcher_aliases():
     return not bad, "ok" if not bad else "; ".join(bad)
 
 
+def check_adapters_discovered():
+    """Every bundled adapter registers without errors."""
+    try:
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
+        from research_os.adapters import installed_adapters, load_adapter_errors
+    except Exception as exc:
+        return False, f"adapter loader import failed: {exc}"
+    errors = load_adapter_errors()
+    if errors:
+        eps = [e["entry_point"] for e in errors]
+        return False, f"adapter registration errors: {eps}"
+    adapters = installed_adapters()
+    required = {"slurm", "snakemake", "nextflow", "cytoscape", "redcap", "synapse"}
+    bundled_names = {a["name"] for a in adapters}
+    missing = sorted(required - bundled_names)
+    if missing:
+        return False, f"bundled adapters missing: {missing}"
+    return True, (
+        f"{len(adapters)} adapter(s) discovered: "
+        + ", ".join(f"{a['name']}@{a['version']}" for a in adapters)
+    )
+
+
+def check_adapter_regex_compile():
+    """Every adapter's tools_md_patterns must compile as a valid regex."""
+    import re as _re
+    try:
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
+        from research_os.adapters.loader import active_adapter_extractors
+    except Exception as exc:
+        return False, f"adapter loader import failed: {exc}"
+    bad: list[str] = []
+    pattern_count = 0
+    for name, patterns in active_adapter_extractors().items():
+        for pat_source, _template in patterns:
+            pattern_count += 1
+            try:
+                _re.compile(pat_source)
+            except _re.error as exc:
+                bad.append(f"{name}: {pat_source!r} → {exc}")
+    if bad:
+        return False, "; ".join(bad[:5])
+    return True, f"{pattern_count} adapter regex pattern(s) compile"
+
+
 def check_packs_discovered():
     """Every bundled pack registers without errors; tools + router merge cleanly."""
     # Importing any symbol from server triggers the module body which
@@ -646,6 +691,8 @@ def main() -> int:
     tally.check("Redirect-stub targets resolve", check_redirect_targets)
     tally.check("Bundled packs discovered", check_packs_discovered)
     tally.check("Pack protocols load", check_pack_protocols_load)
+    tally.check("Bundled adapters discovered", check_adapters_discovered)
+    tally.check("Adapter regex patterns compile", check_adapter_regex_compile)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)

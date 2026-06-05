@@ -1160,16 +1160,13 @@ def finalize_path(
                     or _section(conc_full, "Software")
                     or ""
                 ).strip()
-                # Fall back to scanning the scripts dir for top-level imports.
+                # Fall back to scanning the step tree via the multi-language
+                # extractor pipeline. Captures Python + R + Bash modules +
+                # Node + Rust + Julia + adapter-contributed patterns
+                # (Slurm partitions, Snakemake rules, Nextflow processes,
+                # HPC modules, etc).
                 if not tools_body:
-                    scripts_dir = exp_dir / "scripts"
-                    imports: set[str] = set()
-                    # Filter out the Python stdlib + Research-OS
-                    # bookkeeping modules so tools.md captures the ACTUAL
-                    # analysis stack (statsmodels / scanpy / DESeq2 / ...)
-                    # not noise (pathlib / sys / warnings / json / re).
                     STDLIB_SKIP = {
-                        # core stdlib (most common imports)
                         "abc", "argparse", "ast", "asyncio", "base64", "collections",
                         "contextlib", "copy", "csv", "datetime", "decimal", "enum",
                         "errno", "fnmatch", "functools", "gc", "glob", "gzip",
@@ -1181,68 +1178,81 @@ def finalize_path(
                         "struct", "subprocess", "sys", "tempfile", "textwrap",
                         "threading", "time", "tomllib", "traceback", "typing",
                         "unicodedata", "unittest", "urllib", "uuid", "warnings",
-                        "weakref", "xml", "zipfile", "zlib",
-                        # __future__
-                        "__future__",
+                        "weakref", "xml", "zipfile", "zlib", "__future__",
                     }
-                    # Drop common-English fake-package words that leak
-                    # in when a docstring or comment-stripped pass
-                    # accidentally matches the import regex (without
-                    # this, tools.md can show `"the"` as a package).
-                    # Stricter regex + an English-stopword filter both
-                    # apply.
                     ENGLISH_STOPWORDS = {
                         "the", "a", "an", "and", "or", "of", "for", "to",
                         "in", "on", "at", "by", "as", "is", "it", "be",
                         "we", "i", "this", "that", "with", "from", "into",
                         "import", "uses", "use",
                     }
-                    if scripts_dir.exists():
-                        import re as _re_mod
-                        # Tighter: regex anchors the verb at line start
-                        # with NO leading non-whitespace; the captured
-                        # module name must be ≥3 chars (single-letter
-                        # imports like `import a` are real but rare; the
-                        # ≥3 cutoff avoids most false positives).
-                        py_import = _re_mod.compile(
-                            r"^(?:from|import)\s+([a-zA-Z_][\w.]{2,})",
-                            _re_mod.MULTILINE,
+                    try:
+                        from research_os.tools.actions.state.extractors import (
+                            extract_from_tree,
                         )
-                        r_library = _re_mod.compile(
-                            r"\blibrary\(([a-zA-Z_][\w.]{2,})\)|require\(([a-zA-Z_][\w.]{2,})\)"
-                        )
-                        for script in scripts_dir.rglob("*"):
-                            if script.suffix.lower() not in {".py", ".r", ".qmd", ".rmd"}:
+                        tuples = extract_from_tree(root, step_id=path_name)
+                    except Exception as exc:
+                        logger.debug("extractors fell through: %s", exc)
+                        tuples = []
+                    bullets: list[str] = []
+                    seen: set[tuple] = set()
+                    for kind, name, ver in tuples:
+                        key = (kind, name)
+                        if key in seen:
+                            continue
+                        # Filter Python noise: stdlib, English words, single letters.
+                        if kind == "python_import":
+                            base = name.split(".")[0]
+                            if (
+                                not base
+                                or len(base) <= 1
+                                or base.lower() in STDLIB_SKIP
+                                or base.lower() in ENGLISH_STOPWORDS
+                                or base.startswith("_")
+                            ):
                                 continue
-                            try:
-                                txt = script.read_text(errors="ignore")
-                                for m in py_import.finditer(txt):
-                                    imports.add(m.group(1).split(".")[0])
-                                for m in r_library.finditer(txt):
-                                    imports.add(m.group(1) or m.group(2))
-                            except OSError:
-                                continue
-                    # Drop stdlib + tiny names + English stopwords.
-                    bullets = sorted(
-                        i for i in imports
-                        if i
-                        and len(i) > 1
-                        and i.lower() not in STDLIB_SKIP
-                        and i.lower() not in ENGLISH_STOPWORDS
-                        and not i.startswith("_")
-                    )[:30]
+                            seen.add(key)
+                            bullets.append(f"- `{base}` — Python package")
+                        elif kind in {"r_library", "r_bioc_install", "r_renv", "r_description"}:
+                            seen.add(key)
+                            label = {
+                                "r_library": "R library",
+                                "r_bioc_install": "Bioconductor package",
+                                "r_renv": "renv-pinned R package",
+                                "r_description": "DESCRIPTION-declared R dep",
+                            }[kind]
+                            v = f" ({ver})" if ver else ""
+                            bullets.append(f"- `{name}` — {label}{v}")
+                        elif kind == "bash_module":
+                            seen.add(key)
+                            bullets.append(f"- `{name}` — HPC module load")
+                        elif kind == "bash_env":
+                            seen.add(key)
+                            bullets.append(f"- `{name}` — shell environment activation")
+                        elif kind in {"node_dep", "node_import"}:
+                            seen.add(key)
+                            label = "Node dep" if kind == "node_dep" else "Node import"
+                            v = f" ({ver})" if ver else ""
+                            bullets.append(f"- `{name}` — {label}{v}")
+                        elif kind in {"rust_dep", "rust_use"}:
+                            seen.add(key)
+                            label = "Rust crate" if kind == "rust_dep" else "Rust use"
+                            v = f" ({ver})" if ver else ""
+                            bullets.append(f"- `{name}` — {label}{v}")
+                        elif kind in {"julia_dep", "julia_using"}:
+                            seen.add(key)
+                            label = "Julia dep" if kind == "julia_dep" else "Julia using"
+                            v = f" ({ver})" if ver else ""
+                            bullets.append(f"- `{name}` — {label}{v}")
+                        elif kind == "adapter_pattern":
+                            seen.add(key)
+                            bullets.append(f"- {ver} _(via {name} adapter)_")
+                    bullets = sorted(set(bullets))[:60]
                     if bullets:
-                        tools_body = "\n".join(
-                            f"- `{i}` — third-party / domain package used by step scripts." for i in bullets
-                        )
+                        tools_body = "\n".join(bullets)
                     else:
-                        # Always emit SOMETHING under the section so the
-                        # marker is written and the next finalize is
-                        # idempotent. Without this, steps with
-                        # stdlib-only scripts skip the whole tools.md
-                        # append on empty-bullets, leaving NO entry.
                         tools_body = (
-                            "_(No third-party packages detected in this "
+                            "_(No third-party packages or infra detected in this "
                             "step's scripts beyond the Python stdlib + "
                             "Research-OS internals. Verify the step's "
                             "scripts exist + run if this is unexpected.)_"

@@ -30,6 +30,9 @@ jobs:
           - theory_math_short_proof
           - wet_lab_qpcr_run
           - engineering_fmea_simple
+          - slurm_snakemake
+          - nextflow_chipseq
+          - redcap_longitudinal
         model:
           - mock
     steps:

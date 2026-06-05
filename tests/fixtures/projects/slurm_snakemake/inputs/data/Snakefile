@@ -1,0 +1,108 @@
+# Snakemake workflow: TCGA-BRCA bulk RNA-seq
+#
+# Rules: download -> trim -> align -> count -> deseq2 -> report
+# Designed to be parsed by the snakemake adapter via regex on
+# `rule <name>:` blocks with input/output/shell/threads/conda fields.
+
+configfile: "config.yaml"
+
+SAMPLES = ["TCGA-BH-A0B3-01", "TCGA-BH-A0B3-11", "TCGA-A2-A0CM-01", "TCGA-A2-A0CM-11"]
+
+rule all:
+    input:
+        "workspace/05_deseq2/results.tsv",
+        "workspace/06_report/report.html"
+
+rule download:
+    output:
+        r1 = "workspace/00_raw/{sample}_R1.fastq.gz",
+        r2 = "workspace/00_raw/{sample}_R2.fastq.gz"
+    threads: 2
+    conda: "envs/gdc.yaml"
+    shell:
+        "gdc-client download {wildcards.sample} "
+        "--retry-amount 3 "
+        "-d workspace/00_raw/ "
+        "&& mv workspace/00_raw/{wildcards.sample}/*_R1.fastq.gz {output.r1} "
+        "&& mv workspace/00_raw/{wildcards.sample}/*_R2.fastq.gz {output.r2}"
+
+rule trim:
+    input:
+        r1 = "workspace/00_raw/{sample}_R1.fastq.gz",
+        r2 = "workspace/00_raw/{sample}_R2.fastq.gz"
+    output:
+        r1 = "workspace/01_trimmed/{sample}_R1.fq.gz",
+        r2 = "workspace/01_trimmed/{sample}_R2.fq.gz",
+        report = "workspace/01_trimmed/{sample}_fastp.json"
+    threads: 8
+    conda: "envs/fastp.yaml"
+    shell:
+        "fastp -i {input.r1} -I {input.r2} "
+        "-o {output.r1} -O {output.r2} "
+        "--json {output.report} "
+        "--thread {threads} "
+        "--detect_adapter_for_pe"
+
+rule align:
+    input:
+        r1 = "workspace/01_trimmed/{sample}_R1.fq.gz",
+        r2 = "workspace/01_trimmed/{sample}_R2.fq.gz",
+        idx = "refs/star_grch38"
+    output:
+        bam = "workspace/02_align/{sample}.Aligned.sortedByCoord.out.bam",
+        log = "workspace/02_align/{sample}.Log.final.out"
+    threads: 16
+    conda: "envs/star.yaml"
+    shell:
+        "STAR --runThreadN {threads} "
+        "--genomeDir {input.idx} "
+        "--readFilesIn {input.r1} {input.r2} "
+        "--readFilesCommand zcat "
+        "--outSAMtype BAM SortedByCoordinate "
+        "--outFileNamePrefix workspace/02_align/{wildcards.sample}."
+
+rule count:
+    input:
+        bams = expand("workspace/02_align/{sample}.Aligned.sortedByCoord.out.bam", sample=SAMPLES),
+        gtf = "refs/gencode.v44.annotation.gtf"
+    output:
+        counts = "workspace/03_counts/gene_counts.tsv",
+        summary = "workspace/03_counts/gene_counts.tsv.summary"
+    threads: 8
+    conda: "envs/subread.yaml"
+    shell:
+        "featureCounts -T {threads} "
+        "-a {input.gtf} "
+        "-o {output.counts} "
+        "-p --countReadPairs "
+        "-s 2 "
+        "{input.bams}"
+
+rule deseq2:
+    input:
+        counts = "workspace/03_counts/gene_counts.tsv",
+        meta = "inputs/context/sample_metadata.tsv"
+    output:
+        results = "workspace/05_deseq2/results.tsv",
+        rds = "workspace/05_deseq2/dds.rds"
+    threads: 4
+    conda: "envs/deseq2.yaml"
+    shell:
+        "Rscript scripts/run_deseq2.R "
+        "--counts {input.counts} "
+        "--meta {input.meta} "
+        "--out {output.results} "
+        "--rds {output.rds}"
+
+rule report:
+    input:
+        results = "workspace/05_deseq2/results.tsv",
+        rds = "workspace/05_deseq2/dds.rds"
+    output:
+        html = "workspace/06_report/report.html"
+    threads: 2
+    conda: "envs/rmarkdown.yaml"
+    shell:
+        "Rscript -e 'rmarkdown::render(\"scripts/report.Rmd\", "
+        "output_file=\"../{output.html}\", "
+        "params=list(results=\"{input.results}\", rds=\"{input.rds}\"))'"

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.7.1"
+version = "1.8.0"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -82,6 +82,19 @@ engineering = []
 # Convenience meta-extra — installs every domain pack at once.
 all_packs = ["research-os[humanities,qualitative,theory_math,wet_lab,engineering]"]
 
+# Infrastructure adapters — bundled with the core wheel in this release.
+# Extras reserved so users can opt in via `pip install research-os[<adapter>]`
+# and split-out third-party adapter packages can later piggyback on the
+# same extra name. The adapters themselves degrade gracefully when their
+# optional system deps (snakemake, nextflow, synapseclient, etc.) are absent.
+slurm = []
+snakemake = []
+nextflow = []
+cytoscape = []
+redcap = []
+synapse = []
+all_adapters = ["research-os[slurm,snakemake,nextflow,cytoscape,redcap,synapse]"]
+
 # Developer extras
 dev = [
     "pytest>=7.0",
@@ -138,4 +151,10 @@ packages = [
     "src/research_os_theory_math",
     "src/research_os_wet_lab",
     "src/research_os_engineering",
+    "src/research_os_adapter_slurm",
+    "src/research_os_adapter_snakemake",
+    "src/research_os_adapter_nextflow",
+    "src/research_os_adapter_cytoscape",
+    "src/research_os_adapter_redcap",
+    "src/research_os_adapter_synapse",
 ]
