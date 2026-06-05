@@ -250,7 +250,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_plan_advance": {
         "short": "Mark current step done; get next step. Returns status='blocked' when a deliverable gate fails.",
-        "description": "Walk the active_plan. Returns next_step + remaining. Returns status='blocked' when the next step is a deliverable tool (tool_synthesize / tool_dashboard_create / tool_poster_create / tool_latex_compile) and the quality gate finds blockers. Pass override_gate=true ONLY on explicit researcher approval of a partial deliverable; supply override_rationale so workspace/logs/override_log.md records WHY the bypass happened.",
+        "description": "Walk the active_plan. Returns next_step + remaining. Returns status='blocked' when the next step is a deliverable tool (tool_synthesize / tool_dashboard / tool_poster_create / tool_latex_compile) and the quality gate finds blockers. Pass override_gate=true ONLY on explicit researcher approval of a partial deliverable; supply override_rationale so workspace/logs/override_log.md records WHY the bypass happened.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -664,7 +664,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "or seeds a placeholder explaining how to write one. Returns the "
             "list of curated figures plus any step that produced no figures "
             "(to flag in the audit) and any figure missing a caption. Run "
-            "BEFORE tool_dashboard_create / tool_synthesize so the deliverables "
+            "BEFORE tool_dashboard / tool_synthesize so the deliverables "
             "use a single canonical figure set rather than scanning the "
             "workspace anew each time."
         ),
@@ -1276,31 +1276,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["step_id"],
         },
     },
-    "tool_dashboard_test_generate": {
-        "short": "Scaffold tests/dashboard/ with Playwright invariant suite + axe-core accessibility.",
-        "description": "Writes a baseline pytest-playwright suite covering: no console errors, semantic landmarks, TOC anchors, theme toggle CSS-var flip, sortable tables, figure lightbox, print stylesheet, ARIA landmarks, axe-core WCAG 2.1 AA. Visual regression is opt-in via ROS_DASHBOARD_VISUAL=1. Researcher adds their own test_*.py files in the same folder; tool_dashboard_test_run picks them up.",
-        "category": "viz",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "overwrite": {"type": "boolean"},
-            },
-        },
-    },
-    "tool_dashboard_test_run": {
-        "short": "Execute the Playwright suite; return structured failures + trace.zip paths.",
-        "description": "Subprocess pytest under tests/dashboard/. Parses junit.xml; returns per-test failures with message + trace tail. Persists workspace/logs/dashboard_tests.json so the next iteration can read the failure set. trace.zip files under test-results/ are time-travel debug UIs (`playwright show-trace`).",
-        "category": "viz",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "only": {"type": "string", "description": "Pytest node-id filter."},
-                "visual": {"type": "boolean", "description": "Enable visual regression."},
-                "update_snapshots": {"type": "boolean"},
-                "timeout": {"type": "number"},
-            },
-        },
-    },
     # ── Grounded reasoning (ReAct + PROV-O + CoVe + Reflexion) ──────────
     "tool_thought_log": {
         "short": "Append one ReAct trace entry — thought / plan / action / observation / reflection / decision.",
@@ -1686,41 +1661,80 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_dashboard_create": {
-        "description": "Generate a standalone, offline HTML dashboard at synthesis/dashboard.html. Default renderer is the single-page-app v2 (sidebar nav + full-text MiniSearch + filter chips + per-figure static-vs-interactive toggle + reactive tables + Story/Explore mode toggle, all offline via vendored Vega/Plotly/MiniSearch). Set dashboard_legacy=true to use the long-scroll v1 renderer (kept as a fallback). Set dashboard_default_mode='story' for narrative-first reading. Tailored to audience: academic | executive | technical | teaching. Step-completeness gate is soft (warnings only); set override_completeness_gate=true to suppress the warning panel for the FINAL deliverable.",
+    "tool_dashboard": {
+        "short": "Unified dashboard tool. operation=create|story_generate|story_edit|story_quality_bar|reviewer_sim|test_generate|test_run.",
+        "description": "Unified dashboard dispatcher. operation='create' (default) renders the standalone offline HTML dashboard at synthesis/dashboard.html (v2 single-page-app by default; pass dashboard_legacy=true for the v1 long-scroll renderer; dashboard_default_mode='story' for narrative-first reading; audience ∈ {academic, executive, technical, teaching}; override_completeness_gate=true + override_rationale='<why>' suppresses the soft completeness warning panel for the FINAL deliverable). operation='story_generate' builds synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state. operation='story_edit' reads (no args) or patches synthesis/dashboard_story.md via `edits` (default mode='patch' diff-style payload, or mode='overwrite' to replace whole file). operation='story_quality_bar' WARNs when reading time falls outside 5-20 min, no figure in first 1000 words, or no DISAGREES/EXTENDS callout (no BLOCKERs — story mode is optional). operation='reviewer_sim' walks synthesis/dashboard.html top-to-bottom and returns whether a 5-minute skimmer would extract the headline finding. operation='test_generate' scaffolds tests/dashboard/ with the baseline Playwright + axe-core suite (pass overwrite=true to replace). operation='test_run' subprocesses pytest under tests/dashboard/ and returns structured failures + trace.zip paths (kwargs: only, visual, update_snapshots, timeout).",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "title": {"type": "string"},
+                "operation": {
+                    "type": "string",
+                    "enum": [
+                        "create",
+                        "story_generate",
+                        "story_edit",
+                        "story_quality_bar",
+                        "reviewer_sim",
+                        "test_generate",
+                        "test_run",
+                    ],
+                    "description": "Which dashboard sub-operation to invoke. Defaults to 'create' when omitted.",
+                },
+                # operation='create' kwargs
+                "title": {"type": "string", "description": "operation='create' — dashboard title."},
                 "audience": {
                     "type": "string",
-                    "description": "academic (default) | executive | technical | teaching",
+                    "description": "operation='create' — academic (default) | executive | technical | teaching.",
                 },
                 "dashboard_legacy": {
                     "type": "boolean",
-                    "description": "Use the v1 long-scroll renderer (back-compat). Default false (v2 single-page app).",
+                    "description": "operation='create' — use the v1 long-scroll renderer (back-compat). Default false (v2 single-page app).",
                 },
                 "dashboard_default_mode": {
                     "type": "string",
-                    "description": "explore (default) | story. URL hash #mode=... and localStorage override at view time.",
+                    "description": "operation='create' — explore (default) | story. URL hash #mode=... and localStorage override at view time.",
                 },
                 "dashboard_search_enabled": {
                     "type": "boolean",
-                    "description": "Inline the MiniSearch full-text index. Default true.",
+                    "description": "operation='create' — inline the MiniSearch full-text index. Default true.",
                 },
                 "dashboard_print_optimized": {
                     "type": "boolean",
-                    "description": "Include the print stylesheet that hides chrome + paginates sections. Default true.",
+                    "description": "operation='create' — include the print stylesheet that hides chrome + paginates sections. Default true.",
                 },
                 "override_completeness_gate": {
                     "type": "boolean",
-                    "description": "Suppress the step-completeness warning panel. Set only on explicit researcher approval. Logged.",
+                    "description": "operation='create' — suppress the step-completeness warning panel. Set only on explicit researcher approval. Logged.",
                 },
                 "override_rationale": {
                     "type": "string",
-                    "description": "One-line reason for the bypass; logged to workspace/logs/override_log.md.",
+                    "description": "operation='create' — one-line reason for the bypass; logged to workspace/logs/override_log.md.",
                 },
+                # operation='story_edit' kwargs
+                "edits": {
+                    "type": "string",
+                    "description": "operation='story_edit' — patch payload (`<<<<replace>>>>...----with----...<<<<end>>>>` blocks) OR full file content (with mode='overwrite').",
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "operation='story_edit' — patch (default) | overwrite.",
+                },
+                # operation='reviewer_sim' kwargs
+                "dashboard_path": {
+                    "type": "string",
+                    "description": "operation='reviewer_sim' — dashboard file path (default synthesis/dashboard.html).",
+                },
+                # operation='test_generate' kwargs
+                "overwrite": {
+                    "type": "boolean",
+                    "description": "operation='test_generate' — overwrite existing test suite. Default false.",
+                },
+                # operation='test_run' kwargs
+                "only": {"type": "string", "description": "operation='test_run' — pytest node-id filter."},
+                "visual": {"type": "boolean", "description": "operation='test_run' — enable visual regression."},
+                "update_snapshots": {"type": "boolean", "description": "operation='test_run' — update snapshot baselines."},
+                "timeout": {"type": "number", "description": "operation='test_run' — timeout in seconds."},
             },
         },
     },
@@ -2510,30 +2524,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_dashboard_story_generate": {
-        "short": "Build synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state.",
-        "description": "Assembles a single-column narrative scroll markdown from synthesis_spec.abstract + per-step plain-language summaries + per-step key figure + adversarial verdicts pulled from each step's findings_vs_literature.md. Idempotent — re-running regenerates from current state. The v2 dashboard reads this when the reader toggles Story mode. Returns {path, word_count, reading_minutes, steps, callouts, figures}.",
-        "category": "synthesis",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_dashboard_story_edit": {
-        "short": "Read or patch synthesis/dashboard_story.md (Theme 21).",
-        "description": "Opens the story markdown for AI/researcher rewriting. Call with no args to read the current contents (auto-generates if missing). Pass `edits` as a unified-diff-style payload (`<<<<replace>>>>old\\n----with----\\nnew\\n<<<<end>>>>` blocks, one per change) to patch atomically; or `mode='overwrite'` + `edits=<full text>` to replace. The next tool_dashboard_create picks up the edits.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "edits": {"type": "string", "description": "Patch payload OR full file content (with mode='overwrite')."},
-                "mode": {"type": "string", "description": "patch (default) | overwrite."},
-            },
-        },
-    },
-    "tool_dashboard_story_quality_bar": {
-        "short": "Quality bar for synthesis/dashboard_story.md (Theme 21): 5-20 min read, figure in first 1000 words, at least one DISAGREES/EXTENDS callout.",
-        "description": "Three WARNINGs (no BLOCKERs — story mode is optional): reading time outside 5-20 min (trivial or too long to finish); no figure in the first 1000 words (engagement); no DISAGREES/EXTENDS/CONTRADICTS/MIXED callout (proves the project engaged the literature, not just confirmed itself). Returns {reading_minutes, word_count, warnings, has_adversarial_callout, has_figure}.",
-        "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
+    # tool_dashboard_story_generate / story_edit / story_quality_bar
+    # consolidated into tool_dashboard(operation=story_*) — phase-9-c2.
     "tool_figure_interactive_autogen": {
         "short": "Write an interactive HTML companion (Vega-Lite for scatter/heatmap/time-series, vis-network for graphml) next to a static figure. Offline-capable.",
         "description": "Given a static figure (.png/.svg/.jpg), look for the sibling data file (<stem>_data.csv / <stem>_matrix.csv / <stem>_series.csv / <stem>.graphml), choose the right interactive kind by heuristics, and write <stem>.html next to the figure. The companion inlines the vendored Vega/Vega-Lite/Vega-Embed (or vis-network) bundle so it runs offline. Tagged with <meta name='ro-auto-generated' content='true'> so the researcher knows they can replace it. Idempotent — returns status='exists' if a companion is already there.",
@@ -2546,17 +2538,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["figure_path"],
         },
     },
-    "tool_dashboard_reviewer_sim": {
-        "short": "Walks the dashboard top-to-bottom and reports whether a 5-minute skimmer would extract the headline finding.",
-        "description": "Heuristic-only (no LLM). Returns {would_5min_skimmer_get_finding, which_section_buries_the_lede, suggested_top_of_page_callout, first_section_rendered}. Flags when the headline number + finding verb don't appear in the first 200 words OR when the abstract lacks a number.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "dashboard_path": {"type": "string"},
-            },
-        },
-    },
+    # tool_dashboard_reviewer_sim consolidated into
+    # tool_dashboard(operation=reviewer_sim) — phase-9-c2.
     "tool_synthesis_preview": {
         "short": "Predict what tool_synthesize will produce — word counts, page count, figures, citations, gaps — without drafting.",
         "description": "Cheap deterministic dry-run (~1 sec vs ~30s for full synthesis). Reads workspace/<step>/conclusions.md + step_summary.yaml + findings_vs_literature.md + workspace/citations.md but does NOT call the AI to draft prose. Returns predicted_word_count_per_section, predicted_total_word_count, predicted_page_count or slide_count, predicted_figures_embedded, predicted_citations, predicted_steps_drawn_from, detected_gaps, estimated_render_time_seconds. mode='diff' compares against the existing deliverable on disk.",
@@ -3801,6 +3784,54 @@ def _handle_tool_audit_findings(name, arguments, root):
     ))
 
 
+# ── tool_dashboard dispatcher ───────────────────────────────────────
+#
+# The dashboard family collapses seven per-operation tools into a single
+# tool_dashboard(operation=...) entry point. Legacy per-operation names
+# (tool_dashboard_create / story_generate / story_edit /
+# story_quality_bar / reviewer_sim / test_generate / test_run) continue
+# to dispatch via _ALIASES + _ALIAS_PARAM_INJECTION (which inject
+# operation= from the legacy name). The dispatcher reads operation off
+# arguments and forwards to the matching private per-operation handler
+# — no dashboard logic is rewritten here; this is purely a surface
+# unification mirroring tool_audit.
+_DASHBOARD_DISPATCH: dict[str, str] = {
+    "create":            "_handle_tool_dashboard_create",
+    "story_generate":    "_handle_tool_dashboard_story_generate",
+    "story_edit":        "_handle_tool_dashboard_story_edit",
+    "story_quality_bar": "_handle_tool_dashboard_story_quality_bar",
+    "reviewer_sim":      "_handle_tool_dashboard_reviewer_sim",
+    "test_generate":     "_handle_tool_dashboard_test_generate",
+    "test_run":          "_handle_tool_dashboard_test_run",
+}
+
+
+def _handle_tool_dashboard(name, arguments, root):
+    """Unified dashboard dispatcher.
+
+    Routes operation → the matching per-operation handler. Every legacy
+    ``tool_dashboard_*`` name is aliased to this entry point and has its
+    operation injected via ``_ALIAS_PARAM_INJECTION`` so callers
+    (researchers, scripts, protocols) using the older per-operation
+    names keep working unchanged. operation defaults to 'create' when
+    omitted — the historically dominant call site.
+    """
+    op = arguments.get("operation") or "create"
+    handler_name = _DASHBOARD_DISPATCH.get(op)
+    if not handler_name:
+        valid = ", ".join(sorted(_DASHBOARD_DISPATCH))
+        return _text(_error(
+            f"tool_dashboard: unknown operation '{op}'. "
+            f"Valid operations: {valid}."
+        ))
+    handler = globals().get(handler_name)
+    if not callable(handler):
+        return _text(_error(
+            f"tool_dashboard: handler '{handler_name}' is not callable."
+        ))
+    return handler(name, arguments, root)
+
+
 def _handle_tool_audit_synthesis(name, arguments, root):
     from research_os.tools.actions.audit import audit_synthesis
     from research_os.project_ops import log_override
@@ -4270,7 +4301,7 @@ def _handle_tool_dashboard_reviewer_sim(name, arguments, root):
 
     dpath = root / arguments.get("dashboard_path", "synthesis/dashboard.html")
     if not dpath.exists():
-        return _text(_error(f"{dpath.name} not found. Run tool_dashboard_create first."))
+        return _text(_error(f"{dpath.name} not found. Run tool_dashboard(operation='create') first."))
     html = dpath.read_text(encoding="utf-8", errors="replace")
     return _text(_success(reviewer_simulator(html)))
 
@@ -5901,7 +5932,7 @@ def _handle_sys_help(name, arguments, root):
             },
             "how_to_bypass": [
                 "tool_synthesize(override_completeness_gate=true, override_rationale='<why>')",
-                "tool_dashboard_create(override_completeness_gate=true, override_rationale='<why>')",
+                "tool_dashboard(operation='create', override_completeness_gate=true, override_rationale='<why>')",
                 "tool_plan_advance(override_gate=true, override_rationale='<why>')",
             ],
             "rules": [
@@ -6716,8 +6747,8 @@ _HANDLERS = {
     "tool_step_pipeline_run": _handle_tool_step_pipeline_run,
     "tool_step_pipeline_status": _handle_tool_step_pipeline_status,
     "tool_step_pipeline_diagram": _handle_tool_step_pipeline_diagram,
-    "tool_dashboard_test_generate": _handle_tool_dashboard_test_generate,
-    "tool_dashboard_test_run": _handle_tool_dashboard_test_run,
+    # tool_dashboard_test_generate / test_run consolidated into
+    # tool_dashboard(operation=test_*) — phase-9-c2.
     # Grounded reasoning.
     "tool_thought_log": _handle_tool_thought_log,
     "tool_thought_trace": _handle_tool_thought_trace,
@@ -6748,14 +6779,12 @@ _HANDLERS = {
     # Typst + dashboard content + preview + content depth
     "tool_paper_compile_typst": _handle_tool_paper_compile_typst,
     "tool_figure_interactive_autogen": _handle_tool_figure_interactive_autogen,
-    "tool_dashboard_story_generate": _handle_tool_dashboard_story_generate,
-    "tool_dashboard_story_edit": _handle_tool_dashboard_story_edit,
-    "tool_dashboard_story_quality_bar": _handle_tool_dashboard_story_quality_bar,
-    "tool_dashboard_reviewer_sim": _handle_tool_dashboard_reviewer_sim,
+    # tool_dashboard_story_* / reviewer_sim / create consolidated into
+    # tool_dashboard(operation=...) — phase-9-c2.
     "tool_synthesis_preview": _handle_tool_synthesis_preview,
     "tool_section_substantiveness": _handle_tool_section_substantiveness,
     "tool_poster_create": _handle_tool_poster_create,
-    "tool_dashboard_create": _handle_tool_dashboard_create,
+    "tool_dashboard": _handle_tool_dashboard,
     # ── headline tools ─────────────────────────────────
     "tool_humanities_essay_scaffold": _handle_tool_humanities_essay_scaffold,
     "tool_paper_figures_autoembed": _handle_tool_paper_figures_autoembed,
@@ -6912,6 +6941,15 @@ _ALIASES = {
     # Legacy nickname aliases — chain through the consolidated entry point.
     "tool_audit_figure_quality": "tool_audit",
     "tool_audit_statistical_power": "tool_audit",
+
+    # ── dashboard cluster (7 → 1) ──────────────────────
+    "tool_dashboard_create":            "tool_dashboard",
+    "tool_dashboard_story_generate":    "tool_dashboard",
+    "tool_dashboard_story_edit":        "tool_dashboard",
+    "tool_dashboard_story_quality_bar": "tool_dashboard",
+    "tool_dashboard_reviewer_sim":      "tool_dashboard",
+    "tool_dashboard_test_generate":     "tool_dashboard",
+    "tool_dashboard_test_run":          "tool_dashboard",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -6967,6 +7005,14 @@ _DEPRECATED_ALIASES = {
     # mapped to tool_audit_figure_full / tool_audit_power.
     "tool_audit_figure_quality",
     "tool_audit_statistical_power",
+    # ── dashboard cluster (7 → 1) ──────────────────────
+    "tool_dashboard_create",
+    "tool_dashboard_story_generate",
+    "tool_dashboard_story_edit",
+    "tool_dashboard_story_quality_bar",
+    "tool_dashboard_reviewer_sim",
+    "tool_dashboard_test_generate",
+    "tool_dashboard_test_run",
 }
 
 
@@ -7038,6 +7084,14 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     # Legacy nickname aliases.
     "tool_audit_figure_quality":          (("scope", "step"), ("dimension", "figure_full")),
     "tool_audit_statistical_power":       (("scope", "step"), ("dimension", "power")),
+    # ── dashboard cluster (7 → 1) ──────────────────────
+    "tool_dashboard_create":              ("operation", "create"),
+    "tool_dashboard_story_generate":      ("operation", "story_generate"),
+    "tool_dashboard_story_edit":          ("operation", "story_edit"),
+    "tool_dashboard_story_quality_bar":   ("operation", "story_quality_bar"),
+    "tool_dashboard_reviewer_sim":        ("operation", "reviewer_sim"),
+    "tool_dashboard_test_generate":       ("operation", "test_generate"),
+    "tool_dashboard_test_run":            ("operation", "test_run"),
 }
 
 

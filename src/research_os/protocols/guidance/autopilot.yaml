@@ -36,9 +36,9 @@ steps:
            If tool_audit(scope='step', dimension='completeness') has BLOCKERS, autopilot HALTS
            before even asking — the gate is server-enforced and refuses
            the call until fixed.
-        2. tool_dashboard_create / tool_poster_create for the FINAL
-           deliverable (mid-flight progress dashboards bypass the ask,
-           but flag any open completeness blockers).
+        2. tool_dashboard(operation='create') / tool_poster_create for
+           the FINAL deliverable (mid-flight progress dashboards bypass
+           the ask, but flag any open completeness blockers).
         3. tool_audit(scope='step', dimension='reproducibility') (slow + expensive).
         4. Any tool_research_tool candidate tagged paid_or_licensed.
         5. sys_path (dead-end declarations are reversible but loud).

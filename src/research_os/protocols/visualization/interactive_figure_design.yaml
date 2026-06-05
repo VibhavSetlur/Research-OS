@@ -189,8 +189,8 @@ steps:
       call `tool_figure_interactive_autogen
       figure_path=<workspace/.../figures/<stem>.png>`.
 
-      Optionally `tool_dashboard_test_generate` if the HTML is
-      complex enough to need its own smoke test.
+      Optionally `tool_dashboard(operation='test_generate')` if the
+      HTML is complex enough to need its own smoke test.
 
 expected_outputs:
   - workspace/*/outputs/figures/<NN>_<descriptor>.png

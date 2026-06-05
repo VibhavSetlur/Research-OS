@@ -1033,7 +1033,7 @@ protocols:
     sub_intent: dashboard
     summary: "Standalone offline HTML dashboard."
     triggers: ["dashboard", "executive summary", "html report", "lab meeting"]
-    shortcut_tool: tool_dashboard_create
+    shortcut_tool: tool_dashboard
 
   synthesis/synthesis_grant:
     intent_class: synthesize

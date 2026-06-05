@@ -41,3 +41,20 @@ stays as the canonical aggregator.
 | tool_audit_version_coherence | tool_audit | scope, dimension | project, version_coherence | aliased v2.0.x, removed v2.1.0 |
 | tool_audit_findings_query | tool_audit_findings | operation | query | aliased v2.0.x, removed v2.1.0 |
 | tool_audit_findings_diff | tool_audit_findings | operation | diff | aliased v2.0.x, removed v2.1.0 |
+
+## Dashboard family (7 → 1)  — phase-9-c2
+
+The seven per-operation `tool_dashboard_*` tools collapse into a single
+`tool_dashboard(operation=...)` entry point. Every legacy name remains
+callable via `_ALIASES` + `_ALIAS_PARAM_INJECTION`; the dispatcher
+forwards to the matching private per-operation worker.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_dashboard_create | tool_dashboard | operation | create | aliased v2.0.x, removed v2.1.0 |
+| tool_dashboard_story_generate | tool_dashboard | operation | story_generate | aliased v2.0.x, removed v2.1.0 |
+| tool_dashboard_story_edit | tool_dashboard | operation | story_edit | aliased v2.0.x, removed v2.1.0 |
+| tool_dashboard_story_quality_bar | tool_dashboard | operation | story_quality_bar | aliased v2.0.x, removed v2.1.0 |
+| tool_dashboard_reviewer_sim | tool_dashboard | operation | reviewer_sim | aliased v2.0.x, removed v2.1.0 |
+| tool_dashboard_test_generate | tool_dashboard | operation | test_generate | aliased v2.0.x, removed v2.1.0 |
+| tool_dashboard_test_run | tool_dashboard | operation | test_run | aliased v2.0.x, removed v2.1.0 |

@@ -245,7 +245,7 @@ steps:
       Read workspace/logs/override_log.md (call sys_file_read).
       Each entry is one moment the researcher authorised the AI
       to bypass a quality gate (override_completeness_gate=true
-      on tool_synthesize / tool_dashboard_create, or
+      on tool_synthesize / tool_dashboard(operation='create'), or
       override_gate=true on tool_plan). Per entry,
       confirm with the researcher:
 

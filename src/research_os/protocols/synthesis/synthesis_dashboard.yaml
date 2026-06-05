@@ -93,7 +93,7 @@ quality_bar:
 
 prerequisite_gate:
   rule: |
-    tool_dashboard_create soft-fails (renders with a warning ribbon)
+    tool_dashboard(operation='create') soft-fails (renders with a warning ribbon)
     when tool_audit(scope='step', dimension='completeness') has blockers. For the FINAL
     deliverable, resolve all blockers first.
 
@@ -232,25 +232,25 @@ steps:
   - id: build_story_mode_source
     name: Build dashboard_story.md (Story Mode source)
     description: |
-      tool_dashboard_story_generate
+      tool_dashboard(operation='story_generate')
       Assembles synthesis/dashboard_story.md from the spec abstract +
       per-step plain summaries + per-step focal figure + adversarial
       verdicts from each step's findings_vs_literature.md. This is the
       source the dashboard renders when the reader picks Story mode.
 
-      Optional AI rewrite: tool_dashboard_story_edit (read or patch)
-      to polish in the researcher's voice.
+      Optional AI rewrite: tool_dashboard(operation='story_edit')
+      (read or patch) to polish in the researcher's voice.
 
-      Optional quality bar: tool_dashboard_story_quality_bar checks
-      reading-time (5-20 min), figure-in-first-1000-words, at least
-      one adversarial-grounding callout. Warnings only — story mode
-      is optional.
+      Optional quality bar: tool_dashboard(operation='story_quality_bar')
+      checks reading-time (5-20 min), figure-in-first-1000-words, at
+      least one adversarial-grounding callout. Warnings only — story
+      mode is optional.
 
   - id: build_dashboard
     name: Build Dashboard
     description: |
-      tool_dashboard_create title="<headline>" audience="<profile>"
-                            dashboard_default_mode="explore"
+      tool_dashboard(operation='create', title="<headline>", audience="<profile>",
+                     dashboard_default_mode="explore")
       Produces:
         synthesis/dashboard.html — single self-contained file with
         figures base64-embedded. Opens directly in any browser; no
