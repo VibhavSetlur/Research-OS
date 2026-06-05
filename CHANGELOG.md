@@ -6,6 +6,111 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.9.0] — Typst PDF compilation + dashboard content gates + synthesis preview + content depth (2026-06-04)
+
+MINOR release. First phase of the synthesis output overhaul: paper.md
+now compiles to a venue-correct PDF via Typst (10 venue templates),
+the dashboard audit now checks CONTENT instead of just structure
+(numeric grounding, accessibility, palette consistency, reviewer-skim
+simulation), a cheap synthesis preview lets the researcher inspect
+the predicted shape before drafting, and a content-depth audit BLOCKs
+on stub-shaped IMRAD sections (no numbers in the abstract, no
+statistics in the results, no limitations paragraph in the discussion,
+no per-step coverage in methods). LaTeX path (`tool_latex_compile`)
+is preserved for venues that require .tex submission.
+
+### Added — Typst PDF path
+
+- `src/research_os/tools/actions/synthesis/typst.py` — `md_to_typst`,
+  `citations_md_to_hayagriva`, `compile_typst`, `paper_compile_typst`.
+- `tool_paper_compile_typst` — synthesis/paper.md → paper.typ →
+  paper.pdf via Typst with venue-correct formatting. Returns
+  `pdf_path`, `page_count`, `citation_count`, `typst_warnings`,
+  parsed `typst_errors` with line numbers.
+- 10 venue templates under `src/research_os/data/typst/` (bundled
+  in the wheel) and `templates/typst/` (source checkout): `nature`,
+  `science`, `nejm`, `cell`, `ieee_conf`, `neurips`, `acl`, `plos`,
+  `generic_two_column`, `generic_thesis`. Per-venue citation style
+  (Nature / IEEE / Vancouver / APA) wired through Hayagriva.
+- `writing_preferences.venue_template` + `writing_preferences.pdf_compile_engine`
+  added to the `researcher_config.yaml` template.
+- `[typst_compile]` extra (no Python deps; opt-in marker).
+- `docs/VENUE_TEMPLATES.md` documents every venue, the Markdown →
+  Typst translation rules, and how to add a new template.
+
+### Added — Dashboard content gates
+
+- `src/research_os/tools/actions/audit/dashboard_content.py` — seven
+  sub-checks: numeric grounding (±1% tolerance vs workspace tables +
+  citations), figure-to-text proximity, per-section substantiveness,
+  WCAG 2.2 AA accessibility (contrast, alt text, heading hierarchy,
+  button labels), print stylesheet sanity, color-palette consistency
+  (Okabe-Ito / viridis / PuOr), reviewer-skim simulator.
+- `tool_audit_dashboard_content` — wrapper; ungrounded numbers and
+  missing-abstract-numbers are BLOCKERs, everything else WARNs.
+  Supports `override_dashboard_content_gate` + `override_rationale`
+  logged to `workspace/logs/override_log.md`.
+- `tool_dashboard_reviewer_sim` — standalone "would a 5-min skim
+  get the finding?" check.
+- `[print_audit]` + `[contrast_audit]` opt-in extras.
+
+### Added — Synthesis preview
+
+- `src/research_os/tools/actions/synthesis/preview.py` — cheap
+  deterministic dry-run; reads the same sources as `tool_synthesize`
+  but does NOT draft prose.
+- `tool_synthesis_preview(target, venue, mode)` — returns
+  `predicted_word_count_per_section`, `predicted_total_word_count`,
+  `predicted_page_count` or `slide_count`,
+  `predicted_figures_embedded`, `predicted_citations`,
+  `predicted_steps_drawn_from`, `detected_gaps`,
+  `estimated_render_time_seconds`. `mode='diff'` compares against
+  the existing deliverable on disk.
+
+### Added — Content depth audits
+
+- `src/research_os/tools/actions/audit/content_depth.py` —
+  per-IMRAD-section audits beyond word counts: abstract needs ≥ 1
+  number + ≥ 1 method + ≥ 1 conclusion verb, introduction needs
+  ≥ 3 cited prior works + an explicit "in this study, we" pivot,
+  methods must cover ≥ 80% of workspace steps (< 50% BLOCKs),
+  results needs ≥ 1 statistic per primary finding, discussion needs
+  a limitations paragraph + future-work direction, every cited key
+  must appear in the bibliography.
+- `tool_section_substantiveness` — runs all of the above; promotes
+  to BLOCKER when ≥ 2 steps are uncovered in BOTH methods AND
+  results.
+- `tool_audit_cliches` — standalone scan for AI-cliché phrases
+  ("in this study, we investigate", "future work should explore",
+  "it is important to note that", etc.) with per-cliché replacement
+  hints.
+
+### Added — reference projects + tests
+
+- `tests/fixtures/projects/paper_nature_minimal/` — exercises the
+  full Typst PDF path under the Nature template.
+- `tests/fixtures/projects/paper_thin_content/` — same shape with
+  intentionally stub-shaped IMRAD sections; verifies the content
+  depth audit fires on cliché-shaped content.
+- 77 new unit tests covering: every Markdown → Typst construct,
+  Hayagriva citation conversion, end-to-end PDF compile for all 10
+  venues (parametrised, gated on `typst` CLI availability), every
+  dashboard content gate, synthesis preview predictions + diff
+  mode, each per-section content depth audit, each cliché pattern.
+
+### Improved
+
+- `docs/TOOLS.md` — added entries for the 6 new tools.
+- `tool.hatch.build.targets.wheel.force-include` ships the bundled
+  Typst templates inside the wheel.
+
+### Bumped
+
+- `1.8.0 → 1.9.0` (pyproject.toml, `__version__`, CITATION.cff).
+- Embeddings rebuilt to cover 207 tools + 150 protocols.
+
+---
+
 ## [1.8.0] — 6 infrastructure adapters + multi-language tools.md extractor (2026-06-04)
 
 MINOR release. Adds a new entry-point group `research_os.adapter` for pluggable

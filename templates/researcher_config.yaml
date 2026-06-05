@@ -83,6 +83,14 @@ model_profile: "medium"
 writing_preferences:
   citation_style: "apa"          # apa | vancouver | acm | ieee | nature
   language: "en-US"
+  # Typst venue template for tool_paper_compile_typst. One of:
+  #   nature | science | nejm | cell | ieee_conf | neurips | acl
+  #   plos  | generic_two_column | generic_thesis
+  venue_template: "generic_two_column"
+  # PDF engine for the synthesis pipeline. "typst" is the recommended
+  # default (fast, single-binary install, modern type-safe macros).
+  # Use "latex" when a journal requires .tex submission.
+  pdf_compile_engine: "typst"    # typst | latex | both
 
 # ── Compute environment ─────────────────────────────────────────────────
 runtime:

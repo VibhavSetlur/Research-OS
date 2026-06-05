@@ -40,6 +40,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install --prefer-binary -e ".[ci,dev]"
 
+      # Typst CLI is required to exercise the venue-template PDF compile
+      # tests under tests/unit/test_v190_typst.py. The tests skip gracefully
+      # when typst is absent, but CI should actually run them.
+      - name: Install Typst CLI
+        run: |
+          set -e
+          curl -fsSL https://github.com/typst/typst/releases/latest/download/typst-x86_64-unknown-linux-musl.tar.xz -o /tmp/typst.tar.xz
+          mkdir -p /tmp/typst-bin
+          tar -xJf /tmp/typst.tar.xz -C /tmp/typst-bin --strip-components=1
+          sudo mv /tmp/typst-bin/typst /usr/local/bin/typst
+          typst --version
+
       - name: Lint (ruff)
         run: ruff check src/ tests/ scripts/
 
