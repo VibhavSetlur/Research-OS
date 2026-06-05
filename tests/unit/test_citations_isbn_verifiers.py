@@ -194,7 +194,7 @@ def test_verify_loc_happy_path():
     assert ok is True
     assert evidence["title"] == "Paradise Lost"
     assert evidence["hit_count"] == 1
-    assert (urlparse(url).hostname or "").endswith("loc.gov")
+    assert urlparse(url).hostname == "www.loc.gov"
 
 
 def test_verify_loc_offline_returns_unreachable():

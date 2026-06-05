@@ -376,20 +376,12 @@ def figures_consistent(
 # ---------------------------------------------------------------------------
 
 
+# Three alternatives, in order:
+#   - @citekey                (markdown / pandoc / typst)
+#   - \cite{key1,key2}        (LaTeX, optional p/t/n style)
+#   - [@key1; @key2]          (pandoc bracketed)
 _CITE_KEY_RE = re.compile(
-    r"""
-    (?:
-        # @citekey (markdown / pandoc / typst)
-        @([A-Za-z][\w:-]+)
-        |
-        # \cite{key1,key2}
-        \\cite[ptn]?\{([^}]+)\}
-        |
-        # [@key1; @key2] (pandoc)
-        \[@([A-Za-z][\w:-]+)
-    )
-    """,
-    re.VERBOSE,
+    r"@([A-Za-z][\w:-]+)|\\cite[ptn]?\{([^}]+)\}|\[@([A-Za-z][\w:-]+)"
 )
 
 

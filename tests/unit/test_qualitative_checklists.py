@@ -106,11 +106,11 @@ def _import_select_standard():
     """Import the new tool. Skipped if the integration agent hasn't
     wired it in yet — keeps this test file useful both before and
     after wiring."""
-    try:
-        from research_os_qualitative.tools import select_standard
-        return select_standard
-    except ImportError:
-        pytest.skip("tool_qualitative_select_standard not yet wired")
+    mod = pytest.importorskip(
+        "research_os_qualitative.tools",
+        reason="tool_qualitative_select_standard not yet wired",
+    )
+    return mod.select_standard
 
 
 def _result_payload(result):
