@@ -1,4 +1,4 @@
-"""Researcher self-certifications + per-step skip annotations (v1.5.1 — Theme 3).
+"""Researcher self-certifications + per-step skip annotations.
 
 A researcher with deep expertise in a domain or method can self-certify
 they've done the equivalent work outside RO. Audits honor active
@@ -44,8 +44,7 @@ class _CertParseError(Exception):
 
 def _load(root: Path) -> dict[str, Any]:
     """Read certifications. Distinguishes missing from corrupted —
-    a parse failure raises so callers don't silently wipe data on save.
-    v1.5.2 fix carried from v1.5.1 stress audit."""
+    a parse failure raises so callers don't silently wipe data on save."""
     path = _cert_path(root)
     if not path.exists():
         return {"version": "1.5.2", "certifications": []}

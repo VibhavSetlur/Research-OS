@@ -2,6 +2,7 @@ id: writing_discussion
 name: Writing — Discussion (the hardest section)
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Draft / iterate the Discussion section. The Discussion is where most
   papers under-deliver — it either restates the Results, over-claims
@@ -128,16 +129,14 @@ steps:
       section.
 
   - id: pipe_verdicts_into_discussion
-    name: Pipe per-step literature verdicts into the Discussion (v1.5.0 — closes v1.4.0 audit gap)
+    name: Pipe per-step literature verdicts into the Discussion
     description: |
       MANDATORY before drafting the comparison-to-prior-work section.
 
-      The v1.4.0 audit gap: per-step `findings_vs_literature.md` files
-      record verdicts (AGREES | DISAGREES | EXTENDS | DEFERRED) plus a
-      "Discussion implication" block — but nothing piped those into
-      `synthesis/discussion.md`. The literature loop was write-only.
-
-      v1.5.0 fixes:
+      Per-step `findings_vs_literature.md` files record verdicts
+      (AGREES | DISAGREES | EXTENDS | DEFERRED) plus a "Discussion
+      implication" block. This step pipes those into
+      `synthesis/discussion.md`:
 
         tool_writing_discussion_from_verdicts
 
@@ -261,7 +260,7 @@ steps:
       trip — do the pass here.
 
   - id: validate
-    name: Validate against writing standards + verdict coverage gate (v1.5.0)
+    name: Validate against writing standards + verdict coverage gate
     description: |
       sys_file_validate_md filepath="synthesis/discussion.md"
         protocol_name="writing_core"
@@ -271,7 +270,7 @@ steps:
       every number must trace to workspace/scratch/discussion_evidence.md
       OR to a verified citation.
 
-      v1.5.0 MANDATORY BLOCK gate:
+      MANDATORY BLOCK gate:
         tool_discussion_coverage_audit
       Returns status='error' + a blocker list if any non-AGREES
       verdict from `findings_vs_literature.md` is not addressed in

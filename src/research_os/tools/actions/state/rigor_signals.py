@@ -1,4 +1,4 @@
-"""Rigor signal scan + adaptive gate strictness (v1.5.1 — Theme 3).
+"""Rigor signal scan + adaptive gate strictness.
 
 The MCP can read project files and infer rigor signals — methods.md
 substantiveness, citation density in prose, version-control state,

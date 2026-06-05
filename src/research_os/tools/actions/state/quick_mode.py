@@ -1,4 +1,4 @@
-"""Quick mode + promote-to-step (v1.5.1 — Theme 5).
+"""Quick mode + promote-to-step.
 
 Throwaway / sanity-check / exploratory-only work bypasses protocols
 and lands under ``workspace/scratch/``. Researcher can promote a quick
@@ -104,8 +104,8 @@ def promote_to_step(
         src = (root / scratch_path).resolve()
         if not src.exists():
             return {"status": "error", "message": f"scratch path not found: {scratch_path}"}
-        # v1.5.2 stress-audit fix carried from v1.5.1 — refuse paths
-        # that escape the project root via .. or absolute paths.
+        # Refuse paths that escape the project root via .. or
+        # absolute paths.
         try:
             src.relative_to(root.resolve())
         except ValueError:
@@ -118,8 +118,8 @@ def promote_to_step(
             }
         workspace = root / "workspace"
         workspace.mkdir(parents=True, exist_ok=True)
-        # v1.5.2 stress-audit fix — parse leading-digit run with regex,
-        # not name[:2], so 100+ step projects don't collide on next_num.
+        # Parse leading-digit run with regex, not name[:2], so 100+
+        # step projects don't collide on next_num.
         existing_nums = []
         for d in workspace.iterdir():
             if not d.is_dir():

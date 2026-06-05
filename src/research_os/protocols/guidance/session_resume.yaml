@@ -2,6 +2,7 @@ id: session_resume
 name: Session Resume
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Re-enter a paused / interrupted / handed-off project — possibly in a
   different chat or with a different AI model. Two MCP calls: tool_session_resume
@@ -51,7 +52,7 @@ steps:
       avoid re-asking the researcher questions they already answered.
 
   - id: check_freshness
-    name: Stale-state check (v1.5.0 — Theme 11)
+    name: Stale-state check
     description: |
       tool_state_freshness_check
       If is_stale=true, surface the `signals` + `prompt_for_ai` to the

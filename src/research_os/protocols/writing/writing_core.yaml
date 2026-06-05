@@ -2,6 +2,7 @@ id: writing_core
 name: Writing — Core Rules
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Universal writing rules. Loaded implicitly by every writing/* and
   synthesis/* protocol. The single source of truth for voice, claim
@@ -165,8 +166,8 @@ steps:
       (`tool_citations_verify`). If it lives in neither, either
       remove the claim or generate the supporting artefact first.
 
-      v1.4.0 — CoVe-style verification on the top-N most load-bearing
-      claims (the ones that anchor abstract / discussion paragraphs):
+      CoVe-style verification on the top-N most load-bearing claims
+      (the ones that anchor abstract / discussion paragraphs):
 
         tool_claim_verify
             claim="<verbatim from draft>"

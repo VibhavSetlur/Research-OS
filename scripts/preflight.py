@@ -474,6 +474,33 @@ def check_scaffold_smoke():
     return True, "ok"
 
 
+def check_no_version_chatter():
+    """No historical version commentary in live doctrine surfaces."""
+    import importlib.util
+
+    lint_path = REPO_ROOT / "scripts" / "lint_no_version_chatter.py"
+    if not lint_path.exists():
+        return False, f"missing: {lint_path}"
+    spec = importlib.util.spec_from_file_location("_lint_chatter", lint_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    files = mod._iter_files()
+    total = 0
+    bad: list[str] = []
+    for f in files:
+        try:
+            text = f.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        hits = mod.scan_text(text)
+        if hits:
+            total += len(hits)
+            bad.append(f"{f.relative_to(REPO_ROOT)} ({len(hits)})")
+    if total:
+        return False, f"{total} hit(s) in {len(bad)} file(s): {', '.join(bad[:3])}"
+    return True, f"clean across {len(files)} files"
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -500,6 +527,7 @@ def main() -> int:
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
+    tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
 
     print()
     print(f"Summary: {tally.passed} passed · {tally.failed} failed")

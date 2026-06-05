@@ -2,6 +2,7 @@ id: figure_guidelines
 name: Figure Guidelines
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   The reasoning scaffold for producing publication-grade figures.
 
@@ -242,8 +243,6 @@ common_pitfalls_to_avoid:
       A PCA / scatter that uses BOTH color (treatment) AND shape (cell
       line) for two different variables, but the legend only shows one
       of them, leaves the reader guessing which marker is which group.
-      Surfaced in v1.3.0 PI-level e2e: step 04 PCA showed 6 distinct
-      shapes for 6 cell lines but the legend covered only color.
     fix: |
       Every encoded variable gets its own legend block. matplotlib:
         from matplotlib.lines import Line2D
@@ -265,9 +264,7 @@ common_pitfalls_to_avoid:
     rule: |
       `mpatches.Patch(facecolor="white", edgecolor="black", label="...")`
       renders as an invisible white box with a thin black outline — at
-      small figure sizes the swatch disappears. Surfaced in v1.3.0 e2e:
-      step 01 library-size figure encoded batch via white-with-edge
-      patches; the legend was unreadable.
+      small figure sizes the swatch disappears.
     fix: |
       Use distinct fill colors for legend swatches. If you must
       represent a categorical via edge / hatch / pattern, use
@@ -296,8 +293,6 @@ common_pitfalls_to_avoid:
       from the sample sheet), the "clear treatment-driven pattern" the
       caption claims is destroyed visually — the eye can't see blocks
       of similar values when the conditions alternate column-by-column.
-      Surfaced in v1.3.0 e2e: a top-20-DEG heatmap had alternating
-      untrt/trt columns, making TSC22D3/FKBP5/etc. zigzag.
     fix: |
       Sort columns by the annotation BEFORE plotting:
         order = meta.sort_values(["treatment", "cell_line"]).index
@@ -443,7 +438,7 @@ formatting:
       regression: shaded 95% CI band
       forest_plot: lines for 95% CI
 
-# v1.3.1: aesthetic-not-just-functional. matplotlib defaults look like
+# Aesthetic-not-just-functional. matplotlib defaults look like
 # "ggplot output" — fine for an internal report, NOT for a paper or
 # poster. The protocols below name the additional move-the-needle steps.
 publication_aesthetics:
@@ -655,12 +650,11 @@ steps:
       pitfall above. Emits BLOCKERs and warnings that
       tool_audit_step_completeness aggregates.
 
-      v1.3.0: `tool_path_finalize` ALSO runs this audit on every
-      figure in the step automatically, and surfaces blockers /
-      warnings in the finalize response's `figure_audit` field.
-      Don't skip the per-figure audit just because finalize will
-      catch it — fixing in-context is cheaper than fixing after
-      finalize fails.
+      `tool_path_finalize` ALSO runs this audit on every figure in
+      the step automatically, and surfaces blockers / warnings in
+      the finalize response's `figure_audit` field. Don't skip the
+      per-figure audit just because finalize will catch it — fixing
+      in-context is cheaper than fixing after finalize fails.
 
 expected_outputs:
   - workspace/*/outputs/figures

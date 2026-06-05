@@ -1,4 +1,4 @@
-"""Per-step literature-loop audit gate (v1.4.0).
+"""Per-step literature-loop audit gate.
 
 After a step's findings are written but BEFORE `tool_path_finalize`, the
 AI is supposed to run `research/literature_per_step`: search/download
@@ -85,12 +85,12 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
         # rather than silently skipping the step.
         pass
     if not findings_section or len(findings_section) < 40:
-        # v1.4.1: a stub Findings section is a REGRESSION, not a free pass.
-        # Previously this silently skipped, which let regenerated step
-        # summaries with `findings: []` opt out of the literature gate
-        # entirely. Now: if conclusions.md exists at all, the step is in
-        # the literature stage, and an empty Findings block is a blocker
-        # — the AI must either regenerate the findings or explicitly tag
+        # A stub Findings section is a REGRESSION, not a free pass.
+        # Silently skipping here would let regenerated step summaries
+        # with `findings: []` opt out of the literature gate entirely.
+        # Instead: if conclusions.md exists at all, the step is in the
+        # literature stage, and an empty Findings block is a blocker —
+        # the AI must either regenerate the findings or explicitly tag
         # `literature_required: false` in step_summary.yaml.
         blockers.append(
             f"{step_id}: conclusions.md exists but `## Findings` is empty "

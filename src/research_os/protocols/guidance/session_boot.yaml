@@ -2,6 +2,7 @@ id: session_boot
 name: Session Boot
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Mandatory boot sequence on the FIRST TURN of every session. Every
   turn is triggered by a researcher message — the AI never acts before
@@ -36,7 +37,7 @@ steps:
                                 | dead_end | ctx_exhaustion | long_running_job)
         - next_protocol (pipeline-recommended) + dep_inventory
         - active_plan (any in-flight decomposition from a previous turn)
-        - freshness (v1.5.0 — is_stale + signals + prompt_for_ai from
+        - freshness (is_stale + signals + prompt_for_ai from
                      tool_state_freshness_check; surface to researcher
                      when freshness.is_stale is true)
         - advice — one-line guidance for what to do next

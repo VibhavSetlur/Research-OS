@@ -2,6 +2,7 @@ id: literature_search
 name: Literature Search
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Systematic search across 2-4 academic databases. Produces a
   deduplicated citation list and a PRISMA-style accounting. Now also:
@@ -74,7 +75,7 @@ steps:
       List step literature any time with:
          tool_step_literature_list step_id=<NN_slug>   # or omit for all steps
 
-      v1.5.0 paywall memory (Theme 12): tool_literature_download
+      Paywall memory: tool_literature_download
       auto-skips URLs / DOIs that have already failed permanently
       (paywall, 404, 403). On retries from a fresh chat:
          tool_failure_check target=<url-or-doi>

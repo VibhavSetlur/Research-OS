@@ -108,10 +108,10 @@ def session_handoff(root: Path) -> dict[str, Any]:
                     f"- `{d['path_id']}`: " + " ".join(head)[:200]
                 )
 
-        # v1.3.2: surface the researcher_config in the handoff so a
-        # fresh AI sees autonomy / quality_gate_policy / ambiguity
-        # posture / model_profile / writing prefs / api keys present
-        # without separately calling sys_config_get. Mask secrets.
+        # Surface the researcher_config in the handoff so a fresh AI
+        # sees autonomy / quality_gate_policy / ambiguity posture /
+        # model_profile / writing prefs / api keys present without
+        # separately calling sys_config_get. Mask secrets.
         try:
             from research_os.tools.actions.state.config import get_config
             cfg_res = get_config(root)

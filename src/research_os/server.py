@@ -532,7 +532,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "allow_unfinalized_predecessor": {
                     "type": "boolean",
                     "description": (
-                        "v1.3.0+: by default, create_numbered_experiment REFUSES "
+                        "By default, create_numbered_experiment REFUSES "
                         "to scaffold step N+1 while step N's README + conclusions.md "
                         "are still placeholder text — preventing the 'forgot to "
                         "finalize step 01 before starting step 02' pattern. Set this "
@@ -1012,13 +1012,13 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
     # ── Audit ─────────────────────────────────────────────────────────
     "tool_audit_synthesis": {
-        "description": "Audit a generated manuscript for completeness, claim grounding, and citation coverage. v1.5.0: also default-denies when zero PDFs are present across literature-required steps (override via override_no_pdfs=true + override_rationale).",
+        "description": "Audit a generated manuscript for completeness, claim grounding, and citation coverage. Default-denies when zero PDFs are present across literature-required steps (override via override_no_pdfs=true + override_rationale).",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "paper_path": {"type": "string"},
-                "override_no_pdfs": {"type": "boolean", "description": "v1.5.0 — bypass the zero-PDF default-deny. Must be paired with override_rationale."},
+                "override_no_pdfs": {"type": "boolean", "description": "Bypass the zero-PDF default-deny. Must be paired with override_rationale."},
                 "override_rationale": {"type": "string"},
             },
             "required": ["paper_path"],
@@ -1081,7 +1081,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_audit_step_literature": {
-        "short": "Per-step literature-loop gate. Blocks if findings_vs_literature.md missing or DISAGREES verdicts lack discussion. v1.4.0.",
+        "short": "Per-step literature-loop gate. Blocks if findings_vs_literature.md missing or DISAGREES verdicts lack discussion.",
         "description": "Companion to tool_audit_step_completeness — gates the literature loop scaffolded by `research/literature_per_step`. For every step with a non-stub Findings section, verifies: (a) workspace/<step>/literature/findings_vs_literature.md exists and has at least one `## Claim:` block; (b) every claim has a Verdict line (AGREES|DISAGREES|EXTENDS|DEFERRED); (c) every DISAGREES verdict has a matching Discussion implication block; (d) all-DEFERRED steps have at least one PDF in workspace/<step>/literature/ OR a documented literature_deferred reason; (e) step_summary.yaml carries a `literature:` block with the roll-up. Blockers are hard stops for tool_path_finalize unless override_literature_gate=true is passed. Writes workspace/logs/step_literature_audit.md.",
         "category": "audit",
         "inputSchema": {
@@ -2090,10 +2090,10 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     # ------------------------------------------------------------------
-    # v1.5.0 — Theme 12: paywall + permanent-error memory.
+    # Paywall + permanent-error memory.
     # ------------------------------------------------------------------
     "tool_failure_record": {
-        "short": "Record a tool failure to workspace/.os_state/tool_failures.jsonl (paywall, 404, etc.). v1.5.0.",
+        "short": "Record a tool failure to workspace/.os_state/tool_failures.jsonl (paywall, 404, etc.).",
         "description": "Persist a per-tool failure so subsequent calls skip known-bad URLs / DOIs. Reasons that auto-mark `permanent`: paywall, permanent_404, permanent_403, no_pdf_found, permanent_error. tool_literature_download + tool_literature_search_and_save check this before retrying.",
         "category": "state",
         "inputSchema": {
@@ -2109,7 +2109,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_failure_check": {
-        "short": "Is this URL/DOI known-bad (paywall, prior failure)? v1.5.0.",
+        "short": "Is this URL/DOI known-bad (paywall, prior failure)?",
         "description": "Pre-check before retrying a download. Returns known_bad=true if the target is in workspace/.os_state/tool_failures.jsonl with permanent=true OR has >=3 prior failed attempts.",
         "category": "state",
         "inputSchema": {
@@ -2119,7 +2119,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_failure_list": {
-        "short": "List recent tool failures (audit / debugging). v1.5.0.",
+        "short": "List recent tool failures (audit / debugging).",
         "description": "Return the most recent tool_failures.jsonl entries with summary statistics.",
         "category": "state",
         "inputSchema": {
@@ -2128,10 +2128,10 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     # ------------------------------------------------------------------
-    # v1.5.0 — Theme 9: telemetry-free local reliability log.
+    # Telemetry-free local reliability log.
     # ------------------------------------------------------------------
     "tool_reliability_log_event": {
-        "short": "Append a structural event (gate fire, tool error, recovery) to workspace/.os_state/reliability.jsonl. v1.5.0.",
+        "short": "Append a structural event (gate fire, tool error, recovery) to workspace/.os_state/reliability.jsonl.",
         "description": "Append one line to workspace/.os_state/reliability.jsonl with event_type + protocol + model_profile + a small redacted payload. No project content, no PII — used by the maintainer (and the researcher when filing a bug) to spot regressions across releases without phoning home. Allowed event types: gate_fire, gate_recover, gate_abandon, tool_error, tool_success, protocol_start, protocol_complete, override_used, stale_state_detected, paywall_skipped.",
         "category": "state",
         "inputSchema": {
@@ -2146,16 +2146,16 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_reliability_report": {
-        "short": "Produce redacted markdown summary of workspace/.os_state/reliability.jsonl. v1.5.0.",
+        "short": "Produce redacted markdown summary of workspace/.os_state/reliability.jsonl.",
         "description": "Aggregates the local reliability log into a markdown summary at workspace/logs/reliability_report.md. Counts events by type + protocol + model_profile; surfaces top gate-fire and tool-error patterns. Contains no project content — safe to paste into a GitHub issue when filing a regression report.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
     },
     # ------------------------------------------------------------------
-    # v1.5.0 — Theme 11: stale-state detection + cross-step coherence.
+    # Stale-state detection + cross-step coherence.
     # ------------------------------------------------------------------
     "tool_state_freshness_check": {
-        "short": "Detect stale workspace state (state.json > 30d, citations older than newest PDF, orphan provenance). v1.5.0.",
+        "short": "Detect stale workspace state (state.json > 30d, citations older than newest PDF, orphan provenance).",
         "description": "Auto-called by sys_boot. If state.json mtime > stale_after_days (default 30), OR workspace/citations.md older than the newest inputs/literature/*.pdf, OR any per-step .prov.json points to a script that no longer exists, returns is_stale=true + a prompt_for_ai string the AI surfaces as a 'reconfirm before continuing?' question. Cheap; safe to call at every boot.",
         "category": "state",
         "inputSchema": {
@@ -2166,7 +2166,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_audit_coherence": {
-        "short": "Verify every Discussion/Results/Intro paragraph in synthesis/paper.md maps back to a step's conclusions.md. v1.5.0.",
+        "short": "Verify every Discussion/Results/Intro paragraph in synthesis/paper.md maps back to a step's conclusions.md.",
         "description": "Cross-step coherence audit. For each paragraph in synthesis/paper.md (Results / Discussion / Introduction / Conclusion sections), scores its key-phrase overlap against every step's conclusions.md. Paragraphs with score < 0.05 are flagged as orphan — likely carried over from a prior chat about a step that was later abandoned, or invented without grounding. Writes workspace/logs/coherence_audit.md.",
         "category": "audit",
         "inputSchema": {
@@ -2177,10 +2177,10 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     # ------------------------------------------------------------------
-    # v1.5.0 — Theme 14: intake re-entry detection.
+    # Intake re-entry detection.
     # ------------------------------------------------------------------
     "tool_intake_freshness": {
-        "short": "Return recommended intake depth (full | refresh-only | skip) based on intake.md freshness + step count. v1.5.0.",
+        "short": "Return recommended intake depth (full | refresh-only | skip) based on intake.md freshness + step count.",
         "description": "Decides whether project_startup should fully autofill intake or skip / refresh-only. inputs/intake.md missing or stub → full. Exists with >500 substantive chars + edited in last fresh_window_days → skip. Older than fresh_window_days but substantive → refresh-only. Also reports mid_pipeline_entry_recommended=true when >=1 numbered step has conclusions.md.",
         "category": "data",
         "inputSchema": {
@@ -2191,38 +2191,38 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     # ------------------------------------------------------------------
-    # v1.5.0 — Theme 1: writing_discussion verdict-driven paragraphs.
+    # writing_discussion verdict-driven paragraphs.
     # ------------------------------------------------------------------
     "tool_writing_discussion_from_verdicts": {
-        "short": "Append one Discussion paragraph per non-AGREES verdict in any step's findings_vs_literature.md. v1.5.0.",
-        "description": "Reads every workspace/<step>/literature/findings_vs_literature.md, finds DISAGREES + EXTENDS verdicts that carry a Discussion implication block, and appends one paragraph per verdict to synthesis/discussion.md under HTML-comment-delimited markers (idempotent — re-runs replace the block; hand-edits outside the markers are preserved). Closes the v1.4.0 audit gap where verdicts never reached the Discussion.",
+        "short": "Append one Discussion paragraph per non-AGREES verdict in any step's findings_vs_literature.md.",
+        "description": "Reads every workspace/<step>/literature/findings_vs_literature.md, finds DISAGREES + EXTENDS verdicts that carry a Discussion implication block, and appends one paragraph per verdict to synthesis/discussion.md under HTML-comment-delimited markers (idempotent — re-runs replace the block; hand-edits outside the markers are preserved). Closes the audit gap where verdicts never reached the Discussion.",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_discussion_coverage_audit": {
-        "short": "BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph. v1.5.0.",
+        "short": "BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph.",
         "description": "Companion to tool_writing_discussion_from_verdicts. Walks every step's findings_vs_literature.md and verifies synthesis/discussion.md mentions each DISAGREES/EXTENDS claim (>=50% key-word overlap). Returns status='error' + a blocker list if any verdict is uncovered — tool_writing_discussion's validate step honours this as a hard BLOCK unless override_discussion_coverage=true.",
         "category": "audit",
         "inputSchema": {"type": "object", "properties": {}},
     },
     # ------------------------------------------------------------------
-    # v1.5.1 — Theme 3: adaptive friction (rigor signals + self-certify).
+    # Adaptive friction (rigor signals + self-certify).
     # ------------------------------------------------------------------
     "tool_rigor_signals_scan": {
-        "short": "v1.5.1 — score project rigor 0-100 from methods.md, citations, git, preregistration, scripts, prior step summaries.",
-        "description": "v1.5.1 (Theme 3) — infers rigor signals across 6 dimensions and returns trust_score 0-100 + per-signal breakdown + recommended_strictness (light when >=75, normal when >=50, strict when <50). Audits can scale strictness via tool_resolve_gate_strictness.",
+        "short": "Score project rigor 0-100 from methods.md, citations, git, preregistration, scripts, prior step summaries.",
+        "description": "Infers rigor signals across 6 dimensions and returns trust_score 0-100 + per-signal breakdown + recommended_strictness (light when >=75, normal when >=50, strict when <50). Audits can scale strictness via tool_resolve_gate_strictness.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_resolve_gate_strictness": {
-        "short": "v1.5.1 — resolve effective gate strictness (light | normal | strict) from researcher_config + trust_score.",
-        "description": "v1.5.1 (Theme 3) — researcher_config.gate_strictness can be light | normal | strict | auto. auto follows the rigor_signals_scan trust_score. Returns the resolved value + source (config | auto | default). Light downgrades most blockers to notes; strict keeps full enforcement.",
+        "short": "Resolve effective gate strictness (light | normal | strict) from researcher_config + trust_score.",
+        "description": "researcher_config.gate_strictness can be light | normal | strict | auto. auto follows the rigor_signals_scan trust_score. Returns the resolved value + source (config | auto | default). Light downgrades most blockers to notes; strict keeps full enforcement.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_self_certify": {
-        "short": "v1.5.1 — persist a researcher self-certification (domain + scope + rationale).",
-        "description": "v1.5.1 (Theme 3) — researcher with deep expertise can self-certify equivalent work was done outside RO. Domains: literature_loop (alias lit_loop), stack_plan, preregistration, sensitivity_analysis, code_review, reproducibility. Persisted to workspace/researcher_certifications.yaml; audits downgrade matching blockers to notes (still surfaced for transparency).",
+        "short": "Persist a researcher self-certification (domain + scope + rationale).",
+        "description": "Researcher with deep expertise can self-certify equivalent work was done outside RO. Domains: literature_loop (alias lit_loop), stack_plan, preregistration, sensitivity_analysis, code_review, reproducibility. Persisted to workspace/researcher_certifications.yaml; audits downgrade matching blockers to notes (still surfaced for transparency).",
         "category": "state",
         "inputSchema": {
             "type": "object",
@@ -2235,17 +2235,17 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_list_certifications": {
-        "short": "v1.5.1 — list active researcher self-certifications.",
-        "description": "v1.5.1 (Theme 3) — return the list of currently-active researcher_certifications.yaml entries. Use when an audit blocker says 'consider tool_self_certify' to see whether a cert already exists.",
+        "short": "List active researcher self-certifications.",
+        "description": "Return the list of currently-active researcher_certifications.yaml entries. Use when an audit blocker says 'consider tool_self_certify' to see whether a cert already exists.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
     },
     # ------------------------------------------------------------------
-    # v1.5.1 — Theme 5: quick mode + promote-to-step.
+    # Quick mode + promote-to-step.
     # ------------------------------------------------------------------
     "tool_quick_route": {
-        "short": "v1.5.1 — detect throwaway / sanity-check / exploratory intent and short-circuit protocol load.",
-        "description": "v1.5.1 (Theme 5) — call before tool_route on every prompt. If the prompt matches a quick trigger ('just make me a plot', 'sanity check', 'exploratory only', 'quick look', 'throwaway viz', 'quick check', 'scratch'), returns is_quick=true + complexity='quick' + recommended_tool='tool_scratch_write'. Quick mode bypasses protocols + audit gates; results land under workspace/scratch/. Researcher can later promote via tool_promote_to_step.",
+        "short": "Detect throwaway / sanity-check / exploratory intent and short-circuit protocol load.",
+        "description": "Call before tool_route on every prompt. If the prompt matches a quick trigger ('just make me a plot', 'sanity check', 'exploratory only', 'quick look', 'throwaway viz', 'quick check', 'scratch'), returns is_quick=true + complexity='quick' + recommended_tool='tool_scratch_write'. Quick mode bypasses protocols + audit gates; results land under workspace/scratch/. Researcher can later promote via tool_promote_to_step.",
         "category": "state",
         "inputSchema": {
             "type": "object",
@@ -2254,8 +2254,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_promote_to_step": {
-        "short": "v1.5.1 — retroactively wrap a scratch result in proper provenance (new numbered step + sidecar + summary).",
-        "description": "v1.5.1 (Theme 5) — promote a workspace/scratch/ artifact into a proper numbered step. Creates the next workspace/NN_<slug>/ folder, copies the scratch file into outputs/figures/ (or step root for non-image files), emits .prov.json sidecar pointing back to the original scratch, writes minimal conclusions.md + step_summary.yaml. By default literature_required=false on the promoted step.",
+        "short": "Retroactively wrap a scratch result in proper provenance (new numbered step + sidecar + summary).",
+        "description": "Promote a workspace/scratch/ artifact into a proper numbered step. Creates the next workspace/NN_<slug>/ folder, copies the scratch file into outputs/figures/ (or step root for non-image files), emits .prov.json sidecar pointing back to the original scratch, writes minimal conclusions.md + step_summary.yaml. By default literature_required=false on the promoted step.",
         "category": "state",
         "inputSchema": {
             "type": "object",
@@ -2268,8 +2268,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_project_tier_strictness": {
-        "short": "v1.5.1 — map researcher_config.project_tier (throwaway | sketch | production) -> default gate_strictness.",
-        "description": "v1.5.1 (Theme 5) — researcher_config.project_tier sets the default audit strictness across a whole project. throwaway -> light, sketch -> normal, production -> strict. Returns the resolved tier + strictness.",
+        "short": "Map researcher_config.project_tier (throwaway | sketch | production) -> default gate_strictness.",
+        "description": "researcher_config.project_tier sets the default audit strictness across a whole project. throwaway -> light, sketch -> normal, production -> strict. Returns the resolved tier + strictness.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
     },
@@ -2739,7 +2739,7 @@ def _handle_sys_path_create(name, arguments, root):
     from research_os.project_ops import create_numbered_experiment
 
     try:
-        # v1.3.0 round-3: the MCP handler defaults to enforcing
+        # The MCP handler defaults to enforcing
         # previous-step finalization. Researcher can opt out by passing
         # `allow_unfinalized_predecessor=true` (logged to override_log).
         allow_bypass = bool(arguments.get("allow_unfinalized_predecessor", False))
@@ -2782,8 +2782,8 @@ def _handle_tool_path_finalize(name, arguments, root):
     )
     from research_os.tools.actions.state.path import finalize_path
 
-    # v1.5.1 (carried from v1.5.0 stress audit) — first-gate
-    # literature-loop check. Closes the v1.4.0 gap where
+    # First-gate
+    # literature-loop check. Closes the gap where
     # literature_per_step was documented as pipeline-mandatory but
     # never enforced (autopilot skipped it). Override via
     # override_literature_gate=true + override_rationale.
@@ -4640,7 +4640,7 @@ def _handle_sys_help(name, arguments, root):
 
 
 # ---------------------------------------------------------------------------
-# v1.5.0 — new handlers.
+# Reliability / failure / freshness / coherence handlers.
 # ---------------------------------------------------------------------------
 
 
@@ -4725,7 +4725,7 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
     return _text(discussion_coverage_audit(root))
 
 
-# v1.5.1 — Theme 3 + Theme 5 handlers.
+# Adaptive-friction + quick-mode handlers.
 
 
 def _handle_tool_rigor_signals_scan(name, arguments, root):
@@ -4948,7 +4948,7 @@ _HANDLERS = {
     "tool_dead_end_lessons": _handle_tool_dead_end_lessons,
     "tool_quick_review": _handle_tool_quick_review,
     "sys_dep_inventory": _handle_sys_dep_inventory,
-    # v1.5.0
+
     "tool_reliability_log_event": _handle_tool_reliability_log_event,
     "tool_reliability_report": _handle_tool_reliability_report,
     "tool_state_freshness_check": _handle_tool_state_freshness_check,
@@ -4959,7 +4959,7 @@ _HANDLERS = {
     "tool_intake_freshness": _handle_tool_intake_freshness,
     "tool_writing_discussion_from_verdicts": _handle_tool_writing_discussion_from_verdicts,
     "tool_discussion_coverage_audit": _handle_tool_discussion_coverage_audit,
-    # v1.5.1 — adaptive friction + quick mode.
+
     "tool_rigor_signals_scan": _handle_tool_rigor_signals_scan,
     "tool_resolve_gate_strictness": _handle_tool_resolve_gate_strictness,
     "tool_self_certify": _handle_tool_self_certify,
@@ -4991,12 +4991,12 @@ def _resolve_tool_name(name: str) -> str:
     return _ALIASES.get(canonical, canonical)
 
 
-# Tools removed in v1.3.0 — friendly error pointing the AI at the new path.
+# Tools removed in earlier releases — friendly error pointing the AI at the new path.
 # Old plans, scripts, or third-party callers that still name these get a
 # clear message instead of a generic "unknown tool" dead end.
 _REMOVED_TOOLS = {
     "tool_figure_create": (
-        "tool_figure_create was removed in v1.3.0. Research-OS no longer ships "
+        "tool_figure_create was removed. Research-OS no longer ships "
         "premade chart code — write your own matplotlib / ggplot2 / Altair / "
         "plotnine / Vega-Lite / d3 script tailored to the data. Load the "
         "guidance with sys_protocol_get(protocol_name='visualization/figure_guidelines', "
@@ -5168,7 +5168,7 @@ def main() -> None:
         type=str,
         default=None,
         help=(
-            "DEPRECATED in v1.0.0. Workspace is auto-resolved from the "
+            "DEPRECATED. Workspace is auto-resolved from the "
             "RESEARCH_OS_WORKSPACE env var or the current working "
             "directory. Passing --workspace still works (back-compat) "
             "but is no longer required."

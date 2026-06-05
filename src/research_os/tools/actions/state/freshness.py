@@ -1,4 +1,4 @@
-"""Stale-state detection (v1.5.0 — Theme 11).
+"""Stale-state detection.
 
 Auto-called by ``sys_boot`` to surface a "stale state — reconfirm?"
 prompt when the workspace looks like it has drifted from an interrupted

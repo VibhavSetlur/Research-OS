@@ -2,6 +2,7 @@ id: analysis_plan
 name: Analysis Plan (Core Loop)
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
 prerequisites:
@@ -22,7 +23,7 @@ steps:
       to pick up state + autonomy. Never re-call sys_state_get +
       sys_config_get separately while sys_boot's payload is still fresh.
 
-      v1.4.0: BEFORE starting a non-trivial step, optionally:
+      BEFORE starting a non-trivial step, optionally:
         tool_lessons_consult tags=[<step_kind>, <method>, <data_type>]
           → retrieves lessons from prior similar steps (recency +
             tag-overlap scored) as a prompt block to prepend
@@ -60,16 +61,15 @@ steps:
       count — see the "When to suggest a new step" block in
       create_step_folder below.
 
-      v1.4.0 LANGUAGE/TOOL-STACK SUB-STEP: if the step's method choice
+      LANGUAGE/TOOL-STACK SUB-STEP: if the step's method choice
       is non-trivial (e.g. DESeq2 vs pydeseq2, Seurat vs scanpy, R survival
       vs lifelines, WGCNA vs PyWGCNA) — i.e. ANY case where a reasonable
       reviewer might ask "why this language/library?" — invoke
         sys_protocol_get format='full' name='methodology/pick_tool_stack'
       and persist the choice to workspace/<NN_slug>/scratch/stack_plan.md
       BEFORE writing code. Skip ONLY for pure-glue / data-shuffling work
-      where the language is field-irrelevant. v1.4.0 audit emits a WARN
-      when a step has scripts but no stack_plan.md; v1.5.0 promotes to
-      BLOCK.
+      where the language is field-irrelevant. Audit BLOCKS when a step
+      has scripts but no stack_plan.md.
 
   - id: ground_methods
     name: Ground Methodology in Literature (HARD GATE) — STEP-SCOPED
@@ -419,17 +419,14 @@ steps:
       Also: mem_analysis_log entry="<step_id> done: <one-line summary>".
 
   - id: ground_findings_in_literature
-    name: Ground Findings in Literature (v1.5.0 — pipeline-mandatory)
+    name: Ground Findings in Literature (pipeline-mandatory)
     description: |
       AFTER conclusions.md is written but BEFORE finalize_step, run the
       per-step literature loop. The methods choice was grounded above
       (`ground_methods`); now the FINDINGS themselves must be compared
       to what the literature says.
 
-      v1.5.0 — this step is **pipeline-mandatory**. v1.4.0 routed it
-      via the trigger system, which let the AI skip ahead to
-      finalize_step in autopilot mode without grounding findings.
-      v1.5.0 hard-wires the call: `finalize_step` (below) runs
+      This step is **pipeline-mandatory**. `finalize_step` (below) runs
       `tool_audit_step_literature` as its first gate and BLOCKS the
       finalize if `findings_vs_literature.md` is missing for any step
       whose `step_summary.yaml` lacks `literature_required: false`.
@@ -473,7 +470,7 @@ steps:
   - id: snapshot_step_environment
     name: Snapshot the Environment (every step that actually ran code)
     description: |
-      Default (v1.3.0): call sys_env_snapshot EVERY step that ran code.
+      Default: call sys_env_snapshot EVERY step that ran code.
       It's cheap, idempotent, and the cost of skipping is a published
       result you can't rerun.
 
@@ -498,7 +495,7 @@ steps:
   - id: finalize_step
     name: Finalize the Step (mandatory before decide_next)
     description: |
-      tool_path_finalize — runs the v1.3.0 finalize sequence:
+      tool_path_finalize — runs the finalize sequence:
 
       Per-step file refresh (rewrites the step's stub README + every
       subfolder README from what actually got produced):
@@ -513,8 +510,7 @@ steps:
         - README.md ← stub Methods / Outputs / Decision sections
           populated from conclusions.md + per-step decision log.
 
-      Project-scope log refresh (the v1.3.0 piece — used to be
-      manual):
+      Project-scope log refresh:
         - workspace/analysis.md ← step-finalized heading + headline
           + output counts + decision count (idempotent on the marker).
         - workspace/methods.md ← if conclusions.md has a `## Methods
@@ -547,13 +543,13 @@ steps:
         - tool_audit_figure on the primary figure (DPI / size).
         - tool_audit_power if a statistical test with known n was run.
         - tool_audit_assumptions if residuals were saved.
-        - tool_audit_step_literature step_id=<NN_slug> — v1.4.0 gate
-          for the per-step literature loop (blocks finalize if
+        - tool_audit_step_literature step_id=<NN_slug> — gate for
+          the per-step literature loop (blocks finalize if
           findings_vs_literature.md missing or verdicts incomplete).
-        - tool_grounding_verify step_id=<NN_slug> — v1.4.0: confirms
-          every decision logged in workspace/analysis.md has a
-          grounding record in .grounding/grounding.jsonl or an
-          inline citation. Writes workspace/logs/grounding_audit.md.
+        - tool_grounding_verify step_id=<NN_slug> — confirms every
+          decision logged in workspace/analysis.md has a grounding
+          record in .grounding/grounding.jsonl or an inline citation.
+          Writes workspace/logs/grounding_audit.md.
       Append warnings to conclusions.md > Limitations.
 
       AFTER the audit passes, log a Reflexion record so future steps
@@ -570,7 +566,7 @@ steps:
   - id: present_to_researcher
     name: Present to Researcher (anti-one-shot MANDATORY pause)
     description: |
-      v1.3.3 MANDATORY GATE — must run after `finalize_step`. The AI
+      MANDATORY GATE — must run after `finalize_step`. The AI
       MUST stop here and present the step's status to the researcher,
       then WAIT for their choice before any further tool call.
 
@@ -669,8 +665,8 @@ steps:
                               `present_to_researcher`; proceed to the
                               chosen action.
 
-      v1.4.0 — log the decision as a ReAct trace entry so future audit
-      can reconstruct WHY each step branched / proceeded / died:
+      Log the decision as a ReAct trace entry so future audit can
+      reconstruct WHY each step branched / proceeded / died:
 
         tool_thought_log
             step_id=<NN_slug>

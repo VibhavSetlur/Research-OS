@@ -42,12 +42,11 @@ def package_install(packages: list[str]) -> dict[str, Any]:
 def _detect_languages_in_use(root: Path) -> set[str]:
     """Scan workspace + project root for evidence of each language.
 
-    v1.3.0: env_snapshot used to capture Python unconditionally and
-    only capture R/Julia/conda when their lock files existed at
-    project root. Researchers running an R-only or Julia-only project
-    saw a meaningless Python pip-freeze in their environment/ folder
-    and no R/Julia capture. This helper looks at what scripts actually
-    EXIST under workspace/ to decide which captures matter.
+    env_snapshot needs to know which language captures matter for
+    THIS project — otherwise an R-only or Julia-only project gets a
+    meaningless Python pip-freeze in environment/ and no R/Julia
+    capture. This helper looks at what scripts actually EXIST under
+    workspace/ to decide.
 
     Returns the set of detected language tags:
       {"python", "r", "julia", "quarto", "rmarkdown", "shell", "node"}
@@ -61,7 +60,7 @@ def _detect_languages_in_use(root: Path) -> set[str]:
         ".sh": "shell", ".bash": "shell",
         ".js": "node", ".ts": "node", ".mjs": "node",
     }
-    # v1.3.2: ALSO infer language from the data file types in
+    # ALSO infer language from the data file types in
     # inputs/raw_data/. Bioinformatics file types (FASTQ/BAM/VCF/CRAM/
     # FASTA) typically pull in an R+Bioconductor or pysam + biopython
     # stack; matrix files (HDF5/H5AD/loom) suggest scanpy / Seurat;
@@ -127,8 +126,8 @@ def _domain_package_recommendations(
 ) -> dict[str, list[str]]:
     """For each domain hint, return the canonical package stack.
 
-    v1.3.2 — gives the AI a concrete starting point for the dependency
-    pin in `environment/requirements.txt` (or the R / Julia equivalent)
+    Gives the AI a concrete starting point for the dependency pin in
+    `environment/requirements.txt` (or the R / Julia equivalent)
     before it has written its first analysis script.
     """
     py = "python" in in_use or "python" not in in_use  # python default
@@ -306,7 +305,7 @@ def env_snapshot(
 ) -> dict[str, Any]:
     """Snapshot Python (always) and any detected R/Julia/Conda configs.
 
-    Target directory rules (v1.3.0):
+    Target directory rules:
       * If ``step_id`` is given, snapshot into
         ``workspace/<step_id>/environment/``.
       * Else if ``scope='project'``, snapshot into the project-global
@@ -332,7 +331,7 @@ def env_snapshot(
         env_dir.mkdir(parents=True, exist_ok=True)
         session: dict[str, Any] = {"languages": []}
 
-        # v1.3.0: detect which languages this project actually uses by
+        # Detect which languages this project actually uses by
         # scanning workspace scripts. Capture all of them — not just
         # Python — so R-only and Julia-only projects don't end up with
         # a meaningless pip-freeze.
@@ -471,9 +470,9 @@ def env_snapshot(
                 })
                 break
 
-        # v1.3.2: surface domain hints + per-domain package
-        # recommendations. The AI uses these when picking which library
-        # to bring into the project's environment.
+        # Surface domain hints + per-domain package recommendations.
+        # The AI uses these when picking which library to bring into
+        # the project's environment.
         domain_hints = sorted(
             d.split(":", 1)[1] for d in in_use if d.startswith("domain_hint:")
         )
@@ -484,8 +483,8 @@ def env_snapshot(
             (env_dir / "language_recommendations.md").write_text(
                 _render_language_recommendations(domain_hints, in_use, recs)
             )
-        # v1.3.2: auto-generate a Dockerfile when multiple languages
-        # are in play — single-language projects don't need one, but
+        # Auto-generate a Dockerfile when multiple languages are in
+        # play — single-language projects don't need one, but
         # multi-language R+Python or Python+Julia projects need
         # containerisation to be reproducible. Researchers can override
         # with `sys_env_docker_generate`.
