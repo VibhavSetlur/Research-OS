@@ -1,6 +1,6 @@
 id: external_tool_setup
 name: External Tool Setup (top-tier viz / analysis stacks installed properly)
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |

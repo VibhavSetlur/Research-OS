@@ -1,6 +1,6 @@
 id: writing_discussion
 name: Writing — Discussion (the hardest section)
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: |
   Draft / iterate the Discussion section. The Discussion is where most

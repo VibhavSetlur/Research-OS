@@ -1,6 +1,6 @@
 id: synthesis_null_findings
 name: Synthesis — Null findings & inconclusive results
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: |
   Assemble a publishable companion document for findings that DIDN'T

@@ -1,6 +1,6 @@
 id: exploratory_data_analysis
 name: Exploratory Data Analysis (EDA + hypothesis generation)
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: |
   Real EDA workflow — open-ended, hypothesis-GENERATING, NOT a
