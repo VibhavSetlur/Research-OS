@@ -197,7 +197,9 @@ def test_project_tier_strictness_mapping(tmp_path):
     assert res["default_gate_strictness"] == "strict"
 
     # Set throwaway.
-    (root / "researcher_config.yaml").write_text("project_tier: throwaway\n")
+    cfg_path = root / "inputs" / "researcher_config.yaml"
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text("project_tier: throwaway\n")
     res2 = project_tier_strictness(root)
     assert res2["project_tier"] == "throwaway"
     assert res2["default_gate_strictness"] == "light"

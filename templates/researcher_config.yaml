@@ -1,5 +1,13 @@
 # Research OS — Researcher Configuration
 #
+# >>> SOURCE OF TRUTH for the researcher_config schema. <<<
+# Edit THIS file first. The wizard's in-code copy lives in
+# src/research_os/tools/actions/state/config.py::CONFIG_TEMPLATE and is
+# kept byte-for-byte synchronised by tests/unit/test_config_template_matches_file.py.
+# When you change a field here, mirror the same change in CONFIG_TEMPLATE
+# (or run the sync test and follow the diff). docs/RESEARCHER_GUIDE.md §8
+# is the prose mirror of this file and should also be updated.
+#
 # Tells the AI who it's working with and how you want it to behave.
 # Research OS does NOT manage LLM providers — your AI client (Claude Code /
 # OpenCode / Antigravity / Cursor / Claude / VS Code) handles model access.
@@ -47,15 +55,15 @@ interaction:
   #   take_best_default  → AI proceeds, surfaces the chosen default for review
   ambiguity_posture: "ask_when_uncertain"
 
-# ── Audit strictness (v1.5.1) ──────────────────────────────────────────
+# ── Audit strictness ───────────────────────────────────────────────────
 # How hard audits enforce gates. "light" downgrades most blockers to
 # notes; "strict" keeps every gate at full enforcement; "normal" is the
-# pre-v1.5.1 behaviour. "auto" follows tool_rigor_signals_scan — a
-# project with substantive methods.md + citations + git + preregistration
-# scores high and gets "light"; a sketch scores low and gets "strict".
+# baseline. "auto" follows tool_rigor_signals_scan — a project with
+# substantive methods.md + citations + git + preregistration scores
+# high and gets "light"; a sketch scores low and gets "strict".
 gate_strictness: "auto"               # light | normal | strict | auto
 
-# ── Project tier (v1.5.1) ──────────────────────────────────────────────
+# ── Project tier ───────────────────────────────────────────────────────
 # Sets the default audit strictness across the whole project.
 #   throwaway → light  (sandbox / exploratory; no publication intent)
 #   sketch    → normal (working draft; may or may not publish)

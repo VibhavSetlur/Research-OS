@@ -1270,3 +1270,117 @@ The rot is on three surfaces:
 The recommended v1.9.3 release plan (28 h of work across 35 items) closes the 4 CRITICAL findings, fixes the 7 trivial issues already discovered, and ships the docs sweep that brings RESEARCHER_GUIDE / PROTOCOLS / TOOLS up to date. v1.9.4 (18 h) is the usability-polish session. v1.11.0 (59 h) is the audit-gate refactor + humanities pack wiring + dashboard surfaces. v2.0.0 (20 h) is the deprecation cleanup.
 
 No release is blocked. Ship v1.9.2 with the count-fix patch and the in-line trivial fixes already applied; queue v1.9.3 as the immediate next priority.
+
+---
+
+## Appendix: Resolved in v1.9.3 (2026-06-05)
+
+This appendix records the actual fate of every AUDIT-v1.9.2-NNN
+finding scheduled for v1.9.3 (the 35-item work-list from §10 of the
+audit body). Each row: ID, one-line title, files touched, status.
+
+Release gates at synthesis time:
+- preflight: **22/22** (one new check added: `Router index mtime tracks protocols`)
+- pytest: **896 passed** (was 872 baseline; +24 v1.9.3 tests)
+- ruff: **clean across src/ tests/ scripts/**
+- 114 protocols / 212 tools / 5 packs all on version `1.9.3`
+
+### Resolved (33 findings)
+
+#### Code / src/ (Phase 1)
+
+| ID | Title | Files | Status |
+|---|---|---|---|
+| AUDIT-v1.9.2-001 | Config-reader path bug (`inputs/researcher_config.yaml` w/ legacy fallback) | `state/rigor_signals.py`, `state/quick_mode.py`, `state/reliability.py`, tests | RESOLVED |
+| AUDIT-v1.9.2-002 | `override_discussion_coverage` wired through schema + handler + log_override | `server.py`, `synthesis/discussion_from_verdicts.py` | RESOLVED |
+| AUDIT-v1.9.2-003 | step_completeness gate accepts humanities markdown artefacts | `audit/audit.py`, `tests/unit/test_v193_humanities_completeness.py` | RESOLVED |
+| AUDIT-v1.9.2-005 | (covered by lens-01 fixes) — biology flow surface | indirectly via AUDIT-028/029/059 | RESOLVED |
+| AUDIT-v1.9.2-006 | (covered by AUDIT-018) — override audit-trail | `server.py` | RESOLVED |
+| AUDIT-v1.9.2-011 | project_tier propagates as default when gate_strictness unset | `state/rigor_signals.py`, tests | RESOLVED |
+| AUDIT-v1.9.2-012 | REDCap adapter detects cross-sectional exports | `research_os_adapter_redcap/__init__.py`, tests | RESOLVED |
+| AUDIT-v1.9.2-013 | Qualitative detector picks up .txt/.md transcripts at ≥3 speaker turns | `research_os_qualitative/detector.py`, tests | RESOLVED |
+| AUDIT-v1.9.2-015 | router honours state_hint as tie-breaker | `tools/actions/router.py`, tests | RESOLVED |
+| AUDIT-v1.9.2-018 | `override_no_pdfs` now writes `override_log.md` | `server.py` | RESOLVED |
+| AUDIT-v1.9.2-020 | Audit master description lists 6 gates including grounding | `server.py`, `audit_and_validation.yaml` | RESOLVED |
+| AUDIT-v1.9.2-035 | stress_runner asserts `expected_pack` from manifest | `testing/stress_runner.py`, tests | RESOLVED |
+| AUDIT-v1.9.2-037 | Deleted 4 orphaned Typst vector-figure helpers | `synthesis/typst.py`, `audit/dashboard_content.py` | RESOLVED (dead code) |
+| AUDIT-v1.9.2-038 | Removed 4 unused exception classes from `errors.py` | `errors.py` | RESOLVED (dead code) |
+| AUDIT-v1.9.2-041 | `content_depth.py` now returns `figures_referenced` | `audit/content_depth.py` | RESOLVED |
+| AUDIT-v1.9.2-046 | Alias coaching `autonomy_level` to `supervised` (display preserved) | `state/config.py` | RESOLVED |
+| AUDIT-v1.9.2-051 | Dead-helper sweep across 8 modules | `inputs/papers.py`, `testing/stress_runner.py`, `plugins/loader.py`, `project_ops.py`, `tui.py`, `utils/asset_manager.py`, `verify.py`, `logo.py` | RESOLVED (dead code) |
+| AUDIT-v1.9.2-054 | Move F401 ignore from global to per-file; auto-fix 20 unused imports | `pyproject.toml`, `scripts/preflight.py`, 17 src files | RESOLVED |
+| AUDIT-v1.9.2-068 | Pin `CONFIG_TEMPLATE` to `templates/researcher_config.yaml` with sync test | `state/config.py`, `templates/researcher_config.yaml`, `tests/unit/test_config_template_matches_file.py` | RESOLVED |
+| AUDIT-v1.9.2-069 | Preflight check: warn when `_router_index.yaml` older than any protocol | `scripts/preflight.py` | RESOLVED |
+| AUDIT-v1.9.2-071 | project_tier as default gate_strictness when gate_strictness=auto + tier!=production | `state/rigor_signals.py` | RESOLVED |
+| AUDIT-v1.9.2-072 | `sys_config_validate` per-field enum membership | `state/config.py` | RESOLVED |
+
+#### Protocol YAMLs (Phase 2A)
+
+| ID | Title | Files | Status |
+|---|---|---|---|
+| AUDIT-v1.9.2-004 | Humanities pack tool refs rewritten as manual / `tool_python_exec` | `digital_humanities_workflow.yaml`, `scholarly_edition.yaml` | RESOLVED |
+| AUDIT-v1.9.2-014 | `member_checking` refs to nonexistent helpers rewritten doc-only | `member_checking.yaml` | RESOLVED |
+| AUDIT-v1.9.2-025 | Qualitative `sys_path` misuse corrected | 3 qualitative protocols | RESOLVED |
+| AUDIT-v1.9.2-027 | `hermeneutic_method` on_failure no longer references nonexistent protocols | `hermeneutic_method.yaml` | RESOLVED |
+| AUDIT-v1.9.2-028 | Router gains explicit DESeq2 / DE / scRNA-seq triggers | `_router_index.yaml` | RESOLVED |
+| AUDIT-v1.9.2-029 | `synthesis_paper` decomposition appends Typst compile | `_router_index.yaml` | RESOLVED |
+| AUDIT-v1.9.2-030 | Three 2-cycles broken via `next_protocol: null` on back-edges | 3 methodology protocols | RESOLVED |
+| AUDIT-v1.9.2-034 | Kappa thresholds unified on Landis & Koch 1977 (NORMAL=0.70) | 3 protocols | RESOLVED |
+| AUDIT-v1.9.2-039 | Removed orphan `tool_write_provenance_sidecar` mention | `_router_index.yaml` | RESOLVED |
+| AUDIT-v1.9.2-043 | Bulk-bumped 114 core protocols + router index to v1.9.3 | `_router_index.yaml`, all protocol YAMLs | RESOLVED |
+| AUDIT-v1.9.2-044 | All 5 pack manifests + 36 pack protocols bumped to v1.9.3 | All pack `__init__.py` + pack YAMLs | RESOLVED |
+| AUDIT-v1.9.2-067 | `hermeneutic_method` `quality_bar` converted list → dict | `hermeneutic_method.yaml` | RESOLVED |
+
+#### Docs (Phase 2B)
+
+| ID | Title | Files | Status |
+|---|---|---|---|
+| AUDIT-v1.9.2-009 | `RESEARCHER_GUIDE.md` config schema synced to template | `docs/RESEARCHER_GUIDE.md` | RESOLVED |
+| AUDIT-v1.9.2-010 | `PROTOCOLS.md` full 114-protocol catalogue + regen script | `docs/PROTOCOLS.md`, `scripts/regen_protocols_doc.py` | RESOLVED |
+| AUDIT-v1.9.2-042 | `TOOLS.md` now mentions all 212 tools (was 131) | `docs/TOOLS.md` | RESOLVED |
+| AUDIT-v1.9.2-045 | `researcher.affiliation → institution` drift resolved | `synthesis/latex.py`, `docs/RESEARCHER_GUIDE.md` | RESOLVED |
+| AUDIT-v1.9.2-048 | `RESEARCHER_GUIDE` source-tree diagram regenerated | `docs/RESEARCHER_GUIDE.md` | RESOLVED |
+| AUDIT-v1.9.2-056 | `runtime.*` exec-safety fields documented | `docs/RESEARCHER_GUIDE.md` | RESOLVED |
+| AUDIT-v1.9.2-057 | `research_goal.*` extension fields documented | `docs/RESEARCHER_GUIDE.md` | RESOLVED |
+| AUDIT-v1.9.2-058 | `AI_GUIDE.md` visualization table expanded 6 → 14 | `docs/AI_GUIDE.md` | RESOLVED |
+| AUDIT-v1.9.2-059 | `tool_audit_quality_full` skip-literature behaviour documented | `server.py`, `docs/TOOLS.md` | RESOLVED |
+| AUDIT-v1.9.2-070 | Optional `see_also` field convention documented | `docs/PROTOCOL_DOCTRINE.md` | RESOLVED (docs only; field not auto-rendered) |
+| DRIFT-counts | Maintainer `CLAUDE.md` stale counts updated | `CLAUDE.md` | RESOLVED |
+
+#### Tests / fixtures (Phase 2C)
+
+| ID | Title | Files | Status |
+|---|---|---|---|
+| AUDIT-v1.9.2-036 | Rewrite `slurm_snakemake` + `redcap_longitudinal` canned_responses | 2 manifests | RESOLVED |
+| AUDIT-v1.9.2-055 | Replace vacuous loop in `test_v171_three_packs` | `tests/unit/test_v171_three_packs.py` | RESOLVED |
+
+### Deferred to v1.9.4 / v1.11.0
+
+| ID | Title | New target | Rationale |
+|---|---|---|---|
+| AUDIT-v1.9.2-047 | Deprecated-alias sweep across 71 protocols | **v1.11.0** | Snowballs to 71 files; aliases still functional, only deprecation telemetry fires. Audit's own target column reads v1.11.0. |
+| AUDIT-v1.9.2-022 | `literature_per_step` empirical-only (humanities blocker) | **v1.9.4** | Per audit triage. |
+| AUDIT-v1.9.2-023 | `synthesis_paper` hard-codes p-value formatting | **v1.9.4** | Per audit triage. |
+| AUDIT-v1.9.2-024 | `audit_and_validation` auto-routes codebook to qualitative gate | **v1.9.4** | Per audit triage. |
+| AUDIT-v1.9.2-026 | COREQ-SRQR checklist YAMLs never shipped | **v1.11.0** | Per audit triage. |
+| AUDIT-v1.9.2-060 | `tool_paper_compile_typst` `next_steps` field | **v1.9.4** | Per audit triage. |
+| AUDIT-v1.9.2-063 | `synthesis_paper` 10-turn mandatory loop | **v1.11.0** | Per audit triage. |
+| AUDIT-v1.9.2-065 | `synthesis_paper` prerequisites assume literature_index ≥3 | **v1.9.4** | Per audit triage. |
+| AUDIT-v1.9.2-073 | dashboard surface for codebooks / apparatus criticus | **v1.11.0** | Per audit triage. |
+| AUDIT-v1.9.2-074 | Humanities pack chains dead-end at `next_protocol: null` | **v1.9.4** | Per audit triage. |
+
+### Newly surfaced (introduced by v1.9.3 fixes; tracked for v1.9.4)
+
+- **κ threshold internal drift in qualitative pack** — AUDIT-034 unified quality_bar/verdict-table at κ≥0.70, but `coding_scheme_iteration.yaml` step prose (lines 70, 76, 99) and `tools.py` (132, 166, 178, 182) in `research_os_qualitative` still cite κ<0.60 as the flag threshold. Audit gate that BLOCKS is 0.70; tool advice that warns is 0.60. Friction, not failure. v1.9.4 sweep.
+- **Humanities mode auto-detection requires config or filesystem markers** — fresh projects without `domain: humanities` in `inputs/researcher_config.yaml` AND without `workspace/**/{edition,apparatus,transcriptions,humanities}` markers will still trigger the figure-mandatory gate on step 1. Workable but adoption-path friction. Wizard should auto-write domain hint. v1.9.4.
+- **`_collect_humanities_artefacts` suffix set is .md/.txt/.xml/.tei only** — a `.tex` apparatus or `.docx` transcription under `edition/` would still trigger the no-figure blocker. Edge case; v1.9.4.
+
+### v1.9.3 stress re-run summary (3 lenses)
+
+| Lens | Domain | v1.9.2 frictions | v1.9.3 frictions | Rating |
+|---|---|---|---|---|
+| 01 | Biology snRNA-seq | 9 | 4 (all deferred) | 9/10 |
+| 02 | Humanities composition | 15 | 11 (4 fixed; 7 deferred per triage) | 6/10 |
+| 03 | Qualitative interview study | 9 | 3 (+ 1 new internal-drift item) | 8/10 |
+
+Average usability across 3 lenses: **7.67 / 10** (was ~5 in v1.9.2).

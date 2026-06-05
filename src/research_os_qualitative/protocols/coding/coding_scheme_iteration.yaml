@@ -1,6 +1,6 @@
 id: coding_scheme_iteration
 name: Coding Scheme Iteration (open → axial → selective)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -39,8 +39,15 @@ editorial_voice:
        haven't saturated; you've gotten tired."
 
 quality_bar:
-  per_code_kappa_minimum: 0.60                # Landis & Koch 'moderate'
-  per_code_kappa_target: 0.75                 # 'substantial'
+  # Canonical Landis & Koch (1977) table:
+  #   0.41-0.60 moderate / 0.61-0.80 substantial / 0.81-1.00 almost perfect
+  # Core protocol methodology/inter_rater_reliability is the single source
+  # of truth for the threshold; pack defaults align with the
+  # qualitative_quality_audit blocker (κ >= 0.70 without a documented
+  # reconciliation plan) — kept here so iteration can self-check before
+  # the audit gate fires.
+  per_code_kappa_minimum: 0.70                # Landis & Koch 'substantial' floor
+  per_code_kappa_target: 0.80                 # 'almost perfect'
   saturation_check_minimum_transcripts: 6
   per_round_memo_mandatory: true
   inclusion_exclusion_per_code_mandatory: true

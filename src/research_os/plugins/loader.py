@@ -145,24 +145,6 @@ def pack_router_entries() -> dict[str, dict]:
     return dict(_PACK_ROUTER_ENTRIES)
 
 
-def pack_domain_detectors() -> dict[str, Callable[[Path], dict]]:
-    """Map of pack-name → domain detector callable."""
-    return dict(_PACK_DOMAIN_DETECTORS)
-
-
-def write_pack_errors_log(root: Path) -> Path | None:
-    """Persist pack errors to `<root>/workspace/logs/pack_errors.log`."""
-    if not _PACK_ERRORS:
-        return None
-    log_dir = root / "workspace" / "logs"
-    log_dir.mkdir(parents=True, exist_ok=True)
-    path = log_dir / "pack_errors.log"
-    with open(path, "a") as f:
-        for ep, tb in _PACK_ERRORS:
-            f.write(f"=== {ep} ===\n{tb}\n\n")
-    return path
-
-
 # ── internals ─────────────────────────────────────────────────────────
 
 

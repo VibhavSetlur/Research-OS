@@ -25,9 +25,7 @@ from __future__ import annotations
 
 import glob
 import os
-import shutil
 import sys
-from pathlib import Path
 from typing import Callable, Iterable
 
 # ---------------------------------------------------------------------------
@@ -223,13 +221,6 @@ def _clear_lines(n: int) -> None:
         return
     sys.stdout.write(f"\033[{n}A\033[J")
     sys.stdout.flush()
-
-
-def _term_width() -> int:
-    try:
-        return max(50, shutil.get_terminal_size((80, 24)).columns)
-    except OSError:
-        return 80
 
 
 # ---------------------------------------------------------------------------

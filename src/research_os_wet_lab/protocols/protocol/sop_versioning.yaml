@@ -1,6 +1,6 @@
 id: sop_versioning
 name: SOP Versioning — every Standard Operating Procedure is versioned
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |

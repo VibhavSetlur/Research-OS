@@ -378,7 +378,7 @@ def check_protocols_referenced_tools_resolve():
     """Every sys_/tool_/mem_ name in a protocol must be a real tool (after alias)."""
     import re
 
-    from research_os.server import _ALIASES, TOOL_DEFINITIONS, _resolve_tool_name
+    from research_os.server import TOOL_DEFINITIONS, _resolve_tool_name
 
     # Add known false positives that aren't tool calls
     false_positive_strings = {
@@ -479,6 +479,43 @@ def check_router_index_consistent():
         if not bad
         else "; ".join(bad[:3])
     )
+
+
+def check_router_index_bumped():
+    """Warn when _router_index.yaml is older than any protocol YAML.
+
+    AUDIT-v1.9.2-069: the index carries a ``version:`` integer counter
+    that maintainers must bump whenever they touch the index. Easy to
+    forget when only a protocol body changed. This check compares the
+    index's mtime against every non-stub protocol YAML's mtime and
+    surfaces the offenders. The check WARNs (always returns True) so
+    preflight doesn't gate on it — protocol edits often don't require
+    an index bump — but the detail line catches the eye if drift is
+    starting to accumulate.
+    """
+    idx_path = PROTOCOLS_DIR / "_router_index.yaml"
+    if not idx_path.exists():
+        return True, "no _router_index.yaml on disk; skipped"
+    idx_mtime = idx_path.stat().st_mtime
+    newer: list[str] = []
+    total = 0
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if "light" in f.parts or f.name.startswith("_"):
+            continue
+        total += 1
+        try:
+            if f.stat().st_mtime > idx_mtime:
+                rel = f.relative_to(PROTOCOLS_DIR).with_suffix("").as_posix()
+                newer.append(rel)
+        except OSError:
+            continue
+    if newer:
+        return True, (
+            f"{len(newer)}/{total} protocol(s) newer than _router_index.yaml "
+            f"(consider bumping `version:`): {', '.join(newer[:3])}"
+            + ("..." if len(newer) > 3 else "")
+        )
+    return True, f"_router_index.yaml fresher than all {total} protocols"
 
 
 def check_protocol_freshness():
@@ -695,6 +732,7 @@ def main() -> int:
     tally.check("Adapter regex patterns compile", check_adapter_regex_compile)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
     tally.check("Router index references resolve", check_router_index_consistent)
+    tally.check("Router index mtime tracks protocols", check_router_index_bumped)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)

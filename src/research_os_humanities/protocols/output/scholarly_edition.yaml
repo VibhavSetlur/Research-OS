@@ -1,6 +1,6 @@
 id: scholarly_edition
 name: Scholarly Edition — critical edition + apparatus + translation
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -71,10 +71,12 @@ steps:
     name: Collate the witnesses, build a stemma
     description: |
       Lay the witnesses side by side and record every variant
-      (substantive + accidental, sorted later). Call
-      tool_humanities_collate to scaffold a collation table keyed
-      to a chosen reference text (the eventual base text or one of
-      the witnesses, marked as such). The table goes under
+      (substantive + accidental, sorted later). Build the collation
+      table manually in markdown — or, for large editions, write a
+      short collation script (e.g. CollateX via Python, or a custom
+      diff aligner) and invoke it via tool_python_exec. Key the
+      table to a chosen reference text (the eventual base text or
+      one of the witnesses, marked as such). The table goes under
       workspace/edition/collation_<work_id>.md.
       For each locus of variation, classify the variants:
         - shared error (most useful for stemmatics)
@@ -111,10 +113,10 @@ steps:
   - id: build_apparatus
     name: Build the apparatus criticus
     description: |
-      Call tool_humanities_apparatus to scaffold the apparatus per
-      base-text line. The default layout is the standard positive
-      apparatus: lemma + ] + variant readings + sigla, with one
-      entry per substantive variant. Negative apparatus (which only
+      Compose the apparatus per base-text line by hand in markdown.
+      The default layout is the standard positive apparatus: lemma
+      + ] + variant readings + sigla, with one entry per substantive
+      variant. Negative apparatus (which only
       records the witnesses that disagree with the lemma) is fine
       for a stable tradition with many witnesses; say which you are
       using in the editorial principles.
@@ -128,9 +130,10 @@ steps:
           add. = adds, transp. = transposes, etc.).
       Run a closure check at the end: every line in the base text
       must either have an apparatus entry or be attested by every
-      witness verbatim. tool_humanities_apparatus_lint flags lines
-      where the collation table shows variants but the apparatus has
-      no entry. Output: workspace/edition/apparatus.md.
+      witness verbatim. Lint by hand (or with a short script via
+      tool_python_exec) — scan the collation table for variants
+      whose base-text line has no corresponding apparatus entry and
+      flag them. Output: workspace/edition/apparatus.md.
 
   - id: editorial_notes
     name: Write the textual notes

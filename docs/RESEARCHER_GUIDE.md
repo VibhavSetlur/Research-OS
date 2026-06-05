@@ -398,10 +398,14 @@ hypotheses are NOT here — those are AI-inferred via
 
 Fields are ordered most → least important:
 
+The canonical schema lives at
+[`templates/researcher_config.yaml`](../templates/researcher_config.yaml)
+— this section mirrors it 1:1.
+
 ```yaml
 researcher:                       # who AI is talking to (most important)
   name: ""
-  institution: ""
+  institution: ""                 # rendered as poster / paper author affiliation
   orcid: ""
   email: ""
 
@@ -410,25 +414,88 @@ project_name: ""                  # blank → uses directory name
 research_goal:                    # what you want the AI to produce
   output_types: []                # paper | abstract | poster |
                                   # dashboard | report | exploratory
-  target_venue: ""
+  target_venue: ""                # journal | conference | preprint |
+                                  #   dissertation | report
   poster_dimensions: "36x48"
+  # Optional extension fields read by audit + synthesis tools when
+  # present (each is OPTIONAL — blanks are inferred via intake):
+  # primary_question: ""          # single sentence — preregistration anchor
+  # design: ""                    # observational | RCT | cohort | …
+  # background: ""                # one paragraph — paper Background prefill
+  # measurement_instrument: ""    # name of scale / assay; surfaces in audits
 
 interaction:                      # how the AI should behave
-  autonomy_level: "supervised"    # manual | supervised | autopilot
+  # manual | supervised | autopilot | coaching
+  #   coaching → AI doesn't auto-execute; surfaces pedagogical preludes,
+  #              explains WHY each gate exists, asks the researcher to
+  #              draft then critiques. Pair with tool_mistake_replay.
+  autonomy_level: "supervised"
   quality_gate_policy: "enforce"  # enforce | allow_override | warn_only
-  ambiguity_posture: "ask_when_uncertain"
+  ambiguity_posture: "ask_when_uncertain"  # | take_best_default
+
+# How hard audits enforce gates. Pre-v1.5.1 behaviour was "normal".
+#   light  → most blockers become notes (sandbox / exploratory)
+#   normal → pre-v1.5.1 behaviour
+#   strict → every gate at full enforcement
+#   auto   → follows tool_rigor_signals_scan; substantive projects
+#            with methods.md + citations + preregistration score
+#            high and get "light"; sketches score low and get "strict"
+gate_strictness: "auto"           # light | normal | strict | auto
+
+# Sets the default audit strictness across the whole project.
+#   throwaway → light  (sandbox / exploratory; no publication intent)
+#   sketch    → normal (working draft; may or may not publish)
+#   production → strict (active path to submission / hand-off)
+project_tier: "production"        # throwaway | sketch | production
 
 model_profile: "medium"           # small | medium | large
                                   # — drives tool_plan_turn batch size
 
 writing_preferences:
-  citation_style: "apa"
+  citation_style: "apa"           # apa | vancouver | acm | ieee | nature
   language: "en-US"
+  # Typst venue template for tool_paper_compile_typst.
+  #   nature | science | nejm | cell | ieee_conf | neurips | acl
+  #   plos  | generic_two_column | generic_thesis
+  venue_template: "generic_two_column"
+  # PDF engine for the synthesis pipeline. "typst" recommended (fast,
+  # single-binary install). Use "latex" when a journal requires .tex.
+  pdf_compile_engine: "typst"     # typst | latex | both
 
+# Compute environment + exec-safety knobs. All optional; defaults shown.
 runtime:
-  shared_server: false            # set true on HPC / shared boxes
-  long_running_threshold_seconds: 60
-  default_n_for_sampling: 1000
+  shared_server: false                  # true on HPC / shared boxes
+                                        # — flips long_running default
+  long_running_threshold_seconds: 60    # tool_task_run vs inline cutoff
+  default_n_for_sampling: 1000          # default sample size for sampling
+  cluster_defaults:                     # SLURM defaults for tool_slurm_submit
+    partition: ""                       # blank → no --partition flag
+    time: "01:00:00"                    # wall clock per job
+    cpus_per_task: 4
+    mem: "8G"
+  # Subprocess / command-execution safety surface (all defaults are SAFE).
+  allow_arbitrary: false                # true permits commands outside allowlist
+  command_allowlist:                    # extend the built-in safe set
+    - "python"
+    - "Rscript"
+    - "git"
+  allow_shell_meta: false               # true permits ; | & $() in args
+  max_cpu_seconds: 1800                 # per-subprocess CPU cap (30 min)
+  max_memory_mb: 4096                   # per-subprocess RSS cap (4 GiB)
+  max_file_size_mb: 100                 # per-output-file size cap
+
+# Language + tool-stack preferences. Read by methodology/pick_tool_stack.
+# AI uses these as hints (NOT hard constraints) — field-practice wins.
+tool_stack:
+  preferred_languages: ["python", "R"]      # order = tie-breaker
+  allow_mixed_language_steps: true
+  field_practice_overrides_preference: true # R Bioconductor for DE etc.
+  cite_field_practice_when_choosing: true
+
+# Top-level helpers read by various tools (all optional):
+# domain: ""                       # short label (e.g. "neuroscience")
+# research_question: ""            # convenience mirror of research_goal.primary_question
+# authors: []                      # list of names for paper/poster title block
 
 api_keys:                         # all optional — NO LLM provider keys
   semantic_scholar: ""
@@ -565,32 +632,71 @@ paragraph into the deliverable.
 
 ```
 src/research_os/
-├── server.py                    # MCP server + dispatcher + tool defs
+├── server.py                    # MCP server + dispatcher + 212 tool defs
 ├── cli.py                       # `init` + `start`
+├── wizard.py                    # interactive `init` wizard
 ├── project_ops.py               # scaffolding, state, mermaid, intake regen
+├── collab.py                    # multi-researcher project ops
+├── verify.py                    # `research-os verify` integrity check
+├── tui.py                       # status / log TUI
+├── logo.py                      # ASCII logo
 ├── config.py / errors.py / __init__.py
-├── protocols/                   # 82 YAML protocols + _router_index.yaml
-├── state/                       # ResearchLedger
+├── adapters/                    # external-API adapter framework
+│   ├── base.py                  # ResearchAdapter ABC
+│   ├── loader.py                # discover installed adapters
+│   └── runner.py                # tool_adapter_extract / _run_all
+├── assets/js/                   # bundled JS (mermaid, plotly, vega, vis-network)
+├── data/typst/                  # 11 Typst venue templates (Nature, Science, …)
+├── inputs/                      # paper + paste intake helpers
+├── plugins/                     # domain-pack loader + pack_api surface
+├── protocols/                   # 114 YAML protocols + _router_index.yaml
+│   ├── audit/        (3)        # audit_and_validation, pre_submission_checklist …
+│   ├── domain/       (2)
+│   ├── guidance/    (16)        # autopilot, code_review, mid_pipeline_entry …
+│   ├── literature/   (5)
+│   ├── methodology/ (37)        # the biggest category
+│   ├── reproducibility/ (1)
+│   ├── synthesis/   (18)
+│   ├── visualization/ (14)
+│   └── writing/     (18)
+├── state/                       # ResearchLedger (state.json schema)
+├── testing/                     # stress-runner harness (not the unit tests)
 ├── utils/                       # asset manager, common helpers
 └── tools/
     └── actions/
-        ├── protocol.py          # YAML loader (cross-cutting)
-        ├── router.py            # sys_boot, tool_route, plan_turn (cross-cutting)
-        ├── state/               # config, path, checkpoint, scratch, repair
+        ├── protocol.py          # YAML loader + protocol_completion injection
+        ├── router.py            # sys_boot, tool_route, plan_turn
+        ├── semantic.py          # sys_semantic_tool_search, tool_semantic_route
+        ├── audit/               # audit, md_audit, code_quality, content_depth,
+        │                        #   coherence, prose_quality, claim_grounding,
+        │                        #   preregistration, redteam, dashboard_content,
+        │                        #   figure_interactivity, step_literature,
+        │                        #   null_findings
         ├── data/                # data, profiling, intake, context_intake
-        ├── exec/                # scripts, notebook, tasks, environment, sensitivity, step_pipeline, cluster
-        ├── search/              # search providers, literature download
-        ├── research/            # research_method/tool/plan, planning, grounding, lessons
-        ├── audit/               # audit, md_audit, code_quality, prose_quality, claim_grounding, preregistration, redteam, null_findings
-        ├── synthesis/           # synthesize, latex, citations, dashboard
-        ├── viz/                 # figures, dashboard_tests
-        └── memory/              # hypotheses, append-only helpers
+        ├── exec/                # scripts, notebook, tasks, environment,
+        │                        #   sensitivity, step_pipeline, cluster
+        ├── memory/              # mem_* hypotheses + append-only helpers
+        ├── research/            # research_method/tool/plan, planning, grounding,
+        │                        #   lessons, plan_next_step
+        ├── search/              # search providers (pubmed, arxiv, web, scholar),
+        │                        #   literature download / cache
+        ├── state/               # config, path, checkpoint, scratch, repair,
+        │                        #   reliability, certifications, freshness,
+        │                        #   iteration, mistake_replay, provenance,
+        │                        #   paywall_memory, quick_mode, revision,
+        │                        #   rigor_signals, interaction, extractors
+        ├── synthesis/           # synthesize, latex, citations, dashboard,
+        │                        #   dashboard_v2, dashboard_story, typst,
+        │                        #   preview, discussion_from_verdicts
+        └── viz/                 # figures, dashboard_tests
 
 tests/
 ├── conftest.py                  # isolates each test on tmp_path
-├── unit/                        # pure-function tests, fast
-├── integration/                 # workspace + pipeline + reorganization-aware
-└── tools/                       # one file per new MCP tool group
+├── unit/                        # pure-function tests, fast (~700 cases)
+├── integration/                 # workspace + pipeline + reorg-aware
+└── tools/                       # one file per MCP tool group
+
+Run `tree -L 3 src/research_os` for the live tree.
 ```
 
 Run all tests:

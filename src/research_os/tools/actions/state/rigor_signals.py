@@ -223,21 +223,61 @@ def rigor_signals_scan(root: Path) -> dict[str, Any]:
 def resolve_gate_strictness(root: Path) -> dict[str, Any]:
     """Resolve gate_strictness from researcher_config + trust_score.
 
-    Returns ``{"resolved": "light|normal|strict", "source": "config|auto|default"}``.
+    Reads ``inputs/researcher_config.yaml`` (wizard-canonical path); falls back
+    to a legacy ``researcher_config.yaml`` at the project root for older
+    projects that pre-date the wizard's move under ``inputs/``.
+
+    Resolution order:
+      1. explicit ``gate_strictness`` (light/normal/strict) → ``source=config``
+      2. ``project_tier`` is set to a non-default value (throwaway/sketch) →
+         tier mapping wins over ``auto`` so the documented cross-field
+         interaction (throwaway → light, sketch → normal) actually fires
+         even when ``gate_strictness`` is left at the ``auto`` default.
+         ``source=project_tier``
+      3. ``gate_strictness: auto`` or unset → trust-score auto-pick
+         (``source=auto|default``)
+
+    Returns ``{"resolved": "light|normal|strict", "source": "config|project_tier|auto|default"}``.
     """
     try:
-        cfg_path = root / "researcher_config.yaml"
-        config_value = None
+        cfg_path = root / "inputs" / "researcher_config.yaml"
+        if not cfg_path.exists():
+            legacy = root / "researcher_config.yaml"
+            if legacy.exists():
+                cfg_path = legacy
+        config_value: str | None = None
+        tier_value: str | None = None
         if cfg_path.exists():
             try:
                 import yaml  # type: ignore
                 cfg = yaml.safe_load(cfg_path.read_text()) or {}
                 config_value = cfg.get("gate_strictness")
+                tier_value = cfg.get("project_tier")
             except Exception:
                 config_value = None
+                tier_value = None
 
         if config_value in {"light", "normal", "strict"}:
             return {"resolved": config_value, "source": "config"}
+        tier_map = {
+            "throwaway": "light",
+            "sketch": "normal",
+            "production": "strict",
+        }
+        # The documented cross-field interaction (templates/researcher_config.yaml)
+        # says project_tier sets the *default* gate_strictness. Honour it when
+        # gate_strictness is unset OR left at the "auto" default and the tier is
+        # NOT "production" (production = strict = same as auto's strict floor,
+        # so let auto's trust-score scan refine it).
+        if isinstance(tier_value, str) and tier_value in tier_map:
+            if config_value is None or (
+                config_value == "auto" and tier_value != "production"
+            ):
+                return {
+                    "resolved": tier_map[tier_value],
+                    "source": "project_tier",
+                    "project_tier": tier_value,
+                }
         if config_value == "auto" or config_value is None:
             scan = rigor_signals_scan(root)
             if scan.get("status") == "success":

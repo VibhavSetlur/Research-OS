@@ -1,6 +1,6 @@
 id: mcp_ecosystem_integration
 name: MCP Ecosystem Integration (compose other MCP servers with Research OS)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -240,5 +240,8 @@ quality_bar:
   smoke_test_passed_on_new_mcp_tools: true
   project_readme_documents_the_composition: true
 
-next_protocol: methodology/external_tool_setup
+# Back-edge to methodology/external_tool_setup removed to break a
+# 2-cycle (external_tool_setup -> mcp_ecosystem_integration ->
+# external_tool_setup); route via the dispatcher instead.
+next_protocol: null
 on_failure: guidance/scope_clarification

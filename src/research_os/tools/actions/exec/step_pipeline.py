@@ -79,7 +79,6 @@ import json
 import logging
 import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -385,7 +384,7 @@ def _run_node(
 
     # Track runtime + execute.
     from research_os.tools.actions.state.provenance import (
-        track_runtime, write_output_provenance,
+        write_output_provenance,
     )
 
     started = datetime.now(timezone.utc).isoformat()

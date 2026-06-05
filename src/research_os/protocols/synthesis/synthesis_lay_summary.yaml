@@ -1,6 +1,6 @@
 id: synthesis_lay_summary
 name: Synthesis — Lay Summary (public / press / outreach)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: |
   Compile a plain-language summary of the project for a NON-EXPERT

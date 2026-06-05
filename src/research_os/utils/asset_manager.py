@@ -7,12 +7,10 @@ single asset by creating the same relative path under ``.os_state/assets/``.
 
 from __future__ import annotations
 
-import fnmatch
-import shutil
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 
 ASSET_PACKAGE = "research_os.assets"
@@ -99,51 +97,3 @@ class AssetManager:
             raise FileNotFoundError(relative_path)
         return asset.read_text(encoding=encoding)
 
-    def iter_files(self, relative_dir: str, pattern: str = "*") -> Iterable[AssetRef]:
-        """Yield files from a packaged asset directory with overrides applied."""
-        rel_dir = self._validate_relative(relative_dir).rstrip("/")
-        merged: dict[str, AssetRef] = {}
-
-        base = self.package_asset(rel_dir)
-        if base.is_dir():
-            for item_rel, item in self._walk_traversable(base):
-                if item.is_file() and fnmatch.fnmatch(item.name, pattern):
-                    rel = f"{rel_dir}/{item_rel}"
-                    merged[rel] = AssetRef(relative_path=rel, source="package")
-
-        local_base = self.override_root / rel_dir
-        if local_base.exists():
-            for item in local_base.rglob("*"):
-                if item.is_file() and fnmatch.fnmatch(item.name, pattern):
-                    rel = f"{rel_dir}/{item.relative_to(local_base).as_posix()}"
-                    merged[rel] = AssetRef(
-                        relative_path=rel, source="local_override", local_path=item
-                    )
-
-        for rel in sorted(merged):
-            yield merged[rel]
-
-    def copy_asset_tree(
-        self, relative_dir: str, destination: Path, *, overwrite: bool = False
-    ) -> list[Path]:
-        """Copy a packaged asset directory to disk.
-
-        This is intended for advanced export/debug workflows, not normal project
-        initialization.
-        """
-        rel_dir = self._validate_relative(relative_dir).rstrip("/")
-        destination = Path(destination)
-        copied: list[Path] = []
-        base = self.package_asset(rel_dir)
-        if not base.is_dir():
-            raise FileNotFoundError(relative_dir)
-
-        for item_rel, item in self._walk_traversable(base):
-            target = destination / item_rel
-            if target.exists() and not overwrite:
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with resources.as_file(item) as src:
-                shutil.copy2(src, target)
-            copied.append(target)
-        return copied

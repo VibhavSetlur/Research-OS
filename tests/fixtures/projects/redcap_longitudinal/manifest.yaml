@@ -25,9 +25,25 @@ max_seconds: 30
 
 # Canned mock-model responses keyed by step_id. The mock_model_call
 # matches "STEP: <id>" in the prompt and replies with the canned string.
+# Step IDs must match the canonical protocols listed in protocols_expected.
 canned_responses:
-  intake_files: "Surveyed inputs/raw_data/ and inputs/context/. Detected REDCap data dictionary + longitudinal export (3 events)."
-  classify_project: "Domain=biomedical, sub_domain=clinical_longitudinal_cohort, output_type=paper."
-  lock_in_question: "Question locked: trajectory of functional recovery (Barthel Index, NIHSS) over 12 months post-stroke in N=60 cohort."
-  pick_method: "Selected mixed-effects model for repeated measures across baseline / 6mo / 12mo events; logged justification."
-  fit_model: "Fitted lme4 random-intercept model; saved results to workspace/01_recovery_trajectory/results.csv."
+  # guidance/project_startup
+  scan_inputs: "Surveyed inputs/raw_data/ and inputs/context/. Detected REDCap data dictionary + longitudinal export (3 events)."
+  check_intake_freshness: "Intake last refreshed today; matches raw_data exports byte-for-byte."
+  autofill_intake: "Autofilled inputs/context/intake.md: longitudinal stroke recovery cohort, N=60, 3 events."
+  profile_each_dataset: "Profiled study_DATA.csv: 60 subjects x 3 events = 180 records; 5 PHI-flagged columns per dictionary."
+  snapshot_global_environment: "Snapshot logged: R 4.x, lme4, REDCap export tooling."
+  ground_in_recent_literature: "Cited stroke-recovery trajectory literature; pulled into inputs/literature/."
+  present_startup_summary: "Startup summary: longitudinal recovery (Barthel + NIHSS) over 12 months post-stroke, N=60."
+
+  # methodology/exploratory_data_analysis
+  scope_the_eda: "EDA scoped to event completeness + outcome distributions across baseline / 6mo / 12mo."
+  pre_register_exploration_shape: "Registered: dataset-level EDA pass, no confirmatory tests in this phase."
+  profile_data_quality: "Profile: ~7% missing at 12mo (expected attrition); no impossible values."
+  univariate_pass: "Univariate: Barthel + NIHSS histograms per event saved to workspace/eda/."
+  bivariate_pass: "Bivariate: outcome ~ event scatter + slope plots per subject."
+  multivariate_or_dimensionality: "Dimensionality reduction (PCA) on baseline covariates."
+  capture_anomalies_and_backlog: "Logged 2 outlier trajectories to anomalies.md; reviewed with PI."
+  register_hypotheses: "Hypothesis: recovery slope plateaus after 6 months on average."
+  audit_for_eda_failure_modes: "Checked for survivorship bias and informative dropout; flagged for sensitivity analysis."
+  route_to_confirmation: "Routed to mixed-effects regression for confirmatory analysis."

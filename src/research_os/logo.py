@@ -90,17 +90,6 @@ def render_compact() -> str:
     return f"  {cyan('⬢─⬢─⬢')}  {bold('Research OS')}"
 
 
-# Plain-text export — read by ``scripts/`` and bundled in releases.
-PLAIN_LOGO = """\
-   ⬢───⬢───⬢
-   │   │   │
-   ⬡───⬡───⬡
-
-   R E S E A R C H   O S
-   grounded · cited · auditable
-"""
-
-
 if __name__ == "__main__":  # pragma: no cover
     from research_os import __version__
     print(render(version=__version__))

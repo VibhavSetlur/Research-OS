@@ -112,15 +112,61 @@ def _read_header(path: Path) -> list[str] | None:
 
 
 def _classify_csv(path: Path) -> str | None:
-    """Return 'export' | 'dictionary' | None."""
+    """Return 'export' | 'dictionary' | None.
+
+    Three export shapes are accepted:
+
+    1. Longitudinal / repeating export — ``record_id`` plus one of the
+       row-stamping columns (``redcap_event_name`` / ``redcap_repeat_*``).
+    2. Cross-sectional export with a sibling data dictionary in the same
+       directory — ``record_id`` is present and a dictionary CSV lives
+       next to it, so the file is unambiguously a REDCap shape.
+    3. Cross-sectional export with at least a few REDCap-typical
+       follow-up columns (a *_complete sentinel that REDCap appends to
+       every form, or known demographic / consent columns) — this lets
+       the adapter pick up a single-instrument export without requiring
+       the researcher to ship the dictionary.
+
+    Cross-sectional matches will surface as ``longitudinal: false`` in
+    the extracted payload.
+    """
     header = _read_header(path)
     if not header:
         return None
     lowered = {h.strip().lower() for h in header if h}
-    if "record_id" in lowered and lowered & _EXPORT_SIGNAL_COLUMNS:
-        return "export"
     if _DICT_REQUIRED_COLUMNS.issubset(lowered):
         return "dictionary"
+    if "record_id" not in lowered:
+        return None
+    # Longitudinal / repeating-instrument export.
+    if lowered & _EXPORT_SIGNAL_COLUMNS:
+        return "export"
+    # Cross-sectional: sibling data dictionary in the same directory.
+    try:
+        for sibling in path.parent.iterdir():
+            if sibling == path or sibling.suffix.lower() != ".csv":
+                continue
+            sib_header = _read_header(sibling)
+            if not sib_header:
+                continue
+            sib_lower = {h.strip().lower() for h in sib_header if h}
+            if _DICT_REQUIRED_COLUMNS.issubset(sib_lower):
+                return "export"
+    except Exception:
+        pass
+    # Cross-sectional: REDCap-typical companion columns. ``*_complete``
+    # is the per-form completion sentinel REDCap appends to every form;
+    # if any column ends in ``_complete`` the file is almost certainly a
+    # REDCap export. Fall back to a small set of REDCap-stamped fields.
+    if any(col.endswith("_complete") for col in lowered):
+        return "export"
+    redcap_signals = {
+        "redcap_data_access_group",
+        "redcap_survey_identifier",
+        "consent_complete",
+    }
+    if lowered & redcap_signals:
+        return "export"
     return None
 
 

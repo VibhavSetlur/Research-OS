@@ -1,6 +1,6 @@
 id: data_quality_audit
 name: Data Quality Audit (standalone QC pass)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: |
   Standalone data quality audit — for the case where the researcher

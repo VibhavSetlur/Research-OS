@@ -1,6 +1,6 @@
 id: ablation_study
 name: Ablation Study
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: |
   Systematic removal / replacement of model or pipeline components to

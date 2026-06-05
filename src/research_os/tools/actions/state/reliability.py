@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -48,10 +47,19 @@ def _log_path(root: Path) -> Path:
 
 
 def _read_model_profile(root: Path) -> str:
-    """Best-effort read of researcher_config.yaml model_profile."""
-    cfg = root / "researcher_config.yaml"
+    """Best-effort read of researcher_config.yaml model_profile.
+
+    Wizard-canonical path is ``inputs/researcher_config.yaml``; falls back to
+    a legacy root-level config for projects scaffolded before the wizard
+    moved the file under ``inputs/``.
+    """
+    cfg = root / "inputs" / "researcher_config.yaml"
     if not cfg.exists():
-        return "unknown"
+        legacy = root / "researcher_config.yaml"
+        if legacy.exists():
+            cfg = legacy
+        else:
+            return "unknown"
     try:
         import yaml  # type: ignore
         data = yaml.safe_load(cfg.read_text()) or {}

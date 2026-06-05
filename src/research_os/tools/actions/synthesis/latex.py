@@ -16,7 +16,6 @@ import logging
 import re
 import shutil
 import subprocess
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -169,7 +168,10 @@ def create_poster(
     except Exception:
         pass
     author = ((cfg.get("researcher") or {}).get("name")) or ""
-    institute = ((cfg.get("researcher") or {}).get("affiliation")) or ""
+    # Canonical key is "institution" (template + docs). Older configs
+    # used "affiliation" — accept either, prefer institution.
+    _r = cfg.get("researcher") or {}
+    institute = (_r.get("institution") or _r.get("affiliation")) or ""
 
     # Curated figures, top 3
     fig_dir = synthesis_dir / "figures"

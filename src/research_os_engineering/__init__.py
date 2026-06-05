@@ -15,7 +15,7 @@ from research_os_engineering import tools as _tools  # noqa: F401
 from research_os_engineering.detector import detect_engineering
 from research_os_engineering.router_entries import ENGINEERING_ROUTER_ENTRIES
 
-__version__ = "1.7.1"
+__version__ = "1.9.3"
 PACK_NAME = "engineering"
 _PROTOCOLS_DIR = Path(__file__).parent / "protocols"
 

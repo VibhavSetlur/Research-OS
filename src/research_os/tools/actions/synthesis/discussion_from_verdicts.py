@@ -96,6 +96,11 @@ def discussion_coverage_audit(root: Path) -> dict[str, Any]:
     Used by tool_audit_synthesis (called from writing_discussion's
     validate step). BLOCKS synthesis if any non-AGREES verdict has no
     corresponding text in synthesis/discussion.md.
+
+    Override handling (override_discussion_coverage + override_rationale)
+    is wired in ``server._handle_tool_discussion_coverage_audit`` — this
+    function only computes coverage and returns the canonical result
+    shape, leaving policy/log_override decisions to the handler.
     """
     try:
         records = _collect_verdicts(root)

@@ -15,7 +15,7 @@ from research_os_wet_lab import tools as _tools  # noqa: F401
 from research_os_wet_lab.detector import detect_wet_lab
 from research_os_wet_lab.router_entries import WET_LAB_ROUTER_ENTRIES
 
-__version__ = "1.7.1"
+__version__ = "1.9.3"
 PACK_NAME = "wet_lab"
 _PROTOCOLS_DIR = Path(__file__).parent / "protocols"
 

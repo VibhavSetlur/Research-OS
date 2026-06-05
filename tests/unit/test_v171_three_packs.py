@@ -53,10 +53,14 @@ def test_pack_to_pack_namespace_isolation():
     _fresh_import()
     from research_os.plugins import installed_packs
     from research_os.plugins.loader import pack_router_entries
+    # Confirm the 5 expected bundled packs are present before checking isolation.
+    expected_packs = {"humanities", "qualitative", "theory_math",
+                      "wet_lab", "engineering"}
+    discovered_names = {p["name"] for p in installed_packs()}
+    assert expected_packs <= discovered_names, (
+        f"missing expected packs: {expected_packs - discovered_names}"
+    )
     tool_owners: dict[str, str] = {}
-    for pack in installed_packs():
-        for t in pack["name"], :  # noqa: B007 — keep loop scope tidy
-            pass
     # Walk each pack's tools (we have to peek at the loader's record).
     from research_os.plugins.loader import _DISCOVERED_PACKS
     for name, rec in _DISCOVERED_PACKS.items():

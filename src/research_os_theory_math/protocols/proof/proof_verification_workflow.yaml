@@ -1,6 +1,6 @@
 id: proof_verification_workflow
 name: Proof Verification Workflow — claim → strategy → draft → review → check → publish
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |

@@ -1169,7 +1169,6 @@ def audit_reproducibility_full(root: Path) -> dict[str, Any]:
     otherwise fall back to local re-execution with a warning.
     """
     try:
-        import hashlib
         import subprocess
         import sys
 
@@ -1311,6 +1310,96 @@ def _findings_look_numeric(text: str) -> bool:
     return len(_NUMERIC_HINT.findall(body)) >= 2
 
 
+def _is_humanities_project(root: Path) -> bool:
+    """Detect whether the project should use humanities completeness rules.
+
+    Signals (any one is enough):
+      * ``inputs/researcher_config.yaml`` carries ``domain: humanities`` or
+        ``pack: humanities``.
+      * Any ``humanities/`` subdir under ``workspace/`` (humanities packs
+        write apparatus / transcription / citation artefacts there).
+      * The cached intake autofill marks a humanities pack as detected
+        (``inputs/.detection_cache.json`` or ``workspace/.os_state/packs.json``).
+
+    Wraps a try/except so a missing or malformed config never breaks the
+    completeness audit.
+    """
+    try:
+        cfg_path = root / "inputs" / "researcher_config.yaml"
+        if not cfg_path.exists():
+            legacy = root / "researcher_config.yaml"
+            if legacy.exists():
+                cfg_path = legacy
+        if cfg_path.exists():
+            try:
+                import yaml  # type: ignore
+
+                cfg = yaml.safe_load(cfg_path.read_text()) or {}
+                if isinstance(cfg, dict):
+                    if str(cfg.get("domain", "")).lower() == "humanities":
+                        return True
+                    if str(cfg.get("pack", "")).lower() == "humanities":
+                        return True
+                    packs = cfg.get("packs") or []
+                    if isinstance(packs, list) and any(
+                        str(p).lower() == "humanities" for p in packs
+                    ):
+                        return True
+            except Exception:
+                pass
+        # Filesystem fallback: a workspace/<step>/humanities/ or
+        # workspace/<step>/edition/ subdir is a strong humanities signal.
+        workspace = root / "workspace"
+        if workspace.is_dir():
+            for marker in ("edition", "apparatus", "transcriptions", "humanities"):
+                if any(workspace.rglob(marker)):
+                    return True
+    except Exception:
+        return False
+    return False
+
+
+_HUMANITIES_ARTEFACT_NAMES = {
+    "apparatus.md",
+    "apparatus_criticus.md",
+    "citation_chains.md",
+    "close_reading.md",
+}
+_HUMANITIES_ARTEFACT_DIRS = {
+    "transcriptions",
+    "apparatus",
+    "edition",
+    "humanities",
+}
+
+
+def _collect_humanities_artefacts(step_dir: Path) -> list[str]:
+    """Return relative paths of humanities focal artefacts under ``step_dir``.
+
+    Accepts: any of the named markdown artefacts at any depth, or any file
+    inside one of the recognised humanities subdirectories. Used by
+    ``_step_completeness`` to satisfy the focal-artefact requirement in
+    humanities mode.
+    """
+    out: list[str] = []
+    if not step_dir.exists():
+        return out
+    try:
+        for path in step_dir.rglob("*"):
+            if not path.is_file():
+                continue
+            name_lc = path.name.lower()
+            if name_lc in _HUMANITIES_ARTEFACT_NAMES:
+                out.append(str(path.relative_to(step_dir)))
+                continue
+            parents = {p.name.lower() for p in path.parents}
+            if parents & _HUMANITIES_ARTEFACT_DIRS and path.suffix.lower() in {".md", ".txt", ".xml", ".tei"}:
+                out.append(str(path.relative_to(step_dir)))
+    except Exception:
+        return out
+    return sorted(set(out))
+
+
 def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
     """Score one step's completeness — used both for finalize gates and
     server-enforced anti-one-shot guards.
@@ -1347,6 +1436,10 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
             )
 
     # 2. At least one focal figure: outputs/figures/<step_num>_*.png
+    #    OR (humanities mode) a markdown apparatus / transcription / citation
+    #    chain artefact under workspace/<topic>/. Humanities projects produce
+    #    apparatus criticus / transcriptions / citation chains as markdown,
+    #    not figures.
     figs_dir = step_dir / "outputs" / "figures"
     step_num = step_dir.name.split("_", 1)[0]
     figures: list[str] = []
@@ -1357,11 +1450,30 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
         ]
     info["figures"] = figures
     focal = next((f for f in figures if f.startswith(f"{step_num}_")), None)
+    humanities_mode = _is_humanities_project(root)
+    humanities_artefacts: list[str] = []
+    if humanities_mode:
+        humanities_artefacts = _collect_humanities_artefacts(step_dir)
+        info["humanities_mode"] = True
+        info["humanities_artefacts"] = humanities_artefacts
     if not figures:
-        blockers.append(
-            "No figure produced — every step MUST emit at least one focal "
-            f"figure to outputs/figures/{step_num}_<descriptor>.png."
-        )
+        if humanities_mode and humanities_artefacts:
+            # Humanities pack: accept markdown apparatus / transcription /
+            # citation chain as the focal artefact instead of a figure.
+            pass
+        elif humanities_mode:
+            blockers.append(
+                "No focal artefact produced — humanities steps MUST emit "
+                "at least one of: apparatus criticus, transcription, "
+                "citation chain, or close-reading note under "
+                f"workspace/{step_dir.name}/ (or a figure under "
+                f"outputs/figures/{step_num}_<descriptor>.png)."
+            )
+        else:
+            blockers.append(
+                "No figure produced — every step MUST emit at least one focal "
+                f"figure to outputs/figures/{step_num}_<descriptor>.png."
+            )
     elif not focal:
         warnings.append(
             f"No figure starts with the step number prefix '{step_num}_' — "
