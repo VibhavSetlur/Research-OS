@@ -6,6 +6,74 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.7.0] — Plugin system + 2 launch domain packs + multi-model CI stress matrix (2026-06-04)
+
+MINOR release. Implements ROADMAP Themes 4 and 10. Adds a plugin
+entry-point group so third parties can ship protocol packs without
+forking core; bundles two launch packs (humanities, qualitative)
+that break Research-OS out of its biology/clinical bias; lands a
+stress runner + mock-model CI matrix + auto-generated public
+reliability surface. No breaking changes — every existing tool,
+protocol, and alias keeps working.
+
+### Added — Theme 4A: plugin system
+
+- New entry-point group `research_os.protocol_pack`. External packs register via `pyproject.toml` and Research-OS auto-discovers them on server startup.
+- `src/research_os/plugins/pack_api.py` — stable author surface: `PackRegistration`, `PackTool`, `@register_tool` decorator, `captured_tools(__name__)`.
+- `src/research_os/plugins/loader.py` — discovery + namespace validation + merge into core registries.
+- Namespace conventions enforced by the loader: protocols `<pack>/<category>/<name>`, tools `tool_<pack>_<name>`, router entries `<pack>/...`. Collisions fail loudly.
+- Errors are isolated per pack — a bad pack writes its traceback to `workspace/logs/pack_errors.log` and is skipped without blocking server startup or other packs.
+- New tool `sys_packs_installed` — list installed packs (name, version, description, tool count, router entries, registration errors).
+- Pack-aware protocol loader: `<pack>/...` ids resolve through each pack's `protocols_dir`; bare ids fall through to core then packs.
+- Router-index merge: `_load_index` includes every pack's contributed `router_entries` at runtime.
+- Two new preflight checks: **Bundled packs discovered** + **Pack protocols load**. Preflight: 17 → 19 checks.
+- `docs/PLUGIN_AUTHORING.md` (new) — full guide for pack authors.
+
+### Added — Theme 4B: humanities pack (bundled)
+
+- `src/research_os_humanities/` — 8 protocols + 3 tools + domain detector + 8 router entries.
+- Protocols: `archival/archival_research`, `archival/source_provenance`, `textual/close_reading`, `textual/distant_reading`, `method/hermeneutic_method`, `method/digital_humanities_workflow`, `citation/citation_chains`, `output/scholarly_edition`.
+- Tools: `tool_humanities_archive_lookup` (Internet Archive / HathiTrust / DPLA / Europeana / Gallica / LoC query planner), `tool_humanities_transcribe` (OCR + correction template), `tool_humanities_citation_chain` (chain-of-custody for quotations).
+- Domain detector: TEI/XML files + literary/theological/historical terminology + prose-only corpora.
+
+### Added — Theme 4C: qualitative pack (bundled)
+
+- `src/research_os_qualitative/` — 5 protocols + 2 tools + domain detector + 5 router entries. Extends (does not duplicate) the 6 qualitative protocols already in core.
+- Protocols: `coding/coding_scheme_iteration` (open → axial → selective with per-round κ), `validity/member_checking`, `method/grounded_theory_iteration`, `method/thematic_analysis_braun_clarke` (six-phase parametrization + 2019 reflexive correction), `output/qualitative_report_format` (COREQ for interviews, SRQR for general qualitative).
+- Tools: `tool_qualitative_codebook_diff` (versioned codebook diff + per-code Cohen's κ), `tool_qualitative_quote_provenance` (quote → participant + transcript + line registry).
+- Domain detector: speaker-turn patterns, qualitative-tool artefacts (NVivo / Atlas.ti / MAXQDA / Dedoose), IRB references, small-N demographics.
+
+### Added — Theme 10: stress-test matrix
+
+- `src/research_os/testing/stress_runner.py` — model-agnostic reference-project runner. Accepts any `model_call(messages) → str` callable; CI uses `mock_model_call` which replays canned responses from the project's manifest.
+- 5 reference projects under `tests/fixtures/projects/`: `biology_genomics_mini`, `humanities_ms_review`, `qualitative_interviews`, `quick_plot_throwaway`, `mid_pipeline_handoff`. Each ships with a frozen `inputs/` tree, `manifest.yaml` (expected protocols / gates / artifacts / budgets / canned responses), and `cleanup.sh`.
+- New CI workflow `.github/workflows/stress.yml` — runs every reference project against the mock model on every PR, uploads per-project JSON results, regenerates `docs/RELIABILITY.md` nightly.
+- `docs/RELIABILITY.md` (auto-generated) — public reliability surface. Per-project × per-model success rates, per-protocol breakdown, verbatim failure notes.
+
+### Added — extras
+
+- `pip install research-os[humanities]` and `pip install research-os[qualitative]` reserved as no-op extras (packs ship bundled in this release; the extras stay stable for the future split into separate PyPI packages).
+
+### Added — tests
+
+- 38 new tests under `tests/unit/test_v170_plugins_packs_stress.py` covering: namespace validation, decorator capture, bundled-pack discovery, pack tool dispatch, pack protocol loading, both domain detectors, manifest parsing, mock-model dispatch, all three primary reference projects, RELIABILITY.md rendering, and the two new preflight checks.
+
+### Bumped
+
+- `version 1.6.1 → 1.7.0` in `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff`.
+- All 114 core protocol YAMLs bumped 1.6.1 → 1.7.0 (consistency across the surface; bundled-pack protocols ship at 1.7.0 from day 1).
+- `_router_index.yaml` version 11 → 12.
+- Embeddings rebuilt (now 127 protocol docs + 180 tool docs).
+
+### Counts
+
+- Tools surface: 174 → 180 (+5 pack tools, +1 `sys_packs_installed`).
+- Protocols: 114 → 127 (+8 humanities, +5 qualitative).
+- Preflight: 17 → 19 checks (all green).
+- Pytest: 597 → 635 passes.
+
+---
+
 ## [1.6.1] — Surface consolidation (Theme 6): cluster tool merges + redirect-stub protocols + deprecation telemetry (2026-06-04)
 
 Refactor release. Implements ROADMAP Theme 6 (surface consolidation):

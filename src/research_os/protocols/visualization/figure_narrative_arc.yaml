@@ -1,6 +1,6 @@
 id: figure_narrative_arc
 name: Figure Narrative Arc (ordering figures across paper / talk / poster)
-version: '1.6.1'
+version: '1.7.0'
 schema_version: '2.0'
 description: |
   Choose and ORDER the figures that appear in a paper / talk / poster

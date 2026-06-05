@@ -1,0 +1,28 @@
+# Reference project: mid_pipeline_handoff
+#
+# Pre-built workspace with N finalized steps + intake skipped.
+# Tests mid-pipeline-entry behaviour (the AI must not re-run
+# project_startup over a populated workspace).
+
+domain: generic
+expected_pack: null
+
+protocols_expected:
+  - guidance/session_resume
+  - guidance/mid_pipeline_entry
+
+gates_expected_pass:
+  - guidance/session_resume:state_reconstructed
+  - guidance/mid_pipeline_entry:no_redundant_intake
+
+artifacts_required:
+  - inputs/context/STATE.md
+  - workspace/01_baseline/conclusions.md
+
+max_tool_calls: 40
+max_seconds: 20
+
+canned_responses:
+  reconstruct_state: "Reconstructed: 1 finalized step (01_baseline); intake done; pipeline mid-stream."
+  skip_intake_check: "Confirmed intake is fresh; no re-run needed."
+  propose_next_step: "Proposed step 02: stratified sub-analysis."

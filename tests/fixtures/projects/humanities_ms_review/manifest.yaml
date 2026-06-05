@@ -1,0 +1,32 @@
+# Reference project: humanities_ms_review
+#
+# Medieval-manuscript transcription + 2 source-provenance chains
+# + 1 critical-edition draft. Exercises the humanities pack.
+
+domain: humanities
+expected_pack: humanities
+
+protocols_expected:
+  - humanities/archival/archival_research
+  - humanities/archival/source_provenance
+  - humanities/output/scholarly_edition
+
+gates_expected_pass:
+  - humanities/archival/archival_research:holdings_register_present
+  - humanities/archival/source_provenance:chain_unbroken
+
+artifacts_required:
+  - inputs/context/project_brief.md
+  - inputs/archival/MS_Vespasian_A_i_f23v.meta.json
+
+max_tool_calls: 50
+max_seconds: 30
+
+canned_responses:
+  locate_holding: "Identified BL Cotton Vespasian A.i f.23v; foliation 1-300; IIIF available."
+  capture: "Captured IIIF tiles for f.23v; wrote .meta.json sidecar."
+  transcribe: "First-pass OCR + corrected pass committed to workspace/transcriptions/MS_Vespasian_A_i_f23v.md."
+  annotate: "Logged 3 editorial notes (variant at line 7, lacuna line 14, abbreviation expansion line 22)."
+  cite_chain: "Built workspace/citations/chain_passage_one.md and chain_passage_two.md; chains unbroken back to manuscript."
+  identify_witnesses: "Identified 4 witnesses for the stemma; primary = Cotton Vesp. A.i."
+  build_apparatus: "Apparatus criticus drafted at workspace/edition/apparatus.md with 12 variant readings recorded."

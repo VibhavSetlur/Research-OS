@@ -1,0 +1,33 @@
+# Reference project: biology_genomics_mini
+#
+# Mini Alzheimer's snRNA-seq project derived from tmp/paper_recreation.
+# Three steps instead of ten so it runs in seconds under CI.
+
+domain: biology
+expected_pack: null         # uses core protocols only
+
+protocols_expected:
+  - guidance/project_startup
+  - methodology/exploratory_data_analysis
+  - audit/audit_and_validation
+
+gates_expected_pass:
+  - guidance/project_startup:intake_complete
+  - methodology/exploratory_data_analysis:assumptions_logged
+  - audit/audit_and_validation:audit_master_green
+
+artifacts_required:
+  - inputs/context/research_question.md
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+canned_responses:
+  intake_files: "Surveyed inputs/data/ and inputs/context/. Snapped raw data manifest."
+  classify_project: "Domain=biology, sub_domain=neurodegeneration_snrnaseq, output_type=paper."
+  lock_in_question: "Question locked: differential expression of microglial markers in Alzheimer's-affected vs control entorhinal cortex."
+  pick_method: "Selected Seurat v5 SCTransform + Wilcoxon DE; logged justification."
+  fit_model: "Fitted DE; saved results to workspace/01_de/results.csv."
+  audit_master: "audit_master ran; 0 blockers."

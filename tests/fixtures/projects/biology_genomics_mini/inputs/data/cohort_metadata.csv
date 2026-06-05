@@ -1,0 +1,7 @@
+sample_id,diagnosis,braak_stage,age_at_death,sex,pmi_hours
+S001,AD,VI,78,F,4.2
+S002,AD,VI,82,M,5.1
+S003,AD,V,75,F,3.8
+S004,Control,II,76,F,4.6
+S005,Control,I,80,M,5.5
+S006,Control,II,79,F,4.0

@@ -1,0 +1,116 @@
+id: coding_scheme_iteration
+name: Coding Scheme Iteration (open → axial → selective)
+version: '1.7.0'
+schema_version: '2.0'
+last_reviewed: '2026-06-04'
+description: |
+  Multi-round refinement of a qualitative codebook, in the
+  Strauss & Corbin tradition: open coding (line-by-line, generative)
+  → axial coding (relate codes into categories) → selective coding
+  (settle on the core category + integrate).
+
+  Each round is versioned (codebook_v1.yaml, v2.yaml, …) and the
+  inter-round κ tracked per code so reliability shifts are visible.
+  The protocol BLOCKS movement from one round to the next until the
+  current round's κ floor is met (default 0.60 per Landis & Koch's
+  "moderate"; tighten to 0.75 for higher-stakes work).
+
+trigger: |
+  Researcher says any of: "iterate the coding scheme", "second round of
+  coding", "open / axial / selective coding", "refine the codebook",
+  "we hit theoretical saturation".
+
+prerequisites:
+  - workspace/transcripts/ has at least one segmented transcript.
+  - workspace/codebooks/codebook_v1.yaml exists (initial open codes
+    from coding_scheme_development).
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Round transitions are NOT cosmetic. Moving from open to axial
+       means the analytic posture changes from 'name what's here' to
+       'how do these names relate'. Don't merge codes just to shrink
+       the codebook."
+    - "Every retained code carries inclusion + exclusion criteria.
+       'I know it when I see it' fails IRR — it fails interpretation too."
+    - "Saturation is empirical, not declarative. If you can't show
+       the curve flattening (codes-per-transcript over time), you
+       haven't saturated; you've gotten tired."
+
+quality_bar:
+  per_code_kappa_minimum: 0.60                # Landis & Koch 'moderate'
+  per_code_kappa_target: 0.75                 # 'substantial'
+  saturation_check_minimum_transcripts: 6
+  per_round_memo_mandatory: true
+  inclusion_exclusion_per_code_mandatory: true
+
+steps:
+  - id: round_close_out
+    name: Close out the current round
+    description: |
+      Confirm the current round (e.g. v1 open coding) is finished:
+        - all transcripts in this round's sample fully coded
+        - per-code frequencies tallied
+        - rater notes captured per transcript
+      Run `tool_audit_step_completeness` over workspace/coding/round_<N>/.
+
+  - id: compute_round_kappa
+    name: Compute per-code κ for the current round
+    description: |
+      Call tool_qualitative_codebook_diff with the current and prior
+      codebooks AND the applied-codes files from both rounds. The
+      tool returns per-code Cohen's κ and flags codes with κ<0.60.
+      Output: workspace/codebooks/diff_v{N-1}_to_v{N}.md.
+
+  - id: triage_low_kappa
+    name: Triage low-κ codes BEFORE the next round
+    description: |
+      For each code flagged κ<0.60:
+        - rewrite inclusion / exclusion criteria with concrete
+          examples + concrete near-misses
+        - OR split into two codes if the disagreement is about a
+          real conceptual boundary
+        - OR merge with a sibling if both raters agree the codes are
+          collapsing
+      Log every change to workspace/codebooks/changelog.md with the
+      κ before + (hypothesised) after.
+
+  - id: write_round_memo
+    name: Write the round memo
+    description: |
+      A 1-2 page reflective memo per round, dated. What changed in your
+      analytic posture? Which codes surprised you? Which transcripts
+      pushed back against the developing scheme? File under
+      workspace/memos/round_<N>.md. This memo is part of the audit
+      trail other researchers will read in a year.
+
+  - id: phase_transition_check
+    name: Decide whether to transition rounds (open → axial → selective)
+    description: |
+      Do NOT transition until:
+        - per-code κ floor met (0.60 default)
+        - round memo written
+        - changelog up to date
+      Document the transition in workspace/memos/round_<N>.md:
+        "Moving from open to axial because <reason>." Concrete reason,
+        not 'we've coded a lot'.
+
+  - id: saturation_check
+    name: Saturation check (selective rounds only)
+    description: |
+      For selective coding rounds: compute new-codes-per-transcript
+      over time. Plot it (workspace/figures/saturation_curve.png) and
+      check whether the last 2-3 transcripts added <1 new code each.
+      If yes → flag potential saturation, schedule one more transcript
+      to confirm. If no → keep sampling.
+
+expected_outputs:
+  - workspace/codebooks/codebook_v<N>.yaml
+  - workspace/codebooks/diff_v<N-1>_to_v<N>.md
+  - workspace/codebooks/changelog.md
+  - workspace/memos/round_<N>.md
+  - workspace/figures/saturation_curve.png   # selective rounds only
+
+next_protocol: qualitative/validity/member_checking
+on_failure: null
