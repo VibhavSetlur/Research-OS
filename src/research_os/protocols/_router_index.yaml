@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 10
+version: 11
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -972,7 +972,7 @@ protocols:
   synthesis/synthesis_poster:
     intent_class: synthesize
     sub_intent: poster
-    summary: "Tikzposter LaTeX poster."
+    summary: "Tikzposter LaTeX poster. Redirects to synthesis/printable(format=poster)."
     triggers: ["make a poster", "conference poster", "tikzposter"]
     shortcut_tool: tool_poster_create
 
@@ -1741,7 +1741,7 @@ protocols:
   synthesis/synthesis_handout:
     intent_class: synthesize
     sub_intent: handout
-    summary: "Single-page printable handout / one-pager (5 audience profiles, QR code mandatory)."
+    summary: "Single-page printable handout / one-pager (5 audience profiles, QR code mandatory). Redirects to synthesis/printable(format=handout)."
     triggers:
       - "make a one-pager"
       - "one pager"
@@ -1754,8 +1754,21 @@ protocols:
       - "leave behind for the meeting"
     token_estimate: 1500
     decomposition:
-      - protocol: synthesis/synthesis_handout
-        purpose: "Pick audience, headline, one figure, QR, build, audit."
+      - protocol: synthesis/printable
+        purpose: "Loaded via redirect from synthesis_handout: format=handout."
+
+  synthesis/printable:
+    intent_class: synthesize
+    sub_intent: printable
+    summary: "Print-first deliverable (poster | handout | one_pager). Replaces synthesis_handout + synthesis_poster via the `format` parameter."
+    triggers:
+      - "printable deliverable"
+      - "make something printable"
+      - "design a printable"
+    token_estimate: 1700
+    decomposition:
+      - protocol: synthesis/printable
+        purpose: "Pick format (poster | handout), audience, headline, figure(s), QR, build, audit."
 
   methodology/evaluation_design:
     intent_class: methodology

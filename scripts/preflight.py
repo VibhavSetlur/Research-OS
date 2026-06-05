@@ -184,7 +184,7 @@ def check_dispatcher_aliases():
     cases = {
         # Dot-notation rewrite is generic.
         "sys.state.get": "sys_state_get",
-        # The five live aliases retained in the v2.0 alias table.
+        # Surviving nickname aliases.
         "tool_audit_figure_quality": "tool_audit_figure_full",
         "tool_audit_statistical_power": "tool_audit_power",
         "sys_state_summary": "sys_state_get",
@@ -199,6 +199,72 @@ def check_dispatcher_aliases():
         if actual != expected:
             bad.append(f"{given!r} -> {actual!r} (expected {expected!r})")
     return not bad, "ok" if not bad else "; ".join(bad)
+
+
+def check_alias_table_complete():
+    """Every entry in _ALIASES must resolve to a registered handler.
+
+    Also enforces that every name in _DEPRECATED_ALIASES has a
+    corresponding parameter-injection entry — otherwise legacy callers
+    of consolidated tools would silently lose their default operation.
+    """
+    from research_os.server import (
+        _ALIASES, _ALIAS_PARAM_INJECTION, _DEPRECATED_ALIASES, _HANDLERS,
+    )
+
+    bad: list[str] = []
+    for old, new in _ALIASES.items():
+        if new not in _HANDLERS:
+            bad.append(f"{old} -> {new} (target missing from _HANDLERS)")
+    missing_inject = sorted(_DEPRECATED_ALIASES - set(_ALIAS_PARAM_INJECTION))
+    if missing_inject:
+        bad.append(
+            f"deprecated aliases missing param injection: {missing_inject}"
+        )
+    return not bad, "ok" if not bad else "; ".join(bad)
+
+
+def check_redirect_targets():
+    """Every protocol YAML carrying `redirect_to:` must point at a real protocol.
+
+    Also enforces that a stub cannot carry BOTH `redirect_to:` AND `steps:`
+    (mutually exclusive — a stub is a thin alias).
+    """
+    import yaml
+
+    bad: list[str] = []
+    stub_count = 0
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if f.name.startswith("_"):
+            continue
+        try:
+            data = yaml.safe_load(f.read_text()) or {}
+        except Exception as e:
+            bad.append(f"{f.name}: YAML parse error: {e}")
+            continue
+        if not isinstance(data, dict):
+            continue
+        target = data.get("redirect_to")
+        if not isinstance(target, str) or not target.strip():
+            continue
+        stub_count += 1
+        rel = f.relative_to(PROTOCOLS_DIR)
+        if data.get("steps"):
+            bad.append(f"{rel}: stub has both redirect_to AND steps (mutually exclusive)")
+        target = target.strip()
+        if "/" in target:
+            candidate = PROTOCOLS_DIR / f"{target}.yaml"
+        else:
+            candidate = next(
+                (p for p in PROTOCOLS_DIR.rglob(f"{target}.yaml")
+                 if not p.name.startswith("_")),
+                None,
+            )
+        if not candidate or not candidate.exists():
+            bad.append(f"{rel}: redirect_to '{target}' has no matching YAML")
+    return not bad, (
+        f"{stub_count} redirect stub(s) all resolve" if not bad else "; ".join(bad)
+    )
 
 
 def check_handlers_callable():
@@ -522,6 +588,8 @@ def main() -> int:
     tally.check("Every tool definition has a handler", check_every_tool_has_handler)
     tally.check("All handlers are callable", check_handlers_callable)
     tally.check("Dispatcher aliases resolve", check_dispatcher_aliases)
+    tally.check("Alias table complete (handlers + param injection)", check_alias_table_complete)
+    tally.check("Redirect-stub targets resolve", check_redirect_targets)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)

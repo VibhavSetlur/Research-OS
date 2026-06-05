@@ -1,6 +1,6 @@
 id: methodology_selection
 name: Methodology Selection (with lightweight lookup mode)
-version: '1.6.0'
+version: '1.6.1'
 schema_version: '2.0'
 description: |
   Pick the statistical / computational method(s) for the active

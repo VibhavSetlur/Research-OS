@@ -1,0 +1,252 @@
+id: printable
+name: Synthesis — Printable Deliverable (poster | handout | one-pager)
+version: '1.6.1'
+schema_version: '2.0'
+last_reviewed: '2026-06-04'
+description: |
+  One protocol for every print-first deliverable. The protocol is
+  parametrized by `format`:
+
+    * format=poster   — wall-mounted large-format (24"x36" – 48"x36").
+                        Aims for the across-the-room single-headline test.
+                        Compiles to LaTeX (tikzposter) → PDF.
+    * format=handout  — single-page A4/Letter take-away. Reader takes
+                        one, reads it on the train, decides whether to
+                        chase the full artefact. Anchored by ONE
+                        headline + ONE figure + ONE QR.
+    * format=one_pager— alias for handout (kept for back-compat with
+                        the "make a one-pager" trigger phrasing).
+
+  Print constraints are real for every format: contrast survives
+  greyscale photocopy; small gridlines vanish; serif <11pt is
+  unreadable. QR codes must be tested before printing.
+
+  Distinct from:
+    * `synthesis_lay_summary` (digital, not formatted for print)
+    * `synthesis_report` (multi-page, narrative)
+    * `synthesis_slides` (screen, not paper)
+
+trigger: |
+  Researcher says any of: "make a poster", "make a handout", "make a
+  one-pager", "printable handout", "for the audience to take away",
+  "leave-behind for the meeting". The `format` parameter is selected
+  from the wording (poster vs handout vs one-pager).
+
+prerequisites:
+  - At least one workspace step has substantive conclusions OR a
+    synthesis/* deliverable exists.
+
+quality_bar:
+  poster:
+    figures_minimum: 2
+    figures_maximum: 6
+    citations_maximum: 6
+    font_size_minimum_pt: 24
+    figure_dpi_minimum: 300
+    whitespace_target_percent: 35
+    one_headline_message: true
+    qr_to_full_artefact_present: true
+    single_headline_test_passed: true
+  handout:
+    exactly_one_page: true
+    has_one_headline_finding: true
+    has_one_figure: true
+    has_qr_to_full_artefact: true
+    has_contact_block: true
+    citations_capped: 6
+    font_size_minimum_pt: 11
+    whitespace_target_percent: 30
+
+audience_profile:
+  poster:
+    academic_conference:
+      template: tikzposter
+      dimensions: "36x48"
+      blocks: [Background, Methods, Results, Conclusions, References]
+      headline_font_pt: 60
+      notes: |
+        Default. Standard academic poster. Lots of figures, dense data, methods block.
+    symposium:
+      template: tikzposter
+      dimensions: "36x48"
+      blocks: [Hypothesis, Approach, Results, Significance]
+      headline_font_pt: 72
+      notes: |
+        Smaller venue, often student/lab symposia. Big "so-what" framing.
+    industry:
+      template: tikzposter
+      dimensions: "48x36"
+      blocks: [Problem, Solution, Impact, Validation, Contact]
+      headline_font_pt: 80
+      notes: |
+        For booths / trade shows. Larger headline, fewer technical details,
+        explicit Impact section + Contact block at bottom right.
+    teaching:
+      template: tikzposter
+      dimensions: "36x48"
+      blocks: [Question, Big_Idea, Activity, Takeaway]
+      headline_font_pt: 84
+      notes: |
+        Classroom display. Big plain-language ideas, minimal jargon.
+  handout:
+    conference_poster_takeaway:
+      sections: [Headline_finding, At_a_glance_method, Headline_figure_with_caption, Three_bullet_implications, QR_to_paper, Contact]
+      notes: |
+        Sits in a stack at the poster's foot. Reader takes one,
+        reads on the train home, decides whether to look up the
+        paper / dashboard.
+    meeting_leave_behind:
+      sections: [Project_in_one_line, What_we_did, What_we_found, Why_it_matters_for_you, Where_we_go_from_here, Contact]
+      notes: |
+        For an internal meeting (PI / team / department). The
+        "Why it matters for YOU" section is targeted — name the
+        audience explicitly and frame the implication for them.
+    grant_lay_appendix:
+      sections: [Plain_language_summary, Funded_work_diagram, Outcomes_to_date, Public_benefit, Contact]
+      notes: |
+        One-page lay appendix to a grant submission. Public-facing
+        tone; the funder's communications team may publish it.
+    funder_milestone_brief:
+      sections: [Project, Milestone_status, This_period_deliverables, Next_period, Spend_summary, Contact]
+      notes: |
+        For a programme officer / funder check-in. Status-first;
+        milestone-aligned; one figure showing progress against
+        the funded timeline.
+    press_kit_one_pager:
+      sections: [Headline, Backgrounder, Key_findings, Quote, Visual, Embargo_or_release, Contact]
+      notes: |
+        Sits in a press kit alongside a press release. The visual
+        slot is the high-resolution image journalists will use;
+        include caption credit + license.
+
+editorial_voice:
+  mode: hybrid
+  rules:
+    - "Print constraints are real for every format. White text on
+       a coloured background loses contrast in greyscale photocopy;
+       small gridlines vanish; serif fonts <11pt are unreadable.
+       Design for the worst printer in the room."
+    - "QR codes earn their place by being SCANNED. A QR that
+       points to a dead URL or a paywalled paper costs trust.
+       Test the QR before printing."
+    - "One headline dominates. Anything that competes with the
+       headline fights for attention and loses."
+    - "Posters live on the wall; handouts live in someone's hand.
+       The unit of attention is across-the-room for posters;
+       arm's-length for handouts. Pick fonts and figures accordingly."
+
+steps:
+  - id: select_format_and_audience
+    name: Select format + audience profile
+    description: |
+      Confirm `format` from the redirect_params or the researcher
+      wording: poster | handout | one_pager (alias for handout).
+
+      Then pick an audience profile from `audience_profile.<format>`:
+        - poster: academic_conference (default) | symposium | industry | teaching
+        - handout: conference_poster_takeaway (default) | meeting_leave_behind
+                   | grant_lay_appendix | funder_milestone_brief | press_kit_one_pager
+
+      Read research_goal.poster_dimensions when set (overrides the
+      profile default for posters).
+
+  - id: curate_headline_assets
+    name: Curate the headline figure(s)
+    description: |
+      sys_file_list directory="workspace" — find every
+      outputs/figures/*.png.
+      For format=poster: pick the 2-4 BEST (clearest message,
+      highest DPI, most surprising result). Run tool_audit_figure
+      on each candidate; replace any with DPI < 300.
+      For format=handout: pick exactly ONE — the figure that
+      carries the headline. Stand-alone caption mandatory.
+      If you can't find a publication-grade figure, STOP and tell
+      the researcher.
+
+  - id: draft_text
+    name: Draft text per section / block
+    description: |
+      For format=poster: for each block in audience.blocks, write
+      2-4 sentences MAX. No wall of text. Bullets for Methods +
+      Results. Cite ≤6 references total.
+      For format=handout: for each section in audience.sections,
+      write 1-3 sentences MAX. The handout is read in <90 seconds.
+
+  - id: build_deliverable
+    name: Build the deliverable
+    description: |
+      For format=poster:
+        tool_poster_create — generates synthesis/poster.tex
+        (tikzposter) and compiles to synthesis/poster.pdf (if
+        pdflatex is available).
+      For format=handout / one_pager:
+        Write synthesis/handout.tex (or synthesis/handout.md →
+        latex_compile if the researcher prefers markdown
+        authoring). Use a single-column layout sized for A4 / Letter.
+        tool_latex_compile produces synthesis/handout.pdf.
+
+  - id: generate_qr_to_full_artefact
+    name: Generate QR linking to the full artefact (mandatory)
+    description: |
+      Pick the URL the QR will point to:
+        - paper preprint / DOI (most reader-useful)
+        - dashboard URL (when dashboard is the primary deliverable)
+        - lab page hosting the paper PDF + supplementary
+        - project landing page (only when above don't exist)
+
+      Generate via `qrcode` / `segno`:
+        python -c "import qrcode; qrcode.make('<url>').save(
+          'synthesis/<format>_qr.png')"
+
+      Embed:
+        - poster: bottom-right (Contact block for industry; References for academic)
+        - handout: bottom-right of the page next to Contact block
+
+      Test the QR by SCANNING it before printing. A dead QR is
+      worse than no QR.
+
+  - id: single_headline_test
+    name: Across-the-room / arm's-length headline test
+    description: |
+      For format=poster: print (or render at physical scale) and
+      stand 1.5 m back. Ask: what is the headline finding?
+      Which figure carries it? What's the takeaway?
+      A passer-by spends ≤10 seconds at the poster — the
+      headline must land in those 10 seconds.
+
+      For format=handout: hold at arm's length (~40 cm). Same
+      questions, scaled down. The handout is read in <90 seconds;
+      the headline must land in the first 10.
+
+      If the headline doesn't land, iterate BEFORE final printing:
+        - increase headline font, reduce body
+        - move the headline higher / centre
+        - replace with a billboard-ready figure (Morrison Better Poster pattern)
+
+  - id: quality_audit
+    name: Quality audit against the format's quality_bar
+    description: |
+      Audit the rendered PDF against quality_bar.<format>:
+
+      Poster: headline ≥60pt (academic) / ≥80pt (industry); ≤6
+      citations; one headline message dominates; whitespace
+      ~30-40%; QR present + scannable; single-headline test
+      passed; color-blind safe (per
+      visualization/color_accessibility_audit when public).
+
+      Handout: exactly one page; one headline at top; one figure;
+      contact block present; citations ≤6; body font ≥11pt;
+      QR present + scannable; whitespace ~30%.
+
+      Iterate if any check fails.
+
+expected_outputs:
+  - synthesis/poster.tex          # when format=poster
+  - synthesis/poster.pdf          # when format=poster
+  - synthesis/poster_qr.png       # when format=poster
+  - synthesis/handout.tex         # when format=handout / one_pager
+  - synthesis/handout.pdf         # when format=handout / one_pager
+  - synthesis/handout_qr.png      # when format=handout / one_pager
+
+next_protocol: null
+on_failure: null

@@ -1,6 +1,6 @@
 id: analysis_plan
 name: Analysis Plan (Core Loop)
-version: '1.6.0'
+version: '1.6.1'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.

@@ -1,6 +1,6 @@
 id: data_management_plan
 name: Data Management Plan (DMP) — funder-compliant, FAIR-aligned
-version: '1.6.0'
+version: '1.6.1'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |

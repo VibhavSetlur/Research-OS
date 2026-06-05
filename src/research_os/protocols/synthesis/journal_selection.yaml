@@ -1,6 +1,6 @@
 id: journal_selection
 name: Journal / Venue Selection + Fit Assessment
-version: '1.6.0'
+version: '1.6.1'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |

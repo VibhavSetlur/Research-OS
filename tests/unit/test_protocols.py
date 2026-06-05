@@ -163,6 +163,11 @@ class TestRealProtocols:
                 continue
             data = yaml.safe_load(p.read_text())
             assert "id" in data, f"{p} missing id"
+            # Redirect stubs are thin aliases; they intentionally do NOT
+            # carry steps (the loader follows redirect_to: and the target
+            # supplies the steps). Preflight enforces this exclusivity.
+            if isinstance(data.get("redirect_to"), str):
+                continue
             assert "steps" in data, f"{p} missing steps"
 
     def test_no_light_folder(self):
