@@ -34,4 +34,18 @@ def register() -> PackRegistration:
             "test-failure causation (5-whys / fishbone), build-test-fix "
             "loop, engineering report structure."
         ),
+        # Engineering deliverables are not IMRAD. The
+        # engineering_report_structure protocol defines the
+        # Background → Requirements → Design → Verification →
+        # Validation → Conclusions arc as the load-bearing format;
+        # declaring it here lets the synthesis pipeline stop forcing
+        # IMRAD on engineering projects when it consumes this hint.
+        paper_sections=(
+            "background",
+            "requirements",
+            "design",
+            "verification",
+            "validation",
+            "conclusions",
+        ),
     )
