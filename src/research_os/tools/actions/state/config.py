@@ -259,6 +259,23 @@ synthesis:
   # Emit a US-letter handout PDF alongside the poster.
   poster_handout_pdf: true
 
+  # ── Phase-5 review-rewrite drafter loop ───────────────────────────
+  # tool_paper_compile_typst / tool_slides_create / tool_poster_create
+  # run a closed-loop "draft → adversarial review → rewrite" pass when
+  # this is enabled. The reviewer is a fixed subset of the bundled
+  # reviewer personas (no LLM is called from inside RO). Findings are
+  # persisted under workspace/logs/drafter_loops/ with one
+  # <drafter>_iter_<N>.md + .json per iteration AND a cumulative
+  # workspace/logs/drafter_loops/quality_progression.md table.
+  drafter_loop_enabled: true
+  # Hard ceiling on iterations. project_tier=throwaway clamps to 1
+  # regardless of this value. Paper uses the full ceiling; slides /
+  # poster default to min(2, this value) unless overridden below.
+  drafter_loop_max_iterations: 3
+  # Composite-quality-score delta required to keep iterating once no
+  # block-severity findings remain. Below this, the loop converges.
+  drafter_loop_quality_threshold: 0.10
+
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
 api_keys:
@@ -631,6 +648,14 @@ _BOOL_FIELDS: tuple[str, ...] = (
     "synthesis.slide_speaker_notes_enabled",
     "synthesis.slide_print_handout",
     "synthesis.poster_handout_pdf",
+    "synthesis.drafter_loop_enabled",
+)
+
+# Numeric synthesis-tier fields. (name, kind, min, max).
+# Kind: "int" or "float".
+_NUMERIC_FIELDS: tuple[tuple[str, str, float, float], ...] = (
+    ("synthesis.drafter_loop_max_iterations", "int", 1, 10),
+    ("synthesis.drafter_loop_quality_threshold", "float", 0.0, 1.0),
 )
 
 
@@ -690,6 +715,23 @@ def validate_config(root: Path) -> dict[str, Any]:
                 "field": field,
                 "value": value,
                 "allowed": [True, False],
+            })
+
+    # Numeric fields (synthesis tier knobs) — type + range check.
+    for field, kind, lo, hi in _NUMERIC_FIELDS:
+        value = _dotted_get(config, field)
+        if value is None:
+            continue
+        ok = False
+        if kind == "int" and isinstance(value, int) and not isinstance(value, bool):
+            ok = lo <= value <= hi
+        elif kind == "float" and isinstance(value, (int, float)) and not isinstance(value, bool):
+            ok = lo <= float(value) <= hi
+        if not ok:
+            enum_violations.append({
+                "field": field,
+                "value": value,
+                "allowed": [f"{kind} in [{lo}, {hi}]"],
             })
 
     api_keys = config.get("api_keys") or {}

@@ -4200,14 +4200,72 @@ def _handle_tool_latex_compile(name, arguments, root):
 
 
 def _handle_tool_paper_compile_typst(name, arguments, root):
+    from research_os.tools.actions.synthesis.drafter_loop import (
+        draft_with_review_rewrite,
+        persona_reviewer,
+    )
     from research_os.tools.actions.synthesis.typst import paper_compile_typst
+    from research_os.tools.actions.state.config import get_research_config
 
-    return _text(_success(paper_compile_typst(
-        root,
-        paper_path=arguments.get("paper_path", "synthesis/paper.md"),
-        venue=arguments.get("venue"),
-        output=arguments.get("output", "synthesis/paper.pdf"),
-    )))
+    paper_path = arguments.get("paper_path", "synthesis/paper.md")
+    venue = arguments.get("venue")
+    output = arguments.get("output", "synthesis/paper.pdf")
+
+    # Phase-5 review-rewrite loop. Config knobs:
+    #   synthesis.drafter_loop_enabled (bool, default True)
+    #   synthesis.drafter_loop_max_iterations (int, default 3)
+    #   synthesis.drafter_loop_quality_threshold (float, default 0.10)
+    # Tier overrides:
+    #   project_tier=throwaway → max_iter clamped to 1.
+    #   interaction.autonomy_level=autopilot → respects config max_iter.
+    cfg = get_research_config(root) or {}
+    synth = cfg.get("synthesis") or {}
+    loop_enabled = bool(synth.get("drafter_loop_enabled", True))
+    max_iter = int(synth.get("drafter_loop_max_iterations", 3))
+    threshold = float(synth.get("drafter_loop_quality_threshold", 0.10))
+    tier = (cfg.get("project_tier") or "production").strip().lower()
+    if tier == "throwaway":
+        max_iter = 1
+    # Allow per-call disable for back-compat / debugging.
+    if arguments.get("drafter_loop") is False:
+        loop_enabled = False
+
+    if not loop_enabled:
+        return _text(_success(paper_compile_typst(
+            root,
+            paper_path=paper_path,
+            venue=venue,
+            output=output,
+        )))
+
+    def _drafter(prior_output=None, findings=None, root=root):
+        return paper_compile_typst(
+            root,
+            paper_path=paper_path,
+            venue=venue,
+            output=output,
+        )
+
+    reviewer = persona_reviewer(
+        ["presentation_critic", "scope_creep_critic", "methodology_skeptic"]
+    )
+    loop_res = draft_with_review_rewrite(
+        _drafter,
+        reviewer,
+        drafter_name="paper",
+        root=Path(root),
+        max_iter=max_iter,
+        improvement_threshold=threshold,
+    )
+    final = loop_res.get("final_output") or {}
+    if isinstance(final, dict):
+        final["drafter_loop"] = {
+            "iterations": loop_res["iterations"],
+            "converged": loop_res["converged"],
+            "stop_reason": loop_res["stop_reason"],
+            "quality_progression": loop_res["quality_progression"],
+        }
+    return _text(_success(final))
 
 
 def _handle_tool_dashboard_story_generate(name, arguments, root):
@@ -4431,10 +4489,33 @@ def _handle_tool_audit_figure_coverage(name, arguments, root):
 
 def _handle_tool_slides_create(name, arguments, root):
     """tool_slides_create — real engine (Reveal.js HTML / Touying Typst)."""
+    from research_os.tools.actions.synthesis.drafter_loop import (
+        draft_with_review_rewrite,
+        persona_reviewer,
+    )
     from research_os.tools.actions.synthesis.slides import compile_slides
+    from research_os.tools.actions.state.config import get_research_config
 
-    try:
-        result = compile_slides(
+    cfg = get_research_config(root) or {}
+    synth = cfg.get("synthesis") or {}
+    loop_enabled = bool(synth.get("drafter_loop_enabled", True))
+    # Slides default is 2 iterations per spec; researcher can raise via
+    # drafter_loop_max_iterations.
+    max_iter = int(
+        synth.get(
+            "drafter_loop_max_iterations_slides",
+            min(2, int(synth.get("drafter_loop_max_iterations", 3))),
+        )
+    )
+    threshold = float(synth.get("drafter_loop_quality_threshold", 0.10))
+    tier = (cfg.get("project_tier") or "production").strip().lower()
+    if tier == "throwaway":
+        max_iter = 1
+    if arguments.get("drafter_loop") is False:
+        loop_enabled = False
+
+    def _do_compile():
+        return compile_slides(
             root,
             engine=arguments.get("engine", "reveal"),
             template=arguments.get("template", "conference_15min"),
@@ -4443,10 +4524,35 @@ def _handle_tool_slides_create(name, arguments, root):
                 arguments.get("speaker_notes_enabled", True)
             ),
             print_handout=bool(arguments.get("print_handout", True)),
-            # back-compat kwargs
             audience=arguments.get("audience"),
             output_format=arguments.get("output_format"),
         )
+
+    try:
+        if not loop_enabled:
+            result = _do_compile()
+        else:
+            def _drafter(prior_output=None, findings=None, root=root):
+                return _do_compile()
+            reviewer = persona_reviewer(
+                ["presentation_critic", "scope_creep_critic"]
+            )
+            loop_res = draft_with_review_rewrite(
+                _drafter,
+                reviewer,
+                drafter_name="slides",
+                root=Path(root),
+                max_iter=max_iter,
+                improvement_threshold=threshold,
+            )
+            result = loop_res.get("final_output") or {}
+            if isinstance(result, dict):
+                result["drafter_loop"] = {
+                    "iterations": loop_res["iterations"],
+                    "converged": loop_res["converged"],
+                    "stop_reason": loop_res["stop_reason"],
+                    "quality_progression": loop_res["quality_progression"],
+                }
     except Exception as exc:
         return _text(_error(f"tool_slides_create crashed: {exc}"))
     if result.get("status") != "success":
@@ -4554,18 +4660,21 @@ def _handle_tool_audit_reviewer_responses(name, arguments, root):
 
 
 def _handle_tool_poster_create(name, arguments, root):
+    from research_os.tools.actions.synthesis.drafter_loop import (
+        draft_with_review_rewrite,
+        persona_reviewer,
+    )
     from research_os.tools.actions.synthesis.latex import create_poster
     from research_os.tools.actions.synthesis.poster_typst import compile_poster
+    from research_os.tools.actions.state.config import get_research_config
+
+    cfg = get_research_config(root) or {}
+    synth = cfg.get("synthesis") or {}
 
     # Resolve engine: explicit argument > researcher_config > default 'typst'.
     engine = arguments.get("engine")
     if not engine:
-        try:
-            from research_os.tools.actions.state.config import get_research_config
-            cfg = get_research_config(root) or {}
-            engine = ((cfg.get("synthesis") or {}).get("poster_engine")) or "typst"
-        except Exception:
-            engine = "typst"
+        engine = synth.get("poster_engine") or "typst"
 
     if engine == "latex":
         # Legacy tikzposter path. Honors layout (billboard|classic) +
@@ -4582,30 +4691,64 @@ def _handle_tool_poster_create(name, arguments, root):
     theme = arguments.get("theme")
     qr_url = arguments.get("qr_url")
     handout_pdf = arguments.get("handout_pdf")
-    try:
-        from research_os.tools.actions.state.config import get_research_config
-        cfg = get_research_config(root) or {}
-        synth = cfg.get("synthesis") or {}
-        if template is None:
-            template = synth.get("poster_template", "academic_36x48")
-        if theme is None:
-            theme = synth.get("poster_theme", "light")
-        if qr_url is None:
-            qr_url = synth.get("poster_qr_url") or None
-        if handout_pdf is None:
-            handout_pdf = bool(synth.get("poster_handout_pdf", True))
-    except Exception:
-        template = template or "academic_36x48"
-        theme = theme or "light"
-        handout_pdf = True if handout_pdf is None else handout_pdf
+    if template is None:
+        template = synth.get("poster_template", "academic_36x48")
+    if theme is None:
+        theme = synth.get("poster_theme", "light")
+    if qr_url is None:
+        qr_url = synth.get("poster_qr_url") or None
+    if handout_pdf is None:
+        handout_pdf = bool(synth.get("poster_handout_pdf", True))
 
-    return _text(_success(compile_poster(
-        root,
-        template=template,
-        theme=theme,
-        qr_url=qr_url,
-        handout_pdf=bool(handout_pdf),
-    )))
+    loop_enabled = bool(synth.get("drafter_loop_enabled", True))
+    max_iter = int(
+        synth.get(
+            "drafter_loop_max_iterations_poster",
+            min(2, int(synth.get("drafter_loop_max_iterations", 3))),
+        )
+    )
+    threshold = float(synth.get("drafter_loop_quality_threshold", 0.10))
+    tier = (cfg.get("project_tier") or "production").strip().lower()
+    if tier == "throwaway":
+        max_iter = 1
+    if arguments.get("drafter_loop") is False:
+        loop_enabled = False
+
+    def _do_compile():
+        return compile_poster(
+            root,
+            template=template,
+            theme=theme,
+            qr_url=qr_url,
+            handout_pdf=bool(handout_pdf),
+        )
+
+    if not loop_enabled:
+        return _text(_success(_do_compile()))
+
+    def _drafter(prior_output=None, findings=None, root=root):
+        return _do_compile()
+
+    reviewer = persona_reviewer(
+        ["presentation_critic", "novelty_critic"]
+    )
+    loop_res = draft_with_review_rewrite(
+        _drafter,
+        reviewer,
+        drafter_name="poster",
+        root=Path(root),
+        max_iter=max_iter,
+        improvement_threshold=threshold,
+    )
+    result = loop_res.get("final_output") or {}
+    if isinstance(result, dict):
+        result["drafter_loop"] = {
+            "iterations": loop_res["iterations"],
+            "converged": loop_res["converged"],
+            "stop_reason": loop_res["stop_reason"],
+            "quality_progression": loop_res["quality_progression"],
+        }
+    return _text(_success(result))
 
 
 def _handle_tool_dashboard_create(name, arguments, root):
@@ -5241,7 +5384,75 @@ def _handle_tool_audit_quality_full(name, arguments, root):
         logger.exception("audit_master v2 writer failed")
         legacy["audit_master_v2_error"] = str(exc)
 
+    # 3) Phase 8 — attach a tier-based progress summary so the AI can
+    # see where the project sits in the lifecycle without re-routing.
+    try:
+        legacy["tier_progress"] = _build_tier_progress(root)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.debug("tier_progress build failed: %s", exc)
+
     return _text(_success(legacy))
+
+
+def _build_tier_progress(root) -> dict:
+    """Tier-based progress summary for tool_audit_master.
+
+    Reads ``workspace/.os_state/current_tier.json`` and the protocol
+    execution log to count how many distinct protocols have fired per
+    tier. Returns a compact summary suitable for the audit_master
+    response body (the v2 markdown writer is not modified).
+    """
+    from research_os.protocols._tiers import TIERS, tier_position
+    from research_os.tools.actions.protocol import get_protocol_history
+    from research_os.tools.actions.router import _resolve_tier
+    from research_os.tools.actions.state.tier_state import (
+        read_tier_state,
+        tier_direction,
+    )
+
+    state = read_tier_state(root)
+    current = state.get("current_tier")
+    history = list(state.get("history") or [])
+
+    # Per-tier protocol-fire counts from the execution log.
+    per_tier_protocols: dict[str, set[str]] = {t: set() for t in TIERS}
+    try:
+        entries = (get_protocol_history(root, limit=500).get("entries") or [])
+    except Exception:
+        entries = []
+    for ent in entries:
+        pn = ent.get("protocol") or ent.get("protocol_name")
+        if not isinstance(pn, str) or not pn:
+            continue
+        tier = _resolve_tier(pn)
+        if tier and tier in per_tier_protocols:
+            per_tier_protocols[tier].add(pn)
+
+    per_tier_summary = []
+    for t in TIERS:
+        names = sorted(per_tier_protocols[t])
+        per_tier_summary.append({
+            "tier": t,
+            "position": tier_position(t),
+            "n_protocols_fired": len(names),
+            "protocols": names[:5],  # cap the list — full set is in the log
+            "is_current": (t == current),
+        })
+
+    last_transition = history[-1] if history else None
+    direction = None
+    if last_transition:
+        direction = tier_direction(last_transition.get("from"), last_transition.get("to"))
+
+    return {
+        "current_tier": current,
+        "current_tier_position": tier_position(current) if current else None,
+        "n_tiers_visited": sum(1 for t in TIERS if per_tier_protocols[t]),
+        "per_tier": per_tier_summary,
+        "last_transition": last_transition,
+        "last_transition_direction": direction,
+        "transition_count": len(history),
+    }
 
 
 def _handle_tool_slurm_submit(name, arguments, root):
@@ -6239,12 +6450,77 @@ def _handle_tool_step_complete(name, arguments, root):
         merged["overall_status"] = "warning"
     else:
         merged["overall_status"] = "success"
+
+    # Phase 8 — advance current_tier when the just-finished step's
+    # protocol moves the project across a tier boundary. Best-effort;
+    # never fails the bundle. tier_transition is null when no protocol
+    # is associated with the step, or when the new tier matches the
+    # current one.
+    try:
+        from research_os.tools.actions.router import _resolve_tier
+        from research_os.tools.actions.state.tier_state import set_current_tier
+        next_proto = _latest_protocol_for_step(root, step_id)
+        if next_proto:
+            new_tier = _resolve_tier(next_proto)
+            if new_tier:
+                trans = set_current_tier(
+                    root,
+                    new_tier,
+                    source_protocol=next_proto,
+                    via="tool_step_complete",
+                )
+                merged["tier_transition"] = trans
+                merged["tier"] = new_tier
+    except Exception as exc:
+        logger.debug("tier advance on step_complete failed: %s", exc)
+
     merged["_note"] = (
         "Bundle result. Surface revision_options verbatim per the "
         "anti-one-shot doctrine; do not auto-scaffold the next step "
         "unless autonomy_level='autopilot'."
     )
     return _text(merged)
+
+
+def _latest_protocol_for_step(root, step_id: str) -> str | None:
+    """Resolve the protocol most likely "owned" by ``step_id``.
+
+    Heuristics, cheapest first (all best-effort):
+      1. ``.os_state/active_plan.json`` — the most recent route's primary.
+      2. The latest entry in ``protocol_execution_log.jsonl``.
+
+    Returns the bare protocol name (e.g. ``guidance/analysis_plan``) or
+    None when nothing was logged yet.
+    """
+    import json as _json
+    plan_path = root / ".os_state" / "active_plan.json"
+    if plan_path.exists():
+        try:
+            plan = _json.loads(plan_path.read_text())
+            pp = plan.get("primary_protocol")
+            if isinstance(pp, str) and pp:
+                return pp
+        except Exception:
+            pass
+    log_path = root / ".os_state" / "protocol_execution_log.jsonl"
+    if log_path.exists():
+        try:
+            last_proto = None
+            for line in log_path.read_text().splitlines():
+                if not line.strip():
+                    continue
+                try:
+                    entry = _json.loads(line)
+                except Exception:
+                    continue
+                pn = entry.get("protocol") or entry.get("protocol_name")
+                if pn:
+                    last_proto = pn
+            if last_proto:
+                return last_proto
+        except Exception:
+            pass
+    return None
 
 
 def _handle_tool_mistake_replay(name, arguments, root):
