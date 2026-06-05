@@ -1,6 +1,6 @@
 id: synthesis_from_inputs
 name: Synthesis — From Inputs (no workspace analysis required)
-version: '1.7.0'
+version: '1.7.1'
 schema_version: '2.0'
 description: |
   Synthesis for the case where the researcher has finished analyses,

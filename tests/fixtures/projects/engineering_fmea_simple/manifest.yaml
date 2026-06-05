@@ -1,0 +1,42 @@
+# Reference project: engineering_fmea_simple
+#
+# A small product design with a 5-item FMEA and 3 requirements
+# traced to test cases. Exercises the engineering pack end-to-end
+# against a mock LLM under the stress-test runner.
+
+domain: engineering
+expected_pack: engineering
+
+protocols_expected:
+  - engineering/design/requirements_traceability
+  - engineering/safety/fmea_protocol
+
+gates_expected_pass:
+  - engineering/design/requirements_traceability:forward_coverage_target
+  - engineering/design/requirements_traceability:backward_coverage_target
+  - engineering/safety/fmea_protocol:mitigation_must_resolve_rpn_above
+
+artifacts_required:
+  - inputs/context/product_spec.md
+  - inputs/engineering/requirements.yaml
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+canned_responses:
+  # engineering/design/requirements_traceability
+  parse_srs: "Parsed inputs/engineering/requirements.yaml; 3 requirements (SRS-001/002/003); verification_method=test for all."
+  parse_sdd_links: "Built forward + inverse maps; all 3 SRS ids referenced by at least one design element; 0 stale links."
+  discover_tests: "Discovered 4 tests; 4 carry @requirement markers; 0 unmarked. marked_tests linked to SRS-001/002/003."
+  build_matrix: "Joined SRS/SDD/test discovery; 3 rows assigned coverage_state=covered; 0 orphan_test rows."
+  review_gaps: "No uncovered or partial rows; orphan appendix empty; no waivers needed."
+  render_and_sign: "Rendered workspace/engineering/traceability/requirements.{csv,md}; sign_off.md captured at 100% forward + 100% backward."
+  # engineering/safety/fmea_protocol
+  decompose_system: "Decomposed IoT sensor into 3 functions (sense, transmit, sleep) + 2 components (battery, housing); 5 FMEA rows."
+  enumerate_failure_modes: "Enumerated 5 failure modes: sensor drift, radio transmit failure, sleep wake-lock, battery undervoltage reboot, housing crack at -20C."
+  score_severity_occurrence_detection: "Scored all 5 rows with default rubric; reasoning logged in workspace/engineering/fmea/scoring_notes.md."
+  mitigate_high_rpn: "2 rows above RPN=100 mitigated (radio retry + brownout reset); severity unchanged, occurrence + detection reduced."
+  render_table: "Rendered workspace/engineering/fmea/sensor.{csv,md} sorted by RPN; 2 high-RPN rows bolded."
+  re_score_post_mitigation: "Re-scored post-mitigation; all 5 rows below RPN=100; FMEA closed; no waivers required."

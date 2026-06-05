@@ -27,6 +27,9 @@ jobs:
           - qualitative_interviews
           - quick_plot_throwaway
           - mid_pipeline_handoff
+          - theory_math_short_proof
+          - wet_lab_qpcr_run
+          - engineering_fmea_simple
         model:
           - mock
     steps:
