@@ -9,9 +9,9 @@ description: |
   Ground every choice in the literature; never commit a method from
   training memory alone.
 
-  Includes a lightweight "lookup" mode (formerly `research_methods`)
-  for the case where the AI just needs a quick scan of candidates
-  before committing to a deeper grounding pass.
+  Includes a lightweight "lookup" mode for the case where the AI
+  just needs a quick scan of candidates before committing to a
+  deeper grounding pass.
 
 trigger: |
   After research_design, or directly from project_startup when the
@@ -199,10 +199,6 @@ steps:
            goal-and-data combination.
         4. Pull the 2-4 most recent or most cited candidates into the
            `enumerate_candidates` step.
-
-      This replaces the previous standalone `research_methods`
-      protocol — same workflow, absorbed here so the AI doesn't
-      have to context-switch.
 
 expected_outputs:
   - workspace/methods.md
