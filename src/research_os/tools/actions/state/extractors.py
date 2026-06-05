@@ -120,7 +120,6 @@ def extract_r(text: str) -> list[Extraction]:
 # Imports / Depends / Suggests / LinkingTo blocks may span multiple
 # lines; entries are comma-separated and may carry version specs in
 # parens, e.g. ``ggplot2 (>= 3.4.0)``.
-_R_DESC_FIELDS = ("Imports", "Depends", "Suggests", "LinkingTo")
 _R_DESC_BLOCK_RE = re.compile(
     r"^(Imports|Depends|Suggests|LinkingTo)\s*:\s*(.+?)(?=^[A-Z][\w-]*\s*:|\Z)",
     re.MULTILINE | re.DOTALL,

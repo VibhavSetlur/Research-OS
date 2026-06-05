@@ -226,14 +226,14 @@ def extract(root: Path, step_id: str | None = None) -> dict:
         "synapse_scripts": synapse_scripts,
         "scripts_scanned": len(scripts),
         "_notes": [
-            "Extraction is filesystem-only; no Synapse API calls are made at "
-            "detect/extract time.",
-            "Auth tokens / passwords are intentionally NOT parsed from "
-            ".synapseConfig — only username + project_id.",
-            "Entity IDs are regex-matched (syn\\d{6,}); dynamically built IDs "
-            "(e.g. 'syn' + str(n)) are not resolved.",
-            "The 'note' field captures the nearest inline or preceding-line '#' "
-            "comment; block / docstring context is not captured.",
+            ("Extraction is filesystem-only; no Synapse API calls are made at "
+             "detect/extract time."),
+            ("Auth tokens / passwords are intentionally NOT parsed from "
+             ".synapseConfig — only username + project_id."),
+            ("Entity IDs are regex-matched (syn\\d{6,}); dynamically built IDs "
+             "(e.g. 'syn' + str(n)) are not resolved."),
+            ("The 'note' field captures the nearest inline or preceding-line '#' "
+             "comment; block / docstring context is not captured."),
         ],
     }
 

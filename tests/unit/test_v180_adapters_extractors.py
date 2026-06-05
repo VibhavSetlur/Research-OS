@@ -25,9 +25,6 @@ from pathlib import Path
 
 import pytest
 
-from research_os.tools.actions import protocol as protocol_mod  # noqa: F401
-
-
 def _fresh_import():
     for m in list(sys.modules):
         if m.startswith("research_os") or m.startswith("research_os_"):

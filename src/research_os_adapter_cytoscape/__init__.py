@@ -381,7 +381,9 @@ def _xgmml_to_edge_list(data: bytes) -> tuple[list[str], list[tuple[str, str]], 
                         y = float(gfx.get("y"))
                         positions[nid] = (x, y)
                     except (TypeError, ValueError):
-                        pass
+                        # Missing or non-numeric coord — skip this node's
+                        # position; layout will fall back to spring layout.
+                        continue
         elif local == "edge":
             src = child.get("source")
             tgt = child.get("target")

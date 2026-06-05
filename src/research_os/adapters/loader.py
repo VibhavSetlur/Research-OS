@@ -16,7 +16,6 @@ block server startup or other adapters.
 from __future__ import annotations
 
 import importlib
-import json
 import logging
 import traceback
 from dataclasses import dataclass

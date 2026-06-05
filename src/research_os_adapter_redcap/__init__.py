@@ -74,17 +74,6 @@ _DICT_REQUIRED_COLUMNS = {
     "variable / field name",
     "form name",
 }
-_DICT_BONUS_COLUMNS = {
-    "field type",
-    "field label",
-    "choices, calculations, or slider labels",
-    "identifier?",
-    "text validation type or show slider number",
-    "required field?",
-    "branching logic (show field only if...)",
-}
-
-
 def _candidate_csvs(root: Path) -> list[Path]:
     """Return CSV files in workspace/ and the project root worth sniffing."""
     csvs: list[Path] = []
@@ -267,8 +256,11 @@ def _summarise_export(path: Path) -> dict[str, Any]:
                     inst = (row.get(c_instr) or "").strip()
                     if inst:
                         instruments.add(inst)
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging
+        logging.getLogger("research_os_adapter_redcap").debug(
+            "data-export sniff skipped: %s", exc
+        )
     return {
         "longitudinal": longitudinal,
         "events": sorted(events),

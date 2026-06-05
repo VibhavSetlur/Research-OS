@@ -64,8 +64,11 @@ def _candidate_dirs(root: Path) -> list[Path]:
             for child in workspace.iterdir():
                 if child.is_dir():
                     dirs.append(child)
-        except OSError:
-            pass
+        except OSError as exc:
+            import logging
+            logging.getLogger("research_os_adapter_nextflow").debug(
+                "workspace scan skipped: %s", exc
+            )
     return dirs
 
 
@@ -244,8 +247,11 @@ def _parse_nf_file(path: Path) -> list[dict]:
         proc = _parse_process_block(m.group(1), body)
         try:
             proc["source_file"] = str(path)
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging
+            logging.getLogger("research_os_adapter_nextflow").debug(
+                "source_file annotation skipped: %s", exc
+            )
         processes.append(proc)
     return processes
 
