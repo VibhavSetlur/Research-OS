@@ -1776,7 +1776,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "handout_pdf": {
                     "type": "boolean",
-                    "description": "Typst engine only. Also emit synthesis/poster_handout.pdf (US-letter text-only condensed). Default true.",
+                    "description": "Typst engine only. Also emit synthesis/poster.handout.pdf (US-letter text-only condensed). Default true.",
                 },
                 "layout": {
                     "type": "string",
@@ -2775,7 +2775,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     # ── real slide compilation engine ──────────────────────────────────
     "tool_slides_create": {
         "short": "Compile a real presentation deck — Reveal.js HTML or Touying-compatible Typst PDF — from workspace findings + slides_spec.yaml.",
-        "description": "Two production engines. engine='reveal' writes synthesis/slides.html — a single self-contained file backed by the vendored Reveal.js v5 runtime with stock speaker-notes plugin (press 's' for presenter view). engine='touying' writes synthesis/slides.typ against the bundled touying-mini.typ template and shells out to the typst CLI to produce synthesis/slides.pdf (requires typst on PATH). Five stock templates: conference_15min (12 slides), conference_5min_lightning (6 slides), lab_meeting_30min (16 slides + backup section), defense_45min (35 slides chapter-arc), public_outreach (12 slides, no jargon). theme='' picks per-engine default (white). speaker_notes_enabled=True (default) embeds the per-slide notes. print_handout=True (default) also emits synthesis/slides_handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Prereq: at least one workspace/<step>/conclusions.md OR synthesis/slides_spec.yaml; missing both returns a structured error. Back-compat: legacy output_format='reveal'|'beamer'|'pdf' and audience= kwargs are accepted and mapped to engine= silently.",
+        "description": "Two production engines. engine='reveal' writes synthesis/slides.html — a single self-contained file backed by the vendored Reveal.js v5 runtime with stock speaker-notes plugin (press 's' for presenter view). engine='touying' writes synthesis/slides.typ against the bundled touying-mini.typ template and shells out to the typst CLI to produce synthesis/slides.pdf (requires typst on PATH). Five stock templates: conference_15min (12 slides), conference_5min_lightning (6 slides), lab_meeting_30min (16 slides + backup section), defense_45min (35 slides chapter-arc), public_outreach (12 slides, no jargon). theme='' picks per-engine default (white). speaker_notes_enabled=True (default) embeds the per-slide notes. print_handout=True (default) also emits synthesis/slides.handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Prereq: at least one workspace/<step>/conclusions.md OR synthesis/slides_spec.yaml; missing both returns a structured error. Back-compat: legacy output_format='reveal'|'beamer'|'pdf' and audience= kwargs are accepted and mapped to engine= silently.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -2798,7 +2798,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "print_handout": {
                     "type": "boolean",
-                    "description": "Default true. Also emit synthesis/slides_handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Requires typst on PATH (reveal engine uses the touying handout path).",
+                    "description": "Default true. Also emit synthesis/slides.handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Requires typst on PATH (reveal engine uses the touying handout path).",
                 },
                 "audience": {
                     "type": "string",

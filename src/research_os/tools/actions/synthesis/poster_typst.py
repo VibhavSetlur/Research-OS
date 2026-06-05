@@ -498,7 +498,7 @@ def compile_poster(
     qr_url : str | None
         If set, render a QR PNG and place it in the footer.
     handout_pdf : bool
-        If True (default), also emit ``synthesis/poster_handout.pdf`` —
+        If True (default), also emit ``synthesis/poster.handout.pdf`` —
         a US-letter text-only condensed companion.
 
     Returns
@@ -653,8 +653,8 @@ def compile_poster(
     handout_path: Path | None = None
     handout_warnings: list[str] = []
     if handout_pdf:
-        handout_typ = synthesis_dir / "poster_handout.typ"
-        handout_pdf_path = synthesis_dir / "poster_handout.pdf"
+        handout_typ = synthesis_dir / "poster.handout.typ"
+        handout_pdf_path = synthesis_dir / "poster.handout.pdf"
         handout_typ.write_text(_emit_handout_typst(
             title=title,
             subtitle=subtitle,
