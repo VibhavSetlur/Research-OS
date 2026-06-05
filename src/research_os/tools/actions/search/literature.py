@@ -243,6 +243,10 @@ def download_literature(
                             permanent=True,
                         )
                     except Exception:
+                        # Best-effort logging — the cache is a
+                        # convenience, not a correctness guarantee.
+                        # Swallow any failure so the paywall response
+                        # below still reaches the caller.
                         pass
                 return {
                     "status": "error",
@@ -292,6 +296,9 @@ def download_literature(
                         permanent=permanent_flag,
                     )
                 except Exception:
+                    # Cache write is best-effort; the actual download
+                    # error below is what the caller acts on. Don't
+                    # mask the real failure with a cache-write fault.
                     pass
             return {"status": "error",
                     "message": f"Download failed: {e}"}

@@ -201,8 +201,10 @@ def reliability_report(root: Path) -> dict[str, Any]:
 
         lines += [
             "",
-            "_Report contains no project content — only structural counts "
-            "and protocol identifiers. Safe to share when filing a bug._",
+            (
+                "_Report contains no project content — only structural counts "
+                "and protocol identifiers. Safe to share when filing a bug._"
+            ),
         ]
         report_path = root / "workspace" / "logs" / "reliability_report.md"
         report_path.parent.mkdir(parents=True, exist_ok=True)
