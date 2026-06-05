@@ -1,6 +1,6 @@
 id: bayesian_analysis
 name: Bayesian Analysis Workflow
-version: '1.5.1'
+version: '1.6.0'
 last_reviewed: '2026-06-02'
 schema_version: '2.0'
 description: |

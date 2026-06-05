@@ -1,6 +1,6 @@
 id: interactive_figure_design
 name: Interactive Figure Design (per-figure, NOT dashboard-scale)
-version: '1.5.1'
+version: '1.6.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-03'
 description: |

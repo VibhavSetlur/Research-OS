@@ -6,6 +6,91 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.6.0] — Model-friendly surface: lean variants, coaching mode, dry-run, tool bundling (2026-06-05)
+
+MINOR release. Implements ROADMAP Themes 2, 7, 13, 15. Makes
+Research-OS comfortable on small models (lean variants), pedagogical
+for new researchers (coaching mode), reviewable before commit
+(dry-run), and call-efficient at end-of-step (bundling). The
+consolidation refactor (Theme 6) and new domain packs (Theme 4) are
+deferred to later releases.
+
+### Added — Theme 2: lean protocol variants
+
+- `sys_protocol_get(format='lean')` — auto-distils every protocol to
+  ≤3 steps + ≤200-char step descriptions + drops optional sub-steps.
+  When a protocol declares an explicit `lean_variant:` block at root
+  level, that block is served verbatim.
+- Pick by `model_profile`: `small` → `lean`, `medium` → `summary`,
+  `large` → `summary` (drill in with `step` or `full` as needed).
+  AGENTS.md template updated with the matrix.
+
+### Added — Theme 13: dry-run mode
+
+- `sys_protocol_get(format='dryrun')` — returns the protocol's full
+  step sequence with predicted tool calls (parsed from each step's
+  description body) without executing anything. No files written;
+  no state mutated.
+- `tool_dry_run(protocol_name, simulated_args?)` — wrapper; useful
+  in `supervised` / `coaching` autonomy modes to preview a heavy
+  pipeline before committing.
+
+### Added — Theme 7: coaching mode
+
+- `researcher_config.interaction.autonomy_level` accepts a new value
+  `coaching` (alongside `manual` / `supervised` / `autopilot`). In
+  coaching mode the AI doesn't auto-execute; surfaces
+  `pedagogical_prelude` (if present) as a question, explains WHY
+  each gate exists before offering the fix, and reads
+  `tool_mistake_replay` at session start.
+- `tool_mistake_replay(limit?=5)` — reads
+  `workspace/.os_state/reliability.jsonl` (gate-fire / tool-error /
+  override events) + `workspace/logs/override_log.md`, groups by
+  `(protocol, event_type)`, returns top recurring patterns with
+  examples. The coaching artifact for self-aware practice.
+- Template `researcher_config.yaml` documents `coaching` and the
+  pedagogical posture.
+
+### Added — Theme 15: tool bundling
+
+- `tool_step_complete(step_id, override_literature_gate?, override_rationale?)`
+  — bundles `tool_path_finalize` + `tool_audit_step_completeness` +
+  `tool_audit_step_literature` + `tool_step_revision_options` into
+  one call. Returns merged `{stages: {finalize, completeness,
+  literature, revision}, overall_status}`. Cuts 4 tool calls → 1;
+  eliminates small-model drift between calls. AI still surfaces the
+  revision options verbatim per the anti-one-shot doctrine.
+
+### Changed
+
+- Every protocol YAML `version:` bumped `1.5.x` → `1.6.0`.
+- `sys_protocol_get` input schema declares `additionalProperties:
+  false` and `enum`s the five valid `format` values. Tightens JSON
+  schema validation on the MCP layer.
+- New tool schemas (`tool_dry_run`, `tool_step_complete`,
+  `tool_mistake_replay`) all declare `additionalProperties: false`.
+
+### Tool count
+
+163 → 166. Three new tools (`tool_dry_run`, `tool_step_complete`,
+`tool_mistake_replay`).
+
+### Validation
+
+- `python scripts/preflight.py` — 15/15
+- `python -m pytest -q` — 553 passed (14 new v1.6.0 regression tests)
+- `ruff check src/ tests/ scripts/` — clean
+- Embeddings rebuilt against the 166-tool surface.
+
+### Deferred (out of scope this release)
+
+- Theme 6 (146→90 tool consolidation) — needs migration aliases +
+  back-compat tests; later release.
+- Theme 4 (domain packs) — later release.
+- Themes 16-25 (synthesis output formats) — later releases.
+
+---
+
 ## [1.5.3] — Token-waste hygiene PATCH: strip historical version commentary from live doctrine (2026-06-05)
 
 PATCH release. Implements ROADMAP Theme 26: live-doctrine vs

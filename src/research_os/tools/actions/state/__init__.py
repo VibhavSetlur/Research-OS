@@ -64,3 +64,6 @@ from research_os.tools.actions.state.quick_mode import (  # noqa: F401
     promote_to_step,
     quick_route,
 )
+from research_os.tools.actions.state.mistake_replay import (  # noqa: F401
+    mistake_replay,
+)
