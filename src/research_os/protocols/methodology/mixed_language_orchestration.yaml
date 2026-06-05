@@ -1,6 +1,6 @@
 id: mixed_language_orchestration
 name: Mixed-Language Orchestration (Python ↔ R ↔ Bash within a step)
-version: '1.6.1'
+version: '1.7.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |

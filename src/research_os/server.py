@@ -5717,6 +5717,74 @@ def _short_for_list(schema: dict) -> str:
     return first[:160]
 
 
+# ── Pack discovery ───────────────────────────────────────────────────
+
+
+def _discover_packs_once() -> None:
+    """Discover installed protocol packs and merge them into core registries.
+
+    Idempotent — safe to call multiple times; subsequent calls reset
+    the plugin loader's state and rediscover. Bundled in-tree packs
+    (humanities, qualitative) ship in this wheel and are loaded
+    unconditionally; external packs come from the
+    `research_os.protocol_pack` entry-point group.
+    """
+    try:
+        from research_os.plugins import discover_packs
+    except Exception as exc:
+        logger.debug("plugin loader import failed: %s", exc)
+        return
+    # In-tree packs bundled with the core wheel. They register the
+    # same way external packs would but skip the entry-point hop.
+    bundled = [
+        ("humanities", "research_os_humanities:register"),
+        ("qualitative", "research_os_qualitative:register"),
+    ]
+    try:
+        discover_packs(
+            tool_definitions=TOOL_DEFINITIONS,
+            handlers=_HANDLERS,
+            bundled=bundled,
+        )
+    except Exception as exc:
+        logger.warning("pack discovery raised unexpectedly: %s", exc)
+
+
+# Run discovery at import time so list_tools / dispatcher see pack tools.
+_discover_packs_once()
+
+
+def _handle_sys_packs_installed(name, arguments, root):
+    """Return diagnostics about installed packs."""
+    from research_os.plugins import installed_packs, load_pack_errors
+    packs = installed_packs()
+    errors = load_pack_errors()
+    return _text(_success({
+        "packs": packs,
+        "pack_count": len(packs),
+        "errors": errors,
+        "error_count": len(errors),
+        "advice": (
+            "Install third-party packs via pip; they auto-register on next "
+            "server start via the `research_os.protocol_pack` entry-point group."
+            if not errors else
+            "One or more packs failed to register; inspect 'errors' for "
+            "tracebacks. See workspace/logs/pack_errors.log for the full log."
+        ),
+    }))
+
+
+# Register sys_packs_installed (defined here because it depends on the
+# pack loader being imported; can't live in the main _HANDLERS block above).
+TOOL_DEFINITIONS["sys_packs_installed"] = {
+    "short": "List installed protocol packs (name, version, tool count, router entries, errors).",
+    "description": "Returns the set of protocol packs currently registered with the server — both bundled (humanities, qualitative) and externally pip-installed via the `research_os.protocol_pack` entry-point group. Use to confirm a pack is loadable, to see its tool / router contributions, and to surface any registration errors (full traceback in `workspace/logs/pack_errors.log`).",
+    "category": "routing",
+    "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+_HANDLERS["sys_packs_installed"] = _handle_sys_packs_installed
+
+
 if HAS_MCP:
     server = Server("research-os")
 

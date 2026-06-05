@@ -1,0 +1,96 @@
+name: stress
+
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+      - "CITATION.cff"
+  schedule:
+    # Nightly at 04:17 UTC (off the round hour to avoid load spike).
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    name: "Stress: ${{ matrix.project }} × ${{ matrix.model }}"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - biology_genomics_mini
+          - humanities_ms_review
+          - qualitative_interviews
+          - quick_plot_throwaway
+          - mid_pipeline_handoff
+        model:
+          - mock
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install Research-OS + extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pyyaml pytest
+      - name: Stress run
+        run: |
+          python -m research_os.testing.stress_runner \
+            --project "${{ matrix.project }}" \
+            --model "${{ matrix.model }}" \
+            --output "stress_${{ matrix.project }}_${{ matrix.model }}.json"
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-${{ matrix.project }}-${{ matrix.model }}
+          path: stress_${{ matrix.project }}_${{ matrix.model }}.json
+          retention-days: 30
+
+  regenerate-reliability:
+    name: Regenerate docs/RELIABILITY.md
+    needs: matrix
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v5
+        with:
+          path: stress-results
+          pattern: stress-*
+          merge-multiple: true
+      - name: Install Research-OS
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pyyaml
+      - name: Rebuild RELIABILITY.md
+        run: |
+          python -c "
+          import json, glob
+          from pathlib import Path
+          from research_os.testing.stress_runner import StressResult
+          from research_os.testing.reliability import write_reliability_md
+          results = []
+          for f in sorted(glob.glob('stress-results/stress_*.json')):
+              for d in json.loads(Path(f).read_text()):
+                  # Reconstruct a StressResult-shaped object (just fields needed).
+                  class _R: pass
+                  r = _R()
+                  for k, v in d.items(): setattr(r, k, v)
+                  results.append(r)
+          write_reliability_md(results, Path('docs/RELIABILITY.md'))
+          print(f'Wrote RELIABILITY.md from {len(results)} result(s).')
+          "
+      - name: Upload regenerated RELIABILITY.md
+        uses: actions/upload-artifact@v4
+        with:
+          name: reliability-md
+          path: docs/RELIABILITY.md
+          retention-days: 90
