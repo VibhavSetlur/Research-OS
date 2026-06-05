@@ -1,6 +1,6 @@
 id: multiple_comparisons
 name: Multiple Comparisons / Multiplicity Strategy
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |

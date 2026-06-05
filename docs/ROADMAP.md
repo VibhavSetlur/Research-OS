@@ -451,12 +451,49 @@ Today's audit checks structure (sections exist, word counts above floor). Doesn'
 
 ---
 
+### Theme 26 — Live-doctrine vs historical-commentary separation (token-waste purge)
+
+**Motivation:** every protocol YAML, tool description, and code comment currently carries inline historical commentary — "v1.4.0 added X", "v1.3.4 fixed Y", "previously this clobbered, now we ...", "v1.5.0 promotes to BLOCK". Every time the AI loads a protocol via `sys_protocol_get`, every time it reads a tool description via `sys_tool_describe`, it pays the token cost of historical narrative that belongs in git log + CHANGELOG, not in the live doctrine.
+
+The MCP already carries the right signals for "when was this current":
+- `version:` field on every protocol YAML
+- `schema_version:` field
+- `last_reviewed:` date
+- `git log` / `git blame` for line-level history
+- `CHANGELOG.md` for human-readable version notes
+
+Live protocol bodies + tool descriptions should be **timeless** — what to do NOW, not the history of why it changed. This was the intent. Drift accumulated across v1.3.x and v1.4.x patch cycles where every fix added a "v1.X.Y: this now does Z" note.
+
+**Concrete cleanup pass:**
+
+- **Audit every `src/research_os/protocols/**/*.yaml`** for inline version mentions matching: `v\d+\.\d+\.\d+`, `as of (v|version)`, `previously this`, `now we`, `was the bug`, `the v1.X.Y stress test`, `bump to BLOCK in v...`. Move historical context to `CHANGELOG.md`. Keep only timeless rules in the live body.
+- **Audit every `TOOL_DEFINITIONS["..."]["description"]` in `src/research_os/server.py`** for same patterns. Tool descriptions get loaded on every routing call; bloated ones cost real tokens.
+- **Audit code comments in `src/research_os/tools/actions/**/*.py`** for inline version narrative. Comments that explain WHY a non-obvious choice was made stay (they're load-bearing). Comments that narrate "v1.3.4 changed this regex from X to Y because turn-22 of the stress test..." get stripped (git blame + CHANGELOG carries this).
+- **Update `last_reviewed:`** date on every touched protocol.
+- **Bump `schema_version:`** if the body's prescriptive content materially changed.
+- **Do NOT touch the `version:` field semantics** — version is the package release, not the protocol revision.
+
+**Lint enforcement (prevents regression):**
+
+- Add `scripts/preflight.py` check: regex over `src/research_os/protocols/**/*.yaml` + `TOOL_DEFINITIONS` description strings for `v\d+\.\d+\.\d+` / `as of v` / `previously` / `now we` patterns. **Warn** on hit; **fail** if hit AND file was changed in this PR (so new additions can't introduce new commentary).
+- Whitelist by file: `CHANGELOG.md`, `docs/RELEASING.md`, `docs/ROADMAP.md`, `docs/CHANGELOG_*.md` (anywhere version-mention is the point).
+- Author guide update in `docs/PROTOCOL_DOCTRINE.md`: explicit rule "no version mentions in protocol bodies; CHANGELOG + git log are authoritative".
+
+**Estimated savings:** today's protocols carry ~50-200 tokens of historical narrative each across 113 protocols → ~6-15K tokens of pure waste per `sys_protocol_get format='full'` call cascade. Tool descriptions add another ~10-30 tokens of narrative per tool across 146 tools → ~2-4K tokens per `sys_tool_describe` sweep. Total context-token savings per session: **~10-20K tokens** with no doctrine loss. On a 22-turn run with cached protocol loads, savings are ~30% of cached-input cost — meaningful at scale.
+
+**Effort:** ~2 weeks (substantial careful editing across 113 protocols + 146 tool descriptions + ~30 code files, with preflight lint regression test). **Lands v1.5.2 — pure hygiene PATCH after v1.5.0 + v1.5.1 ship.**
+
+**Going forward:** every PR that touches a protocol body or tool description gets the preflight lint applied. New "v1.6.0 added X" / "this used to clobber, now ..." narrative can't land. The discipline becomes structural rather than aspirational.
+
+---
+
 ## Suggested release sequence
 
 | Version | Themes | Effort | Headline |
 |---|---|---|---|
 | **v1.5.0** | 1 (audit gaps) + 9 (local reliability log) + 12 (paywall memory) | ~2 weeks | Literature loop is pipeline-mandatory + actually pipes into Discussion; never retry known paywalls |
 | **v1.5.1** | 3 (adaptive friction) + 5 (quick mode) + 11 (stale-state) + 14 (intake re-entry) | ~3 weeks | Stops being overkill on rigorous users / throwaway work / mid-project entry |
+| **v1.5.2** | 26 (version-commentary purge + preflight lint) | ~2 weeks | **Token-waste hygiene PATCH:** strip inline "v1.4.0 added X" / "v1.3.4 fixed Y" narrative from all 113 protocol bodies + 146 tool descriptions + code comments. Preflight lint prevents regression. Estimated ~10-20K tokens saved per session. |
 | **v1.6.0** | 2 (lean variants) + 6 (consolidation phase 1) + 7 (coaching) + 13 (dry-run) + 15 (bundling) | ~7 weeks | Smaller surface (146→90 tools, 113→75 protocols), coaching mode, lean variants for small models |
 | **v1.7.0** | 4 (plugin system + 2 first packs) + 10 (CI stress-test infra) | ~8 weeks | Plugin system + qualitative + humanities packs + per-release multi-model stress matrix |
 | **v1.7.x** | 4 (remaining packs: theory_math, wet_lab, engineering) | ~6 weeks | Domain coverage complete |

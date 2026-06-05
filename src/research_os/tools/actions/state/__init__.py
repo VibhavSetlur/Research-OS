@@ -35,3 +35,16 @@ from research_os.tools.actions.state.scratch import (  # noqa: F401
     scratch_run,
     scratch_write,
 )
+from research_os.tools.actions.state.reliability import (  # noqa: F401  v1.5.0
+    log_event as reliability_log_event,
+    reliability_report,
+)
+from research_os.tools.actions.state.freshness import (  # noqa: F401  v1.5.0
+    state_freshness_check,
+)
+from research_os.tools.actions.state.paywall_memory import (  # noqa: F401  v1.5.0
+    is_known_bad,
+    list_failures,
+    record_failure,
+    step_summary_failures,
+)

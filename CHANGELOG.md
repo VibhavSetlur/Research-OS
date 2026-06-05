@@ -6,6 +6,114 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.5.0] — Close v1.4.0 audit gaps + reliability + paywall memory + stale-state + intake re-entry (2026-06-04)
+
+MINOR release. Closes every audit gap surfaced in the v1.4.0 stress test
+and adds four telemetry-free local utilities: reliability log, paywall
+memory, stale-state detection, intake re-entry detection.
+
+### Added — Theme 1: close v1.4.0 audit gaps
+
+- **`tool_writing_discussion_from_verdicts`** — walks every step's
+  `literature/findings_vs_literature.md`, finds DISAGREES + EXTENDS
+  verdicts with a Discussion implication, and emits one paragraph per
+  verdict into `synthesis/discussion.md` inside HTML-comment markers
+  (idempotent — re-runs replace the auto-block; hand-edits outside the
+  markers are preserved). Closes the v1.4.0 gap where verdicts never
+  reached the Discussion.
+- **`tool_discussion_coverage_audit`** — companion BLOCK gate. Every
+  non-AGREES verdict in any step's `findings_vs_literature.md` must
+  have a matching paragraph in `synthesis/discussion.md` (≥50%
+  key-word overlap). Hard-wired into `writing_discussion.validate` —
+  there is no override flag; coverage of contested literature is the
+  entire point of the Discussion.
+- **`tool_audit_synthesis` default-deny when `papers_downloaded == 0`**.
+  Synthesis blocks when zero PDFs exist across all
+  literature-required steps (`inputs/literature/` also empty). Override
+  path: `override_no_pdfs=true` + `override_rationale=...` for
+  structurally-unavailable literature (closed field, novel
+  measurement).
+- **`literature/literature_per_step` is now pipeline-mandatory in
+  `analysis_plan`**. v1.4.0 routed it via trigger; v1.5.0 hard-wires
+  it as the first gate of `finalize_step`. Steps that are pure data
+  engineering set `literature_required: false` in
+  `step_summary.yaml` to skip.
+- **Missing `scratch/stack_plan.md` — promoted from WARN to BLOCKER**
+  in `tool_audit_step_completeness`. Override is by writing the file
+  with a one-line rationale, not by flag — the cost of writing the
+  rationale down is small and the gap matters at synthesis time.
+
+### Added — Theme 9: telemetry-free local reliability log
+
+- **`tool_reliability_log_event`** — append one JSONL line per
+  significant occurrence (gate fire, recovery, abandon, tool error,
+  protocol start/complete, override used, stale state, paywall skipped)
+  to `workspace/.os_state/reliability.jsonl`. No project content, no
+  PII — payloads are redacted (strings >80 chars truncated; nested
+  dicts walked). Never phones home.
+- **`tool_reliability_report`** — produce a redacted markdown summary
+  at `workspace/logs/reliability_report.md` the researcher can paste
+  into a GitHub issue when filing a regression report.
+
+### Added — Theme 11: stale-state detection + cross-step coherence
+
+- **`tool_state_freshness_check`** — auto-called by `sys_boot`.
+  Surfaces a "stale state — reconfirm?" prompt when (a)
+  `workspace/state.json` mtime > 30 days, (b)
+  `workspace/citations.md` older than newest
+  `inputs/literature/*.pdf`, or (c) per-step `.prov.json` sidecars
+  point to scripts that no longer exist. Returns is_stale + signals +
+  prompt_for_ai for the AI to surface.
+- **`tool_audit_coherence`** — cross-step coherence audit. Scores
+  every paragraph in `synthesis/paper.md` against every step's
+  `conclusions.md` via Jaccard shingle overlap (no embedding model
+  required). Paragraphs scoring < 0.05 in Results / Discussion /
+  Intro / Conclusion are flagged orphan — catches the failure mode
+  where prose carried over from a prior chat about an abandoned
+  step. Writes `workspace/logs/coherence_audit.md`.
+
+### Added — Theme 12: paywall + permanent-error memory
+
+- **`workspace/.os_state/tool_failures.jsonl`** logs URL/DOI tried +
+  error + timestamp + tool.
+- **`tool_failure_record` / `tool_failure_check` / `tool_failure_list`**
+  expose the cache to protocols.
+- **`tool_literature_download` and `tool_literature_search_and_save`**
+  now pre-check the cache before retrying. Paywall / 404 / 403 errors
+  auto-mark `permanent=true` so the cache survives across chats.
+
+### Added — Theme 14: intake re-entry detection
+
+- **`tool_intake_freshness`** — returns `recommended_depth: full |
+  refresh-only | skip` based on `inputs/intake.md` substance + age
+  (default fresh window 90 days). Skip when substantive AND edited in
+  the last 90 days; refresh-only when substantive but older. Also
+  flags whether ≥1 numbered step has `conclusions.md` so
+  `mid_pipeline_entry` becomes the default routing.
+- **`guidance/project_startup`** now calls `tool_intake_freshness` as
+  its first substantive step (skips autofill when fresh, routes to
+  `mid_pipeline_entry` when steps already exist).
+
+### Improved
+
+- **`sys_boot`** now returns a `freshness` block (is_stale + signals +
+  prompt_for_ai) so the AI surfaces drift signals on the first turn.
+- **`session_resume`** explicitly calls `tool_state_freshness_check`
+  before the resume brief.
+- **Orphan tool sweep** — every v1.5.0 tool is referenced from at
+  least one protocol; preflight verifies tool refs resolve.
+
+### Validation
+
+- `python scripts/preflight.py` — 14/14
+- `python -m pytest -q` — 508 passed (492 baseline + 9 new in
+  `tests/unit/test_v150.py`; one existing audit test updated for the
+  v1.5.0 stack_plan WARN→BLOCK semantics)
+- `ruff check src/ tests/ scripts/` — clean
+- Tool count: 146 → 156. Protocol count unchanged at 113.
+
+---
+
 ## [1.4.3] — Roadmap published (2026-06-04)
 
 PATCH release. Docs-only — no code or behaviour change. Publishes

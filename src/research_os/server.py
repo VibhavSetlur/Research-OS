@@ -1012,11 +1012,15 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
     # ── Audit ─────────────────────────────────────────────────────────
     "tool_audit_synthesis": {
-        "description": "Audit a generated manuscript for completeness, claim grounding, and citation coverage.",
+        "description": "Audit a generated manuscript for completeness, claim grounding, and citation coverage. v1.5.0: also default-denies when zero PDFs are present across literature-required steps (override via override_no_pdfs=true + override_rationale).",
         "category": "audit",
         "inputSchema": {
             "type": "object",
-            "properties": {"paper_path": {"type": "string"}},
+            "properties": {
+                "paper_path": {"type": "string"},
+                "override_no_pdfs": {"type": "boolean", "description": "v1.5.0 — bypass the zero-PDF default-deny. Must be paired with override_rationale."},
+                "override_rationale": {"type": "string"},
+            },
             "required": ["paper_path"],
         },
     },
@@ -2085,6 +2089,122 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    # ------------------------------------------------------------------
+    # v1.5.0 — Theme 12: paywall + permanent-error memory.
+    # ------------------------------------------------------------------
+    "tool_failure_record": {
+        "short": "Record a tool failure to workspace/.os_state/tool_failures.jsonl (paywall, 404, etc.). v1.5.0.",
+        "description": "Persist a per-tool failure so subsequent calls skip known-bad URLs / DOIs. Reasons that auto-mark `permanent`: paywall, permanent_404, permanent_403, no_pdf_found, permanent_error. tool_literature_download + tool_literature_search_and_save check this before retrying.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "tool": {"type": "string"},
+                "target": {"type": "string"},
+                "reason": {"type": "string"},
+                "error_text": {"type": "string"},
+                "permanent": {"type": "boolean"},
+            },
+            "required": ["tool", "target", "reason"],
+        },
+    },
+    "tool_failure_check": {
+        "short": "Is this URL/DOI known-bad (paywall, prior failure)? v1.5.0.",
+        "description": "Pre-check before retrying a download. Returns known_bad=true if the target is in workspace/.os_state/tool_failures.jsonl with permanent=true OR has >=3 prior failed attempts.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"target": {"type": "string"}},
+            "required": ["target"],
+        },
+    },
+    "tool_failure_list": {
+        "short": "List recent tool failures (audit / debugging). v1.5.0.",
+        "description": "Return the most recent tool_failures.jsonl entries with summary statistics.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer"}},
+        },
+    },
+    # ------------------------------------------------------------------
+    # v1.5.0 — Theme 9: telemetry-free local reliability log.
+    # ------------------------------------------------------------------
+    "tool_reliability_log_event": {
+        "short": "Append a structural event (gate fire, tool error, recovery) to workspace/.os_state/reliability.jsonl. v1.5.0.",
+        "description": "Append one line to workspace/.os_state/reliability.jsonl with event_type + protocol + model_profile + a small redacted payload. No project content, no PII — used by the maintainer (and the researcher when filing a bug) to spot regressions across releases without phoning home. Allowed event types: gate_fire, gate_recover, gate_abandon, tool_error, tool_success, protocol_start, protocol_complete, override_used, stale_state_detected, paywall_skipped.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "event_type": {"type": "string"},
+                "protocol_name": {"type": "string"},
+                "model_profile": {"type": "string"},
+                "payload": {"type": "object", "additionalProperties": True},
+            },
+            "required": ["event_type"],
+        },
+    },
+    "tool_reliability_report": {
+        "short": "Produce redacted markdown summary of workspace/.os_state/reliability.jsonl. v1.5.0.",
+        "description": "Aggregates the local reliability log into a markdown summary at workspace/logs/reliability_report.md. Counts events by type + protocol + model_profile; surfaces top gate-fire and tool-error patterns. Contains no project content — safe to paste into a GitHub issue when filing a regression report.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    # ------------------------------------------------------------------
+    # v1.5.0 — Theme 11: stale-state detection + cross-step coherence.
+    # ------------------------------------------------------------------
+    "tool_state_freshness_check": {
+        "short": "Detect stale workspace state (state.json > 30d, citations older than newest PDF, orphan provenance). v1.5.0.",
+        "description": "Auto-called by sys_boot. If state.json mtime > stale_after_days (default 30), OR workspace/citations.md older than the newest inputs/literature/*.pdf, OR any per-step .prov.json points to a script that no longer exists, returns is_stale=true + a prompt_for_ai string the AI surfaces as a 'reconfirm before continuing?' question. Cheap; safe to call at every boot.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "stale_after_days": {"type": "integer"},
+            },
+        },
+    },
+    "tool_audit_coherence": {
+        "short": "Verify every Discussion/Results/Intro paragraph in synthesis/paper.md maps back to a step's conclusions.md. v1.5.0.",
+        "description": "Cross-step coherence audit. For each paragraph in synthesis/paper.md (Results / Discussion / Introduction / Conclusion sections), scores its key-phrase overlap against every step's conclusions.md. Paragraphs with score < 0.05 are flagged as orphan — likely carried over from a prior chat about a step that was later abandoned, or invented without grounding. Writes workspace/logs/coherence_audit.md.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paper_path": {"type": "string"},
+            },
+        },
+    },
+    # ------------------------------------------------------------------
+    # v1.5.0 — Theme 14: intake re-entry detection.
+    # ------------------------------------------------------------------
+    "tool_intake_freshness": {
+        "short": "Return recommended intake depth (full | refresh-only | skip) based on intake.md freshness + step count. v1.5.0.",
+        "description": "Decides whether project_startup should fully autofill intake or skip / refresh-only. inputs/intake.md missing or stub → full. Exists with >500 substantive chars + edited in last fresh_window_days → skip. Older than fresh_window_days but substantive → refresh-only. Also reports mid_pipeline_entry_recommended=true when >=1 numbered step has conclusions.md.",
+        "category": "data",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "fresh_window_days": {"type": "integer"},
+            },
+        },
+    },
+    # ------------------------------------------------------------------
+    # v1.5.0 — Theme 1: writing_discussion verdict-driven paragraphs.
+    # ------------------------------------------------------------------
+    "tool_writing_discussion_from_verdicts": {
+        "short": "Append one Discussion paragraph per non-AGREES verdict in any step's findings_vs_literature.md. v1.5.0.",
+        "description": "Reads every workspace/<step>/literature/findings_vs_literature.md, finds DISAGREES + EXTENDS verdicts that carry a Discussion implication block, and appends one paragraph per verdict to synthesis/discussion.md under HTML-comment-delimited markers (idempotent — re-runs replace the block; hand-edits outside the markers are preserved). Closes the v1.4.0 audit gap where verdicts never reached the Discussion.",
+        "category": "synthesis",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_discussion_coverage_audit": {
+        "short": "BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph. v1.5.0.",
+        "description": "Companion to tool_writing_discussion_from_verdicts. Walks every step's findings_vs_literature.md and verifies synthesis/discussion.md mentions each DISAGREES/EXTENDS claim (>=50% key-word overlap). Returns status='error' + a blocker list if any verdict is uncovered — tool_writing_discussion's validate step honours this as a hard BLOCK unless override_discussion_coverage=true.",
+        "category": "audit",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 }
 
 
@@ -2939,7 +3059,12 @@ def _handle_tool_data_convert(name, arguments, root):
 def _handle_tool_audit_synthesis(name, arguments, root):
     from research_os.tools.actions.audit import audit_synthesis
 
-    res = audit_synthesis(arguments["paper_path"], root)
+    res = audit_synthesis(
+        arguments["paper_path"],
+        root,
+        override_no_pdfs=bool(arguments.get("override_no_pdfs", False)),
+        override_rationale=str(arguments.get("override_rationale", "")),
+    )
     if res.get("status") != "error":
         return _text(_success(res))
     return _text(_error(res.get("message", "audit failed")))
@@ -4406,6 +4531,92 @@ def _handle_sys_help(name, arguments, root):
     return _text(_success(core))
 
 
+# ---------------------------------------------------------------------------
+# v1.5.0 — new handlers.
+# ---------------------------------------------------------------------------
+
+
+def _handle_tool_reliability_log_event(name, arguments, root):
+    from research_os.tools.actions.state.reliability import log_event
+    return _text(log_event(
+        root,
+        str(arguments.get("event_type", "")),
+        protocol_name=arguments.get("protocol_name"),
+        model_profile=arguments.get("model_profile"),
+        payload=arguments.get("payload") or {},
+    ))
+
+
+def _handle_tool_reliability_report(name, arguments, root):
+    from research_os.tools.actions.state.reliability import reliability_report
+    return _text(reliability_report(root))
+
+
+def _handle_tool_state_freshness_check(name, arguments, root):
+    from research_os.tools.actions.state.freshness import state_freshness_check
+    days = arguments.get("stale_after_days")
+    kwargs = {}
+    if isinstance(days, (int, float)) and days > 0:
+        kwargs["stale_after_days"] = int(days)
+    return _text(state_freshness_check(root, **kwargs))
+
+
+def _handle_tool_audit_coherence(name, arguments, root):
+    from research_os.tools.actions.audit.coherence import audit_coherence
+    return _text(audit_coherence(
+        root,
+        paper_path=str(arguments.get("paper_path") or "synthesis/paper.md"),
+    ))
+
+
+def _handle_tool_failure_record(name, arguments, root):
+    from research_os.tools.actions.state.paywall_memory import record_failure
+    return _text(record_failure(
+        root,
+        tool=str(arguments.get("tool", "")),
+        target=str(arguments.get("target", "")),
+        reason=str(arguments.get("reason", "")),
+        error_text=str(arguments.get("error_text", "")),
+        permanent=bool(arguments.get("permanent", False)),
+    ))
+
+
+def _handle_tool_failure_check(name, arguments, root):
+    from research_os.tools.actions.state.paywall_memory import is_known_bad
+    return _text(is_known_bad(root, str(arguments.get("target", ""))))
+
+
+def _handle_tool_failure_list(name, arguments, root):
+    from research_os.tools.actions.state.paywall_memory import list_failures
+    limit = arguments.get("limit")
+    if isinstance(limit, (int, float)) and limit > 0:
+        return _text(list_failures(root, limit=int(limit)))
+    return _text(list_failures(root))
+
+
+def _handle_tool_intake_freshness(name, arguments, root):
+    from research_os.tools.actions.data.intake_freshness import intake_freshness
+    days = arguments.get("fresh_window_days")
+    kwargs = {}
+    if isinstance(days, (int, float)) and days > 0:
+        kwargs["fresh_window_days"] = int(days)
+    return _text(intake_freshness(root, **kwargs))
+
+
+def _handle_tool_writing_discussion_from_verdicts(name, arguments, root):
+    from research_os.tools.actions.synthesis.discussion_from_verdicts import (
+        emit_discussion_paragraphs,
+    )
+    return _text(emit_discussion_paragraphs(root))
+
+
+def _handle_tool_discussion_coverage_audit(name, arguments, root):
+    from research_os.tools.actions.synthesis.discussion_from_verdicts import (
+        discussion_coverage_audit,
+    )
+    return _text(discussion_coverage_audit(root))
+
+
 _HANDLERS = {
     # routing (call these first)
     "sys_boot": _handle_sys_boot,
@@ -4581,6 +4792,17 @@ _HANDLERS = {
     "tool_dead_end_lessons": _handle_tool_dead_end_lessons,
     "tool_quick_review": _handle_tool_quick_review,
     "sys_dep_inventory": _handle_sys_dep_inventory,
+    # v1.5.0
+    "tool_reliability_log_event": _handle_tool_reliability_log_event,
+    "tool_reliability_report": _handle_tool_reliability_report,
+    "tool_state_freshness_check": _handle_tool_state_freshness_check,
+    "tool_audit_coherence": _handle_tool_audit_coherence,
+    "tool_failure_record": _handle_tool_failure_record,
+    "tool_failure_check": _handle_tool_failure_check,
+    "tool_failure_list": _handle_tool_failure_list,
+    "tool_intake_freshness": _handle_tool_intake_freshness,
+    "tool_writing_discussion_from_verdicts": _handle_tool_writing_discussion_from_verdicts,
+    "tool_discussion_coverage_audit": _handle_tool_discussion_coverage_audit,
 }
 
 # Aliases — keep the AI's life easy when it forgets exact naming.

@@ -202,6 +202,29 @@ def download_literature(
         if not safe_name.lower().endswith((".pdf", ".epub", ".djvu", ".ps")):
             safe_name += ".pdf"
 
+        # v1.5.0 — paywall memory pre-check. Skip download retries when the
+        # URL/DOI is in workspace/.os_state/tool_failures.jsonl with
+        # permanent=true OR has hit the max-retries threshold.
+        try:
+            from research_os.tools.actions.state.paywall_memory import (
+                is_known_bad,
+                record_failure,
+            )
+            prior = is_known_bad(root, url)
+            if prior.get("known_bad"):
+                return {
+                    "status": "skipped",
+                    "message": (
+                        f"Skipped (known-bad target): "
+                        f"{prior.get('reason')} "
+                        f"(last attempt {prior.get('last_attempt_ts')})"
+                    ),
+                    "known_bad": True,
+                    "reason": prior.get("reason"),
+                }
+        except Exception:
+            record_failure = None  # type: ignore[assignment]
+
         if not skip_unpaywall:
             oa = _check_unpaywall(url)
             if not oa["is_oa"]:
@@ -209,6 +232,22 @@ def download_literature(
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(log_path, "a") as f:
                     f.write(f"Paywall warning for {url}: {oa['reason']}\n")
+                if record_failure:
+                    try:
+                        record_failure(
+                            root,
+                            tool="tool_literature_download",
+                            target=url,
+                            reason="paywall",
+                            error_text=oa.get("reason", ""),
+                            permanent=True,
+                        )
+                    except Exception:
+                        # Best-effort logging — the cache is a
+                        # convenience, not a correctness guarantee.
+                        # Swallow any failure so the paywall response
+                        # below still reaches the caller.
+                        pass
                 return {
                     "status": "error",
                     "message": f"Paywall: {oa['reason']}",
@@ -235,6 +274,32 @@ def download_literature(
         try:
             urllib.request.urlretrieve(url, out_path)
         except Exception as e:
+            err_text = str(e)
+            # v1.5.0 — record the failure for paywall memory.
+            if record_failure:
+                reason = "download_failed"
+                permanent_flag = False
+                lower = err_text.lower()
+                if "404" in lower or "not found" in lower:
+                    reason = "permanent_404"
+                    permanent_flag = True
+                elif "403" in lower or "forbidden" in lower:
+                    reason = "permanent_403"
+                    permanent_flag = True
+                try:
+                    record_failure(
+                        root,
+                        tool="tool_literature_download",
+                        target=url,
+                        reason=reason,
+                        error_text=err_text,
+                        permanent=permanent_flag,
+                    )
+                except Exception:
+                    # Cache write is best-effort; the actual download
+                    # error below is what the caller acts on. Don't
+                    # mask the real failure with a cache-write fault.
+                    pass
             return {"status": "error",
                     "message": f"Download failed: {e}"}
 

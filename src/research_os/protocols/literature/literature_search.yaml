@@ -1,6 +1,6 @@
 id: literature_search
 name: Literature Search
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: |
   Systematic search across 2-4 academic databases. Produces a
@@ -73,6 +73,21 @@ steps:
 
       List step literature any time with:
          tool_step_literature_list step_id=<NN_slug>   # or omit for all steps
+
+      v1.5.0 paywall memory (Theme 12): tool_literature_download
+      auto-skips URLs / DOIs that have already failed permanently
+      (paywall, 404, 403). On retries from a fresh chat:
+         tool_failure_check target=<url-or-doi>
+      returns known_bad=true if the target is in the local file
+      `workspace/.os_state/failures-jsonl`. The download tool calls
+      this internally; surface
+         tool_failure_list  limit=20
+      to the researcher when several downloads keep skipping — they
+      may need to add the PDF manually to inputs/literature/ or skip
+      that citation. The internal recorder
+         tool_failure_record  tool=... target=... reason=...
+      is also called automatically by the download tool when an
+      attempt fails (paywall / 404 / 403 mark permanent=true).
 
   - id: forward_citation_walk
     name: Forward-citation walk (catch the recent extensions)

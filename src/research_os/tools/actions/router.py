@@ -297,6 +297,24 @@ def sys_boot(root: Path) -> dict[str, Any]:
                 "STATE.md will let the next chat resume cleanly."
             )
 
+        # v1.5.0 — auto-check stale-state signals (Theme 11). Cheap;
+        # surfaces a "reconfirm?" prompt when the workspace has drifted
+        # since the last active session.
+        freshness = {"is_stale": False, "signals": [], "prompt_for_ai": ""}
+        try:
+            from research_os.tools.actions.state.freshness import (
+                state_freshness_check,
+            )
+            res = state_freshness_check(root)
+            if res.get("status") == "success":
+                freshness = {
+                    "is_stale": bool(res.get("is_stale", False)),
+                    "signals": list(res.get("signals", []))[:5],
+                    "prompt_for_ai": str(res.get("prompt_for_ai", "")),
+                }
+        except Exception as e:
+            logger.debug("state_freshness_check skipped: %s", e)
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -327,6 +345,7 @@ def sys_boot(root: Path) -> dict[str, Any]:
             "handoff_recommended": handoff_recommended,
             "handoff_hint": handoff_hint,
             "n_finalized_steps": n_finalized,
+            "freshness": freshness,
             "advice": _boot_advice(pause, active_plan, state, cfg),
         }
     except Exception as e:

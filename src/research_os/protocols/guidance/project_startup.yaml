@@ -1,6 +1,6 @@
 id: project_startup
 name: Project Startup
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
 trigger: Second protocol every new project — and any time inputs/ changes substantially.
@@ -32,9 +32,41 @@ steps:
       notes into the relevant folders. Do NOT proceed further until at least
       one input exists.
 
+  - id: check_intake_freshness
+    name: Skip / refresh / regenerate based on intake freshness (v1.5.0)
+    description: |
+      MANDATORY before autofill_intake. The v1.4.0 startup always
+      regenerated intake — even mid-pipeline, even when the researcher
+      had already approved a high-quality intake last week. Wasted a
+      turn and (worse) sometimes regressed an approved intake into a
+      machine-default one.
+
+      v1.5.0 fix:
+
+        tool_intake_freshness  → returns {recommended_depth, mid_pipeline_entry_recommended}
+
+      recommended_depth values:
+        full         — intake.md missing, stub, or contains template
+                       markers. Continue to autofill_intake.
+        refresh-only — intake.md is substantive but > 90 days old. Read
+                       it, surface a 2-sentence summary to the
+                       researcher, ask whether anything has changed.
+                       Do NOT regenerate.
+        skip         — intake.md is substantive and < 90 days old. Skip
+                       autofill_intake entirely; jump to
+                       profile_each_dataset.
+
+      mid_pipeline_entry_recommended == true means at least one numbered
+      step has conclusions.md. Load `guidance/mid_pipeline_entry`
+      instead of continuing project_startup — the researcher is
+      resuming, not starting.
+
   - id: autofill_intake
     name: Auto-fill Intake from Researcher Dumps
     description: |
+      ONLY when check_intake_freshness returned recommended_depth='full'.
+      Skip otherwise.
+
       Call tool_intake_autofill (no args).
       This:
         - infers domain from columns / file extensions / context keywords

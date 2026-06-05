@@ -1,6 +1,6 @@
 id: literature_per_step
 name: Per-Step Literature Loop (find → download → cite → validate)
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |

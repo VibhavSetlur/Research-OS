@@ -38,3 +38,9 @@ from research_os.tools.actions.audit.redteam import (  # noqa: F401
     redteam_scaffold,
     write_response_template,
 )
+from research_os.tools.actions.audit.coherence import (  # noqa: F401  v1.5.0
+    audit_coherence,
+)
+from research_os.tools.actions.audit.step_literature import (  # noqa: F401  v1.5.0
+    audit_step_literature,
+)
