@@ -131,6 +131,8 @@ def test_top_level_actions_namespace_is_minimal():
       - protocol.py — YAML loader + protocol-completion injector
       - router.py   — sys_boot + tool_route + trigger-based hierarchy
       - semantic.py — embedding-based semantic router (sibling of router)
+      - listers.py  — flat protocol + tool catalog listers (re-exports
+                       from protocol.py + reads server.TOOL_DEFINITIONS)
 
     Anything else MUST be moved into the appropriate subpackage (state/,
     data/, exec/, search/, research/, audit/, synthesis/, memory/)."""
@@ -145,7 +147,7 @@ def test_top_level_actions_namespace_is_minimal():
         if f.is_file() and f.suffix == ".py"
     )
     assert flat_py_files == [
-        "__init__.py", "protocol.py", "router.py", "semantic.py",
+        "__init__.py", "listers.py", "protocol.py", "router.py", "semantic.py",
     ], (
         f"Unexpected flat .py files in tools/actions/: {flat_py_files}. "
         "Move them into the right subpackage."

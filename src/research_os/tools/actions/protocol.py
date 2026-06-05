@@ -521,6 +521,142 @@ def list_protocols() -> list[dict]:
     return out
 
 
+def _shorten(text: str, limit: int = 160) -> str:
+    """Return the first line of ``text``, hard-capped at ``limit`` chars."""
+    if not text:
+        return ""
+    first = str(text).strip().split("\n", 1)[0].strip()
+    if len(first) > limit:
+        first = first[: limit - 1].rstrip() + "…"
+    return first
+
+
+def _iter_protocol_files() -> list[tuple[str, Path, str]]:
+    """Yield (name, yaml_file, pack_or_core) for every addressable protocol.
+
+    Scans the core ``PROTOCOLS_DIR`` plus every pack-registered
+    ``protocols_dir``. ``pack_or_core`` is the literal string ``"core"``
+    for in-tree core protocols, else the pack name.
+    """
+    out: list[tuple[str, Path, str]] = []
+    for yaml_file in sorted(PROTOCOLS_DIR.rglob("*.yaml")):
+        if "light" in yaml_file.parts:
+            continue
+        if yaml_file.name.startswith("_"):
+            continue
+        rel = yaml_file.relative_to(PROTOCOLS_DIR).with_suffix("")
+        name = str(rel).replace("\\", "/")
+        out.append((name, yaml_file, "core"))
+    for pack_name, pdir in _pack_protocol_dirs_safe().items():
+        if not pdir.exists():
+            continue
+        for yaml_file in sorted(pdir.rglob("*.yaml")):
+            if yaml_file.name.startswith("_"):
+                continue
+            rel = yaml_file.relative_to(pdir).with_suffix("")
+            inner = str(rel).replace("\\", "/")
+            # Pack protocols are addressed as ``<pack>/<inner>`` from
+            # core; preserve the prefix even when the YAML already lives
+            # inside a ``<pack>/`` sub-folder.
+            if inner.startswith(f"{pack_name}/"):
+                name = inner
+            else:
+                name = f"{pack_name}/{inner}"
+            out.append((name, yaml_file, pack_name))
+    return out
+
+
+def list_protocols_flat(
+    *,
+    category: str | None = None,
+    pack: str | None = None,
+    include_pack_protocols: bool = True,
+) -> list[dict]:
+    """Flat protocol catalog with category + pack + routing metadata.
+
+    Each entry::
+
+        {
+          "name": "guidance/session_boot",
+          "category": "guidance",
+          "pack_or_core": "core",
+          "intent_class": "session",
+          "tier": None,        # Phase 8 will populate
+          "version": "1.11.0",
+          "description_short": "First protocol of every session ..."
+        }
+
+    Args:
+      category:  Filter to a single category (first path segment, e.g.
+                 ``"guidance"``, ``"audit"``). ``None`` = no filter.
+      pack:     Filter to a single source: ``"core"`` or a pack name.
+                ``None`` = no filter.
+      include_pack_protocols:  When ``False``, skip every pack-contributed
+                 protocol regardless of ``pack``. Defaults to ``True``.
+
+    Reads the router index once to map each protocol to its
+    ``intent_class``. Protocols that exist on disk but are missing from
+    the router index appear with ``intent_class=None``.
+    """
+    # One-shot router-index pull so each protocol's intent_class lookup
+    # is O(1). The router cache is internal; we don't reach into it.
+    try:
+        from research_os.tools.actions.router import _load_index
+        index = _load_index()
+    except Exception:
+        index = {}
+    router_protocols = (index.get("protocols") or {}) if isinstance(index, dict) else {}
+
+    out: list[dict] = []
+    for name, yaml_file, source in _iter_protocol_files():
+        if not include_pack_protocols and source != "core":
+            continue
+        if pack is not None and source != pack:
+            continue
+        # Category = first path segment (before any "/"). Pack protocols
+        # also expose a category — the directory the file sits in inside
+        # the pack tree. For ``humanities/close_reading`` that's
+        # ``humanities`` itself; for ``humanities/research/foo`` it's
+        # ``research``.
+        parts = name.split("/")
+        if source == "core":
+            cat = parts[0] if parts else ""
+        else:
+            # Drop pack prefix; first remaining segment is the category.
+            inner_parts = parts[1:] if len(parts) > 1 else parts
+            cat = inner_parts[0] if len(inner_parts) > 1 else source
+        if category is not None and cat != category:
+            continue
+
+        intent_class = None
+        version = None
+        description = ""
+        router_entry = router_protocols.get(name) if isinstance(router_protocols, dict) else None
+        if isinstance(router_entry, dict):
+            intent_class = router_entry.get("intent_class")
+        try:
+            with open(yaml_file) as f:
+                data = yaml.safe_load(f) or {}
+            description = data.get("description") or router_entry.get("summary", "") if router_entry else (data.get("description") or "")
+            version = data.get("version")
+            if intent_class is None:
+                intent_class = data.get("intent_class")
+        except Exception:
+            pass
+
+        out.append({
+            "name": name,
+            "category": cat,
+            "pack_or_core": source,
+            "intent_class": intent_class,
+            "tier": None,            # Phase 8 will populate
+            "version": str(version) if version is not None else None,
+            "description_short": _shorten(description),
+        })
+    out.sort(key=lambda e: (e["pack_or_core"], e["category"], e["name"]))
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Pipeline ordering
 # ---------------------------------------------------------------------------

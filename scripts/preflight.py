@@ -106,13 +106,16 @@ def check_flat_namespace_is_minimal():
       - protocol.py — loader + cross-protocol injection
       - router.py   — trigger-based hierarchical router
       - semantic.py — embedding-based semantic router (sibling of router)
+      - listers.py  — flat protocol + tool catalog listers
     """
     actions_dir = REPO_ROOT / "src" / "research_os" / "tools" / "actions"
     flat = sorted(
         f.name for f in actions_dir.iterdir()
         if f.is_file() and f.suffix == ".py"
     )
-    expected = {"__init__.py", "protocol.py", "router.py", "semantic.py"}
+    expected = {
+        "__init__.py", "listers.py", "protocol.py", "router.py", "semantic.py",
+    }
     return set(flat) == expected, f"{flat}"
 
 

@@ -155,10 +155,34 @@ def _try_semantic_route(
     # doesn't look for an active_plan that was never persisted.
     effective_complexity = "high" if (is_complex and decomposition) else "low"
 
-    alternatives = [
-        c["id"] for c in (sem.get("candidates") or [])
-        if c.get("id") != primary_id and c.get("id") in protocols
-    ][:4]
+    # Top-3 alternatives with their semantic scores so callers can see
+    # the runner-ups and re-route deliberately.
+    alternatives_full = []
+    for c in (sem.get("candidates") or []):
+        cid = c.get("id")
+        if cid == primary_id or cid not in protocols:
+            continue
+        cand_data = protocols.get(cid) or {}
+        try:
+            score_val = float(c.get("score", 0.0))
+        except (TypeError, ValueError):
+            score_val = 0.0
+        alternatives_full.append({
+            "name": cid,
+            "score": round(score_val, 4),
+            "intent_class": cand_data.get("intent_class"),
+            "why_matched": (
+                f"Semantic similarity {round(score_val, 3)} on "
+                f"intent_class={cand_data.get('intent_class') or '?'}"
+            ),
+        })
+        if len(alternatives_full) >= 3:
+            break
+
+    why_matched_primary = (
+        f"Semantic similarity {round(float(sem['candidates'][0]['score']), 3)} "
+        f"(confidence={confidence}) on intent_class={intent_class or '?'}"
+    )
 
     response: dict[str, Any] = {
         "status": "success",
@@ -168,9 +192,12 @@ def _try_semantic_route(
         "primary_protocol": primary_id,
         "shortcut_tool": shortcut_tool,
         "decomposition": decomposition,
-        "alternatives": alternatives,
+        "alternatives": alternatives_full,
         "ambiguous_alternatives": [],
         "matched_triggers": [],         # semantic path doesn't surface raw triggers
+        "why_matched": why_matched_primary,
+        "tier": None,                   # Phase 8 will populate
+        "tier_transition": None,        # Phase 8 will populate
         "complexity": effective_complexity,
         "ask_user": None,
         "why": (
@@ -583,6 +610,7 @@ def route_request(
             from research_os.tools.actions.state.quick_mode import quick_route
             qr = quick_route(root, prompt)
             if qr.get("is_quick"):
+                quick_trigger = qr.get("matched_trigger")
                 return {
                     "status": "success",
                     "resolved_level": 0,
@@ -593,7 +621,13 @@ def route_request(
                     "decomposition": [],
                     "alternatives": [],
                     "ambiguous_alternatives": [],
-                    "matched_triggers": [qr.get("matched_trigger")],
+                    "matched_triggers": [quick_trigger] if quick_trigger else [],
+                    "why_matched": (
+                        f"quick-mode trigger: {quick_trigger}"
+                        if quick_trigger else "quick-mode (no explicit trigger)"
+                    ),
+                    "tier": None,
+                    "tier_transition": None,
                     "complexity": "quick",
                     "ask_user": None,
                     "why": qr.get("advice"),
@@ -715,6 +749,28 @@ def route_request(
             candidates_l3 if l3_ambiguous else [],
         )
 
+        # Build per-result `why_matched` for the primary + alternatives.
+        primary_matched = (
+            shortcut_hit["matched"] if shortcut_hit
+            else (l3_winner["matched"] if l3_winner else [])
+        )
+        primary_why_matched = _format_why_matched(
+            primary_matched, l1_winner, l3_winner["data"] if l3_winner else None,
+        )
+        alternatives_full = [
+            {
+                "name": c["name"],
+                "score": int(c.get("score", 0)),
+                "intent_class": (c.get("data") or {}).get("intent_class"),
+                "why_matched": _format_why_matched(
+                    c.get("matched", []),
+                    (c.get("data") or {}).get("intent_class"),
+                    c.get("data"),
+                ),
+            }
+            for c in l3_alternatives[:3]
+        ]
+
         response: dict[str, Any] = {
             "status": "success",
             "resolved_level": resolved_level,
@@ -723,14 +779,14 @@ def route_request(
             "primary_protocol": primary_name,
             "shortcut_tool": shortcut_tool,
             "decomposition": decomposition if resolved_level == 3 else [],
-            "alternatives": [c["name"] for c in l3_alternatives],
+            "alternatives": alternatives_full,
             "ambiguous_alternatives": (
                 [c["name"] for c in candidates_l3[:3]] if l3_ambiguous else []
             ),
-            "matched_triggers": (
-                shortcut_hit["matched"] if shortcut_hit
-                else (l3_winner["matched"] if l3_winner else [])
-            ),
+            "matched_triggers": primary_matched,
+            "why_matched": primary_why_matched,
+            "tier": None,                # Phase 8 will populate
+            "tier_transition": None,     # Phase 8 will populate
             "complexity": "high" if is_complex else "low",
             "ask_user": ask_user,
             "why": _why_hier(l1_winner, l2_winner, l3_winner, shortcut_hit),
@@ -855,6 +911,30 @@ def _ask_user_for_level(
     return None
 
 
+def _format_why_matched(
+    matched: list,
+    intent_class: str | None,
+    protocol_data: dict | None = None,
+) -> str:
+    """One-line "why this matched" — trigger phrase + intent_class.
+
+    Surfaces the *actual* trigger string that fired plus the intent class
+    the protocol belongs to so the caller can decide whether to accept
+    the route, ask the user, or override.
+    """
+    triggers = [str(t) for t in (matched or [])][:3]
+    cls = intent_class or (
+        (protocol_data or {}).get("intent_class") if protocol_data else None
+    )
+    if triggers and cls:
+        return f"triggers: {', '.join(triggers)} · intent_class={cls}"
+    if triggers:
+        return f"triggers: {', '.join(triggers)}"
+    if cls:
+        return f"intent_class={cls} (no literal trigger; semantic-only)"
+    return "no triggers; no intent_class"
+
+
 def _why_hier(
     l1: str | None,
     l2: str | None,
@@ -959,6 +1039,9 @@ def _fallback_response(
         "alternatives": [],
         "ambiguous_alternatives": [],
         "matched_triggers": [],
+        "why_matched": "No trigger or semantic match.",
+        "tier": None,
+        "tier_transition": None,
         "complexity": "high" if is_complex else "low",
         "ask_user": (
             "I couldn't match your prompt to a protocol. Which best fits "
@@ -1006,6 +1089,12 @@ def _shortcut_response(
         "alternatives": [],
         "ambiguous_alternatives": [],
         "matched_triggers": shortcut_hit["matched"],
+        "why_matched": (
+            "Cross-intent shortcut on triggers: "
+            f"{', '.join(str(t) for t in shortcut_hit['matched'][:3])}"
+        ),
+        "tier": None,
+        "tier_transition": None,
         "complexity": "high" if is_complex else "low",
         "ask_user": None,
         "why": (

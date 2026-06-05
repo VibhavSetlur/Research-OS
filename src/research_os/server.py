@@ -348,6 +348,50 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "protocol",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    "tool_protocols_list": {
+        "short": "Flat protocol catalog with category + pack + intent_class. Filterable.",
+        "description": "Returns a flat list of every protocol with structured metadata: name, category, pack_or_'core', intent_class, tier (null until Phase 8), version, description_short. Filter with `category` (e.g. 'audit', 'guidance'), `pack` ('core' or a pack name), and `include_pack_protocols` (default true). Cheaper for the AI to scan than sys_protocol_list when it only needs the protocols in one category or one pack. Use this when a researcher asks 'what audit protocols do you have?' — narrower than dumping the full catalog.",
+        "category": "protocol",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Filter to a single category (first path segment, e.g. 'guidance', 'audit', 'synthesis').",
+                },
+                "pack": {
+                    "type": "string",
+                    "description": "Filter to a single source: 'core' or a pack name ('humanities', 'qualitative', etc.).",
+                },
+                "include_pack_protocols": {
+                    "type": "boolean",
+                    "description": "When false, skip every pack-contributed protocol. Default true.",
+                },
+            },
+        },
+    },
+    "tool_tools_list": {
+        "short": "Flat tool catalog with scope + summary + required-fields. Filterable.",
+        "description": "Returns a flat list of every registered MCP tool: name, scope ('core' or pack name), summary_first_line, input_schema_required_fields, deprecated, alias_of. Filter with `scope` ('all'|'core'|<pack-name>'), `include_deprecated` (default false), and `match_substring` (case-insensitive needle against name + summary). Use this to discover the tool surface at a glance without pulling every full description; call sys_tool_describe for one tool's full body when you actually need it.",
+        "category": "system",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {
+                    "type": "string",
+                    "description": "'all' | 'core' | a pack name. Default 'all'.",
+                },
+                "include_deprecated": {
+                    "type": "boolean",
+                    "description": "When true, include alias entries flagged as deprecated. Default false.",
+                },
+                "match_substring": {
+                    "type": "string",
+                    "description": "Restrict to tools whose name or summary contains this substring (case-insensitive).",
+                },
+            },
+        },
+    },
     "sys_protocol_next": {
         "description": "Recommend the next protocol to run based on current workspace state and the pipeline.",
         "category": "protocol",
@@ -2834,6 +2878,61 @@ def _handle_sys_protocol_list(name, arguments, root):
     try:
         protocols = list_protocols()
         return _text(_success({"protocols": protocols}))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
+def _handle_tool_protocols_list(name, arguments, root):
+    from research_os.tools.actions.listers import list_protocols_flat
+
+    try:
+        cat = arguments.get("category")
+        pack = arguments.get("pack")
+        include_packs = arguments.get("include_pack_protocols", True)
+        if include_packs is None:
+            include_packs = True
+        protocols = list_protocols_flat(
+            category=cat if isinstance(cat, str) and cat else None,
+            pack=pack if isinstance(pack, str) and pack else None,
+            include_pack_protocols=bool(include_packs),
+        )
+        return _text(_success({
+            "protocols": protocols,
+            "count": len(protocols),
+            "filters": {
+                "category": cat or None,
+                "pack": pack or None,
+                "include_pack_protocols": bool(include_packs),
+            },
+        }))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
+def _handle_tool_tools_list(name, arguments, root):
+    from research_os.tools.actions.listers import list_tools_flat
+
+    try:
+        scope = arguments.get("scope") or "all"
+        include_deprecated = bool(arguments.get("include_deprecated", False))
+        match = arguments.get("match_substring")
+        tools = list_tools_flat(
+            TOOL_DEFINITIONS,
+            aliases=_ALIASES,
+            deprecated_aliases=_DEPRECATED_ALIASES,
+            scope=scope,
+            include_deprecated=include_deprecated,
+            match_substring=match if isinstance(match, str) and match else None,
+        )
+        return _text(_success({
+            "tools": tools,
+            "count": len(tools),
+            "filters": {
+                "scope": scope,
+                "include_deprecated": include_deprecated,
+                "match_substring": match or None,
+            },
+        }))
     except Exception as e:
         return _text(_error(str(e)))
 
@@ -6058,6 +6157,8 @@ _HANDLERS = {
     # protocol
     "sys_protocol_get": _handle_sys_protocol_get,
     "sys_protocol_list": _handle_sys_protocol_list,
+    "tool_protocols_list": _handle_tool_protocols_list,
+    "tool_tools_list": _handle_tool_tools_list,
     "sys_protocol_next": _handle_sys_protocol_next,
     "sys_protocol_validate": _handle_sys_protocol_validate,
     "sys_protocol_log": _handle_sys_protocol_log,
