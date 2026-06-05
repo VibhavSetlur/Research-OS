@@ -1,6 +1,6 @@
 id: dead_end_routing
 name: Dead-End Routing
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: What to do when an experiment path fails or a methodology proves unworkable. Preserves the failed path and routes back into the pipeline.
 trigger: An experiment's conclusions.md decision is "dead-end", or the researcher asks to abandon the current direction.

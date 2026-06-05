@@ -387,25 +387,42 @@ def audit_synthesis(
                 total_pdfs += sum(1 for _ in project_lit_dir.glob("*.pdf"))
             report["literature_required_steps"] = lit_required_steps
             report["total_pdfs_across_workspace"] = total_pdfs
+            # v1.5.1 — require BOTH override_no_pdfs=true AND a non-empty
+            # override_rationale. v1.5.0 stress audit caught the case
+            # where the boolean alone silently bypassed the gate and left
+            # no audit trail.
+            override_active = (
+                bool(override_no_pdfs) and bool(override_rationale.strip())
+            )
             if (
                 lit_required_steps
                 and total_pdfs == 0
-                and not override_no_pdfs
+                and not override_active
             ):
-                zero_pdf_block = (
-                    f"DEFAULT-DENY: synthesis blocked because zero PDFs "
-                    f"are present across {len(lit_required_steps)} "
-                    "literature-required step(s) (and inputs/literature/ "
-                    "is also empty). A paper with no grounded literature "
-                    "is structurally a sketch. Either run "
-                    "tool_literature_search_and_save for each step's "
-                    "claims, OR call tool_audit_synthesis with "
-                    "`override_no_pdfs=true` + `override_rationale=...` "
-                    "if literature is structurally unavailable (closed "
-                    "field, novel measurement, etc.)."
-                )
+                if override_no_pdfs and not override_rationale.strip():
+                    zero_pdf_block = (
+                        "DEFAULT-DENY: synthesis blocked because "
+                        "override_no_pdfs=true was passed WITHOUT an "
+                        "override_rationale. The override is "
+                        "audit-trail-bearing — supply a one-sentence "
+                        "rationale explaining why literature is "
+                        "structurally unavailable for this project."
+                    )
+                else:
+                    zero_pdf_block = (
+                        f"DEFAULT-DENY: synthesis blocked because zero PDFs "
+                        f"are present across {len(lit_required_steps)} "
+                        "literature-required step(s) (and inputs/literature/ "
+                        "is also empty). A paper with no grounded literature "
+                        "is structurally a sketch. Either run "
+                        "tool_literature_search_and_save for each step's "
+                        "claims, OR call tool_audit_synthesis with "
+                        "`override_no_pdfs=true` + `override_rationale=...` "
+                        "if literature is structurally unavailable (closed "
+                        "field, novel measurement, etc.)."
+                    )
                 gate_blockers.append(zero_pdf_block)
-            elif override_no_pdfs and override_rationale:
+            elif override_active:
                 report["override_no_pdfs"] = True
                 report["override_rationale"] = override_rationale
         except Exception as e:
@@ -1403,15 +1420,49 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
     if scripts:
         stack_plan = step_dir / "scratch" / "stack_plan.md"
         if not stack_plan.exists():
-            blockers.append(
-                f"{step_dir.name}: no scratch/stack_plan.md — language + "
-                "library choice not documented. Run methodology/pick_tool_stack "
-                "to record the field-practice rationale (R Bioconductor for "
-                "bulk DE, Python scanpy for scRNA-seq, R survival for Cox PH, "
-                "etc.). v1.5.0 BLOCKS — write at minimum a one-line "
-                "rationale to scratch/stack_plan.md."
-            )
-            info["missing_stack_plan"] = True
+            # v1.5.1 adaptive friction: honour active self-certification +
+            # per-step skip annotation before BLOCKing. The rule still
+            # applies; the gate just downgrades to a warning when the
+            # researcher has explicitly accepted accountability outside RO.
+            skipped = False
+            try:
+                from research_os.tools.actions.state.certifications import (
+                    has_active_certification,
+                    step_has_skip_annotation,
+                )
+                cert = has_active_certification(
+                    root, "stack_plan", step_id=step_dir.name
+                )
+                skip = step_has_skip_annotation(
+                    root, step_dir.name, "stack_plan"
+                )
+                if cert.get("active") or skip.get("has_skip"):
+                    why = (
+                        f"self-certified ({cert.get('certification', {}).get('rationale', '')[:80]})"
+                        if cert.get("active")
+                        else f"step skip annotation ({skip.get('reason', '')[:80]})"
+                    )
+                    warnings.append(
+                        f"{step_dir.name}: no scratch/stack_plan.md — "
+                        f"downgraded to warning, {why}."
+                    )
+                    info["stack_plan_skipped"] = why
+                    skipped = True
+            except Exception:
+                skipped = False
+            if not skipped:
+                blockers.append(
+                    f"{step_dir.name}: no scratch/stack_plan.md — language + "
+                    "library choice not documented. Run methodology/pick_tool_stack "
+                    "to record the field-practice rationale (R Bioconductor for "
+                    "bulk DE, Python scanpy for scRNA-seq, R survival for Cox PH, "
+                    "etc.). v1.5.0 BLOCKS — write at minimum a one-line "
+                    "rationale to scratch/stack_plan.md. v1.5.1: this gate "
+                    "downgrades to a warning when tool_self_certify(domain="
+                    "'stack_plan', ...) has been called OR when conclusions.md "
+                    "carries <!-- ro:skip stack_plan, reason: ... -->."
+                )
+                info["missing_stack_plan"] = True
 
     # 5. Multi-script steps must declare a pipeline.yaml (sub-task DAG).
     #    Tightened in v1.0.0: a step that emits outputs in MULTIPLE

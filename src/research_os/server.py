@@ -2205,6 +2205,74 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "audit",
         "inputSchema": {"type": "object", "properties": {}},
     },
+    # ------------------------------------------------------------------
+    # v1.5.1 — Theme 3: adaptive friction (rigor signals + self-certify).
+    # ------------------------------------------------------------------
+    "tool_rigor_signals_scan": {
+        "short": "v1.5.1 — score project rigor 0-100 from methods.md, citations, git, preregistration, scripts, prior step summaries.",
+        "description": "v1.5.1 (Theme 3) — infers rigor signals across 6 dimensions and returns trust_score 0-100 + per-signal breakdown + recommended_strictness (light when >=75, normal when >=50, strict when <50). Audits can scale strictness via tool_resolve_gate_strictness.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_resolve_gate_strictness": {
+        "short": "v1.5.1 — resolve effective gate strictness (light | normal | strict) from researcher_config + trust_score.",
+        "description": "v1.5.1 (Theme 3) — researcher_config.gate_strictness can be light | normal | strict | auto. auto follows the rigor_signals_scan trust_score. Returns the resolved value + source (config | auto | default). Light downgrades most blockers to notes; strict keeps full enforcement.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_self_certify": {
+        "short": "v1.5.1 — persist a researcher self-certification (domain + scope + rationale).",
+        "description": "v1.5.1 (Theme 3) — researcher with deep expertise can self-certify equivalent work was done outside RO. Domains: literature_loop (alias lit_loop), stack_plan, preregistration, sensitivity_analysis, code_review, reproducibility. Persisted to workspace/researcher_certifications.yaml; audits downgrade matching blockers to notes (still surfaced for transparency).",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "domain": {"type": "string"},
+                "scope": {"type": "string"},
+                "rationale": {"type": "string"},
+            },
+            "required": ["domain", "scope", "rationale"],
+        },
+    },
+    "tool_list_certifications": {
+        "short": "v1.5.1 — list active researcher self-certifications.",
+        "description": "v1.5.1 (Theme 3) — return the list of currently-active researcher_certifications.yaml entries. Use when an audit blocker says 'consider tool_self_certify' to see whether a cert already exists.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    # ------------------------------------------------------------------
+    # v1.5.1 — Theme 5: quick mode + promote-to-step.
+    # ------------------------------------------------------------------
+    "tool_quick_route": {
+        "short": "v1.5.1 — detect throwaway / sanity-check / exploratory intent and short-circuit protocol load.",
+        "description": "v1.5.1 (Theme 5) — call before tool_route on every prompt. If the prompt matches a quick trigger ('just make me a plot', 'sanity check', 'exploratory only', 'quick look', 'throwaway viz', 'quick check', 'scratch'), returns is_quick=true + complexity='quick' + recommended_tool='tool_scratch_write'. Quick mode bypasses protocols + audit gates; results land under workspace/scratch/. Researcher can later promote via tool_promote_to_step.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"prompt": {"type": "string"}},
+            "required": ["prompt"],
+        },
+    },
+    "tool_promote_to_step": {
+        "short": "v1.5.1 — retroactively wrap a scratch result in proper provenance (new numbered step + sidecar + summary).",
+        "description": "v1.5.1 (Theme 5) — promote a workspace/scratch/ artifact into a proper numbered step. Creates the next workspace/NN_<slug>/ folder, copies the scratch file into outputs/figures/ (or step root for non-image files), emits .prov.json sidecar pointing back to the original scratch, writes minimal conclusions.md + step_summary.yaml. By default literature_required=false on the promoted step.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scratch_path": {"type": "string"},
+                "step_slug": {"type": "string"},
+                "rationale": {"type": "string"},
+            },
+            "required": ["scratch_path", "step_slug"],
+        },
+    },
+    "tool_project_tier_strictness": {
+        "short": "v1.5.1 — map researcher_config.project_tier (throwaway | sketch | production) -> default gate_strictness.",
+        "description": "v1.5.1 (Theme 5) — researcher_config.project_tier sets the default audit strictness across a whole project. throwaway -> light, sketch -> normal, production -> strict. Returns the resolved tier + strictness.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 }
 
 
@@ -2709,9 +2777,49 @@ def _handle_sys_path_list(name, arguments, root):
 
 
 def _handle_tool_path_finalize(name, arguments, root):
+    from research_os.tools.actions.audit.step_literature import (
+        audit_step_literature,
+    )
     from research_os.tools.actions.state.path import finalize_path
 
+    # v1.5.1 (carried from v1.5.0 stress audit) — first-gate
+    # literature-loop check. Closes the v1.4.0 gap where
+    # literature_per_step was documented as pipeline-mandatory but
+    # never enforced (autopilot skipped it). Override via
+    # override_literature_gate=true + override_rationale.
+    override_lit = bool(arguments.get("override_literature_gate", False))
+    override_rationale = str(arguments.get("override_rationale", "")).strip()
+    path_name = arguments.get("path_name")
+    step_id = path_name if (path_name and path_name != "main") else None
+    try:
+        lit_audit = audit_step_literature(root, step_id=step_id)
+    except Exception as e:
+        lit_audit = {"status": "error", "message": str(e), "blockers": []}
+    if (
+        lit_audit.get("status") == "error"
+        and lit_audit.get("blockers")
+        and not (override_lit and override_rationale)
+    ):
+        msg = (
+            f"tool_path_finalize blocked by tool_audit_step_literature "
+            f"({len(lit_audit['blockers'])} blocker(s)). "
+            "Either run research/literature_per_step OR pass "
+            "override_literature_gate=true + override_rationale=... to "
+            "proceed. See workspace/logs/step_literature_audit.md."
+        )
+        return _text(_error({
+            "message": msg,
+            "literature_audit": lit_audit,
+        }))
+
     res = finalize_path(arguments.get("path_name"), root)
+    if isinstance(res, dict):
+        res.setdefault("literature_audit", lit_audit)
+        if override_lit and override_rationale:
+            res["literature_override"] = {
+                "override_literature_gate": True,
+                "override_rationale": override_rationale,
+            }
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "finalize failed")))
@@ -4617,6 +4725,54 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
     return _text(discussion_coverage_audit(root))
 
 
+# v1.5.1 — Theme 3 + Theme 5 handlers.
+
+
+def _handle_tool_rigor_signals_scan(name, arguments, root):
+    from research_os.tools.actions.state.rigor_signals import rigor_signals_scan
+    return _text(rigor_signals_scan(root))
+
+
+def _handle_tool_resolve_gate_strictness(name, arguments, root):
+    from research_os.tools.actions.state.rigor_signals import resolve_gate_strictness
+    return _text(resolve_gate_strictness(root))
+
+
+def _handle_tool_self_certify(name, arguments, root):
+    from research_os.tools.actions.state.certifications import self_certify
+    return _text(self_certify(
+        root,
+        domain=str(arguments.get("domain", "")),
+        scope=str(arguments.get("scope", "")),
+        rationale=str(arguments.get("rationale", "")),
+    ))
+
+
+def _handle_tool_list_certifications(name, arguments, root):
+    from research_os.tools.actions.state.certifications import list_certifications
+    return _text(list_certifications(root))
+
+
+def _handle_tool_quick_route(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import quick_route
+    return _text(quick_route(root, str(arguments.get("prompt", ""))))
+
+
+def _handle_tool_promote_to_step(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import promote_to_step
+    return _text(promote_to_step(
+        root,
+        scratch_path=str(arguments.get("scratch_path", "")),
+        step_slug=str(arguments.get("step_slug", "")),
+        rationale=str(arguments.get("rationale", "")),
+    ))
+
+
+def _handle_tool_project_tier_strictness(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import project_tier_strictness
+    return _text(project_tier_strictness(root))
+
+
 _HANDLERS = {
     # routing (call these first)
     "sys_boot": _handle_sys_boot,
@@ -4803,6 +4959,14 @@ _HANDLERS = {
     "tool_intake_freshness": _handle_tool_intake_freshness,
     "tool_writing_discussion_from_verdicts": _handle_tool_writing_discussion_from_verdicts,
     "tool_discussion_coverage_audit": _handle_tool_discussion_coverage_audit,
+    # v1.5.1 — adaptive friction + quick mode.
+    "tool_rigor_signals_scan": _handle_tool_rigor_signals_scan,
+    "tool_resolve_gate_strictness": _handle_tool_resolve_gate_strictness,
+    "tool_self_certify": _handle_tool_self_certify,
+    "tool_list_certifications": _handle_tool_list_certifications,
+    "tool_quick_route": _handle_tool_quick_route,
+    "tool_promote_to_step": _handle_tool_promote_to_step,
+    "tool_project_tier_strictness": _handle_tool_project_tier_strictness,
 }
 
 # Aliases — keep the AI's life easy when it forgets exact naming.

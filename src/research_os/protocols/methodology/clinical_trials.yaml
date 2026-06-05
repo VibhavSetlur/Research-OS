@@ -1,6 +1,6 @@
 id: clinical_trials
 name: Clinical Trial Analysis (CONSORT family)
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for analysing a randomised clinical trial. Names

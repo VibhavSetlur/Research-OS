@@ -1,6 +1,6 @@
 id: synthesis_abstract
 name: Synthesis — Abstract (venue-tailored)
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: Generate a structured / unstructured abstract tuned to the target venue.
 trigger: Researcher asks for "an abstract", OR `research_goal.output_types` includes "abstract", OR called from synthesis_paper.

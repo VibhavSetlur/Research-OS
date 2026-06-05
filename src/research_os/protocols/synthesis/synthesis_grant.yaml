@@ -1,6 +1,6 @@
 id: synthesis_grant
 name: Synthesis — Grant Proposal (funder-tailored)
-version: '1.5.0'
+version: '1.5.1'
 schema_version: '2.0'
 description: Draft a grant proposal narrative tuned to the target funder (NIH / NSF / Wellcome / ERC / DoE / DARPA / industry).
 trigger: Researcher asks "draft a grant" / "write the R01" / "Specific Aims page"; OR `research_goal.output_types` includes "grant".
