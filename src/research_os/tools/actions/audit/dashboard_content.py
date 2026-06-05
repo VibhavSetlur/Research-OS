@@ -64,10 +64,13 @@ def audit_numeric_grounding(
     Returns blockers list of ungrounded numbers (with context).
     """
     # Strip <script>...</script> and <style>...</style> first. The
-    # closing tag pattern allows whitespace before > (e.g. </script >)
-    # — without it the strip leaks script source into the numeric scan.
-    body = re.sub(r"<script\b[^>]*>.*?</\s*script\s*>", "", dashboard_html, flags=re.S | re.I)
-    body = re.sub(r"<style\b[^>]*>.*?</\s*style\s*>", "", body, flags=re.S | re.I)
+    # closing tag pattern uses `</script\b[^>]*>` so it tolerates any
+    # whitespace / attribute garbage that a sloppy renderer might
+    # emit — without it the strip leaks script source into the
+    # numeric scan and CodeQL flags an incomplete-tag-sanitisation
+    # hazard.
+    body = re.sub(r"<script\b[^>]*>.*?</script\b[^>]*>", "", dashboard_html, flags=re.S | re.I)
+    body = re.sub(r"<style\b[^>]*>.*?</style\b[^>]*>", "", body, flags=re.S | re.I)
     body_text = re.sub(r"<[^>]+>", " ", body)
 
     candidate_nums = []
