@@ -1,6 +1,6 @@
 id: project_startup
 name: Project Startup
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
@@ -106,11 +106,11 @@ steps:
       Required calls (parallel; use whichever providers the
       researcher has API keys for — see researcher_config.api_keys):
 
-        tool_search_semantic_scholar query=<domain + research_question>
+        tool_search query=<domain + research_question>
                                      year_min=<current_year-3>
-        tool_search_pubmed         query=<domain + research_question>
+        tool_search         query=<domain + research_question>
                                      year_min=<current_year-3>
-        tool_search_web            query=<central method or dataset name>
+        tool_search            query=<central method or dataset name>
                                      recency_days=180
         tool_research_method       method=<the canonical method the
                                            PI likely expects> domain=<domain>
@@ -122,7 +122,7 @@ steps:
           → fetch every entry.
         - Domain is a recently-active area (single-cell, foundation
           models, LLM-as-judge, …) → also do a -1-year
-          tool_search_arxiv pass.
+          tool_search pass.
 
       Save successful hits to inputs/literature/. Record the search
       itself in workspace/logs/search_log.md (tool_search_* logs
@@ -137,7 +137,7 @@ steps:
       Register the PI brief / context files as the FIRST grounding
       records, so every downstream decision can trace back to the
       source brief:
-        tool_ground_from_context
+        tool_ground
             decision="project_intake"
             context_files=["inputs/context/<brief.md>", ...]
             notes="initial project framing — used to derive the

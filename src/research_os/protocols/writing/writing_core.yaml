@@ -1,6 +1,6 @@
 id: writing_core
 name: Writing — Core Rules
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -50,7 +50,7 @@ rules:
        workspace/<step>/outputs/, or a verified citation."
     - "No vague-evidence phrasing ('many studies have shown', 'most
        researchers agree'); cite explicitly."
-    - "tool_audit_claims and tool_grounding_verify enforce this at
+    - "tool_audit_claims and tool_verify enforce this at
        synthesis time."
   banned_phrases:
     - "it is important to note that"
@@ -114,7 +114,7 @@ rules:
            | tag | claim | evidence_type | source_path | citation_key |
       3. `evidence_type` is one of:
            - workspace_output (an output file path)
-           - workspace_decision (a mem_decision_log entry)
+           - workspace_decision (a mem_log entry)
            - cited_paper (a citation_key)
            - figure (a figure path)
            - table (a table path)
@@ -169,7 +169,7 @@ steps:
       CoVe-style verification on the top-N most load-bearing claims
       (the ones that anchor abstract / discussion paragraphs):
 
-        tool_claim_verify
+        tool_verify
             claim="<verbatim from draft>"
             questions=[
               "Does the cited paper measure the same thing?",
@@ -183,7 +183,7 @@ steps:
       `false` flips the draft sentence into a caveated form ("…in
       contrast to <paper>, which reports …") OR the claim is removed.
 
-      tool_grounding_verify (project-wide scan) runs the audit gate
+      tool_verify (project-wide scan) runs the audit gate
       at finalize:
         - walks workspace/analysis.md decision blocks
         - confirms each decision has a grounding record or inline cite

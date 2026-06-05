@@ -50,6 +50,19 @@ figure_required: true       # tool_audit_step_completeness blocks on empty outpu
 table_required: true        # tool_audit_step_completeness warns on empty outputs/tables/ when true
 literature_required: true   # tool_audit_step_literature blocks on missing findings_vs_literature.md when true
 
+# figures_for_paper — default downstream inclusion policy for every figure
+# produced by this step. The synthesis pipeline (tool_synthesize) reads it
+# to decide which figures get embedded in synthesis/paper.md without an
+# explicit per-figure opt-in. Override per-figure by adding a
+# `figures_for_paper: true|false` frontmatter line to that figure's sibling
+# `<name>.caption.md` sidecar. Preflight check #23 enforces that EVERY
+# figure with a sibling caption sidecar has the field set explicitly
+# (sidecar overrides step-level; one of the two MUST be present).
+#
+#   true   — include this step's figures in the paper by default.
+#   false  — diagnostic / scratch only; skip during synthesis.
+figures_for_paper: true
+
 # ── LITERATURE LOOP (written by tool_audit_step_literature) ─────────
 
 literature:

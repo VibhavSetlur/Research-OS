@@ -1,6 +1,6 @@
 id: defense_prep
 name: Defense / Talk Q&A Prep (thesis / job talk / conference)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -202,7 +202,7 @@ steps:
     name: Post-defense — log what actually came up
     description: |
       After the defense / talk:
-        mem_decision_log "defense Q&A actual questions" with the
+        mem_log "defense Q&A actual questions" with the
         questions that were asked. Future projects in similar
         venues benefit from the reality vs anticipation diff.
 

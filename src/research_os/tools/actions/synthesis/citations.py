@@ -130,6 +130,37 @@ def verify_citation_key(key: str) -> dict[str, Any] | None:
     return None
 
 
+def verify_citation_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
+    """Verify a citation dict using the best available identifier.
+
+    Routing:
+      * ISBN present → tries WorldCat → OpenLibrary → LOC (humanities path).
+      * Otherwise → falls back to Crossref keyword search via
+        :func:`verify_citation_key` using the citation_key / title.
+
+    Returns the verified metadata dict on success, ``None`` otherwise.
+    Always non-raising — verifier failures are swallowed and logged.
+    """
+    try:
+        from research_os.tools.actions.research.citations_isbn import (
+            _extract_isbn,
+            verify_citation_auto,
+        )
+
+        if _extract_isbn(entry):
+            ok, evidence, source_url = verify_citation_auto(entry)
+            if ok:
+                return {**entry, **evidence, "source_url": source_url}
+            return None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"verify_citation_entry ISBN path failed: {e}")
+
+    probe = entry.get("citation_key") or entry.get("title") or ""
+    if not probe:
+        return None
+    return verify_citation_key(probe)
+
+
 def verify_all_in_workspace(root: Path) -> dict[str, Any]:
     """Walk workspace/citations.md and confirm each citation_key resolves."""
     citations_md = root / "workspace" / "citations.md"

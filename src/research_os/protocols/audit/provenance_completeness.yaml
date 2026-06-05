@@ -1,6 +1,6 @@
 id: provenance_completeness
 name: Provenance Completeness Audit (every output has a .prov.json sidecar)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Every figure, table, model artefact, and report output in the workspace
@@ -120,7 +120,7 @@ steps:
         - `rng_seed`                  present
             (null is OK only if the artefact is deterministic-by-
              construction; the audit asks the AI to justify a null
-             seed via mem_decision_log)
+             seed via mem_log)
         - `software.packages`         non-empty
         - `params`                    non-empty (a parameter-free run
                                        still records `{}`; a fully
@@ -200,7 +200,7 @@ steps:
   - id: append_to_methods_and_conclusions
     name: Append to methods.md + conclusions.md
     description: |
-      mem_methods_append:
+      mem_log:
         method="Provenance completeness audit"
         parameters="coverage_threshold=100% for synthesis-cited;
                     >=90% workspace-wide warned at <90%"

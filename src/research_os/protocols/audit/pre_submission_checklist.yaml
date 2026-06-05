@@ -1,6 +1,6 @@
 id: pre_submission_checklist
 name: Pre-Submission Checklist (final ready-to-submit gate)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -219,7 +219,7 @@ steps:
       Every numeric claim must trace to a workspace artefact
       OR a verified citation. Hallucinated numbers are RED.
 
-      Also run tool_grounding_verify on the project's
+      Also run tool_verify on the project's
       decision log — every methodological commitment must have
       been grounded in PROV-O sources. Ungrounded commitments
       are YELLOW (the discussion / limitations should
@@ -245,7 +245,7 @@ steps:
       Each entry is one moment the researcher authorised the AI
       to bypass a quality gate (override_completeness_gate=true
       on tool_synthesize / tool_dashboard_create, or
-      override_gate=true on tool_plan_advance). Per entry,
+      override_gate=true on tool_plan). Per entry,
       confirm with the researcher:
 
         - was the bypass still warranted at submission time?

@@ -1,13 +1,13 @@
 id: writing_analysis_log
 name: Writing — Analysis Log
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Format for structured entries appended to `workspace/analysis.md` —
   the project-wide narrative log a fresh AI session reads top-to-bottom
   to reconstruct what was done. Each entry: a timestamped block per
   numbered analysis step or major decision. The AI calls
-  `mem_analysis_log` to append; this protocol is the format reference.
+  `mem_log` to append; this protocol is the format reference.
 
 entry_template: |
   [{timestamp}] **{step_id} — {status}**
@@ -26,14 +26,14 @@ steps:
   - id: log
     name: Log the Entry
     description: |
-      mem_analysis_log entry=<formatted entry from template>
-      The mem_analysis_log handler timestamps automatically; you only need to
+      mem_log entry=<formatted entry from template>
+      The mem_log handler timestamps automatically; you only need to
       provide the {step_id} {status} ... portion.
 
   - id: refresh_workflow_diagram
     name: Refresh Workflow Diagram
     description: |
-      mem_analysis_log automatically regenerates workspace/workflow.mermaid.
+      mem_log automatically regenerates workspace/workflow.mermaid.
       Spot-check that your new step node appears with the right colour
       (active=yellow, completed=green, dead_end=red).
 

@@ -2,6 +2,11 @@
 #
 # Medieval-manuscript transcription + 2 source-provenance chains
 # + 1 critical-edition draft. Exercises the humanities pack.
+#
+# v1.11.0 — extended to cover essay rendering through humanities_essay.typ,
+# routing to humanities/output/humanities_essay_structure (new in v1.11.0)
+# when project_kind=humanities AND output_type=essay, and ISBN-verifier
+# pass on the bundled monograph citation fixtures.
 
 domain: humanities
 expected_pack: humanities
@@ -11,6 +16,25 @@ protocols_expected:
   - humanities/archival/source_provenance
   - humanities/output/scholarly_edition
 
+# Routing expectations the integration agent reads when wiring the
+# essay-output decision tree. Same project, two output_types — each
+# should land on its own protocol via tool_route.
+routing_expectations:
+  - prompt: "draft the scholarly edition of f.23v with apparatus criticus"
+    project_kind: humanities
+    output_type: edition
+    expected_protocol: humanities/output/scholarly_edition
+  - prompt: "write the essay arguing Bede's chain of intermediaries reshapes the patristic quotation"
+    project_kind: humanities
+    output_type: essay
+    # Protocol planned for v1.11.0 (see SMOKE GAPS — humanities essay structure).
+    # When the protocol exists this assertion passes; until then the
+    # smoke runner records `routing_expectations_unmet` in notes rather
+    # than failing the run.
+    expected_protocol: humanities/output/humanities_essay_structure
+    fallback_protocol: synthesis/synthesis_paper   # acceptable until v1.11.0 protocol lands
+    requires_protocol: humanities/output/humanities_essay_structure
+
 gates_expected_pass:
   - humanities/archival/archival_research:holdings_register_present
   - humanities/archival/source_provenance:chain_unbroken
@@ -18,9 +42,64 @@ gates_expected_pass:
 artifacts_required:
   - inputs/context/project_brief.md
   - inputs/archival/MS_Vespasian_A_i_f23v.meta.json
+  - inputs/citations/monographs.yaml
 
 max_tool_calls: 50
 max_seconds: 30
+
+# ── v1.11.0 synthesis_deliverables ────────────────────────────────────
+#
+# Two deliverables: the canonical scholarly_edition output AND an essay
+# rendered through humanities_essay.typ (template added in v1.11.0).
+synthesis_deliverables:
+  - kind: scholarly_edition
+    path: synthesis/edition.pdf
+    tool: tool_paper_compile_typst
+    args:
+      venue_template: humanities_essay
+    must_succeed: true
+    checks:
+      apparatus_criticus_present: true
+      min_pages: 1
+  - kind: essay
+    path: synthesis/essay.pdf
+    tool: tool_paper_compile_typst
+    args:
+      venue_template: humanities_essay
+    must_succeed: true
+    checks:
+      # The humanities_essay.typ template assertions.
+      margins_inches: 1.25
+      body_size_pt: 12
+      footnote_size_pt: 10
+      blockquote_indent_inches: 0.5
+      headings_unnumbered: true
+      # When humanities_essay_structure protocol exists, it enforces
+      # thesis-paragraph shape + counter-instance + footnote density.
+      uses_protocol: humanities/output/humanities_essay_structure
+
+# ── ISBN verifier expectations ────────────────────────────────────────
+#
+# All monograph citations under inputs/citations/monographs.yaml should
+# pass at least one ISBN verifier (OpenLibrary / WorldCat / LOC).
+# The fixtures ship 3 well-known monographs with stable ISBNs.
+isbn_verifier_expectations:
+  source: inputs/citations/monographs.yaml
+  min_entries: 3
+  all_must_verify: true
+  acceptable_verifiers:
+    - openlibrary
+    - worldcat
+    - loc
+  # Allow offline CI runs: if every verifier returns
+  # reason=unreachable, treat as "skipped" not "failed".
+  network_required: false
+
+cross_deliverable:
+  title_match: true
+  figure_registry_match: true
+  citation_set_match: true
+  shared_bibliography: synthesis/references.bib
 
 canned_responses:
   locate_holding: "Identified BL Cotton Vespasian A.i f.23v; foliation 1-300; IIIF available."

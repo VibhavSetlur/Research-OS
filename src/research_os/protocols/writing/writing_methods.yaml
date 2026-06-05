@@ -1,6 +1,6 @@
 id: writing_methods
 name: Writing — Methods
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Document the methods used in an experiment in workspace/methods.md (append-only).
 trigger: Whenever a method, library, or parameter is chosen — either inside analysis_plan or as a standalone task.
@@ -66,7 +66,7 @@ steps:
   - id: append
     name: Append to methods.md
     description: |
-      mem_methods_append
+      mem_log
         method=<method_name>
         step_number=<NN>
         step_name=<slug>

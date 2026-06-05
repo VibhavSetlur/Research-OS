@@ -1,0 +1,130 @@
+id: lab_meeting_30min
+name: Lab meeting — 30 minutes
+audience: lab_meeting
+duration_minutes: 30
+slide_target_min: 14
+slide_target_max: 18
+tone: informal
+description: |
+  The lab already knows the project. Headline first; backup section
+  carries the alt-method explorations, the path you abandoned, and
+  the sensitivity sweeps the lab will ask about.
+
+slides:
+  - id: title
+    type: title
+    title: "{project_title}"
+    source: synthesis_spec
+    speaker_notes: |
+      30 seconds. Headline finding goes here, not on the title slide
+      for an external talk.
+
+  - id: where_we_left_off
+    type: content
+    title: "Where we left off"
+    source: previous_meeting_notes
+    speaker_notes: |
+      Two bullets recapping the last lab meeting on this project.
+      Skip if this is the first time the project surfaces.
+
+  - id: question
+    type: content
+    title: "{research_question}"
+    source: research_question
+    speaker_notes: |
+      One sentence. The lab knows the why; just re-anchor.
+
+  - id: setup
+    type: content
+    title: "Setup"
+    source: methods
+    speaker_notes: |
+      Dataset, design, n. One slide.
+
+  - id: headline_figure
+    type: figure
+    title: "{headline_finding}"
+    source: focal_figure
+    speaker_notes: |
+      Headline first. The lab will ask follow-ups; you want them
+      asking about the FINDING, not waiting for it.
+
+  - id: detail_a
+    type: figure
+    title: "Detail: {axis_a}"
+    source: detail_figure_a
+    speaker_notes: |
+      First supporting figure. Point at the contrast that drives
+      the headline.
+
+  - id: detail_b
+    type: figure
+    title: "Detail: {axis_b}"
+    source: detail_figure_b
+    speaker_notes: |
+      Second supporting figure. Sensitivity / robustness pass.
+
+  - id: alternative_explanation
+    type: content
+    title: "What ELSE could explain it?"
+    source: limitations
+    speaker_notes: |
+      Three alternative hypotheses + how the data rule each out.
+      The lab will think of these — beat them to it.
+
+  - id: limitations
+    type: content
+    title: "Limitations"
+    source: limitations
+    speaker_notes: |
+      Honest list. Two lines each. The lab respects honesty here.
+
+  - id: next_steps
+    type: content
+    title: "Next steps"
+    source: next_steps
+    speaker_notes: |
+      The ASK. What do you want the lab to weigh in on?
+
+  - id: discussion_prompt
+    type: section
+    title: "Discussion"
+    source: q_and_a
+    speaker_notes: |
+      Hand it over. The lab meeting is half their session; do not
+      monologue past this slide.
+
+  - id: backup_dead_ends
+    type: figure
+    title: "Backup: what we tried that did not work"
+    source: backup_dead_ends
+    speaker_notes: |
+      The path you abandoned + why. Surface only if asked.
+
+  - id: backup_alt_method
+    type: figure
+    title: "Backup: alternative method"
+    source: backup_alt_method
+    speaker_notes: |
+      Method ablation. Surface only if asked.
+
+  - id: backup_sensitivity
+    type: figure
+    title: "Backup: sensitivity sweep"
+    source: backup_sensitivity
+    speaker_notes: |
+      Robustness across hyperparameters / preprocessing choices.
+
+  - id: backup_data_provenance
+    type: figure
+    title: "Backup: data provenance"
+    source: backup_data
+    speaker_notes: |
+      How the dataset was assembled, what was excluded, why.
+
+  - id: backup_compute_cost
+    type: content
+    title: "Backup: compute + wall-clock"
+    source: backup_compute
+    speaker_notes: |
+      The lab cares about this for planning. Numbers.

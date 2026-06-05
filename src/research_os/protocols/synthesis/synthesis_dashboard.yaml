@@ -1,6 +1,6 @@
 id: synthesis_dashboard
 name: Synthesis — Dashboard (paper-as-interactive)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-05'
 description: |
@@ -118,7 +118,7 @@ steps:
   - id: confirm_sources_exist
     name: Confirm Sources
     description: |
-      sys_path_list — verify at least one experiment has outputs/figures/
+      sys_path — verify at least one experiment has outputs/figures/
       or outputs/reports/ content. If not, warn:
         "Dashboard would be empty — run at least one experiment first."
 
@@ -134,7 +134,7 @@ steps:
   - id: finalize_all_steps
     name: Finalize Every Step's READMEs
     description: |
-      For each completed step (sys_path_list), run tool_path_finalize.
+      For each completed step (sys_path), run tool_path_finalize.
       This normalises every subfolder README (environment/, literature/,
       context/, data/output/, outputs/) AND auto-synthesises missing
       <name>.summary.md plain-English sidecars for every figure.

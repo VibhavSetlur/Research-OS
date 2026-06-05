@@ -1,6 +1,6 @@
 id: uncertainty_quantification
 name: Uncertainty Quantification + Calibration (predictive models)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -197,7 +197,7 @@ steps:
       unless conditional coverage is explicitly demonstrated;
       out-of-distribution data is not covered.
 
-      mem_methods_append + writing/writing_limitations integration.
+      mem_log + writing/writing_limitations integration.
 
 expected_outputs:
   - workspace/.uq/target.md

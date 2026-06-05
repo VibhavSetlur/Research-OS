@@ -235,3 +235,182 @@ def quote_provenance(name: str, arguments: dict, root: Path) -> Any:
             "the report against this file."
         ),
     })
+
+
+# ── AUDIT-026: COREQ / SRQR standard selector ────────────────────────
+import shutil as _shutil_audit026  # noqa: E402
+
+def _err(message: str) -> list:
+    try:
+        from mcp.types import TextContent
+        return [TextContent(type="text", text=json.dumps(
+            {"status": "error", "message": message}, indent=2
+        ))]
+    except ImportError:  # pragma: no cover
+        class _Stub:
+            def __init__(self, text): self.type, self.text = "text", text
+        return [_Stub(json.dumps(
+            {"status": "error", "message": message}, indent=2
+        ))]
+
+
+# Methods that drive the COREQ choice. Anything not in this set defaults
+# to SRQR (the broader standard).
+_COREQ_METHODS = frozenset({
+    "interview", "interviews",
+    "focus_group", "focus_groups", "focus-group", "focus-groups",
+    "interview_and_focus_groups", "interviews_and_focus_groups",
+})
+
+_STANDARD_ITEM_COUNTS = {"coreq": 32, "srqr": 21}
+
+
+def _find_checklists_dir() -> Path | None:
+    """Locate the bundled checklist templates directory."""
+    here = Path(__file__).resolve()
+    # In-package: src/research_os/data/checklists/
+    for n in (2, 3, 4, 5, 6, 7):
+        try:
+            cand = here.parents[n] / "research_os" / "data" / "checklists"
+        except IndexError:
+            break
+        if cand.exists():
+            return cand
+    # Source checkout: walk up to <repo>/templates/checklists.
+    for n in (2, 3, 4, 5, 6, 7):
+        try:
+            cand = here.parents[n] / "templates" / "checklists"
+        except IndexError:
+            break
+        if cand.exists():
+            return cand
+    return None
+
+
+def _pick_standard_from_design(design_path: Path) -> tuple[str, str]:
+    if not design_path.exists():
+        return "srqr", (
+            f"{design_path.name} not found; defaulting to SRQR (broader "
+            "standard, covers ethnography / document analysis / mixed)."
+        )
+    try:
+        import yaml
+        design = yaml.safe_load(design_path.read_text()) or {}
+    except Exception as exc:  # noqa: BLE001
+        return "srqr", (
+            f"Could not parse {design_path.name} ({exc}); defaulting to SRQR."
+        )
+    method = str(design.get("method", "")).strip().lower()
+    if not method:
+        return "srqr", (
+            f"{design_path.name} has no 'method' field; defaulting to SRQR."
+        )
+    if method in _COREQ_METHODS:
+        return "coreq", (
+            f"study_design.method='{method}' matches COREQ scope "
+            "(interviews and/or focus groups)."
+        )
+    return "srqr", (
+        f"study_design.method='{method}' is outside COREQ's interview/focus-group "
+        "scope; SRQR is the appropriate standard."
+    )
+
+
+def _next_coverage_version(out_dir: Path, standard: str) -> int:
+    existing = list(out_dir.glob(f"{standard}_coverage_v*.yaml"))
+    versions = []
+    for p in existing:
+        stem = p.stem
+        suffix = stem.rsplit("_v", 1)[-1]
+        try:
+            versions.append(int(suffix))
+        except ValueError:
+            continue
+    return (max(versions) + 1) if versions else 1
+
+
+@register_tool(
+    "tool_qualitative_select_standard",
+    schema={
+        "type": "object",
+        "properties": {
+            "standard": {
+                "type": "string",
+                "enum": ["coreq", "srqr", "auto"],
+                "description": (
+                    "Reporting standard to use. 'auto' (default) reads "
+                    "workspace/study_design.yaml and picks COREQ for "
+                    "interview/focus-group studies, SRQR otherwise."
+                ),
+                "default": "auto",
+            },
+            "study_design_path": {
+                "type": "string",
+                "description": (
+                    "Path under the project root to the study-design YAML. "
+                    "Defaults to 'workspace/study_design.yaml'."
+                ),
+                "default": "workspace/study_design.yaml",
+            },
+        },
+        "required": [],
+    },
+    description=(
+        "Pick COREQ vs SRQR for a qualitative manuscript and copy the "
+        "matching checklist template (32-item COREQ or 21-item SRQR) "
+        "into workspace/checklists/<standard>_coverage_v<N>.yaml so "
+        "the walk_checklist step has a populated file to mark up. "
+        "Step 1 of the qualitative_report_format protocol."
+    ),
+)
+def select_standard(name: str, arguments: dict, root: Any) -> Any:
+    root = Path(root)
+    requested = str(arguments.get("standard", "auto")).lower()
+    design_path = root / str(
+        arguments.get("study_design_path", "workspace/study_design.yaml")
+    )
+
+    if requested in {"coreq", "srqr"}:
+        standard = requested
+        reason = f"Caller specified standard='{requested}'."
+    elif requested == "auto":
+        standard, reason = _pick_standard_from_design(design_path)
+    else:
+        return _err(
+            f"Unknown standard '{requested}'. Use one of: coreq, srqr, auto."
+        )
+
+    item_count = _STANDARD_ITEM_COUNTS[standard]
+    src_dir = _find_checklists_dir()
+    if src_dir is None:
+        return _err(
+            "Bundled checklist templates not found. Expected "
+            "templates/checklists/ in source checkout or "
+            "research_os/data/checklists/ in installed wheel."
+        )
+    src_file = src_dir / f"{standard}_{item_count}items.yaml"
+    if not src_file.exists():
+        return _err(
+            f"Checklist template missing: {src_file}. "
+            "Reinstall research-os or restore the templates/checklists/ dir."
+        )
+
+    out_dir = root / "workspace" / "checklists"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    version = _next_coverage_version(out_dir, standard)
+    dest = out_dir / f"{standard}_coverage_v{version}.yaml"
+    _shutil_audit026.copyfile(src_file, dest)
+
+    return _ok({
+        "standard": standard.upper(),
+        "reason": reason,
+        "item_count": item_count,
+        "source_template": str(src_file),
+        "coverage_path": str(dest.relative_to(root)),
+        "version": version,
+        "next_step": (
+            f"Walk every item in {dest.relative_to(root)} and mark "
+            "status: present | partial | absent for each, citing the "
+            "manuscript section in the 'location' field."
+        ),
+    })

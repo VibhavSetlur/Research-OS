@@ -1,6 +1,6 @@
 id: synthesis_from_inputs
 name: Synthesis — From Inputs (no workspace analysis required)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Synthesis for the case where the researcher has finished analyses,
@@ -71,7 +71,7 @@ steps:
         - sys_file_list directory="inputs/literature"
         - sys_file_list directory="inputs/context"
         - sys_file_list directory="inputs/"          (catch loose files)
-        - sys_path_list                              (any existing steps)
+        - sys_path                              (any existing steps)
 
       For each artefact, record what TYPE it is — results table, draft
       figure, prior report, notes, draft section, methods note, citation
@@ -110,7 +110,7 @@ steps:
   - id: create_shadow_step
     name: Create a shadow workspace step
     description: |
-      sys_path_create name="<short_slug>_shadow_synthesis"
+      sys_path name="<short_slug>_shadow_synthesis"
         hypothesis="(inputs-derived synthesis — no in-RO analysis)"
 
       The folder exists ONLY so the standard synthesis tooling has

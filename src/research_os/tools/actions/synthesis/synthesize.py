@@ -669,6 +669,39 @@ def _replace_citation_keys(text: str, key_to_num: dict[str, int]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _autonomy_level(root: Path) -> str:
+    """Read ``interaction.autonomy_level`` from ``researcher_config.yaml``.
+
+    Falls back to ``"supervised"`` when the file or block is absent. Uses
+    ``normalize_autonomy_level`` so ``coaching`` aliases to ``supervised``
+    and unknown values default safely.
+    """
+    try:
+        from research_os.tools.actions.state.config import (
+            _config_path,
+            normalize_autonomy_level,
+        )
+        import yaml as _yaml
+
+        cfg_path = _config_path(Path(root))
+        if not cfg_path.exists():
+            return "supervised"
+        cfg = _yaml.safe_load(cfg_path.read_text()) or {}
+        raw = (cfg.get("interaction") or {}).get("autonomy_level")
+        return normalize_autonomy_level(raw)
+    except Exception:
+        return "supervised"
+
+
+# Canonical per-section ordering used by the autopilot short-circuit. The
+# order mirrors the synthesis_paper.yaml turn sequence (methods → results →
+# discussion → introduction → abstract) so a manual multi-turn invocation
+# and a single autopilot call produce identical artefacts.
+_AUTO_PROCEED_SECTION_ORDER = (
+    "methods", "results", "discussion", "introduction", "abstract",
+)
+
+
 def synthesize_workspace(
     root: Path,
     *,
@@ -676,10 +709,94 @@ def synthesize_workspace(
     section: str | None = None,
     output_type: str = "paper",
     citation_style: str = "vancouver",
+    auto_proceed: bool = False,
 ) -> dict[str, Any]:
-    """Build a section, OR — when section is None — assemble the full output."""
+    """Build a section, OR — when section is None — assemble the full output.
+
+    ``auto_proceed`` (autopilot short-circuit, AUDIT-063)
+    ----------------------------------------------------
+    When ``True`` AND ``interaction.autonomy_level == "autopilot"``,
+    iterate every section in ``_AUTO_PROCEED_SECTION_ORDER`` (writing each
+    ``synthesis/<section>.md`` exactly as a per-section call would) and
+    THEN run the full assembly that stitches ``synthesis/paper.md`` plus
+    the bibliography. The result is the all-sections-in-one-call shortcut
+    that the protocol documents for autopilot mode.
+
+    When ``True`` but the autonomy level is anything other than
+    ``"autopilot"`` (``manual``, ``supervised``, ``coaching``), the call
+    returns an error — the multi-turn enforcement is the whole point of
+    the non-autopilot modes and the short-circuit must not bypass it.
+
+    When ``False`` (the default), behaviour is unchanged: pass ``section``
+    for a per-section build or omit it for a single-shot full assembly.
+    Backwards-compatible with every existing caller.
+    """
     try:
         from research_os.project_ops import ensure_lazy_dir
+
+        # ── auto_proceed short-circuit (AUDIT-063) ────────────────────
+        if auto_proceed:
+            level = _autonomy_level(root)
+            if level != "autopilot":
+                return {
+                    "status": "error",
+                    "error": (
+                        "auto_proceed=true requires interaction.autonomy_level "
+                        f"== 'autopilot' (current: '{level}'). The multi-turn "
+                        "section-per-call cadence is enforced in manual / "
+                        "supervised / coaching modes to preserve the "
+                        "deliberative pace a real paper deserves. To use the "
+                        "short-circuit, set interaction.autonomy_level: "
+                        "autopilot in inputs/researcher_config.yaml."
+                    ),
+                }
+            # Run every section in canonical order, then final assembly.
+            # Each per-section call writes its own synthesis/<id>.md just
+            # as a manual multi-turn invocation would.
+            sections_written: list[dict[str, Any]] = []
+            for sec in _AUTO_PROCEED_SECTION_ORDER:
+                sec_res = synthesize_workspace(
+                    root,
+                    output_format=output_format,
+                    section=sec,
+                    output_type=output_type,
+                    citation_style=citation_style,
+                    auto_proceed=False,
+                )
+                if sec_res.get("status") == "error" or "error" in sec_res:
+                    return {
+                        "status": "error",
+                        "error": (
+                            f"auto_proceed: section '{sec}' failed — "
+                            f"{sec_res.get('error') or sec_res.get('message')}"
+                        ),
+                        "sections_completed": [s["section"] for s in sections_written],
+                    }
+                sections_written.append(sec_res)
+
+            # Final assembly stitches paper.md from the already-written
+            # per-section files plus the bibliography.
+            full = synthesize_workspace(
+                root,
+                output_format=output_format,
+                section=None,
+                output_type=output_type,
+                citation_style=citation_style,
+                auto_proceed=False,
+            )
+            if "error" in full:
+                return full
+            full["auto_proceed"] = True
+            full["autonomy_level"] = "autopilot"
+            full["sections_processed"] = list(_AUTO_PROCEED_SECTION_ORDER)
+            full["per_section_paths"] = [s.get("path") for s in sections_written]
+            full["message"] = (
+                "auto_proceed: wrote "
+                f"{len(sections_written)} sections + full assembly "
+                "in one call (autopilot short-circuit)."
+            )
+            return full
+
         synthesis_dir = ensure_lazy_dir(root, "synthesis")
 
         experiments = _gather_experiment_outputs(root)

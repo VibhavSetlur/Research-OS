@@ -1,6 +1,6 @@
 id: scope_clarification
 name: Scope Clarification (vague intent → workable scope)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Convert a vague, broad, or cross-disciplinary research ask into a
@@ -79,7 +79,7 @@ steps:
         E. TOO BROAD FOR ONE TURN — the prompt bundles a whole project's
            worth of work. Likely route: build an active plan via
            tool_route's complexity=high path; walk per turn via
-           tool_plan_turn.
+           tool_plan.
 
       Record the chosen bucket in `docs/scope_notes.md` (append, do
       not overwrite). The downstream protocol uses this to skip
@@ -156,7 +156,7 @@ steps:
   - id: log_the_narrowing
     name: Log the narrowing (so re-asks don't reset)
     description: |
-      mem_decision_log
+      mem_log
         context = "Scope clarification"
         selected = "<narrowed intent>"
         rationale = "<bucket + the researcher's clarifying answer>"

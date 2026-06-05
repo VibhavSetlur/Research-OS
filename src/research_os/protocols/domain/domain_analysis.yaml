@@ -1,6 +1,6 @@
 id: domain_analysis
 name: Domain Analysis
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Classify the research domain, surface the relevant reporting standards, and list domain-specific biases to watch for.
 trigger: After project_startup, OR whenever the data class changes (e.g. new modality added to inputs/raw_data/).
@@ -52,8 +52,8 @@ steps:
   - id: ground_with_search
     name: Ground the Classification in Literature
     description: |
-      tool_search_web query="<domain> reporting standard <year>"
-      tool_search_semantic_scholar query="<domain> systematic review"
+      tool_search query="<domain> reporting standard <year>"
+      tool_search query="<domain> systematic review"
       Cite at least one anchor source in docs/domain_summary.md. The standards
       list above is a starting point — verify it's current.
 

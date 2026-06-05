@@ -1,6 +1,6 @@
 id: pilot_study
 name: Pilot Study
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Small-N preliminary run to de-risk a full study: feasibility, instrument
@@ -50,7 +50,7 @@ steps:
     description: |
       Use the planned full-study protocol AS-IS — do not skip steps to make
       the pilot easier. The whole point is to find friction. Log issues as
-      they happen (mem_analysis_log).
+      they happen (mem_log).
 
   - id: feasibility_report
     name: Feasibility Report

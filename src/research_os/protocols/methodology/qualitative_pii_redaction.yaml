@@ -1,6 +1,6 @@
 id: qualitative_pii_redaction
 name: Qualitative PII Redaction (HIPAA / IRB / GDPR-safe transcripts before coding)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-05'
 description: |
@@ -88,7 +88,7 @@ steps:
   - id: create_step
     name: Create the redaction step
     description: |
-      sys_path_create name="qual_pii_redact"
+      sys_path name="qual_pii_redact"
         hypothesis="(de-identification — no analytic hypothesis)"
 
       Write `workspace/<step>/step_summary.yaml` with the

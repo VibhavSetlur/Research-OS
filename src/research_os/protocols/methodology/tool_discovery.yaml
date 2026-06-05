@@ -1,6 +1,6 @@
 id: tool_discovery
 name: Tool / Library Discovery
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Find the right Python / R / Julia library for a specific task and verify it can be installed.
 trigger: AI needs a library for a task but is uncertain which one to use.
@@ -19,7 +19,7 @@ steps:
   - id: search_and_collect
     name: Search & Collect Candidates
     description: |
-      tool_search_web query=<query>   limit=8
+      tool_search query=<query>   limit=8
       For each promising hit, capture:
         - Library name
         - Official documentation URL
@@ -43,11 +43,11 @@ steps:
   - id: log_decision
     name: Log the Library Choice
     description: |
-      mem_methods_append
+      mem_log
         method=<the task>
         implementation=<library>==<version>
         justification=<why this library over alternatives>
-      mem_decision_log
+      mem_log
         context="Library selection for <task>"
         selected=<library>
         rationale=<criteria + alternatives rejected>

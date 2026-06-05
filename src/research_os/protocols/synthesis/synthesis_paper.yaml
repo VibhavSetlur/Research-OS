@@ -1,6 +1,6 @@
 id: synthesis_paper
 name: Synthesis — Paper (IMRAD, venue-tailored)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -36,6 +36,18 @@ description: |
   `autopilot` the AI may proceed automatically through turns 2-10
   WITHOUT a fresh prompt, but each section is still its own
   tool_synthesize call + its own audit pass.
+
+  **Autopilot short-circuit (AUDIT-063).** When
+  `interaction.autonomy_level == autopilot`, tool_synthesize accepts
+  `auto_proceed=true` to process every section (methods → results →
+  discussion → introduction → abstract) AND run the full assembly in
+  ONE call. Each per-section file is still written exactly as the
+  multi-turn flow would write it, so the audit trail is identical;
+  the short-circuit just removes the round-trip overhead when the
+  researcher has already opted into hands-off operation. Passing
+  `auto_proceed=true` in `manual` / `supervised` / `coaching` modes
+  returns an error — the multi-turn cadence is enforced precisely
+  because it is the deliberation pace those modes exist to provide.
 
   Citation auto-verify is now part of final_assembly — `tool_citations_verify`
   runs as a HARD gate; any citation still in `pending verification`
@@ -162,7 +174,7 @@ steps:
         - Word count ≥ methods_words_minimum.
         - Every method block has implementation + version + parameters + assumptions.
         - Every cited reference resolves (tool_citations_verify called).
-      Iterate via mem_methods_append if the word/grounding bar fails.
+      Iterate via mem_log if the word/grounding bar fails.
 
   - id: draft_results
     name: Draft Results Section
@@ -216,11 +228,27 @@ steps:
       Assembles paper.md (+ paper.tex if requested), writes synthesis/references.bib
       with deduplicated verified citations capped at 40.
 
+      Figure auto-embed. When researcher_config.synthesis.figures_auto_embed
+      is true (default), tool_synthesize calls tool_paper_figures_autoembed
+      at the end of the assembly so every step's outputs/figures/ (with
+      `figures_for_paper: true` in step_summary.yaml AND in the figure's
+      .caption.md frontmatter) lands in the right paper section. Sidecar
+      frontmatter fields drive placement: `section_hint` (which IMRAD
+      section), `figure_priority` (order within the section), `alt_text`
+      (accessibility), `interactive_required`. Multi-paragraph captions
+      split into a headline + a "Note:" appendix. The pass is idempotent —
+      re-running tool_synthesize after a manual figure edit preserves
+      the edit. The companion tool_audit_figure_coverage BLOCKs when a
+      step has a figure on disk but the paper doesn't embed it (opt out
+      by setting `figures_for_paper: false` on the step OR sidecar).
+
       Then:
         tool_audit_synthesis paper_path="synthesis/paper.md"
         tool_citations_verify
-      Read both reports. Address BLOCKER warnings (missing sections, hallucinated
-      citations, causal-language hits). Re-assemble.
+        tool_audit_figure_coverage
+      Read all three reports. Address BLOCKER warnings (missing sections,
+      hallucinated citations, causal-language hits, orphan figures).
+      Re-assemble.
 
   - id: compile_pdf
     name: Compile to PDF (DEFAULT for any serious draft, not optional)

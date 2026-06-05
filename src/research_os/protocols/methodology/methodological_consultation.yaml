@@ -1,6 +1,6 @@
 id: methodological_consultation
 name: Methodological Consultation (teach / explain / advise — no project commit)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Lightweight protocol for the case where the researcher wants to
@@ -77,7 +77,7 @@ steps:
       Even for methods the AI knows well, a literature pass:
         tool_research_method query="<method> tutorial" limit=5
         tool_research_method query="<method> failure modes" limit=5
-        tool_search_web query="<method> when does it fail"
+        tool_search query="<method> when does it fail"
 
       Surfaces the field's current canonical teaching reference and
       the most recent best-practice / critique paper. Without this

@@ -1,8 +1,8 @@
 id: qualitative_report_format
 name: Qualitative Report Format (COREQ for interviews | SRQR general)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-05'
 description: |
   Picks a reporting standard based on study type. COREQ (32 items,
   Tong, Sainsbury, & Craig 2007) is purpose-built for interview and
@@ -69,16 +69,20 @@ steps:
   - id: select_standard
     name: Select the reporting standard for this study
     description: |
-      Read workspace/study_design.yaml. If method is interviews or
-      focus_groups (or both), the standard is COREQ. For ethnography,
-      document analysis, mixed qualitative, or anything else, SRQR.
-      If the study combines interviews with substantial non-interview
-      data (e.g. interviews + field observations), default to SRQR
-      and supplement with the COREQ interview-specific items as a
-      sub-checklist. Record the choice and the reason in
-      workspace/memos/reporting_standard_choice.md. Use
-      sys_file_list to confirm the standard's checklist YAML exists
-      under workspace/checklists/ (or sys_file_read to inspect it).
+      Call tool_qualitative_select_standard with standard='auto' (the
+      default). The tool reads workspace/study_design.yaml, picks
+      COREQ for interview / focus-group studies and SRQR for everything
+      else, and copies the matching bundled checklist
+      (templates/checklists/<standard>_<N>items.yaml — 32 items for
+      COREQ, 21 for SRQR) into
+      workspace/checklists/<standard>_coverage_v<N>.yaml so the next
+      step has a populated file to mark up. If the study combines
+      interviews with substantial non-interview data (e.g. interviews
+      + field observations), pass standard='srqr' explicitly and add
+      the COREQ interview-specific items as a sub-checklist in a
+      follow-up call. Record the final choice and the reason
+      (returned in the tool result) in
+      workspace/memos/reporting_standard_choice.md.
 
   - id: walk_checklist
     name: Walk every item in the chosen standard

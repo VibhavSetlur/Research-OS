@@ -136,6 +136,56 @@ tool_stack:
   field_practice_overrides_preference: true   # true → R Bioconductor wins for DE even if Python listed first
   cite_field_practice_when_choosing: true     # require literature citation per language choice
 
+# ── Synthesis pipeline ─────────────────────────────────────────────────
+# Controls how tool_synthesize / tool_slides_compile_reveal /
+# tool_poster_compile_typst assemble the final artefacts. Defaults are
+# safe: figures auto-embed into their owning step's section, slides
+# render with reveal.js + a 15-minute conference template, posters
+# render with Typst at 36x48 (academic).
+synthesis:
+  # Figures: auto-embed step output figures into their owning section
+  # of the paper body during tool_synthesize. Off = caller hand-places.
+  figures_auto_embed: true
+  # How auto-embed places figures.
+  #   append_to_section → drop at end of the step's owning section
+  #   inline_at_xref    → place at the first ![fig:id] reference site
+  #   end_of_results    → cluster all figures at end of Results
+  figures_auto_embed_mode: "append_to_section"
+  # Rewrite bare [fig:id] tokens in step conclusions to ![…](…) refs
+  # that resolve against the embedded figure registry.
+  figure_xref_rewrite: true
+
+  # Slide deck (tool_slides_compile_reveal).
+  #   reveal   → reveal.js HTML deck (default; works in any browser)
+  #   marp     → Marp markdown → PDF/HTML
+  #   beamer   → LaTeX Beamer (when a venue requires .tex)
+  slide_engine: "reveal"
+  # Slide template (matches deck length + section shape).
+  #   conference_15min | conference_30min | lab_meeting | thesis_defense
+  slide_template: "conference_15min"
+  # Visual theme; "" → reveal default. Examples: black, white, league,
+  # beige, sky, night, serif, simple, solarized.
+  slide_theme: ""
+  # Generate speaker-notes panel from step conclusions.
+  slide_speaker_notes_enabled: true
+  # Also emit a 1-up print handout PDF alongside the deck.
+  slide_print_handout: true
+
+  # Poster (tool_poster_compile_typst).
+  #   typst    → recommended (single-binary install, fast)
+  #   latex    → Beamer poster (legacy)
+  poster_engine: "typst"
+  # Poster template (matches dimensions + density).
+  #   academic_36x48 | academic_48x36 | academic_a0_portrait
+  #   | academic_a1_landscape | public_24x36
+  poster_template: "academic_36x48"
+  # Visual theme. light | dark | institution_branded
+  poster_theme: "light"
+  # Optional QR URL printed bottom-right (project page / preprint).
+  poster_qr_url: ""
+  # Emit a US-letter handout PDF alongside the poster.
+  poster_handout_pdf: true
+
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
 api_keys:

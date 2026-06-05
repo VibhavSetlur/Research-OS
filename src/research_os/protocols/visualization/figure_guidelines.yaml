@@ -1,6 +1,6 @@
 id: figure_guidelines
 name: Figure Guidelines
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -79,7 +79,7 @@ research_the_right_library_first:
     Quick check (skip if obvious):
       - tool_research_tool topic="<chart kind> for <data type> in <field>"
         — returns the dominant tool in current literature.
-      - tool_search_web query="best <chart_kind> python|R 2025 <domain>"
+      - tool_search query="best <chart_kind> python|R 2025 <domain>"
         — surfaces "this is how people in this field plot this".
     Then load that library + a stylesheet that matches the deliverable
     (Nature / Cell / poster) and pin it in environment/requirements.txt
@@ -506,7 +506,7 @@ publication_aesthetics:
   research_online_before_coding: |
     For figure kinds you're unfamiliar with, run a quick literature
     pass BEFORE coding:
-      tool_search_web query="best <chart_kind> python 2025 publication"
+      tool_search query="best <chart_kind> python 2025 publication"
       tool_research_tool topic="<chart_kind> for <data type>"
     Read 1-2 results, note any tool / package recommendation that
     consistently appears, and pin it in `environment/requirements.txt`.
@@ -553,7 +553,7 @@ steps:
       `research_the_right_library_first.domain_defaults` table above
       — your field probably has a canonical stack (RNA-seq → ggplot2
       + EnhancedVolcano, single-cell → scanpy, GWAS → qqman, etc.).
-      If you're unsure, call `tool_research_tool` or `tool_search_web`
+      If you're unsure, call `tool_research_tool` or `tool_search`
       for "best <chart_kind> <language> <field>" before coding.
 
       Record the choice + the reason in workspace/methods.md so the

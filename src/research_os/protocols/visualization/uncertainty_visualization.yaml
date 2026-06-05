@@ -1,6 +1,6 @@
 id: uncertainty_visualization
 name: Uncertainty Visualization (intervals, fans, ensembles, posteriors)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -218,7 +218,7 @@ steps:
         - the citation for any non-obvious idiom (raincloud,
           halfeye, dot-interval)
 
-      mem_methods_append the uncertainty representation choices so
+      mem_log the uncertainty representation choices so
       the audit trail is intact.
 
 expected_outputs:

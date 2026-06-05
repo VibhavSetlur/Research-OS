@@ -1,6 +1,6 @@
 id: reproducibility
 name: Reproducibility
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability.
 trigger: After all planned experiments are complete. Before audit_and_validation.
@@ -73,7 +73,7 @@ steps:
             (`tool_audit_reproducibility skip=true` documents the
              opt-out in the report), OR
         (b) telling the AI "skip the re-run audit; I'll accept the
-            unverified state" — the AI then `mem_decision_log`s the
+            unverified state" — the AI then `mem_log`s the
             opt-out with the researcher's stated rationale and a
             warning that the resulting synthesis is NOT
             reproducibility-verified.

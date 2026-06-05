@@ -1,6 +1,6 @@
 id: casual_exploration
 name: Casual Exploration
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Lightweight mode for "I just want to poke at this." Skips reproducibility
@@ -41,7 +41,7 @@ steps:
   - id: lightweight_path
     name: Create Lightweight Workspace Folder
     description: |
-      sys_path_create name="explore_<short_topic>" hypothesis="(exploratory)".
+      sys_path name="explore_<short_topic>" hypothesis="(exploratory)".
       The numbered step folder still exists for reproducibility if work is
       later promoted, but README + conclusions get the "(exploratory)" stamp
       so it's clear at a glance.
@@ -57,7 +57,7 @@ steps:
   - id: minimal_logging
     name: Minimal Logging
     description: |
-      Skip mem_methods_append. Use mem_analysis_log ONLY for surprising
+      Skip mem_log. Use mem_log ONLY for surprising
       findings or decisions the researcher endorsed. Do NOT register
       hypotheses unless the researcher says so explicitly.
 
@@ -74,7 +74,7 @@ steps:
     name: Promote to Proper Research (on request)
     description: |
       If the researcher says "promote", call:
-        - mem_methods_append (back-fill the method)
+        - mem_log (back-fill the method)
         - mem_hypothesis_add (back-fill the hypothesis if any)
         - sys_protocol_log status="completed" for casual_exploration
       Then route to guidance/analysis_plan with the existing step as the

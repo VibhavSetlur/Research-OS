@@ -1,0 +1,107 @@
+id: conference_15min
+name: Conference talk — 15 minutes
+audience: conference_talk_long
+duration_minutes: 15
+slide_target_min: 10
+slide_target_max: 14
+tone: paced
+description: |
+  A standard short-conference talk (10-12 min talk + 2-3 min Q&A).
+  One idea per slide. The title slide carries the headline. Sensitivity
+  + limitations get their own slides because reviewers ask about them.
+
+slides:
+  - id: title
+    type: title
+    title: "{project_title}"
+    source: synthesis_spec
+    speaker_notes: |
+      Read the title aloud. State the headline finding in one sentence.
+      Name yourself, affiliation, and co-authors. 20 seconds total.
+
+  - id: motivation
+    type: content
+    title: "Why this matters"
+    source: research_question
+    speaker_notes: |
+      One concrete failure of the prior approach. End on the question
+      this talk answers.
+
+  - id: question
+    type: content
+    title: "{research_question}"
+    source: research_question
+    speaker_notes: |
+      State the question literally. The audience needs to hear it once
+      to know what to listen for.
+
+  - id: method_overview
+    type: content
+    title: "Approach"
+    source: methods
+    speaker_notes: |
+      Method in ONE slide. A schematic, not equations. Point to the
+      single design decision that distinguishes this from prior work.
+
+  - id: method_detail
+    type: figure
+    title: "How it works"
+    source: methods_figure
+    speaker_notes: |
+      Walk left-to-right through the pipeline. Pause on the step that
+      is novel; everything else is plumbing.
+
+  - id: result_headline
+    type: figure
+    title: "{headline_finding}"
+    source: focal_figure
+    speaker_notes: |
+      THIS is the slide the audience remembers. Point at the number.
+      Read the number aloud.
+
+  - id: result_sensitivity
+    type: figure
+    title: "Robust across {axis}"
+    source: sensitivity_figure
+    speaker_notes: |
+      Reviewers ask "but does it work under X?". Pre-empt with the
+      sensitivity sweep. 30 seconds — they trust you more for showing.
+
+  - id: limitations
+    type: content
+    title: "What we cannot claim"
+    source: limitations
+    speaker_notes: |
+      Three bullets, each one line. Name the assumption you needed
+      and the regime it fails in. Disarms half the Q&A.
+
+  - id: implication
+    type: content
+    title: "What changes"
+    source: discussion
+    speaker_notes: |
+      One sentence on what a reader / lab should DO differently after
+      this talk. Concrete, not "future work".
+
+  - id: takeaway
+    type: focus
+    title: "{takeaway_sentence}"
+    source: opening_claim
+    speaker_notes: |
+      The closing slide is the opening claim, re-stated. If they take
+      one sentence home, it is this one.
+
+  - id: qa
+    type: section
+    title: "Questions?"
+    source: q_and_a
+    speaker_notes: |
+      Your contact + the URL of the paper / preprint. Backup slides
+      follow this slide silently — jump to them by id.
+
+  - id: backup_method_detail
+    type: figure
+    title: "Backup: method detail"
+    source: backup
+    speaker_notes: |
+      Equations + edge-case behaviour. Only surface if asked.

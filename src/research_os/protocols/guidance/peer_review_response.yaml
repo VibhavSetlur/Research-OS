@@ -1,6 +1,6 @@
 id: peer_review_response
 name: Peer Review — Respond to Reviewers
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Process a peer-review report against the submitted paper. Produces
@@ -103,7 +103,7 @@ steps:
       new experiment (re-run with a different model, add a
       sensitivity analysis, run on a held-out subset). These are
       NOT handled inside this protocol — they get their own
-      numbered step via `sys_path_create` and walk through
+      numbered step via `sys_path` and walk through
       `guidance/analysis_plan` like any analysis.
 
       The response letter THEN cites the new step's results once

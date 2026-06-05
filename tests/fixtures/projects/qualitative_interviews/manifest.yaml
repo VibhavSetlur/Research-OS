@@ -3,6 +3,10 @@
 # 8-interview study on remote-work transitions. Exercises the
 # qualitative pack: coding scheme iteration → member checking →
 # thematic analysis → COREQ report.
+#
+# v1.11.0 — extended to cover a public-outreach slide deck, PII
+# redaction firing on raw transcripts before any synthesis step,
+# and the COREQ checklist being copied as a deliverable artifact.
 
 domain: qualitative
 expected_pack: qualitative
@@ -23,6 +27,69 @@ artifacts_required:
 
 max_tool_calls: 60
 max_seconds: 30
+
+# ── v1.11.0 synthesis_deliverables ────────────────────────────────────
+#
+# Two synthesis legs: the COREQ-formatted qualitative report (always)
+# and a public-outreach slide deck (audience: lay/community partners).
+synthesis_deliverables:
+  - kind: report
+    path: synthesis/report.pdf
+    tool: tool_paper_compile_typst
+    args:
+      venue_template: generic_two_column
+    must_succeed: true
+    checks:
+      coreq_coverage_min_pct: 80
+      quote_registry_complete: true
+  - kind: slides_html
+    path: synthesis/outreach_slides.html
+    tool: tool_slides_compile_reveal
+    args:
+      slide_template: public_outreach
+      slide_engine: reveal
+    must_succeed: true
+    checks:
+      speaker_notes_present: true
+      # public_outreach template should default to a friendly theme and
+      # avoid technical-jargon-heavy slide titles.
+      reading_grade_max: 10
+      print_handout_emitted: synthesis/outreach_slides.handout.pdf
+
+# ── PII redaction expectations ────────────────────────────────────────
+#
+# Qualitative pack ships scripts/qual_pii_redact.py and runs it via
+# tool_python_exec (see qualitative/coding/coding_scheme_iteration).
+# The smoke harness should observe at least one PII-redaction run
+# before any synthesis step touches the raw transcripts.
+pii_redaction_expectations:
+  must_fire_before_synthesis: true
+  source_dir: inputs/transcripts/
+  output_dir: workspace/redacted_transcripts/
+  redacted_transcripts_min_count: 1
+  # 18 HIPAA classes the policy template covers (numbered table rows
+  # in the current PII policy template — flagged in SMOKE GAPS).
+  hipaa_classes_covered_min: 18
+  # When a first-class tool_qualitative_pii_redact wrapper ships
+  # (planned post-v1.11.0), this field flips to true.
+  first_class_tool_available: false
+
+# ── COREQ checklist copy ──────────────────────────────────────────────
+#
+# qualitative/output/qualitative_report_format walks the 32 COREQ items;
+# the runner should produce the filled checklist as a top-level artifact
+# alongside the report.
+coreq_checklist:
+  source_template: research_os_qualitative/templates/coreq_checklist.md
+  expected_path: synthesis/coreq_checklist.md
+  min_items_present: 28
+  min_items_walked: 32
+
+cross_deliverable:
+  title_match: true
+  figure_registry_match: true
+  citation_set_match: true
+  shared_bibliography: synthesis/references.bib
 
 canned_responses:
   round_close_out: "Round 1 (open coding) closed; 28 codes; 8 transcripts coded."
