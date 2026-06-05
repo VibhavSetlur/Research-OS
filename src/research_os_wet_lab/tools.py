@@ -122,8 +122,11 @@ def plate_map_render(name: str, arguments: dict, root: Path) -> Any:
             fig.savefig(svg_path, format="svg", bbox_inches="tight")
             paths["svg"] = str(svg_path.relative_to(root))
         plt.close(fig)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        import logging
+        logging.getLogger("research_os_wet_lab.tools").debug(
+            "matplotlib unavailable; ASCII fallback only: %s", exc
+        )
     return _ok({"paths": paths, "wells_filled": len(wells), "title": spec.get("title", stem)})
 
 

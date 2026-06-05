@@ -116,8 +116,11 @@ def fmea_render(name: str, arguments: dict, root: Path) -> Any:
             ws.append([it.get(c, "") for c in _FMEA_COLUMNS])
         xlsx_path = out_dir / f"{stem}.xlsx"
         wb.save(xlsx_path)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        import logging
+        logging.getLogger("research_os_engineering.tools").debug(
+            "openpyxl unavailable; skipping .xlsx: %s", exc
+        )
 
     high_priority = [it for it in items if int(it.get("rpn", 0)) >= 100]
     paths = {"csv": str(csv_path.relative_to(root)),
@@ -263,8 +266,11 @@ def requirements_matrix(name: str, arguments: dict, root: Path) -> Any:
             ])
         xlsx_path = out_dir / f"{spec_path.stem}.xlsx"
         wb.save(xlsx_path)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        import logging
+        logging.getLogger("research_os_engineering.tools").debug(
+            "openpyxl unavailable; skipping .xlsx: %s", exc
+        )
 
     paths = {"md": str(md_path.relative_to(root))}
     if xlsx_path is not None:
