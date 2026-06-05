@@ -79,8 +79,7 @@ steps:
             warning that the resulting synthesis is NOT
             reproducibility-verified.
 
-      Autopilot mode does NOT auto-opt-out. The previous "skip in
-      autopilot" behaviour was a footgun — autopilot is precisely
+      Autopilot mode does NOT auto-opt-out. Autopilot is precisely
       when re-run verification matters most because the human is
       not watching. Autopilot runs the audit by default and pauses
       on BLOCKERs as a configured gate.
