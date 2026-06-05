@@ -190,4 +190,5 @@ expected_outputs:
   - workspace/<step>/raw/README.md
 
 next_protocol: wet_lab/protocol/instrument_run_log
+next_protocol_kind: forward_default
 on_failure: null

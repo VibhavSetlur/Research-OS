@@ -324,4 +324,5 @@ expected_outputs:
   - synthesis/figures/fig*_*.summary.md # paired plain-English summaries
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null

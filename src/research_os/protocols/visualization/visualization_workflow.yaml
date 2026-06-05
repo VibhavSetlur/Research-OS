@@ -241,4 +241,5 @@ quality_bar:
   dpi_floor: 300                      # AI script saves at >=300 DPI; audit_figure_quality blocks <200
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

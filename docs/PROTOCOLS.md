@@ -219,6 +219,27 @@ Each is venue/audience-tailored and enforces quality minimums:
 * `synthesis/synthesis_handout` — single-page printable leave-behind /
   one-pager (5 audience profiles, QR code mandatory).
 
+### Theory + math pack (8 protocols, opt-in via the `theory_math` pack)
+
+Loaded when the theory_math pack is installed (it ships in the default
+wheel). Trigger phrases: "prove this", "I have a conjecture", "draft a
+proof", "iterate on the proof", "formalise in Lean / Coq".
+
+| Protocol | When |
+|---|---|
+| `theory_math/conjecture/conjecture_tracking` | Register an open problem for later attack; the open-problem register |
+| `theory_math/method/proof_strategy_selection` | Choose between direct / contradiction / induction / contrapositive / construction |
+| `theory_math/proof/proof_verification_workflow` | End-to-end: claim → strategy → draft → independent review → optional formal check → publish |
+| `theory_math/proof/lemma_library` | Maintain a reusable lemma library with versioned dependents tracking |
+| `theory_math/proof/theorem_dependency_graph` | Render the dependency DAG across lemmas + theorems for impact-of-change analysis |
+| `theory_math/formal/lean_integration` | Formalise a proof in Lean 4 + Mathlib |
+| `theory_math/formal/coq_integration` | Formalise a proof in Coq |
+| `theory_math/output/theory_paper_structure` | Theorem / Proof / References paper structure (NOT IMRAD) |
+
+Three theory-only tools ship with the pack: `tool_theory_math_lean_check`,
+`tool_theory_math_coq_check`, `tool_theory_math_dep_graph`. See
+[TOOLS.md § Theory + math pack](TOOLS.md#theory--math-pack).
+
 ### Audit + reproducibility
 
 * `audit/audit_and_validation` — master quality audit

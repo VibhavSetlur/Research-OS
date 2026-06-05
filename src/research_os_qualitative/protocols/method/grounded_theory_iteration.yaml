@@ -197,4 +197,5 @@ expected_outputs:
   - workspace/figures/saturation_curve.png
 
 next_protocol: qualitative/coding/coding_scheme_iteration
+next_protocol_kind: forward_default
 on_failure: null

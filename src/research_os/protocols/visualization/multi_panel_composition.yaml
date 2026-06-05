@@ -237,4 +237,5 @@ quality_bar:
   composite_dpi_at_least_300: true
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

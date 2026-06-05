@@ -217,4 +217,5 @@ quality_bar:
   no_global_install_without_explicit_consent: true
 
 next_protocol: methodology/mcp_ecosystem_integration
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

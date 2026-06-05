@@ -194,4 +194,5 @@ expected_outputs:
   - "workspace/proofs/<slug>.md updated with `## Formal verification` block (or `## Formal-check waiver` on abandonment)"
 
 next_protocol: theory_math/proof/proof_verification_workflow
+next_protocol_kind: forward_default
 on_failure: theory_math/proof/proof_verification_workflow

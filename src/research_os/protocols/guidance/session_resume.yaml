@@ -86,6 +86,7 @@ steps:
 
 expected_outputs: []
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing
 
 quality_bar: |

@@ -204,4 +204,5 @@ quality_bar:
   outline_frozen_with_content_hash_before_drafting: true
 
 next_protocol: synthesis/synthesis_paper
+next_protocol_kind: forward_default
 on_failure: synthesis/journal_selection

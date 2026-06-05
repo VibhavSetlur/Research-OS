@@ -244,4 +244,5 @@ quality_bar:
 # 2-cycle (external_tool_setup -> mcp_ecosystem_integration ->
 # external_tool_setup); route via the dispatcher instead.
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/scope_clarification

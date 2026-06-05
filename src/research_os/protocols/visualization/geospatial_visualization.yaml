@@ -242,4 +242,5 @@ quality_bar:
   source_attribution_present: true
 
 next_protocol: visualization/figure_critique
+next_protocol_kind: forward_default
 on_failure: visualization/figure_guidelines

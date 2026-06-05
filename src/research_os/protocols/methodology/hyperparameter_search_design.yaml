@@ -263,4 +263,5 @@ quality_bar:
   landscape_visualised: true
 
 next_protocol: methodology/method_comparison
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

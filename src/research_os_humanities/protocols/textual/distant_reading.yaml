@@ -247,4 +247,5 @@ quality_bar:
     matrix from the methods section alone.
 
 next_protocol: humanities/method/digital_humanities_workflow
+next_protocol_kind: forward_default
 on_failure: null

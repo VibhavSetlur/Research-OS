@@ -41,4 +41,5 @@ expected_outputs:
   - synthesis/contradictions.md
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: null

@@ -225,4 +225,5 @@ quality_bar:
   brief_under_two_pages: true
 
 next_protocol: synthesis/synthesis_slides
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

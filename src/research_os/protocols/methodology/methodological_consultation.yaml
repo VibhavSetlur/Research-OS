@@ -210,4 +210,5 @@ quality_bar:
   layered_to_researcher_signalled_depth: true
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null

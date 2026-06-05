@@ -12,12 +12,50 @@ trigger: |
   "phenomenology", "ethnography", or drops transcripts (.txt / .docx / .rtf)
   into inputs/raw_data/.
 
+prerequisites:
+  - "If transcripts contain participant PII (the common case for
+    research interviews / focus groups), `methodology/qualitative_pii_redaction`
+    has run and `inputs/raw_data_redacted/` exists. The router
+    auto-suggests this before the first qualitative_research turn
+    when raw transcripts are present without a redacted counterpart."
+  - "If the corpus is genuinely public (published interview corpora,
+    oral history releases under consent), document the exemption in
+    `inputs/policy/pii_policy.md` and proceed. The quote-level
+    anonymisation audit in qualitative_quality_audit still fires."
+
 steps:
   - id: create_step
     name: Create Qualitative Step
     description: |
       sys_path_create name="qual_<topic>" hypothesis="(qualitative — themes
       emerge from data)"
+
+      Immediately after creating the step, write
+      `workspace/<step>/step_summary.yaml` with the QUALITATIVE
+      contract so the completeness audit doesn't BLOCK on missing
+      figures:
+
+        step_intent: analyse        # qualitative IS an analyse — but
+                                    # with a custom figure contract.
+        figure_required: false      # qualitative_research's
+                                    # expected_outputs lists no
+                                    # figure. A thematic-map figure is
+                                    # OPTIONAL (see theme_synthesis +
+                                    # report below), not required.
+        table_required: false       # codebooks are markdown reports,
+                                    # not tabular numerics.
+        literature_required: true   # findings (themes) still get
+                                    # grounded; see qualitative_quality_audit.
+
+      See templates/step_summary.yaml.template for the full schema
+      and analysis_plan.yaml `classify_step_intent` for why this
+      matters (the figure / table / literature gates honour these
+      contracts uniformly across protocols).
+
+      If a thematic-map figure IS produced (encouraged; see
+      `theme_synthesis` + `report` below), flip
+      `figure_required: true` so the completeness gate enforces a
+      caption + summary sidecar.
 
   - id: design_protocol
     name: Document the Interview / Observation Protocol
@@ -35,9 +73,32 @@ steps:
   - id: ingest_transcripts
     name: Ingest Transcripts to Step
     description: |
-      For each transcript in inputs/raw_data/, copy (symlink, do not move)
-      into workspace/<step>/data/input/. If transcripts are .docx, also save
-      a .md copy via sys_file_write so coding can be text-aware.
+      PII PRE-FLIGHT (HARD GATE): if `inputs/raw_data/` contains
+      transcripts AND `inputs/raw_data_redacted/` does NOT exist,
+      STOP and route to `methodology/qualitative_pii_redaction`
+      first. Coding on un-redacted text encodes identifying detail
+      into the codebook (a "participant from the only NICU in
+      Region X" leaks identity without quoting verbatim); the
+      later `qualitative_quality_audit` quote-level check cannot
+      un-see this. HIPAA Safe Harbor / IRB / GDPR all want
+      de-identification at INGEST, not at OUTPUT.
+
+      Once `inputs/raw_data_redacted/` exists, prefer it as the
+      ingest source. For each transcript in
+      `inputs/raw_data_redacted/` (or `inputs/raw_data/` for
+      genuinely public corpora; document the exemption in
+      `inputs/policy/pii_policy.md`), copy (symlink, do not move)
+      into workspace/<step>/data/input/. If transcripts are .docx,
+      also save a .md copy via sys_file_write so coding can be
+      text-aware.
+
+      Verbatim quotes used in any output (codebook examples,
+      themes.md, paper drafts) MUST cite participant tokens (P01,
+      R03) from the pseudonym map at
+      `inputs/private/pseudonym_map.csv`, never original names.
+      The pseudonym map is gitignored by design — only the AI's
+      ephemeral session can see it during redaction; downstream
+      coding works against the tokens.
 
   - id: coding_pass_1
     name: Open coding — first pass
@@ -106,5 +167,6 @@ quality_bar: |
     transcript.
   - Reflexivity is explicit, not implied.
 
-next_protocol: guidance/analysis_plan
+next_protocol: methodology/qualitative_quality_audit
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

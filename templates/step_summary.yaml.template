@@ -1,0 +1,100 @@
+# step_summary.yaml — per-step contract for audit gates
+#
+# This file lives at workspace/<NN_slug>/step_summary.yaml and is the
+# machine-readable record of:
+#   1. WHAT KIND of step this is (drives which audits apply)
+#   2. WHICH GATES were waived and WHY (audit replays the rationale)
+#   3. THE LITERATURE LOOP outcome (counts + paths the synthesis
+#      audit cross-checks)
+#
+# Many fields are written by tools (`tool_path_finalize`,
+# `tool_audit_step_literature`); the AI / researcher only sets the
+# CONTRACT fields at the top (step_intent, literature_required,
+# figure_required, table_required). The audit tools honour those
+# contracts; if a field is missing they fall back to "analyse"
+# defaults (every gate at full strictness).
+
+# ── CONTRACT FIELDS (write at step creation) ────────────────────────
+
+# step_intent — drives which gates auto-waive. Pick exactly one:
+#
+#   plan       — design / scoping / spec work. No code, no figures.
+#                figure_required: false, literature_required: false.
+#   ground     — literature retrieval / methodology grounding. PDFs
+#                + summary markdown. figure_required: false.
+#   analyse    — statistical / computational analysis with numeric
+#                findings. Full gate suite at strictest.
+#   visualise  — pure visualisation of a PRIOR step's data /
+#                findings. Inherits the prior step's literature loop
+#                via `literature.inherits_from: <NN_slug>`.
+#   synth      — cross-step synthesis / write-up. Prose only.
+#                figure_required: false, literature_required: false.
+#   proof      — mathematical proof / formal derivation. Outputs are
+#                <slug>.md + <slug>_review.md. figure_required: false.
+#                literature_required: false when the proof's citations
+#                are prior-art lemmas (see literature.verdict:
+#                IMPORTED_AS_CITED).
+#   apparatus  — humanities annotation / interpretive apparatus
+#                (close_reading). Outputs are <slug>_apparatus.md +
+#                annotation file. figure_required: false.
+#
+# See guidance/analysis_plan.yaml step `classify_step_intent` for the
+# full classification rules + autonomy behavior.
+step_intent: analyse
+
+# Hard contracts the audit gates read directly. Set these EXPLICITLY
+# when the intent's default doesn't fit (e.g. an `analyse` step that
+# genuinely has no numeric output, or a `plan` step that DOES surface
+# a roadmap figure).
+figure_required: true       # tool_audit_step_completeness blocks on empty outputs/figures/ when true
+table_required: true        # tool_audit_step_completeness warns on empty outputs/tables/ when true
+literature_required: true   # tool_audit_step_literature blocks on missing findings_vs_literature.md when true
+
+# ── LITERATURE LOOP (written by tool_audit_step_literature) ─────────
+
+literature:
+  claims_grounded: 0          # number of claims with verdict != DEFERRED
+  claims_deferred: 0          # number with verdict == DEFERRED
+  papers_downloaded: 0
+  # Verdict counts. Enum: AGREES | DISAGREES | EXTENDS | DEFERRED |
+  # IMPORTED_AS_CITED | SPECIALIZES. See literature/literature_per_step.yaml
+  # for definitions.
+  verdicts:
+    agrees: 0
+    disagrees: 0
+    extends: 0
+    imported_as_cited: 0
+    specializes: 0
+  findings_vs_literature_path: ""
+
+  # For step_intent: visualise — point at the prior step whose
+  # literature loop covers this step's claims. Setting this allows
+  # tool_audit_step_literature to PASS without a local
+  # findings_vs_literature.md (it confirms the referenced file exists).
+  # Leave empty for non-visualise steps.
+  inherits_from: ""
+
+# List of deferral REASONS (one per deferred claim). Examples:
+#   - "offline"
+#   - "claim_3: no relevant publications found in 10y window"
+#   - "claim_1: foundational lemma cited inline (verdict IMPORTED_AS_CITED)"
+literature_deferred: []
+
+# ── OVERRIDES (written by tool_path_finalize on explicit researcher ask) ──
+# When the researcher EXPLICITLY authorises a bypass, the override
+# fields below record the gate name, rationale, and timestamp. The
+# pre-submission audit (`tool_audit_synthesis`) resurfaces every
+# override so reviewers see what was skipped + why.
+#
+# DO NOT hand-edit these — set them by calling:
+#   tool_path_finalize override_completeness_gate=true \
+#                      override_rationale="<one-line why>"
+# or
+#   tool_path_finalize override_literature_gate=true \
+#                      override_rationale="<one-line why>"
+overrides: []
+# Example entry:
+#   - gate: completeness          # completeness | literature
+#     rationale: "Pilot step, no figures intended; review confirmed."
+#     timestamp: "2026-06-05T14:32:11Z"
+#     authorised_by: "researcher"

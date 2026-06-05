@@ -186,4 +186,5 @@ quality_bar:
     logged, not silently reconciled.
 
 next_protocol: humanities/output/scholarly_edition
+next_protocol_kind: forward_default
 on_failure: null

@@ -202,4 +202,5 @@ expected_outputs:
   - workspace/papers/<slug>/waivers.md  # only when a quality_bar band is intentionally violated
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: theory_math/proof/proof_verification_workflow

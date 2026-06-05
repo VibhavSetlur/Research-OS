@@ -63,6 +63,38 @@ editorial_voice:
        honest."
 
 steps:
+  - id: declare_step_contract
+    name: Declare the step contract (close_reading IS an apparatus step)
+    description: |
+      Write `workspace/<step>/step_summary.yaml` with the close-reading
+      contract so the empirical / quantitative audits don't BLOCK on
+      missing figures, tables, or DOI-only literature:
+
+        step_intent: apparatus      # the unit of work is an
+                                    # interpretive apparatus, not a
+                                    # figure or numeric finding.
+        figure_required: false      # close reading produces prose
+                                    # apparatus; figures are rare and
+                                    # never required.
+        table_required: false
+        literature_required: true   # the citation_chains protocol +
+                                    # the secondary-criticism ledger
+                                    # still ground the reading in
+                                    # prior scholarship.
+
+      See templates/step_summary.yaml.template for the full schema
+      and analysis_plan.yaml `classify_step_intent` for why
+      `apparatus` auto-waives the figure-gate (consistent with `plan`,
+      `ground`, `proof`).
+
+      If the audit `tool_humanities_apparatus_audit` is available
+      (planned; see docs/ROADMAP.md), it replaces the generic
+      completeness gate with a close-reading-aware check: presence of
+      line/folio/page anchors, tradition header, counter-instance
+      section, and secondary-criticism ledger (per this protocol's
+      quality_bar below). Until that ships, the apparatus contract +
+      manual review against quality_bar is the path.
+
   - id: scope_passage
     name: Scope the passage and declare the edition
     description: |
@@ -197,4 +229,5 @@ expected_outputs:
   - workspace/close_readings/<slug>_apparatus.md  # synthesis-ready apparatus
 
 next_protocol: humanities/citation/citation_chains
+next_protocol_kind: forward_default
 on_failure: null

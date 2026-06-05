@@ -208,4 +208,5 @@ quality_bar:
   reported_with_method_name_and_citation: true
 
 next_protocol: methodology/uncertainty_quantification
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

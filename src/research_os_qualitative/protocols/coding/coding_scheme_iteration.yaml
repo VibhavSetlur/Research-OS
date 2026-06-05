@@ -120,4 +120,5 @@ expected_outputs:
   - workspace/figures/saturation_curve.png   # selective rounds only
 
 next_protocol: qualitative/validity/member_checking
+next_protocol_kind: forward_default
 on_failure: null

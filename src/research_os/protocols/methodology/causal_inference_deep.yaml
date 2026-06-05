@@ -136,4 +136,5 @@ expected_outputs:
   - workspace/*/outputs/reports/refutation_results.md
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

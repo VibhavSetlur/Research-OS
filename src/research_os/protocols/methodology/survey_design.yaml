@@ -243,4 +243,5 @@ quality_bar:
   instrument_frozen_with_content_hash_at_lock: true
 
 next_protocol: methodology/survey_psychometrics
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

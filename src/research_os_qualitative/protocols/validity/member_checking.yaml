@@ -207,4 +207,5 @@ expected_outputs:
   - workspace/codebooks/changelog.md                  # appended
 
 next_protocol: qualitative/output/qualitative_report_format
+next_protocol_kind: forward_default
 on_failure: null

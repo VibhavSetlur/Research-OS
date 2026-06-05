@@ -153,6 +153,70 @@ steps:
       Reproducibility check: every tool used must be installable
       (tool_package_install if Python) and snapshotted later.
 
+  - id: classify_step_intent
+    name: Classify the Step's Intent (drives gate-waivers)
+    description: |
+      Before creating the step folder, classify the step by what it
+      PRODUCES, not by domain. The intent class drives which
+      audit-gates apply and which are auto-waived. Pick exactly one:
+
+        plan       — design / scoping / spec work. Outputs are plans,
+                     decision logs, hypothesis registers. No code, no
+                     numeric findings, no figures expected.
+        ground     — literature retrieval / methodology grounding.
+                     Outputs are PDFs in literature/ + summary
+                     markdown. No focal figure expected.
+        analyse    — statistical / computational analysis with numeric
+                     findings. Default to figures + tables + reports.
+                     Hits every gate at full strictness.
+        visualise  — pure visualization of a PRIOR step's data /
+                     findings. Inherits the prior step's claims;
+                     literature loop is satisfied by the prior step's
+                     findings_vs_literature.md.
+        synth      — synthesis / cross-step write-up. Outputs are
+                     prose. No new findings, no new figures.
+        proof      — mathematical proof / formal derivation. Outputs
+                     are <slug>.md proof body + <slug>_review.md (per
+                     theory_math/proof/proof_verification_workflow).
+                     No figures, no tables expected.
+        apparatus  — humanities annotation / interpretive apparatus
+                     (per humanities/textual/close_reading). Outputs
+                     are <slug>_apparatus.md + annotation file. No
+                     figures expected.
+
+      Persist the classification:
+        - to workspace/<step>/step_summary.yaml under
+          `step_intent: <one of: plan | ground | analyse | visualise |
+                          synth | proof | apparatus>`
+        - reference template at templates/step_summary.yaml.template
+
+      Gate consequences (read in tandem with the per-gate notes below):
+        plan / ground / proof / apparatus → figure_required auto-False
+          (no focal figure expected). tool_audit_step_completeness
+          downgrades empty outputs/figures/ from BLOCK to PASS for
+          these intents.
+        visualise → literature_required inherited from prior step.
+          tool_audit_step_literature accepts a verdict block whose
+          `inherits_from: <NN_slug>` references the prior step's
+          findings_vs_literature.md instead of re-running the loop.
+        synth → both figure_required and literature_required default
+          to False; the synthesis-level audit covers them.
+        analyse → no waivers; full gate suite applies.
+
+      Why this matters: hardcoded per-protocol carve-outs decay as new
+      protocols land. A declared intent is a contract the audit tools
+      can honour uniformly. If the classification is wrong, the
+      researcher (not the AI) catches it because the wrong gates fire.
+
+      AUTONOMY GATE:
+        manual / supervised → suggest the classification; ask for
+                              confirmation when ambiguous (e.g. a
+                              step that fits BOTH analyse + visualise).
+        autopilot           → pick the closest fit and proceed; log
+                              the rationale in workspace/logs/
+                              step_intent_choices.md so a later audit
+                              can replay it.
+
   - id: create_step_folder
     name: Create the Numbered Experiment Folder
     description: |
@@ -355,11 +419,33 @@ steps:
 
         - Set RNG seeds explicitly; print library versions to stderr.
 
-      Empty outputs/figures/ is a HARD FAIL — tool_audit_step_completeness
-      BLOCKS the final synthesis until cleared. A step with numeric
-      findings but empty outputs/tables/ surfaces as a WARNING from
-      the same audit (a missing table is a research-record gap, not a
-      block-the-paper gap).
+      Empty outputs/figures/ is a HARD FAIL FOR `analyse` STEPS —
+      tool_audit_step_completeness BLOCKS the final synthesis until
+      cleared. A step with numeric findings but empty outputs/tables/
+      surfaces as a WARNING from the same audit (a missing table is a
+      research-record gap, not a block-the-paper gap).
+
+      AUTO-WAIVER (per step_intent — see `classify_step_intent`):
+        step_intent ∈ {plan, ground, proof, apparatus, synth}
+          → tool_audit_step_completeness downgrades empty
+            outputs/figures/ from BLOCK to PASS automatically. No
+            override needed; the step's intent IS the override
+            rationale.
+        step_intent == visualise
+          → still requires a focal figure (visualisation IS the
+            output); the literature loop is what's inherited.
+        step_intent == analyse (default)
+          → full strictness; empty figures is a HARD BLOCK unless the
+            researcher explicitly sets
+            `figure_required: false` in step_summary.yaml AND records
+            why in the override block.
+
+      If you genuinely need to opt OUT of the figure gate without a
+      matching step_intent, the explicit escape is:
+        figure_required: false      # in step_summary.yaml
+      Combined with the override path:
+        tool_path_finalize override_completeness_gate=true
+                            override_rationale="<why this analyse step has no figure>"
 
       Outputs spanning multiple categories (figures + tables + reports)
       WITHOUT a pipeline.yaml is ALSO a HARD FAIL — the mega-script
@@ -458,10 +544,19 @@ steps:
       DISAGREES verdicts have no discussion, or all-deferred without
       documented reason.
 
-      Skip ONLY when the step is pure data engineering (QC,
-      normalization, format conversion) — in that case add to
-      step_summary.yaml:
-        literature_required: false
+      Skip when EITHER:
+        - the step is pure data engineering (QC, normalisation,
+          format conversion) — in that case set
+          `literature_required: false` in step_summary.yaml; or
+        - `step_intent: visualise` and the step is a pure
+          visualisation of a PRIOR step's findings — in that case
+          set in step_summary.yaml:
+              step_intent: visualise
+              literature:
+                inherits_from: <NN_slug_of_prior_step>
+          `tool_audit_step_literature` will PASS by confirming the
+          referenced step's findings_vs_literature.md exists,
+          rather than re-running the loop on the same claims.
 
       The synthesis-level audit (`tool_audit_synthesis`) blocks final
       assembly when any step has literature_deferred non-empty or
@@ -685,4 +780,5 @@ expected_outputs:
   - workspace/logs
 
 next_protocol: reproducibility/reproducibility
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing
