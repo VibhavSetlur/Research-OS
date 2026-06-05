@@ -195,6 +195,8 @@ def audit_methods(text: str, root: Path) -> dict[str, Any]:
                 if m:
                     primary_tool = m.group(1).lower()
             except OSError:
+                # step_summary unreadable — skip the primary_tool hint
+                # and fall back to the slug-only match below.
                 pass
         if slug in text_lower or slug_stem in text_lower or (primary_tool and primary_tool in text_lower):
             covered += 1

@@ -329,9 +329,6 @@ def md_to_typst(markdown_text: str, venue_template: str = "generic_two_column") 
 # ---------------------------------------------------------------------------
 
 
-_CITE_KEY_RE = re.compile(r"^[#*]?\s*[\[(<]?\s*@?([A-Za-z][\w:.-]+)[\])\]>]?\s*[:|.]?")
-
-
 def citations_md_to_hayagriva(citations_md_path: Path) -> str:
     """Parse workspace/citations.md → Hayagriva YAML string.
 
@@ -383,7 +380,7 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
                 if m:
                     key = m.group(1)
                 # Pull any inline title from the rest of the line.
-                rest = re.sub(r"^[#*]?\s*[\[(<]?@?[A-Za-z][\w:.-]+[\])\]>]?\s*[:.]?\s*", "", ln).strip()
+                rest = re.sub(r"^[#*]?\s*[\[(<]?@?[A-Za-z][\w:.-]+[\])>]?\s*[:.]?\s*", "", ln).strip()
                 if rest and "title" not in meta:
                     meta["title"] = rest.rstrip(".")
                 continue

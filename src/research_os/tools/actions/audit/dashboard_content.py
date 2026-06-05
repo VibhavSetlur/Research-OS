@@ -63,9 +63,11 @@ def audit_numeric_grounding(
     Tolerance is ±1% for rounded numbers (so 1234.567 vs 1235 both OK).
     Returns blockers list of ungrounded numbers (with context).
     """
-    # Strip <script>...</script> and <style>...</style> first.
-    body = re.sub(r"<script\b[^>]*>.*?</script>", "", dashboard_html, flags=re.S | re.I)
-    body = re.sub(r"<style\b[^>]*>.*?</style>", "", body, flags=re.S | re.I)
+    # Strip <script>...</script> and <style>...</style> first. The
+    # closing tag pattern allows whitespace before > (e.g. </script >)
+    # — without it the strip leaks script source into the numeric scan.
+    body = re.sub(r"<script\b[^>]*>.*?</\s*script\s*>", "", dashboard_html, flags=re.S | re.I)
+    body = re.sub(r"<style\b[^>]*>.*?</\s*style\s*>", "", body, flags=re.S | re.I)
     body_text = re.sub(r"<[^>]+>", " ", body)
 
     candidate_nums = []
@@ -95,7 +97,9 @@ def audit_numeric_grounding(
                                 try:
                                     source_nums.add(float(tok))
                                 except ValueError:
-                                    pass
+                                    # Token wasn't a parseable float (e.g.
+                                    # date fragment); skip it.
+                                    continue
                         except OSError:
                             continue
             # Also pull from conclusions.md + step_summary.yaml.
@@ -108,7 +112,8 @@ def audit_numeric_grounding(
                             try:
                                 source_nums.add(float(tok))
                             except ValueError:
-                                pass
+                                # Token wasn't a parseable float; skip.
+                                continue
                     except OSError:
                         continue
 
@@ -120,8 +125,11 @@ def audit_numeric_grounding(
                 try:
                     source_nums.add(float(tok))
                 except ValueError:
-                    pass
+                    # Token wasn't a parseable float; skip.
+                    continue
         except OSError:
+            # citations.md unreadable — keep whatever the workspace
+            # tables already contributed.
             pass
 
     tol = tolerance_pct / 100.0
