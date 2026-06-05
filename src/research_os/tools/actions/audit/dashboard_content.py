@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -292,20 +291,6 @@ def audit_section_substantiveness(dashboard_html: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # 4. Accessibility (WCAG 2.2 AA, basics)
 # ---------------------------------------------------------------------------
-
-
-def _yiq_brightness(hex_color: str) -> float:
-    """YIQ-based brightness for fallback contrast estimation."""
-    h = hex_color.lstrip("#")
-    if len(h) == 3:
-        h = "".join(c * 2 for c in h)
-    if len(h) != 6:
-        return 0.5
-    try:
-        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-    except ValueError:
-        return 0.5
-    return (r * 299 + g * 587 + b * 114) / 255000.0
 
 
 def _relative_luminance(hex_color: str) -> float:

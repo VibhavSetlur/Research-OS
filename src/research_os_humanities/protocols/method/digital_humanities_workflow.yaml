@@ -1,6 +1,6 @@
 id: digital_humanities_workflow
 name: Digital Humanities Workflow — hybrid distant + close reading
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -91,11 +91,16 @@ steps:
       similarly"; network analysis answers "who connects to whom".
       Do not run all three because you can — each one buys a
       different epistemic claim.
-      Call the appropriate tool (tool_dh_topic_model,
-      tool_dh_stylometry, tool_dh_network) and capture the run
-      configuration in workspace/dh/runs/<technique>_<timestamp>.md:
-      hyperparameters, random seed, software version, preprocessing
-      steps (lowercasing, stopword list, lemmatization choices).
+      For v1.9.3 the distant-reading techniques are not yet wired as
+      first-class tools — run them by writing a short script in your
+      tool of choice (Python, R) and invoking it via tool_python_exec.
+      Topic modeling: gensim/scikit-learn LDA, BERTopic, or top2vec.
+      Stylometry: stylo (R) or pydelta for Burrows's Delta and
+      function-word PCA. Network analysis: networkx + python-igraph.
+      Capture the run configuration in
+      workspace/dh/runs/<technique>_<timestamp>.md: hyperparameters,
+      random seed, software version, preprocessing steps
+      (lowercasing, stopword list, lemmatization choices).
       Reproducibility here is a non-negotiable. A topic model with no
       seed is not a result.
 
@@ -124,9 +129,11 @@ steps:
         - one peripheral (low-but-nonzero membership, tests boundary)
         - one anomalous (high weight but unexpected metadata —
           wrong genre / date / author for the cluster's profile)
-      Call tool_humanities_close_reading per sampled text. The close
-      reading is not a re-summary; it is a hermeneutic engagement
-      with what the cluster's word list actually does in context.
+      Perform the close reading manually per sampled text and capture
+      it in markdown — there is no automated close-reading tool. The
+      close reading is not a re-summary; it is a hermeneutic
+      engagement with what the cluster's word list actually does in
+      context.
       The reader looking at the cluster's word "voyage" needs to
       know: is it literal travel, is it metaphor for spiritual
       transformation, is it commercial / colonial discourse? The
@@ -155,8 +162,10 @@ steps:
     name: Build visualizations that respect their own limits
     description: |
       For each finding the cluster decisions promoted, build a
-      visualization (call tool_viz_dh) and write its caveat sentence
-      in the same file. A topic-over-time chart hides the fact that
+      visualization by writing a short plotting script (matplotlib /
+      ggplot / networkx draw / pyvis) and invoking it via
+      tool_python_exec; write its caveat sentence in the same file.
+      A topic-over-time chart hides the fact that
       the underlying topic was constructed by a model with N
       hyperparameters; say so. A network graph hides chronology;
       either add a time slider or say the graph collapses 200 years.

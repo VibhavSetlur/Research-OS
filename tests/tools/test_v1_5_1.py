@@ -98,7 +98,9 @@ def test_resolve_gate_strictness_config_wins(tmp_path):
     from research_os.tools.actions.state.rigor_signals import resolve_gate_strictness
 
     scaffold_minimal_workspace(tmp_path, "Test")
-    (tmp_path / "researcher_config.yaml").write_text(yaml.safe_dump({
+    cfg_path = tmp_path / "inputs" / "researcher_config.yaml"
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(yaml.safe_dump({
         "gate_strictness": "strict",
     }))
 
@@ -107,7 +109,7 @@ def test_resolve_gate_strictness_config_wins(tmp_path):
     assert res["source"] == "config"
 
     # auto follows trust score (low on empty project)
-    (tmp_path / "researcher_config.yaml").write_text(yaml.safe_dump({
+    cfg_path.write_text(yaml.safe_dump({
         "gate_strictness": "auto",
     }))
     res_auto = resolve_gate_strictness(tmp_path)
@@ -253,7 +255,9 @@ def test_project_tier_strictness_throwaway(tmp_path):
     from research_os.tools.actions.state.quick_mode import project_tier_strictness
 
     scaffold_minimal_workspace(tmp_path, "Test")
-    (tmp_path / "researcher_config.yaml").write_text(yaml.safe_dump({
+    cfg_path = tmp_path / "inputs" / "researcher_config.yaml"
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(yaml.safe_dump({
         "project_tier": "throwaway",
     }))
 
@@ -263,7 +267,7 @@ def test_project_tier_strictness_throwaway(tmp_path):
     assert res["default_gate_strictness"] == "light"
 
     # production -> strict
-    (tmp_path / "researcher_config.yaml").write_text(yaml.safe_dump({
+    cfg_path.write_text(yaml.safe_dump({
         "project_tier": "production",
     }))
     res2 = project_tier_strictness(tmp_path)

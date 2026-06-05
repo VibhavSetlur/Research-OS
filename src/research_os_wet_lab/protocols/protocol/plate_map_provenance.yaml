@@ -1,6 +1,6 @@
 id: plate_map_provenance
 name: Plate-Map Provenance — 96/384/1536-well assays
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |

@@ -1,6 +1,6 @@
 id: audit_and_validation
 name: Audit & Validation
-version: '1.9.0'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -27,13 +27,17 @@ steps:
           reading level + causal language + reporting-standard sections;
         - claims — every number in synthesis/paper.md traces to a
           workspace output (catches AI hallucination);
-        - preregistration_diff — deviations from the frozen SAP if any.
+        - preregistration_diff — deviations from the frozen SAP if any;
+        - grounding_verify — every decision record in
+          workspace/decisions/ resolves to a registered grounding source
+          (catches ungrounded synthesis claims).
       Writes workspace/logs/audit_master.md. tool_synthesize calls this
       as its first gate.
 
       For per-step debugging, the components are also exposed
       individually: tool_audit_step_completeness, tool_audit_code_quality,
-      tool_audit_prose, tool_audit_claims, tool_preregister_diff.
+      tool_audit_prose, tool_audit_claims, tool_preregister_diff,
+      tool_ground (grounding verification surface).
 
   - id: audit_citations
     name: Audit Citations

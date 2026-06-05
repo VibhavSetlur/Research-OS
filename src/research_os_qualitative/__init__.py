@@ -19,7 +19,7 @@ from research_os_qualitative import tools as _tools  # noqa: F401 — load decor
 from research_os_qualitative.detector import detect_qualitative
 from research_os_qualitative.router_entries import QUALITATIVE_ROUTER_ENTRIES
 
-__version__ = "1.7.0"
+__version__ = "1.9.3"
 PACK_NAME = "qualitative"
 _PROTOCOLS_DIR = Path(__file__).parent / "protocols"
 

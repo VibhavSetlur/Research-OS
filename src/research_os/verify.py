@@ -59,13 +59,6 @@ def _file_exists(root: Path, rel: str) -> tuple[bool, str]:
     return True, ""
 
 
-def _dir_exists(root: Path, rel: str) -> tuple[bool, str]:
-    p = root / rel
-    if not p.is_dir():
-        return False, f"missing dir: {rel}"
-    return True, ""
-
-
 def _json_parses(path: Path) -> tuple[bool, str]:
     try:
         json.loads(path.read_text())

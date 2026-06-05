@@ -1,6 +1,6 @@
 id: member_checking
 name: Member Checking — sharing interpretations back with participants
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -43,7 +43,8 @@ prerequisites:
   - workspace/transcripts/ has the source transcripts so quotes
     can be re-located and re-contextualised when sharing back.
   - Consent forms permit sharing interpretations back AND quoting
-    the participant's response. If not, run consent_amendment first.
+    the participant's response. If not, amend the IRB protocol via
+    your institutional process before contacting any participant.
 
 editorial_voice:
   mode: hybrid
@@ -107,8 +108,10 @@ steps:
           push back, and what would you change?")
         - a clear path to decline or respond partially
       Save under workspace/member_checks/round_<N>/<participant_id>/
-      packet.md. Use `tool_redact` if any third-party names appear
-      in the quotes that the participant didn't consent to surface.
+      packet.md. Manually redact any third-party names appearing in
+      the quotes that the participant didn't consent to surface
+      (regex sweep + a re-read; there is no automated redactor in
+      v1.9.3).
 
   - id: send_and_track
     name: Send the materials and track responses
@@ -190,8 +193,9 @@ steps:
       If a different mode is warranted (e.g. validation surfaced
       gaps that need an elaboration round), schedule it now and
       log the trigger. Otherwise, hand off to the qualitative
-      report. Use `sys_path` to confirm the next protocol artifacts
-      exist before declaring the validity phase complete.
+      report. Use `sys_file_list` to confirm the next protocol's
+      input artifacts exist before declaring the validity phase
+      complete.
 
 expected_outputs:
   - workspace/member_checks/round_<N>/contact_log.md

@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 14
+version: 15
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -357,6 +357,15 @@ protocols:
       - "let's analyse"
       - "let's analyze"
       - "now run"
+      - "DESeq2"
+      - "deseq2"
+      - "differential expression"
+      - "DEG"
+      - "DE analysis"
+      - "single-cell DE"
+      - "scRNA-seq QC"
+      - "single-cell clustering"
+      - "library size normalization"
     token_estimate: 2100
     decomposition:
       - tool: sys_path_create
@@ -961,6 +970,8 @@ protocols:
       - tool: tool_audit_citations
       - tool: tool_synthesize
         args: {output_type: paper}
+      - tool: tool_paper_compile_typst
+        purpose: "Compile the markdown draft to PDF (conditional on writing_preferences.pdf_compile_engine == typst)."
 
   synthesis/synthesis_abstract:
     intent_class: synthesize
@@ -1091,7 +1102,7 @@ protocols:
     token_estimate: 1300
     decomposition:
       - protocol: audit/provenance_completeness
-        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running the figure script (which should drop the provenance sidecar) or by calling tool_write_provenance_sidecar manually."
+        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running the figure script (which should drop the provenance sidecar) under tool_python_exec so the provenance hook records the run."
       - tool: tool_python_exec
         purpose: "Re-run any artefact-producing script under provenance to backfill missing sidecars."
 

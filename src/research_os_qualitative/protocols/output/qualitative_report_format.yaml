@@ -1,6 +1,6 @@
 id: qualitative_report_format
 name: Qualitative Report Format (COREQ for interviews | SRQR general)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -76,9 +76,9 @@ steps:
       data (e.g. interviews + field observations), default to SRQR
       and supplement with the COREQ interview-specific items as a
       sub-checklist. Record the choice and the reason in
-      workspace/memos/reporting_standard_choice.md. Call sys_path
-      to confirm the standard's checklist YAML exists under
-      workspace/checklists/.
+      workspace/memos/reporting_standard_choice.md. Use
+      sys_file_list to confirm the standard's checklist YAML exists
+      under workspace/checklists/ (or sys_file_read to inspect it).
 
   - id: walk_checklist
     name: Walk every item in the chosen standard

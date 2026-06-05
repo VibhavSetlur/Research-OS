@@ -28,8 +28,8 @@ installed. Always activate the env first.
 ## Always do before declaring work "done"
 
 ```bash
-python scripts/preflight.py     # 13 wiring checks, must be 13/13
-python -m pytest -q             # 418+ tests, must all pass
+python scripts/preflight.py     # 21 wiring checks, must be 21/21
+python -m pytest -q             # 895+ tests, must all pass
 ruff check src/ tests/ scripts/ # must be clean
 ```
 
@@ -160,7 +160,7 @@ merge AND document why in the commit message.
    no section = ugly fallback release notes.
 3. **Never bump `pyproject.toml` without also bumping `__init__.py`
    and `CITATION.cff`.** All three must agree.
-4. **Never skip the test gate.** `preflight 13/13` + `pytest 418+ pass`
+4. **Never skip the test gate.** `preflight 21/21` + `pytest 895+ pass`
    + `ruff clean` before push.
 5. **Never reduce the protocol/tool count without an explicit MAJOR
    bump + a Migration section in the CHANGELOG.** Removing a tool or
@@ -177,7 +177,7 @@ merge AND document why in the commit message.
 | What | Where |
 |---|---|
 | MCP tool definitions + handlers | `src/research_os/server.py` |
-| Protocols (88) | `src/research_os/protocols/<category>/<name>.yaml` |
+| Protocols (114) | `src/research_os/protocols/<category>/<name>.yaml` |
 | Router index (single source of triggers + decompositions) | `src/research_os/protocols/_router_index.yaml` |
 | Hierarchical router | `src/research_os/tools/actions/router.py` |
 | Protocol loader + pipeline ordering | `src/research_os/tools/actions/protocol.py` |

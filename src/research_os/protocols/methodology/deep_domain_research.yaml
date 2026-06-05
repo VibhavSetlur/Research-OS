@@ -1,6 +1,6 @@
 id: deep_domain_research
 name: Deep Domain Research (subfield-canonical pipeline)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for entering an unfamiliar subfield. Before any

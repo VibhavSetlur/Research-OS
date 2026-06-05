@@ -292,7 +292,6 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
     """Read inputs/, infer project metadata, and populate intake + config."""
     try:
         from research_os.project_ops import (
-            compute_file_hash,
             load_state,
             now_iso,
             regenerate_intake,

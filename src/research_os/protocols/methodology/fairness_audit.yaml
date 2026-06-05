@@ -1,6 +1,6 @@
 id: fairness_audit
 name: Fairness Audit (ML / decision systems / clinical AI)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -266,5 +266,8 @@ quality_bar:
   model_card_drafted: true
   monitoring_plan_specifies_metrics_thresholds_and_escalation: true
 
-next_protocol: methodology/uncertainty_quantification
+# Back-edge to methodology/uncertainty_quantification removed to
+# break a 2-cycle; route via the dispatcher when uncertainty work
+# is needed after fairness analysis.
+next_protocol: null
 on_failure: guidance/scope_clarification

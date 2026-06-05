@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.9.2"
+version = "1.9.3"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -147,12 +147,15 @@ extend-exclude = ["scratch", "templates"]
 select = ["E4", "E7", "E9", "F", "W6"]
 ignore = [
     "E402",  # module-level import not at top — server.py + state_ledger.py need it
-    "F401",  # `unused` imports — covered by # noqa in __init__ re-exports
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "src/research_os/server.py" = ["E402"]
 "src/research_os/state/state_ledger.py" = ["E402"]
+# __init__.py re-exports legitimately import-and-export without using
+# the symbol inline. Limit F401 ignore to __init__.py so the rest of
+# the source tree can flag genuinely unused imports.
+"**/__init__.py" = ["F401"]
 "tests/**/*.py" = ["F401"]  # tests may import for side-effects (mocking)
 
 [tool.pytest.ini_options]
