@@ -81,8 +81,8 @@ steps:
       For every PNG in workspace/<step>/outputs/figures/, call:
         tool_audit_figure_full filepath=<png>
       Checks DPI, dimensions, caption + summary sidecars, SVG companion,
-      time-series aspect-ratio sanity. (`tool_audit_figure` is the lighter
-      DPI-only version, retained for cheap intra-step spot checks.)
+      time-series aspect-ratio sanity. Use `tool_audit_figure` for a
+      lighter DPI-only spot check during intra-step iteration.
 
       Aggregate warnings into workspace/logs/figure_audit_summary.md.
       Any figure WITHOUT a sibling .caption.md AND .summary.md is a
