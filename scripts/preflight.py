@@ -203,9 +203,10 @@ def check_dispatcher_aliases():
 
 def check_packs_discovered():
     """Every bundled pack registers without errors; tools + router merge cleanly."""
-    # Importing server triggers _discover_packs_once() which merges bundled packs.
+    # Importing any symbol from server triggers the module body which
+    # calls _discover_packs_once() and merges bundled packs.
     try:
-        import research_os.server  # noqa: F401
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
         from research_os.plugins import installed_packs, load_pack_errors
     except Exception as exc:
         return False, f"plugin import failed: {exc}"
@@ -229,7 +230,7 @@ def check_packs_discovered():
 def check_pack_protocols_load():
     """Every YAML under each pack's protocols_dir must parse + load."""
     try:
-        import research_os.server  # noqa: F401
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
         from research_os.plugins import installed_packs
         from research_os.tools.actions.protocol import load_protocol
     except Exception as exc:
@@ -530,8 +531,7 @@ def check_embeddings_fresh():
         )
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     try:
-        import importlib
-        be = importlib.import_module("build_embeddings")
+        be = __import__("build_embeddings")
     except Exception as exc:
         return False, f"failed to import scripts/build_embeddings.py: {exc}"
     import json

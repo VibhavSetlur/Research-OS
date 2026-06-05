@@ -75,8 +75,11 @@ def detect_qualitative(inputs_dir: Path) -> dict:
                         signals.append(
                             f"small-N (N={rows}) demographic CSV: {path.name}"
                         )
-            except Exception:
-                pass
+            except Exception as exc:
+                import logging
+                logging.getLogger("research_os_qualitative.detector").debug(
+                    "skip %s: %s", path, exc
+                )
 
     if interview_files:
         signals.append(f"{interview_files} interview-hint file(s)")

@@ -67,8 +67,11 @@ def detect_humanities(inputs_dir: Path) -> dict:
                 for term in _HUMANITIES_TERMS:
                     if term in text:
                         terms_seen.add(term)
-            except Exception:
-                pass
+            except Exception as exc:
+                import logging
+                logging.getLogger("research_os_humanities.detector").debug(
+                    "skip %s: %s", path, exc
+                )
 
     if tei_or_xml_count:
         signals.append(f"{tei_or_xml_count} TEI / XML file(s)")

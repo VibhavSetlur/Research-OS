@@ -43,7 +43,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import yaml
 
@@ -336,8 +336,13 @@ def main() -> int:
     # pack protocols (humanities/..., qualitative/..., third-party packs).
     try:
         import research_os.server  # noqa: F401
-    except Exception:
-        pass
+    except Exception as exc:
+        # Pack discovery is best-effort — without it, only core protocols
+        # are loadable, which is fine for any fixture that doesn't reference packs.
+        import logging
+        logging.getLogger("stress_runner").debug(
+            "pack discovery skipped: %s", exc
+        )
 
     parser = argparse.ArgumentParser(prog="stress_runner")
     parser.add_argument(

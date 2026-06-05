@@ -160,7 +160,9 @@ def _load_protocols() -> list[tuple[str, str]]:
     # packs land here automatically once they're pip-installed.
     sys.path.insert(0, str(ROOT / "src"))
     try:
-        import research_os.server  # noqa: F401 — triggers discovery
+        # Importing any symbol from research_os.server triggers the
+        # module body which calls _discover_packs_once() at import time.
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
         from research_os.plugins.loader import (
             pack_protocol_dirs as _pack_dirs,
         )

@@ -55,8 +55,11 @@ def _load_index() -> dict:
             pack_entries = pack_router_entries()
             if pack_entries:
                 data.setdefault("protocols", {}).update(pack_entries)
-        except Exception:
-            pass
+        except Exception as exc:
+            import logging
+            logging.getLogger("research_os.router").debug(
+                "pack router-entries merge skipped: %s", exc
+            )
         _INDEX_CACHE = data
     return _INDEX_CACHE
 
