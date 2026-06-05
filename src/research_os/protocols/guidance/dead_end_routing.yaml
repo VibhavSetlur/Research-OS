@@ -1,6 +1,6 @@
 id: dead_end_routing
 name: Dead-End Routing
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: What to do when an experiment path fails or a methodology proves unworkable. Preserves the failed path and routes back into the pipeline.
 trigger: An experiment's conclusions.md decision is "dead-end", or the researcher asks to abandon the current direction.
@@ -16,14 +16,14 @@ steps:
   - id: mark_dead_end
     name: Mark the Path Dead
     description: |
-      sys_path_abandon path_name="<NN_slug>" rationale="<one-paragraph summary>"
+      sys_path path_name="<NN_slug>" rationale="<one-paragraph summary>"
       This renames the folder to NN_<slug>__DEAD_END (files preserved), updates
       state.paths[name].status=dead_end, and removes it from the active path list.
 
   - id: log_decision
     name: Log the Routing Decision
     description: |
-      mem_decision_log
+      mem_log
         context="Abandoning experiment <NN_slug>"
         selected="<new direction OR pause for researcher input>"
         rationale="<what we learned + why the new direction>"
@@ -32,7 +32,7 @@ steps:
     name: Choose Where to Resume
     description: |
       Options, in order of preference:
-        1. Start a fresh experiment path (sys_path_create) targeting the same
+        1. Start a fresh experiment path (sys_path) targeting the same
            research question with a different method.
         2. Loop back to methodology_selection if the methodology itself was wrong.
         3. Loop back to domain/research_design if the framing was wrong.

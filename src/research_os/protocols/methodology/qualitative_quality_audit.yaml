@@ -1,6 +1,6 @@
 id: qualitative_quality_audit
 name: Qualitative Quality Audit (COREQ + SRQR enforcement)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Companion to `methodology/qualitative_research`. The research protocol
@@ -115,7 +115,7 @@ steps:
     name: Intercoder agreement (Cohen's κ or Krippendorff's α)
     description: |
       Determine how many coders worked on the corpus
-      (sys_file_read codebook.md; mem_methods_append should note it).
+      (sys_file_read codebook.md; mem_log should note it).
 
       ONE coder:
         Write to `outputs/reports/intercoder_agreement.md`:
@@ -222,7 +222,7 @@ steps:
   - id: append_to_methods_and_conclusions
     name: Append to methods.md + conclusions.md
     description: |
-      mem_methods_append:
+      mem_log:
         method="COREQ/SRQR quality audit"
         parameters="kappa_target=0.70; saturation_window=last_3"
         justification="Tong et al. 2007 (COREQ); O'Brien et al. 2014

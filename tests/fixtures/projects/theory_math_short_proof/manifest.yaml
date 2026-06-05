@@ -4,6 +4,11 @@
 # with lemma-library + dependency-graph entries. Exercises the
 # theory_math pack on a project the researcher could conceivably
 # finish in an afternoon.
+#
+# v1.11.0 — added synthesis pipeline expectations: tool_synthesize must
+# honor the pack's non-IMRAD section schema (Introduction, Preliminaries,
+# Main Theorems, Proofs, Discussion) and tool_paper_compile_typst must
+# accept the resulting paper.md. See SMOKE GAPS for the known gap.
 
 domain: theory_math
 expected_pack: theory_math
@@ -23,6 +28,52 @@ artifacts_required:
 
 max_tool_calls: 60
 max_seconds: 30
+
+# ── v1.11.0 synthesis pipeline expectations ───────────────────────────
+#
+# Theory papers are NON-IMRAD; the pack's theory_paper_structure
+# protocol explicitly enforces (Introduction, Preliminaries, Main
+# Theorems, Proofs, Discussion). The synthesis pipeline must consult
+# the pack's preferred paper structure rather than always emitting
+# generic IMRAD sections. See SMOKE GAPS (theory_math, fix_now).
+synthesis_deliverables:
+  - kind: paper
+    path: synthesis/paper.pdf
+    tool: tool_paper_compile_typst
+    args:
+      venue_template: theory_math
+      paper_template: theory
+    must_succeed: true
+    checks:
+      # Section schema enforcement — theory_math pack supplied.
+      sections_expected:
+        - introduction
+        - preliminaries
+        - main_theorems
+        - proofs
+        - discussion
+      sections_forbidden:
+        - methods            # IMRAD-only — theory papers don't have a Methods section
+        - results            # IMRAD-only — replaced by Main Theorems + Proofs
+      min_pages: 1
+      bib_path_wired: synthesis/references.bib
+
+# Synthesis behavior contract: completeness gate must honor proof
+# step_summary.yaml `figure_required: false` and skip the figure-presence
+# check for proof steps. Currently audit_step_completeness blocks
+# unconditionally on `No figure produced — every step MUST emit at
+# least one focal figure` — that's wrong for proof steps.
+synthesis_behavior:
+  honor_figure_required_false_for_proof_steps: true
+  citation_count_agreement: true   # tool_synthesize vs typst loader
+
+# Cross-deliverable consistency: even the small short-proof project
+# should respect the title + figure registry + citation set contract.
+cross_deliverable:
+  title_match: true
+  figure_registry_match: true
+  citation_set_match: true
+  shared_bibliography: synthesis/references.bib
 
 # Canned mock-model responses keyed by step_id. The mock_model_call
 # matches "STEP: <id>" in the prompt and replies with the canned string.

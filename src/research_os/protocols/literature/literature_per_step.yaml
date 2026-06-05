@@ -1,6 +1,6 @@
 id: literature_per_step
 name: Per-Step Literature Loop (find → download → cite → validate)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -62,7 +62,7 @@ description: |
 
   This protocol is invoked AFTER `analysis_plan` writes the findings
   but BEFORE `path_finalize` closes the step. The grounding tools
-  (`tool_grounding_register`, `tool_claim_verify`) capture the
+  (`tool_ground`, `tool_verify`) capture the
   audit trail; `tool_audit_step_literature` is the gate.
 
 trigger: |
@@ -132,9 +132,9 @@ steps:
     name: Search literature per claim
     description: |
       Per claim, batch the search calls:
-        tool_search_semantic_scholar query="<specific>" max_results=5
-        tool_search_pubmed query="<specific>" max_results=5
-        tool_search_crossref query="<methodological>" max_results=3
+        tool_search query="<specific>" max_results=5
+        tool_search query="<specific>" max_results=5
+        tool_search query="<methodological>" max_results=3
 
       Domain notes:
         - Biomedical / clinical → PubMed + Semantic Scholar are most
@@ -214,7 +214,7 @@ steps:
     name: Register grounding records per claim
     description: |
       For every claim with verdict ≠ DEFERRED:
-        tool_grounding_register
+        tool_ground
             decision="<step>_claim_<n>"
             sources=[{type: "paper", key: "<cite_key>", relevance: "high"}, ...]
             confidence="high"|"medium"|"low"
@@ -229,7 +229,7 @@ steps:
     description: |
       For the top-3 highest-stakes claims (those that will lead
       paragraphs in the synthesis):
-        tool_claim_verify
+        tool_verify
             claim="<original claim>"
             questions=[
               "Does <paper1> measure the same effect direction?",

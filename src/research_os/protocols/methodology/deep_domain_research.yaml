@@ -1,6 +1,6 @@
 id: deep_domain_research
 name: Deep Domain Research (subfield-canonical pipeline)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for entering an unfamiliar subfield. Before any
@@ -112,9 +112,9 @@ steps:
           everything downstream)
 
       Tools:
-        tool_search_semantic_scholar query="<subfield> best practices pipeline <year>"
-        tool_search_pubmed query="<subfield> benchmark comparison"  # if life-sciences-adjacent
-        tool_search_web query="<subfield> canonical workflow tutorial"
+        tool_search query="<subfield> best practices pipeline <year>"
+        tool_search query="<subfield> benchmark comparison"  # if life-sciences-adjacent
+        tool_search query="<subfield> canonical workflow tutorial"
 
       Persist the most informative sources via
       `tool_literature_search_and_save` (into the project-global
@@ -161,7 +161,7 @@ steps:
         - Tag any stage that needs a step-specific environment so
           `tool_step_env_lock` runs for that step alone.
 
-      Then call `mem_decision_log` with the pipeline choice + the
+      Then call `mem_log` with the pipeline choice + the
       runner-up tool per stage. Runners-up are not waste — they are
       the sensitivity-analysis options for later.
 
@@ -205,8 +205,8 @@ steps:
              data like ours because <Z>. Want me to run that as
              `<slug>_alt_path_<k>` alongside the primary?"
           On confirmation, call:
-            sys_path_create name="<slug>_alt" branch_of=<current_path>
-          On rejection, log via `mem_decision_log` (context =
+            sys_path name="<slug>_alt" branch_of=<current_path>
+          On rejection, log via `mem_log` (context =
           "alternative pipeline considered and declined").
 
       AUTONOMY GATE:
@@ -231,16 +231,16 @@ steps:
         - If an alternative was branched, that branch carries its
           own `pipeline.yaml` and runs independently — outputs land
           under `workspace/<NN>_<slug>_alt_path_<k>/`.
-        - `mem_methods_append` records the primary pipeline with
+        - `mem_log` records the primary pipeline with
           one entry per stage (method, implementation, parameters,
           justification, citation_key).
-        - `mem_decision_log` records:
+        - `mem_log` records:
             context = "Pipeline commit for <subfield>"
             selected = "<primary pipeline summary>"
             rationale = "<2 sentences citing the survey paper + the
                          benchmark paper>"
             options_considered = [<runner-up tools per stage>]
-        - `mem_hypothesis_update` flips each hypothesis the pipeline
+        - `mem_log` flips each hypothesis the pipeline
           touches into `testing` status.
 
       Then route to `methodology_selection`, which will operate ON

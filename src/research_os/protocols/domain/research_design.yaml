@@ -1,6 +1,6 @@
 id: research_design
 name: Research Design
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Choose the right study design (RCT, cohort, case-control, etc.) and compute / justify the sample size.
 trigger: After domain_analysis. Re-run if the research question pivots.
@@ -47,8 +47,8 @@ steps:
   - id: ground_design_choice
     name: Ground the Design in Literature
     description: |
-      tool_search_semantic_scholar query="<design> in <domain>"
-      tool_search_pubmed query="<design> <topic>"
+      tool_search query="<design> in <domain>"
+      tool_search query="<design> <topic>"
       Cite 1-3 prior papers that used the same design for similar questions.
       Add them to workspace/citations.md via mem_citations_generate after updating
       inputs/literature_index.yaml.

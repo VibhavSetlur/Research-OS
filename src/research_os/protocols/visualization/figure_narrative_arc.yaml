@@ -1,6 +1,6 @@
 id: figure_narrative_arc
 name: Figure Narrative Arc (ordering figures across paper / talk / poster)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Choose and ORDER the figures that appear in a paper / talk / poster
@@ -107,7 +107,7 @@ steps:
     name: Inventory all candidate figures
     description: |
       In ONE batch:
-        - sys_path_list                              (all active steps)
+        - sys_path                              (all active steps)
         - sys_file_list directory="workspace/<step>/outputs/figures"
           for each step
         - sys_file_list directory="synthesis/figures"

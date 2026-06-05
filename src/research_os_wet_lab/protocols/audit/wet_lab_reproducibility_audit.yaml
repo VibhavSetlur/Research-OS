@@ -1,6 +1,6 @@
 id: wet_lab_reproducibility_audit
 name: Wet-Lab Reproducibility Audit
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -32,7 +32,7 @@ description: |
   A missing pillar is a BLOCKER. The audit does not grade severity —
   a wet-lab paper that ships with one of these four broken has a
   reproducibility hole the field will find. The only ways past a
-  BLOCKER are: fix it, or log an explicit waiver via mem_decision_log
+  BLOCKER are: fix it, or log an explicit waiver via mem_log
   with a written rationale the corresponding author signs off on.
   Silent skips are the failure mode this protocol exists to prevent.
 
@@ -57,7 +57,7 @@ editorial_voice:
        distinguishes 'fixed' from 'waived' but never from 'silently
        skipped'. Every gap leaves the workspace either with a green
        check, an open ticket, or a signed waiver in
-       mem_decision_log."
+       mem_log."
     - "Reproducibility is checked per STEP, not per project. A clean
        step 03 does not excuse a broken step 05. The methods section
        cites each step independently; the audit grades each step
@@ -69,7 +69,7 @@ editorial_voice:
        date the entry was made flagged so the reviewer can see it
        was reconstructed), not to assert it."
     - "Waivers are expensive on purpose. A waiver entry in
-       mem_decision_log names the pillar, the reason, the risk to
+       mem_log names the pillar, the reason, the risk to
        the reader, and the corresponding author's sign-off. If the
        waiver feels easy to write, the audit was probably right to
        block."
@@ -243,7 +243,7 @@ steps:
         ...one row per blocker with step + pillar + fix path...
 
         ## WAIVERS
-        ...one row per waiver with the mem_decision_log entry ID...
+        ...one row per waiver with the mem_log entry ID...
 
       A step passes only when every applicable pillar is PASS or
       WAIVED. A project passes pre-submission only when every step

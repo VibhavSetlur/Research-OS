@@ -1,6 +1,6 @@
 id: simulation_studies
 name: Simulation Studies (ADEMP)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Monte Carlo, agent-based, discrete-event, or in-silico studies. Follows
@@ -27,7 +27,7 @@ editorial_voice:
 steps:
   - id: create_step
     name: Create Simulation Step
-    description: sys_path_create name="sim_<scenario>"
+    description: sys_path name="sim_<scenario>"
 
   - id: ademp
     name: Specify ADEMP Up Front

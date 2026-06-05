@@ -218,6 +218,225 @@ The AI never bypasses on its own. Hard rules (no fabricated
 citations, no writes under `inputs/raw_data/`) are absolute — the
 quality gate is the ONLY authorised escape hatch.
 
+---
+
+## When to override a gate (worked examples)
+
+The override path is a researcher tool, not an AI tool. The AI never
+bypasses a gate on its own — it requires an EXPLICIT authorisation in
+the researcher's current message ("just draft it", "give me a
+preview", "skip the lit check", "ship it now"). Five recurring shapes
+this takes in practice:
+
+### 1. Data-engineering step (no figure required)
+
+Researcher: "step 02 is just the merge — no figure, advance the plan."
+
+The step-completeness gate insists every step ships a focal figure.
+For a pure ETL / data-engineering step that's noise. Bypass the plan
+gate with a one-line rationale:
+
+```python
+tool_plan_advance(
+    override_gate=True,
+    override_rationale="step 02 is a data merge — no figure expected",
+)
+```
+
+The override surfaces at `audit/pre_submission_checklist`; if the
+final paper actually does need a Fig 2 the researcher catches it
+there. Better long-term fix: declare `figure_required: false` in
+`step_summary.yaml` so the gate skips this step natively (deferred
+to v2 — see the smoke-gap list).
+
+If the dashboard content gate (placeholder text, stub captions) is
+the blocker rather than the warnings-panel gate, the dashboard takes
+a separate kwarg:
+
+```python
+tool_dashboard_create(
+    audience="executive",
+    override_dashboard_content_gate=True,
+    override_rationale="board update at 16:00; placeholder captions on Fig 4-5 acknowledged",
+)
+```
+
+### 2. Literature is unreachable (offline / paywalled site is down)
+
+Researcher: "Crossref is down, finalise the path anyway."
+
+`tool_path_finalize` blocks if `findings_vs_literature.md` is missing
+or DISAGREES verdicts lack coverage. Bypass with the literature gate
+override:
+
+```python
+tool_path_finalize(
+    path_name="03_pilot_grouping",
+    override_literature_gate=True,
+    override_rationale="Crossref + Semantic Scholar both 5xx as of 14:00 UTC; will reconcile after restore",
+)
+```
+
+The bypass logs to `override_log.md`. The researcher's next session
+should re-run `research/literature_per_step` once the upstream
+recovers — the pre-submission checklist will flag the bypass until
+the literature loop closes.
+
+### 3. Methodology section pending (preview the rest)
+
+Researcher: "draft the abstract + introduction so I can show my PI
+this afternoon; methods isn't written yet."
+
+Section-only synthesis still runs the step-completeness gate. If
+methods.md is a stub, the bypass for the section call lets the
+preview happen:
+
+```python
+tool_synthesize(
+    output_type="paper",
+    section="abstract",
+    override_completeness_gate=True,
+    override_rationale="3pm preview for PI; methods coming tonight",
+)
+tool_synthesize(
+    output_type="paper",
+    section="introduction",
+    override_completeness_gate=True,
+    override_rationale="3pm preview for PI; methods coming tonight",
+)
+```
+
+Two entries land in `override_log.md`. When the methods section is
+ready the full-doc synthesize call should NOT need the override —
+the gate passes naturally and the audit trail shows a clean final
+build with two preview bypasses earlier in the day.
+
+### 4. Pre-publication final pass (gate passes — DO NOT override)
+
+This is the case that demonstrates the override is NOT a "speed
+boost" the AI reaches for. When the final manuscript is ready, the
+researcher asks for the publish-ready PDF:
+
+```python
+tool_synthesize(output_type="paper")  # NO override
+tool_audit_synthesis(paper_path="synthesis/paper.md")  # NO override
+tool_paper_compile_typst()
+```
+
+If any of these BLOCK, the answer is to fix the underlying issue
+(missing caption sidecar, uncovered verdict, stub conclusion), not to
+add `override_*=true`. The pre-submission checklist counts every
+entry in `override_log.md` and asks the researcher to confirm each
+one before submission — bypasses are forensic evidence, not a
+shortcut.
+
+### 5. Researcher discretion (theory_math, no empirical PDFs)
+
+Researcher: "this is a planar-graph-colouring proof — there are no
+empirical PDFs to download; audit and finalise."
+
+`tool_audit_synthesis` default-denies when zero PDFs are present
+across literature-required steps. Theory papers cite earlier
+theorems, not empirical results, so the deny is a false positive:
+
+```python
+tool_audit_synthesis(
+    paper_path="synthesis/paper.md",
+    override_no_pdfs=True,
+    override_rationale="theory_math project — proof cites earlier theorems, no empirical PDFs",
+)
+```
+
+Similarly, a `tool_writing_discussion` validate step that BLOCKS on
+the discussion-coverage gate for a theory paper with no DISAGREES
+verdicts:
+
+```python
+tool_discussion_coverage_audit(
+    override_discussion_coverage=True,
+    override_rationale="theory_math project — no empirical verdicts to cover",
+)
+```
+
+The pre-submission checklist still surfaces both bypasses, which is
+correct — a human should confirm "yes, this is a theory paper, the
+no-PDF and no-verdict assumptions hold" before publishing.
+
+### 6. Figure cross-references the AI must not rewrite
+
+`tool_paper_figures_autoembed` calls `rewrite_figure_xrefs` after
+auto-embedding when `researcher_config.synthesis.figure_xref_rewrite=true`
+(the default). When the researcher has hand-tuned Pandoc
+`\ref{fig:foo}` / `@fig:foo` cross-references in `synthesis/paper.md`
+that should not be re-pointed, pass `override_xref_rewrite=true`:
+
+```python
+tool_paper_figures_autoembed(
+    mode="append_to_section",
+    override_xref_rewrite=True,
+)
+```
+
+The flip is local (no `override_rationale` required) because no
+quality gate is bypassed — the rewrite is a convenience pass, not a
+deny. The auto-embed log still records that the rewrite was skipped.
+
+### 7. Cross-deliverable divergence the supervisor approved
+
+`tool_audit_cross_deliverable_consistency` BLOCKs when the poster,
+slides, dashboard, or paper disagree along the 5 dimensions (numeric
+claims, figures, citations, top-line findings, reproducibility
+footer). Sometimes the divergence is intentional — e.g. the
+supervisor approved a simplified poster headline that drops the
+exact effect size. Bypass with rationale:
+
+```python
+tool_audit_cross_deliverable_consistency(
+    override_cross_deliverable=True,
+    override_rationale="supervisor-approved poster simplification: headline drops the CI to fit the 40-char title rule",
+)
+```
+
+The pre-submission audit still resurfaces this so the researcher
+re-confirms before submission.
+
+### The `override_rationale` rule
+
+Under `interaction.quality_gate_policy=enforce` (the default in
+`inputs/researcher_config.yaml`), `override_rationale` is MANDATORY.
+A bypass kwarg without a non-empty rationale is rejected by the
+server with a clear error — the bypass never executes. This is
+deliberate. Silent bypasses are the exact failure mode the override
+system exists to prevent; the rationale is the audit-trail anchor.
+
+Other policies:
+
+- `allow_override` — the AI may bypass on request with the rationale
+  logged. The rationale is still required at the API level (silent
+  bypasses are still disallowed); the difference is the AI has more
+  latitude about when to ask.
+- `warn_only` — sandbox / exploratory use. Blockers degrade to
+  warnings. The override kwargs are still honoured (so explicit
+  bypasses produce a log entry) but unset blockers no longer block.
+
+### `workspace/logs/override_log.md` format (what the audit sees)
+
+Each bypass appends one bullet:
+
+```
+- 2026-06-05T17:42:11Z · `tool_synthesize` · gate=quality_full · 3pm preview for PI · {"output_type": "paper", "section": "abstract", "blocker_count": 4}
+```
+
+`audit/pre_submission_checklist` reads this file and lists every
+entry alongside the question "was this bypass intentional?" Treat
+the log as forensic evidence — never hand-edit, never delete. If a
+bypass was wrong, fix the underlying issue and re-run; the corrected
+gate-passing call doesn't append a new entry, so the historical
+bypass remains visible (a feature, not a bug).
+
+See [TOOLS.md § Per-step audit overrides](TOOLS.md#per-step-audit-overrides)
+for the full kwarg-by-tool table.
+
 ## Deliberate iteration vs bug fix
 
 Two distinct modes for re-running a step:

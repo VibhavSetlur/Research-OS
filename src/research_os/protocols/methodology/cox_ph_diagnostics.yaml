@@ -1,6 +1,6 @@
 id: cox_ph_diagnostics
 name: Cox PH Diagnostics (Proportional Hazards check + fallback routing)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -185,7 +185,7 @@ steps:
       existing tooling — do not re-platform mid-analysis just to
       access a specific function unless necessary.
 
-      Use `mem_decision_log` to record:
+      Use `mem_log` to record:
         - which covariate(s) violated,
         - which strategy was chosen,
         - why (the trade-off explicit),
@@ -199,7 +199,7 @@ steps:
   - id: append_to_methods_and_conclusions
     name: Append to methods.md + conclusions.md
     description: |
-      mem_methods_append should already have documented the Cox model;
+      mem_log should already have documented the Cox model;
       now append a method line for the diagnostic:
 
         method="Schoenfeld residual test (Grambsch-Therneau)"

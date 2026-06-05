@@ -1,6 +1,6 @@
 id: synthesis_cover_letter
 name: Synthesis — Journal Cover Letter
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Draft the cover letter that accompanies a journal submission. The
@@ -171,7 +171,7 @@ steps:
     name: Source suggested reviewers (real, verifiable)
     description: |
       Suggested reviewers are REAL PEOPLE. To pick credibly:
-        - tool_search_semantic_scholar for recent papers on the
+        - tool_search for recent papers on the
           paper's specific topic
         - prefer authors who have published in the target journal
           OR an adjacent journal

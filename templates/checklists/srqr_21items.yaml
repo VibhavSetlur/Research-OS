@@ -1,0 +1,126 @@
+# SRQR — Standards for Reporting Qualitative Research (21 items)
+# Source: O'Brien BC, Harris IB, Beckman TJ, Reed DA, Cook DA. Standards for
+# Reporting Qualitative Research: A Synthesis of Recommendations.
+# Academic Medicine. 2014;89(9):1245-1251.
+# https://doi.org/10.1097/ACM.0000000000000388
+#
+# This file ships as a coverage template — copy into a project as
+# workspace/checklists/srqr_coverage_v<N>.yaml and fill in `status`,
+# `location`, and `note` per item while walking the manuscript draft.
+
+standard: SRQR
+version: '2014'
+total_items: 21
+domains:
+  - "Title and abstract"
+  - "Introduction"
+  - "Methods"
+  - "Results / findings"
+  - "Discussion"
+  - "Other"
+
+items:
+  - id: S1
+    domain: "Title and abstract"
+    item_text: "Title — Concise description of the nature and topic of the study identifying the study as qualitative or indicating the approach (e.g., ethnography, grounded theory) or data collection methods (e.g., interview, focus group) is recommended."
+    guidance_short: "Word 'qualitative' or the named approach (ethnography, phenomenology, etc.) belongs in the title."
+
+  - id: S2
+    domain: "Title and abstract"
+    item_text: "Abstract — Summary of key elements of the study using the abstract format of the intended publication; typically includes background, purpose, methods, results, and conclusions."
+    guidance_short: "Structured or unstructured per journal; must cover background → method → key finding → implication."
+
+  - id: S3
+    domain: "Introduction"
+    item_text: "Problem formulation — Description and significance of the problem/phenomenon studied; review of relevant theory and empirical work; problem statement."
+    guidance_short: "Why this problem now; what prior work establishes the gap; one-sentence problem statement."
+
+  - id: S4
+    domain: "Introduction"
+    item_text: "Purpose or research question — Purpose of the study and specific objectives or questions."
+    guidance_short: "Single overarching question + 2-4 specific objectives if helpful."
+
+  - id: S5
+    domain: "Methods"
+    item_text: "Qualitative approach and research paradigm — Qualitative approach (e.g., ethnography, grounded theory, case study, phenomenology, narrative research) and guiding theory if appropriate; identifying the research paradigm (e.g., postpositivist, constructivist/interpretivist) is also recommended; rationale."
+    guidance_short: "Name the approach AND the paradigm (constructivist, critical, post-positivist) + why this combo fits."
+
+  - id: S6
+    domain: "Methods"
+    item_text: "Researcher characteristics and reflexivity — Researchers' characteristics that may influence the research, including personal attributes, qualifications/experience, relationship with participants, assumptions, and/or presuppositions; potential or actual interaction between researchers' characteristics and the research questions, approach, methods, results, and/or transferability."
+    guidance_short: "Positionality + how it shaped EACH stage (design, collection, analysis, interpretation)."
+
+  - id: S7
+    domain: "Methods"
+    item_text: "Context — Setting/site and salient contextual factors; rationale."
+    guidance_short: "Where (geographic, institutional, social) + which contextual factors matter for transferability."
+
+  - id: S8
+    domain: "Methods"
+    item_text: "Sampling strategy — How and why research participants, documents, or events were selected; criteria for deciding when no further sampling was necessary (e.g., sampling saturation); rationale."
+    guidance_short: "Sampling logic + stop rule (saturation, theoretical, pragmatic) + why it suits the question."
+
+  - id: S9
+    domain: "Methods"
+    item_text: "Ethical issues pertaining to human subjects — Documentation of approval by an appropriate ethics review board and participant consent, or explanation for lack thereof; other confidentiality and data security issues."
+    guidance_short: "IRB/REC name + approval number; consent process; data security."
+
+  - id: S10
+    domain: "Methods"
+    item_text: "Data collection methods — Types of data collected; details of data collection procedures including (as appropriate) start and stop dates of data collection and analysis, iterative process, triangulation of sources/methods, and modification of procedures in response to evolving study findings; rationale."
+    guidance_short: "What data, how, dates, any mid-study protocol changes + why."
+
+  - id: S11
+    domain: "Methods"
+    item_text: "Data collection instruments and technologies — Description of instruments (e.g., interview guides, questionnaires) and devices (e.g., audio recorders) used for data collection; if/how the instrument(s) changed over the course of the study."
+    guidance_short: "Guide as supplement; recording hardware/software; changes log."
+
+  - id: S12
+    domain: "Methods"
+    item_text: "Units of study — Number and relevant characteristics of participants, documents, or events included in the study; level of participation (could be reported in results)."
+    guidance_short: "Final N + demographic / source characteristics in a table."
+
+  - id: S13
+    domain: "Methods"
+    item_text: "Data processing — Methods for processing data prior to and during analysis, including transcription, data entry, data management and security, verification of data integrity, data coding, and anonymization/de-identification of excerpts."
+    guidance_short: "Transcription, anonymization, storage, integrity checks."
+
+  - id: S14
+    domain: "Methods"
+    item_text: "Data analysis — Process by which inferences, themes, etc., were identified and developed, including the researchers involved in data analysis; usually references a specific paradigm or approach; rationale."
+    guidance_short: "Analytic procedure (Braun-Clarke phases, constant comparison, IPA steps) + who did what."
+
+  - id: S15
+    domain: "Methods"
+    item_text: "Techniques to enhance trustworthiness — Techniques to enhance trustworthiness and credibility of data analysis (e.g., member checking, audit trail, triangulation); rationale."
+    guidance_short: "Name the techniques used (member check, peer debrief, triangulation, audit trail) + which threat each addresses."
+
+  - id: S16
+    domain: "Results / findings"
+    item_text: "Synthesis and interpretation — Main findings (e.g., interpretations, inferences, and themes); might include development of a theory or model, or integration with prior research or theory."
+    guidance_short: "Theme-by-theme presentation OR model/theory; integrate with prior literature in Discussion."
+
+  - id: S17
+    domain: "Results / findings"
+    item_text: "Links to empirical data — Evidence (e.g., quotations, field notes, text excerpts, photographs) to substantiate analytic findings."
+    guidance_short: "3-5 quotes per theme with IDs; field-note excerpts where relevant."
+
+  - id: S18
+    domain: "Discussion"
+    item_text: "Integration with prior work, implications, transferability, and contribution(s) to the field — Short summary of main findings; explanation of how findings and conclusions connect to, support, elaborate on, or challenge conclusions of earlier scholarship; discussion of scope of application/generalizability; identification of unique contribution(s) to scholarship in a discipline or field."
+    guidance_short: "Compare to prior work explicitly + transferability claim + named contribution."
+
+  - id: S19
+    domain: "Discussion"
+    item_text: "Limitations — Trustworthiness and limitations of findings."
+    guidance_short: "Genuine limitations (not humble-brags); name the threat + how trustworthiness work mitigates it."
+
+  - id: S20
+    domain: "Other"
+    item_text: "Conflicts of interest — Potential sources of influence or perceived influence on study conduct and conclusions; how these were managed."
+    guidance_short: "Funding, employment, prior advocacy work; management plan."
+
+  - id: S21
+    domain: "Other"
+    item_text: "Funding — Sources of funding and other support; role of funders in data collection, interpretation, and reporting."
+    guidance_short: "Grant numbers + explicit statement of funder role (or 'funders had no role')."

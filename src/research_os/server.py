@@ -1646,6 +1646,10 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "items": {"type": "string"},
                     "description": "Optional list of specific audit names to skip (e.g. ['claims', 'prose']). Defaults to ['claims'] on first synthesis since paper.md doesn't exist yet.",
                 },
+                "auto_proceed": {
+                    "type": "boolean",
+                    "description": "AUTOPILOT-ONLY short-circuit (AUDIT-063). When true AND interaction.autonomy_level == 'autopilot', tool_synthesize processes ALL sections (methods → results → discussion → introduction → abstract) AND runs the full assembly in ONE call. Each per-section file is still written exactly as the multi-turn flow would write it. Passing true in manual/supervised/coaching modes returns an error — the multi-turn cadence is the deliberation pace those modes exist to provide. Default false.",
+                },
             },
         },
     },
@@ -1655,18 +1659,38 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_poster_create": {
-        "description": "Generate a LaTeX poster (tikzposter) from the workspace. Layouts: `billboard` (default — Mike Morrison Better Poster pattern: giant plain-English headline + ammo bar of methods/findings/limitations + QR code) or `classic` (two-column IMRAD). Audience profile gates copy density and call-to-action: academic_conference (default), symposium, industry, teaching.",
+        "description": "Compile a conference poster from the curated synthesis spec. Default engine is Typst (academic_36x48 portrait, light theme, US-letter handout). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). Set engine='latex' (or researcher_config.synthesis.poster_engine='latex') to fall back to the legacy tikzposter renderer; the legacy `layout` + `audience` kwargs route to that path.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
             "properties": {
+                "engine": {
+                    "type": "string",
+                    "description": "typst (default) | latex (legacy tikzposter). Overrides researcher_config.synthesis.poster_engine.",
+                },
+                "template": {
+                    "type": "string",
+                    "description": "Typst engine only. academic_36x48 (default) | academic_48x36 | academic_a0_portrait | academic_a1_landscape | public_24x36.",
+                },
+                "theme": {
+                    "type": "string",
+                    "description": "Typst engine only. light (default) | dark | institution_branded.",
+                },
+                "qr_url": {
+                    "type": "string",
+                    "description": "Typst engine only. URL to encode in the footer QR code. Omitted gracefully if `qrcode` package is missing.",
+                },
+                "handout_pdf": {
+                    "type": "boolean",
+                    "description": "Typst engine only. Also emit synthesis/poster_handout.pdf (US-letter text-only condensed). Default true.",
+                },
                 "layout": {
                     "type": "string",
-                    "description": "billboard (default — readable from across the hall) | classic (IMRAD two-column)",
+                    "description": "Legacy LaTeX engine only. billboard (default — readable from across the hall) | classic (IMRAD two-column).",
                 },
                 "audience": {
                     "type": "string",
-                    "description": "academic_conference (default) | symposium | industry | teaching",
+                    "description": "Legacy LaTeX engine only. academic_conference (default) | symposium | industry | teaching.",
                 },
             },
         },
@@ -2612,6 +2636,153 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
             },
         },
+    },
+
+    # ── humanities essay scaffold ──────────────────────────────────────
+    "tool_humanities_essay_scaffold": {
+        "short": "Scaffold a non-IMRAD humanities essay.",
+        "description": "Write synthesis/paper.md with the six interpretive section headings + one-paragraph stubs the synthesis/humanities_essay_structure protocol prescribes (introduction+thesis, contextual framing, three close readings, critical conversation, counter-argument+reply, conclusion+stakes). Idempotent: re-running on a partially drafted paper.md preserves substantive content (>200 non-stub chars under a heading) and only fills missing sections. Pairs with humanities_essay.typ for the venue layer (1.25in margins, 12pt serif, MLA-style unnumbered headings, footnote apparatus, 0.5in block-quote indent). No arguments — operates on the current project root.",
+        "category": "synthesis",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+
+    # ── figure auto-embed + orphan-coverage audit ──────────────────────
+    "tool_paper_figures_autoembed": {
+        "short": "Walk every step's outputs/figures/ and embed them into the right section of synthesis/paper.md.",
+        "description": "Discovers each numbered step's outputs/figures/ where step_summary.yaml.figures_for_paper is true (default), reads each figure's <stem>.caption.md YAML frontmatter (section_hint, figure_priority, poster_priority, alt_text, figures_for_paper, interactive_required), and inserts the markdown image blocks into synthesis/paper.md. Three modes: append_to_section (default; uses section_hint), explicit_map (caller supplies section_map={stem: section}), reorder (clusters all figures at end of Results sorted by figure_priority). Idempotent — a stem already present in the document is never re-inserted, so manual figure placements are preserved. Multi-paragraph captions split into a headline + a 'Note:' appendix. Calls rewrite_figure_xrefs automatically when researcher_config.synthesis.figure_xref_rewrite=true unless override_xref_rewrite is set. Writes an append-only log to workspace/logs/figure_auto_embed.md so the audit trail captures every run.",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "description": "Placement mode: append_to_section (default) | explicit_map | reorder.",
+                },
+                "section_map": {
+                    "type": "object",
+                    "description": "Only used when mode='explicit_map'. {figure_stem: section_name}. Overrides each figure's section_hint frontmatter.",
+                    "additionalProperties": {"type": "string"},
+                },
+                "override_xref_rewrite": {
+                    "type": "boolean",
+                    "description": "When true, skip the figure-xref rewrite pass even if researcher_config.synthesis.figure_xref_rewrite=true. Use when paper.md has pre-formatted Pandoc cross-refs the AI must not touch.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    "tool_audit_figure_coverage": {
+        "short": "BLOCK when a step has a figure on disk with figures_for_paper!=false but synthesis/paper.md does not embed it.",
+        "description": "Companion gate to tool_paper_figures_autoembed. Walks discover_figures(root) and confirms every returned figure stem appears inside synthesis/paper.md (either as a markdown ![alt](path) image, a Typst image() call, or a label <fig:STEM>). Returns status='error' with a blockers list when at least one figure is orphaned. The intent is to fail loudly when a researcher hand-writes paper.md and forgets to pull in figures, or when auto-embed is off and the audit must still flag the gap. Opt out for a single step by setting step_summary.yaml.figures_for_paper=false; opt out for a single figure by setting figures_for_paper=false in its .caption.md frontmatter. Wires into the master quality audit so tool_synthesize refuses to assemble when coverage fails.",
+        "category": "audit",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+
+    # ── real slide compilation engine ──────────────────────────────────
+    "tool_slides_create": {
+        "short": "Compile a real presentation deck — Reveal.js HTML or Touying-compatible Typst PDF — from workspace findings + slides_spec.yaml.",
+        "description": "Two production engines. engine='reveal' writes synthesis/slides.html — a single self-contained file backed by the vendored Reveal.js v5 runtime with stock speaker-notes plugin (press 's' for presenter view). engine='touying' writes synthesis/slides.typ against the bundled touying-mini.typ template and shells out to the typst CLI to produce synthesis/slides.pdf (requires typst on PATH). Five stock templates: conference_15min (12 slides), conference_5min_lightning (6 slides), lab_meeting_30min (16 slides + backup section), defense_45min (35 slides chapter-arc), public_outreach (12 slides, no jargon). theme='' picks per-engine default (white). speaker_notes_enabled=True (default) embeds the per-slide notes. print_handout=True (default) also emits synthesis/slides_handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Prereq: at least one workspace/<step>/conclusions.md OR synthesis/slides_spec.yaml; missing both returns a structured error. Back-compat: legacy output_format='reveal'|'beamer'|'pdf' and audience= kwargs are accepted and mapped to engine= silently.",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "engine": {
+                    "type": "string",
+                    "description": "reveal (default — single-file HTML, Reveal.js v5) | touying (Typst → PDF, requires typst CLI)",
+                },
+                "template": {
+                    "type": "string",
+                    "description": "conference_15min (default) | conference_5min_lightning | lab_meeting_30min | defense_45min | public_outreach",
+                },
+                "theme": {
+                    "type": "string",
+                    "description": "'' (default = white) | white | black. Reveal engine swaps the vendored theme CSS; touying engine flips the background/foreground in touying-mini.typ.",
+                },
+                "speaker_notes_enabled": {
+                    "type": "boolean",
+                    "description": "Default true. Embed per-slide speaker_notes from the template + slides_spec. Reveal surfaces via the notes plugin ('s' key opens presenter view); touying renders them only in handout mode.",
+                },
+                "print_handout": {
+                    "type": "boolean",
+                    "description": "Default true. Also emit synthesis/slides_handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Requires typst on PATH (reveal engine uses the touying handout path).",
+                },
+                "audience": {
+                    "type": "string",
+                    "description": "Back-compat: legacy callers passed audience= alongside template=. Accepted as a meta-hint; the template= argument is authoritative.",
+                },
+                "output_format": {
+                    "type": "string",
+                    "description": "Back-compat: legacy kwarg. 'reveal'/'html' maps to engine='reveal'; 'beamer'/'pdf'/'typst'/'touying' maps to engine='touying'.",
+                },
+            },
+        },
+    },
+
+    # ── cross-deliverable consistency audit ────────────────────────────
+    "tool_audit_cross_deliverable_consistency": {
+        "short": "Cross-deliverable consistency audit: 5 dimensions across paper/dashboard/slides/poster.",
+        "description": "Verifies the project's outward-facing deliverables tell the same story along 5 dimensions: (1) numeric_claims_consistent — shared p-values, percentages, sample sizes, and decimals agree within ±1% relative tolerance; (2) figures_consistent — figure stems in the paper that are missing from dashboard/slides/poster are flagged (paper is canonical); (3) citations_consistent — secondary deliverables must not cite keys absent from the paper bibliography; (4) findings_top_line_consistent — Jaccard overlap of headline 'Findings'/'Results' sections across each pair ≥ 0.30; (5) reproducibility_footer_consistent — Research-OS version + git commit hash + build timestamp present + identical in every deliverable. Skipped (not blocked) when <2 deliverables exist. Override via override_cross_deliverable=true + override_rationale (logged to workspace/logs/override_log.md). Writes workspace/logs/cross_deliverable_audit.md. Depends on figure_auto_embed metadata for the figures dimension.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "override_cross_deliverable": {
+                    "type": "boolean",
+                    "description": "Suppress BLOCKERs. Set only on explicit researcher approval. Logged to override_log.md.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "Required when override_cross_deliverable=true.",
+                },
+            },
+        },
+    },
+
+    # ── reviewer-response scaffold (4 tools) ───────────────────────────
+    "tool_reviewer_simulate": {
+        "short": "Build a 7-persona pre-submission reviewer simulation brief against synthesis/paper.md.",
+        "description": "Loads N reviewer personas (default: all 7 — methodology_skeptic, domain_expert, statistician, reproducibility_advocate, scope_creep_critic, novelty_critic, presentation_critic) and the paper, then writes workspace/reviewer/simulation_brief.md with each persona's lens + red flags + typical questions + signature phrasings. The AI in the host IDE drives — walks the paper through each persona, writes per-persona comment lists, then calls tool_rebuttal_draft for each substantive comment. Internal companion to guidance/peer_review_response (which handles ACTUAL external reviewer reports).",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "personas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Subset of persona ids to load. Default: all 7 ship and run.",
+                },
+            },
+        },
+    },
+    "tool_rebuttal_draft": {
+        "short": "Scaffold a single rebuttal markdown file under workspace/reviewer/rebuttals/ with auto-discovered evidence inventory.",
+        "description": "Given a verbatim reviewer comment + the persona id that raised it (+ optional researcher-supplied evidence_paths), write a rebuttal scaffold to workspace/reviewer/rebuttals/<slug>.md. The scaffold surfaces methods record, per-step findings_vs_literature.md, outputs (figures/tables/reports), and paper sections so the AI can ground the response. Flags any supplied evidence_paths that do not exist on disk.",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "comment": {"type": "string", "description": "Verbatim reviewer comment."},
+                "persona": {"type": "string", "description": "Persona id that raised the comment (e.g. statistician, novelty_critic)."},
+                "evidence_paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional workspace-relative paths the rebuttal will cite.",
+                },
+            },
+            "required": ["comment", "persona"],
+        },
+    },
+    "tool_reviewer_response_compile": {
+        "short": "Assemble workspace/reviewer/rebuttals/*.md into response_to_reviewers.md (+ PDF via Typst when available).",
+        "description": "Concatenates every rebuttal markdown under workspace/reviewer/rebuttals/, grouped by persona, into workspace/reviewer/response_to_reviewers.md. Best-effort PDF compile via the bundled Typst generic_two_column template — returns status='skipped' for the PDF leg when typst is not on PATH; the markdown is always produced. Returns rebuttal_count, personas_addressed, response_md path, response_pdf path (or null).",
+        "category": "synthesis",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_audit_reviewer_responses": {
+        "short": "Audit workspace/reviewer/rebuttals/*.md: WARN on hand-waving, missing evidence, unaddressed comments.",
+        "description": "Walks every rebuttal and WARNs on (a) hand-waving phrases ('we believe', 'future work will address', 'the reviewer misunderstands', ...); (b) rebuttals whose Response section is empty (only the scaffold comment remains); (c) rebuttals that cite no concrete evidence path (no backticked .md/.csv/.png/.pdf/.py/etc); (d) rebuttals still containing the 'supplied evidence path missing' scaffold warning. Returns {audited, passed, failed, warnings[]} and writes workspace/reviewer/audit_report.md. Run BEFORE tool_reviewer_response_compile produces the final response or BEFORE the paper goes out.",
+        "category": "audit",
+        "inputSchema": {"type": "object", "properties": {}},
     },
 }
 
@@ -3753,6 +3924,7 @@ def _handle_tool_synthesize(name, arguments, root):
         section=arguments.get("section"),
         output_type=arguments.get("output_type", "paper"),
         citation_style=arguments.get("citation_style", "vancouver"),
+        auto_proceed=bool(arguments.get("auto_proceed", False)),
     )
     if "error" in res:
         return _text(_error(res["error"]))
@@ -3937,13 +4109,237 @@ def _handle_tool_audit_cliches(name, arguments, root):
     )))
 
 
+# ── humanities essay scaffold ─────────────────────────────────────────
+
+
+def _handle_tool_humanities_essay_scaffold(name, arguments, root):
+    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+        scaffold_humanities_essay,
+    )
+    return _text(_success(scaffold_humanities_essay(root)))
+
+
+# ── figure auto-embed + orphan-coverage audit ────────────────────────
+
+
+def _handle_tool_paper_figures_autoembed(name, arguments, root):
+    from research_os.tools.actions.synthesis.figure_auto_embed import (
+        auto_embed_figures,
+        rewrite_figure_xrefs,
+    )
+    from research_os.tools.actions.state.config import get_research_config
+
+    root_path = Path(root)
+    paper = root_path / "synthesis" / "paper.md"
+    mode = arguments.get("mode", "append_to_section")
+    section_map = arguments.get("section_map")
+
+    embed_res = auto_embed_figures(
+        paper, root_path, mode=mode, section_map=section_map,
+    )
+    if embed_res.get("status") == "error":
+        return _text(_error(embed_res.get("message", "auto-embed failed")))
+
+    # Honour config — researcher can disable rewrite.
+    rewrite_res: dict = {"skipped": True}
+    skip_xref_rewrite = bool(arguments.get("override_xref_rewrite", False))
+    try:
+        cfg = get_research_config(root_path) or {}
+        rewrite_on = (
+            (cfg.get("synthesis", {}) or {}).get("figure_xref_rewrite", True)
+        )
+    except Exception:
+        rewrite_on = True
+    if rewrite_on and not skip_xref_rewrite:
+        rewrite_res = rewrite_figure_xrefs(paper)
+
+    return _text(_success({
+        "embed": embed_res,
+        "xref_rewrite": rewrite_res,
+        "paper_path": str(paper.relative_to(root_path)),
+    }))
+
+
+def _handle_tool_audit_figure_coverage(name, arguments, root):
+    from research_os.tools.actions.synthesis.figure_auto_embed import (
+        audit_figure_coverage,
+    )
+
+    res = audit_figure_coverage(Path(root))
+    if res.get("status") == "error" and "blockers" in res:
+        # Return as success-with-blockers so the audit aggregator can
+        # surface them rather than treating the audit as a tool error.
+        return _text(_success(res))
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "audit_figure_coverage failed")))
+    return _text(_success(res))
+
+
+# ── real slide compilation engine ────────────────────────────────────
+
+
+def _handle_tool_slides_create(name, arguments, root):
+    """tool_slides_create — real engine (Reveal.js HTML / Touying Typst)."""
+    from research_os.tools.actions.synthesis.slides import compile_slides
+
+    try:
+        result = compile_slides(
+            root,
+            engine=arguments.get("engine", "reveal"),
+            template=arguments.get("template", "conference_15min"),
+            theme=arguments.get("theme", ""),
+            speaker_notes_enabled=bool(
+                arguments.get("speaker_notes_enabled", True)
+            ),
+            print_handout=bool(arguments.get("print_handout", True)),
+            # back-compat kwargs
+            audience=arguments.get("audience"),
+            output_format=arguments.get("output_format"),
+        )
+    except Exception as exc:
+        return _text(_error(f"tool_slides_create crashed: {exc}"))
+    if result.get("status") != "success":
+        return _text(_error(result.get("message", "slide compilation failed")))
+    return _text(_success(result))
+
+
+# ── cross-deliverable consistency audit ──────────────────────────────
+
+
+def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
+    """Cross-deliverable consistency audit: 5 dimensions, override-aware."""
+    from research_os.tools.actions.audit.cross_deliverable import (
+        audit_cross_deliverable_consistency,
+    )
+    from research_os.project_ops import log_override
+    from research_os.tools.actions.state.config import get_interaction_policy
+
+    override_requested = bool(arguments.get("override_cross_deliverable", False))
+    rationale = arguments.get("override_rationale")
+    policy = get_interaction_policy(root)["quality_gate_policy"]
+    if (
+        policy == "enforce"
+        and override_requested
+        and (not rationale or not str(rationale).strip())
+    ):
+        return _text(_error(
+            "interaction.quality_gate_policy=enforce: "
+            "override_cross_deliverable=true requires override_rationale."
+        ))
+
+    res = audit_cross_deliverable_consistency(root)
+
+    if res.get("blockers") and override_requested:
+        log_override(
+            root,
+            tool="tool_audit_cross_deliverable_consistency",
+            gate="cross_deliverable_consistency",
+            rationale=rationale,
+            extra={
+                "blocker_count": len(res["blockers"]),
+                "deliverables_found": res.get("deliverables_found", []),
+            },
+        )
+        res["override_applied"] = True
+        res["status"] = "success"
+
+    return _text(_success(res))
+
+
+# ── reviewer-response scaffold (4 tools) ─────────────────────────────
+
+
+def _handle_tool_reviewer_simulate(name, arguments, root):
+    from research_os.tools.actions.synthesis.reviewer import reviewer_simulate
+    res = reviewer_simulate(root, personas=arguments.get("personas"))
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "reviewer_simulate failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_rebuttal_draft(name, arguments, root):
+    from research_os.tools.actions.synthesis.reviewer import rebuttal_draft
+    res = rebuttal_draft(
+        root,
+        comment=arguments["comment"],
+        persona=arguments["persona"],
+        evidence_paths=arguments.get("evidence_paths"),
+    )
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "rebuttal_draft failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_reviewer_response_compile(name, arguments, root):
+    from research_os.tools.actions.synthesis.reviewer import (
+        reviewer_response_compile,
+    )
+    res = reviewer_response_compile(root)
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "compile failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_audit_reviewer_responses(name, arguments, root):
+    from research_os.tools.actions.synthesis.reviewer import (
+        audit_reviewer_responses,
+    )
+    res = audit_reviewer_responses(root)
+    return _text(_success(res))
+
+
 def _handle_tool_poster_create(name, arguments, root):
     from research_os.tools.actions.synthesis.latex import create_poster
+    from research_os.tools.actions.synthesis.poster_typst import compile_poster
 
-    return _text(_success(create_poster(
+    # Resolve engine: explicit argument > researcher_config > default 'typst'.
+    engine = arguments.get("engine")
+    if not engine:
+        try:
+            from research_os.tools.actions.state.config import get_research_config
+            cfg = get_research_config(root) or {}
+            engine = ((cfg.get("synthesis") or {}).get("poster_engine")) or "typst"
+        except Exception:
+            engine = "typst"
+
+    if engine == "latex":
+        # Legacy tikzposter path. Honors layout (billboard|classic) +
+        # audience (academic_conference|symposium|industry|teaching).
+        return _text(_success(create_poster(
+            root,
+            layout=arguments.get("layout", "billboard"),
+            audience=arguments.get("audience", "academic_conference"),
+        )))
+
+    # Typst (default). Pull template/theme/qr/handout from config when the
+    # caller didn't override.
+    template = arguments.get("template")
+    theme = arguments.get("theme")
+    qr_url = arguments.get("qr_url")
+    handout_pdf = arguments.get("handout_pdf")
+    try:
+        from research_os.tools.actions.state.config import get_research_config
+        cfg = get_research_config(root) or {}
+        synth = cfg.get("synthesis") or {}
+        if template is None:
+            template = synth.get("poster_template", "academic_36x48")
+        if theme is None:
+            theme = synth.get("poster_theme", "light")
+        if qr_url is None:
+            qr_url = synth.get("poster_qr_url") or None
+        if handout_pdf is None:
+            handout_pdf = bool(synth.get("poster_handout_pdf", True))
+    except Exception:
+        template = template or "academic_36x48"
+        theme = theme or "light"
+        handout_pdf = True if handout_pdf is None else handout_pdf
+
+    return _text(_success(compile_poster(
         root,
-        layout=arguments.get("layout", "billboard"),
-        audience=arguments.get("audience", "academic_conference"),
+        template=template,
+        theme=theme,
+        qr_url=qr_url,
+        handout_pdf=bool(handout_pdf),
     )))
 
 
@@ -5790,6 +6186,16 @@ _HANDLERS = {
     "tool_audit_cliches": _handle_tool_audit_cliches,
     "tool_poster_create": _handle_tool_poster_create,
     "tool_dashboard_create": _handle_tool_dashboard_create,
+    # ── headline tools ─────────────────────────────────
+    "tool_humanities_essay_scaffold": _handle_tool_humanities_essay_scaffold,
+    "tool_paper_figures_autoembed": _handle_tool_paper_figures_autoembed,
+    "tool_audit_figure_coverage": _handle_tool_audit_figure_coverage,
+    "tool_slides_create": _handle_tool_slides_create,
+    "tool_audit_cross_deliverable_consistency": _handle_tool_audit_cross_deliverable_consistency,
+    "tool_reviewer_simulate": _handle_tool_reviewer_simulate,
+    "tool_rebuttal_draft": _handle_tool_rebuttal_draft,
+    "tool_reviewer_response_compile": _handle_tool_reviewer_response_compile,
+    "tool_audit_reviewer_responses": _handle_tool_audit_reviewer_responses,
     # research / reasoning
     "tool_research_method": _handle_tool_research_method,
     "tool_research_tool": _handle_tool_research_tool,

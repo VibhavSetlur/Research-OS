@@ -12,6 +12,8 @@ Validates:
   5. Every tool defined in ``server.TOOL_DEFINITIONS`` has a registered
      handler in ``server._HANDLERS``.
   6. The dispatcher correctly resolves dot notation and legacy aliases.
+  7. Protocol scaffolds never reference deprecated alias names — they
+     must call the consolidated handler directly.
 
 Use:
     python scripts/preflight.py
@@ -720,6 +722,61 @@ def check_scaffold_smoke():
     return True, "ok"
 
 
+def check_no_deprecated_aliases_in_protocols():
+    """Protocol YAMLs must not reference any name in ``_DEPRECATED_ALIASES``.
+
+    Deprecated names still resolve (and fire a deprecation log entry) when
+    callers invoke them, but they are not the canonical surface and should
+    never appear in shipped protocol scaffolds — otherwise we ship guidance
+    that immediately emits deprecation telemetry on first use. Catalogue
+    authors should reference the consolidated handler (``tool_search``,
+    ``tool_plan``, ``sys_path``, ``mem_log`` …) plus the inferred parameter.
+    """
+    import re as _re
+
+    from research_os.server import _DEPRECATED_ALIASES
+
+    if not _DEPRECATED_ALIASES:
+        return True, "no deprecated aliases declared"
+
+    # Build a single word-boundary alternation. Sort by length (longest
+    # first) so e.g. ``tool_search_semantic_scholar`` matches before any
+    # hypothetical shorter prefix.
+    names = sorted(_DEPRECATED_ALIASES, key=len, reverse=True)
+    pattern = _re.compile(r"\b(" + "|".join(_re.escape(n) for n in names) + r")\b")
+
+    offenders: list[str] = []
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if "light" in f.parts:
+            continue
+        # Registry / index files (``_router_index.yaml`` etc.) are not
+        # protocol scaffolds and may legitimately reference legacy names
+        # for routing context — skip them.
+        if f.name.startswith("_"):
+            continue
+        try:
+            text = f.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue
+        seen_here: set[str] = set()
+        for m in pattern.finditer(text):
+            name = m.group(1)
+            if name in seen_here:
+                continue
+            seen_here.add(name)
+            rel = f.relative_to(PROTOCOLS_DIR).with_suffix("").as_posix()
+            offenders.append(f"{rel}: `{name}`")
+
+    if offenders:
+        return False, (
+            f"{len(offenders)} deprecated-alias reference(s) in protocols "
+            f"(use the consolidated name + injected param instead): "
+            + "; ".join(offenders[:5])
+            + ("..." if len(offenders) > 5 else "")
+        )
+    return True, f"clean across {len(_DEPRECATED_ALIASES)} deprecated names"
+
+
 def check_no_version_chatter():
     """No historical version commentary in live doctrine surfaces."""
     import importlib.util
@@ -765,6 +822,7 @@ def main() -> int:
     tally.check("tools/actions/ flat namespace minimal", check_flat_namespace_is_minimal)
     tally.check("Every protocol YAML loads", check_every_protocol_loads)
     tally.check("No dot-notation tool calls in protocols", check_no_dot_tool_calls_in_protocols)
+    tally.check("No deprecated-alias tool refs in protocols", check_no_deprecated_aliases_in_protocols)
     tally.check("Every tool definition has a handler", check_every_tool_has_handler)
     tally.check("All handlers are callable", check_handlers_callable)
     tally.check("Dispatcher aliases resolve", check_dispatcher_aliases)

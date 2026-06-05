@@ -1,6 +1,6 @@
 id: clinical_trials
 name: Clinical Trial Analysis (CONSORT family)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for analysing a randomised clinical trial. Names
@@ -45,7 +45,7 @@ steps:
         - missing-data plan (mechanism assumed + handling)
         - any pre-specified subgroup or sensitivity analyses
       Any deviation from the SAP later in the analysis must be
-      logged via `mem_decision_log` AND surfaced at synthesis.
+      logged via `mem_log` AND surfaced at synthesis.
 
   - id: characterise_randomisation
     name: Characterise randomisation + baseline balance
@@ -94,7 +94,7 @@ steps:
       posterior summary if Bayesian). The analytic method is the
       SAP's; if the SAP is silent on a choice (covariate adjustment,
       link function, error structure), document and justify each
-      decision via `mem_decision_log`.
+      decision via `mem_log`.
 
   - id: safety_signal_review
     name: Adverse-event analysis
@@ -118,7 +118,7 @@ steps:
   - id: log_deviations_from_sap
     name: Log every deviation from the SAP
     description: |
-      `mem_decision_log` for each: context = "SAP deviation —
+      `mem_log` for each: context = "SAP deviation —
       <where>", rationale = "<why>", flagged_for_synthesis = true.
       The synthesis step diffs the final analysis against the SAP
       and surfaces every deviation in the methods narrative.

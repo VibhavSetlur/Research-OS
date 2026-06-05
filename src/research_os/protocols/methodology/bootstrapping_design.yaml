@@ -1,6 +1,6 @@
 id: bootstrapping_design
 name: Bootstrap / Resampling Design
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -188,7 +188,7 @@ steps:
       resamples. When CIs come from bootstrap, the table footnote
       must say so.
 
-      mem_methods_append the entry with content-hash of the
+      mem_log the entry with content-hash of the
       replicate file so the audit trail can re-derive intervals.
 
 expected_outputs:
@@ -196,7 +196,7 @@ expected_outputs:
   - workspace/<step>/scripts/<NN>_bootstrap_<statistic>_v<n>.py
   - workspace/<step>/outputs/reports/bootstrap_<statistic>.md
   - workspace/<step>/outputs/figures/bootstrap_<statistic>_distribution.png
-  - (entry appended to methods.md via mem_methods_append)
+  - (entry appended to methods.md via mem_log)
 
 quality_bar:
   data_dependence_structure_documented: true

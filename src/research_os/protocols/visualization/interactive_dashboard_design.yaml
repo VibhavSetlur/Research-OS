@@ -1,6 +1,6 @@
 id: interactive_dashboard_design
 name: Interactive Dashboard Design (showcase-tier, beyond static HTML)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -257,7 +257,7 @@ steps:
         - version + last-updated date + source / data hash
         - contact + cite-able DOI
 
-      mem_methods_append the stack choice + data hash so the
+      mem_log the stack choice + data hash so the
       paper's methods section can reference it.
 
 expected_outputs:

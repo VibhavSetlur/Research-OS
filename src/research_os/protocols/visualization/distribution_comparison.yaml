@@ -1,6 +1,6 @@
 id: distribution_comparison
 name: Distribution Comparison (raincloud, beeswarm, ridgeline, halfeye)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -187,7 +187,7 @@ steps:
           many groups)
         - the citation for any non-conventional idiom
 
-      mem_methods_append the figure idiom choices so the audit
+      mem_log the figure idiom choices so the audit
       trail is intact.
 
 expected_outputs:

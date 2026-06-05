@@ -1,6 +1,6 @@
 id: ablation_study
 name: Ablation Study
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Systematic removal / replacement of model or pipeline components to
@@ -24,7 +24,7 @@ editorial_voice:
 steps:
   - id: create_step
     name: Create Ablation Step
-    description: sys_path_create name="ablation_<base_model>"
+    description: sys_path name="ablation_<base_model>"
 
   - id: enumerate_components
     name: Enumerate Components Under Test

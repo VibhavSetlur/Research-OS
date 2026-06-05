@@ -1,6 +1,6 @@
 id: constructive_disagreement
 name: Constructive Disagreement (when the AI should push back)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Protocol for the case where the AI's grounded judgement disagrees
@@ -147,7 +147,7 @@ steps:
         — but do not interrupt the flow or ask for a response.
 
       Save the voiced disagreement + the researcher's response
-      to mem_decision_log.
+      to mem_log.
 
   - id: respect_the_decision
     name: Respect the researcher's decision
@@ -174,7 +174,7 @@ steps:
   - id: log_the_outcome
     name: Log the outcome
     description: |
-      mem_decision_log
+      mem_log
         context="constructive disagreement <id>"
         selected="<the researcher's choice>"
         rationale="<their reason in one line>"

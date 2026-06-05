@@ -1,6 +1,6 @@
 id: coding_scheme_development
 name: Coding Scheme Development (qualitative codebook)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -138,7 +138,7 @@ steps:
       When agreement is acceptable, FREEZE the codebook:
         - copy current v<n> to workspace/.qualitative/codebook_FROZEN_<iso>.md
         - content-hash the file
-        - log the freeze via mem_methods_append method="qualitative
+        - log the freeze via mem_log method="qualitative
           coding" parameters="codebook v<n> hash=<sha>"
 
       Document the amendment process: who can propose a new code
@@ -166,7 +166,7 @@ steps:
         - codebook availability (linked in Data Availability — see
           writing/writing_data_availability)
 
-      mem_methods_append the summary so the methods.md trail is
+      mem_log the summary so the methods.md trail is
       intact.
 
 expected_outputs:

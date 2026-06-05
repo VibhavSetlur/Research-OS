@@ -1,6 +1,6 @@
 id: session_resume
 name: Session Resume
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -32,7 +32,7 @@ steps:
         - resume_message — exact text to read aloud to the researcher
 
       DO NOT call sys_state_get / sys_protocol_history / mem_hypothesis_list
-      / sys_path_list separately. They are all bundled.
+      / sys_path separately. They are all bundled.
 
   - id: poll_background_tasks
     name: Poll Live Background Tasks (only if any)

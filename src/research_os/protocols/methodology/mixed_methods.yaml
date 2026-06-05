@@ -1,6 +1,6 @@
 id: mixed_methods
 name: Mixed Methods (Qual + Quant)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Concurrent or sequential integration of qualitative and quantitative
@@ -39,10 +39,10 @@ steps:
     name: Run Qual + Quant in Their Own Steps
     description: |
       Create one numbered step per strand:
-        sys_path_create name="quant_<topic>"  → routes through
+        sys_path name="quant_<topic>"  → routes through
                                                  methodology/* (the chosen
                                                  quant method)
-        sys_path_create name="qual_<topic>"   → routes through
+        sys_path name="qual_<topic>"   → routes through
                                                  methodology/qualitative_research
       Each strand runs its own protocol independently — do not blur
       methods (e.g. don't apply quant inference to coded themes, don't
@@ -63,7 +63,7 @@ steps:
   - id: joint_display
     name: Build the Joint Display
     description: |
-      sys_path_create name="mixed_integration". Build
+      sys_path name="mixed_integration". Build
       outputs/reports/joint_display.md:
         | Theme | Quant finding | Convergence | Interpretation |
         |-------|---------------|-------------|----------------|

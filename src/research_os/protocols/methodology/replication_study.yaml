@@ -1,6 +1,6 @@
 id: replication_study
 name: Replication Study (Direct + Conceptual)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Re-execute a previously published analysis with explicit comparison to
@@ -51,10 +51,10 @@ steps:
   - id: data_pipeline
     name: Build Replication Data Pipeline
     description: |
-      sys_path_create name="repl_<short_paper_id>". Re-do the inclusion /
+      sys_path name="repl_<short_paper_id>". Re-do the inclusion /
       exclusion in a script (don't trust manual filtering). If using
       different data than original, document the swap in
-      methods.md with mem_methods_append justification="replication with
+      methods.md with mem_log justification="replication with
       new cohort".
 
   - id: rerun_analysis
@@ -62,7 +62,7 @@ steps:
     description: |
       Implement the exact original specification first. If the paper used
       Stata or SAS and we're in Python, document the translation in
-      mem_decision_log context="replication translation". Save fitted model
+      mem_log context="replication translation". Save fitted model
       + standard errors to outputs/data/.
 
   - id: compare_to_original

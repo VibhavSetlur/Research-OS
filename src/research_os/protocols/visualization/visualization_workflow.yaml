@@ -1,6 +1,6 @@
 id: visualization_workflow
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Workflow protocol for when a researcher wants FIGURES — one, a few, or a
@@ -71,7 +71,7 @@ steps:
       In ONE batch:
         - sys_file_list directory="inputs/raw_data"
         - sys_file_list directory="inputs/context"
-        - sys_path_list  (any workspace steps with outputs/tables/)
+        - sys_path  (any workspace steps with outputs/tables/)
       For shape (a) — list the existing figures already on disk under
       inputs/ or workspace/*/outputs/figures/.
       For shape (b)/(c) — confirm WHICH file or table each requested

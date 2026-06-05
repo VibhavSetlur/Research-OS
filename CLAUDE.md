@@ -28,7 +28,7 @@ installed. Always activate the env first.
 ## Always do before declaring work "done"
 
 ```bash
-python scripts/preflight.py     # 21 wiring checks, must be 21/21
+python scripts/preflight.py     # 22 wiring checks, must be 22/22
 python -m pytest -q             # 895+ tests, must all pass
 ruff check src/ tests/ scripts/ # must be clean
 ```
@@ -160,7 +160,7 @@ merge AND document why in the commit message.
    no section = ugly fallback release notes.
 3. **Never bump `pyproject.toml` without also bumping `__init__.py`
    and `CITATION.cff`.** All three must agree.
-4. **Never skip the test gate.** `preflight 21/21` + `pytest 895+ pass`
+4. **Never skip the test gate.** `preflight 22/22` + `pytest 895+ pass`
    + `ruff clean` before push.
 5. **Never reduce the protocol/tool count without an explicit MAJOR
    bump + a Migration section in the CHANGELOG.** Removing a tool or

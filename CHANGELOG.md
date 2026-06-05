@@ -6,6 +6,105 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.11.0] - v1.11.0 - Figure auto-embed + real slides/poster + reviewer scaffold + 8 deferred items closed (2026-06-05)
+
+MINOR release. Closes F-005 + F-019 + AUDIT-026 + AUDIT-047 + AUDIT-063
++ AUDIT-073 + humanities_essay_structure deferrals. Ships the headline
+figure-auto-embed pass (walk every step's outputs/figures/ into the
+right section of paper.md before PDF compile, with a companion
+orphan-coverage audit gate). Real Reveal.js v5 + Touying-Typst slide
+compilers across 5 stock templates replace the v1.10.x skeleton. Real
+Typst poster compiler across 5 size templates replaces the legacy
+tikzposter LaTeX engine (still reachable via `poster_engine: latex`).
+Adds `tool_audit_cross_deliverable_consistency` (5-dimension check
+across paper/dashboard/slides/poster). Adds the reviewer scaffold (4
+tools + 7 bundled personas + 1 protocol) for pre-submission
+adversarial self-review with per-comment rebuttal generation and
+hand-waving audit. Adds humanities-monograph ISBN verifiers (WorldCat,
+OpenLibrary, LOC). Synthesis-pipeline config block lands in
+`researcher_config.yaml` (13 fields) so figure / slide / poster
+behaviour is declarative.
+
+Deferred to v2.0.0: tool surface consolidation (search/plan/path/mem
+clusters); `server.py` refactor (6.4K lines into focused submodules);
+deprecation cleanup (hard-remove the 21 aliases that fire telemetry
+today).
+
+### Added
+- docs(TOOLS.md): new "Per-step audit overrides" section catalogs every override_<gate> kwarg the server accepts (override_completeness_gate, override_dashboard_content_gate, override_discussion_coverage, override_gate, override_literature_gate, override_no_pdfs, override_rationale, allow_unfinalized_predecessor) with a tool-by-tool table and worked call snippets.
+- docs(AI_GUIDE.md): new "When to override a gate" section with five worked examples (data-engineering step, literature unreachable, methodology pending, pre-publication final pass, researcher discretion) clarifying when the override path is appropriate and when fixing the underlying blocker is the right answer.
+- docs: documented the override_rationale REQUIREMENT under interaction.quality_gate_policy=enforce and the workspace/logs/override_log.md line format (timestamp, tool, gate, rationale, JSON extras) so authors of the pre-submission audit have a stable contract to read.
+- tests(unit): test_override_docs.py grep-asserts that every override_<gate> kwarg present in server.py is mentioned in both docs/TOOLS.md and docs/AI_GUIDE.md, plus that override_rationale, workspace/logs/override_log.md, and the two new section anchors are present in both guides.
+- Humanities monograph citation verifiers: `verify_worldcat`, `verify_openlibrary`, `verify_loc` in `research.citations_isbn`, with an `verify_citation_auto` dispatcher that picks the chain based on whether the citation carries an ISBN or only a DOI. Offline-safe (5s timeout, never raises). Stdlib only.
+- `synthesis.citations.verify_citation_entry` helper that routes ISBN-bearing citations through the new monograph verifiers and falls back to Crossref for DOI-only entries.
+- New `synthesis/humanities_essay_structure` protocol — non-IMRAD interpretive shape (thesis → contextual framing → 3-5 close readings → critical conversation → counter-argument + reply → conclusion + stakes) so humanities projects no longer fall into the IMRAD synthesis_paper template.
+- New `tool_humanities_essay_scaffold` MCP tool — writes `synthesis/paper.md` with the six humanities-essay section headings + one-paragraph stubs. Idempotent: preserves substantive researcher prose on re-run.
+- New router entry under `synthesize` intent class with `humanities_essay` sub-intent and triggers for "humanities essay", "close-reading essay", "write the essay", "essay structure".
+- COREQ (Tong et al. 2007, 32 items) and SRQR (O'Brien et al. 2014, 21 items) reporting-standard checklists under `templates/checklists/`, with `id` / `domain` / `item_text` / `guidance_short` per item; closes AUDIT-026.
+- `tool_qualitative_select_standard` (qualitative pack) — reads `workspace/study_design.yaml`, picks COREQ for interview/focus-group studies and SRQR otherwise, copies the matching bundled checklist into `workspace/checklists/<standard>_coverage_v<N>.yaml` so the `walk_checklist` step has a populated file to mark up.
+- tests/unit/test_protocol_no_deprecated_aliases.py: regression gate that grep-walks every protocol YAML across core + every research_os_<pack> and fails if any of the 21 deprecated alias names appears as a whole word.
+- AUDIT-063: tool_synthesize accepts `auto_proceed=true` to process every section (methods → results → discussion → introduction → abstract) plus the full assembly in ONE call when `interaction.autonomy_level=='autopilot'`. Returns a structured error in manual/supervised/coaching modes. Backwards-compat: default `false` preserves every existing call site.
+- Dashboard v2 now surfaces qualitative-pack sections (codebook table with kappa, themes hierarchy with subthemes, per-transcript saturation grid + curve, member-checking log per round) when the project's pack is detected as qualitative.
+- Dashboard v2 now surfaces humanities-pack sections (apparatus criticus table, numbered close-reading anchors, critical-conversation map from citation chains, manuscript witness list with sigla) when the project's pack is detected as humanities.
+- dashboard_v2.detect_active_pack(root) — resolves the active domain pack from researcher_config.yaml (pack/domain/packs) then falls back to workspace markers. Humanities wins over qualitative on tie.
+- Figure auto-embed (v1.11.0 headline feature): src/research_os/tools/actions/synthesis/figure_auto_embed.py walks every numbered step's outputs/figures/ and inserts each figure into the right section of synthesis/paper.md, driven by a YAML frontmatter sidecar (section_hint, figure_priority, poster_priority, alt_text, figures_for_paper, interactive_required). Three modes: append_to_section / explicit_map / reorder. Idempotent — preserves manual placements.
+- tool_paper_figures_autoembed — call directly or let tool_synthesize invoke it when synthesis.figures_auto_embed=true. Multi-paragraph captions split into headline + 'Note:' appendix. Logs every run to workspace/logs/figure_auto_embed.md.
+- tool_audit_figure_coverage — BLOCKs the master quality audit when a step has a figure on disk (figures_for_paper!=false) but synthesis/paper.md does not embed it. Opt out per-step (step_summary.yaml.figures_for_paper) or per-figure (caption sidecar frontmatter).
+- Cross-reference rewrite: rewrite_figure_xrefs converts bare stems ('see 01_volcano') to @fig:01_volcano cross-refs, skipping code blocks / inline code / image-link payloads / tokens already in @fig: form. Gated by synthesis.figure_xref_rewrite (default true).
+- templates/step_summary.yaml.template now documents the figures_for_paper field; researcher_config.yaml ships synthesis.figures_auto_embed / figures_auto_embed_mode / figure_xref_rewrite.
+- Real slide compilation engine (`tool_slides_create`) with two backends: `engine="reveal"` emits a single self-contained `synthesis/slides.html` using vendored Reveal.js v5 (speaker-notes plugin included), and `engine="touying"` emits `synthesis/slides.typ` against a bundled Touying-compatible Typst template and compiles to `synthesis/slides.pdf` via the typst CLI.
+- Five stock slide templates under `src/research_os/assets/slide_templates/`: `conference_15min`, `conference_5min_lightning`, `lab_meeting_30min` (with backup section), `defense_45min` (35-slide chapter-arc), `public_outreach` (no-jargon).
+- Optional `print_handout=True` (default) writes `synthesis/slides_handout.pdf` — a 2-up A4 condensed PDF with speaker notes printed beneath each slide; works for either engine via the touying handout fallback.
+- Vendored Reveal.js v5 (MIT) + a minimal Touying-compatible Typst template (`touying-mini`, MIT) under `src/research_os/assets/reveal/` and `src/research_os/assets/typst_packages/touying-mini/`; LICENSE + NOTICE shipped beside each.
+- Real Typst poster compilation backing `tool_poster_create`: 5 templates (academic_36x48, academic_48x36, academic_a0_portrait, academic_a1_landscape, public_24x36), light/dark/institution_branded themes, hero figures sorted by `poster_priority` frontmatter, optional QR code, US-letter handout PDF.
+- `poster-mini` Typst helper package at `assets/typst_packages/poster-mini/` (poster-page / poster-header / poster-footer / poster-block / poster-headline / poster-figure / poster-bullets) plus 5 thin template wrappers at `assets/poster_templates/`.
+- Reviewer-response scaffold: 7 bundled reviewer personas (methodology_skeptic, domain_expert, statistician, reproducibility_advocate, scope_creep_critic, novelty_critic, presentation_critic) + 4 tools (tool_reviewer_simulate, tool_rebuttal_draft, tool_reviewer_response_compile, tool_audit_reviewer_responses) + synthesis/reviewer_response protocol. Pre-submission adversarial self-review against synthesis/paper.md, per-comment rebuttal scaffolds with auto-discovered workspace evidence, compiles to response_to_reviewers.md/.pdf, audits for hand-waving + missing evidence.
+- `tool_audit_cross_deliverable_consistency` — cross-deliverable consistency audit across paper, dashboard, slides, and poster along 5 dimensions: numeric claims (±1% tolerance), figure stems, citation keys, headline findings (Jaccard ≥ 0.30), and reproducibility footer (RO version + commit hash + build timestamp). Skipped when <2 deliverables exist; override via `override_cross_deliverable` + `override_rationale`.
+- Reference-project manifests now declare a v1.11.0 contract: synthesis_deliverables (paper/slides/poster fan-out with per-deliverable tool + args + checks), cross_deliverable (title/figure-registry/citation-set consistency), and synthesis_behavior (theory-math-specific gate flags). biology_genomics_mini also declares a reviewer_simulation block (7 personas, min 30 comments).
+- New reference project tests/fixtures/projects/theory_math_graph_proof/ — sub-cubic 4-colourability (corollary of Brooks 1941) with 3 inputs. Doubles as a regression target for the DEG-trigger false-positive routing bug flagged in the v1.11.0 smoke pass.
+- tests/fixtures/figures/ — 4 placeholder PNGs paired with .caption.md sidecars carrying YAML frontmatter (figure_id, title, license, alt_text, source, generated_by, data_provenance) and the W3C three-part caption body shape.
+- tests/fixtures/projects/humanities_ms_review/inputs/citations/monographs.yaml — 3 ISBN-bearing monograph fixtures (Bede OUP 2009, Augustine OUP 1992, Liuzza Broadview 2014) for the OpenLibrary / WorldCat / LOC verifiers.
+- qualitative_interviews manifest now declares pii_redaction_expectations (must fire before synthesis; 18 HIPAA classes) and coreq_checklist (32 items walked, 28+ present) so the harness can audit the qualitative pipeline end-to-end.
+- humanities_ms_review manifest now declares routing_expectations for the essay output path (project_kind=humanities + output_type=essay → humanities/output/humanities_essay_structure) and isbn_verifier_expectations (3 entries, all verifiers acceptable, network_required false for offline CI).
+- tests/unit/test_v1110_reference_project_manifests.py — 23 hermetic tests pinning the new manifest contract, the graph-theory fixture presence, the caption-sidecar frontmatter shape, and the ISBN-extraction handshake against the existing _extract_isbn helper.
+- Preflight check #22: `check_no_deprecated_aliases_in_protocols` scans every shipped protocol YAML for references to names in `_DEPRECATED_ALIASES` and fails the gate if any are found. Protocols must call the consolidated handler directly.
+- Synthesis-config block: researcher_config.yaml ships 13 declarative knobs under `synthesis:` (figure auto-embed mode + xref rewrite; slide engine + template + theme + speaker_notes + handout; poster engine + template + theme + qr_url + handout). All optional with safe defaults.
+- Preflight check: `check_figures_for_paper_field` — once any fixture ships captioned figures, the gate confirms `figures_for_paper` is declared at step or sidecar level.
+
+### Changed
+- AUDIT-047: swept all 21 deprecated tool-name aliases from 75 shipped protocol YAMLs (74 core + wet_lab pack) and rewrote each to its canonical name via the server _ALIASES table. Also rewrote the 5 remaining sites in `_router_index.yaml` (sys_path_create / sys_path_abandon → sys_path; mem_methods_append / mem_decision_log → mem_log). Bumped version of every touched protocol to 1.11.0. Dispatcher still rewrites old names for back-compat, so end-user projects on prior versions are unaffected.
+- synthesis/synthesis_paper protocol prose documents the new autopilot short-circuit alongside the existing 10-turn multi-turn enforcement.
+- tool_dashboard_create result dict gains an active_pack field (empty string for generic STEM projects). Existing callers ignore unknown fields, so this is backwards-compatible.
+- synthesis/synthesis_paper protocol final_assembly step now describes the auto-embed pass + tool_audit_figure_coverage as part of the assembly + audit loop.
+- `tool_slides_create` inputSchema gained `engine`, `template`, `theme`, `speaker_notes_enabled`, `print_handout` kwargs. Legacy `output_format` (`reveal`/`beamer`/`pdf`) and `audience` kwargs are still accepted and silently mapped to the new `engine=` argument.
+- `tool_poster_create` default engine flips from legacy tikzposter LaTeX to Typst. Set `researcher_config.synthesis.poster_engine: latex` (or pass `engine='latex'`) to opt back into the tikzposter path; legacy `layout` / `audience` kwargs still route there.
+- `synthesis.poster_template` validator enum: `academic_36x48` / `academic_48x36` / `academic_a0_portrait` / `academic_a1_landscape` / `public_24x36`. Renames `a0_portrait` → `academic_a0_portrait` and `a0_landscape` → `academic_a1_landscape`; adds `public_24x36` for community-event posters.
+- `qualitative/output/qualitative_report_format.select_standard` step now calls `tool_qualitative_select_standard` instead of leaving the file copy as prose; protocol bumped to 1.11.0. Qualitative pack `__version__` bumped to 1.11.0.
+
+### Fixed
+- Humanities smoke gap — `humanities/textual/close_reading` and `humanities/archival/archival_research` citation chains were terminal (next_protocol: null), forcing humanities synthesis through IMRAD `synthesis_paper`; the new structure protocol gives the chain a humanities-shape destination.
+
+### Closed
+- AUDIT-073 — dashboard v2 qualitative + humanities renderers shipped (40 new unit tests).
+
+### Deferred
+- Tool surface consolidation (search/plan/path/mem clusters) → v2.0.0. Aliases continue to log deprecation telemetry to `.os_state/deprecations.log`.
+- `server.py` refactor (split 6.4K lines into focused submodules) → v2.0.0.
+- Hard removal of the 21 `_DEPRECATED_ALIASES` → v2.0.0 (MAJOR — breaking).
+- Wiring `verify_citation_entry` into the live `tool_citations_verify` pipeline → next minor; requires upstream `mem_citations_generate` to populate `isbn` fields on monograph entries.
+
+### Known issues (deferred to v1.11.1)
+- **theory_math pack — Path coercion**: `src/research_os/tools/actions/state/config.py:224,356` and 16 sites in `audit/audit.py` do `root / 'workspace'` without `root = Path(root)` coercion. Handlers called with a `str` root (rare in production; common in ad-hoc smoke harnesses) raise `TypeError`. Test suite uses `Path` so the gate is green; production paths from MCP transport are already `Path`. Fix: single-line coercion at each entry point.
+- **theory_math pack — pack-blind discovery**: `tools/actions/protocol.py:502` (`list_protocols`) walks only `PROTOCOLS_DIR`, never `_pack_protocol_dirs_safe()`. Symptom: `sys_protocol_list(category='theory_math')` returns core-only 117. Resolution via `sys_protocol_get` works.
+- **theory_math pack — router false-positive**: `DEG` trigger (intended for "DEG analysis" / "differential expression") matches "maximum degree 3" in graph-theory prompts. Routes theory-math conjectures into `guidance/analysis_plan` instead of `theory_math/method/proof_strategy_selection`.
+- **theory_math pack — IMRAD-only synthesis**: `tool_synthesize(output_type=paper)` emits `[abstract, introduction, methods, results, discussion, references]` even when project pack is `theory_math` (which prefers `[introduction, preliminaries, main_theorems, proofs, discussion]`). Synthesis pipeline has no hook to consult pack-supplied section schema.
+- **tool_synthesize — silent citation retrieval failure**: e2e smoke against `biology_genomics_mini` shipped `paper.md` with `citations_used=0` due to `'list index out of range'` in upstream Semantic Scholar / Crossref adapter. Surfaces as cross-deliverable consistency blockers (439 numeric mismatches downstream). Tool succeeds; citations missing.
+- **E2E manifest — persona-name drift**: `tests/fixtures/projects/biology_genomics_mini/manifest.yaml` lists personas (`skeptical_methodologist`, `statistics_referee`, `domain_expert_neuroscience`, `bioinformatician_reviewer`, `ethics_irb_reviewer`, `editor_in_chief`) that do not exist in `src/research_os/assets/reviewer_personas/`. Real persona ids: `methodology_skeptic`, `statistician`, `domain_expert`, `reproducibility_advocate`, `novelty_critic`, `scope_creep_critic`, `presentation_critic`. Fix: rename manifest entries to canonical ids.
+- **Handout naming convention**: implementation writes `slides_handout.pdf` / `poster_handout.pdf`; some manifests expect `slides.handout.pdf` / `poster.handout.pdf`. Pick one and update both sides.
+- **Typst font warnings**: every PDF compile emits non-fatal warnings for missing `Linux Libertine` / `Times New Roman` / `Times`. Ship a bundled fallback (e.g. New Computer Modern) or document the font install requirement.
+
+---
+
 ## [1.9.4] — Fresh-agent usability validation: 22 fixes across docs / protocols / templates (2026-06-05)
 
 MINOR release. Closes 21 of 22 prioritized fixes from a 5-scenario

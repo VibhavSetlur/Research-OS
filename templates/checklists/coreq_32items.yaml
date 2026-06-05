@@ -1,0 +1,178 @@
+# COREQ — Consolidated Criteria for Reporting Qualitative Research (32 items)
+# Source: Tong A, Sainsbury P, Craig J. Consolidated criteria for reporting
+# qualitative research (COREQ): a 32-item checklist for interviews and focus
+# groups. International Journal for Quality in Health Care. 2007;19(6):349-357.
+# https://doi.org/10.1093/intqhc/mzm042
+#
+# This file ships as a coverage template — copy into a project as
+# workspace/checklists/coreq_coverage_v<N>.yaml and fill in `status`,
+# `location`, and `note` per item while walking the manuscript draft.
+
+standard: COREQ
+version: '2007'
+total_items: 32
+domains:
+  - "Research team and reflexivity"
+  - "Study design"
+  - "Analysis and findings"
+
+items:
+  - id: Q1
+    domain: "Research team and reflexivity"
+    item_text: "Personal characteristics — Interviewer/facilitator: Which author/s conducted the interview or focus group?"
+    guidance_short: "Name the author(s) by initials or role; one sentence in Methods."
+
+  - id: Q2
+    domain: "Research team and reflexivity"
+    item_text: "Personal characteristics — Credentials: What were the researcher's credentials? E.g. PhD, MD."
+    guidance_short: "List degrees + relevant clinical or methodological training for each interviewer."
+
+  - id: Q3
+    domain: "Research team and reflexivity"
+    item_text: "Personal characteristics — Occupation: What was their occupation at the time of the study?"
+    guidance_short: "State role at the time of fieldwork (not the time of writing)."
+
+  - id: Q4
+    domain: "Research team and reflexivity"
+    item_text: "Personal characteristics — Gender: Was the researcher male or female?"
+    guidance_short: "Use whichever gender description the researcher uses; do not infer."
+
+  - id: Q5
+    domain: "Research team and reflexivity"
+    item_text: "Personal characteristics — Experience and training: What experience or training did the researcher have?"
+    guidance_short: "Specifically qualitative-methods training (workshops, prior studies, supervision)."
+
+  - id: Q6
+    domain: "Research team and reflexivity"
+    item_text: "Relationship with participants — Relationship established: Was a relationship established prior to study commencement?"
+    guidance_short: "Were interviewer + participant known to each other before recruitment? In what role?"
+
+  - id: Q7
+    domain: "Research team and reflexivity"
+    item_text: "Relationship with participants — Participant knowledge of the interviewer: What did the participants know about the researcher? E.g. personal goals, reasons for doing the research."
+    guidance_short: "What was disclosed in the consent process or pre-interview chat."
+
+  - id: Q8
+    domain: "Research team and reflexivity"
+    item_text: "Relationship with participants — Interviewer characteristics: What characteristics were reported about the interviewer/facilitator? E.g. bias, assumptions, reasons and interests in the research topic."
+    guidance_short: "The positionality paragraph — stance toward the topic + how it shaped interpretation."
+
+  - id: Q9
+    domain: "Study design"
+    item_text: "Theoretical framework — Methodological orientation and theory: What methodological orientation was stated to underpin the study? E.g. grounded theory, discourse analysis, ethnography, phenomenology, content analysis."
+    guidance_short: "Name the orientation in Methods; do not just say 'qualitative'."
+
+  - id: Q10
+    domain: "Study design"
+    item_text: "Participant selection — Sampling: How were participants selected? E.g. purposive, convenience, consecutive, snowball."
+    guidance_short: "Name the sampling strategy + why it suits the research question."
+
+  - id: Q11
+    domain: "Study design"
+    item_text: "Participant selection — Method of approach: How were participants approached? E.g. face-to-face, telephone, mail, email."
+    guidance_short: "First-contact channel and who made the contact."
+
+  - id: Q12
+    domain: "Study design"
+    item_text: "Participant selection — Sample size: How many participants were in the study?"
+    guidance_short: "Final N + how it was decided (saturation, target, pragmatic ceiling)."
+
+  - id: Q13
+    domain: "Study design"
+    item_text: "Participant selection — Non-participation: How many people refused to participate or dropped out? Reasons?"
+    guidance_short: "Refusals + dropouts with reasons where available; CONSORT-style flow if helpful."
+
+  - id: Q14
+    domain: "Study design"
+    item_text: "Setting — Setting of data collection: Where was the data collected? E.g. home, clinic, workplace."
+    guidance_short: "Physical location + why that setting was chosen."
+
+  - id: Q15
+    domain: "Study design"
+    item_text: "Setting — Presence of non-participants: Was anyone else present besides the participants and researchers?"
+    guidance_short: "Family members, translators, observers — note presence and influence."
+
+  - id: Q16
+    domain: "Study design"
+    item_text: "Setting — Description of sample: What are the important characteristics of the sample? E.g. demographic data, date."
+    guidance_short: "Demographic table or paragraph; date range of fieldwork."
+
+  - id: Q17
+    domain: "Study design"
+    item_text: "Data collection — Interview guide: Were questions, prompts, guides provided by the authors? Was it pilot tested?"
+    guidance_short: "Interview guide as supplementary file; note any piloting + revisions."
+
+  - id: Q18
+    domain: "Study design"
+    item_text: "Data collection — Repeat interviews: Were repeat interviews carried out? If yes, how many?"
+    guidance_short: "Number of follow-up interviews per participant and why."
+
+  - id: Q19
+    domain: "Study design"
+    item_text: "Data collection — Audio/visual recording: Did the research use audio or visual recording to collect the data?"
+    guidance_short: "Recording medium + storage; field notes if recording refused."
+
+  - id: Q20
+    domain: "Study design"
+    item_text: "Data collection — Field notes: Were field notes made during and/or after the interview or focus group?"
+    guidance_short: "When + by whom + how they fed into analysis."
+
+  - id: Q21
+    domain: "Study design"
+    item_text: "Data collection — Duration: What was the duration of the interviews or focus groups?"
+    guidance_short: "Range + mean/median in minutes."
+
+  - id: Q22
+    domain: "Study design"
+    item_text: "Data collection — Data saturation: Was data saturation discussed?"
+    guidance_short: "How saturation was defined + the evidence it was reached (or why not)."
+
+  - id: Q23
+    domain: "Study design"
+    item_text: "Data collection — Transcripts returned: Were transcripts returned to participants for comment and/or correction?"
+    guidance_short: "Member-check at the transcript stage (distinct from interpretive member checking)."
+
+  - id: Q24
+    domain: "Analysis and findings"
+    item_text: "Data analysis — Number of data coders: How many data coders coded the data?"
+    guidance_short: "Coder count + whether coding was independent or collaborative."
+
+  - id: Q25
+    domain: "Analysis and findings"
+    item_text: "Data analysis — Description of the coding tree: Did authors provide a description of the coding tree?"
+    guidance_short: "Codebook structure in main text or supplementary; tree diagram is helpful."
+
+  - id: Q26
+    domain: "Analysis and findings"
+    item_text: "Data analysis — Derivation of themes: Were themes identified in advance or derived from the data?"
+    guidance_short: "A-priori vs inductive vs hybrid; cite framework if a-priori."
+
+  - id: Q27
+    domain: "Analysis and findings"
+    item_text: "Data analysis — Software: What software, if applicable, was used to manage the data?"
+    guidance_short: "Name + version (NVivo 14, ATLAS.ti 23, Dedoose, etc.) or state 'manual'."
+
+  - id: Q28
+    domain: "Analysis and findings"
+    item_text: "Data analysis — Participant checking: Did participants provide feedback on the findings?"
+    guidance_short: "Member checking at the interpretation stage; how feedback was integrated."
+
+  - id: Q29
+    domain: "Analysis and findings"
+    item_text: "Reporting — Quotations presented: Were participant quotations presented to illustrate the themes/findings? Was each quotation identified? E.g. participant number."
+    guidance_short: "3-5 quotes per theme with participant IDs (P01, FG2-P3, etc.)."
+
+  - id: Q30
+    domain: "Analysis and findings"
+    item_text: "Reporting — Data and findings consistent: Was there consistency between the data presented and the findings?"
+    guidance_short: "Do the quotes actually support the claim each theme makes?"
+
+  - id: Q31
+    domain: "Analysis and findings"
+    item_text: "Reporting — Clarity of major themes: Were major themes clearly presented in the findings?"
+    guidance_short: "Each major theme has a heading + 1-paragraph definition + supporting evidence."
+
+  - id: Q32
+    domain: "Analysis and findings"
+    item_text: "Reporting — Clarity of minor themes: Is there a description of diverse cases or discussion of minor themes?"
+    guidance_short: "Negative cases + minor themes get airtime — not only the confirmatory pattern."

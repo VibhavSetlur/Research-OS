@@ -585,6 +585,153 @@ that hint verbatim to the researcher rather than re-paraphrasing.
 
 ---
 
+---
+
+## Per-step audit overrides
+
+Quality gates BLOCK by default. The researcher can authorise a bypass
+for a single call by passing the right `override_<gate>=true` kwarg
+**plus** an `override_rationale="<one-line why>"`. Every honoured
+bypass appends a line to `workspace/logs/override_log.md` so the
+pre-submission audit can resurface it before publication.
+
+Under the default `interaction.quality_gate_policy=enforce`, the
+rationale is **mandatory** — a bypass kwarg without a rationale is
+rejected before the gate is even consulted. Under `allow_override`
+the AI may bypass on request with the rationale logged. Under
+`warn_only` (sandbox only) blockers degrade to warnings and no
+explicit override is needed.
+
+### Override kwargs by tool
+
+| Tool | Gate kwarg | Pairs with | Blocks what |
+|---|---|---|---|
+| `tool_synthesize` | `override_completeness_gate` | `override_rationale` | Master quality gate (full doc) / step-completeness (section-only) |
+| `tool_dashboard_create` | `override_completeness_gate` | `override_rationale` | Step-completeness warnings panel on the rendered dashboard |
+| `tool_dashboard_create` | `override_dashboard_content_gate` | `override_rationale` | `tool_audit_dashboard_content` BLOCKERs (placeholder text, stub captions, etc.) |
+| `tool_audit_dashboard_content` | `override_dashboard_content_gate` | `override_rationale` | Same gate when called directly (returns `override_applied: true`) |
+| `tool_plan_advance` / `sys_plan_op operation='advance'` | `override_gate` | `override_rationale` | Deliverable-step quality gate before advancing the plan |
+| `tool_path_finalize` | `override_literature_gate` | `override_rationale` | Per-step literature loop check (missing `findings_vs_literature.md`, uncovered DISAGREES verdicts) |
+| `tool_audit_step_literature` | `override_literature_gate` | `override_rationale` | Same gate when called directly |
+| `tool_discussion_coverage_audit` / `tool_writing_discussion` validate step | `override_discussion_coverage` | `override_rationale` | Discussion-coverage BLOCK (non-AGREES verdict missing from `synthesis/discussion.md`) |
+| `tool_audit_synthesis` | `override_no_pdfs` | `override_rationale` | Zero-PDF default-deny on literature-required steps |
+| `tool_paper_figures_autoembed` | `override_xref_rewrite` | n/a (local flip) | Skip the auto rewrite of figure cross-references when `synthesis.figure_xref_rewrite=true` in `researcher_config.yaml`. Use when `paper.md` already carries hand-tuned Pandoc cross-refs the AI must not touch. |
+| `tool_audit_cross_deliverable_consistency` | `override_cross_deliverable` | `override_rationale` | 5-dimension cross-deliverable audit (numeric / figures / citations / top-line findings / reproducibility footer). Use when an outward-facing deliverable intentionally diverges from the paper (e.g. a poster simplification reviewed by the supervisor). |
+| `sys_path_create` | `allow_unfinalized_predecessor` | `override_rationale` | Refusal to create the next numbered step before the previous one is finalised |
+
+### Example calls
+
+Synthesize a partial paper preview before the final figures land:
+
+```python
+tool_synthesize(
+    output_type="paper",
+    override_completeness_gate=True,
+    override_rationale="reviewer wants a preview of the discussion before Fig 3 is final",
+)
+```
+
+Render the executive dashboard for a status meeting even though three
+step captions are still stubs:
+
+```python
+tool_dashboard_create(
+    audience="executive",
+    override_completeness_gate=True,
+    override_rationale="board update at 16:00, finals land tomorrow",
+)
+```
+
+Walk the plan past a deliverable step the researcher already produced
+outside the workspace:
+
+```python
+tool_plan_advance(
+    override_gate=True,
+    override_rationale="poster v2 was rendered manually in Keynote",
+)
+```
+
+Finalise the path before the literature loop has caught up:
+
+```python
+tool_path_finalize(
+    path_name="03_pilot_grouping",
+    override_literature_gate=True,
+    override_rationale="pilot path — literature deferred to the v2 follow-up",
+)
+```
+
+Audit a manuscript that intentionally has no PDFs (theory paper that
+cites only earlier theorems):
+
+```python
+tool_audit_synthesis(
+    paper_path="synthesis/paper.md",
+    override_no_pdfs=True,
+    override_rationale="theory_math project — no empirical PDFs needed",
+)
+```
+
+Create the next numbered path before the previous one is sealed (the
+researcher is branching exploratory work):
+
+```python
+sys_path_create(
+    name="04_alt_grouping",
+    branch_of="03_pilot_grouping",
+    allow_unfinalized_predecessor=True,
+    override_rationale="branching to explore an alternative cutoff while 03 finishes",
+)
+```
+
+### `override_rationale` is required, not advisory
+
+Under `interaction.quality_gate_policy=enforce` (the default) every
+override kwarg above MUST be paired with a non-empty
+`override_rationale`. The server returns a hard error if the rationale
+is missing or blank — the bypass never happens. This is deliberate:
+silent bypasses are the failure mode this whole subsystem exists to
+prevent.
+
+### `workspace/logs/override_log.md` format
+
+Every honoured bypass appends a single markdown bullet:
+
+```
+- 2026-06-05T17:42:11Z · `tool_synthesize` · gate=quality_full · reviewer wants a preview · {"output_type": "paper", "section": null, "blocker_count": 4}
+```
+
+Fields in order:
+
+1. UTC timestamp (ISO 8601)
+2. Tool name (backticked)
+3. `gate=<gate-id>` — internal name of the gate that was bypassed
+   (e.g. `quality_full`, `step_completeness`, `dashboard_content`,
+   `audit_synthesis_no_pdfs`, `enforce_predecessor_finalized`)
+4. The rationale string verbatim (or
+   `<no rationale provided — flag in audit>` if the policy allowed an
+   empty one)
+5. Optional JSON extras — for `tool_synthesize` this includes
+   `output_type`, `section`, and `blocker_count`; other tools attach
+   tool-specific context
+
+The file header is written once on first append:
+
+```markdown
+# Quality-gate bypass log
+
+Every entry here represents a moment the researcher explicitly
+authorised the AI to bypass a quality gate. The pre-submission audit
+surfaces this list — confirm each bypass was intentional before
+submission.
+```
+
+`audit/pre_submission_checklist` reads this log at publish time and
+asks the researcher to confirm each entry. Don't hand-edit the log —
+re-running the override creates a fresh entry, which is what the
+audit trail expects.
+
 ## Adding a new tool
 
 See [CONTRIBUTING.md § Adding a new tool](../CONTRIBUTING.md). Key

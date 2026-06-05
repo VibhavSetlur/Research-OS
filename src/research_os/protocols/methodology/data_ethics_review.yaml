@@ -1,6 +1,6 @@
 id: data_ethics_review
 name: Data Ethics Review (IRB / privacy / consent / fairness)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Walk an ethics review of the data + analysis. Covers IRB / REC
@@ -242,7 +242,7 @@ steps:
       green   → proceed (route back to whichever protocol called
                 this one, with the review document linked)
       yellow  → proceed with conditions; record conditions to
-                mem_decision_log; assign owner + deadline; route
+                mem_log; assign owner + deadline; route
                 back to caller
       red     → STOP. Route to the responsible action:
                   - amendment to IRB / REC

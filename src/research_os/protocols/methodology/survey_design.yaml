@@ -1,6 +1,6 @@
 id: survey_design
 name: Survey / Questionnaire Design (instrument development)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -217,7 +217,7 @@ steps:
     name: Log the instrument + route to analysis or preregistration
     description: |
       Finalize workspace/.survey/instrument_FROZEN_<iso>.md with
-      content-hash. mem_methods_append the freeze.
+      content-hash. mem_log the freeze.
 
       If the instrument is part of a confirmatory study, route to
       methodology/preregistration with the instrument hash as the
@@ -230,7 +230,7 @@ expected_outputs:
   - workspace/.survey/item_pool_v<n>.md
   - workspace/.survey/cognitive_interviews.md
   - workspace/.survey/instrument_FROZEN_<iso>.md
-  - (entries appended to methods.md via mem_methods_append)
+  - (entries appended to methods.md via mem_log)
 
 quality_bar:
   existing_instrument_search_documented: true

@@ -1,6 +1,6 @@
 id: showcase_visualization
 name: Showcase Visualization (the visual IS the contribution)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -255,7 +255,7 @@ steps:
       process — this matters for VIS / HCI papers where the
       visualization choices ARE methodology.
 
-      mem_methods_append the design choices for the audit trail.
+      mem_log the design choices for the audit trail.
 
 expected_outputs:
   - workspace/.showcase/layered_read.md

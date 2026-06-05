@@ -1,6 +1,6 @@
 id: writing_discussion
 name: Writing — Discussion (the hardest section)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -158,7 +158,7 @@ steps:
       For each major finding, name ≥1 prior paper the finding AGREES
       WITH and ≥1 prior paper the finding DISAGREES WITH (when one
       exists). Use the literature already in workspace/citations.md;
-      run tool_search_semantic_scholar for fresh disagreements when
+      run tool_search for fresh disagreements when
       the existing corpus is thin.
 
       Pattern for each:
