@@ -1,8 +1,8 @@
 id: synthesis_dashboard
 name: Synthesis — Dashboard (paper-as-interactive)
-version: '1.9.0'
+version: '1.9.1'
 schema_version: '2.0'
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-05'
 description: |
   Generate a polished single-file HTML dashboard that reads as
   **the paper, told as an interactive guided walk-through**. Not a
@@ -211,14 +211,54 @@ steps:
       auto-derived sources — the spec just lets the project author the
       tone and per-RQ framing directly.
 
+  - id: ensure_interactive_companions
+    name: Ensure Per-Figure Interactive Companions
+    description: |
+      tool_audit_figure_interactivity
+      Walks workspace/<step>/outputs/figures/ and reports any figure
+      that should have an HTML companion next to its PNG but doesn't:
+        - >200-mark scatter / volcano / UMAP
+        - >50x50 heatmap matrix
+        - networks (any .graphml)
+        - >1000-point time series
+      In normal-strictness mode the gate auto-generates a Vega-Lite
+      or vis-network HTML companion so the <ro-figure-toggle> in the
+      dashboard has both Static and Interactive tabs to choose from.
+      Per-figure researcher override: drop
+      `<!-- ro:interactive-not-applicable, reason: ... -->`
+      into the figure's .caption.md sidecar.
+
+  - id: build_story_mode_source
+    name: Build dashboard_story.md (Story Mode source)
+    description: |
+      tool_dashboard_story_generate
+      Assembles synthesis/dashboard_story.md from the spec abstract +
+      per-step plain summaries + per-step focal figure + adversarial
+      verdicts from each step's findings_vs_literature.md. This is the
+      source the dashboard renders when the reader picks Story mode.
+
+      Optional AI rewrite: tool_dashboard_story_edit (read or patch)
+      to polish in the researcher's voice.
+
+      Optional quality bar: tool_dashboard_story_quality_bar checks
+      reading-time (5-20 min), figure-in-first-1000-words, at least
+      one adversarial-grounding callout. Warnings only — story mode
+      is optional.
+
   - id: build_dashboard
     name: Build Dashboard
     description: |
       tool_dashboard_create title="<headline>" audience="<profile>"
+                            dashboard_default_mode="explore"
       Produces:
         synthesis/dashboard.html — single self-contained file with
         figures base64-embedded. Opens directly in any browser; no
         server / no filesystem dependency.
+
+      Default renderer is the single-page-app (sidebar nav + search +
+      filter chips + <ro-figure-toggle> static/interactive + reactive
+      tables + Story/Explore mode toggle). Pass dashboard_legacy=true
+      to fall back to the long-scroll renderer.
 
       Features:
         - Sidebar TOC with scroll-spy (active section highlighted on scroll).

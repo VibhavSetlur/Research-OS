@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.9.0"
+version = "1.9.1"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -103,6 +103,17 @@ typst_compile = []
 print_audit = ["pyppeteer>=2.0"]
 # WCAG contrast-ratio helper for the dashboard accessibility audit.
 contrast_audit = ["wcag-contrast-ratio>=0.9"]
+# Optional pyvis network rendering used as a fallback by
+# tool_figure_interactive_autogen when a .graphml is present. The
+# vendored vis-network bundle is the offline path; pyvis is offered
+# when the researcher wants Python-side helper APIs.
+interactive_figures = ["pyvis>=0.3"]
+# Story-mode math rendering. No Python deps today — the extra is a
+# marker so researcher_config.dashboard.story_math_enabled has
+# something to gate on, and so later math helpers (MathJax bundle
+# updates, KaTeX pre-rendering) can land here without breaking users
+# who only need the default story rendering.
+story_math = []
 
 # Developer extras
 dev = [
