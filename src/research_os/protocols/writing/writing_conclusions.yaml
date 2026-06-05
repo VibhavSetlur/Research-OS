@@ -1,6 +1,6 @@
 id: writing_conclusions
 name: Writing — Conclusions (per step)
-version: '1.7.0'
+version: '1.7.1'
 schema_version: '2.0'
 description: How to write per-step conclusions.md. Called by analysis_plan's document_conclusions step.
 

@@ -1,6 +1,6 @@
 id: reproduction_attempt
 name: Reproduction Attempt (rerun a published analysis)
-version: '1.7.0'
+version: '1.7.1'
 schema_version: '2.0'
 description: |
   Attempt to REPRODUCE a published analysis — rerun the authors'

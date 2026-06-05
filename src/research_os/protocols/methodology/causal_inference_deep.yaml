@@ -1,6 +1,6 @@
 id: causal_inference_deep
 name: Causal Inference (observational)
-version: '1.7.0'
+version: '1.7.1'
 schema_version: '2.0'
 description: |
   Reasoning scaffold for causal inference from observational data.

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.7.0"
+version = "1.7.1"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -69,12 +69,18 @@ julia = ["julia"]
 semantic = ["fastembed>=0.4"]
 
 # Domain packs — bundled with the core wheel in this release for easy
-# testing; will split into separate PyPI packages (research-os-humanities,
-# research-os-qualitative) in a future release. The extras are reserved
-# now so downstream users can already opt in via `pip install research-os[humanities]`
-# without changing the import surface when packs split out.
+# testing; will split into separate PyPI packages
+# (research-os-<pack>) in a future release. The extras are reserved
+# now so downstream users can already opt in via
+# `pip install research-os[<pack>]` without changing the import
+# surface when packs split out.
 humanities = []
 qualitative = []
+theory_math = []
+wet_lab = []
+engineering = []
+# Convenience meta-extra — installs every domain pack at once.
+all_packs = ["research-os[humanities,qualitative,theory_math,wet_lab,engineering]"]
 
 # Developer extras
 dev = [
@@ -129,4 +135,7 @@ packages = [
     "src/research_os",
     "src/research_os_humanities",
     "src/research_os_qualitative",
+    "src/research_os_theory_math",
+    "src/research_os_wet_lab",
+    "src/research_os_engineering",
 ]

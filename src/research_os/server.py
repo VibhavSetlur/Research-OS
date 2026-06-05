@@ -5739,6 +5739,9 @@ def _discover_packs_once() -> None:
     bundled = [
         ("humanities", "research_os_humanities:register"),
         ("qualitative", "research_os_qualitative:register"),
+        ("theory_math", "research_os_theory_math:register"),
+        ("wet_lab", "research_os_wet_lab:register"),
+        ("engineering", "research_os_engineering:register"),
     ]
     try:
         discover_packs(

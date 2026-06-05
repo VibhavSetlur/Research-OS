@@ -1,0 +1,52 @@
+# Reference project: theory_math_short_proof
+#
+# 2-page theorem (irrationality of sqrt(2)) + small algebraic lemma
+# with lemma-library + dependency-graph entries. Exercises the
+# theory_math pack on a project the researcher could conceivably
+# finish in an afternoon.
+
+domain: theory_math
+expected_pack: theory_math
+
+protocols_expected:
+  - theory_math/proof/proof_verification_workflow
+  - theory_math/proof/lemma_library
+  - theory_math/output/theory_paper_structure
+
+gates_expected_pass:
+  - theory_math/proof/proof_verification_workflow:per_step_citation_floor_met
+  - theory_math/proof/lemma_library:dependents_registered
+  - theory_math/output/theory_paper_structure:section_bands_respected
+
+artifacts_required:
+  - inputs/context/claim.md
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+canned_responses:
+  # theory_math/proof/proof_verification_workflow
+  state_claim: "Claim stated at workspace/proofs/sqrt2_irrational.md under ## Claim: sqrt(2) is irrational."
+  pick_strategy: "Strategy = proof by contradiction; justified in ## Strategy (assume sqrt(2)=p/q in lowest terms, derive parity contradiction)."
+  draft_proof: "Proof drafted as 6 numbered steps under ## Proof; cites coprime_parity_lemma at step 4."
+  independent_review: "Cold-read review by tool_redteam_review (focus='proof'); 1 minor wording fix at step 3; logged in workspace/proofs/sqrt2_irrational_review.md."
+  formal_check: "Formal-check waived (not foundational, no unusual axioms); waiver recorded under ## Formal-check waiver."
+  publish: "Proof promoted into paper's ## Proofs section; lemma_library + theorem_dependency_graph updated."
+
+  # theory_math/proof/lemma_library
+  extract_or_locate: "New lemma slug = coprime_parity_lemma; file workspace/lemmas/coprime_parity_lemma.md created; mem_log intent=new."
+  register_in_index: "Index entry added at version 0.1.0, status=active, dependents=[]."
+  write_statement_and_proof: "Statement + 4-step inline proof written; cites Euclid's Elements Bk VII Prop 30 for parity."
+  classify_bump: "New lemma — no bump classification needed; starts at 0.1.0."
+  audit_dependents: "No prior dependents (new lemma); audit waived under quality_bar PATCH-below-threshold rule."
+  update_index_and_backlinks: "Index bumped; sqrt2_irrational added as dependent at coprime_parity_lemma@0.1.0; tool_theorem_dependency_refresh ran clean."
+
+  # theory_math/output/theory_paper_structure
+  outline_sections: "workspace/papers/sqrt2_irrational/outline.md created; 6 sections with target page counts (intro 0.3p, prelims 0.4p, results 0.2p, proofs 0.8p, examples 0.2p, open 0.1p)."
+  draft_preliminaries: "Preliminaries drafted first; defines rational number, coprimality; cites Euclid for parity lemma; 95%+ citations resolved."
+  state_main_results: "Main Results section lists Theorem 1.1 (sqrt(2) irrational) + Lemma 1.2 (coprime-parity); statements only, no proofs inlined."
+  write_proofs: "Proofs section assembled from workspace/proofs/sqrt2_irrational.md; QED markers in place; sub-lemma stated and proved before main theorem."
+  add_examples: "Examples section shows sqrt(3) by parallel argument + failure mode for sqrt(4) (rational, exposes hypothesis boundary)."
+  introduction_and_open_questions: "Intro drafted last (4 paragraphs, within 5-15% band); 2 open questions (irrationality of sqrt(n) for n composite-with-square-factor; analogue in Z[i])."

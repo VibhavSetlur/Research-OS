@@ -1,6 +1,6 @@
 id: writing_citations
 name: Writing — Citations
-version: '1.7.0'
+version: '1.7.1'
 schema_version: '2.0'
 description: Maintain workspace/citations.md so every claim is grounded and every citation is verified online.
 
