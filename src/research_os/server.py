@@ -2315,6 +2315,155 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
+
+    # ─── consolidated tools ─────────────────────────
+    "tool_search": {
+        "short": "Unified literature/web search. Replaces tool_search_{semantic_scholar,pubmed,crossref,arxiv,web} via source=… or auto.",
+        "description": "One search tool, five providers + auto-routing. Pass source='semantic_scholar'|'pubmed'|'crossref'|'arxiv'|'web' to pin a provider, or source='auto' (default) to let Research-OS pick based on the query's domain (biomedical → semantic_scholar+pubmed; ML/methods → semantic_scholar+arxiv; social/behavioral → crossref+semantic_scholar; geoscience → crossref+arxiv; generic → web). The pre-consolidation per-provider names still work as deprecated aliases (logged for usage audit).",
+        "category": "search",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string"},
+                "source": {
+                    "type": "string",
+                    "enum": ["auto", "semantic_scholar", "pubmed", "crossref", "arxiv", "web"],
+                },
+                "limit": {"type": "integer"},
+            },
+            "required": ["query"],
+        },
+    },
+    "tool_plan": {
+        "short": "Unified plan dispatcher. operation='turn'|'advance'|'clear'. Replaces tool_plan_{turn,advance,clear}.",
+        "description": "Consolidates the three plan-progression tools behind one entry. operation='turn' returns the this-turn/next-turn batch (replaces tool_plan_turn). operation='advance' marks the current step done + returns the next (replaces tool_plan_advance; honours override_gate). operation='clear' discards the active plan (replaces tool_plan_clear). tool_plan_step_grounded stays standalone — distinct purpose.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string", "enum": ["turn", "advance", "clear"]},
+                "override_gate": {"type": "boolean"},
+                "override_rationale": {"type": "string"},
+            },
+            "required": ["operation"],
+        },
+    },
+    "sys_path": {
+        "short": "Unified path dispatcher. operation='create'|'abandon'|'list'. Replaces sys_path_{create,abandon,list}.",
+        "description": "One entry for the three path-lifecycle tools. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all paths with status.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string", "enum": ["create", "abandon", "list"]},
+                "name": {"type": "string"},
+                "hypothesis": {"type": "string"},
+                "branch_of": {"type": "string"},
+                "from_step": {"type": "string"},
+                "allow_unfinalized_predecessor": {"type": "boolean"},
+                "override_rationale": {"type": "string"},
+                "path_name": {"type": "string"},
+                "rationale": {"type": "string"},
+            },
+            "required": ["operation"],
+        },
+    },
+    "tool_ground": {
+        "short": "Register a grounded claim. mode='explicit' (sources) | 'from_context' (context_paths). Replaces tool_grounding_register + tool_ground_from_context.",
+        "description": "Unified grounding tool. mode='explicit' uses an explicit `sources` list (replaces tool_grounding_register). mode='from_context' anchors the claim to files already in the project context (replaces tool_ground_from_context).",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["explicit", "from_context"]},
+                "claim": {"type": "string"},
+                "decision_id": {"type": "string"},
+                "sources": {"type": "array"},
+                "context_paths": {"type": "array"},
+                "cited_excerpts": {"type": "array"},
+                "step_id": {"type": "string"},
+                "confidence": {"type": "string"},
+                "notes": {"type": "string"},
+            },
+            "required": ["claim"],
+        },
+    },
+    "tool_verify": {
+        "short": "Verify a claim or the whole project's grounded claims. scope='claim'|'project'. Replaces tool_claim_verify + tool_grounding_verify.",
+        "description": "Unified verification tool. scope='claim' checks one claim against a verifications list (replaces tool_claim_verify). scope='project' sweeps every registered grounded claim in the project (replaces tool_grounding_verify).",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "scope": {"type": "string", "enum": ["claim", "project"]},
+                "claim": {"type": "string"},
+                "verifications": {"type": "array"},
+                "decision_id": {"type": "string"},
+                "step_id": {"type": "string"},
+            },
+        },
+    },
+    "tool_lessons": {
+        "short": "Unified lessons store. operation='record'|'consult'. Replaces tool_lessons_record + tool_lessons_consult.",
+        "description": "Unified lessons-learned tool. operation='record' appends a lesson (replaces tool_lessons_record). operation='consult' retrieves relevant prior lessons for a task (replaces tool_lessons_consult).",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string", "enum": ["record", "consult"]},
+                "outcome": {"type": "string"},
+                "reflection": {"type": "string"},
+                "what_worked": {"type": "string"},
+                "what_didnt": {"type": "string"},
+                "recommendation": {"type": "string"},
+                "tags": {"type": "array"},
+                "step_id": {"type": "string"},
+                "scope": {"type": "string"},
+                "task": {"type": "string"},
+                "top_k": {"type": "integer"},
+                "scope_filter": {"type": "string"},
+            },
+        },
+    },
+    "mem_log": {
+        "short": "Unified memory append. kind='methods'|'decision'|'hypothesis'|'analysis'. Replaces mem_{methods_append,decision_log,hypothesis_update,analysis_log}.",
+        "description": "Consolidates the four memory-append tools behind one entry. kind='methods' (was mem_methods_append) takes method/parameters/justification. kind='decision' (was mem_decision_log) takes context/selected/rationale. kind='hypothesis' (was mem_hypothesis_update) takes hypothesis_id/status/evidence/step. kind='analysis' (was mem_analysis_log) takes a free-form entry.",
+        "category": "memory",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["methods", "decision", "hypothesis", "analysis"]},
+                "entry": {"type": "string"},
+                "method": {"type": "string"},
+                "step_name": {"type": "string"},
+                "step_number": {"type": "string"},
+                "dataset_name": {"type": "string"},
+                "dataset_hash": {"type": "string"},
+                "implementation": {"type": "string"},
+                "parameters": {"type": "string"},
+                "justification": {"type": "string"},
+                "assumptions": {"type": "array"},
+                "context": {"type": "string"},
+                "selected": {"type": "string"},
+                "rationale": {"type": "string"},
+                "hypothesis_id": {"type": "string"},
+                "status": {"type": "string"},
+                "evidence": {"type": "string"},
+                "step": {"type": "string"},
+            },
+            "required": ["kind"],
+        },
+    },
+    "tool_deprecations_summary": {
+        "short": "Aggregate counts from .os_state/deprecations.log — which deprecated aliases / redirects this project is still hitting.",
+        "description": "Reads .os_state/deprecations.log (populated whenever a deprecated alias is invoked OR a redirect-stub protocol is loaded) and returns aggregated counts by kind/source/target. Use to audit which deprecated names the project still relies on before the next major (when aliases hard-remove).",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    },
 }
 
 
@@ -3046,17 +3195,79 @@ def _handle_mem_decision_log(name, arguments, root):
 
 
 def _handle_tool_search(name, arguments, root):
+    """Unified search dispatcher (this-release consolidation of 5 search tools).
+
+    Selects provider by:
+      1. Explicit `source` arg (one of: semantic_scholar | pubmed | crossref |
+         arxiv | web | auto).
+      2. Legacy: if invoked under one of the deprecated per-provider names
+         (tool_search_<provider>), pick that provider for back-compat.
+      3. Default 'auto' — picks providers based on a quick keyword heuristic.
+    """
     q = arguments["query"]
     limit = arguments.get("limit", 5)
-    handler_map = {
-        "tool_search_semantic_scholar": search_semantic_scholar,
-        "tool_search_pubmed": search_pubmed,
-        "tool_search_crossref": search_crossref,
-        "tool_search_arxiv": search_arxiv,
-        "tool_search_web": search_web,
+
+    provider_fn = {
+        "semantic_scholar": search_semantic_scholar,
+        "pubmed": search_pubmed,
+        "crossref": search_crossref,
+        "arxiv": search_arxiv,
+        "web": search_web,
     }
-    fn = handler_map[name]
-    _log_search(root, name, q, 0)
+    legacy_map = {
+        "tool_search_semantic_scholar": "semantic_scholar",
+        "tool_search_pubmed": "pubmed",
+        "tool_search_crossref": "crossref",
+        "tool_search_arxiv": "arxiv",
+        "tool_search_web": "web",
+    }
+
+    source = arguments.get("source")
+    if not source:
+        source = legacy_map.get(name, "auto")
+
+    if source == "auto":
+        ql = q.lower()
+        if any(t in ql for t in ("rna", "gene", "snrna", "scrna", "protein",
+                                 "clinical", "disease", "neuron", "patient",
+                                 "tumor", "biomarker")):
+            picks = ["semantic_scholar", "pubmed"]
+        elif any(t in ql for t in ("transformer", "neural", "embedding",
+                                   "diffusion", "llm")):
+            picks = ["semantic_scholar", "arxiv"]
+        elif any(t in ql for t in ("psychometric", "survey", "qualitative",
+                                   "behavioral")):
+            picks = ["crossref", "semantic_scholar"]
+        elif any(t in ql for t in ("climate", "geology", "ocean", "atmosphere")):
+            picks = ["crossref", "arxiv"]
+        else:
+            picks = ["web"]
+        merged: list = []
+        per_source = max(1, limit // len(picks))
+        for src in picks:
+            try:
+                _log_search(root, f"tool_search:{src}", q, 0)
+                sub = provider_fn[src](q, per_source) or []
+                if isinstance(sub, list):
+                    for item in sub:
+                        if isinstance(item, dict):
+                            item.setdefault("_source", src)
+                    merged.extend(sub)
+                elif isinstance(sub, dict):
+                    sub.setdefault("_source", src)
+                    merged.append(sub)
+            except Exception as e:
+                merged.append({"_source": src, "_error": str(e)})
+        return _text(_success({"results": merged[:limit], "sources": picks,
+                               "mode": "auto"}))
+
+    if source not in provider_fn:
+        return _text(_error(
+            f"Unknown search source '{source}'. Valid: "
+            f"{sorted(provider_fn)} | auto"
+        ))
+    fn = provider_fn[source]
+    _log_search(root, f"tool_search:{source}", q, 0)
     res = fn(q, limit)
     return _text(_success(res))
 
@@ -4900,6 +5111,194 @@ def _handle_tool_mistake_replay(name, arguments, root):
     return _text(mistake_replay(root, limit=limit))
 
 
+# ── consolidated handlers ─────────────────────────────
+
+
+def _handle_tool_plan(name, arguments, root):
+    """Unified plan dispatcher (turn | advance | clear).
+
+    Selects op by:
+      1. Explicit `operation` arg.
+      2. Legacy: invoked under tool_plan_turn / _advance / _clear.
+    """
+    legacy = {
+        "tool_plan_turn": "turn",
+        "tool_plan_advance": "advance",
+        "tool_plan_clear": "clear",
+    }
+    operation = arguments.get("operation") or legacy.get(name)
+    if not operation:
+        return _text(_error(
+            "tool_plan requires operation='turn'|'advance'|'clear'"
+        ))
+    if operation == "turn":
+        return _handle_tool_plan_turn(name, arguments, root)
+    if operation == "advance":
+        return _handle_tool_plan_advance(name, arguments, root)
+    if operation == "clear":
+        return _handle_tool_plan_clear(name, arguments, root)
+    return _text(_error(f"Unknown plan operation '{operation}'"))
+
+
+def _handle_sys_path(name, arguments, root):
+    """Unified path dispatcher (create | abandon | list)."""
+    legacy = {
+        "sys_path_create": "create",
+        "sys_path_abandon": "abandon",
+        "sys_path_list": "list",
+    }
+    operation = arguments.get("operation") or legacy.get(name)
+    if not operation:
+        return _text(_error(
+            "sys_path requires operation='create'|'abandon'|'list'"
+        ))
+    if operation == "create":
+        return _handle_sys_path_create(name, arguments, root)
+    if operation == "abandon":
+        return _handle_sys_path_abandon(name, arguments, root)
+    if operation == "list":
+        return _handle_sys_path_list(name, arguments, root)
+    return _text(_error(f"Unknown sys_path operation '{operation}'"))
+
+
+def _handle_tool_ground(name, arguments, root):
+    """Unified grounding-register dispatcher.
+
+    mode='explicit'  → tool_grounding_register (sources list)
+    mode='from_context' → tool_ground_from_context (context_paths list)
+    """
+    mode = arguments.get("mode")
+    if not mode:
+        if name == "tool_ground_from_context" or "context_paths" in arguments:
+            mode = "from_context"
+        else:
+            mode = "explicit"
+    if mode == "explicit":
+        return _handle_tool_grounding_register(name, arguments, root)
+    if mode == "from_context":
+        return _handle_tool_ground_from_context(name, arguments, root)
+    return _text(_error(
+        f"Unknown ground mode '{mode}'. Use 'explicit' or 'from_context'."
+    ))
+
+
+def _handle_tool_verify(name, arguments, root):
+    """Unified verify dispatcher.
+
+    scope='claim'   → tool_claim_verify (claim + verifications list)
+    scope='project' → tool_grounding_verify (whole-project sweep)
+    """
+    scope = arguments.get("scope")
+    if not scope:
+        if name == "tool_grounding_verify" or not arguments.get("claim"):
+            scope = "project"
+        else:
+            scope = "claim"
+    if scope == "claim":
+        return _handle_tool_claim_verify(name, arguments, root)
+    if scope == "project":
+        return _handle_tool_grounding_verify(name, arguments, root)
+    return _text(_error(
+        f"Unknown verify scope '{scope}'. Use 'claim' or 'project'."
+    ))
+
+
+def _handle_tool_lessons(name, arguments, root):
+    """Unified lessons dispatcher (record | consult)."""
+    legacy = {
+        "tool_lessons_record": "record",
+        "tool_lessons_consult": "consult",
+    }
+    op = arguments.get("operation") or legacy.get(name)
+    if not op:
+        op = "consult" if "task" in arguments else "record"
+    if op == "record":
+        return _handle_tool_lessons_record(name, arguments, root)
+    if op == "consult":
+        return _handle_tool_lessons_consult(name, arguments, root)
+    return _text(_error(f"Unknown lessons operation '{op}'"))
+
+
+def _handle_mem_log(name, arguments, root):
+    """Unified memory-log dispatcher.
+
+    kind='methods'    → mem_methods_append
+    kind='decision'   → mem_decision_log
+    kind='hypothesis' → mem_hypothesis_update
+    kind='analysis'   → mem_analysis_log
+    """
+    legacy = {
+        "mem_methods_append": "methods",
+        "mem_decision_log": "decision",
+        "mem_hypothesis_update": "hypothesis",
+        "mem_analysis_log": "analysis",
+    }
+    kind = arguments.get("kind") or legacy.get(name)
+    if not kind:
+        return _text(_error(
+            "mem_log requires kind='methods'|'decision'|'hypothesis'|'analysis'"
+        ))
+    if kind == "methods":
+        return _handle_mem_methods_append(name, arguments, root)
+    if kind == "decision":
+        return _handle_mem_decision_log(name, arguments, root)
+    if kind == "hypothesis":
+        return _handle_mem_hypothesis_update(name, arguments, root)
+    if kind == "analysis":
+        return _handle_mem_analysis_log(name, arguments, root)
+    return _text(_error(f"Unknown mem_log kind '{kind}'"))
+
+
+def _handle_tool_deprecations_summary(name, arguments, root):
+    """Aggregate counts from .os_state/deprecations.log."""
+    log_path = root / ".os_state" / "deprecations.log"
+    if not log_path.exists():
+        return _text(_success({
+            "total": 0,
+            "by_kind": {},
+            "by_source": {},
+            "by_target": {},
+            "note": "No deprecations.log yet. Aliases / redirects haven't been invoked.",
+        }))
+    by_kind: dict[str, int] = {}
+    by_source: dict[str, int] = {}
+    by_target: dict[str, int] = {}
+    total = 0
+    try:
+        with open(log_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    e = json.loads(line)
+                except Exception:
+                    continue
+                total += 1
+                k = e.get("kind", "unknown")
+                by_kind[k] = by_kind.get(k, 0) + 1
+                s = e.get("source", "")
+                if s:
+                    by_source[s] = by_source.get(s, 0) + 1
+                t = e.get("target", "")
+                if t:
+                    by_target[t] = by_target.get(t, 0) + 1
+    except Exception as e:
+        return _text(_error(str(e)))
+    return _text(_success({
+        "total": total,
+        "by_kind": dict(sorted(by_kind.items())),
+        "by_source": dict(sorted(by_source.items(), key=lambda x: -x[1])),
+        "by_target": dict(sorted(by_target.items(), key=lambda x: -x[1])),
+        "log_path": ".os_state/deprecations.log",
+        "advice": (
+            "Replace deprecated names with their consolidated counterparts "
+            "before the next major (when aliases / redirect stubs will be removed). "
+            "See docs/MIGRATION.md for the full table."
+        ),
+    }))
+
+
 _HANDLERS = {
     # routing (call these first)
     "sys_boot": _handle_sys_boot,
@@ -5099,21 +5498,88 @@ _HANDLERS = {
     "tool_dry_run": _handle_tool_dry_run,
     "tool_step_complete": _handle_tool_step_complete,
     "tool_mistake_replay": _handle_tool_mistake_replay,
+
+    # ── consolidated tools ───────────────────────────
+    "tool_search": _handle_tool_search,
+    "tool_plan": _handle_tool_plan,
+    "sys_path": _handle_sys_path,
+    "tool_ground": _handle_tool_ground,
+    "tool_verify": _handle_tool_verify,
+    "tool_lessons": _handle_tool_lessons,
+    "mem_log": _handle_mem_log,
+    "tool_deprecations_summary": _handle_tool_deprecations_summary,
 }
 
 # Aliases — keep the AI's life easy when it forgets exact naming.
+#
+# Two flavours:
+#   * non-deprecated nickname aliases (old typos / colloquial names) — silent.
+#   * this-release consolidation aliases — flagged in _DEPRECATED_ALIASES below;
+#     hits log to .os_state/deprecations.log so projects can audit usage
+#     before the next major (when aliases hard-remove).
 _ALIASES = {
     # Dot notation is handled generically by the dispatcher's dot→underscore
     # rewrite, no need to list here.
-    #
-    # Only aliases that an active researcher might still type at the prompt
-    # survive. Aliases that pointed at stale names with no real callers have
-    # been removed — they were costing list-tools tokens without paying back.
     "tool_audit_figure_quality": "tool_audit_figure_full",
     "tool_audit_statistical_power": "tool_audit_power",
     "sys_state_summary": "sys_state_get",
     "tool_log_decision": "mem_decision_log",
     "view_workspace_tree": "sys_workspace_tree",
+
+    # ── consolidation aliases ─────────────────────────
+    # Search cluster (5 → 1).
+    "tool_search_semantic_scholar": "tool_search",
+    "tool_search_pubmed": "tool_search",
+    "tool_search_crossref": "tool_search",
+    "tool_search_arxiv": "tool_search",
+    "tool_search_web": "tool_search",
+    # Plan cluster (3 → 1, plan_step_grounded stays separate).
+    "tool_plan_turn": "tool_plan",
+    "tool_plan_advance": "tool_plan",
+    "tool_plan_clear": "tool_plan",
+    # Grounding cluster (4 → 2).
+    "tool_grounding_register": "tool_ground",
+    "tool_ground_from_context": "tool_ground",
+    "tool_claim_verify": "tool_verify",
+    "tool_grounding_verify": "tool_verify",
+    # Lessons (2 → 1).
+    "tool_lessons_record": "tool_lessons",
+    "tool_lessons_consult": "tool_lessons",
+    # Path cluster (3 → 1).
+    "sys_path_create": "sys_path",
+    "sys_path_abandon": "sys_path",
+    "sys_path_list": "sys_path",
+    # Memory cluster (4 → 1).
+    "mem_methods_append": "mem_log",
+    "mem_decision_log": "mem_log",
+    "mem_hypothesis_update": "mem_log",
+    "mem_analysis_log": "mem_log",
+}
+
+# Aliases that should fire deprecation telemetry when invoked. Every name
+# here MUST resolve through _ALIASES to a real handler — preflight enforces.
+_DEPRECATED_ALIASES = {
+    "tool_search_semantic_scholar",
+    "tool_search_pubmed",
+    "tool_search_crossref",
+    "tool_search_arxiv",
+    "tool_search_web",
+    "tool_plan_turn",
+    "tool_plan_advance",
+    "tool_plan_clear",
+    "tool_grounding_register",
+    "tool_ground_from_context",
+    "tool_claim_verify",
+    "tool_grounding_verify",
+    "tool_lessons_record",
+    "tool_lessons_consult",
+    "sys_path_create",
+    "sys_path_abandon",
+    "sys_path_list",
+    "mem_methods_append",
+    "mem_decision_log",
+    "mem_hypothesis_update",
+    "mem_analysis_log",
 }
 
 
@@ -5121,6 +5587,66 @@ def _resolve_tool_name(name: str) -> str:
     """Normalize incoming tool name: dots→underscores, then alias lookup."""
     canonical = name.replace(".", "_")
     return _ALIASES.get(canonical, canonical)
+
+
+# Maps legacy alias → (kwarg to inject, value). Lets the consolidated
+# handler infer operation/kind/source/mode/scope from the caller's name
+# so an old-style `tool_search_pubmed(query=...)` keeps working without
+# the caller supplying `source='pubmed'`.
+_ALIAS_PARAM_INJECTION = {
+    "tool_search_semantic_scholar": ("source", "semantic_scholar"),
+    "tool_search_pubmed":           ("source", "pubmed"),
+    "tool_search_crossref":         ("source", "crossref"),
+    "tool_search_arxiv":            ("source", "arxiv"),
+    "tool_search_web":              ("source", "web"),
+    "tool_plan_turn":               ("operation", "turn"),
+    "tool_plan_advance":            ("operation", "advance"),
+    "tool_plan_clear":              ("operation", "clear"),
+    "tool_grounding_register":      ("mode", "explicit"),
+    "tool_ground_from_context":     ("mode", "from_context"),
+    "tool_claim_verify":            ("scope", "claim"),
+    "tool_grounding_verify":        ("scope", "project"),
+    "tool_lessons_record":          ("operation", "record"),
+    "tool_lessons_consult":         ("operation", "consult"),
+    "sys_path_create":              ("operation", "create"),
+    "sys_path_abandon":             ("operation", "abandon"),
+    "sys_path_list":                ("operation", "list"),
+    "mem_methods_append":           ("kind", "methods"),
+    "mem_decision_log":             ("kind", "decision"),
+    "mem_hypothesis_update":        ("kind", "hypothesis"),
+    "mem_analysis_log":             ("kind", "analysis"),
+}
+
+
+def _inject_consolidation_param(source_name: str, arguments: dict) -> dict:
+    """Inject the consolidation parameter implied by a deprecated alias.
+
+    No-op if the caller already supplied the parameter (caller wins).
+    """
+    pair = _ALIAS_PARAM_INJECTION.get(source_name)
+    if not pair:
+        return arguments
+    key, value = pair
+    arguments.setdefault(key, value)
+    return arguments
+
+
+def _log_deprecation(root: Path, source: str, target: str) -> None:
+    """Append an alias-invocation event to .os_state/deprecations.log."""
+    try:
+        log_dir = root / ".os_state"
+        if not log_dir.exists():
+            return
+        entry = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "kind": "tool_alias",
+            "source": source,
+            "target": target,
+        }
+        with open(log_dir / "deprecations.log", "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
 
 
 # Tools removed in earlier releases — friendly error pointing the AI at the new path.
@@ -5142,8 +5668,15 @@ _REMOVED_TOOLS = {
 def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
     if not _rate_limiter.is_allowed():
         return _text(_error("Rate limit exceeded — slow down."))
+    canonical_input = name.replace(".", "_")
     resolved = _resolve_tool_name(name)
     logger.info(f"Tool call: {name} -> {resolved}")
+    if canonical_input in _DEPRECATED_ALIASES and canonical_input != resolved:
+        _log_deprecation(root, canonical_input, resolved)
+        # Back-compat: inject the dispatch parameter the consolidated tool
+        # expects, so a researcher (or older script) calling the legacy name
+        # gets the legacy behaviour without specifying operation/kind/source.
+        arguments = _inject_consolidation_param(canonical_input, dict(arguments or {}))
     if resolved in _REMOVED_TOOLS:
         return _text(_error(_REMOVED_TOOLS[resolved]))
     handler = _HANDLERS.get(resolved)

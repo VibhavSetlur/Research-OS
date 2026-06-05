@@ -6,6 +6,94 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.6.1] — Surface consolidation (Theme 6): cluster tool merges + redirect-stub protocols + deprecation telemetry (2026-06-04)
+
+Refactor release. Implements ROADMAP Theme 6 (surface consolidation):
+five tool clusters merge behind one canonical entry each, two
+synthesis protocols collapse into a single parametrized form, and a
+new deprecation telemetry pipeline (alias / redirect log +
+`tool_deprecations_summary`) gives projects an audit trail before the
+next MAJOR removes the back-compat layer. Every old name continues
+to work end-to-end — the dispatcher injects the implied
+`operation` / `kind` / `source` / `mode` / `scope` parameter and logs
+the hit. See [docs/MIGRATION.md](docs/MIGRATION.md) for the full
+old-name → new-invocation table.
+
+### Added — consolidated tools
+
+- `tool_search(query, source='auto'|'semantic_scholar'|'pubmed'|'crossref'|'arxiv'|'web', limit?)` — replaces the five per-provider search tools. `source='auto'` (default) picks providers from the query domain (biomedical → S2 + PubMed; ML/methods → S2 + arXiv; social → Crossref + S2; geoscience → Crossref + arXiv; generic → web).
+- `tool_plan(operation='turn'|'advance'|'clear')` — replaces `tool_plan_turn` / `tool_plan_advance` / `tool_plan_clear`. `tool_plan_step_grounded` stays standalone.
+- `sys_path(operation='create'|'abandon'|'list', ...)` — replaces `sys_path_create` / `sys_path_abandon` / `sys_path_list`.
+- `tool_ground(mode='explicit'|'from_context', claim, ...)` — replaces `tool_grounding_register` + `tool_ground_from_context`.
+- `tool_verify(scope='claim'|'project', ...)` — replaces `tool_claim_verify` + `tool_grounding_verify`.
+- `tool_lessons(operation='record'|'consult', ...)` — replaces `tool_lessons_record` + `tool_lessons_consult`.
+- `mem_log(kind='methods'|'decision'|'hypothesis'|'analysis', ...)` — replaces `mem_methods_append` / `mem_decision_log` / `mem_hypothesis_update` / `mem_analysis_log`.
+- `tool_deprecations_summary` — aggregates counts from `.os_state/deprecations.log` (alias hits + redirect-stub loads) by `kind` / `source` / `target`. Run before upgrading to the next MAJOR.
+
+### Added — protocol consolidation
+
+- `synthesis/printable.yaml` — new parametrized protocol covering both poster (`format='poster'`) and handout / one-pager (`format='handout'` / `'one_pager'`) variants. Quality bars, audience profiles, and steps branch on the format parameter.
+
+### Added — infrastructure
+
+- Protocol loader honours `redirect_to: <target>` + `redirect_params: {...}`. The loader recursively resolves the target, attaches `_redirected_from` + `_redirect_params` to the result for AI context, and logs every redirect to `.os_state/deprecations.log`. Cycles are detected across the whole chain.
+- Dispatcher logs every deprecated-alias invocation to `.os_state/deprecations.log` with `kind='tool_alias'`. A new `_ALIAS_PARAM_INJECTION` table injects the back-compat parameter so legacy call shapes keep working without the caller supplying the consolidation argument.
+- Preflight adds two new checks: **Alias table complete** (every `_ALIASES` entry resolves to a registered handler; every `_DEPRECATED_ALIASES` entry has a param-injection row) and **Redirect-stub targets resolve** (every YAML with `redirect_to:` points at a real protocol; no stub carries both `redirect_to:` and `steps:`).
+- Preflight: 15 → 17 checks. All green.
+- `docs/MIGRATION.md` (new) — the complete migration table.
+
+### Improved
+
+- `_router_index.yaml` (version 10 → 11): adds `synthesis/printable` entry; marks `synthesis/synthesis_handout` + `synthesis/synthesis_poster` as redirects in their summaries; updates the handout decomposition to point at the consolidated target.
+- 44 new tests in `tests/unit/test_v161_consolidation.py` exercise alias completeness, param-injection coverage, end-to-end old-name behaviour, deprecation logging, redirect resolution, cycle detection, and the new preflight checks. Pytest 553 → 597 passes.
+
+### Migration table
+
+| Cluster        | Old name                          | New invocation                                                          |
+|----------------|-----------------------------------|-------------------------------------------------------------------------|
+| Search         | `tool_search_semantic_scholar`    | `tool_search(query=..., source='semantic_scholar')`                     |
+| Search         | `tool_search_pubmed`              | `tool_search(query=..., source='pubmed')`                               |
+| Search         | `tool_search_crossref`            | `tool_search(query=..., source='crossref')`                             |
+| Search         | `tool_search_arxiv`               | `tool_search(query=..., source='arxiv')`                                |
+| Search         | `tool_search_web`                 | `tool_search(query=..., source='web')`                                  |
+| Plan           | `tool_plan_turn`                  | `tool_plan(operation='turn')`                                           |
+| Plan           | `tool_plan_advance`               | `tool_plan(operation='advance')`                                        |
+| Plan           | `tool_plan_clear`                 | `tool_plan(operation='clear')`                                          |
+| Path           | `sys_path_create`                 | `sys_path(operation='create', name=..., hypothesis=...)`                |
+| Path           | `sys_path_abandon`                | `sys_path(operation='abandon', path_name=..., rationale=...)`           |
+| Path           | `sys_path_list`                   | `sys_path(operation='list')`                                            |
+| Ground         | `tool_grounding_register`         | `tool_ground(mode='explicit', claim=..., sources=[...])`                |
+| Ground         | `tool_ground_from_context`        | `tool_ground(mode='from_context', claim=..., context_paths=[...])`      |
+| Verify         | `tool_claim_verify`               | `tool_verify(scope='claim', claim=..., verifications=[...])`            |
+| Verify         | `tool_grounding_verify`           | `tool_verify(scope='project')`                                          |
+| Lessons        | `tool_lessons_record`             | `tool_lessons(operation='record', outcome=..., reflection=...)`         |
+| Lessons        | `tool_lessons_consult`            | `tool_lessons(operation='consult', task=...)`                           |
+| Memory         | `mem_methods_append`              | `mem_log(kind='methods', method=..., ...)`                              |
+| Memory         | `mem_decision_log`                | `mem_log(kind='decision', context=..., selected=..., rationale=...)`    |
+| Memory         | `mem_hypothesis_update`           | `mem_log(kind='hypothesis', hypothesis_id=..., status=...)`             |
+| Memory         | `mem_analysis_log`                | `mem_log(kind='analysis', entry=...)`                                   |
+| Protocol       | `synthesis/synthesis_handout`     | `synthesis/printable` (`redirect_params: {format: handout}`)            |
+| Protocol       | `synthesis/synthesis_poster`      | `synthesis/printable` (`redirect_params: {format: poster}`)             |
+
+**Compatibility:** old names continue to work for the lifetime of
+the current MAJOR. They are scheduled for removal in the next MAJOR.
+Run `tool_deprecations_summary` to audit your project's exposure
+before then.
+
+### Bumped
+
+- `version 1.6.0 → 1.6.1` in `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff`.
+- All 114 protocol YAMLs bumped 1.6.0 → 1.6.1 (semantic-routing embeddings rebuilt to track).
+- `_router_index.yaml` version 10 → 11.
+
+### Counts
+
+- Tools surface: 166 → 174 (+8 new consolidated tools; old names retained as aliases for back-compat).
+- Protocols: 113 → 114 (+1 consolidated `synthesis/printable`; old handout + poster retained as redirect stubs).
+- Active surface after consolidation (excluding deprecated aliases / redirect stubs): ~89 distinct tool entry points + ~112 distinct protocol entry points.
+
+---
+
 ## [1.6.0] — Model-friendly surface: lean variants, coaching mode, dry-run, tool bundling (2026-06-05)
 
 MINOR release. Implements ROADMAP Themes 2, 7, 13, 15. Makes

@@ -69,13 +69,18 @@ def test_log_search_creates_jsonl(tmp_path):
 
 def test_dispatcher_resolves_dots_to_underscores():
     assert _resolve_tool_name("sys.state.get") == "sys_state_get"
-    assert _resolve_tool_name("tool.search.web") == "tool_search_web"
+    # tool.search.web → underscore → tool_search_web → resolves through the
+    # consolidation alias to tool_search (the unified search dispatcher).
+    assert _resolve_tool_name("tool.search.web") == "tool_search"
 
 
 def test_dispatcher_resolves_legacy_aliases():
-    # Only the still-useful aliases survive 2.0 cleanup.
     assert _resolve_tool_name("tool_audit_statistical_power") == "tool_audit_power"
     assert _resolve_tool_name("sys_state_summary") == "sys_state_get"
+    # _resolve_tool_name does a single-step lookup; tool_log_decision
+    # resolves to mem_decision_log, which itself remains a handler (kept
+    # for back-compat) and only the dispatcher's consolidation alias map
+    # rewrites to mem_log on call.
     assert _resolve_tool_name("tool_log_decision") == "mem_decision_log"
     assert _resolve_tool_name("view_workspace_tree") == "sys_workspace_tree"
 

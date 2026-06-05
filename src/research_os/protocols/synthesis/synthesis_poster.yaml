@@ -1,148 +1,16 @@
 id: synthesis_poster
-name: Synthesis — Poster (audience-tailored)
-version: '1.6.0'
+name: Synthesis — Poster (redirect)
+version: '1.6.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
-  Generate a poster (LaTeX → PDF) sized and styled for the target
-  audience. Adds a QR code linking to the full artefact (paper /
-  dashboard / preprint) and enforces the single-headline test
-  (the visitor must grok the point from across the room).
-trigger: Researcher asks for "a poster"; OR `research_goal.output_types` includes "poster".
+  Redirect stub. Poster content was consolidated into
+  `synthesis/printable.yaml` parametrized by `format='poster'`.
+  Loading this name continues to work (loader follows redirect_to);
+  the deprecation is logged to `.os_state/deprecations.log` so the
+  project can audit usage before the next major (when stubs are
+  removed). Use `synthesis/printable` directly going forward.
 
-quality_bar:
-  figures_minimum: 2
-  figures_maximum: 6
-  citations_maximum: 6
-  font_size_minimum_pt: 24              # readable from 1.5 m
-  figure_dpi_minimum: 300
-  whitespace_target_percent: 35         # avoid wall-of-text posters
-  one_headline_message: true            # the visitor must grok the point in 10 seconds
-  qr_to_full_artefact_present: true     # paper / preprint / dashboard
-  single_headline_test_passed: true     # "what's the finding" answerable from across the room
-
-audience_profile:
-  academic_conference:
-    template: tikzposter
-    dimensions: "36x48"                 # inches portrait
-    blocks: [Background, Methods, Results, Conclusions, References]
-    headline_font_pt: 60
-    notes: |
-      Default. Standard academic poster. Lots of figures, dense data, methods block.
-  symposium:
-    template: tikzposter
-    dimensions: "36x48"
-    blocks: [Hypothesis, Approach, Results, Significance]
-    headline_font_pt: 72
-    notes: |
-      Smaller venue, often student/lab symposia. Big "so-what" framing.
-  industry:
-    template: tikzposter
-    dimensions: "48x36"                 # landscape
-    blocks: [Problem, Solution, Impact, Validation, Contact]
-    headline_font_pt: 80
-    notes: |
-      For booths / trade shows. Larger headline, fewer technical details,
-      explicit Impact section + Contact block at bottom right.
-  teaching:
-    template: tikzposter
-    dimensions: "36x48"
-    blocks: [Question, Big_Idea, Activity, Takeaway]
-    headline_font_pt: 84
-    notes: |
-      Classroom display. Big plain-language ideas, minimal jargon.
-
-steps:
-  - id: select_audience
-    name: Select Audience Profile
-    description: |
-      Ask the researcher: "Audience? academic_conference (default) | symposium |
-      industry | teaching." Read research_goal.poster_dimensions if set
-      (override the default dims).
-
-  - id: curate_headline_figures
-    name: Curate 2-4 Headline Figures
-    description: |
-      sys_file_list directory="workspace" — find every outputs/figures/*.png.
-      Pick the 2-4 BEST: clearest message, highest DPI, most surprising result.
-      Run tool_audit_figure on each candidate. Replace any with DPI < figure_dpi_minimum.
-      If you don't have 2 publication-grade figures, STOP and tell the researcher:
-        "Need at least 2 ≥300 DPI figures before I can build the poster."
-
-  - id: draft_block_text
-    name: Draft Text for Each Block
-    description: |
-      For each block in audience.blocks, write 2-4 sentences MAX. No wall of
-      text. Use bullet points for Methods + Results.
-      Cite ≤6 references total (verified via tool_citations_verify).
-
-  - id: build_poster
-    name: Build Poster
-    description: |
-      tool_poster_create — generates synthesis/poster.tex (tikzposter) and
-      compiles to synthesis/poster.pdf (if pdflatex is available).
-      The generator pulls in the curated figures + your block text.
-
-  - id: generate_qr_to_full_artefact
-    name: Generate QR code linking to the full artefact (mandatory)
-    description: |
-      Pick the URL the QR will point to:
-        - the paper preprint / DOI (most reader-useful)
-        - the dashboard URL (when dashboard is the primary
-          deliverable)
-        - the lab page hosting the paper PDF + supplementary
-          materials
-        - the project landing page (only when the above don't
-          exist)
-
-      Generate via `qrcode` / `segno`:
-        python -c "import qrcode; qrcode.make('<url>').save(
-          'synthesis/poster_qr.png')"
-
-      Embed in the poster's bottom-right (Contact block for
-      industry profile; in the References block for academic).
-      Test the QR by scanning it BEFORE printing. A dead QR is
-      worse than no QR.
-
-  - id: single_headline_test
-    name: Single-headline test (across-the-room readability)
-    description: |
-      Print the poster (or render the PDF and zoom to physical
-      scale on a screen). Stand 1.5 metres back and ask:
-        - what is the headline finding?
-        - which figure carries it?
-        - what's the action / takeaway?
-
-      A passer-by spends ≤10 seconds at the poster — the
-      headline must land in those 10 seconds. If the headline
-      doesn't land:
-        - typography: increase headline font + reduce body
-        - layout: move the headline higher / centre
-        - figure: replace with a billboard-ready figure (the
-          Morrison Better Poster pattern)
-
-      Run this test BEFORE final printing. Iterating on a draft
-      is cheap; reprinting an A0 poster the night before the
-      conference is not.
-
-  - id: quality_audit
-    name: Quality Audit
-    description: |
-      Open the PDF (or have the researcher open it). Verify:
-        - Headline visible from 1.5 m (use ≥60pt for academic, ≥80pt for industry).
-        - ≤6 citations.
-        - One headline message dominates.
-        - Whitespace looks reasonable (~30-40%, not packed).
-        - QR code present + scannable.
-        - Single-headline test passed.
-        - Color-blind safe (per
-          visualization/color_accessibility_audit if the
-          poster will be public).
-      Iterate if any check fails.
-
-expected_outputs:
-  - synthesis/poster.tex
-  - synthesis/poster.pdf
-  - synthesis/poster_qr.png
-
-next_protocol: null
-on_failure: null
+redirect_to: synthesis/printable
+redirect_params:
+  format: poster

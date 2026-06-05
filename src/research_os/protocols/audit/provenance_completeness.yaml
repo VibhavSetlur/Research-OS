@@ -1,6 +1,6 @@
 id: provenance_completeness
 name: Provenance Completeness Audit (every output has a .prov.json sidecar)
-version: '1.6.0'
+version: '1.6.1'
 schema_version: '2.0'
 description: |
   Every figure, table, model artefact, and report output in the workspace
