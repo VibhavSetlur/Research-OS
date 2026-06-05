@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._base import AuditBase, AuditFinding
 
 logger = logging.getLogger("research_os.tools.audit")
 
@@ -466,13 +469,36 @@ def audit_synthesis(
         else:
             status = "success"
             message = "Synthesis passed audit."
-        return {
+        result = {
             "status": status,
             "report": report,
             "report_path": str(out.relative_to(root)),
             "blockers": gate_blockers,
             "message": message,
         }
+        # Phase-4 migration: derive structured AuditFindings from the
+        # result dict and emit the companion .json + .audit_findings.jsonl
+        # artefacts. The legacy markdown report written above (under
+        # outputs/reports/synthesis_audit.md or logs/synthesis_audit.md)
+        # is preserved byte-for-byte so existing readers + the documented
+        # report_path return field keep working; the new artefacts are
+        # additive. Persistence is best-effort — if writing the JSON
+        # ledger fails (e.g. read-only workspace) the gate caller still
+        # gets the original blockers list.
+        try:
+            from research_os.tools.actions.audit._base import (
+                write_audit_outputs,
+            )
+            from research_os.tools.actions.audit.synthesis_audit import (
+                findings_from_synthesis_result,
+            )
+
+            findings = findings_from_synthesis_result(result, paper_path)
+            write_audit_outputs(findings, "synthesis", root)
+            result["findings"] = [f.to_dict() for f in findings]
+        except Exception as exc:  # pragma: no cover - best-effort persist
+            logger.debug("phase-4 synthesis findings persist failed: %s", exc)
+        return result
     except Exception as e:
         logger.exception("audit_synthesis failed")
         return {"status": "error", "message": str(e)}
@@ -1025,6 +1051,274 @@ def audit_quality_full(
             else "All quality gates passed. Ready for synthesis."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase-4 wrapper — AuditBase subclass for ``audit_quality_full``.
+#
+# The legacy aggregator still writes ``workspace/logs/audit_master.md`` and
+# returns the dict shape that ``tool_synthesize`` + the dashboard already
+# parse. ``AuditMaster`` is additive: it repackages the same blocker /
+# warning set as structured :class:`AuditFinding` objects so the v2
+# ``write_audit_outputs`` writer can fan them out to
+# ``workspace/audit_master_audit.{md,json}`` + the
+# ``workspace/logs/.audit_findings.jsonl`` cross-audit ledger. The legacy
+# markdown is NEVER replaced — a snapshot test pins its format.
+# ---------------------------------------------------------------------------
+
+
+# Map each component of audit_quality_full onto its dimension label.
+# The legacy aggregator's blocker tags ([completeness], [code_quality],
+# [prose], [claims], [grounding]) line up with these dimensions; the
+# preregistration_diff component never produces a blocker so it only
+# surfaces as info / warn.
+_MASTER_COMPONENT_DIMENSION: dict[str, str] = {
+    "step_completeness": "completeness",
+    "code_quality": "code_quality",
+    "prose_quality": "prose",
+    "claims": "claims",
+    "preregistration_diff": "preregistration",
+    "grounding": "grounding",
+}
+
+
+# Bracketed-tag → dimension routing for blocker / warning strings the
+# legacy aggregator emits. Tags we don't recognise fall back to a
+# generic ``master`` dimension so the schema validator never rejects a
+# finding just because the aggregator grew a new tag.
+_MASTER_TAG_TO_DIMENSION: dict[str, str] = {
+    "completeness": "completeness",
+    "code_quality": "code_quality",
+    "prose": "prose",
+    "claims": "claims",
+    "preregistration": "preregistration",
+    "grounding": "grounding",
+}
+
+
+# The aggregator gate is bypassed end-to-end with
+# ``override_completeness_gate=true`` on ``tool_synthesize`` (the
+# historical kwarg name; preserved for back-compat). Every finding
+# inherits the gate-wide override path so a downstream reviewer can see
+# exactly which knob to flip without diving into per-component logic.
+_MASTER_OVERRIDE_KWARG = "override_completeness_gate"
+_MASTER_OVERRIDE_LOG_FORMAT = (
+    "override quality_full by {user} — rationale: {rationale}"
+)
+
+
+def _parse_master_blocker(line: str) -> tuple[str, str]:
+    """Pull the bracketed tag off a legacy blocker / warning string.
+
+    Returns ``(dimension, message)``. Unknown tags map to the generic
+    ``master`` dimension so the schema validator never rejects a finding
+    just because the legacy aggregator grew a new tag.
+    """
+    m = re.match(r"^\[([^\]]+)\]\s*(.*)$", line.strip())
+    if not m:
+        return "master", line.strip()
+    tag = m.group(1).strip().lower()
+    dimension = _MASTER_TAG_TO_DIMENSION.get(tag, tag or "master")
+    return dimension, m.group(2).strip() or line.strip()
+
+
+def _master_finding_uuid(
+    audit_name: str,
+    dimension: str,
+    evidence_paths: list[str],
+    extra: str = "",
+) -> str:
+    """Derive a deterministic UUIDv5 for an audit_master finding.
+
+    Combines audit_name + dimension + evidence_paths (joined with ``|``)
+    + an optional disambiguator (used when two findings in the same
+    audit/dimension/paths share everything else, e.g. multiple distinct
+    blocker messages from the same component). uuid5 keeps the value
+    schema-valid (UUID hex shape) and stable across runs on the same
+    inputs — re-running the audit on an unchanged tree yields the same
+    finding ids, so the .audit_findings.jsonl ledger stays deduplicable
+    by id downstream.
+    """
+    key = "|".join([audit_name, dimension, *evidence_paths, extra])
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
+
+
+def _master_evidence_paths(
+    components: dict[str, Any], dimension: str,
+) -> list[str]:
+    """Return the workspace-relative report paths a finding points at.
+
+    Always includes the aggregator's own ``workspace/logs/audit_master.md``
+    so a reviewer can see the unified view. If the originating
+    component recorded a ``report_path`` (it almost always does), that's
+    appended too. Paths stay workspace-relative — the v2 writer assumes
+    everything is relative to ``root`` so absolute paths would leak the
+    host layout into the JSONL ledger.
+    """
+    paths: list[str] = ["workspace/logs/audit_master.md"]
+    for comp_name, comp_result in components.items():
+        if not isinstance(comp_result, dict):
+            continue
+        if _MASTER_COMPONENT_DIMENSION.get(comp_name, comp_name) != dimension:
+            continue
+        rp = comp_result.get("report_path")
+        if rp and isinstance(rp, str) and rp not in paths:
+            paths.append(rp)
+    return paths
+
+
+def _build_master_finding(
+    *,
+    severity: str,
+    dimension: str,
+    evidence_paths: list[str],
+    suggested_fix: str,
+    extra: str,
+) -> AuditFinding:
+    """Construct an AuditFinding with a stable uuid5 id + schema validation."""
+    from research_os.tools.actions.audit._base import validate_finding
+
+    audit_name = AuditMaster.name
+    finding = AuditFinding(
+        audit_name=audit_name,
+        severity=severity,
+        dimension=dimension,
+        id=_master_finding_uuid(audit_name, dimension, evidence_paths, extra),
+        evidence_paths=list(evidence_paths),
+        suggested_fix=suggested_fix,
+        override_kwarg=_MASTER_OVERRIDE_KWARG,
+        override_log_format=_MASTER_OVERRIDE_LOG_FORMAT,
+    )
+    # Re-validate via the schema so a stray bad value (e.g. empty
+    # dimension) raises here rather than at write time.
+    validate_finding(finding.to_dict())
+    return finding
+
+
+class AuditMaster(AuditBase):
+    """Phase-4 :class:`AuditBase` wrapper around :func:`audit_quality_full`.
+
+    Subclasses :class:`AuditBase`; emits the same blocker / warning set
+    as the legacy aggregator, repackaged as :class:`AuditFinding`
+    objects so the v2 ``write_audit_outputs`` writer can fan them to
+    ``workspace/audit_master_audit.{md,json}`` + the
+    ``workspace/logs/.audit_findings.jsonl`` ledger.
+
+    The legacy markdown at ``workspace/logs/audit_master.md`` is NOT
+    replaced — :func:`audit_quality_full` writes it on every call, and a
+    snapshot regression test pins the format. This class is additive
+    so downstream readers (the dashboard, ``tool_synthesize``) keep
+    working byte-for-byte unchanged.
+    """
+
+    name = "audit_master"
+
+    def run(
+        self,
+        root: Path,
+        *,
+        target_path: str | None = None,
+        skip: list[str] | None = None,
+        legacy_result: dict[str, Any] | None = None,
+        **_: Any,
+    ) -> list[AuditFinding]:
+        """Run the legacy aggregator and return its findings as structured objects.
+
+        Parameters
+        ----------
+        root:
+            Project root (parent of ``workspace/``).
+        target_path:
+            Forwarded to :func:`audit_quality_full` — the document the
+            claims gate audits. ``None`` lets the legacy code pick a
+            default.
+        skip:
+            Forwarded to :func:`audit_quality_full` — list of component
+            names to skip (e.g. ``["claims"]`` on the first run).
+        legacy_result:
+            Optional pre-computed result from :func:`audit_quality_full`;
+            avoids re-running the heavy aggregator when the caller
+            already has the dict (e.g. the server handler that needs
+            both the structured findings AND the legacy dict shape to
+            return to the MCP client).
+        """
+        result = legacy_result
+        if result is None:
+            result = audit_quality_full(
+                root, target_path=target_path, skip=skip,
+            )
+
+        findings: list[AuditFinding] = []
+        components: dict[str, Any] = result.get("components") or {}
+        all_blockers: list[str] = list(result.get("blockers") or [])
+        all_warnings: list[str] = list(result.get("warnings") or [])
+
+        # 1) One BLOCK finding per blocker string from the aggregator.
+        # Counter disambiguates multiple blockers that share a dimension
+        # so their stable uuids don't collide.
+        per_dim_block_seq: dict[str, int] = {}
+        for line in all_blockers:
+            dimension, message = _parse_master_blocker(line)
+            evidence = _master_evidence_paths(components, dimension)
+            seq = per_dim_block_seq.get(dimension, 0)
+            per_dim_block_seq[dimension] = seq + 1
+            findings.append(
+                _build_master_finding(
+                    severity="block",
+                    dimension=dimension,
+                    evidence_paths=evidence,
+                    suggested_fix=message,
+                    extra=f"block#{seq}",
+                )
+            )
+
+        # 2) One WARN finding per warning string.
+        per_dim_warn_seq: dict[str, int] = {}
+        for line in all_warnings:
+            dimension, message = _parse_master_blocker(line)
+            evidence = _master_evidence_paths(components, dimension)
+            seq = per_dim_warn_seq.get(dimension, 0)
+            per_dim_warn_seq[dimension] = seq + 1
+            findings.append(
+                _build_master_finding(
+                    severity="warn",
+                    dimension=dimension,
+                    evidence_paths=evidence,
+                    suggested_fix=message,
+                    extra=f"warn#{seq}",
+                )
+            )
+
+        # 3) One INFO finding per successful component so the JSONL
+        # ledger records a positive trace alongside the blockers. A
+        # component the caller asked to skip never produces an info
+        # finding (it didn't run). A component that already emitted a
+        # block finding is also skipped here to avoid double-recording.
+        for comp_name, comp_result in components.items():
+            if not isinstance(comp_result, dict):
+                continue
+            status = comp_result.get("status")
+            if status not in ("success", "warning"):
+                continue
+            dimension = _MASTER_COMPONENT_DIMENSION.get(comp_name, comp_name)
+            if dimension in per_dim_block_seq:
+                continue
+            evidence = _master_evidence_paths(components, dimension)
+            findings.append(
+                _build_master_finding(
+                    severity="info",
+                    dimension=dimension,
+                    evidence_paths=evidence,
+                    suggested_fix=(
+                        f"{comp_name} gate passed cleanly."
+                        if status == "success"
+                        else f"{comp_name} gate produced advisory warnings only."
+                    ),
+                    extra="ok",
+                )
+            )
+
+        return findings
 
 
 # ---------------------------------------------------------------------------
@@ -1797,3 +2091,197 @@ def audit_step_completeness(
             else "All active steps pass the completeness gate."
         ),
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase-4 AuditBase wrapper for tool_audit_step_completeness
+# ---------------------------------------------------------------------------
+
+
+# Stable UUIDv5 namespace for step-completeness findings. Using
+# NAMESPACE_DNS with a deterministic key (audit_name + dimension +
+# evidence_paths) means re-running the same audit against the same
+# workspace produces the same id — the .audit_findings.jsonl ledger
+# doesn't churn IDs across reruns, which is what Phase-4 dashboards
+# diff on.
+_STEP_COMPLETENESS_NS = uuid.NAMESPACE_DNS
+
+
+def _step_completeness_finding_uuid(
+    *,
+    audit_name: str,
+    dimension: str,
+    evidence_paths: list[str],
+) -> str:
+    """Derive a stable UUIDv5 from the salient fields of a finding.
+
+    Per Phase-4 spec: ``audit_name + dimension + evidence_paths`` is the
+    key. Severity + suggested_fix are deliberately omitted so a blocker
+    that downgrades to a warning across runs (e.g. the stack_plan rule
+    with an active self-certification) keeps the same id — Phase-4
+    dashboards then see "same finding, severity changed" rather than
+    "old finding gone, new finding appeared".
+    """
+    key = "|".join([
+        audit_name,
+        dimension,
+        ",".join(sorted(evidence_paths)),
+    ])
+    return str(uuid.uuid5(_STEP_COMPLETENESS_NS, key))
+
+
+# Substring → dimension mapping. Order matters: longer / more specific
+# substrings come first so a stack_plan downgrade-warning doesn't fall
+# through to the generic stack_plan rule for blockers. The match is
+# case-insensitive against the blocker/warning string.
+_DIMENSION_MATCHERS: tuple[tuple[str, str], ...] = (
+    # Blocker patterns
+    ("conclusions.md missing", "conclusions"),
+    ("findings section is still a stub", "findings_stub"),
+    ("decision section is still a stub", "decision_stub"),
+    ("missing caption sidecar", "caption_sidecar"),
+    ("missing plain-english summary", "summary_sidecar"),
+    ("missing .summary.md", "summary_sidecar"),
+    ("no scratch/stack_plan.md", "stack_plan"),
+    ("stack_plan", "stack_plan"),
+    ("outputs span", "mega_script"),
+    ("mega-script", "mega_script"),
+    ("no focal artefact produced", "focal_artefact"),
+    ("no figure produced", "focal_artefact"),
+    # Warning patterns
+    ("plain-language summary still a stub", "plain_language_summary"),
+    ("no figure starts with the step number prefix", "focal_artefact"),
+    ("no script files under scripts", "scripts"),
+    ("numeric findings", "tables"),
+    ("no pipeline.yaml", "pipeline_yaml"),
+    ("multiple categories", "pipeline_yaml"),
+    ("provenance sidecar coverage", "provenance"),
+)
+
+
+def _classify_completeness_dimension(message: str) -> str:
+    """Classify a blocker/warning message into a stable dimension label."""
+    lower = message.lower()
+    for needle, dim in _DIMENSION_MATCHERS:
+        if needle in lower:
+            return dim
+    return "completeness"
+
+
+# Per-dimension override-kwarg mapping. Only a subset of completeness
+# findings have a documented override flag — the rest are not bypassable
+# (e.g. a missing conclusions.md can't be waived). Source: tool
+# descriptions for tool_audit_step_completeness + tool_path_finalize +
+# tool_synthesize (which all honour override_completeness_gate).
+_COMPLETENESS_OVERRIDE_KWARGS: dict[str, str] = {
+    "findings_stub": "override_completeness_gate",
+    "decision_stub": "override_completeness_gate",
+    "focal_artefact": "override_completeness_gate",
+    "caption_sidecar": "override_completeness_gate",
+    "summary_sidecar": "override_completeness_gate",
+    "mega_script": "override_completeness_gate",
+}
+
+
+def _completeness_evidence_paths(step_id: str, dimension: str) -> list[str]:
+    """Compute the evidence paths surfaced on a finding for a given step.
+
+    Each dimension points at the file(s) the researcher would open to
+    fix it. We keep this conservative — listing every figure in a
+    missing-sidecar finding would bloat the JSON; the step directory +
+    the canonical file are enough for a reviewer to navigate.
+    """
+    base = f"workspace/{step_id}"
+    if dimension in (
+        "conclusions",
+        "findings_stub",
+        "decision_stub",
+        "plain_language_summary",
+    ):
+        return [f"{base}/conclusions.md"]
+    if dimension == "focal_artefact":
+        return [f"{base}/outputs/figures/"]
+    if dimension in ("caption_sidecar", "summary_sidecar"):
+        return [f"{base}/outputs/figures/"]
+    if dimension == "stack_plan":
+        return [f"{base}/scratch/stack_plan.md"]
+    if dimension in ("mega_script", "pipeline_yaml"):
+        return [f"{base}/pipeline.yaml", f"{base}/scripts/"]
+    if dimension == "scripts":
+        return [f"{base}/scripts/"]
+    if dimension == "tables":
+        return [f"{base}/outputs/tables/"]
+    if dimension == "provenance":
+        return [f"{base}/outputs/"]
+    return [base]
+
+
+class StepCompletenessAudit(AuditBase):
+    """Phase-4 :class:`AuditBase` wrapper around :func:`audit_step_completeness`.
+
+    Delegates the heavy lifting to :func:`audit_step_completeness` (which
+    preserves the legacy markdown report at
+    ``workspace/logs/step_completeness.md`` byte-identical to v1.x) and
+    then folds the resulting per-step blockers + warnings into a flat
+    ``list[AuditFinding]`` that the orchestrator can persist via
+    :func:`write_audit_outputs`. The legacy markdown stays untouched so
+    every downstream consumer (dashboard, override log, finalize gate)
+    continues to read the same file.
+    """
+
+    name = "step_completeness"
+
+    def run(self, root: Path, **kwargs: Any) -> list[AuditFinding]:
+        """Run the completeness audit and return structured findings.
+
+        Accepts ``step_id`` (optional) — the same kwarg the legacy
+        function takes. Returns an empty list when the workspace is
+        missing or the named step is not found; the caller can treat
+        "no findings" as "nothing to persist" and skip writing
+        artefacts if it wants.
+        """
+        result = audit_step_completeness(root, step_id=kwargs.get("step_id"))
+        findings: list[AuditFinding] = []
+        if result.get("status") == "error" and not result.get("steps"):
+            # Workspace missing or step not found — surface as zero
+            # findings rather than crashing. The legacy contract
+            # already returns status="error" with a message in that
+            # case, so callers can branch off the legacy result.
+            return findings
+
+        for step_info in result.get("steps") or []:
+            step_id = step_info.get("step_id", "")
+            for blocker in step_info.get("blockers") or []:
+                dim = _classify_completeness_dimension(blocker)
+                evidence = _completeness_evidence_paths(step_id, dim)
+                fid = _step_completeness_finding_uuid(
+                    audit_name=self.name,
+                    dimension=dim,
+                    evidence_paths=evidence,
+                )
+                findings.append(AuditFinding(
+                    audit_name=self.name,
+                    severity="block",
+                    dimension=dim,
+                    id=fid,
+                    evidence_paths=evidence,
+                    suggested_fix=blocker,
+                    override_kwarg=_COMPLETENESS_OVERRIDE_KWARGS.get(dim),
+                ))
+            for warning in step_info.get("warnings") or []:
+                dim = _classify_completeness_dimension(warning)
+                evidence = _completeness_evidence_paths(step_id, dim)
+                fid = _step_completeness_finding_uuid(
+                    audit_name=self.name,
+                    dimension=dim,
+                    evidence_paths=evidence,
+                )
+                findings.append(AuditFinding(
+                    audit_name=self.name,
+                    severity="warn",
+                    dimension=dim,
+                    id=fid,
+                    evidence_paths=evidence,
+                    suggested_fix=warning,
+                ))
+        return findings

@@ -4834,13 +4834,33 @@ def _handle_tool_audit_prose(name, arguments, root):
 
 
 def _handle_tool_audit_claims(name, arguments, root):
-    from research_os.tools.actions.audit.claim_grounding import audit_claims
+    from research_os.tools.actions.audit._base import write_audit_outputs
+    from research_os.tools.actions.audit.claim_grounding import (
+        ClaimGroundingAudit,
+        audit_claims,
+    )
 
-    return _text(_success(audit_claims(
-        root,
-        target_path=arguments.get("target_path"),
-        tolerance=float(arguments.get("tolerance", 0.01)),
-    )))
+    target_path = arguments.get("target_path")
+    tolerance = float(arguments.get("tolerance", 0.01))
+
+    # Legacy procedural call still produces synthesis/claim_index.json and
+    # workspace/logs/claim_grounding.md byte-identical to v1.x — keep it
+    # as the source of truth for the response body that callers consume.
+    result = audit_claims(root, target_path=target_path, tolerance=tolerance)
+
+    # Phase-4 AuditBase fan-out: emit structured AuditFindings to the
+    # standard {gate}_audit.md + {gate}_audit.json + .audit_findings.jsonl
+    # artefacts. Failure to write the audit-outputs artefacts must not
+    # mask the legacy auditor's response — wrap in a guard.
+    try:
+        findings = ClaimGroundingAudit().run(
+            root, target_path=target_path, tolerance=tolerance
+        )
+        write_audit_outputs(findings, "claim_grounding", root)
+    except Exception:  # pragma: no cover - defensive guard
+        pass
+
+    return _text(_success(result))
 
 
 def _handle_tool_audit_evalue(name, arguments, root):
