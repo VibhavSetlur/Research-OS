@@ -68,8 +68,9 @@ def _log_redirect(source: str, target: str, params: dict | None = None) -> None:
     try:
         with open(log_dir / DEPRECATIONS_LOG_FILE, "a") as f:
             f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass
+    except Exception as exc:
+        # Best-effort telemetry — failing here must never break the load.
+        logger.debug("deprecations.log append failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -313,8 +314,8 @@ def load_protocol(
         params = data.get("redirect_params", {}) or {}
         try:
             _log_redirect(name, target, params)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("redirect-log failed for %s: %s", name, exc)
         # Cycle detection across the whole redirect chain (not just self).
         chain = (_redirect_chain or ()) + (name, target)
         target_norm = target.split("/")[-1]

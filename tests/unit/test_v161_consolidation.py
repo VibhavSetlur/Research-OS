@@ -27,6 +27,7 @@ from research_os.server import (
     _handle_tool_call,
     _resolve_tool_name,
 )
+from research_os.tools.actions import protocol as protocol_mod
 
 
 # ── fixtures ───────────────────────────────────────────────────────
@@ -350,7 +351,6 @@ def test_legacy_tool_search_pubmed_routes_to_pubmed(project_root, monkeypatch):
 def test_protocol_loader_follows_redirect_to(monkeypatch, tmp_path):
     """Custom redirect stub points at a custom target; loader follows it."""
     import yaml
-    import research_os.tools.actions.protocol as P
 
     dest = tmp_path / "cat"
     dest.mkdir()
@@ -374,8 +374,8 @@ def test_protocol_loader_follows_redirect_to(monkeypatch, tmp_path):
             }
         )
     )
-    monkeypatch.setattr(P, "PROTOCOLS_DIR", tmp_path)
-    result = P.load_protocol("cat/old")
+    monkeypatch.setattr(protocol_mod, "PROTOCOLS_DIR", tmp_path)
+    result = protocol_mod.load_protocol("cat/old")
     assert result.get("id") == "real"
     assert result.get("_redirected_from") == "cat/old"
     assert result.get("_redirect_params") == {"variant": "x"}
@@ -383,7 +383,6 @@ def test_protocol_loader_follows_redirect_to(monkeypatch, tmp_path):
 
 def test_redirect_cycle_raises(monkeypatch, tmp_path):
     import yaml
-    import research_os.tools.actions.protocol as P
 
     dest = tmp_path / "cat"
     dest.mkdir()
@@ -391,21 +390,17 @@ def test_redirect_cycle_raises(monkeypatch, tmp_path):
     (dest / "a.yaml").write_text(
         yaml.safe_dump({"id": "a", "redirect_to": "cat/a"})
     )
-    monkeypatch.setattr(P, "PROTOCOLS_DIR", tmp_path)
+    monkeypatch.setattr(protocol_mod, "PROTOCOLS_DIR", tmp_path)
     with pytest.raises(ValueError, match="Redirect cycle"):
-        P.load_protocol("cat/a")
+        protocol_mod.load_protocol("cat/a")
 
 
 def test_synthesis_handout_redirect_resolves(monkeypatch, tmp_path):
     """The real synthesis_handout stub loads the consolidated printable body."""
-    from research_os.tools.actions.protocol import load_protocol
-
     # Set a fake workspace so the redirect-log doesn't pollute the live project.
-    import os
-
     (tmp_path / ".os_state").mkdir()
     monkeypatch.setenv("RESEARCH_OS_WORKSPACE", str(tmp_path))
-    r = load_protocol("synthesis/synthesis_handout")
+    r = protocol_mod.load_protocol("synthesis/synthesis_handout")
     assert r.get("id") == "printable"
     assert r.get("_redirected_from") == "synthesis/synthesis_handout"
     assert r.get("_redirect_params") == {"format": "handout"}
@@ -413,21 +408,17 @@ def test_synthesis_handout_redirect_resolves(monkeypatch, tmp_path):
 
 
 def test_synthesis_poster_redirect_resolves(monkeypatch, tmp_path):
-    from research_os.tools.actions.protocol import load_protocol
-
     (tmp_path / ".os_state").mkdir()
     monkeypatch.setenv("RESEARCH_OS_WORKSPACE", str(tmp_path))
-    r = load_protocol("synthesis/synthesis_poster")
+    r = protocol_mod.load_protocol("synthesis/synthesis_poster")
     assert r.get("id") == "printable"
     assert r.get("_redirect_params") == {"format": "poster"}
 
 
 def test_redirect_log_written_to_deprecations_log(monkeypatch, tmp_path):
-    from research_os.tools.actions.protocol import load_protocol
-
     (tmp_path / ".os_state").mkdir()
     monkeypatch.setenv("RESEARCH_OS_WORKSPACE", str(tmp_path))
-    load_protocol("synthesis/synthesis_handout")
+    protocol_mod.load_protocol("synthesis/synthesis_handout")
     log = tmp_path / ".os_state" / "deprecations.log"
     assert log.exists()
     entries = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]

@@ -5645,8 +5645,9 @@ def _log_deprecation(root: Path, source: str, target: str) -> None:
         }
         with open(log_dir / "deprecations.log", "a") as f:
             f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass
+    except Exception as exc:
+        # Best-effort telemetry — failing here must never break the dispatch.
+        logger.debug("deprecation-log append failed: %s", exc)
 
 
 # Tools removed in earlier releases — friendly error pointing the AI at the new path.
