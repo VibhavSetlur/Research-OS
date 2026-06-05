@@ -87,6 +87,59 @@ _LIGHT_DROP_KEYS = {
     "long_description",
 }
 
+_LEAN_MAX_STEPS = 3
+_LEAN_MAX_DESC_CHARS = 200
+_LEAN_DROP_KEYS = _LIGHT_DROP_KEYS | {
+    "pedagogical_prelude",
+    "model_adaptations",
+    "alternates",
+    "anti_patterns",
+}
+
+
+def _lean_step(step: dict) -> dict:
+    """Shrink one step to its load-bearing fields."""
+    if not isinstance(step, dict):
+        return step
+    out: dict = {}
+    for key, value in step.items():
+        if key in _LEAN_DROP_KEYS:
+            continue
+        if key == "description" and isinstance(value, str):
+            value = value.strip()
+            if len(value) > _LEAN_MAX_DESC_CHARS:
+                value = value[:_LEAN_MAX_DESC_CHARS].rsplit(" ", 1)[0] + " …"
+        if key in {"sub_steps", "optional_sub_steps"}:
+            # Drop optional sub-steps; keep mandatory ones if listed under sub_steps.
+            if key == "optional_sub_steps":
+                continue
+        out[key] = value
+    return out
+
+
+def _auto_distill_lean(data: dict) -> dict:
+    """Build a lean variant from `full` when no explicit lean_variant block exists."""
+    steps = data.get("steps", []) or []
+    capped: list[dict] = []
+    for step in steps[:_LEAN_MAX_STEPS]:
+        if isinstance(step, dict):
+            capped.append(_lean_step(step))
+        else:
+            capped.append(step)
+    out = {
+        "id": data.get("id"),
+        "name": data.get("name", ""),
+        "description": (data.get("description") or "").split("\n\n")[0],
+        "trigger": data.get("trigger", ""),
+        "steps": capped,
+        "expected_outputs": data.get("expected_outputs", []),
+        "next_protocol": data.get("next_protocol"),
+        "_lean_source": "auto-distilled",
+        "_dropped_steps": max(0, len(steps) - _LEAN_MAX_STEPS),
+        "_path": data.get("_path"),
+    }
+    return out
+
 
 def _find_protocol_file(name: str) -> Path | None:
     """Locate ``<protocols>/<category>/<name>.yaml``.
@@ -185,12 +238,19 @@ def load_protocol(
         name: ``"guidance/project_startup"`` or bare ``"project_startup"``.
         model_profile: ``small`` | ``medium`` | ``large``. ``small`` trims verbose
                        keys (model_adaptations, examples, etc.) to save tokens.
-        format: ``full`` (default) | ``summary`` | ``step``.
+        format: ``full`` (default) | ``summary`` | ``step`` | ``lean`` | ``dryrun``.
                 * ``summary`` returns id + name + description + step
                   headings + expected_outputs + next_protocol + quality_bar
                   — roughly 300 tokens vs 2K for the full load.
                 * ``step`` requires ``step_id`` and returns just that step
                   body plus its position in the protocol.
+                * ``lean`` returns the protocol's explicit ``lean_variant:``
+                  block if present, else auto-distills (cap at 3 steps,
+                  drop optional sub-steps, trim step descriptions to 200
+                  chars). For small / fast models.
+                * ``dryrun`` returns the protocol's full tool-call
+                  sequence with predicted arg shapes, without executing.
+                  For supervised review before commit.
         step_id: which step to load when ``format='step'``.
     """
     file = _find_protocol_file(name)
@@ -241,6 +301,45 @@ def load_protocol(
                 f"Loaded as summary. For one specific step body call "
                 f"sys_protocol_get name='{name}' format='step' step_id='<id>'. "
                 f"For the full YAML use format='full'."
+            ),
+        }
+
+    if format == "lean":
+        explicit = data.get("lean_variant")
+        if isinstance(explicit, dict) and explicit:
+            out = dict(explicit)
+            out.setdefault("id", data.get("id"))
+            out.setdefault("name", data.get("name", ""))
+            out.setdefault("_path", data.get("_path"))
+            out["_lean_source"] = "explicit"
+            return out
+        return _auto_distill_lean(data)
+
+    if format == "dryrun":
+        import re
+        steps = data.get("steps", []) or []
+        tool_call_pat = re.compile(r"\b((?:sys|tool|mem)_[a-z0-9_]+)\b")
+        sequence: list[dict] = []
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            desc = step.get("description") or ""
+            tool_calls = sorted(set(tool_call_pat.findall(desc)))
+            sequence.append({
+                "step_id": step.get("id"),
+                "name": step.get("name", ""),
+                "predicted_tool_calls": tool_calls,
+            })
+        return {
+            "id": data.get("id"),
+            "name": data.get("name", ""),
+            "format": "dryrun",
+            "sequence": sequence,
+            "total_steps": len(sequence),
+            "total_predicted_tool_calls": sum(len(s["predicted_tool_calls"]) for s in sequence),
+            "_load_hint": (
+                "dryrun preview — no tool calls were executed. "
+                "Use format='full' to load the actual protocol body."
             ),
         }
 

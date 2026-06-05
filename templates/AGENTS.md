@@ -67,6 +67,33 @@ list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.
 Use `sys_active_tools(protocol_name)` to scope your working tool set
 to the protocol's decomposition.
 
+**Pick `format` by `model_profile`:**
+- `small` → `format='lean'` (cap 3 steps, 200-char descriptions, drops
+  optional sub-steps). Drill in with `format='step'` on demand.
+- `medium` → `format='summary'` first, then `format='step'` for the
+  step you're about to execute.
+- `large` → `format='summary'` is still preferred; reach for
+  `format='full'` only when the protocol's reasoning genuinely needs
+  the long-form examples block.
+
+**Preview before commit (supervised / coaching modes).** Call
+`tool_dry_run(protocol_name)` to see the protocol's full tool-call
+sequence with predicted args without executing. Useful for review
+before running a heavy pipeline.
+
+**End-of-step bundling.** Instead of calling `tool_path_finalize`,
+`tool_audit_step_completeness`, `tool_audit_step_literature`, and
+`tool_step_revision_options` separately, call
+`tool_step_complete(step_id=…)` — it bundles all four into one
+result. Reduces 4 tool calls to 1; matters most on small models.
+
+**Coaching mode.** When `researcher_config.interaction.autonomy_level
+== 'coaching'`: don't auto-execute. Surface the protocol's
+`pedagogical_prelude` (if present) as a question first. When a gate
+fires, explain WHY it exists before offering the fix. Run
+`tool_mistake_replay` at session start to surface recurring patterns
+from the researcher's reliability + override logs.
+
 **Never load `_router_index.yaml` directly.** That file is a maintainer
 artifact — the routing logic reads it server-side. For routing, call
 `tool_route`. For ranked alternatives, call `tool_semantic_route`. For

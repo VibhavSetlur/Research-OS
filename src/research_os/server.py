@@ -321,8 +321,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
     # ── Protocols / guidance ──────────────────────────────────────────
     "sys_protocol_get": {
-        "short": "Load a protocol — format='summary' (cheap), 'step' (one step), or 'full' (entire YAML).",
-        "description": "Load a protocol YAML by name (e.g. 'guidance/project_startup'). Three formats — summary returns id + step headings + quality_bar + expected outputs in ~300 tokens; step returns one specific step body (requires step_id); full returns the entire YAML (~1.5-3K tokens). Prefer summary first, then step on demand. Routing tip: call tool_route(prompt) BEFORE this to pick the right protocol_name.",
+        "short": "Load a protocol — format='summary' (cheap), 'step' (one step), 'lean' (small-model), 'dryrun' (preview), or 'full'.",
+        "description": "Load a protocol YAML by name (e.g. 'guidance/project_startup'). Five formats — summary returns id + step headings + quality_bar + expected outputs in ~300 tokens; step returns one specific step body (requires step_id); full returns the entire YAML (~1.5-3K tokens); lean serves the protocol's explicit lean_variant block if present, else auto-distils (cap 3 steps, drop optional sub-steps, trim step descriptions to 200 chars) for small/fast models; dryrun returns the full tool-call sequence with predicted args without executing — for supervised review. Prefer summary first then step on demand; use lean when researcher_config.model_profile=='small'; use dryrun in supervised mode to preview before commit. Routing tip: call tool_route(prompt) BEFORE this to pick the right protocol_name.",
         "category": "protocol",
         "inputSchema": {
             "type": "object",
@@ -330,7 +330,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "protocol_name": {"type": "string"},
                 "format": {
                     "type": "string",
-                    "description": "summary | step | full (default: full for backward compatibility, but summary is recommended).",
+                    "enum": ["summary", "step", "full", "lean", "dryrun"],
+                    "description": "summary | step | full | lean | dryrun (default: full for back-compat, but summary or lean is recommended).",
                 },
                 "step_id": {
                     "type": "string",
@@ -338,6 +339,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
             },
             "required": ["protocol_name"],
+            "additionalProperties": False,
         },
     },
     "sys_protocol_list": {
@@ -2272,6 +2274,46 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "description": "researcher_config.project_tier sets the default audit strictness across a whole project. throwaway -> light, sketch -> normal, production -> strict. Returns the resolved tier + strictness.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
+    },
+    # Dry-run + bundling + coaching (Themes 13 / 15 / 7).
+    "tool_dry_run": {
+        "short": "Preview a protocol's tool-call sequence without executing — for supervised review.",
+        "description": "Wraps sys_protocol_get format='dryrun'. Returns the protocol's full step sequence with predicted tool calls inferred from each step's description body. No tool is actually invoked; no files are written. Useful before committing in supervised / coaching autonomy modes. Pass optional simulated_args to annotate expected per-step args; ignored if not provided.",
+        "category": "protocol",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "protocol_name": {"type": "string"},
+                "simulated_args": {"type": "object", "additionalProperties": True},
+            },
+            "required": ["protocol_name"],
+            "additionalProperties": False,
+        },
+    },
+    "tool_step_complete": {
+        "short": "Bundle: tool_path_finalize + tool_audit_step_completeness + tool_audit_step_literature + tool_step_revision_options in one call.",
+        "description": "One-shot end-of-step bundle. Calls (in order) tool_path_finalize, tool_audit_step_completeness, tool_audit_step_literature, then tool_step_revision_options on the named step. Returns a merged result {finalize, completeness, literature, revision} with overall_status='success' | 'warning' | 'error'. Reduces 4 tool calls to 1 — eliminates small-model drift between calls and halves the round-trip latency. The AI should still surface the revision options verbatim per the anti-one-shot doctrine.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "step_id": {"type": "string"},
+                "override_literature_gate": {"type": "boolean"},
+                "override_rationale": {"type": "string"},
+            },
+            "required": ["step_id"],
+            "additionalProperties": False,
+        },
+    },
+    "tool_mistake_replay": {
+        "short": "Surface recurring patterns from the reliability log + override log — coaching-mode learning artifact.",
+        "description": "Reads workspace/.os_state/reliability.jsonl (event log from tool_reliability_log_event) + workspace/logs/override_log.md (audit-gate bypass log) and groups events by protocol + event_type. Returns the top 5 recurring patterns (e.g. 'tool_audit_step_completeness gate fired 4x on steps 03/05/07/09 — stack_plan.md consistently absent'). Designed for autonomy_level='coaching'; helps the researcher spot patterns they keep tripping. Read-only; safe to call any time.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"limit": {"type": "integer"}},
+            "additionalProperties": False,
+        },
     },
 }
 
@@ -4773,6 +4815,91 @@ def _handle_tool_project_tier_strictness(name, arguments, root):
     return _text(project_tier_strictness(root))
 
 
+# Lean variants / dry-run / bundling / coaching handlers (Themes 2/13/15/7).
+
+
+def _handle_tool_dry_run(name, arguments, root):
+    from research_os.tools.actions.protocol import load_protocol
+    pname = arguments.get("protocol_name") or ""
+    if not pname:
+        return _text({"status": "error", "message": "protocol_name is required"})
+    try:
+        out = load_protocol(pname, format="dryrun")
+        out["simulated_args"] = arguments.get("simulated_args") or {}
+        return _text(out)
+    except (FileNotFoundError, ValueError) as e:
+        return _text({"status": "error", "message": str(e)})
+
+
+def _handle_tool_step_complete(name, arguments, root):
+    step_id = arguments.get("step_id") or ""
+    if not step_id:
+        return _text({"status": "error", "message": "step_id is required"})
+    override_lit = bool(arguments.get("override_literature_gate"))
+    rationale = arguments.get("override_rationale") or ""
+
+    from research_os.tools.actions.audit.audit import audit_step_completeness
+    from research_os.tools.actions.audit.step_literature import audit_step_literature
+    from research_os.tools.actions.state.path import finalize_path
+    from research_os.tools.actions.state.revision import step_revision_options
+
+    merged = {"step_id": step_id, "stages": {}}
+    statuses: list[str] = []
+    try:
+        merged["stages"]["finalize"] = finalize_path(step_id, root)
+        statuses.append(merged["stages"]["finalize"].get("status", "success"))
+    except Exception as e:
+        merged["stages"]["finalize"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+    try:
+        merged["stages"]["completeness"] = audit_step_completeness(root, step_id=step_id)
+        statuses.append(merged["stages"]["completeness"].get("status", "success"))
+    except Exception as e:
+        merged["stages"]["completeness"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+    try:
+        lit = audit_step_literature(root, step_id=step_id)
+        if override_lit and rationale:
+            lit["overridden"] = True
+            lit["override_rationale"] = rationale
+            if lit.get("status") == "error":
+                lit["status"] = "warning"
+        merged["stages"]["literature"] = lit
+        statuses.append(lit.get("status", "success"))
+    except Exception as e:
+        merged["stages"]["literature"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+    try:
+        merged["stages"]["revision"] = step_revision_options(step_id, root)
+        statuses.append(merged["stages"]["revision"].get("status", "success"))
+    except Exception as e:
+        merged["stages"]["revision"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+
+    if "error" in statuses:
+        merged["overall_status"] = "error"
+    elif "warning" in statuses:
+        merged["overall_status"] = "warning"
+    else:
+        merged["overall_status"] = "success"
+    merged["_note"] = (
+        "Bundle result. Surface revision_options verbatim per the "
+        "anti-one-shot doctrine; do not auto-scaffold the next step "
+        "unless autonomy_level='autopilot'."
+    )
+    return _text(merged)
+
+
+def _handle_tool_mistake_replay(name, arguments, root):
+    from research_os.tools.actions.state.mistake_replay import mistake_replay
+    limit = arguments.get("limit") or 5
+    try:
+        limit = int(limit)
+    except (TypeError, ValueError):
+        limit = 5
+    return _text(mistake_replay(root, limit=limit))
+
+
 _HANDLERS = {
     # routing (call these first)
     "sys_boot": _handle_sys_boot,
@@ -4967,6 +5094,11 @@ _HANDLERS = {
     "tool_quick_route": _handle_tool_quick_route,
     "tool_promote_to_step": _handle_tool_promote_to_step,
     "tool_project_tier_strictness": _handle_tool_project_tier_strictness,
+
+    # Lean variants + dry-run + bundling + coaching (Themes 2/13/15/7).
+    "tool_dry_run": _handle_tool_dry_run,
+    "tool_step_complete": _handle_tool_step_complete,
+    "tool_mistake_replay": _handle_tool_mistake_replay,
 }
 
 # Aliases — keep the AI's life easy when it forgets exact naming.
