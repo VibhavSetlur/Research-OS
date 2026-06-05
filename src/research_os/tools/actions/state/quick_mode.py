@@ -104,15 +104,32 @@ def promote_to_step(
         src = (root / scratch_path).resolve()
         if not src.exists():
             return {"status": "error", "message": f"scratch path not found: {scratch_path}"}
+        # v1.5.1 stress audit fix — refuse paths that escape the project root.
+        try:
+            src.relative_to(root.resolve())
+        except ValueError:
+            return {
+                "status": "error",
+                "message": (
+                    f"scratch path must live under the project root; "
+                    f"got {src}"
+                ),
+            }
         workspace = root / "workspace"
         workspace.mkdir(parents=True, exist_ok=True)
+        # v1.5.1 stress audit fix — parse leading-digit run, not name[:2],
+        # so 100+ step projects don't break.
         existing_nums = []
         for d in workspace.iterdir():
-            if d.is_dir() and d.name[:2].isdigit():
-                try:
-                    existing_nums.append(int(d.name[:2]))
-                except ValueError:
-                    continue
+            if not d.is_dir():
+                continue
+            m = re.match(r"^(\d+)_", d.name)
+            if not m:
+                continue
+            try:
+                existing_nums.append(int(m.group(1)))
+            except ValueError:
+                continue
         next_num = (max(existing_nums) + 1) if existing_nums else 1
         slug = _slugify(step_slug)
         step_dir = workspace / f"{next_num:02d}_{slug}"

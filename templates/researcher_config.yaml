@@ -41,6 +41,21 @@ interaction:
   #   take_best_default  → AI proceeds, surfaces the chosen default for review
   ambiguity_posture: "ask_when_uncertain"
 
+# ── Audit strictness (v1.5.1) ──────────────────────────────────────────
+# How hard audits enforce gates. "light" downgrades most blockers to
+# notes; "strict" keeps every gate at full enforcement; "normal" is the
+# pre-v1.5.1 behaviour. "auto" follows tool_rigor_signals_scan — a
+# project with substantive methods.md + citations + git + preregistration
+# scores high and gets "light"; a sketch scores low and gets "strict".
+gate_strictness: "auto"               # light | normal | strict | auto
+
+# ── Project tier (v1.5.1) ──────────────────────────────────────────────
+# Sets the default audit strictness across the whole project.
+#   throwaway → light  (sandbox / exploratory; no publication intent)
+#   sketch    → normal (working draft; may or may not publish)
+#   production → strict (active path to submission / hand-off)
+project_tier: "production"            # throwaway | sketch | production
+
 # ── Match the AI model class running in your IDE ────────────────────────
 #
 # The single most important knob if you're NOT on a frontier model.

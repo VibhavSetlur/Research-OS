@@ -38,19 +38,34 @@ def _cert_path(root: Path) -> Path:
     return root / "workspace" / "researcher_certifications.yaml"
 
 
+class _CertParseError(Exception):
+    """Raised when the on-disk certifications file is unparseable."""
+
+
 def _load(root: Path) -> dict[str, Any]:
+    """Read certifications. Distinguishes missing from corrupted —
+    a parse failure raises so callers don't silently wipe data on save."""
     path = _cert_path(root)
     if not path.exists():
         return {"version": "1.5.1", "certifications": []}
     try:
         import yaml  # type: ignore
-        data = yaml.safe_load(path.read_text()) or {}
-        if not isinstance(data, dict):
+        text = path.read_text()
+        data = yaml.safe_load(text)
+        if data is None:
             return {"version": "1.5.1", "certifications": []}
+        if not isinstance(data, dict):
+            raise _CertParseError(
+                "certifications file is not a YAML mapping"
+            )
         data.setdefault("certifications", [])
         return data
-    except Exception:
-        return {"version": "1.5.1", "certifications": []}
+    except _CertParseError:
+        raise
+    except Exception as e:
+        raise _CertParseError(
+            f"certifications file exists but is unparseable: {e}"
+        ) from e
 
 
 def _save(root: Path, data: dict[str, Any]) -> None:
@@ -99,7 +114,17 @@ def self_certify(
                 "status": "error",
                 "message": "scope and rationale are required.",
             }
-        data = _load(root)
+        try:
+            data = _load(root)
+        except _CertParseError as e:
+            return {
+                "status": "error",
+                "message": (
+                    f"Refusing to overwrite a corrupted "
+                    f"researcher_certifications.yaml — {e}. Hand-edit "
+                    "or delete the file first."
+                ),
+            }
         cert = {
             "domain": "literature_loop" if domain == "lit_loop" else domain,
             "scope": scope.strip(),
@@ -121,7 +146,10 @@ def self_certify(
 def list_certifications(root: Path) -> dict[str, Any]:
     """List active certifications."""
     try:
-        data = _load(root)
+        try:
+            data = _load(root)
+        except _CertParseError as e:
+            return {"status": "error", "message": str(e)}
         return {
             "status": "success",
             "count": len(data.get("certifications", [])),
@@ -135,7 +163,10 @@ def list_certifications(root: Path) -> dict[str, Any]:
 def has_active_certification(root: Path, domain: str, *, step_id: str = "") -> dict[str, Any]:
     """Return whether an active certification covers (domain, step_id)."""
     try:
-        data = _load(root)
+        try:
+            data = _load(root)
+        except _CertParseError:
+            return {"active": False, "error": "certifications file unparseable"}
         if domain == "lit_loop":
             domain = "literature_loop"
         for cert in data.get("certifications", []):
