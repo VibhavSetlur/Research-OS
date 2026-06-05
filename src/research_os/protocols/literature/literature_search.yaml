@@ -6,8 +6,8 @@ schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
   Systematic search across 2-4 academic databases. Produces a
-  deduplicated citation list and a PRISMA-style accounting. Now also:
-  flags suspected predatory / problematic venues and walks the
+  deduplicated citation list and a PRISMA-style accounting. Flags
+  suspected predatory / problematic venues and walks the
   forward-citation graph for the seminal hits so the literature pass
   doesn't miss the recent extensions.
 trigger: After methodology_selection — provides the body of literature that grounds the eventual paper.
