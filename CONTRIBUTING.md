@@ -7,7 +7,7 @@ contribute changes that keep the surface small and the protocols sharp.
 
 The AI IDE is the brain (Cursor / Claude Code / Claude Desktop /
 OpenCode / Antigravity / VS Code / Windsurf / Continue / Aider).
-Research OS is the body: 146 MCP tools and 113 YAML protocols, plus a
+Research OS is the body: 212 MCP tools and 114 YAML protocols, plus a
 **hybrid semantic + trigger router** that turns a user prompt into a
 protocol pick + planned tool sequence without the AI ever loading the
 trigger index itself. The semantic path uses local BGE-small ONNX
@@ -33,7 +33,7 @@ cd Research-OS
 git checkout dev                      # work happens on dev
 pip install -e ".[ci,dev]"            # lean install used by CI
 # or pip install -e ".[all,dev]"      # everything except R / Julia / Docker
-pytest                                # 438+ tests, ~12s
+pytest                                # 872+ tests, ~12s
 ruff check src/ tests/ scripts/
 python scripts/preflight.py           # 14 wiring checks (incl. embedding freshness)
 # After editing any protocol YAML or tool definition:

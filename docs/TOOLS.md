@@ -1,6 +1,6 @@
 # Tool Catalog
 
-**146 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
+**212 MCP tools** across three namespaces (`sys_*` / `tool_*` / `mem_*`).
 Names use underscores; dot notation (`sys.state.get`) and a small set
 of legacy aliases (e.g. `tool_audit_statistical_power` →
 `tool_audit_power`) auto-rewrite. `sys_tool_describe(name)` returns the

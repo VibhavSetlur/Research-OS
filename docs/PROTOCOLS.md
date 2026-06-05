@@ -1,6 +1,6 @@
 # Protocol Reference
 
-Research OS ships **113 YAML protocols** organised into nine categories.
+Research OS ships **114 YAML protocols** organised into nine categories.
 Each protocol is a sequence of steps the AI should follow, with explicit
 `expected_outputs`, a `next_protocol` pointer, and a `quality_bar`. All
 are indexed in `src/research_os/protocols/_router_index.yaml` for
@@ -10,14 +10,14 @@ hierarchical routing via `tool_route`.
 |---|---|---|
 | `methodology/` | 42 | Method pickers + per-family deep workflows (causal, ML, Bayesian, time-series, clinical, qualitative, mixed-methods, simulation, replication, ablation, pilot, evaluation design, hyperparameter sweep design, ethics review, EDA + hypothesis generation, method comparison, data-quality audit, power analysis, reproduction, methodological consultation). **v1.4.0** adds `pick_tool_stack` (R vs Python per sub-task, field-practice grounded) and `mixed_language_orchestration` (Python↔R↔Bash composition doctrine). |
 | `guidance/` | 19 | Session boot / resume / handoff / autopilot / collaboration, intake, iterative planning, dead-end routing, hypothesis + glossary tracking, mid-pipeline entry, code review, peer-review response, **scope-clarification**. |
-| `synthesis/` | 17 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs. |
+| `synthesis/` | 18 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs, manuscript_outline, journal_selection, defense_prep, printable. |
 | `visualization/` | 14 | Figure guidelines, viz workflow, single-figure critique, multi-panel composition, narrative arc, colour-accessibility audit, interactive figure design. |
 | `writing/` | 10 | Per-section drafting (methods / results / discussion / limitations / end-matter), writing core rules, citations ledger, conclusions, analysis log, README. |
 | `literature/` | 5 | Search, systematic review (PRISMA), evidence synthesis (GRADE), comparative paper review. **v1.4.0** adds `literature_per_step` — per-step search → download → cite → write `findings_vs_literature.md` (AGREES \| DISAGREES \| EXTENDS \| DEFERRED). |
 | `audit/` | 3 | Master audit + validation, pre-submission checklist, provenance completeness. |
 | `domain/` | 2 | Domain classification, research-design + sample-size justification. |
 | `reproducibility/` | 1 | Per-step env lock, seed verification, container generation. |
-| **Total** | **113** | |
+| **Total** | **114** | |
 
 The protocol surface deliberately covers BOTH the canonical
 data → publication pipeline AND the partial / off-axis workflows

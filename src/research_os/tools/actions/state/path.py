@@ -1565,7 +1565,6 @@ def _bullet_lines(section_text: str) -> list[str]:
         if len(s.strip()) > 20
     ]
     return sentences[:8] or [prose[:500]]
-    return out
 
 
 def _anticipated_reviewer_questions(

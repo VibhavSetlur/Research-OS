@@ -290,7 +290,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_active_tools": {
         "short": "Active tool shortlist for a protocol (essentials + decomposition tools).",
-        "description": "Given a protocol name, return the tight set of tools the AI should prefer while executing it: ~10-15 tools = essentials + everything the protocol's decomposition actually calls. Use after sys_protocol_get to scope your working set instead of triaging all 143 tools per turn.",
+        "description": "Given a protocol name, return the tight set of tools the AI should prefer while executing it: ~10-15 tools = essentials + everything the protocol's decomposition actually calls. Use after sys_protocol_get to scope your working set instead of triaging all 212 tools per turn.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -4875,11 +4875,11 @@ def _handle_sys_help(name, arguments, root):
             "guidance": "session/flow (boot/resume/handoff/autopilot/casual/mid_entry/disagree/revise)",
             "discover": "intake + question lock-in + mid-pipeline entry",
             "domain": "domain classification + study design",
-            "methodology": "method picking + per-method protocols (29)",
+            "methodology": "method picking + per-method protocols (42)",
             "literature": "search + systematic review + GRADE + comparative review",
             "writing": "per-section drafting (methods/results/discussion/limitations/end-matter)",
             "visualization": "figures (rules/workflow/critique/multi-panel/arc/a11y)",
-            "synthesis": "final deliverables (14: paper/poster/dashboard/slides/...)",
+            "synthesis": "final deliverables (18: paper/poster/dashboard/slides/...)",
             "audit": "quality audit + pre-submission checklist + provenance completeness",
             "reproducibility": "snapshot + verify reruns",
         }}))
