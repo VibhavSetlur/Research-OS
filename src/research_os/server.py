@@ -4322,7 +4322,9 @@ def _handle_tool_slides_create(name, arguments, root):
 
 def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
     """Cross-deliverable consistency audit: 5 dimensions, override-aware."""
+    from research_os.tools.actions.audit._base import write_audit_outputs
     from research_os.tools.actions.audit.cross_deliverable import (
+        CrossDeliverableConsistencyAudit,
         audit_cross_deliverable_consistency,
     )
     from research_os.project_ops import log_override
@@ -4342,6 +4344,18 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
         ))
 
     res = audit_cross_deliverable_consistency(root)
+
+    # Phase-4 AuditBase fan-out: emit structured AuditFindings to the
+    # standard {gate}_audit.md + {gate}_audit.json + .audit_findings.jsonl
+    # artefacts. Failure to write the audit-outputs artefacts must not
+    # mask the legacy auditor's response — wrap in a guard.
+    try:
+        findings = CrossDeliverableConsistencyAudit().run(Path(root))
+        write_audit_outputs(
+            findings, "cross_deliverable_consistency", Path(root)
+        )
+    except Exception:  # pragma: no cover - defensive guard
+        pass
 
     if res.get("blockers") and override_requested:
         log_override(
