@@ -631,7 +631,11 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "reports, and (e) any stub sections in the step's main `README.md` "
             "are populated from `conclusions.md` + `analysis.md` decisions. "
             "Idempotent — running it a second time is a no-op if nothing "
-            "changed. Defaults to the current path."
+            "changed. Defaults to the current path. v1.5.0: runs "
+            "tool_audit_step_literature as its first gate; BLOCKS when "
+            "the step lacks findings_vs_literature.md unless "
+            "override_literature_gate=true + override_rationale=... are "
+            "supplied."
         ),
         "category": "path",
         "inputSchema": {
@@ -641,6 +645,11 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "Step folder name (e.g. '03_replicate_attitude_demographics'). Defaults to current_path.",
                 },
+                "override_literature_gate": {
+                    "type": "boolean",
+                    "description": "v1.5.0 — bypass the first-gate audit_step_literature check. Must be paired with override_rationale.",
+                },
+                "override_rationale": {"type": "string"},
             },
         },
     },
@@ -2709,9 +2718,48 @@ def _handle_sys_path_list(name, arguments, root):
 
 
 def _handle_tool_path_finalize(name, arguments, root):
+    from research_os.tools.actions.audit.step_literature import (
+        audit_step_literature,
+    )
     from research_os.tools.actions.state.path import finalize_path
 
+    # v1.5.0 — first-gate literature-loop check (Theme 1, gap c). Closes
+    # the v1.4.0 gap where literature_per_step was documented as
+    # pipeline-mandatory but not enforced — autopilot skipped it.
+    # Override via override_literature_gate=true + override_rationale.
+    override_lit = bool(arguments.get("override_literature_gate", False))
+    override_rationale = str(arguments.get("override_rationale", "")).strip()
+    path_name = arguments.get("path_name")
+    step_id = path_name if (path_name and path_name != "main") else None
+    try:
+        lit_audit = audit_step_literature(root, step_id=step_id)
+    except Exception as e:
+        lit_audit = {"status": "error", "message": str(e), "blockers": []}
+    if (
+        lit_audit.get("status") == "error"
+        and lit_audit.get("blockers")
+        and not (override_lit and override_rationale)
+    ):
+        msg = (
+            f"tool_path_finalize blocked by tool_audit_step_literature "
+            f"({len(lit_audit['blockers'])} blocker(s)). "
+            "Either run research/literature_per_step OR pass "
+            "override_literature_gate=true + override_rationale=... to "
+            "proceed. See workspace/logs/step_literature_audit.md."
+        )
+        return _text(_error({
+            "message": msg,
+            "literature_audit": lit_audit,
+        }))
+
     res = finalize_path(arguments.get("path_name"), root)
+    if isinstance(res, dict):
+        res.setdefault("literature_audit", lit_audit)
+        if override_lit and override_rationale:
+            res["literature_override"] = {
+                "override_literature_gate": True,
+                "override_rationale": override_rationale,
+            }
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "finalize failed")))
@@ -4615,6 +4663,56 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
         discussion_coverage_audit,
     )
     return _text(discussion_coverage_audit(root))
+
+
+# ---------------------------------------------------------------------------
+# v1.5.1 handlers — Theme 3 (adaptive friction) + Theme 5 (quick mode)
+# ---------------------------------------------------------------------------
+
+
+def _handle_tool_rigor_signals_scan(name, arguments, root):
+    from research_os.tools.actions.state.rigor_signals import rigor_signals_scan
+    return _text(rigor_signals_scan(root))
+
+
+def _handle_tool_resolve_gate_strictness(name, arguments, root):
+    from research_os.tools.actions.state.rigor_signals import resolve_gate_strictness
+    return _text(resolve_gate_strictness(root))
+
+
+def _handle_tool_self_certify(name, arguments, root):
+    from research_os.tools.actions.state.certifications import self_certify
+    return _text(self_certify(
+        root,
+        domain=str(arguments.get("domain", "")),
+        scope=str(arguments.get("scope", "")),
+        rationale=str(arguments.get("rationale", "")),
+    ))
+
+
+def _handle_tool_list_certifications(name, arguments, root):
+    from research_os.tools.actions.state.certifications import list_certifications
+    return _text(list_certifications(root))
+
+
+def _handle_tool_quick_route(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import quick_route
+    return _text(quick_route(root, str(arguments.get("prompt", ""))))
+
+
+def _handle_tool_promote_to_step(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import promote_to_step
+    return _text(promote_to_step(
+        root,
+        scratch_path=str(arguments.get("scratch_path", "")),
+        step_slug=str(arguments.get("step_slug", "")),
+        rationale=str(arguments.get("rationale", "")),
+    ))
+
+
+def _handle_tool_project_tier_strictness(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import project_tier_strictness
+    return _text(project_tier_strictness(root))
 
 
 _HANDLERS = {

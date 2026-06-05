@@ -103,14 +103,48 @@ memory, stale-state detection, intake re-entry detection.
 - **Orphan tool sweep** — every v1.5.0 tool is referenced from at
   least one protocol; preflight verifies tool refs resolve.
 
+### Migration notes (v1.4.x → v1.5.0)
+
+Three behaviour changes can surface as a BLOCKER on existing
+workspaces — read these before upgrading:
+
+1. **`tool_audit_synthesis` default-deny on zero PDFs.** Projects
+   that previously assembled a paper without per-step
+   `literature/*.pdf` files (e.g. relied solely on author-year prose
+   citations) will flip to `status='error'` at the audit. **Fix
+   options:** (a) run `tool_literature_search_and_save` for each
+   step's claims, or (b) pass `override_no_pdfs=true` +
+   `override_rationale=<one-sentence reason>` — both arguments are
+   required (override silently passes only when paired).
+2. **`tool_path_finalize` runs `tool_audit_step_literature` as its
+   first gate.** Existing steps without
+   `workspace/<step>/literature/findings_vs_literature.md` will block
+   on finalize. **Fix options:** (a) run
+   `research/literature_per_step` for the step, (b) set
+   `literature_required: false` in `step_summary.yaml` for pure
+   data-engineering steps, or (c) pass
+   `override_literature_gate=true` + `override_rationale=...` to
+   `tool_path_finalize`.
+3. **`tool_audit_step_completeness` promotes missing
+   `scratch/stack_plan.md` from WARN to BLOCKER.** No flag-based
+   override — write the file. A one-line library-choice rationale
+   suffices (the field-practice rationale matters at synthesis time).
+
 ### Validation
 
 - `python scripts/preflight.py` — 14/14
-- `python -m pytest -q` — 508 passed (492 baseline + 9 new in
-  `tests/unit/test_v150.py`; one existing audit test updated for the
-  v1.5.0 stack_plan WARN→BLOCK semantics)
+- `python -m pytest -q` — 508 passed (492 baseline + 16 new across
+  `tests/unit/test_v150.py` + `tests/tools/test_v1_5_0.py`; one
+  existing audit test updated for the v1.5.0 stack_plan
+  WARN→BLOCK semantics)
 - `ruff check src/ tests/ scripts/` — clean
 - Tool count: 146 → 156. Protocol count unchanged at 113.
+- **Stress audit** — 3 parallel reviewers (correctness / integration /
+  regression) produced 27 findings; 5 must-fix issues addressed
+  before tag (override-rationale pairing, coherence numbered-list +
+  code-block filters, single-word claim threshold,
+  `audit_step_literature` wiring into `tool_path_finalize`,
+  migration docs).
 
 ---
 

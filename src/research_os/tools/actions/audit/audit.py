@@ -387,25 +387,42 @@ def audit_synthesis(
                 total_pdfs += sum(1 for _ in project_lit_dir.glob("*.pdf"))
             report["literature_required_steps"] = lit_required_steps
             report["total_pdfs_across_workspace"] = total_pdfs
+            # v1.5.0 — override requires BOTH override_no_pdfs=true AND a
+            # non-empty override_rationale. Passing only the boolean
+            # silently bypassed the gate in the first draft and left no
+            # audit trail; caught in the v1.5.0 stress audit.
+            override_active = (
+                bool(override_no_pdfs) and bool(override_rationale.strip())
+            )
             if (
                 lit_required_steps
                 and total_pdfs == 0
-                and not override_no_pdfs
+                and not override_active
             ):
-                zero_pdf_block = (
-                    f"DEFAULT-DENY: synthesis blocked because zero PDFs "
-                    f"are present across {len(lit_required_steps)} "
-                    "literature-required step(s) (and inputs/literature/ "
-                    "is also empty). A paper with no grounded literature "
-                    "is structurally a sketch. Either run "
-                    "tool_literature_search_and_save for each step's "
-                    "claims, OR call tool_audit_synthesis with "
-                    "`override_no_pdfs=true` + `override_rationale=...` "
-                    "if literature is structurally unavailable (closed "
-                    "field, novel measurement, etc.)."
-                )
+                if override_no_pdfs and not override_rationale.strip():
+                    zero_pdf_block = (
+                        "DEFAULT-DENY: synthesis blocked because "
+                        "override_no_pdfs=true was passed WITHOUT an "
+                        "override_rationale. The override is "
+                        "audit-trail-bearing — supply a one-sentence "
+                        "rationale explaining why literature is "
+                        "structurally unavailable for this project."
+                    )
+                else:
+                    zero_pdf_block = (
+                        f"DEFAULT-DENY: synthesis blocked because zero PDFs "
+                        f"are present across {len(lit_required_steps)} "
+                        "literature-required step(s) (and inputs/literature/ "
+                        "is also empty). A paper with no grounded literature "
+                        "is structurally a sketch. Either run "
+                        "tool_literature_search_and_save for each step's "
+                        "claims, OR call tool_audit_synthesis with "
+                        "`override_no_pdfs=true` + `override_rationale=...` "
+                        "if literature is structurally unavailable (closed "
+                        "field, novel measurement, etc.)."
+                    )
                 gate_blockers.append(zero_pdf_block)
-            elif override_no_pdfs and override_rationale:
+            elif override_active:
                 report["override_no_pdfs"] = True
                 report["override_rationale"] = override_rationale
         except Exception as e:

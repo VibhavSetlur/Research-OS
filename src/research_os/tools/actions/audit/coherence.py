@@ -43,11 +43,23 @@ def _shingles(words: list[str], k: int = 3) -> set[str]:
     return {" ".join(words[i:i + k]) for i in range(len(words) - k + 1)}
 
 
+_NUMBERED_LIST_RE = re.compile(r"^\d+\.\s")
+_BULLET_LIST_RE = re.compile(r"^[-*+]\s")
+_CODE_FENCE_RE = re.compile(r"^\s*```")
+
+
 def _paragraphs(text: str) -> list[tuple[str, str]]:
-    """Return (section, paragraph) pairs. Section is the most-recent ## heading."""
+    """Return (section, paragraph) pairs. Section is the most-recent ## heading.
+
+    Filters: ATX headings, blank lines, image refs, bullet/numbered-list
+    items (any digit prefix, not just '1.'), table rows, and fenced code
+    block content (tracks in_code state — v1.5.0 stress audit caught the
+    bug where only the fence line was skipped while body became orphans).
+    """
     out: list[tuple[str, str]] = []
     current_section = "preamble"
     para_lines: list[str] = []
+    in_code = False
 
     def _flush():
         nonlocal para_lines
@@ -58,6 +70,12 @@ def _paragraphs(text: str) -> list[tuple[str, str]]:
             para_lines = []
 
     for line in text.splitlines():
+        if _CODE_FENCE_RE.match(line):
+            _flush()
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
         if line.startswith("## "):
             _flush()
             current_section = line[3:].strip().lower()
@@ -70,7 +88,12 @@ def _paragraphs(text: str) -> list[tuple[str, str]]:
             continue
         if line.startswith("!["):
             continue
-        if line.lstrip().startswith(("- ", "* ", "1.", "|", "```")):
+        stripped = line.lstrip()
+        if (
+            _BULLET_LIST_RE.match(stripped)
+            or _NUMBERED_LIST_RE.match(stripped)
+            or stripped.startswith("|")
+        ):
             continue
         para_lines.append(line)
     _flush()
