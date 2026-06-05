@@ -151,8 +151,13 @@ def test_reviewer_simulation_min_comments_and_persona_count():
     assert rs and rs.get("enabled") is True
     assert rs.get("min_total_comments", 0) >= 30
     personas = rs.get("personas") or []
-    assert len(personas) >= 7, f"only {len(personas)} personas"
-    assert rs.get("min_personas_responding", 0) >= 7
+    # v1.11.1: personas were renamed to canonical IDs. The original list
+    # of 7 contained a duplicate post-canonicalization
+    # (bioinformatician_reviewer → reproducibility_advocate collided with
+    # the already-listed reproducibility_advocate), so the deduped set is 6.
+    # The canonical asset library only ships 7 IDs total.
+    assert len(personas) >= 6, f"only {len(personas)} personas"
+    assert rs.get("min_personas_responding", 0) >= 6
 
 
 # ── humanities essay + ISBN + routing expectations ────────────────────
