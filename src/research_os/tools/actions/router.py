@@ -56,7 +56,6 @@ def _load_index() -> dict:
             if pack_entries:
                 data.setdefault("protocols", {}).update(pack_entries)
         except Exception as exc:
-            import logging
             logging.getLogger("research_os.router").debug(
                 "pack router-entries merge skipped: %s", exc
             )
