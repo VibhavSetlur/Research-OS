@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.8.0"
+version = "1.9.0"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -95,6 +95,15 @@ redcap = []
 synapse = []
 all_adapters = ["research-os[slurm,snakemake,nextflow,cytoscape,redcap,synapse]"]
 
+# Typst PDF compilation — no Python deps; the user installs the `typst`
+# CLI on their system. The extra exists so `pip install research-os[typst_compile]`
+# can serve as an opt-in marker and as a hook for later auxiliary tooling.
+typst_compile = []
+# Headless-browser print-stylesheet audit (opt-in; pulls a Chromium download).
+print_audit = ["pyppeteer>=2.0"]
+# WCAG contrast-ratio helper for the dashboard accessibility audit.
+contrast_audit = ["wcag-contrast-ratio>=0.9"]
+
 # Developer extras
 dev = [
     "pytest>=7.0",
@@ -158,3 +167,4 @@ packages = [
     "src/research_os_adapter_redcap",
     "src/research_os_adapter_synapse",
 ]
+

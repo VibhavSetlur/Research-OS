@@ -1,0 +1,34 @@
+# Reference project: paper_thin_content
+#
+# Same shape as paper_nature_minimal but with intentionally stub-shaped
+# IMRAD sections (no numbers in the abstract, no citations in the
+# introduction, no statistics in the results, no limitations paragraph
+# in the discussion). The fixture exists so the content-depth audit
+# can be exercised in CI without writing a paper-with-bugs by hand.
+#
+# The expected end-state has section_substantiveness BLOCKERs firing.
+
+domain: biology
+expected_pack: null
+
+protocols_expected:
+  - guidance/project_startup
+  - audit/audit_and_validation
+  - synthesis/synthesis_paper
+
+# This fixture is designed to FAIL the substantiveness gate — the
+# regression check is that the gate actually fires, not that it passes.
+gates_expected_pass:
+  - guidance/project_startup:intake_complete
+gates_expected_fail:
+  - synthesis/synthesis_paper:section_substantiveness
+
+artifacts_required:
+  - inputs/context/research_question.md
+
+max_tool_calls: 60
+max_seconds: 30
+
+canned_responses:
+  intake_files: "Surveyed inputs/. Same as paper_nature_minimal but with stub-shaped synthesis."
+  synthesize: "Wrote synthesis/paper.md with templated placeholder prose."

@@ -136,6 +136,10 @@ the router picks one for you.
 | `tool_audit_figure` | DPI / colorblind palette / axis labels / error bars. |
 | `tool_audit_citations` | Verify every workspace/citations.md entry against Crossref. |
 | `tool_audit_reproducibility` | Re-run every script in a clean env and compare hashes. (Slow.) |
+| `tool_audit_dashboard_content` | Content gates for synthesis/dashboard.html: numeric grounding, figure-to-text proximity, per-section substantiveness, WCAG 2.2 AA accessibility, print stylesheet sanity, color-palette consistency, 5-minute-reviewer simulator. |
+| `tool_dashboard_reviewer_sim` | Standalone: would a 5-minute skimmer extract the headline finding from the dashboard? |
+| `tool_section_substantiveness` | Per-IMRAD-section content depth: abstract ≥ 1 number, intro ≥ 3 citations + "in this study" pivot, methods covers ≥ 80% of workspace steps, results has stats, discussion has limitations + future work, refs sync with citations. |
+| `tool_audit_cliches` | Scan synthesis/paper.md for AI-cliché phrases ("in this study, we investigate", "future work should explore", …) with per-cliché replacement hints. |
 
 ### Synthesis
 
@@ -143,7 +147,9 @@ the router picks one for you.
 |---|---|
 | `tool_synthesize_plan` | Inspect available sources; propose section order. |
 | `tool_synthesize` | Compile workspace into paper / abstract / poster / dashboard / grant / report. Verified citations only. |
-| `tool_latex_compile` | pdflatex + bibtex on synthesis/paper.tex. |
+| `tool_synthesis_preview` | Cheap deterministic dry-run before `tool_synthesize` — predicts word counts, page count, figures, citations, gaps. `mode='diff'` compares against the existing deliverable. |
+| `tool_paper_compile_typst` | synthesis/paper.md → paper.typ → paper.pdf via Typst with a venue template (nature / science / nejm / cell / ieee_conf / neurips / acl / plos / generic_two_column / generic_thesis). Recommended PDF path. |
+| `tool_latex_compile` | pdflatex + bibtex on synthesis/paper.tex. Use when a venue requires .tex submission. |
 | `tool_poster_create` | Tikzposter LaTeX poster. |
 | `tool_dashboard_create` | Single-file offline HTML dashboard. |
 | `tool_citations_verify` | Re-verify every citation_key in workspace/citations.md. |
