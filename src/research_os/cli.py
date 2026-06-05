@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Research OS CLI.
 
-Three commands, by design:
+Four commands, by design:
 
     research-os init [dir] [--name X] [--ide all|cursor|claude|...]
         Scaffold a Research OS workspace. Interactive by default; pass
@@ -13,6 +13,12 @@ Three commands, by design:
 
     research-os start [--workspace .]
         Run the MCP server. Your AI IDE connects to this.
+
+    research-os doctor [--verbose|--workspace-only|--json]
+        Diagnose install + workspace health (python version, conda env,
+        version consistency, pack registration, embeddings freshness,
+        IDE wiring, disk usage, git cleanliness, etc.). Returns exit
+        code 0 (clean), 1 (warnings), or 2 (failures).
 
 All real research work happens by talking to the AI in the IDE.
 """
@@ -547,10 +553,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="research-os",
         description=(
             "Research OS — an MCP-native research operating system.\n\n"
-            "Three commands:\n"
+            "Four commands:\n"
             "  research-os init    scaffold a workspace ready for any AI IDE\n"
             "  research-os ide     add / remove / list AI IDE MCP configs\n"
-            "  research-os start   run the MCP server (your IDE auto-launches it)\n\n"
+            "  research-os start   run the MCP server (your IDE auto-launches it)\n"
+            "  research-os doctor  diagnose install + workspace health\n\n"
             "Research OS does NOT manage LLM provider keys. Your AI client\n"
             "(Claude Code, OpenCode, Antigravity, Cursor, Claude Desktop,\n"
             "VS Code, Windsurf, Continue, Aider, ...) owns model access.\n\n"
@@ -646,6 +653,41 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--transport", choices=["stdio", "sse"], default="stdio",
                         help="MCP transport (default: stdio).")
 
+    # ── doctor ──────────────────────────────────────────────────────────
+    p_doctor = sub.add_parser(
+        "doctor",
+        help="Diagnose install + workspace health (returns exit code 0/1/2).",
+        description=(
+            "Run a battery of health checks against the install and (if "
+            "invoked inside a workspace) the workspace itself. Prints a\n"
+            "coloured summary, exits 0 (all pass), 1 (warnings only), or\n"
+            "2 (failures present).\n\n"
+            "Checks include: python version, conda env, version consistency,\n"
+            "pack registration, embeddings freshness, typst / chromium on\n"
+            "PATH, IDE MCP wiring, orphan figures, stale step_summary,\n"
+            "unresolved BLOCK gates, disk usage, git cleanliness, and\n"
+            ".gitignore coverage.\n\n"
+            "Examples:\n"
+            "  research-os doctor                    # full report\n"
+            "  research-os doctor --json             # machine-readable\n"
+            "  research-os doctor --verbose          # show fix hints for passing checks\n"
+            "  research-os doctor --workspace-only   # skip install checks\n"
+            "  research-os doctor --workspace .      # explicit workspace path"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_doctor.add_argument("--verbose", action="store_true",
+                          help="Show fix hints even for passing checks.")
+    p_doctor.add_argument("--workspace-only", dest="workspace_only",
+                          action="store_true",
+                          help="Skip install checks; only run workspace checks.")
+    p_doctor.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (default: walk up from CWD).")
+    p_doctor.add_argument("--json", action="store_true",
+                          help="Emit JSON instead of the human-readable report.")
+    p_doctor.add_argument("--no-color", action="store_true",
+                          help="Disable ANSI styling. Auto-disabled when NO_COLOR is set.")
+
     return parser
 
 
@@ -659,6 +701,9 @@ def main() -> None:
         cmd_ide(args)
     elif args.command == "start":
         cmd_start(args)
+    elif args.command == "doctor":
+        from research_os.cli_doctor import cmd_doctor
+        sys.exit(cmd_doctor(args))
     else:
         parser.print_help()
         print()
