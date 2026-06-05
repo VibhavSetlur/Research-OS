@@ -6,6 +6,88 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.5.1] — Adaptive UX: friction scales with rigor + quick mode for throwaway work (2026-06-04)
+
+MINOR release. Stops the AI from being overkill on rigorous researchers
+and throwaway work. Two themes from `docs/ROADMAP.md`:
+
+- **Theme 3 — Adaptive friction.** Audit gates scale strictness with
+  measured project rigor. A well-set project (substantive methods.md,
+  citation density, git, preregistration, commented scripts) earns
+  `light` — most blockers become notes. A bare sketch gets `strict`
+  — full enforcement. Researcher can override (config or self-certify).
+- **Theme 5 — Quick mode.** Explicit throwaway / sanity-check intent
+  short-circuits the protocol load entirely. Outputs land in
+  `workspace/scratch/`; no audit gates fire. If the result earns its
+  keep, `tool_promote_to_step` wraps it in proper provenance
+  retroactively.
+
+### Added — Theme 3: adaptive friction
+
+- **`tool_rigor_signals_scan`** — infers trust_score 0-100 across 6
+  dimensions (methods.md substantiveness, citation density + PDF
+  count, version-control state, preregistration artifact, script
+  comment ratio, prior step_summary.yaml quality). Recommends
+  strictness (light when ≥75, normal when ≥50, strict when <50).
+- **`tool_resolve_gate_strictness`** — resolves effective strictness
+  from `researcher_config.gate_strictness` (light | normal | strict |
+  auto) + the trust_score. `auto` (the default) follows the score.
+- **`tool_self_certify`** — researcher with deep expertise self-certifies
+  equivalent work done outside RO. Persisted to
+  `workspace/researcher_certifications.yaml`. Allowed domains:
+  literature_loop, stack_plan, preregistration, sensitivity_analysis,
+  code_review, reproducibility.
+- **`tool_list_certifications`** — list active certs.
+- **Per-step skip annotations** — `<!-- ro:skip lit_loop, reason: ... -->`
+  in `conclusions.md` honoured by audits via
+  `step_has_skip_annotation`.
+
+### Added — Theme 5: quick mode
+
+- **`tool_quick_route`** — detects throwaway / sanity-check /
+  exploratory intent ("just make me a plot", "quick look", "sanity
+  check", "throwaway viz", "quick check", "scratch") and returns a
+  route with `complexity='quick'` + `recommended_tool='tool_scratch_write'`.
+  Wired into `tool_route` as a pre-step — fires before protocol
+  matching.
+- **`tool_promote_to_step`** — retroactively wraps a `workspace/scratch/`
+  artifact in proper provenance: new numbered step folder, copies the
+  file to outputs/figures/ (or step root), emits `.prov.json` sidecar,
+  writes minimal conclusions.md + step_summary.yaml.
+- **`tool_project_tier_strictness`** — maps
+  `researcher_config.project_tier` (throwaway | sketch | production)
+  → default gate_strictness (light | normal | strict).
+
+### Improved
+
+- **`researcher_config.yaml` adds two fields** — `gate_strictness`
+  (light | normal | strict | auto, default auto) and `project_tier`
+  (throwaway | sketch | production, default production). Both optional;
+  defaults preserve v1.5.0 behaviour.
+- **`tool_route` short-circuits on quick intent** — wired at the top of
+  the hierarchical router so quick prompts never load a protocol.
+
+### Validation
+
+- `python scripts/preflight.py` — 14/14
+- `python -m pytest -q` — 527 passed (508 v1.5.0 baseline + 19 new
+  v1.5.1 regressions, including a router-integration test that
+  exercises the full quick-route path end-to-end)
+- `ruff check src/ tests/ scripts/` — clean
+- Tool count: 156 → 163. Protocol count unchanged at 113.
+- Every protocol YAML bumped to `version: '1.5.1'`.
+
+### Migration
+
+Drop-in upgrade from v1.5.0. Two new (optional) config fields. If you
+want v1.5.0 behaviour exactly: set `gate_strictness: normal` and
+`project_tier: production` in `researcher_config.yaml`. Default
+(`auto` + `production`) gives strictly-enforced gates on bare projects
+that scale down as the project accumulates rigor signals — which is
+what you want unless you intentionally prefer constant strictness.
+
+---
+
 ## [1.5.0] — Close v1.4.0 audit gaps + reliability + paywall memory + stale-state + intake re-entry (2026-06-04)
 
 MINOR release. Closes every audit gap surfaced in the v1.4.0 stress test

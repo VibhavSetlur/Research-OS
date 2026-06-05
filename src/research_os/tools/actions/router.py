@@ -564,6 +564,35 @@ def route_request(
         prompt_norm = re.sub(r"\s+", " ", prompt_norm)
         is_complex = _is_complex(prompt_norm)
 
+        # v1.5.1 quick-mode pre-check. If the prompt explicitly signals
+        # throwaway / sanity-check / exploratory intent, short-circuit
+        # the protocol load. Results write to workspace/scratch/, no
+        # audits fire. Researcher can promote later via tool_promote_to_step.
+        try:
+            from research_os.tools.actions.state.quick_mode import quick_route
+            qr = quick_route(root, prompt)
+            if qr.get("is_quick"):
+                return {
+                    "status": "success",
+                    "resolved_level": 0,
+                    "intent_class": "quick",
+                    "sub_intent": None,
+                    "primary_protocol": None,
+                    "shortcut_tool": qr.get("recommended_tool"),
+                    "decomposition": [],
+                    "alternatives": [],
+                    "ambiguous_alternatives": [],
+                    "matched_triggers": [qr.get("matched_trigger")],
+                    "complexity": "quick",
+                    "ask_user": None,
+                    "why": qr.get("advice"),
+                    "advice": qr.get("advice"),
+                    "output_dir": qr.get("output_dir"),
+                }
+        except Exception:
+            # Quick-mode is opt-in; fall back to normal routing on any error.
+            pass
+
         # ── Step 0: cross-intent shortcut wins outright ───────────────
         # E.g. "what's the progress" → tool_progress_digest, no protocol
         # load needed regardless of class/sub-intent.

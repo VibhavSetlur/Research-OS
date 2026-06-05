@@ -120,14 +120,28 @@ def discussion_coverage_audit(root: Path) -> dict[str, Any]:
         uncovered: list[dict[str, Any]] = []
         covered: list[dict[str, Any]] = []
         for r in non_agrees:
+            # v1.5.1 (carried from v1.5.0 stress-audit) — word-boundary
+            # regex match (was substring `in disc_text`, which
+            # over-credited stem-prefix words: 'expr' hit 'expression').
+            # Also: when a claim has <=2 keywords, require ALL of them —
+            # previous `max(2, ...)` made short claims like "BMI rises"
+            # or "Cox PH fits" unprovably uncovered.
             claim_words = [
                 w.lower() for w in re.findall(r"[A-Za-z]{4,}", r["claim"])
             ][:6]
             if not claim_words:
                 uncovered.append(r)
                 continue
-            hit_count = sum(1 for w in claim_words if w in disc_text)
-            if hit_count >= max(2, len(claim_words) // 2):
+            hit_count = sum(
+                1
+                for w in claim_words
+                if re.search(rf"\b{re.escape(w)}\b", disc_text)
+            )
+            if len(claim_words) <= 2:
+                threshold = len(claim_words)
+            else:
+                threshold = max(2, len(claim_words) // 2)
+            if hit_count >= threshold:
                 covered.append(r)
             else:
                 uncovered.append(r)

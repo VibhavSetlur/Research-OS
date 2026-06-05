@@ -48,3 +48,19 @@ from research_os.tools.actions.state.paywall_memory import (  # noqa: F401  v1.5
     record_failure,
     step_summary_failures,
 )
+from research_os.tools.actions.state.rigor_signals import (  # noqa: F401  v1.5.1
+    resolve_gate_strictness,
+    rigor_signals_scan,
+)
+from research_os.tools.actions.state.certifications import (  # noqa: F401  v1.5.1
+    has_active_certification,
+    list_certifications,
+    self_certify,
+    step_has_skip_annotation,
+)
+from research_os.tools.actions.state.quick_mode import (  # noqa: F401  v1.5.1
+    detect_quick_intent,
+    project_tier_strictness,
+    promote_to_step,
+    quick_route,
+)
