@@ -1,0 +1,38 @@
+# Reference project: paper_nature_minimal
+#
+# A 3-step Alzheimer's mini project that exercises the full synthesis
+# pipeline plus Typst PDF compile under the Nature venue template. The
+# project ships pre-filled workspace fragments (per-step conclusions +
+# step_summary + a focal figure) so the synthesis preview + section
+# substantiveness audits have something real to read.
+
+domain: biology
+expected_pack: null
+
+protocols_expected:
+  - guidance/project_startup
+  - methodology/exploratory_data_analysis
+  - audit/audit_and_validation
+  - synthesis/synthesis_paper
+
+gates_expected_pass:
+  - guidance/project_startup:intake_complete
+  - audit/audit_and_validation:audit_master_green
+  - synthesis/synthesis_paper:section_substantiveness_pass
+
+artifacts_required:
+  - inputs/context/research_question.md
+  - synthesis/paper.md
+
+max_tool_calls: 80
+max_seconds: 60
+
+canned_responses:
+  intake_files: "Surveyed inputs/. Two cohort-metadata tables and a vignette."
+  classify_project: "Domain=biology, sub_domain=neuro_omics, output_type=paper."
+  lock_in_question: "Locked: do MGNG+ microglial markers differ between AD entorhinal cortex and controls?"
+  pick_method: "Selected SCTransform + Wilcoxon DE."
+  fit_model: "Fitted DE; saved results to workspace/01_de/results.csv."
+  audit_master: "audit_master ran; 0 blockers."
+  synthesize: "Wrote synthesis/paper.md across IMRAD."
+  paper_compile_typst: "Compiled synthesis/paper.pdf via Typst (nature template)."

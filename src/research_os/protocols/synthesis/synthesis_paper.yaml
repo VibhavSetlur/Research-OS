@@ -1,6 +1,6 @@
 id: synthesis_paper
 name: Synthesis — Paper (IMRAD, venue-tailored)
-version: '1.7.1'
+version: '1.9.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -245,15 +245,18 @@ steps:
             → Use `synthesis/synthesis_dashboard` (separate protocol).
 
       Typst conversion when requested:
-        - Write `synthesis/paper.typ` with proper #set page() +
-          #set text(font: "...") + #show heading.where(level: 1):
-          set text(size: 18pt, weight: "bold") preamble.
-        - Inline figures via `#figure(image("../workspace/<step>/
-          outputs/figures/<NN>.svg", width: 80%), caption: [...])`.
-        - Bibliography via `#bibliography("references.bib",
-          style: "ieee")` or any IEEE/APA/Vancouver/Nature CSL.
-        - Compile: `typst compile synthesis/paper.typ
-          synthesis/paper.pdf`.
+        - Call `tool_paper_compile_typst(venue="<slug>")` — wires
+          the conversion: paper.md → paper.typ → paper.pdf via a
+          bundled venue template (nature | science | nejm | cell |
+          ieee_conf | neurips | acl | plos | generic_two_column |
+          generic_thesis), and synthesises a Hayagriva biblio.yml
+          from workspace/citations.md. The default venue comes from
+          `researcher_config.writing_preferences.venue_template`.
+        - Bundled venues set per-journal page geometry, fonts,
+          heading rules, citation style. Falls back to generic
+          two-column when the venue is unset.
+        - The tool returns parsed Typst errors with line numbers
+          on failure so the AI can iterate on the source.
 
       LaTeX conversion when requested:
         - Standard `\documentclass{...}` per journal; preamble

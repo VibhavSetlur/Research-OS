@@ -2464,6 +2464,79 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
+    # ── Typst PDF + dashboard content gates + synthesis preview + content depth ──
+    "tool_paper_compile_typst": {
+        "short": "Compile synthesis/paper.md → paper.typ → paper.pdf via Typst.",
+        "description": "Markdown → Typst → PDF using a per-venue template (nature | science | nejm | cell | ieee_conf | neurips | acl | plos | generic_two_column | generic_thesis). Generates synthesis/paper.typ + synthesis/biblio.yml (Hayagriva) and runs `typst compile`. Returns pdf_path, page_count, citation_count, typst_warnings/errors. Reads researcher_config.writing_preferences.venue_template if `venue` not given. The LaTeX path (tool_latex_compile) remains available for journals that require .tex submission.",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
+                "venue": {"type": "string", "description": "One of: nature, science, nejm, cell, ieee_conf, neurips, acl, plos, generic_two_column, generic_thesis. Falls back to researcher_config or 'generic_two_column'."},
+                "output": {"type": "string", "description": "Default 'synthesis/paper.pdf'."},
+            },
+        },
+    },
+    "tool_audit_dashboard_content": {
+        "short": "Content gates for synthesis/dashboard.html: numeric grounding, figure proximity, substantiveness, accessibility, print, palette, reviewer-skim.",
+        "description": "Runs 7 sub-checks against the rendered dashboard: (1) numeric grounding — every dashboard number must appear in workspace tables or citations (±1% tolerance); (2) figure-to-text proximity — figures must be cited within ±2 paragraphs; (3) per-section substantiveness — word floors + claim/figure counts per section; (4) WCAG 2.2 AA accessibility — contrast, alt text, heading hierarchy; (5) print stylesheet sanity; (6) color-palette consistency (Okabe-Ito / viridis / PuOr); (7) reviewer simulator — would a 5-minute skim get the finding? Ungrounded numbers + missing-abstract-number = BLOCKER. Other issues are WARNINGs.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dashboard_path": {"type": "string", "description": "Default 'synthesis/dashboard.html'."},
+                "override_dashboard_content_gate": {"type": "boolean", "description": "Suppress BLOCKERs. Set only on explicit researcher approval. Logged."},
+                "override_rationale": {"type": "string", "description": "Required when override_dashboard_content_gate=true."},
+            },
+        },
+    },
+    "tool_dashboard_reviewer_sim": {
+        "short": "Walks the dashboard top-to-bottom and reports whether a 5-minute skimmer would extract the headline finding.",
+        "description": "Heuristic-only (no LLM). Returns {would_5min_skimmer_get_finding, which_section_buries_the_lede, suggested_top_of_page_callout, first_section_rendered}. Flags when the headline number + finding verb don't appear in the first 200 words OR when the abstract lacks a number.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "dashboard_path": {"type": "string"},
+            },
+        },
+    },
+    "tool_synthesis_preview": {
+        "short": "Predict what tool_synthesize will produce — word counts, page count, figures, citations, gaps — without drafting.",
+        "description": "Cheap deterministic dry-run (~1 sec vs ~30s for full synthesis). Reads workspace/<step>/conclusions.md + step_summary.yaml + findings_vs_literature.md + workspace/citations.md but does NOT call the AI to draft prose. Returns predicted_word_count_per_section, predicted_total_word_count, predicted_page_count or slide_count, predicted_figures_embedded, predicted_citations, predicted_steps_drawn_from, detected_gaps, estimated_render_time_seconds. mode='diff' compares against the existing deliverable on disk.",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "target": {"type": "string", "description": "paper | dashboard | poster | slides | grant | report. Default 'paper'."},
+                "venue": {"type": "string"},
+                "mode": {"type": "string", "description": "'fresh' (default) or 'diff' against existing deliverable."},
+            },
+        },
+    },
+    "tool_section_substantiveness": {
+        "short": "Content depth audit for synthesis/paper.md — per-section checks beyond word counts.",
+        "description": "Runs per-IMRAD-section audits: Abstract (≥1 number + ≥1 method + ≥1 conclusion verb), Introduction (≥3 cited prior works + 'in this study, we' pivot), Methods (every workspace step's primary method/tool named; coverage <50% BLOCKS, <80% WARNS), Results (≥1 statistic per finding; focal figures referenced), Discussion (Limitations paragraph + future-work direction + ≥1 paragraph per non-AGREES verdict), References (every cited key in bibliography, BLOCKER for missing). Returns blockers, warnings, sub_reports per section, cliché hits.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
+            },
+        },
+    },
+    "tool_audit_cliches": {
+        "short": "Scan synthesis/paper.md for AI-cliché phrases that pad without informing.",
+        "description": "Standalone cliché-only audit. Flags banned phrases ('in this study, we investigate', 'our results demonstrate', 'future work should explore', 'it is important to note that', 'however, more research is needed', 'this finding has important implications for', etc.) with a per-cliché replacement hint. Returns hits + n_hits + warnings.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
+            },
+        },
+    },
 }
 
 
@@ -3625,6 +3698,87 @@ def _handle_tool_latex_compile(name, arguments, root):
     from research_os.tools.actions.synthesis.latex import latex_compile
 
     return _text(_success(latex_compile(root)))
+
+
+def _handle_tool_paper_compile_typst(name, arguments, root):
+    from research_os.tools.actions.synthesis.typst import paper_compile_typst
+
+    return _text(_success(paper_compile_typst(
+        root,
+        paper_path=arguments.get("paper_path", "synthesis/paper.md"),
+        venue=arguments.get("venue"),
+        output=arguments.get("output", "synthesis/paper.pdf"),
+    )))
+
+
+def _handle_tool_audit_dashboard_content(name, arguments, root):
+    from research_os.tools.actions.audit.dashboard_content import audit_dashboard_content
+    from research_os.project_ops import log_override
+    from research_os.tools.actions.state.config import get_interaction_policy
+
+    override_requested = bool(arguments.get("override_dashboard_content_gate", False))
+    rationale = arguments.get("override_rationale")
+    policy = get_interaction_policy(root)["quality_gate_policy"]
+    if (policy == "enforce" and override_requested
+            and (not rationale or not str(rationale).strip())):
+        return _text(_error(
+            "interaction.quality_gate_policy=enforce: "
+            "override_dashboard_content_gate=true requires override_rationale."
+        ))
+    res = audit_dashboard_content(
+        root,
+        dashboard_path=arguments.get("dashboard_path", "synthesis/dashboard.html"),
+    )
+    if res.get("blockers") and override_requested:
+        log_override(
+            root,
+            tool="tool_audit_dashboard_content",
+            gate="dashboard_content",
+            rationale=rationale,
+            extra={"blocker_count": len(res["blockers"])},
+        )
+        res["override_applied"] = True
+        res["status"] = "success"
+    return _text(_success(res))
+
+
+def _handle_tool_dashboard_reviewer_sim(name, arguments, root):
+    from research_os.tools.actions.audit.dashboard_content import reviewer_simulator
+
+    dpath = root / arguments.get("dashboard_path", "synthesis/dashboard.html")
+    if not dpath.exists():
+        return _text(_error(f"{dpath.name} not found. Run tool_dashboard_create first."))
+    html = dpath.read_text(encoding="utf-8", errors="replace")
+    return _text(_success(reviewer_simulator(html)))
+
+
+def _handle_tool_synthesis_preview(name, arguments, root):
+    from research_os.tools.actions.synthesis.preview import synthesis_preview
+
+    return _text(_success(synthesis_preview(
+        root,
+        target=arguments.get("target", "paper"),
+        venue=arguments.get("venue"),
+        mode=arguments.get("mode", "fresh"),
+    )))
+
+
+def _handle_tool_section_substantiveness(name, arguments, root):
+    from research_os.tools.actions.audit.content_depth import section_substantiveness
+
+    return _text(_success(section_substantiveness(
+        root,
+        paper_path=arguments.get("paper_path", "synthesis/paper.md"),
+    )))
+
+
+def _handle_tool_audit_cliches(name, arguments, root):
+    from research_os.tools.actions.audit.content_depth import audit_cliches
+
+    return _text(_success(audit_cliches(
+        arguments.get("paper_path", "synthesis/paper.md"),
+        root,
+    )))
 
 
 def _handle_tool_poster_create(name, arguments, root):
@@ -5432,6 +5586,13 @@ _HANDLERS = {
     "tool_synthesize_plan": _handle_tool_synthesize_plan,
     "tool_synthesize": _handle_tool_synthesize,
     "tool_latex_compile": _handle_tool_latex_compile,
+    # Typst + dashboard content + preview + content depth
+    "tool_paper_compile_typst": _handle_tool_paper_compile_typst,
+    "tool_audit_dashboard_content": _handle_tool_audit_dashboard_content,
+    "tool_dashboard_reviewer_sim": _handle_tool_dashboard_reviewer_sim,
+    "tool_synthesis_preview": _handle_tool_synthesis_preview,
+    "tool_section_substantiveness": _handle_tool_section_substantiveness,
+    "tool_audit_cliches": _handle_tool_audit_cliches,
     "tool_poster_create": _handle_tool_poster_create,
     "tool_dashboard_create": _handle_tool_dashboard_create,
     # research / reasoning

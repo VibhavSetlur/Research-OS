@@ -1,0 +1,7 @@
+donor_id,age,sex,group,n_cells
+D01,72,F,AD,4218
+D02,68,M,AD,3902
+D03,75,F,AD,4451
+D04,71,M,Control,4109
+D05,73,F,Control,3987
+D06,69,M,Control,4276
