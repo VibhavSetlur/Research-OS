@@ -6,6 +6,52 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.5.2] — Fix v1.5.1 stress-audit blockers that missed the v1.5.1 race (2026-06-05)
+
+PATCH release. Ships the three critical fixes the v1.5.1 stress audit
+surfaced after the v1.5.1 release PR had already merged.
+
+### Fixed
+
+- **`templates/researcher_config.yaml`** — adds the `gate_strictness`
+  and `project_tier` fields. v1.5.1 wired these in code but missed
+  the template, which meant fresh `research-os init` users got
+  zero exposure to the new features. Adoption is now actually
+  possible.
+- **`src/research_os/tools/actions/state/certifications.py`** — a
+  transient YAML parse failure used to silently wipe the
+  certifications database (load returned an empty dict, next save
+  destroyed the audit trail). v1.5.2 distinguishes missing-file
+  from corrupted-file via a new `_CertParseError` exception and
+  refuses to save over a corrupted file. `self_certify`,
+  `list_certifications`, and `has_active_certification` all surface
+  the parse error instead of swallowing it.
+- **`src/research_os/tools/actions/state/quick_mode.py` —
+  `promote_to_step`:**
+  - **Path-traversal guard.** Refuses scratch paths that resolve
+    outside the project root (`..` or absolute paths).
+  - **Step number regex.** v1.5.1 parsed `name[:2]` to compute
+    `next_num`; projects with 100+ steps collided. v1.5.2 parses
+    the leading-digit run with `^(\d+)_` regex.
+
+### Validation
+
+- `python scripts/preflight.py` — 14/14
+- `python -m pytest -q` — 528 passed
+- `ruff check src/ tests/ scripts/` — clean
+- No tool count change; v1.5.1 surface preserved.
+
+### Why this is a separate PATCH
+
+These fixes were committed to `feat/v1.5.1` AFTER PR #37
+(feat/v1.5.1 → dev) had already squash-merged but BEFORE I could
+re-push them. The release PR (dev → main) merged on the v1.5.1
+commit that didn't include the fixes, then dev was auto-deleted on
+merge so the fix branch couldn't catch up. Standard "v1.5.0 race"
+pattern surfacing again — v1.5.2 closes it.
+
+---
+
 ## [1.5.1] — Adaptive UX: friction scales with rigor + quick mode for throwaway work (2026-06-04)
 
 MINOR release. Stops the AI from being overkill on rigorous researchers
