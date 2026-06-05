@@ -19,6 +19,7 @@ logger = logging.getLogger("research_os.tools.audit")
 
 def get_current_path(root: Path) -> str:
     """Return the active numbered experiment folder (e.g. ``02_eda``) or ``""``."""
+    root = Path(root)
     try:
         from research_os.project_ops import load_state
 
@@ -44,6 +45,7 @@ def get_current_path(root: Path) -> str:
 
 
 def _report_path(root: Path, filename: str) -> Path:
+    root = Path(root)
     current = get_current_path(root)
     if current:
         return root / "workspace" / current / "outputs" / "reports" / filename
@@ -62,6 +64,7 @@ def audit_synthesis(
     override_no_pdfs: bool = False,
     override_rationale: str = "",
 ) -> dict[str, Any]:
+    root = Path(root)
     try:
         p = root / paper_path
         if not p.exists() or not p.is_file():
@@ -512,6 +515,7 @@ def audit_synthesis(
 def audit_power(
     filepath: str, effect_size: float, alpha: float, n: int, root: Path
 ) -> dict[str, Any]:
+    root = Path(root)
     try:
         try:
             from statsmodels.stats import power as smp  # type: ignore
@@ -581,6 +585,7 @@ def audit_assumptions(filepath: str, root: Path) -> dict[str, Any]:
     * any other numeric columns — interpreted as design matrix for VIF.
     * ``cooks_distance`` or ``leverage`` if pre-computed.
     """
+    root = Path(root)
     try:
         p = root / filepath
         if not p.exists():
@@ -852,6 +857,7 @@ def audit_evalue(
     ci_lower: float | None = None, ci_upper: float | None = None,
 ) -> dict[str, Any]:
     """Compute + persist an E-value sensitivity report."""
+    root = Path(root)
     res = compute_evalue(
         risk_ratio=risk_ratio, ci_lower=ci_lower, ci_upper=ci_upper,
     )
@@ -924,6 +930,7 @@ def audit_quality_full(
     Writes ``workspace/logs/audit_master.md`` and returns the unified
     blocker set. ``tool_synthesize`` calls this as its first gate.
     """
+    root = Path(root)
     skip = skip or []
     results: dict[str, Any] = {}
     all_blockers: list[str] = []
@@ -1328,6 +1335,7 @@ class AuditMaster(AuditBase):
 
 def audit_figure(filepath: str, root: Path) -> dict[str, Any]:
     """Check DPI and basic visual hygiene of a PNG figure."""
+    root = Path(root)
     try:
         p = root / filepath
         if not p.exists():
@@ -1397,6 +1405,7 @@ def audit_figure(filepath: str, root: Path) -> dict[str, Any]:
 
 def audit_citations(root: Path) -> dict[str, Any]:
     """Verify every citation in workspace/citations.md against Crossref/Semantic Scholar."""
+    root = Path(root)
     try:
         from research_os.tools.actions.search.search import retrieve_literature
 
@@ -1462,6 +1471,7 @@ def audit_reproducibility_full(root: Path) -> dict[str, Any]:
     If Docker is available, build the project's Dockerfile and run inside;
     otherwise fall back to local re-execution with a warning.
     """
+    root = Path(root)
     try:
         import subprocess
         import sys
@@ -1618,6 +1628,7 @@ def _is_humanities_project(root: Path) -> bool:
     Wraps a try/except so a missing or malformed config never breaks the
     completeness audit.
     """
+    root = Path(root)
     try:
         cfg_path = root / "inputs" / "researcher_config.yaml"
         if not cfg_path.exists():
@@ -2023,6 +2034,7 @@ def audit_step_completeness(
     Writes a markdown report to ``workspace/logs/step_completeness.md``
     so the dashboard's audit-trail section can surface what's still owed.
     """
+    root = Path(root)
     workspace = root / "workspace"
     if not workspace.exists():
         return {"status": "error", "message": "workspace/ not found"}

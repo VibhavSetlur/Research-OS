@@ -271,6 +271,7 @@ api_keys:
 
 
 def _config_path(root: Path) -> Path:
+    root = Path(root)
     return root / "inputs" / "researcher_config.yaml"
 
 
@@ -365,6 +366,7 @@ def get_interaction_policy(root: Path) -> dict[str, str]:
     warn-only on quality-gate blockers; and whether to ask the
     researcher or pick a best-default on ambiguity.
     """
+    root = Path(root)
     defaults = {
         "quality_gate_policy": "enforce",
         "ambiguity_posture": "ask_when_uncertain",
@@ -485,6 +487,7 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     institution / api_keys / writing_preferences seeded from there if
     present. Per-project overrides still win on conflict.
     """
+    root = Path(root)
     overrides = overrides or {}
     cfg_path = _config_path(root)
     already_exists = cfg_path.exists()
