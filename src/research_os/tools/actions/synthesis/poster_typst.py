@@ -448,8 +448,9 @@ def _typst_compile(src: Path, out: Path) -> dict[str, Any]:
                 "or your package manager."
             ),
         }
+    from research_os.tools.actions.synthesis.typst import _typst_compile_argv
     proc = subprocess.run(
-        [typst_bin, "compile", src.name, out.name],
+        _typst_compile_argv(typst_bin, src.name, out.name),
         cwd=str(src.parent),
         capture_output=True,
         text=True,

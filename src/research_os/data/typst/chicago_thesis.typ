@@ -35,8 +35,7 @@
   )
 
   // Body type — 12pt serif, double-leaded.
-  set text(font: ("Linux Libertine", "EB Garamond", "Times New Roman", "Times"),
-           size: 12pt, lang: "en")
+  set text(font: "New Computer Modern", size: 12pt, lang: "en")
   set par(justify: true, leading: 1.0em, first-line-indent: 1.5em)
 
   // Footnotes — Chicago notes style. 10pt, separator rule, restart

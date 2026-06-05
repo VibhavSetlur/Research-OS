@@ -181,4 +181,27 @@ packages = [
     "src/research_os_adapter_redcap",
     "src/research_os_adapter_synapse",
 ]
+# Force-include vendored binary assets that hatchling's default ignore
+# rules would otherwise skip. Bundled fonts (New Computer Modern, OFL
+# / GUST-licensed) eliminate Typst font-cascade warnings on systems
+# without Linux Libertine / Times installed.
+artifacts = [
+    "src/research_os/assets/fonts/*.otf",
+    "src/research_os/assets/fonts/LICENSE.txt",
+    "src/research_os/assets/fonts/README.txt",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "tests/",
+    "scripts/",
+    "docs/",
+    "templates/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CITATION.cff",
+    "pyproject.toml",
+]
 
