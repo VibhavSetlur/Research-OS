@@ -106,11 +106,13 @@ memory, stale-state detection, intake re-entry detection.
 ### Validation
 
 - `python scripts/preflight.py` — 14/14
-- `python -m pytest -q` — 508 passed (492 baseline + 9 new in
-  `tests/unit/test_v150.py`; one existing audit test updated for the
-  v1.5.0 stack_plan WARN→BLOCK semantics)
+- `python -m pytest -q` — 508 passed (492 baseline + 16 new across
+  `tests/unit/test_v150.py` + `tests/tools/test_v1_5_0.py`; one
+  existing audit test updated for the v1.5.0 stack_plan WARN→BLOCK
+  semantics)
 - `ruff check src/ tests/ scripts/` — clean
 - Tool count: 146 → 156. Protocol count unchanged at 113.
+- Every protocol YAML bumped to `version: '1.5.0'`.
 
 ---
 
