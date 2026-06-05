@@ -1,4 +1,5 @@
 id: exploratory_data_analysis
+tier: 'plan'
 name: Exploratory Data Analysis (EDA + hypothesis generation)
 version: '1.9.3'
 schema_version: '2.0'

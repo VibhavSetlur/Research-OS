@@ -1,4 +1,5 @@
 id: qualitative_quality_audit
+tier: 'plan'
 name: Qualitative Quality Audit (COREQ + SRQR enforcement)
 version: '1.11.0'
 schema_version: '2.0'

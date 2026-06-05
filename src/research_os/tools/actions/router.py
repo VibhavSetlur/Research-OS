@@ -28,12 +28,76 @@ from typing import Any
 
 import yaml
 
+from research_os.protocols._tiers import infer_tier, is_valid_tier
+
 logger = logging.getLogger("research_os.tools.router")
 
 # router.py lives at src/research_os/tools/actions/router.py
 # protocols/ live at src/research_os/protocols/
 _INDEX_PATH = Path(__file__).parent.parent.parent / "protocols" / "_router_index.yaml"
+_PROTOCOLS_DIR = Path(__file__).parent.parent.parent / "protocols"
 _ACTIVE_PLAN_FILE = "active_plan.json"
+
+# Cache: protocol_id → tier (read lazily from the YAML).
+_TIER_CACHE: dict[str, str] = {}
+
+
+def _resolve_tier(
+    protocol_id: str | None,
+    primary_data: dict | None = None,
+) -> str | None:
+    """Look up the tier for a protocol.
+
+    Order of precedence:
+      1. Cached value.
+      2. Top-level ``tier:`` field on the protocol YAML (the backfill
+         script writes this on every protocol).
+      3. ``infer_tier`` over the router-index metadata as a fallback —
+         covers pack protocols that haven't been backfilled.
+
+    Returns None when no tier can be inferred (e.g. an unknown protocol
+    id with no metadata).
+    """
+    if not protocol_id:
+        return None
+    cached = _TIER_CACHE.get(protocol_id)
+    if cached:
+        return cached
+    # Try the YAML first.
+    try:
+        rel = protocol_id if protocol_id.endswith(".yaml") else f"{protocol_id}.yaml"
+        candidate = _PROTOCOLS_DIR / rel
+        if candidate.exists():
+            data = yaml.safe_load(candidate.read_text()) or {}
+            tier = data.get("tier")
+            if is_valid_tier(tier):
+                _TIER_CACHE[protocol_id] = tier
+                return tier
+    except Exception as exc:
+        logger.debug("tier read for %s failed: %s", protocol_id, exc)
+    # Fallback: infer from router-index metadata.
+    meta = primary_data or {}
+    if not meta:
+        try:
+            meta = (_load_index().get("protocols", {}) or {}).get(protocol_id, {}) or {}
+        except Exception:
+            meta = {}
+    category = protocol_id.split("/")[0] if "/" in protocol_id else None
+    tier = infer_tier(
+        intent_class=meta.get("intent_class"),
+        sub_intent=meta.get("sub_intent"),
+        category=category,
+        protocol_id=protocol_id,
+    )
+    if is_valid_tier(tier):
+        _TIER_CACHE[protocol_id] = tier
+        return tier
+    return None
+
+
+def _clear_tier_cache() -> None:
+    """Test hook — drop the tier cache so re-annotating a YAML takes effect."""
+    _TIER_CACHE.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +248,8 @@ def _try_semantic_route(
         f"(confidence={confidence}) on intent_class={intent_class or '?'}"
     )
 
+    tier = _resolve_tier(primary_id, primary_data)
+    tier_transition = _compute_route_transition(root, tier)
     response: dict[str, Any] = {
         "status": "success",
         "resolved_level": 3,
@@ -196,8 +262,8 @@ def _try_semantic_route(
         "ambiguous_alternatives": [],
         "matched_triggers": [],         # semantic path doesn't surface raw triggers
         "why_matched": why_matched_primary,
-        "tier": None,                   # Phase 8 will populate
-        "tier_transition": None,        # Phase 8 will populate
+        "tier": tier,
+        "tier_transition": tier_transition,
         "complexity": effective_complexity,
         "ask_user": None,
         "why": (
@@ -627,7 +693,7 @@ def route_request(
                         if quick_trigger else "quick-mode (no explicit trigger)"
                     ),
                     "tier": None,
-                    "tier_transition": None,
+                    "tier_transition": _compute_route_transition(root, None),
                     "complexity": "quick",
                     "ask_user": None,
                     "why": qr.get("advice"),
@@ -677,7 +743,7 @@ def route_request(
 
         # No matches at all and no shortcut.
         if not scored and not shortcut_hit:
-            return _fallback_response(prompt_norm, hierarchy, is_complex)
+            return _fallback_response(prompt_norm, hierarchy, is_complex, root)
 
         # ── Step 2: pick L1 winner (sum of scores per intent_class) ──
         # Threshold 1 at L1: multi-goal prompts often span classes, so
@@ -771,6 +837,8 @@ def route_request(
             for c in l3_alternatives[:3]
         ]
 
+        tier = _resolve_tier(primary_name, primary_data) if primary_name else None
+        tier_transition = _compute_route_transition(root, tier)
         response: dict[str, Any] = {
             "status": "success",
             "resolved_level": resolved_level,
@@ -785,8 +853,8 @@ def route_request(
             ),
             "matched_triggers": primary_matched,
             "why_matched": primary_why_matched,
-            "tier": None,                # Phase 8 will populate
-            "tier_transition": None,     # Phase 8 will populate
+            "tier": tier,
+            "tier_transition": tier_transition,
             "complexity": "high" if is_complex else "low",
             "ask_user": ask_user,
             "why": _why_hier(l1_winner, l2_winner, l3_winner, shortcut_hit),
@@ -1001,8 +1069,18 @@ def _route_advice_hier(
     )
 
 
+def _compute_route_transition(root: Path, new_tier: str | None) -> dict | None:
+    """Best-effort tier-transition lookup; never raises out of the router."""
+    try:
+        from research_os.tools.actions.state.tier_state import compute_transition
+        return compute_transition(root, new_tier)
+    except Exception as exc:
+        logger.debug("tier transition computation failed: %s", exc)
+        return None
+
+
 def _fallback_response(
-    prompt_norm: str, hierarchy: dict, is_complex: bool
+    prompt_norm: str, hierarchy: dict, is_complex: bool, root: Path | None = None,
 ) -> dict:
     """When NOTHING matched, suggest the L1 classes as a menu + light heuristics.
 
@@ -1041,7 +1119,9 @@ def _fallback_response(
         "matched_triggers": [],
         "why_matched": "No trigger or semantic match.",
         "tier": None,
-        "tier_transition": None,
+        "tier_transition": (
+            _compute_route_transition(root, None) if root is not None else None
+        ),
         "complexity": "high" if is_complex else "low",
         "ask_user": (
             "I couldn't match your prompt to a protocol. Which best fits "
@@ -1094,7 +1174,7 @@ def _shortcut_response(
             f"{', '.join(str(t) for t in shortcut_hit['matched'][:3])}"
         ),
         "tier": None,
-        "tier_transition": None,
+        "tier_transition": _compute_route_transition(root, None),
         "complexity": "high" if is_complex else "low",
         "ask_user": None,
         "why": (

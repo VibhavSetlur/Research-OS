@@ -1,4 +1,5 @@
 id: analysis_plan
+tier: 'execute'
 name: Analysis Plan (Core Loop)
 version: '1.11.0'
 schema_version: '2.0'

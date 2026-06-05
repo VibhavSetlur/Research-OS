@@ -1,4 +1,5 @@
 id: survey_psychometrics
+tier: 'plan'
 name: Survey & Psychometrics
 version: '1.9.3'
 schema_version: '2.0'

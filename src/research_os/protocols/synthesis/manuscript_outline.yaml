@@ -1,4 +1,5 @@
 id: manuscript_outline
+tier: 'synthesize'
 name: Manuscript Outline + Narrative Arc (before drafting)
 version: '1.11.0'
 schema_version: '2.0'

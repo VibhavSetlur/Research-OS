@@ -1,4 +1,5 @@
 id: qualitative_pii_redaction
+tier: 'plan'
 name: Qualitative PII Redaction (HIPAA / IRB / GDPR-safe transcripts before coding)
 version: '1.11.0'
 schema_version: '2.0'

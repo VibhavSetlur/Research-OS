@@ -1,4 +1,5 @@
 id: showcase_visualization
+tier: 'synthesize'
 name: Showcase Visualization (the visual IS the contribution)
 version: '1.11.0'
 schema_version: '2.0'

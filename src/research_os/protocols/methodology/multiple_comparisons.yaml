@@ -1,4 +1,5 @@
 id: multiple_comparisons
+tier: 'plan'
 name: Multiple Comparisons / Multiplicity Strategy
 version: '1.11.0'
 schema_version: '2.0'

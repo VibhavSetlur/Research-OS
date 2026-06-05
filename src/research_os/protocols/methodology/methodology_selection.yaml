@@ -1,4 +1,5 @@
 id: methodology_selection
+tier: 'plan'
 name: Methodology Selection (with lightweight lookup mode)
 version: '1.9.3'
 schema_version: '2.0'

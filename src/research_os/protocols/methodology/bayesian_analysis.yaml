@@ -1,4 +1,5 @@
 id: bayesian_analysis
+tier: 'plan'
 name: Bayesian Analysis Workflow
 version: '1.9.3'
 last_reviewed: '2026-06-02'

@@ -1,4 +1,5 @@
 id: synthesis_lay_summary
+tier: 'synthesize'
 name: Synthesis — Lay Summary (public / press / outreach)
 version: '1.9.3'
 schema_version: '2.0'

@@ -1,4 +1,5 @@
 id: bootstrapping_design
+tier: 'plan'
 name: Bootstrap / Resampling Design
 version: '1.11.0'
 schema_version: '2.0'

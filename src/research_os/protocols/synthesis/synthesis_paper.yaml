@@ -1,4 +1,5 @@
 id: synthesis_paper
+tier: 'synthesize'
 name: Synthesis — Paper (IMRAD, venue-tailored)
 version: '1.11.0'
 schema_version: '2.0'

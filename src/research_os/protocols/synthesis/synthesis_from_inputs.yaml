@@ -1,4 +1,5 @@
 id: synthesis_from_inputs
+tier: 'synthesize'
 name: Synthesis — From Inputs (no workspace analysis required)
 version: '1.11.0'
 schema_version: '2.0'

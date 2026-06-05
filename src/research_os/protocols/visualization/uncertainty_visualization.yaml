@@ -1,4 +1,5 @@
 id: uncertainty_visualization
+tier: 'synthesize'
 name: Uncertainty Visualization (intervals, fans, ensembles, posteriors)
 version: '1.11.0'
 schema_version: '2.0'

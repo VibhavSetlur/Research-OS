@@ -1,4 +1,5 @@
 id: humanities_essay_structure
+tier: 'synthesize'
 name: Humanities Essay Structure (interpretive, non-IMRAD)
 version: '1.11.0'
 schema_version: '2.0'

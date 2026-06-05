@@ -1,4 +1,5 @@
 id: glossary_update
+tier: 'plan'
 name: Glossary Update
 version: '1.11.0'
 schema_version: '2.0'

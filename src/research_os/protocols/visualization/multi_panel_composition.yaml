@@ -1,4 +1,5 @@
 id: multi_panel_composition
+tier: 'synthesize'
 name: Multi-Panel Figure Composition (Figure 2 = A / B / C / D)
 version: '1.9.3'
 schema_version: '2.0'

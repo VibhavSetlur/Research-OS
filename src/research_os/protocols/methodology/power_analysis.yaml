@@ -1,4 +1,5 @@
 id: power_analysis
+tier: 'plan'
 name: Power Analysis / Sample Size Justification (standalone)
 version: '1.9.3'
 schema_version: '2.0'

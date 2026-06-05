@@ -1,4 +1,5 @@
 id: data_management_plan
+tier: 'plan'
 name: Data Management Plan (DMP) — funder-compliant, FAIR-aligned
 version: '1.9.3'
 schema_version: '2.0'

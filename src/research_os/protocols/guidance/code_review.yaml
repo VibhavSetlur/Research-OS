@@ -1,4 +1,5 @@
 id: code_review
+tier: 'review'
 name: Code Review (analysis scripts)
 version: '1.9.3'
 schema_version: '2.0'

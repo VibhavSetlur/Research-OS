@@ -1,4 +1,5 @@
 id: reviewer_response
+tier: 'review'
 name: Synthesis — Pre-submission Reviewer Simulation + Rebuttal Scaffold
 version: '1.11.0'
 schema_version: '2.0'

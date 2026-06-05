@@ -1,4 +1,5 @@
 id: defense_prep
+tier: 'synthesize'
 name: Defense / Talk Q&A Prep (thesis / job talk / conference)
 version: '1.11.0'
 schema_version: '2.0'

@@ -1,4 +1,5 @@
 id: synthesis_dashboard
+tier: 'synthesize'
 name: Synthesis — Dashboard (paper-as-interactive)
 version: '1.11.0'
 schema_version: '2.0'

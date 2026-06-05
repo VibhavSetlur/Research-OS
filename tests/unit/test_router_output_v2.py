@@ -22,10 +22,21 @@ def test_route_response_includes_v2_fields(tmp_path):
         assert f in res, f"v2 field {f!r} missing from route response"
 
 
-def test_route_tier_fields_null_until_phase_8(tmp_path):
+def test_route_tier_fields_populated_at_phase_8(tmp_path):
+    """Phase 8: tier is resolved from the matched protocol's YAML.
+
+    'fill the intake' routes into the intake bucket, so the tier is
+    ``intake``. Since no current_tier.json exists yet for the fresh
+    workspace, the transition is ``{from: None, to: "intake"}``.
+    """
+    from research_os.protocols._tiers import TIERS
+
     res = _route("fill the intake", tmp_path)
-    assert res["tier"] is None
-    assert res["tier_transition"] is None
+    assert res["tier"] in TIERS, res["tier"]
+    trans = res["tier_transition"]
+    assert isinstance(trans, dict)
+    assert trans["from"] is None
+    assert trans["to"] == res["tier"]
 
 
 def test_route_why_matched_mentions_trigger_or_intent(tmp_path):
@@ -64,13 +75,23 @@ def test_route_alternatives_limited_to_three(tmp_path):
 
 
 def test_route_shortcut_response_has_v2_fields(tmp_path):
-    """progress digest is a cross-intent shortcut — must still carry v2 fields."""
+    """progress digest is a cross-intent shortcut — must still carry v2 fields.
+
+    Phase 8: when the prompt also matches a protocol's trigger phrases,
+    the router promotes that protocol as the primary, so ``tier`` mirrors
+    the primary's tier rather than being null. The tier_transition then
+    has ``to=<protocol tier>`` and ``from=None`` for a fresh workspace.
+    """
+    from research_os.protocols._tiers import TIERS
+
     res = _route("what's the progress so far", tmp_path)
     assert res["status"] == "success"
     for f in V2_FIELDS:
         assert f in res
-    assert res["tier"] is None
-    assert res["tier_transition"] is None
+    # tier may be a real tier (when a primary protocol won alongside the
+    # shortcut) or None (pure shortcut path). Either is valid.
+    if res["tier"] is not None:
+        assert res["tier"] in TIERS
 
 
 def test_route_unmatched_prompt_has_v2_fields(tmp_path):

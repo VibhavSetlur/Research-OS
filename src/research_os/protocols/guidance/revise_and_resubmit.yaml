@@ -1,4 +1,5 @@
 id: revise_and_resubmit
+tier: 'review'
 name: Revise & Resubmit (full R&R orchestration)
 version: '1.11.0'
 schema_version: '2.0'

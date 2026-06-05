@@ -1,4 +1,5 @@
 id: writing_results
+tier: 'synthesize'
 name: Writing — Results (data with discipline)
 version: '1.11.0'
 schema_version: '2.0'

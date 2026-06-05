@@ -1,4 +1,5 @@
 id: writing_data_availability
+tier: 'synthesize'
 name: Writing — Data + Code Availability + CRediT
 version: '1.9.3'
 schema_version: '2.0'

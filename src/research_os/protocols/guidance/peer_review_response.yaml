@@ -1,4 +1,5 @@
 id: peer_review_response
+tier: 'review'
 name: Peer Review — Respond to Reviewers
 version: '1.11.0'
 schema_version: '2.0'
