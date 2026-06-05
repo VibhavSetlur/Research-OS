@@ -52,6 +52,7 @@ class PackLoadResult:
     tools: tuple[PackTool, ...]
     router_entry_count: int
     has_domain_detector: bool
+    paper_sections: tuple[str, ...] = ()
 
 
 # ── module-level state populated by discover_packs() ─────────────────
@@ -62,6 +63,7 @@ _PACK_ERRORS: list[tuple[str, str]] = []  # (entry_point_name, traceback)
 _PACK_PROTOCOL_DIRS: dict[str, Path] = {}
 _PACK_ROUTER_ENTRIES: dict[str, dict] = {}
 _PACK_DOMAIN_DETECTORS: dict[str, Callable[[Path], dict]] = {}
+_PACK_PAPER_SECTIONS: dict[str, tuple[str, ...]] = {}
 
 
 # ── public surface ────────────────────────────────────────────────────
@@ -91,6 +93,7 @@ def discover_packs(
     _PACK_PROTOCOL_DIRS.clear()
     _PACK_ROUTER_ENTRIES.clear()
     _PACK_DOMAIN_DETECTORS.clear()
+    _PACK_PAPER_SECTIONS.clear()
 
     entries = _iter_entry_points() + list(bundled or [])
     for ep_name, ep_target in entries:
@@ -143,6 +146,18 @@ def pack_protocol_dirs() -> dict[str, Path]:
 def pack_router_entries() -> dict[str, dict]:
     """All router entries contributed by packs (already namespace-prefixed)."""
     return dict(_PACK_ROUTER_ENTRIES)
+
+
+def pack_paper_sections(pack_name: str) -> tuple[str, ...]:
+    """Return the paper section schema declared by the named pack.
+
+    Returns an empty tuple when the pack didn't declare one, or when no
+    such pack is registered. The synthesis pipeline treats an empty
+    return as "use the IMRAD default".
+    """
+    if not pack_name:
+        return ()
+    return _PACK_PAPER_SECTIONS.get(pack_name.lower(), ())
 
 
 # ── internals ─────────────────────────────────────────────────────────
@@ -259,6 +274,8 @@ def _merge(
     _PACK_ROUTER_ENTRIES.update(reg.router_entries)
     if reg.domain_detector is not None:
         _PACK_DOMAIN_DETECTORS[reg.name] = reg.domain_detector
+    if reg.paper_sections:
+        _PACK_PAPER_SECTIONS[reg.name] = tuple(reg.paper_sections)
     return PackLoadResult(
         name=reg.name,
         version=reg.version,
@@ -267,4 +284,5 @@ def _merge(
         tools=reg.tools,
         router_entry_count=len(reg.router_entries),
         has_domain_detector=reg.domain_detector is not None,
+        paper_sections=tuple(reg.paper_sections),
     )

@@ -35,4 +35,18 @@ def register() -> PackRegistration:
             "tracking, Lean 4 / Coq integration, proof-strategy "
             "selection, theory-paper structure."
         ),
+        # Theory papers are NOT IMRAD. They open with an introduction,
+        # establish definitions + notation (preliminaries), state and
+        # prove the headline results, then discuss implications. The
+        # synthesis pipeline reads this tuple via pack_paper_sections()
+        # and orders synthesis/paper.md accordingly. Closes the v1.11.1
+        # known issue where tool_synthesize emitted IMRAD even for
+        # formal-math projects.
+        paper_sections=(
+            "introduction",
+            "preliminaries",
+            "main_theorems",
+            "proofs",
+            "discussion",
+        ),
     )
