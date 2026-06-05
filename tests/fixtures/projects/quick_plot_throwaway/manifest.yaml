@@ -1,0 +1,23 @@
+# Reference project: quick_plot_throwaway
+#
+# Single-question exploratory plot; exercises quick mode + casual
+# exploration path (no IRB, no synthesis, no reproducibility paperwork).
+
+domain: generic
+expected_pack: null
+
+protocols_expected:
+  - guidance/casual_exploration
+
+gates_expected_pass:
+  - guidance/casual_exploration:scope_acknowledged
+
+artifacts_required:
+  - inputs/context/question.md
+
+max_tool_calls: 8
+max_seconds: 15
+
+canned_responses:
+  acknowledge_casual: "Casual mode acknowledged; no reproducibility paperwork."
+  quick_plot: "Generated workspace/scratch/quick_plot.png; done."

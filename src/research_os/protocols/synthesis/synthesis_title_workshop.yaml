@@ -1,6 +1,6 @@
 id: synthesis_title_workshop
 name: Synthesis — Title Workshop (the single most-read sentence)
-version: '1.6.1'
+version: '1.7.0'
 schema_version: '2.0'
 description: |
   Generate, iterate, and pick a title for a paper / abstract /

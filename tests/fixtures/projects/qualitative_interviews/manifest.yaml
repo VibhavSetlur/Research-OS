@@ -1,0 +1,42 @@
+# Reference project: qualitative_interviews
+#
+# 8-interview study on remote-work transitions. Exercises the
+# qualitative pack: coding scheme iteration → member checking →
+# thematic analysis → COREQ report.
+
+domain: qualitative
+expected_pack: qualitative
+
+protocols_expected:
+  - qualitative/coding/coding_scheme_iteration
+  - qualitative/method/thematic_analysis_braun_clarke
+  - qualitative/output/qualitative_report_format
+
+gates_expected_pass:
+  - qualitative/coding/coding_scheme_iteration:per_round_kappa_floor_met
+  - qualitative/method/thematic_analysis_braun_clarke:reflexivity_gates_passed
+  - qualitative/output/qualitative_report_format:coreq_coverage_80pct
+
+artifacts_required:
+  - inputs/context/study_brief.md
+  - inputs/transcripts/P01_transcript.txt
+
+max_tool_calls: 60
+max_seconds: 30
+
+canned_responses:
+  round_close_out: "Round 1 (open coding) closed; 28 codes; 8 transcripts coded."
+  compute_round_kappa: "v0→v1 diff written; per-code κ ranges 0.42–0.91; 3 codes flagged <0.60."
+  triage_low_kappa: "3 low-κ codes rewritten with explicit inclusion / exclusion criteria + worked examples."
+  write_round_memo: "Round memo committed to workspace/memos/round_1.md (dated)."
+  phase_transition_check: "Phase transition open→axial approved; round 1 audit clean."
+  saturation_check: "Saturation curve flattens at transcript 6; one confirmatory transcript still scheduled."
+  familiarisation: "All 8 transcripts read twice; initial notes captured per interview."
+  generate_initial_codes: "Initial inductive codes generated; 31 codes after round 1, 24 after refinement."
+  searching_for_themes: "Candidate themes drafted: 'identity-shifting', 'spatial-temporal renegotiation', 'invisible labour'."
+  reviewing_themes: "Themes audited against extracts + dataset; one theme demoted to sub-code."
+  defining_naming_themes: "Final 3 themes named + defined with 2-3 sentence each."
+  producing_report: "Report drafted; every quote in registry; COREQ coverage 88%."
+  pick_standard: "Selected COREQ (interview study)."
+  walk_items: "Walked 32 COREQ items; 28 present, 3 partial, 1 absent (justified)."
+  audit_quotes: "Quote-registry audit complete; 0 orphan quotes."

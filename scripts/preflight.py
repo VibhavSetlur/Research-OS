@@ -201,6 +201,61 @@ def check_dispatcher_aliases():
     return not bad, "ok" if not bad else "; ".join(bad)
 
 
+def check_packs_discovered():
+    """Every bundled pack registers without errors; tools + router merge cleanly."""
+    # Importing any symbol from server triggers the module body which
+    # calls _discover_packs_once() and merges bundled packs.
+    try:
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
+        from research_os.plugins import installed_packs, load_pack_errors
+    except Exception as exc:
+        return False, f"plugin import failed: {exc}"
+    errors = load_pack_errors()
+    if errors:
+        eps = [e["entry_point"] for e in errors]
+        return False, f"pack registration errors: {eps}"
+    packs = installed_packs()
+    # The two bundled packs MUST register for the shipped wheel to be valid.
+    bundled_names = {p["name"] for p in packs}
+    required = {"humanities", "qualitative"}
+    missing = sorted(required - bundled_names)
+    if missing:
+        return False, f"bundled packs missing: {missing}"
+    return True, (
+        f"{len(packs)} pack(s) discovered: "
+        + ", ".join(f"{p['name']}@{p['version']}" for p in packs)
+    )
+
+
+def check_pack_protocols_load():
+    """Every YAML under each pack's protocols_dir must parse + load."""
+    try:
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
+        from research_os.plugins import installed_packs
+        from research_os.tools.actions.protocol import load_protocol
+    except Exception as exc:
+        return False, f"plugin import failed: {exc}"
+    bad: list[str] = []
+    loaded = 0
+    for pack in installed_packs():
+        pdir = Path(pack["protocols_dir"])
+        if not pdir.exists():
+            continue
+        for yaml_file in pdir.rglob("*.yaml"):
+            if yaml_file.name.startswith("_"):
+                continue
+            inner = yaml_file.relative_to(pdir).with_suffix("")
+            qual_name = f"{pack['name']}/{inner}"
+            try:
+                load_protocol(qual_name)
+                loaded += 1
+            except Exception as exc:
+                bad.append(f"{qual_name}: {exc}")
+    if bad:
+        return False, "; ".join(bad[:5])
+    return True, f"{loaded} pack protocol(s) load"
+
+
 def check_alias_table_complete():
     """Every entry in _ALIASES must resolve to a registered handler.
 
@@ -476,8 +531,7 @@ def check_embeddings_fresh():
         )
     sys.path.insert(0, str(REPO_ROOT / "scripts"))
     try:
-        import importlib
-        be = importlib.import_module("build_embeddings")
+        be = __import__("build_embeddings")
     except Exception as exc:
         return False, f"failed to import scripts/build_embeddings.py: {exc}"
     import json
@@ -590,6 +644,8 @@ def main() -> int:
     tally.check("Dispatcher aliases resolve", check_dispatcher_aliases)
     tally.check("Alias table complete (handlers + param injection)", check_alias_table_complete)
     tally.check("Redirect-stub targets resolve", check_redirect_targets)
+    tally.check("Bundled packs discovered", check_packs_discovered)
+    tally.check("Pack protocols load", check_pack_protocols_load)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)

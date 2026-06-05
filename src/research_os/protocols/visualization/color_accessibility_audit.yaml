@@ -1,6 +1,6 @@
 id: color_accessibility_audit
 name: Color + Accessibility Audit (figures + dashboards)
-version: '1.6.1'
+version: '1.7.0'
 schema_version: '2.0'
 description: |
   Audit one or more figures (or a dashboard's CSS palette) for

@@ -182,24 +182,60 @@ def _auto_distill_lean(data: dict) -> dict:
 
 
 def _find_protocol_file(name: str) -> Path | None:
-    """Locate ``<protocols>/<category>/<name>.yaml``.
+    """Locate ``<protocols>/<category>/<name>.yaml`` (or a pack equivalent).
 
-    Accepts ``"guidance/session_boot"`` or bare ``"session_boot"``.
+    Resolution order:
+      1. ``<pack>/...`` → if the first path segment matches a registered
+         pack name, search the pack's ``protocols_dir`` first.
+      2. ``<category>/<name>`` → search core ``PROTOCOLS_DIR``.
+      3. Bare ``<name>`` → scan core, then every pack.
+
     Registry / index files (prefix ``_``) are NOT addressable as protocols.
     """
+    pack_dirs = _pack_protocol_dirs_safe()
+
     if "/" in name:
+        head, _, _ = name.partition("/")
+        if head in pack_dirs:
+            # `<pack>/<category>/<name>` → strip the pack prefix to look
+            # under the pack's own tree.
+            inner = name.split("/", 1)[1]
+            candidate = pack_dirs[head] / f"{inner}.yaml"
+            if candidate.exists():
+                return candidate
+            # Also try the full path verbatim in case the pack uses
+            # the pack name as a top-level folder under its tree.
+            candidate = pack_dirs[head] / f"{name}.yaml"
+            if candidate.exists():
+                return candidate
+            return None
         candidate = PROTOCOLS_DIR / f"{name}.yaml"
         return candidate if candidate.exists() else None
 
+    # Bare name — scan core first, then packs.
     for yaml_file in PROTOCOLS_DIR.rglob("*.yaml"):
-        # Skip any legacy light/ folder that might still be on disk.
         if "light" in yaml_file.parts:
             continue
         if yaml_file.name.startswith("_"):
             continue
         if yaml_file.stem == name:
             return yaml_file
+    for pdir in pack_dirs.values():
+        for yaml_file in pdir.rglob("*.yaml"):
+            if yaml_file.name.startswith("_"):
+                continue
+            if yaml_file.stem == name:
+                return yaml_file
     return None
+
+
+def _pack_protocol_dirs_safe() -> dict:
+    """Best-effort accessor for the plugin loader's pack-dir map."""
+    try:
+        from research_os.plugins.loader import pack_protocol_dirs
+        return pack_protocol_dirs()
+    except Exception:
+        return {}
 
 
 def _trim_for_light(data: dict) -> dict:
@@ -356,7 +392,20 @@ def load_protocol(
 
     data = _inject_completion_step(data)
     data.setdefault("name", name.split("/")[-1])
-    data.setdefault("_path", str(file.relative_to(PROTOCOLS_DIR)))
+    try:
+        rel = str(file.relative_to(PROTOCOLS_DIR))
+    except ValueError:
+        # Pack protocol — file lives outside the core PROTOCOLS_DIR.
+        # Try each registered pack dir; fall back to the absolute path.
+        rel = str(file)
+        for pack_name, pdir in _pack_protocol_dirs_safe().items():
+            try:
+                inner = file.relative_to(pdir)
+                rel = f"{pack_name}/{inner}"
+                break
+            except ValueError:
+                continue
+    data.setdefault("_path", rel)
 
     if format == "summary":
         steps = data.get("steps", []) or []

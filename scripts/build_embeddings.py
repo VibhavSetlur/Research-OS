@@ -126,24 +126,55 @@ def _load_router_index() -> dict:
 
 
 def _load_protocols() -> list[tuple[str, str]]:
-    """Return [(protocol_id, search_doc), ...] for every non-underscore YAML."""
+    """Return [(protocol_id, search_doc), ...] for every non-underscore YAML.
+
+    Includes core protocols + every bundled pack's protocols (pack ids
+    are prefixed with the pack name, e.g. `humanities/archival/...`).
+    """
     router_index = _load_router_index()
     out: list[tuple[str, str]] = []
-    for yaml_path in sorted(PROTOCOLS_DIR.rglob("*.yaml")):
-        if yaml_path.name.startswith("_"):
-            continue
+    seen: set[str] = set()
+
+    def _emit(yaml_path: Path, protocol_id: str) -> None:
         try:
             yaml_data = yaml.safe_load(yaml_path.read_text()) or {}
         except yaml.YAMLError as exc:
             print(f"WARN: skipping {yaml_path}: {exc}", file=sys.stderr)
-            continue
-        # Identifier is "<subdir>/<slug>" e.g. "methodology/preregistration".
-        category = yaml_path.parent.name
-        slug = yaml_path.stem
-        protocol_id = f"{category}/{slug}"
+            return
         router_entry = router_index.get(protocol_id, {}) or {}
         doc = _compose_protocol_doc(protocol_id, yaml_data, router_entry)
+        if protocol_id in seen:
+            return
+        seen.add(protocol_id)
         out.append((protocol_id, doc))
+
+    # Core protocols.
+    for yaml_path in sorted(PROTOCOLS_DIR.rglob("*.yaml")):
+        if yaml_path.name.startswith("_"):
+            continue
+        category = yaml_path.parent.name
+        slug = yaml_path.stem
+        _emit(yaml_path, f"{category}/{slug}")
+
+    # Bundled-pack protocols. Discover via the plugin loader so external
+    # packs land here automatically once they're pip-installed.
+    sys.path.insert(0, str(ROOT / "src"))
+    try:
+        # Importing any symbol from research_os.server triggers the
+        # module body which calls _discover_packs_once() at import time.
+        from research_os.server import TOOL_DEFINITIONS  # noqa: F401
+        from research_os.plugins.loader import (
+            pack_protocol_dirs as _pack_dirs,
+        )
+        for pack_name, pdir in _pack_dirs().items():
+            for yaml_path in sorted(pdir.rglob("*.yaml")):
+                if yaml_path.name.startswith("_"):
+                    continue
+                rel = yaml_path.relative_to(pdir).with_suffix("")
+                _emit(yaml_path, f"{pack_name}/{rel}")
+    except Exception as exc:  # pragma: no cover
+        print(f"WARN: pack-protocol scan skipped: {exc}", file=sys.stderr)
+
     return out
 
 

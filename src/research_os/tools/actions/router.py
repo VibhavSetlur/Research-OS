@@ -48,7 +48,18 @@ def _load_index() -> dict:
     global _INDEX_CACHE
     if _INDEX_CACHE is None:
         with open(_INDEX_PATH) as f:
-            _INDEX_CACHE = yaml.safe_load(f) or {}
+            data = yaml.safe_load(f) or {}
+        # Merge pack-contributed entries.
+        try:
+            from research_os.plugins.loader import pack_router_entries
+            pack_entries = pack_router_entries()
+            if pack_entries:
+                data.setdefault("protocols", {}).update(pack_entries)
+        except Exception as exc:
+            logging.getLogger("research_os.router").debug(
+                "pack router-entries merge skipped: %s", exc
+            )
+        _INDEX_CACHE = data
     return _INDEX_CACHE
 
 
