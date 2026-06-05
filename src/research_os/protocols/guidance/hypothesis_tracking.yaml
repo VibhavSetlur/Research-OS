@@ -1,6 +1,6 @@
 id: hypothesis_tracking
 name: Hypothesis Tracking
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Maintain a clear ledger of active, supported, and refuted hypotheses across the project.
 trigger: Whenever a step generates evidence that confirms / disconfirms / refines a hypothesis.
@@ -12,7 +12,7 @@ steps:
       State the hypothesis as a single declarative sentence with predicted direction
       and effect (e.g. "PM2.5 exposure is positively associated with ER visits,
       effect size r > 0.3"). Append or update via:
-        mem_analysis_log entry="HYPOTHESIS <id>: <statement> | status=<testing|supported|refuted|inconclusive> | evidence=<step:finding>"
+        mem_log entry="HYPOTHESIS <id>: <statement> | status=<testing|supported|refuted|inconclusive> | evidence=<step:finding>"
       One hypothesis per line — easy to grep.
 
   - id: assess_evidence

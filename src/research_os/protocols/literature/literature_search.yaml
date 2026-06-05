@@ -1,6 +1,6 @@
 id: literature_search
 name: Literature Search
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -30,9 +30,9 @@ steps:
     name: Execute Searches (multi-source)
     description: |
       Call AT LEAST two providers, choose based on domain:
-        Biomedical/health → tool_search_pubmed + tool_search_semantic_scholar
-        ML / CS / physics → tool_search_arxiv + tool_search_semantic_scholar
-        General / cross-domain → tool_search_crossref + tool_search_semantic_scholar
+        Biomedical/health → tool_search + tool_search
+        ML / CS / physics → tool_search + tool_search
+        General / cross-domain → tool_search + tool_search
       Each call: limit=5-10. Aim for 20-40 raw hits combined.
 
   - id: deduplicate_and_filter
@@ -61,7 +61,7 @@ steps:
          Saves under workspace/<step>/literature/. Use this when a paper is
          the canonical reference for the method this step uses.
          (Don't hardcode `step_id` — pull the current step ID from
-         sys_path_list or the active state.)
+         sys_path or the active state.)
 
       Faster bulk approach — combined search + download in one call:
          tool_literature_search_and_save
@@ -98,7 +98,7 @@ steps:
       vocabulary. Walk one level of forward citations on the 2-3
       most-included hits:
 
-        tool_search_semantic_scholar mode="forward_citations"
+        tool_search mode="forward_citations"
                                      paper_id="<seed paper>"
                                      limit=10
 
@@ -140,7 +140,7 @@ steps:
   - id: log_prisma_counts
     name: Log PRISMA-style counts
     description: |
-      Append to workspace/analysis.md (via mem_analysis_log) one line:
+      Append to workspace/analysis.md (via mem_log) one line:
         "PRISMA: identified=<N1>, after_dedup=<N2>, screened=<N3>, included=<N4>, forward_walk_added=<N5>, predatory_flagged=<N6>, retracted_removed=<N7>"
 
   - id: persist_search_log

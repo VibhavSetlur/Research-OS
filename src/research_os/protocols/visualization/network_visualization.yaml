@@ -1,6 +1,6 @@
 id: network_visualization
 name: Network / Graph Visualization (DAGs, citation networks, knowledge graphs)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -220,7 +220,7 @@ steps:
         - centrality / community detection method (with citation)
         - the ONE claim the figure supports
 
-      mem_methods_append the network construction + layout choices
+      mem_log the network construction + layout choices
       so the audit trail is intact.
 
 expected_outputs:

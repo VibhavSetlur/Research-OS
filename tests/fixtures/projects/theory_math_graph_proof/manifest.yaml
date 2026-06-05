@@ -1,0 +1,108 @@
+# Reference project: theory_math_graph_proof
+#
+# Sub-cubic 4-colourability (a corollary of Brooks' theorem 1941).
+# Exists as a non-sqrt(2) theory_math fixture so the pack has more
+# than one project to flex on, and so the routing fix for the
+# false-positive `DEG` trigger has a regression target.
+#
+# v1.11.0 — NEW fixture. Inputs: research_question.md, conjecture.md,
+# attempted_proof.md.
+
+domain: theory_math
+expected_pack: theory_math
+
+protocols_expected:
+  - theory_math/proof/proof_verification_workflow
+  - theory_math/proof/lemma_library
+  - theory_math/output/theory_paper_structure
+
+gates_expected_pass:
+  - theory_math/proof/proof_verification_workflow:per_step_citation_floor_met
+  - theory_math/proof/lemma_library:dependents_registered
+  - theory_math/output/theory_paper_structure:section_bands_respected
+
+artifacts_required:
+  - inputs/context/research_question.md
+  - inputs/context/conjecture.md
+  - inputs/context/attempted_proof.md
+
+max_tool_calls: 60
+max_seconds: 30
+
+# ── routing regression target ─────────────────────────────────────────
+#
+# This is the project's main reason to exist. The prompt below is the
+# exact one called out in SMOKE GAPS as currently mis-routing to
+# guidance/analysis_plan via the false-positive `DEG` trigger. When the
+# trigger is scoped (e.g. to 'DEG analysis' / 'differential expression')
+# or theory_math triggers are moved ahead of biology triggers, this
+# routing expectation should pass.
+routing_expectations:
+  - prompt: "prove that every planar graph with maximum degree 3 is 4-colorable"
+    expected_protocol: theory_math/proof/proof_verification_workflow
+    forbidden_protocols:
+      - guidance/analysis_plan
+      - methodology/exploratory_data_analysis
+    forbidden_triggers:
+      - DEG     # must not match this biology trigger any more
+  - prompt: "verify the proof that chi(G) <= 4 for sub-cubic G"
+    expected_protocol: theory_math/proof/proof_verification_workflow
+  - prompt: "register the subcubic_four_colourable lemma"
+    expected_protocol: theory_math/proof/lemma_library
+
+# ── synthesis pipeline expectations ───────────────────────────────────
+synthesis_deliverables:
+  - kind: paper
+    path: synthesis/paper.pdf
+    tool: tool_paper_compile_typst
+    args:
+      venue_template: theory_math
+      paper_template: theory
+    must_succeed: true
+    checks:
+      sections_expected:
+        - introduction
+        - preliminaries
+        - main_theorems
+        - proofs
+        - discussion
+      sections_forbidden:
+        - methods
+        - results
+      min_pages: 1
+      bib_path_wired: synthesis/references.bib
+
+synthesis_behavior:
+  honor_figure_required_false_for_proof_steps: true
+  citation_count_agreement: true
+
+cross_deliverable:
+  title_match: true
+  citation_set_match: true
+  shared_bibliography: synthesis/references.bib
+
+# Canned mock-model responses keyed by step_id.
+canned_responses:
+  # theory_math/proof/proof_verification_workflow
+  state_claim: "Claim stated at workspace/proofs/subcubic_four_colourable.md under ## Claim: every finite simple graph with max degree <= 3 is 4-colourable."
+  pick_strategy: "Strategy = case analysis on connectedness + appeal to Brooks' theorem; justified in ## Strategy."
+  draft_proof: "Proof drafted as 2 cases (connected via Brooks; disconnected via component union); cites Brooks 1941 at Case 1."
+  independent_review: "Cold-read review by tool_redteam_review (focus='proof'); 1 wording fix in Case 2 palette-reuse step; logged in workspace/proofs/subcubic_four_colourable_review.md."
+  formal_check: "Formal-check waived (cites established theorem, no unusual axioms); waiver recorded under ## Formal-check waiver."
+  publish: "Proof promoted into paper's ## Proofs section; lemma_library + theorem_dependency_graph updated."
+
+  # theory_math/proof/lemma_library
+  extract_or_locate: "New lemma slug = subcubic_four_colourable; file workspace/lemmas/subcubic_four_colourable.md created; mem_log intent=new."
+  register_in_index: "Index entry added at version 0.1.0, status=active, dependents=[]."
+  write_statement_and_proof: "Statement + 2-case inline proof written; cites Brooks 1941 (Math. Proc. Cambridge Philos. Soc. 37:194-197)."
+  classify_bump: "New lemma — no bump classification needed; starts at 0.1.0."
+  audit_dependents: "No prior dependents (new lemma); audit waived under quality_bar PATCH-below-threshold rule."
+  update_index_and_backlinks: "Index bumped; subcubic_four_colourable registered; tool_theorem_dependency_refresh ran clean."
+
+  # theory_math/output/theory_paper_structure
+  outline_sections: "workspace/papers/subcubic_four_colourable/outline.md created; 5 sections (intro, preliminaries, main_theorems, proofs, discussion) — non-IMRAD."
+  draft_preliminaries: "Preliminaries drafted first; defines proper colouring, chromatic number, sub-cubic; cites Diestel ch. 5."
+  state_main_results: "Main Theorems section lists Theorem 1.1 (sub-cubic 4-colourability) + Lemma 1.2 (Brooks); statements only."
+  write_proofs: "Proofs section assembled from workspace/proofs/subcubic_four_colourable.md; QED markers in place; Brooks cited inline."
+  add_examples: "Examples section shows K_4 (tight) + Petersen graph (not sub-cubic) for contrast."
+  introduction_and_open_questions: "Intro drafted last (3 paragraphs, within 5-15% band); 1 open question (smallest cubic graph requiring all 4 colours = K_4)."

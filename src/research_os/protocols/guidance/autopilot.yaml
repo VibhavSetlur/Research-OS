@@ -1,6 +1,6 @@
 id: autopilot
 name: Autopilot Mode
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Hands-off "drive the project to its next deliverable without checking in
@@ -40,7 +40,7 @@ steps:
            but flag any open completeness blockers).
         3. tool_audit_reproducibility (slow + expensive).
         4. Any tool_research_tool candidate tagged paid_or_licensed.
-        5. sys_path_abandon (dead-end declarations are reversible but loud).
+        5. sys_path (dead-end declarations are reversible but loud).
         6. Any sys_file_write to synthesis/ with force=true.
         7. tool_package_install for a package not already in
            environment/requirements.txt.

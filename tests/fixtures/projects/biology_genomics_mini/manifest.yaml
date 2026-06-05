@@ -2,6 +2,11 @@
 #
 # Mini Alzheimer's snRNA-seq project derived from tmp/paper_recreation.
 # Three steps instead of ten so it runs in seconds under CI.
+#
+# v1.11.0 — extended to assert the full synthesis_deliverables fan-out
+# (paper.pdf + slides + poster + reviewer simulation + cross-deliverable
+# consistency) so the smoke harness catches regressions in any one leg
+# of the publish pipeline.
 
 domain: biology
 expected_pack: null         # uses core protocols only
@@ -21,6 +26,89 @@ artifacts_required:
 
 max_tool_calls: 60
 max_seconds: 30
+
+# ── v1.11.0 synthesis_deliverables expectations ───────────────────────
+#
+# Declarative contract the integration agent + downstream stress runner
+# read to verify every synthesis leg fires end-to-end. Each entry has:
+#   path           — relative deliverable path under <root>/
+#   tool           — MCP tool expected to emit it
+#   args           — minimum args the synthesis call needs
+#   must_succeed   — true → render failure is a smoke failure
+#   checks         — post-render assertions on the artifact
+synthesis_deliverables:
+  - kind: paper
+    path: synthesis/paper.pdf
+    tool: tool_paper_compile_typst
+    args:
+      venue_template: generic_two_column
+    must_succeed: true
+    checks:
+      figures_auto_embedded: true       # honors synthesis.figures_auto_embed
+      figure_xref_rewrite: true         # bare [fig:id] rewritten to ![…](…)
+      min_pages: 1
+      bib_path_wired: synthesis/references.bib
+  - kind: slides_html
+    path: synthesis/slides.html
+    tool: tool_slides_compile_reveal
+    args:
+      slide_template: conference_15min
+      slide_engine: reveal
+    must_succeed: true
+    checks:
+      speaker_notes_present: true
+      print_handout_emitted: synthesis/slides.handout.pdf
+  - kind: slides_pdf
+    path: synthesis/slides.pdf
+    tool: tool_slides_compile_touying
+    args:
+      slide_template: conference_15min
+      slide_engine: touying
+    must_succeed: true
+    checks:
+      min_pages: 3
+  - kind: poster
+    path: synthesis/poster.pdf
+    tool: tool_poster_compile_typst
+    args:
+      poster_template: academic_36x48
+      poster_theme: light
+    must_succeed: true
+    checks:
+      poster_dimensions_inches: [36, 48]
+      handout_pdf_emitted: synthesis/poster.handout.pdf
+
+# Cross-deliverable consistency: every deliverable for the same project
+# should share the same title, figure registry, and citation set. This
+# catches the v1.10.x bug where tool_synthesize would emit different
+# citation counts to paper.md vs the typst-compiled paper.pdf.
+cross_deliverable:
+  title_match: true
+  figure_registry_match: true
+  citation_set_match: true
+  shared_bibliography: synthesis/references.bib
+  # Citation count must agree between tool_synthesize report and
+  # whatever the typst loader actually wired in. (Catches the
+  # `citations_used=35 vs citation_count=0` discrepancy.)
+  citation_count_agreement: true
+
+# Reviewer simulation — drive tool_reviewer_simulate across seven
+# personas. Smoke target: collect at least 30 distinct, actionable
+# comments. Lower bound is intentionally conservative so a single
+# persona stalling doesn't fail the run.
+reviewer_simulation:
+  enabled: true
+  personas:
+    - skeptical_methodologist
+    - statistics_referee
+    - domain_expert_neuroscience
+    - bioinformatician_reviewer
+    - ethics_irb_reviewer
+    - reproducibility_advocate
+    - editor_in_chief
+  min_total_comments: 30
+  min_personas_responding: 7
+  output: synthesis/reviewer_simulation.md
 
 # Canned mock-model responses keyed by step_id. The mock_model_call
 # matches "STEP: <id>" in the prompt and replies with the canned string.

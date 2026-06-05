@@ -1,6 +1,6 @@
 id: glossary_update
 name: Glossary Update
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Add or refine a definition in docs/glossary.md. Run this protocol the first time any non-trivial term appears in the project.
 trigger: A jargon term, acronym, or domain-specific concept appears in methods/analysis/conclusions for the first time.
@@ -27,8 +27,8 @@ steps:
     name: Ground Definitions in Literature
     description: |
       For any term you are not 100% confident about:
-        tool_search_web query="<term> definition"
-        OR tool_search_semantic_scholar query="<term> review"
+        tool_search query="<term> definition"
+        OR tool_search query="<term> review"
       Cite the source in the glossary entry.
 
 expected_outputs:

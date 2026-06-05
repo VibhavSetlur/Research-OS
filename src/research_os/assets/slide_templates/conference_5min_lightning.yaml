@@ -1,0 +1,56 @@
+id: conference_5min_lightning
+name: Conference lightning talk — 5 minutes
+audience: conference_talk_short
+duration_minutes: 5
+slide_target_min: 5
+slide_target_max: 6
+tone: paced
+description: |
+  Ultra-condensed. 5 minutes is enough for ONE finding. The title slide
+  carries the headline finding because there is no time for a build-up.
+
+slides:
+  - id: title_with_finding
+    type: title
+    title: "{headline_finding}"
+    source: synthesis_spec
+    speaker_notes: |
+      The title slide IS the elevator pitch. Read the finding. Name
+      yourself + affiliation. 15 seconds, then advance.
+
+  - id: question
+    type: content
+    title: "{research_question}"
+    source: research_question
+    speaker_notes: |
+      One sentence framing. 30 seconds. Do not motivate at length —
+      audience is here for the finding.
+
+  - id: method_one_slide
+    type: figure
+    title: "Approach"
+    source: methods_figure
+    speaker_notes: |
+      One schematic. 45 seconds. Point at the novel step. Skip the rest.
+
+  - id: result
+    type: figure
+    title: "{headline_finding}"
+    source: focal_figure
+    speaker_notes: |
+      The result. Read the number aloud. 90 seconds. Pause for it to
+      land.
+
+  - id: implication
+    type: content
+    title: "What changes"
+    source: discussion
+    speaker_notes: |
+      One bullet. 30 seconds. "Anyone doing X should now Y."
+
+  - id: contact
+    type: focus
+    title: "{contact_handle}"
+    source: opening_claim
+    speaker_notes: |
+      Email, paper URL, poster session location. Stand still.

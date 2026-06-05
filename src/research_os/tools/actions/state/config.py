@@ -209,6 +209,56 @@ tool_stack:
   field_practice_overrides_preference: true   # true → R Bioconductor wins for DE even if Python listed first
   cite_field_practice_when_choosing: true     # require literature citation per language choice
 
+# ── Synthesis pipeline ─────────────────────────────────────────────────
+# Controls how tool_synthesize / tool_slides_compile_reveal /
+# tool_poster_compile_typst assemble the final artefacts. Defaults are
+# safe: figures auto-embed into their owning step's section, slides
+# render with reveal.js + a 15-minute conference template, posters
+# render with Typst at 36x48 (academic).
+synthesis:
+  # Figures: auto-embed step output figures into their owning section
+  # of the paper body during tool_synthesize. Off = caller hand-places.
+  figures_auto_embed: true
+  # How auto-embed places figures.
+  #   append_to_section → drop at end of the step's owning section
+  #   inline_at_xref    → place at the first ![fig:id] reference site
+  #   end_of_results    → cluster all figures at end of Results
+  figures_auto_embed_mode: "append_to_section"
+  # Rewrite bare [fig:id] tokens in step conclusions to ![…](…) refs
+  # that resolve against the embedded figure registry.
+  figure_xref_rewrite: true
+
+  # Slide deck (tool_slides_compile_reveal).
+  #   reveal   → reveal.js HTML deck (default; works in any browser)
+  #   marp     → Marp markdown → PDF/HTML
+  #   beamer   → LaTeX Beamer (when a venue requires .tex)
+  slide_engine: "reveal"
+  # Slide template (matches deck length + section shape).
+  #   conference_15min | conference_30min | lab_meeting | thesis_defense
+  slide_template: "conference_15min"
+  # Visual theme; "" → reveal default. Examples: black, white, league,
+  # beige, sky, night, serif, simple, solarized.
+  slide_theme: ""
+  # Generate speaker-notes panel from step conclusions.
+  slide_speaker_notes_enabled: true
+  # Also emit a 1-up print handout PDF alongside the deck.
+  slide_print_handout: true
+
+  # Poster (tool_poster_compile_typst).
+  #   typst    → recommended (single-binary install, fast)
+  #   latex    → Beamer poster (legacy)
+  poster_engine: "typst"
+  # Poster template (matches dimensions + density).
+  #   academic_36x48 | academic_48x36 | academic_a0_portrait
+  #   | academic_a1_landscape | public_24x36
+  poster_template: "academic_36x48"
+  # Visual theme. light | dark | institution_branded
+  poster_theme: "light"
+  # Optional QR URL printed bottom-right (project page / preprint).
+  poster_qr_url: ""
+  # Emit a US-letter handout PDF alongside the poster.
+  poster_handout_pdf: true
+
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
 api_keys:
@@ -381,6 +431,25 @@ def get_config(root: Path) -> dict[str, Any]:
         return {"status": "error", "message": str(e)}
 
 
+def get_research_config(root: Path) -> dict[str, Any]:
+    """Return the raw researcher_config.yaml dict (no masking, no envelope).
+
+    Compatibility shim — synthesis modules (typst.py, preview.py,
+    figure_auto_embed.py, poster_typst handler) call this helper to
+    read venue / synthesis preferences directly without wading through
+    the get_config() success envelope. Returns an empty dict when the
+    file is missing or unparseable so callers can chain ``.get(...)``
+    against it safely.
+    """
+    try:
+        cfg_path = _config_path(root)
+        if not cfg_path.exists():
+            return {}
+        return yaml.safe_load(cfg_path.read_text()) or {}
+    except Exception:
+        return {}
+
+
 def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
     """Set a single config value with dot notation (e.g. researcher.name)."""
     try:
@@ -534,7 +603,32 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
         # Mathematical sciences
         "amsplain", "siam",
     ),
+    # ── Synthesis pipeline ────────────────────────────────────────────
+    "synthesis.figures_auto_embed_mode": (
+        "append_to_section", "inline_at_xref", "end_of_results",
+    ),
+    "synthesis.slide_engine": ("reveal", "marp", "beamer"),
+    "synthesis.slide_template": (
+        "conference_15min", "conference_30min", "lab_meeting", "thesis_defense",
+    ),
+    "synthesis.poster_engine": ("typst", "latex"),
+    "synthesis.poster_template": (
+        "academic_36x48", "academic_48x36",
+        "academic_a0_portrait", "academic_a1_landscape",
+        "public_24x36",
+    ),
+    "synthesis.poster_theme": ("light", "dark", "institution_branded"),
 }
+
+# Fields whose template default is bool. validate_config flags non-bool
+# values so a typo (e.g. ``figures_auto_embed: "yes"``) is surfaced.
+_BOOL_FIELDS: tuple[str, ...] = (
+    "synthesis.figures_auto_embed",
+    "synthesis.figure_xref_rewrite",
+    "synthesis.slide_speaker_notes_enabled",
+    "synthesis.slide_print_handout",
+    "synthesis.poster_handout_pdf",
+)
 
 
 def _dotted_get(cfg: dict[str, Any], path: str) -> Any:
@@ -579,6 +673,20 @@ def validate_config(root: Path) -> dict[str, Any]:
                 "field": field,
                 "value": value,
                 "allowed": list(allowed),
+            })
+
+    # Bool fields (synthesis toggles) — flag non-bool values. Blank /
+    # absent is fine (template default applies); a string "true" or
+    # int 1 is a typo worth surfacing.
+    for field in _BOOL_FIELDS:
+        value = _dotted_get(config, field)
+        if value is None:
+            continue
+        if not isinstance(value, bool):
+            enum_violations.append({
+                "field": field,
+                "value": value,
+                "allowed": [True, False],
             })
 
     api_keys = config.get("api_keys") or {}

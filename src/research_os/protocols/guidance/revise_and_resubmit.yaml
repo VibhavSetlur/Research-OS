@@ -1,6 +1,6 @@
 id: revise_and_resubmit
 name: Revise & Resubmit (full R&R orchestration)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   End-to-end orchestration for a Revise & Resubmit decision from a
@@ -112,7 +112,7 @@ steps:
           where the change will land (or "N/A" for DEFER /
           PUSH-BACK).
 
-      Use `mem_decision_log` for every comment classified as
+      Use `mem_log` for every comment classified as
       PUSH-BACK or DEFER — these are the riskiest categories and
       need a defensible rationale on file.
 
@@ -123,7 +123,7 @@ steps:
 
         analysis_plan (and methodology/*):
           For each row, create or reopen the relevant step via
-          `sys_path_create` (NEW analysis) or reopen the existing
+          `sys_path` (NEW analysis) or reopen the existing
           step. Walk the routed protocol end-to-end. The new
           result becomes the EVIDENCE the response cites.
 
@@ -135,7 +135,7 @@ steps:
 
         prose-only:
           Direct edit to `synthesis/paper.md`. Log the edit via
-          `mem_decision_log` so the audit trail is complete.
+          `mem_log` so the audit trail is complete.
 
         none (DEFER / PUSH-BACK):
           No edit to the paper. The response paragraph is the

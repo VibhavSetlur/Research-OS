@@ -1,6 +1,6 @@
 id: animation_design
 name: Animation Design (time-series, model behaviour, talks)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -195,7 +195,7 @@ steps:
         - the rendering library + version
         - the URL of the static fallback in the supplement
 
-      mem_methods_append the animation choices + the rationale for
+      mem_log the animation choices + the rationale for
       animation over small multiples.
 
 expected_outputs:

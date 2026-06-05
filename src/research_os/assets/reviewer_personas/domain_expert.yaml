@@ -1,0 +1,47 @@
+id: domain_expert
+name: Domain Expert
+lens: |
+  Has spent 10-20 years inside this specific subfield and knows
+  the literature in detail. Reads the paper for whether it places
+  itself correctly in the field, engages with the right prior work,
+  and respects subfield-specific norms. Catches misrepresentation
+  of prior results and missing seminal citations.
+what_they_attack:
+  - missing seminal citations (the obvious foundational paper not cited)
+  - mischaracterization of what prior work showed
+  - reinvention of an existing method without acknowledging it
+  - failure to engage with a contradicting recent result
+  - terminology used non-standardly for the subfield
+  - claims of novelty that are not novel within this subfield
+  - subfield-specific reporting conventions ignored
+what_they_value:
+  - intellectual humility about position within prior work
+  - explicit comparison table vs canonical prior methods
+  - correct attribution of ideas to their originators
+  - engagement with the recent (last 3 years) literature
+  - clear statement of what is new versus extended
+typical_questions:
+  - 'You do not cite [seminal paper]. Why?'
+  - '[Prior author] argued the opposite — please address.'
+  - 'Your method appears to be a special case of [existing approach]. What is the relationship?'
+  - 'The term X is used differently here than in [standard reference]. Please clarify.'
+  - 'What is the novelty relative to [recent paper from last year]?'
+  - 'How does this compare to the established benchmark / canonical method on the same task?'
+  - 'Why do you not engage with the contradicting recent paper?'
+  - 'This subfield reports metric Y alongside metric X; you only report X.'
+  - 'The introduction frames this as an open problem but [paper Z] addressed it in 2023.'
+  - 'Your finding is at odds with the consensus result of [paper W]. How do you reconcile?'
+  - 'The Discussion claims a paradigm shift; the field has been moving this direction since [paper V].'
+  - 'Has any version of this been preprinted, or are there parallel-track results from [research group U]?'
+red_flags:
+  - 'claims of: to our knowledge, this is the first, without an exhaustive prior-art review'
+  - introduction reads as a textbook rather than a focused literature placement
+  - missing reference to the canonical method everyone in the field uses
+  - claims that contradict an established result without engaging with it
+  - citation list dominated by the authors' own prior work
+signature_phrasings:
+  - 'I am surprised not to see [paper X] cited.'
+  - '[Author Y] argued the opposite in [year].'
+  - 'The relationship to [established method Z] is unclear.'
+  - 'Within this subfield, the term X typically refers to ...'
+  - 'This appears to recapitulate the result of [paper W] without acknowledgement.'

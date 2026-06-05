@@ -1,6 +1,6 @@
 id: manuscript_outline
 name: Manuscript Outline + Narrative Arc (before drafting)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -182,7 +182,7 @@ steps:
       Ask for confirmation (per ambiguity_posture). On confirmation:
         - freeze the outline to
           workspace/.outline/outline_FROZEN_<iso>.md (content-hash)
-        - mem_decision_log "outline locked v<n>"
+        - mem_log "outline locked v<n>"
         - route to synthesis/synthesis_paper for drafting
 
       Drafting against a locked outline is much faster + much less

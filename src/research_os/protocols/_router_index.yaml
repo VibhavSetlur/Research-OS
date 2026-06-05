@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 15
+version: 17
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -152,6 +152,8 @@ hierarchy:
       venue:     "Journal / venue selection + fit assessment"
       outline:   "Manuscript outline + narrative arc (pre-draft)"
       defense:   "Defense / talk Q&A preparation"
+      humanities_essay: "Non-IMRAD humanities essay (thesis + close readings + counter)"
+      reviewer_sim: "Pre-submission adversarial self-review (7 personas)"
   audit_wrap:
     label: "Audit + reproducibility"
     sub_intents:
@@ -368,7 +370,7 @@ protocols:
       - "library size normalization"
     token_estimate: 2100
     decomposition:
-      - tool: sys_path_create
+      - tool: sys_path
         purpose: "Create the next numbered experiment folder."
       - tool: tool_research_method
         purpose: "Ground methodology before coding."
@@ -378,7 +380,7 @@ protocols:
         purpose: "Write scripts/<NN>_<slug>_v1.<ext>."
       - tool: tool_python_exec
         purpose: "Run the script (or tool_r_exec / tool_julia_exec / tool_bash_exec)."
-      - tool: mem_methods_append
+      - tool: mem_log
         purpose: "Log method + parameters + justification."
       - tool: sys_file_write
         purpose: "Write conclusions.md for the step."
@@ -400,7 +402,7 @@ protocols:
     decomposition:
       - tool: tool_plan_next_step
         purpose: "Survey state + search + propose options."
-      - tool: mem_decision_log
+      - tool: mem_log
         purpose: "Log the chosen direction."
 
   guidance/dead_end_routing:
@@ -417,7 +419,7 @@ protocols:
       - "not working"
     token_estimate: 700
     decomposition:
-      - tool: sys_path_abandon
+      - tool: sys_path
         purpose: "Mark folder as __DEAD_END with rationale."
       - tool: tool_dead_end_lessons
         purpose: "Capture the lesson for future steps."
@@ -984,6 +986,31 @@ protocols:
       - tool: tool_paper_compile_typst
         purpose: "Compile the markdown draft to PDF (conditional on writing_preferences.pdf_compile_engine == typst)."
 
+  synthesis/humanities_essay_structure:
+    intent_class: synthesize
+    sub_intent: humanities_essay
+    summary: "Scaffold + draft a non-IMRAD humanities essay (thesis → contextual framing → close readings → critical conversation → counter-argument → stakes). Pairs with humanities_essay.typ for the venue layer."
+    triggers:
+      - "humanities essay"
+      - "close-reading essay"
+      - "close reading essay"
+      - "literary criticism essay"
+      - "write the essay"
+      - "essay structure"
+    shortcut_tool: tool_humanities_essay_scaffold
+    token_estimate: 1800
+    decomposition:
+      - tool: tool_humanities_essay_scaffold
+        purpose: "Write synthesis/paper.md with the six interpretive section headings + stubs."
+      - tool: tool_synthesize_plan
+        purpose: "Inspect available sources + recommend section ordering."
+      - tool: tool_synthesize
+        args: {output_type: paper}
+        purpose: "Fill in the section bodies under the scaffolded shell."
+      - tool: tool_paper_compile_typst
+        args: {venue: humanities_essay}
+        purpose: "Render paper.md → paper.typ → paper.pdf with the bundled humanities-essay venue template."
+
   synthesis/synthesis_abstract:
     intent_class: synthesize
     sub_intent: abstract
@@ -1026,6 +1053,21 @@ protocols:
     triggers: ["null findings", "null result", "what didn't work",
                "negative results", "refuted hypothesis", "dead ends paper"]
     shortcut_tool: tool_null_findings_report
+
+  synthesis/reviewer_response:
+    intent_class: synthesize
+    sub_intent: reviewer_sim
+    summary: "Pre-submission 7-persona adversarial self-review + per-comment rebuttal scaffold + audit. Internal dry-run companion to guidance/peer_review_response."
+    triggers: ["simulate reviewers", "pre-submission review", "red-team my paper",
+               "red team the paper", "what will reviewers say", "stress-test the paper",
+               "internal review pass", "rebuttal practice", "dry-run review",
+               "adversarial review of the paper"]
+    shortcut_tool: tool_reviewer_simulate
+    decomposition:
+      - tool: tool_reviewer_simulate
+      - tool: tool_rebuttal_draft
+      - tool: tool_reviewer_response_compile
+      - tool: tool_audit_reviewer_responses
 
   guidance/code_review:
     intent_class: review
@@ -1297,7 +1339,7 @@ protocols:
       - protocol: synthesis/synthesis_from_inputs
         purpose: "Build a shadow step + provenance manifest, then run target synthesis."
       - tool: tool_context_intake
-      - tool: sys_path_create
+      - tool: sys_path
 
   methodology/exploratory_data_analysis:
     intent_class: methodology

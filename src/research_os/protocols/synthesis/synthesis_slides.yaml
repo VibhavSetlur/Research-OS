@@ -1,6 +1,6 @@
 id: synthesis_slides
 name: Synthesis — Slides / Talk Deck
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Compile a presentation deck — lab meeting, conference talk, defense,
@@ -136,7 +136,7 @@ steps:
     description: |
       Pull in ONE batch:
         - sys_state_get
-        - sys_path_list
+        - sys_path
         - sys_file_read filepath="synthesis/synthesis_spec.yaml"
           (when present — the synthesis_dashboard editorial layer)
         - mem_hypothesis_list
@@ -221,9 +221,9 @@ steps:
         - workspace/<step>/conclusions.md > Limitations
         - workspace/logs/audit_report.md   (audit findings the deck
           may not have covered in-line)
-        - mem_decision_log               (close-call decisions: the
+        - mem_log               (close-call decisions: the
           questioner often asks "why did you not …")
-        - dead-end paths (sys_path_list status=__DEAD_END) — these
+        - dead-end paths (sys_path status=__DEAD_END) — these
           tend to be exactly what the audience asks about
 
       Build a backup slide for each anticipated question whose answer

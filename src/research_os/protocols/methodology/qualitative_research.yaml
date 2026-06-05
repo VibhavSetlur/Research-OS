@@ -1,6 +1,6 @@
 id: qualitative_research
 name: Qualitative Research (COREQ / SRQR)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Interview / focus-group / ethnographic studies with thematic, framework,
@@ -27,7 +27,7 @@ steps:
   - id: create_step
     name: Create Qualitative Step
     description: |
-      sys_path_create name="qual_<topic>" hypothesis="(qualitative — themes
+      sys_path name="qual_<topic>" hypothesis="(qualitative — themes
       emerge from data)"
 
       Immediately after creating the step, write
@@ -107,7 +107,7 @@ steps:
       label, definition, source quote (with transcript + line ref).
       The number of codes is data-driven, not target-driven — code
       until the next transcript stops producing new codes. Custom or
-      assisted (LLM-aided) coding is allowed; `mem_methods_append`
+      assisted (LLM-aided) coding is allowed; `mem_log`
       MUST document which.
 
   - id: coding_pass_2

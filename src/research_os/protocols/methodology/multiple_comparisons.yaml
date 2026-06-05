@@ -1,6 +1,6 @@
 id: multiple_comparisons
 name: Multiple Comparisons / Multiplicity Strategy
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -204,7 +204,7 @@ steps:
       raw p-values. Tables flag the threshold visually. Figure captions
       mention correction when error bars are based on adjusted CIs.
 
-      mem_methods_append with method="<correction method>" and the
+      mem_log with method="<correction method>" and the
       family enumeration so the audit trail is intact.
 
   - id: cross_check_with_audit
@@ -220,7 +220,7 @@ steps:
 expected_outputs:
   - workspace/.multiplicity/families.md
   - workspace/.multiplicity/multiplicity_plan.md
-  - (entry appended to methods.md via mem_methods_append)
+  - (entry appended to methods.md via mem_log)
 
 quality_bar:
   every_hypothesis_assigned_to_a_family: true

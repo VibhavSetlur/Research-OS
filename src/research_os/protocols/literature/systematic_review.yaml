@@ -1,6 +1,6 @@
 id: systematic_review
 name: Systematic Review (PRISMA)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: Full PRISMA workflow for a primary systematic review or meta-analysis project.
 trigger: Use when the project IS a systematic review (not just a background lit search for a primary study).
@@ -12,7 +12,7 @@ steps:
   - id: create_review_step
     name: Create Review Experiment Folder
     description: |
-      sys_path_create name="systematic_review" hypothesis="<one-sentence PICO question>"
+      sys_path name="systematic_review" hypothesis="<one-sentence PICO question>"
 
   - id: protocol_registration
     name: Pre-register the Protocol

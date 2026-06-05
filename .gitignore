@@ -83,3 +83,6 @@ desktop.ini
 scratch/
 /workspace/
 /tmp/
+
+# Workflow per-release spec scratch (workflow run artefacts, not source)
+/.v*.*_specs/

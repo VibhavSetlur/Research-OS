@@ -1,6 +1,6 @@
 id: iterative_planning
 name: Iterative Planning
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state + literature + tools and recommends the best move.
 trigger: Researcher says "what should I do next?" / "iterate with me" / "propose the next step" — OR analysis_plan finishes a step and autopilot is on.
@@ -11,7 +11,7 @@ steps:
     description: |
       ONE batch in parallel:
         - sys_state_get
-        - sys_path_list
+        - sys_path
         - sys_protocol_history limit=10
         - mem_hypothesis_list
       Combine into a working summary. Do NOT call other tools yet.
@@ -38,7 +38,7 @@ steps:
 
       Source the rationale from grounded evidence — recent literature
       pulled by the prior step, audit warnings in workspace/logs/, or
-      prior decisions in mem_decision_log. Avoid options whose only
+      prior decisions in mem_log. Avoid options whose only
       support is "AI intuition"; they collapse under
       constructive_disagreement.
 
@@ -63,7 +63,7 @@ steps:
   - id: commit_and_run
     name: Commit the Decision and Run It
     description: |
-      mem_decision_log
+      mem_log
         context="Iterative-planning step"
         selected="<the chosen option>"
         rationale="<from the plan markdown>"

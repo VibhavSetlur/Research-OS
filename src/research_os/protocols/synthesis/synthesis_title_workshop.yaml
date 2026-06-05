@@ -1,6 +1,6 @@
 id: synthesis_title_workshop
 name: Synthesis — Title Workshop (the single most-read sentence)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Generate, iterate, and pick a title for a paper / abstract /
@@ -117,7 +117,7 @@ steps:
       title aligns on them.
 
       For unfamiliar subfields:
-        tool_search_semantic_scholar query="<headline finding
+        tool_search query="<headline finding
         rewritten in field-neutral terms>"
         — read the returned titles; the recurring terms are the
         search-vocabulary.
@@ -223,7 +223,7 @@ steps:
         - synthesis/poster.tex (when present — update poster
           title)
 
-      Log via mem_decision_log:
+      Log via mem_log:
         context="title workshop"
         selected="<winning title>"
         rationale="<one paragraph>"

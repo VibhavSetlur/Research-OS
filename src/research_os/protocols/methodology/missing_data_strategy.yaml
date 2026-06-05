@@ -1,6 +1,6 @@
 id: missing_data_strategy
 name: Missing-Data Strategy (MCAR/MAR/MNAR → handling → sensitivity)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Missing data is not a nuisance to be silently dropped — it is a
@@ -257,7 +257,7 @@ steps:
   - id: append_to_methods_and_conclusions
     name: Append to methods.md + conclusions.md
     description: |
-      mem_methods_append:
+      mem_log:
         method="<primary handling, e.g. MICE-IterativeImputer m=20>"
         parameters="m=20; auxiliaries=[<list>]; max_iter=10; ..."
         justification="<mechanism claim with cited evidence>"

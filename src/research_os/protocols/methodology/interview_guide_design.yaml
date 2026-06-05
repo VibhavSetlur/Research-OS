@@ -1,6 +1,6 @@
 id: interview_guide_design
 name: Interview / Topic Guide Design (qualitative pre-collection)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -180,7 +180,7 @@ steps:
         - pilot debrief template
         - IRB protocol reference + amendment status
 
-      mem_methods_append method="semi-structured interviews" with
+      mem_log method="semi-structured interviews" with
       the guide's content-hash so the audit trail is intact.
 
       The guide is a LIVING document for grounded theory and

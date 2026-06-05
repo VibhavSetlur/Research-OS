@@ -1,6 +1,6 @@
 id: session_boot
 name: Session Boot
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -74,8 +74,8 @@ steps:
                               incomplete — resume, or start fresh?"
 
       If sys_boot returned active_plan in status "in_progress", honour it
-      BEFORE accepting a new ask — tool_plan_advance walks the planned
-      sequence; only call tool_plan_clear if the researcher pivots.
+      BEFORE accepting a new ask — tool_plan walks the planned
+      sequence; only call tool_plan if the researcher pivots.
 
   - id: route_first_message
     name: Route the First Message Through tool_route (your SECOND MCP call)
@@ -104,7 +104,7 @@ steps:
         decomposition        Planned tool sequence (when L3 resolved).
         complexity           "low" (one-shot OK) or "high" (DO NOT one-shot;
                              tool_route persisted a plan, walk it with
-                             tool_plan_advance).
+                             tool_plan).
         ask_user             1-sentence question when ambiguous. ASK IT —
                              don't guess. Re-call tool_route with the
                              answer.
@@ -136,7 +136,7 @@ steps:
       persisted an active_plan to .os_state/active_plan.json.
 
       Before executing, call:
-        tool_plan_turn
+        tool_plan
 
       It returns:
         this_turn               — tools to call THIS turn
@@ -148,7 +148,7 @@ steps:
                                   this batch.
 
       Execute every entry in `this_turn` IN ORDER. After each entry, call
-      tool_plan_advance. When this_turn finishes, call tool_plan_turn
+      tool_plan. When this_turn finishes, call tool_plan
       again for the next batch — OR, if chat_split_recommended is true,
       call sys_session_handoff and tell the researcher to start a fresh
       chat with "pick up where we left off".
@@ -168,4 +168,4 @@ quality_bar: |
     researcher's verbatim message. No bulk protocol loads before it.
   - sys_protocol_get defaults to format="summary"; full loads are deliberate.
   - Complex prompts trigger an active_plan; the AI walks it with
-    tool_plan_advance instead of one-shotting.
+    tool_plan instead of one-shotting.

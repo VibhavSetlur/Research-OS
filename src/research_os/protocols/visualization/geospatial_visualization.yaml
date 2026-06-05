@@ -1,6 +1,6 @@
 id: geospatial_visualization
 name: Geospatial Visualization (choropleth, points, flow, raster)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -223,7 +223,7 @@ steps:
         - classification method + N classes + breaks
         - palette + data source attribution
 
-      mem_methods_append the cartographic choices for the audit
+      mem_log the cartographic choices for the audit
       trail.
 
 expected_outputs:

@@ -1,6 +1,6 @@
 id: hyperparameter_search_design
 name: Hyperparameter Search Design (sweeps + budgets)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 description: |
   Design a hyperparameter sweep — the search space, the budget, the
@@ -242,7 +242,7 @@ steps:
           - landscape figures written to <path>
 
       Freeze the protocol BEFORE the sweep starts. Deviations get
-      logged via mem_decision_log; pre-registered sweeps refuse
+      logged via mem_log; pre-registered sweeps refuse
       mid-flight retuning ("just one more config" is when
       sweeps go off the rails).
 

@@ -734,6 +734,89 @@ CUSTOM_ELEMENTS_JS = r"""
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Pack detection
+# ──────────────────────────────────────────────────────────────────────
+
+_QUALITATIVE_WORKSPACE_MARKERS = (
+    "codebooks", "themes", "transcripts", "member_checks",
+)
+_HUMANITIES_WORKSPACE_MARKERS = (
+    "edition", "apparatus", "transcriptions", "close_readings", "citations",
+)
+
+
+def _config_pack(root: Path) -> str | None:
+    """Return the pack name from researcher_config.yaml, or None.
+
+    Accepts any of: top-level ``pack:`` / ``domain:`` / ``packs: [...]``.
+    """
+    for rel in ("inputs/researcher_config.yaml", "researcher_config.yaml"):
+        cfg_path = root / rel
+        if not cfg_path.exists():
+            continue
+        try:
+            import yaml  # type: ignore
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8",
+                                                     errors="ignore")) or {}
+        except Exception:
+            continue
+        if not isinstance(cfg, dict):
+            continue
+        for key in ("pack", "domain"):
+            val = cfg.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip().lower()
+        packs = cfg.get("packs")
+        if isinstance(packs, list) and packs:
+            for entry in packs:
+                if isinstance(entry, str) and entry.strip():
+                    return entry.strip().lower()
+    return None
+
+
+def _workspace_has_markers(root: Path, markers: tuple[str, ...]) -> bool:
+    ws = root / "workspace"
+    if not ws.is_dir():
+        return False
+    try:
+        # Direct children first (cheap), then a shallow rglob fallback.
+        children = {p.name for p in ws.iterdir() if p.is_dir()}
+        if any(m in children for m in markers):
+            return True
+        for marker in markers:
+            for hit in ws.rglob(marker):
+                if hit.is_dir():
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def detect_active_pack(root: Path) -> str | None:
+    """Decide which domain-pack renderer (if any) the dashboard should use.
+
+    Resolution order:
+      1. ``researcher_config.yaml`` ``pack:`` / ``domain:`` / ``packs:``.
+      2. Workspace markers (codebooks/themes/... for qualitative;
+         edition/apparatus/... for humanities).
+
+    Returns one of ``"qualitative"``, ``"humanities"``, or ``None`` for
+    every other project (the generic renderer keeps running).
+    """
+    cfg_pack = _config_pack(root)
+    if cfg_pack in {"qualitative", "humanities"}:
+        return cfg_pack
+    # Filesystem fallback. Humanities markers win ties because the
+    # qualitative markers (e.g. transcripts/) are sometimes present in
+    # humanities projects with interview-shaped oral-history sources.
+    if _workspace_has_markers(root, _HUMANITIES_WORKSPACE_MARKERS):
+        return "humanities"
+    if _workspace_has_markers(root, _QUALITATIVE_WORKSPACE_MARKERS):
+        return "qualitative"
+    return None
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Section + index builders
 # ──────────────────────────────────────────────────────────────────────
 
@@ -1187,12 +1270,35 @@ def render_dashboard_v2(
         search_docs = _build_search_index(steps, spec, figures) if search_enabled else []
         sidebar_html = _build_sidebar(steps, spec, figures)
         filter_html = _build_filter_chips(steps, state)
+        # Pack-aware section dispatch. The qualitative + humanities
+        # renderers append after figures/verdicts and before the generic
+        # step appendix so reviewers see the domain-shaped artefacts
+        # first. The generic STEM renderer keeps its existing layout.
+        pack = detect_active_pack(root)
+        pack_sections_html = ""
+        if pack == "qualitative":
+            try:
+                from research_os.tools.actions.synthesis.dashboard_v2_qualitative \
+                    import render_qualitative_section
+                pack_sections_html = render_qualitative_section(root, spec, state)
+            except Exception:
+                logger.exception("qualitative section render failed")
+                pack_sections_html = ""
+        elif pack == "humanities":
+            try:
+                from research_os.tools.actions.synthesis.dashboard_v2_humanities \
+                    import render_humanities_section
+                pack_sections_html = render_humanities_section(root, spec, state)
+            except Exception:
+                logger.exception("humanities section render failed")
+                pack_sections_html = ""
         sections_html = "".join([
             _build_abstract_section(spec),
             _build_story_section(root, spec, steps),
             _build_findings_section(spec),
             _build_verdicts_section(state),
             _build_figures_section(figures),
+            pack_sections_html,
             _build_steps_section(steps),
             _build_methods_section(spec),
             _build_references_section(root),
@@ -1274,6 +1380,7 @@ def render_dashboard_v2(
             "default_mode": default_mode,
             "search_enabled": search_enabled,
             "search_index_docs": len(search_docs),
+            "active_pack": pack or "",
         }
         return result
     except Exception as e:
@@ -1313,4 +1420,5 @@ __all__ = [
     "bundled_js",
     "DASHBOARD_V2_CSS",
     "CUSTOM_ELEMENTS_JS",
+    "detect_active_pack",
 ]

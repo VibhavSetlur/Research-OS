@@ -1,6 +1,6 @@
 id: inter_rater_reliability
 name: Inter-rater Reliability (IRR) — design + computation + reporting
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -219,14 +219,14 @@ steps:
         - drift reports if computed periodically
         - any remediation (refined codebook v<n> → v<n+1>)
 
-      mem_methods_append method="IRR computation" with the statistic
+      mem_log method="IRR computation" with the statistic
       + threshold + result so the audit trail is intact.
 
 expected_outputs:
   - workspace/.qualitative/irr_design.md
   - workspace/.qualitative/irr_report.md
   - workspace/<step>/scripts/<NN>_irr_compute_v<n>.py
-  - (entries appended to methods.md via mem_methods_append)
+  - (entries appended to methods.md via mem_log)
 
 quality_bar:
   statistic_choice_matches_rating_task: true

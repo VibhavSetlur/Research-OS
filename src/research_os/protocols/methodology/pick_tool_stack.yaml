@@ -1,6 +1,6 @@
 id: pick_tool_stack
 name: Pick Tool Stack (language + library matrix per analysis sub-task)
-version: '1.9.3'
+version: '1.11.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -76,9 +76,9 @@ steps:
     name: Query field practice (literature signal)
     description: |
       For the top-2 candidates, run a quick literature check:
-        tool_search_pubmed query="<method> <domain> <library>" max_results=5
+        tool_search query="<method> <domain> <library>" max_results=5
       Or for non-biomedical fields:
-        tool_search_semantic_scholar query="<method> <domain> <library>"
+        tool_search query="<method> <domain> <library>"
 
       Score: which library appears in the methods section of recent
       papers in this domain? The winning library is the one a reviewer
@@ -128,7 +128,7 @@ steps:
         - rationale: <one-line "field practice for this method is X" + citation_key>
 
       Append the same block to workspace/analysis.md via
-      `mem_analysis_log` so the project narrative captures the choice.
+      `mem_log` so the project narrative captures the choice.
 
 expected_outputs:
   - workspace/<step>/scratch/stack_plan.md
