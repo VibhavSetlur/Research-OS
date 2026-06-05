@@ -1,4 +1,4 @@
-"""Intake re-entry detection (v1.5.0 — Theme 14).
+"""Intake re-entry detection.
 
 Decides whether ``project_startup`` should fully autofill intake or
 skip / refresh-only:

@@ -272,7 +272,7 @@ tbody tr:hover { background: var(--primary-soft); }
   padding: 0.6rem 0.9rem; border-radius: 4px; border: 1px dashed var(--warn);
   font-style: italic; display: block;
 }
-/* v1.3.3 paper-as-interactive: plain-English summary panel + interactive companion */
+/* paper-as-interactive: plain-English summary panel + interactive companion */
 .figure .figsummary {
   margin-top: 0.8rem; padding: 0.8rem 1rem; border-left: 3px solid var(--accent, #2C5282);
   background: var(--soft-bg-alt, #f7f9fb); border-radius: 0 4px 4px 0;
@@ -428,7 +428,7 @@ def _md_inline(text: str) -> str:
     return out
 
 
-# v1.3.4: module-level toggle set at the top of render_dashboard so
+# Module-level toggle set at the top of render_dashboard so
 # _b64_img can emit relative-src or base64 depending on the configured
 # embed mode without threading it through every builder.
 _FIGURE_EMBED_MODE: str = "inline"  # "inline" | "relative"
@@ -438,12 +438,12 @@ _DASHBOARD_OUTPUT_DIR: Path | None = None  # for relative-path computation
 def _b64_img(path: Path) -> str | None:
     """Return an `<img src=...>` string for ``path``.
 
-    v1.3.4: if `_FIGURE_EMBED_MODE == "relative"`, returns a path
-    relative to the dashboard's own location (so the HTML loads
-    figures from the workspace at view time). Otherwise base64-embeds
-    the file (legacy single-file behavior). Set both module-level
-    state vars at the top of `render_dashboard` before any builder
-    runs; restore on exit.
+    If `_FIGURE_EMBED_MODE == "relative"`, returns a path relative
+    to the dashboard's own location (so the HTML loads figures from
+    the workspace at view time). Otherwise base64-embeds the file
+    (legacy single-file behavior). Set both module-level state vars
+    at the top of `render_dashboard` before any builder runs; restore
+    on exit.
     """
     if _FIGURE_EMBED_MODE == "relative" and _DASHBOARD_OUTPUT_DIR is not None:
         try:
@@ -650,7 +650,7 @@ def _figure_block(idx: int | str, fig: dict[str, Any] | None,
                   label: str = "", fallback_caption: str = "") -> str:
     """Render a single figure block.
 
-    v1.3.3 (paper-as-interactive doctrine):
+    Paper-as-interactive doctrine:
       - Embed BOTH the technical caption AND the plain-English summary
         (`.summary.md` sidecar) inline. The paper has only the caption;
         the dashboard adds the summary — that's what makes it "guided".
@@ -1283,7 +1283,7 @@ def render_dashboard(root: Path, title: str | None = None,
     override), the step-completeness audit section is dropped from the
     rendered HTML. The override is still logged at the handler layer.
 
-    v1.3.4 ``embed_figures`` modes:
+    ``embed_figures`` modes:
 
     * ``"inline"`` — base64-embed every figure into a single-file HTML.
       Right for ``sys_export_share_archive`` / email attachments where
@@ -1448,9 +1448,9 @@ def render_dashboard(root: Path, title: str | None = None,
         ])
 
         out_path.write_text(body)
-        # v1.3.4: count figures actually embedded by scanning the rendered
-        # HTML (base64 data-URLs OR relative `<img src="...">`), not by
-        # asking the spec — the latter under-reports because builders
+        # Count figures actually embedded by scanning the rendered
+        # HTML (base64 data-URLs OR relative `<img src="...">`), not
+        # by asking the spec — the spec under-reports because builders
         # auto-derive figures past what spec lists.
         figures_embedded = (
             body.count("data:image/")

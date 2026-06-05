@@ -162,6 +162,54 @@ Scaffold:
     a positive justification, not a default.
 ```
 
+## No version commentary in live bodies
+
+Protocol bodies, MCP tool descriptions, and code docstrings/comments
+must read as **timeless current doctrine**. They describe what the
+system does NOW. They do not narrate which version added which rule
+or which version fixed which bug.
+
+**Where version history lives:**
+
+| Surface | Carries |
+|---|---|
+| `CHANGELOG.md` | What changed in each release, with rationale |
+| `git log` / `git blame` | Line-level provenance |
+| `version:` (protocol YAML) | Which package release this protocol shipped with |
+| `schema_version:` (protocol YAML) | Bumps only when prescriptive structure changes |
+| `last_reviewed:` (protocol YAML) | When a maintainer last read this for staleness |
+
+**What stays out of live bodies:**
+
+- "`v1.4.0` added X" / "`v1.5.0` fixed Y" / "as of `v1.3.4` we …"
+- "previously this clobbered, now we …"
+- "promoted from WARN to BLOCK in `v1.5.0`"
+- "the `v1.3.4` stress test caught this"
+- "carried over from the `v1.5.1` stress audit"
+
+**Why:** every load of a live doctrine surface pays the token cost.
+A 13-protocol routing call that has 200 lines of version chatter
+strung across the protocols burns ~3 KB of context on history the
+reader can't act on. The CHANGELOG already carries the history;
+readers who need it know where to find it.
+
+**The rule for inline WHY comments.** Comments that explain a
+*non-obvious mechanical reason* a piece of code looks the way it
+does (a workaround, a subtle invariant, a hidden constraint) stay.
+Comments that *narrate* the project history ("`v1.3.4` added this
+because the `v1.3.3` stress test surfaced…") get stripped down to
+the timeless WHY: "this matches `^##\s` not `^##` so that `###`
+sub-headers don't truncate the parent section."
+
+**Enforcement.** `scripts/lint_no_version_chatter.py` scans the live
+surfaces (protocols/, server.py, tools/actions/, project_ops.py,
+wizard.py) and flags `v\d+\.\d+(?:\.\d+)?` references plus the
+common "previously this / was the bug / promoted from WARN to BLOCK
+in vX" phrasings. Run with `--strict` to fail on any hit; run with
+`--diff` to fail only on hits in files modified relative to HEAD.
+Preflight invokes it in `--diff` mode so new commits can't introduce
+new chatter without the maintainer noticing.
+
 ---
 
 If you read a step in a protocol that fails the checklist above,

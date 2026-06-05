@@ -1,4 +1,4 @@
-"""Tool failure memory — paywall + permanent 404 cache (v1.5.0 — Theme 12).
+"""Tool failure memory — paywall + permanent 404 cache.
 
 Persists per-tool failures to ``workspace/.os_state/tool_failures.jsonl``
 so subsequent attempts skip known-bad URLs and DOIs. Designed for

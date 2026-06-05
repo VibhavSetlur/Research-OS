@@ -2,6 +2,7 @@ id: pre_submission_checklist
 name: Pre-Submission Checklist (final ready-to-submit gate)
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Final ready-to-submit gate. Walks the project through every
   pre-submission check that journals, reviewers, and program
@@ -224,8 +225,8 @@ steps:
       are YELLOW (the discussion / limitations should
       acknowledge them).
 
-      v1.4.0 — also surface the ReAct trace + per-step literature
-      audit in the bundle:
+      Also surface the ReAct trace + per-step literature audit in the
+      bundle:
         tool_thought_trace decision_id=<any flagged decision>
           — replays the Thought/Plan/Action/Observation/Reflection
             chain for a specific decision. Useful when claim_grounding

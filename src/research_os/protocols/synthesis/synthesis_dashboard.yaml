@@ -2,6 +2,7 @@ id: synthesis_dashboard
 name: Synthesis — Dashboard (paper-as-interactive)
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Generate a polished single-file HTML dashboard that reads as
   **the paper, told as an interactive guided walk-through**. Not a
@@ -34,7 +35,7 @@ description: |
     9. Reproducibility         ← code + environment + provenance
    10. Glossary + References   ← paper's bibliography
 
-  v1.3.1 reframing (from the PI-level e2e audit):
+  Reframing:
     - The dashboard is THE PAPER IN INTERACTIVE FORM, not a status
       overview. Every figure ships with BOTH its `.caption.md` AND
       its `.summary.md` inline (paper has only the caption; dashboard

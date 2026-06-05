@@ -7,5 +7,5 @@ from research_os.tools.actions.data.data import (  # noqa: F401
     data_sample,
 )
 from research_os.tools.actions.data.intake import intake_autofill  # noqa: F401
-from research_os.tools.actions.data.intake_freshness import intake_freshness  # noqa: F401  v1.5.0
+from research_os.tools.actions.data.intake_freshness import intake_freshness  # noqa: F401
 from research_os.tools.actions.data.profiling import _profile_inputs  # noqa: F401

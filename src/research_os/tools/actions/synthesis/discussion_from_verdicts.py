@@ -1,10 +1,10 @@
-"""Discussion-from-verdicts synthesizer (v1.5.0 — Theme 1, gap 1).
+"""Discussion-from-verdicts synthesizer.
 
-The v1.4.0 audit gap: each step's ``literature/findings_vs_literature.md``
-records per-claim verdicts (AGREES | DISAGREES | EXTENDS | DEFERRED)
-plus a "Discussion implication" block — but nothing piped those
-implications into ``synthesis/discussion.md``. The literature loop was
-write-only.
+Each step's ``literature/findings_vs_literature.md`` records per-claim
+verdicts (AGREES | DISAGREES | EXTENDS | DEFERRED) plus a "Discussion
+implication" block — without this synthesizer nothing piped those
+implications into ``synthesis/discussion.md``, leaving the literature
+loop write-only.
 
 This module reads every step's verdict file, emits one Discussion
 paragraph per non-AGREES verdict citing the contested literature, and
@@ -120,12 +120,12 @@ def discussion_coverage_audit(root: Path) -> dict[str, Any]:
         uncovered: list[dict[str, Any]] = []
         covered: list[dict[str, Any]] = []
         for r in non_agrees:
-            # v1.5.1 (carried from v1.5.0 stress-audit) — word-boundary
-            # regex match (was substring `in disc_text`, which
-            # over-credited stem-prefix words: 'expr' hit 'expression').
-            # Also: when a claim has <=2 keywords, require ALL of them —
-            # previous `max(2, ...)` made short claims like "BMI rises"
-            # or "Cox PH fits" unprovably uncovered.
+            # Word-boundary regex match. A plain substring `in
+            # disc_text` would over-credit stem-prefix words ('expr'
+            # hits 'expression'). Also: when a claim has <=2 keywords,
+            # require ALL of them — `max(2, ...)` would make short
+            # claims like "BMI rises" or "Cox PH fits" unprovably
+            # uncovered.
             claim_words = [
                 w.lower() for w in re.findall(r"[A-Za-z]{4,}", r["claim"])
             ][:6]

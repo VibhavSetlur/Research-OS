@@ -629,10 +629,10 @@ _REPORT_EXTS = {".md", ".txt", ".html", ".rst"}
 def _figure_table_inventory(exp_dir: Path) -> dict[str, list[str]]:
     """Inventory of REAL artefacts under outputs/{figures,tables,reports}.
 
-    v1.3.0: filter by extension so caption / summary / prov sidecars
-    don't pollute the figure list — that was producing READMEs that
-    looked like the step had 16 figures when it actually had 4 figures
-    plus 12 metadata files for them.
+    Filter by extension so caption / summary / prov sidecars don't
+    pollute the figure list — without this, READMEs would report a step
+    with 16 figures when it actually had 4 figures plus 12 metadata
+    files for them.
     """
     bucket_exts = {
         "figures": _FIGURE_EXTS,
@@ -741,10 +741,10 @@ def finalize_path(
         changes.append("environment/README.md → bespoke-env listing")
 
     lit_dir = exp_dir / "literature"
-    # v1.3.1: auto-populate the step's literature/key_papers.md from the
+    # Auto-populate the step's literature/key_papers.md from the
     # `## References to ground` section the AI wrote in conclusions.md.
-    # Previously this file stayed as a seed template for every step
-    # because the AI rarely opened it to manually fill it in.
+    # Otherwise this file stays as a seed template for every step
+    # because the AI rarely opens it to manually fill it in.
     _early_conc_path = exp_dir / "conclusions.md"
     if _early_conc_path.exists() and lit_dir.exists():
         try:
@@ -834,11 +834,11 @@ def finalize_path(
     ] if ctx_dir.exists() else []
     plain_summary_from_context = ""
     notes_path = ctx_dir / "notes.md"
-    # v1.3.0: scan both context/notes.md AND conclusions.md for the
-    # plain-language summary block. Earlier behaviour only checked
-    # notes.md, so an AI that wrote the summary inside conclusions.md
-    # (the natural place) was flagged as missing it. Accept several
-    # heading variants the AI is likely to use.
+    # Scan both context/notes.md AND conclusions.md for the
+    # plain-language summary block — an AI that wrote the summary
+    # inside conclusions.md (the natural place) should not be flagged
+    # as missing it. Accept several heading variants the AI is likely
+    # to use.
     summary_pat = re.compile(
         r"##\s*(?:Plain[- ]language\s+summary|Plain[- ]English\s+summary|TL;DR|Lay\s+summary)\s*\n(.+?)(?=^##|\Z)",
         flags=re.MULTILINE | re.DOTALL | re.IGNORECASE,
@@ -979,9 +979,9 @@ def finalize_path(
                 f"plain-English summaries → {len(summaries_written)} figure(s)"
             )
 
-    # ---- 6. (v1.3.0) Stub detection — surface as warnings so the AI
-    #         knows what's still empty before walking off the step. We do
-    #         NOT block: a researcher / autopilot AI may genuinely have
+    # ---- 6. Stub detection — surface as warnings so the AI knows
+    #         what's still empty before walking off the step. We do NOT
+    #         block: a researcher / autopilot AI may genuinely have
     #         decided some sections aren't applicable. The warnings
     #         themselves are the audit trail.
     warnings: list[str] = []
@@ -1000,13 +1000,11 @@ def finalize_path(
                 "the technical text."
             )
 
-    # ---- 7. (v1.3.0) Per-step → project-scope file refresh.
-    #         The original finalize was purely *observational* — it
-    #         summarised what existed without writing into the
-    #         project-scope append-only logs (workspace/methods.md,
-    #         analysis.md, citations.md). That made it easy to ship a
-    #         step whose work never reached the project's running record.
-    #         Now finalize touches all three idempotently.
+    # ---- 7. Per-step → project-scope file refresh.
+    #         Finalize touches workspace/methods.md, analysis.md, and
+    #         citations.md idempotently. Without this, a step's work
+    #         never reaches the project's running record (the finalize
+    #         is otherwise purely observational).
     project_updates: list[str] = []
 
     # 7a. workspace/analysis.md — append a step-complete heading + the
@@ -1069,10 +1067,10 @@ def finalize_path(
     except Exception as e:
         logger.debug("citations.md regen skipped: %s", e)
 
-    # 7c-0. (v1.3.1) Anti-hallucination: if conclusions.md cites
-    #       references but the project's searches.log has NO
-    #       `tool_search_*` entries, warn loudly. Researcher needs to
-    #       know the citations weren't grounded in actual lookups.
+    # 7c-0. Anti-hallucination: if conclusions.md cites references but
+    #       the project's searches.log has NO `tool_search_*` entries,
+    #       warn loudly. Researcher needs to know the citations weren't
+    #       grounded in actual lookups.
     if conc_path.exists():
         try:
             conc_full_for_lit = conc_path.read_text()
@@ -1103,11 +1101,11 @@ def finalize_path(
         except Exception as e:
             logger.debug("search-grounding check skipped: %s", e)
 
-    # 7c-i. (v1.3.1) Mirror conclusions.md's `## Decision` block into
+    # 7c-i. Mirror conclusions.md's `## Decision` block into
     #       workspace/analysis.md as a formal decision-log entry via
-    #       `log_decision`. Previously the AI had to call mem_decision_log
-    #       manually and rarely did (0 calls across 10 e2e steps); the
-    #       decision text WAS in conclusions.md the whole time.
+    #       `log_decision`. Otherwise the AI has to call
+    #       mem_decision_log manually and rarely does; the decision
+    #       text is in conclusions.md regardless.
     DECISION_VERBS = {"PROCEED", "BRANCH", "DEAD-END", "DEAD_END", "HOLD", "ABANDON"}
     if conc_path.exists():
         try:
@@ -1166,7 +1164,7 @@ def finalize_path(
                 if not tools_body:
                     scripts_dir = exp_dir / "scripts"
                     imports: set[str] = set()
-                    # v1.3.1: filter out the Python stdlib + Research-OS
+                    # Filter out the Python stdlib + Research-OS
                     # bookkeeping modules so tools.md captures the ACTUAL
                     # analysis stack (statsmodels / scanpy / DESeq2 / ...)
                     # not noise (pathlib / sys / warnings / json / re).
@@ -1187,12 +1185,12 @@ def finalize_path(
                         # __future__
                         "__future__",
                     }
-                    # v1.3.4: drop common-English fake-package words that
-                    # leak in when a docstring or comment-stripped pass
-                    # accidentally matches the import regex (the 22-turn
-                    # stress test surfaced tools.md showing `"the"` as a
-                    # package). Stricter regex + an English-stopword
-                    # filter both apply.
+                    # Drop common-English fake-package words that leak
+                    # in when a docstring or comment-stripped pass
+                    # accidentally matches the import regex (without
+                    # this, tools.md can show `"the"` as a package).
+                    # Stricter regex + an English-stopword filter both
+                    # apply.
                     ENGLISH_STOPWORDS = {
                         "the", "a", "an", "and", "or", "of", "for", "to",
                         "in", "on", "at", "by", "as", "is", "it", "be",
@@ -1238,14 +1236,11 @@ def finalize_path(
                             f"- `{i}` — third-party / domain package used by step scripts." for i in bullets
                         )
                     else:
-                        # v1.3.4: always emit SOMETHING under the section
-                        # so the marker is written and the next finalize
-                        # is idempotent. Prior behaviour skipped the
-                        # whole tools.md append on empty-bullets, which
-                        # caused steps with stdlib-only scripts to leave
-                        # NO entry — the 22-turn stress test had steps
-                        # 02/06/08/09/10 missing despite all 10 being
-                        # finalized.
+                        # Always emit SOMETHING under the section so the
+                        # marker is written and the next finalize is
+                        # idempotent. Without this, steps with
+                        # stdlib-only scripts skip the whole tools.md
+                        # append on empty-bullets, leaving NO entry.
                         tools_body = (
                             "_(No third-party packages detected in this "
                             "step's scripts beyond the Python stdlib + "
@@ -1265,11 +1260,11 @@ def finalize_path(
 
     # 7d. Per-step environment snapshot — if outputs/figures, tables, or
     #     reports exist (i.e. work happened) the step's runtime stack
-    #     MUST be captured. v1.3.0 changes the behaviour from "warn" to
-    #     "auto-snapshot the project-global env if requirements.txt is
-    #     still the comment-only template", then warn if even that fails
-    #     or if a per-step environment would have been more appropriate
-    #     (different lang stack than the project default).
+    #     MUST be captured. Auto-snapshot the project-global env if
+    #     requirements.txt is still the comment-only template; warn if
+    #     even that fails or if a per-step environment would have been
+    #     more appropriate (different lang stack than the project
+    #     default).
     work_happened = bool(inv["figures"] or inv["tables"] or inv["reports"])
     project_req = root / "environment" / "requirements.txt"
     is_template_empty = (
@@ -1285,11 +1280,12 @@ def finalize_path(
         try:
             from research_os.tools.actions.exec.environment import env_snapshot
 
-            # v1.3.1: pass `scope='project'` explicitly so the snapshot
-            # lands in the project-global environment/ folder (the auto-
+            # Pass `scope='project'` explicitly so the snapshot lands
+            # in the project-global environment/ folder. The auto-
             # target rule for no-args lands in the most-recent active
-            # step's folder, NOT project-global — that's the wrong target
-            # when finalize is updating the GLOBAL requirements.txt).
+            # step's folder, NOT project-global — that's the wrong
+            # target when finalize is updating the GLOBAL
+            # requirements.txt.
             snap = env_snapshot(root, scope="project")
             if snap.get("status") == "success":
                 project_updates.append(
@@ -1306,11 +1302,11 @@ def finalize_path(
                 f"Auto-env-snapshot at finalize raised {type(e).__name__}: {e}. "
                 "Call `sys_env_snapshot` manually."
             )
-    # 7d-ii. (v1.3.1) Flip this step's state-ledger status to "completed"
-    #        + regenerate STATE.md so the project front page shows
-    #        ✓ instead of → after finalize. Previously, even a fully-
-    #        finalized step kept status="active" until next sys_path_create
-    #        flipped it as a side effect, leaving STATE.md misleading
+    # 7d-ii. Flip this step's state-ledger status to "completed" +
+    #        regenerate STATE.md so the project front page shows ✓
+    #        instead of → after finalize. Otherwise a fully-finalized
+    #        step keeps status="active" until next sys_path_create
+    #        flips it as a side effect, leaving STATE.md misleading
     #        between steps.
     try:
         from research_os.project_ops import load_state, save_state
@@ -1336,13 +1332,12 @@ def finalize_path(
             f"per-step capture."
         )
 
-    # 7e. (v1.3.0 round-2) Per-figure quality audit gate.
+    # 7e. Per-figure quality audit gate.
     #     Every figure that landed in outputs/figures/ is run through
     #     the same DPI / dimension / sidecar / aspect-ratio checks the
     #     pre-submission audit uses. Blockers and warnings surface here
-    #     so the AI sees them now, not at synthesis time. This
-    #     enforces the "audit visualizations at the per-step gate"
-    #     rule the user requested for v1.3.0.
+    #     so the AI sees them now, not at synthesis time. Audits
+    #     visualizations at the per-step gate.
     figure_audit: dict[str, dict[str, list[str]]] = {}
     if inv["figures"]:
         try:
@@ -1369,8 +1364,8 @@ def finalize_path(
                 for w in fwarn:
                     warnings.append(f"figure `{fig_name}` warning: {w}")
 
-    # 7f. (v1.3.3) Emit step_summary.yaml — structured machine-readable
-    #     mirror of conclusions.md the synthesis pipeline consumes
+    # 7f. Emit step_summary.yaml — structured machine-readable mirror
+    #     of conclusions.md the synthesis pipeline consumes
     #     deterministically (no NLP parsing required to compose the
     #     paper / abstract / dashboard).
     try:
@@ -1425,7 +1420,7 @@ def finalize_path(
     except Exception as e:
         logger.debug("step_summary build skipped: %s", e)
 
-    # 7g. (v1.3.3) Per-step retrospective — append "Anticipated reviewer
+    # 7g. Per-step retrospective — append "Anticipated reviewer
     #     questions" section to conclusions.md so the AI's own self-
     #     critique is on record. Idempotent on the marker.
     try:
@@ -1464,10 +1459,10 @@ def finalize_path(
         "warnings": warnings,
         "figure_audit": figure_audit,
         "decisions_linked": len(decisions),
-        # Renamed in v1.3.0 — `output_files` was ambiguous (counted
-        # data/output/ only, while researchers expected the total of
-        # outputs/figures + tables + reports + data/output). Both kept
-        # for back-compat; the count fields now read more naturally.
+        # `output_files` was ambiguous (counted data/output/ only,
+        # while researchers expected the total of outputs/figures +
+        # tables + reports + data/output). Both kept for back-compat;
+        # the count fields now read more naturally.
         "data_output_files": len(out_files),
         "output_files": len(out_files),
         "figures": len(inv["figures"]),
@@ -1529,12 +1524,11 @@ def _section(text: str, header: str) -> str:
 def _bullet_lines(section_text: str) -> list[str]:
     """Pull `- bullet` / `* bullet` / `+ bullet` lines from a section.
 
-    v1.3.4: if no bullets are found but the section IS non-empty
-    (prose-led or table-led Findings), fall back to sentence-split
-    so the structured `step_summary.yaml.findings` is never silently
-    empty. The 22-turn stress test surfaced this: step 01 wrote
-    prose Findings, step 04 wrote table-led Findings — both came
-    out as `findings: []` in their step_summary.yaml.
+    If no bullets are found but the section IS non-empty (prose-led
+    or table-led Findings), fall back to sentence-split so the
+    structured ``step_summary.yaml.findings`` is never silently empty
+    (a prose Findings or a table-led Findings would otherwise come out
+    as ``findings: []``).
     """
     if not section_text:
         return []
@@ -1572,7 +1566,7 @@ def _anticipated_reviewer_questions(
     n_figures: int,
     n_tables: int,
 ) -> list[str]:
-    """v1.3.3: scaffolded reviewer-perspective self-critique questions.
+    """Scaffolded reviewer-perspective self-critique questions.
 
     Generic patterns + content-aware variants. The AI rewrites these
     in its own voice; we just guarantee the section is there.
@@ -1665,10 +1659,10 @@ def _shorten(body: str, max_chars: int = 800) -> str:
 def _headline_from_findings(conclusions: str) -> str:
     """Pull the most quotable headline from the conclusions' Findings.
 
-    v1.3.0 changes:
+    Rules:
       * Joins continuation lines under the first bullet (markdown
-        bullets often wrap; previously we cut at the first newline,
-        producing fragments like 'n = 334 retained from 337 raw rows;').
+        bullets often wrap; cutting at the first newline produces
+        fragments like 'n = 334 retained from 337 raw rows;').
       * Cuts at the first sentence end (period/semicolon) AFTER a
         minimum length so the headline is one sentence, not a paragraph.
       * Strips markdown emphasis (`**bold**`) from the headline.

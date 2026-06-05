@@ -22,10 +22,10 @@ import yaml
 logger = logging.getLogger("research_os.tools.config")
 
 
-# v1.3.2: prefer ruamel.yaml for round-trip writes so the rich inline
-# help comments in CONFIG_TEMPLATE survive every override. Falls back
-# to PyYAML when ruamel.yaml isn't installed — the structure is
-# preserved either way, only the comments are lost on the fallback path.
+# Prefer ruamel.yaml for round-trip writes so the rich inline help
+# comments in CONFIG_TEMPLATE survive every override. Falls back to
+# PyYAML when ruamel.yaml isn't installed — the structure is preserved
+# either way, only the comments are lost on the fallback path.
 try:
     from ruamel.yaml import YAML as _RuamelYAML  # type: ignore
     _ruamel = _RuamelYAML()
@@ -156,7 +156,7 @@ def _config_path(root: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Cross-project profile (v1.3.0)
+# Cross-project profile
 # ---------------------------------------------------------------------------
 #
 # Researchers run `research-os init` repeatedly — once per project. Re-typing
@@ -322,7 +322,7 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     caller (``scaffold_minimal_workspace`` → ``regenerate_intake``) writes
     those to ``inputs/intake.md`` instead.
 
-    v1.3.0: cross-project profile at ``~/.config/research-os/profile.yaml``
+    The cross-project profile at ``~/.config/research-os/profile.yaml``
     is loaded as the starting point — researcher.name / email / orcid /
     institution / api_keys / writing_preferences seeded from there if
     present. Per-project overrides still win on conflict.
@@ -390,7 +390,7 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                     for k, v in api_keys_in.items():
                         if isinstance(v, str) and v.strip():
                             config.setdefault("api_keys", {})[k] = v.strip()
-            # v1.3.0: researcher identity (name / email / institution / orcid).
+            # Researcher identity (name / email / institution / orcid).
             if overrides.get("researcher"):
                 r_in = overrides["researcher"]
                 if isinstance(r_in, dict):

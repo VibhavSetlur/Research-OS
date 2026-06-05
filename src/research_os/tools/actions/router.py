@@ -278,7 +278,7 @@ def sys_boot(root: Path) -> dict[str, Any]:
         except Exception:
             paths_summary = []
 
-        # v1.3.3: long-context handoff hint. Once the project has 5+
+        # Long-context handoff hint. Once the project has 5+
         # finalized analysis steps, the AI is recommended to suggest
         # `sys_session_handoff` + a fresh chat before the next step.
         # Prevents the "AI one-shots step 6, 7, 8 in lossy context"
@@ -297,9 +297,9 @@ def sys_boot(root: Path) -> dict[str, Any]:
                 "STATE.md will let the next chat resume cleanly."
             )
 
-        # v1.5.0 — auto-check stale-state signals (Theme 11). Cheap;
-        # surfaces a "reconfirm?" prompt when the workspace has drifted
-        # since the last active session.
+        # Auto-check stale-state signals. Cheap; surfaces a
+        # "reconfirm?" prompt when the workspace has drifted since
+        # the last active session.
         freshness = {"is_stale": False, "signals": [], "prompt_for_ai": ""}
         try:
             from research_os.tools.actions.state.freshness import (
@@ -564,7 +564,7 @@ def route_request(
         prompt_norm = re.sub(r"\s+", " ", prompt_norm)
         is_complex = _is_complex(prompt_norm)
 
-        # v1.5.1 quick-mode pre-check. If the prompt explicitly signals
+        # Quick-mode pre-check. If the prompt explicitly signals
         # throwaway / sanity-check / exploratory intent, short-circuit
         # the protocol load. Results write to workspace/scratch/, no
         # audits fire. Researcher can promote later via tool_promote_to_step.
@@ -1053,11 +1053,11 @@ def _match_shortcut(prompt_norm: str, shortcuts: dict) -> dict | None:
 def _is_complex(prompt_norm: str) -> bool:
     """Decide whether a researcher prompt warrants persisted multi-step plan.
 
-    Tightened in v4.0:
-      * Word-count threshold lowered from 25 → 18 (most "fit a model and
-        write up the results" prompts fall just below 25).
-      * Verb threshold lowered from ≥3 → ≥2 — anything with two distinct
-        verbs should be planned.
+    Rules:
+      * Word count > 18 (most "fit a model and write up the results"
+        prompts fall just below 25, so we sit a bit lower).
+      * Verb count ≥ 2 — anything with two distinct verbs should be
+        planned.
       * Explicit deliverable-side phrases ("full project", "end to end",
         "from scratch", "everything", "wake me when") always trigger.
     """
@@ -1118,7 +1118,7 @@ def _persist_active_plan(
 
 
 def _load_active_plan(root: Path) -> dict | None:
-    """Load the active plan, auto-archiving stale plans (v1.3.2).
+    """Load the active plan, auto-archiving stale plans.
 
     A plan that hasn't been advanced in >7 days is almost certainly
     abandoned (researcher pivoted, AI session crashed). Auto-archive

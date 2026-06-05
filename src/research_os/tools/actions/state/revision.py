@@ -1,9 +1,9 @@
 """Step-level pause-and-revise heuristics.
 
-v1.3.3 — surfaces after a step finalize: should the researcher revise
-this step before proceeding? Branch into an alternative? Hand off to a
-fresh chat? The AI presents these options verbatim; only the
-researcher commits.
+Surfaces after a step finalize: should the researcher revise this step
+before proceeding? Branch into an alternative? Hand off to a fresh
+chat? The AI presents these options verbatim; only the researcher
+commits.
 
 The anti-one-shot doctrine: AI agents tend to "complete" long plans as
 fast as possible, which hurts quality because context fills, the AI
