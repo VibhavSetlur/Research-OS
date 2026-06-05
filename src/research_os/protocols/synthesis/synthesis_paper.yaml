@@ -2,6 +2,7 @@ id: synthesis_paper
 name: Synthesis — Paper (IMRAD, venue-tailored)
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Compile the final IMRAD paper into synthesis/paper.md (and
   synthesis/paper.tex → PDF when requested), tuned to the target venue.
@@ -10,12 +11,12 @@ description: |
   Server-side completeness gate blocks the assembly until every active
   step has a focal figure + caption + summary + non-stub conclusions.
 
-  **v1.3.3 multi-turn enforcement.** A paper is the highest-stakes
-  artefact in the project. Producing a publishable draft in ONE
-  research-os call is the anti-pattern — context fills, the AI stops
-  introspecting between sections, and the result is a 900-word sketch
-  that uses 10 of 17 figures (the failure mode observed in the v1.3.2
-  e2e). This protocol now enforces ONE section per researcher prompt:
+  **Multi-turn enforcement.** A paper is the highest-stakes artefact
+  in the project. Producing a publishable draft in ONE research-os
+  call is the anti-pattern — context fills, the AI stops introspecting
+  between sections, and the result is a sketchy draft that under-uses
+  the figure set. This protocol enforces ONE section per researcher
+  prompt:
 
     - turn 1: "outline the paper" → produces synthesis/outline.md
     - turn 2: "draft methods" → writes ONLY the Methods section
@@ -224,7 +225,7 @@ steps:
   - id: compile_pdf
     name: Compile to PDF (DEFAULT for any serious draft, not optional)
     description: |
-      v1.3.1: paper.md is the WORKING DRAFT. A markdown file is not a
+      paper.md is the WORKING DRAFT. A markdown file is not a
       publication artefact. EVERY journal-track / grant-track / poster-
       track deliverable must compile to PDF — either via LaTeX or
       Typst. Skip ONLY for purely-internal lab-meeting summaries.

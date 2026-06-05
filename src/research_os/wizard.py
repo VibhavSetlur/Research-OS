@@ -137,9 +137,9 @@ class WizardResult:
     api_keys: dict[str, str] = field(default_factory=dict)
     # Model tier — written into researcher_config.yaml as model_profile.
     model_profile: str = "medium"
-    # v1.3.0: researcher identity, written into researcher_config.yaml AND
-    # (when researcher opts in) ~/.config/research-os/profile.yaml so the
-    # next `research-os init` pre-fills these without asking.
+    # Researcher identity, written into researcher_config.yaml AND
+    # (when researcher opts in) ~/.config/research-os/profile.yaml so
+    # the next `research-os init` pre-fills these without asking.
     researcher_name: str = ""
     researcher_email: str = ""
     researcher_institution: str = ""

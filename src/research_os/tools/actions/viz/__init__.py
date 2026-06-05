@@ -14,9 +14,9 @@ about that script, and this module provides:
   consumed by ``tool_path_finalize`` / ``tool_audit_step_completeness``.
 * ``step_figure_inventory`` — used by the completeness gate.
 
-Removed in v1.3.0: ``figure_create`` / ``tool_figure_create`` and the
-30+ ``_render_*`` chart-kind dispatchers. The AI writes its own
-plotting code now. See CHANGELOG migration notes.
+``figure_create`` / ``tool_figure_create`` and the 30+ ``_render_*``
+chart-kind dispatchers have been removed — the AI writes its own
+plotting code. See CHANGELOG migration notes.
 """
 
 from research_os.tools.actions.viz.dashboard_tests import (

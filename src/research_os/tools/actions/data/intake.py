@@ -345,20 +345,19 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             else question_auto
         )
         hypotheses = _propose_hypotheses(context_text)
-        # v1.3.0 fallback: if context yields zero hypotheses but we DO have a
-        # research question (from --question flag or context inference), at
-        # least register the question itself as the central testable claim
-        # so downstream protocols have something to ground against.
+        # Fallback: if context yields zero hypotheses but we DO have a
+        # research question (from --question flag or context inference),
+        # at least register the question itself as the central testable
+        # claim so downstream protocols have something to ground
+        # against.
         #
-        # v1.3.4: the original `"We test whether " + lowercased question`
-        # template silently produced grammatically broken sentences when
-        # the question contained "and" / "or" / commas (the 22-turn stress
-        # test surfaced this: "We test whether which gene co-expression
-        # modules ... and " ran off mid-clause because the trailing "and"
-        # left a dangling conjunction). The fix: detect compound questions
-        # and either truncate at the first conjunction or wrap the full
-        # question in parentheses as a quoted hypothesis instead of a
-        # forced prose rewrite.
+        # A naive `"We test whether " + lowercased question` template
+        # silently produces grammatically broken sentences when the
+        # question contains "and" / "or" / commas — a trailing
+        # conjunction leaves a dangling clause. So: detect compound
+        # questions and either truncate at the first conjunction or
+        # wrap the full question in parentheses as a quoted hypothesis
+        # instead of a forced prose rewrite.
         if not hypotheses and question:
             q_stripped = question.rstrip("?").strip().rstrip(".,;: ")
             if len(q_stripped) >= 12:
@@ -384,7 +383,7 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
                         f"We test whether {q_stripped[0].lower()}{q_stripped[1:]}."
                     ]
 
-        # v1.3.0: surface named-paper references (e.g. "Cite Himes 2014") as
+        # Surface named-paper references (e.g. "Cite Himes 2014") as
         # explicit fetch suggestions so the AI knows to run a literature
         # search rather than silently hoping the PDF is already in
         # inputs/literature/.
@@ -409,12 +408,12 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             is_placeholder = any(m in current.lower() for m in placeholders)
             write = overwrite or is_placeholder or len(current.strip()) < 60
         if write:
-            # v1.3.2: richer research_overview.md — background pulled
+            # Build a richer research_overview.md — background pulled
             # from inputs/context/*.md, sample-table inferred from a
             # quick CSV row-count, named-paper references surfaced as
-            # a citations-to-find checklist, planned-analyses block
-            # so a fresh PI / reviewer can read the file alone and
-            # know what the project is about + where it's going.
+            # a citations-to-find checklist, planned-analyses block so
+            # a fresh PI / reviewer can read the file alone and know
+            # what the project is about + where it's going.
             rq_body_parts = [
                 f"# {state_pre.get('project_name') or 'Research Project'} — Overview",
                 "",

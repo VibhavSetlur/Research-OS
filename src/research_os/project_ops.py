@@ -68,10 +68,11 @@ TOP_LEVEL_DIRS = (
 )
 
 # Directories created EAGERLY (always populated, never empty after init).
-# inputs/{raw_data,literature,context} are eager from v1.3.0 — GETTING_STARTED
-# tells the researcher to drop files there, and the dirs must exist for that
-# `cp` to work without `mkdir -p` friction. Each is seeded with a tiny README
-# explaining what belongs there so an empty folder isn't a dead end.
+# inputs/{raw_data,literature,context} are eager because GETTING_STARTED
+# tells the researcher to drop files there, and the dirs must exist for
+# that `cp` to work without `mkdir -p` friction. Each is seeded with a
+# tiny README explaining what belongs there so an empty folder isn't a
+# dead end.
 EAGER_DIRS = (
     ".os_state",
     "docs",
@@ -96,8 +97,8 @@ def _has_user_inputs(root: Path) -> bool:
     """True iff the researcher has dropped real files into inputs/.
 
     Skips scaffold-seeded ``README.md`` files in each input subfolder
-    (added in v1.3.0 round-3 so an empty folder isn't a dead end) —
-    those don't count as user content.
+    (so an empty folder isn't a dead end) — those don't count as user
+    content.
     """
     for sub in ("raw_data", "literature", "context"):
         d = root / "inputs" / sub
@@ -197,9 +198,9 @@ def _resolve_root(root: Path | None = None) -> Path:
 def slugify(value: str, fallback: str = "path", *, max_len: int = 40) -> str:
     """Sanitise + truncate a slug for safe filesystem use.
 
-    v1.3.2: hardened — strips path-traversal sequences and caps length
-    to prevent absurdly-long step folder names. Returns ``fallback``
-    if the input contains no usable characters.
+    Strips path-traversal sequences and caps length to prevent
+    absurdly-long step folder names. Returns ``fallback`` if the input
+    contains no usable characters.
     """
     slug = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
     # Defence-in-depth against path traversal (the regex already strips
@@ -325,14 +326,13 @@ def _write_os_state_summary(root: Path) -> None:
     """Render the canonical project status — a researcher- AND AI-readable
     snapshot of what's going on.
 
-    v1.3.0: This file used to be ``.os_state/os_state.md`` (buried). It
-    is now ``STATE.md`` at the PROJECT ROOT so a fresh AI session can
-    find it without inside knowledge, and so a collaborator opening
-    the project sees the status immediately. The contents are richer:
-    not just "which paths exist" but the active research question,
-    the open hypotheses with status, the most-recent step finalized,
-    the next pipeline-recommended protocol, and the key files. A
-    plain-English "where to go from here" footer points new sessions
+    This file lives at ``STATE.md`` at the PROJECT ROOT so a fresh
+    AI session can find it without inside knowledge, and so a
+    collaborator opening the project sees the status immediately. The
+    contents include the active research question, the open hypotheses
+    with status, the most-recent step finalized, the next pipeline-
+    recommended protocol, and the key files. A plain-English "where to
+    go from here" footer points new sessions
     at AGENTS.md + sys_boot.
 
     Old ``.os_state/os_state.md`` is removed by the caller (save_state)
@@ -579,11 +579,11 @@ def scaffold_minimal_workspace(
 
     # 4. Append-only workspace logs — start EMPTY but with a header so the
     #    AI knows the file is initialised.
-    #    v1.3.0: researcher-facing wording. These files are read by
-    #    humans (you, your PI, a collaborator on a fresh chat). They
-    #    should not name internal tools by their MCP function name —
-    #    you don't care that `mem_analysis_log` is what writes here;
-    #    you care what the file IS and how to read it.
+    #    Researcher-facing wording. These files are read by humans
+    #    (you, your PI, a collaborator on a fresh chat). They should
+    #    not name internal tools by their MCP function name — you
+    #    don't care that `mem_analysis_log` is what writes here; you
+    #    care what the file IS and how to read it.
     for fname, header in [
         ("methods.md",
          "# Methods\n\n"
@@ -605,10 +605,10 @@ def scaffold_minimal_workspace(
          "step `literature/` folder. The Discussion / References of "
          "your paper draws from here. Regenerated whenever a step is "
          "finalized so newly-added PDFs appear automatically.\n"),
-        # v1.3.0 round-3: tools.md — append-only log of which Research-OS
-        # tools (and which 3rd-party packages, external services, web
-        # searches) were used in this project, when, and why. Surfaces
-        # the *provenance of the workflow* for reviewers + future
+        # tools.md — append-only log of which Research-OS tools (and
+        # which 3rd-party packages, external services, web searches)
+        # were used in this project, when, and why. Surfaces the
+        # *provenance of the workflow* for reviewers + future
         # collaborators in a single place — methods.md tells WHAT the
         # analysis did; tools.md tells WHICH MACHINERY enabled it.
         ("tools.md",
@@ -639,12 +639,11 @@ def scaffold_minimal_workspace(
             "    classDef complete fill:#d4edda,stroke:#28a745\n"
         )
 
-    # 5a. environment/ — project-global env scaffold (v1.3.0).
-    #     Previously a LAZY_DIR (empty until sys_env_snapshot wrote into
-    #     it). Researchers reported they couldn't tell whether the
-    #     workspace had a reproducible env story at all. Now eager: an
-    #     empty folder with two header files is enough for a fresh
-    #     researcher to know what goes here and how it gets filled.
+    # 5a. environment/ — project-global env scaffold.
+    #     Eager (not lazy) so a fresh researcher can tell whether the
+    #     workspace has a reproducible env story at all; an empty
+    #     folder with two header files is enough to point them at what
+    #     goes here and how it gets filled.
     env_dir = root / "environment"
     env_dir.mkdir(parents=True, exist_ok=True)
     env_req = env_dir / "requirements.txt"
@@ -678,8 +677,7 @@ def scaffold_minimal_workspace(
         )
 
     # 5a-b. workspace/logs/ — append-only audit/search/override trail.
-    #       Previously eager-scaffolded as an empty folder. v1.3.0:
-    #       ships with a README so researchers know what lands here
+    #       Ships with a README so researchers know what lands here
     #       and can grep across audit reports without first finding
     #       out the folder exists.
     logs_dir = root / "workspace" / "logs"
@@ -1886,12 +1884,12 @@ def create_numbered_experiment(
     workspace = root / "workspace"
     workspace.mkdir(parents=True, exist_ok=True)
 
-    # v1.3.0 round-3: enforce previous-step finalization. The user
-    # surfaced a case where the AI created step 02 with step 01 left in
-    # placeholder form (README + conclusions never filled, analysis.md
-    # missing step 01 entry). The fix is to refuse to scaffold step N+1
-    # while the most-recent main-path step (N) still has placeholder
-    # text in its README. The caller can override via
+    # Enforce previous-step finalization. Without this, the AI can
+    # create step 02 with step 01 left in placeholder form (README +
+    # conclusions never filled, analysis.md missing the step 01
+    # entry). The rule: refuse to scaffold step N+1 while the most-
+    # recent main-path step (N) still has placeholder text in its
+    # README. The caller can override via
     # ``enforce_predecessor_finalized=False`` — used by tests that
     # exercise multi-step scaffolding without going through the full
     # finalize workflow, and by ``sys_path_create`` when the researcher
@@ -1987,22 +1985,21 @@ def create_numbered_experiment(
 
     check_write_permitted(exp_dir)
 
-    # v1.3.0: `from_step` USED to `shutil.copytree` the whole source step
-    # into the new step, leaving outputs/figures/tables/reports/scripts
-    # all duplicated. That bloated the workspace, broke per-step
-    # provenance (the new step's outputs/ contained the previous step's
-    # artefacts before any code ran), and confused tool_path_finalize's
-    # inventory. The intent of `from_step` is "wire data/input from this
-    # step's output instead of the previous numbered step" — and now
-    # that's all it does. Everything else is scaffolded fresh.
+    # `from_step` ONLY wires data/input from the named step's output —
+    # nothing else. A naive `shutil.copytree` would duplicate
+    # outputs/figures/tables/reports/scripts, bloating the workspace,
+    # breaking per-step provenance (the new step's outputs/ would
+    # contain the previous step's artefacts before any code ran), and
+    # confusing tool_path_finalize's inventory. Everything else is
+    # scaffolded fresh.
     exp_dir.mkdir(parents=True, exist_ok=True)
     for sub in EXPERIMENT_SUBDIRS:
         (exp_dir / sub).mkdir(parents=True, exist_ok=True)
-    # v1.3.0: ALWAYS expose the project's inputs/raw_data/ via a
+    # ALWAYS expose the project's inputs/raw_data/ via a
     # `data/project_inputs` symlink so an analysis step can reach the
     # original data when its `data/input` (which prefers the upstream
-    # step's data/output/) is empty — common pitfall surfaced by the
-    # genomics e2e where step 02 inherited step 01's empty data/output.
+    # step's data/output/) is empty — a common pitfall where step 02
+    # inherits step 01's empty data/output.
     raw_inputs = root / "inputs" / "raw_data"
     raw_inputs.mkdir(parents=True, exist_ok=True)
     project_inputs_link = exp_dir / "data" / "project_inputs"
@@ -2225,17 +2222,16 @@ def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
 def _update_workflow_mermaid(root: Path) -> None:
     """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG.
 
-    v1.3.1: refuse to write into ``root/workspace/`` unless ``root`` is a
-    valid Research-OS project (``.os_state/`` present). The pollution
-    surfaced in v1.3.0 e2e: a misconfigured caller wrote
-    ``workspace/workflow.mermaid`` into the Research-OS source repo
-    because the writer didn't validate root.
+    Refuses to write into ``root/workspace/`` unless ``root`` is a
+    valid Research-OS project (``.os_state/`` present). Without that
+    guard, a misconfigured caller can pollute a non-project tree (e.g.
+    write ``workspace/workflow.mermaid`` into the Research-OS source
+    repo).
     """
     if not (root / ".os_state").is_dir():
-        # v1.3.1 guard against the pollution surfaced in v1.3.0 e2e:
-        # a misconfigured caller had written workspace/workflow.mermaid
-        # into the Research-OS source repo because this writer didn't
-        # check for `.os_state/`. Silent return is fine — the
+        # Guard against pollution of a non-project tree (e.g. a
+        # misconfigured caller writing workspace/workflow.mermaid into
+        # the Research-OS source repo). Silent return is fine — the
         # consequence of NOT writing the mermaid in a non-project dir
         # is exactly what we want.
         return
@@ -2315,10 +2311,10 @@ def generate_citations_md(root: Path) -> str:
         for step_dir in sorted(workspace.iterdir()):
             if not (step_dir.is_dir() and re.match(r"^\d{2,3}_", step_dir.name)):
                 continue
-            # 2a. v1.3.1: scrape `## References to ground` from each
-            # step's conclusions.md so prose-cited refs (the AI's most
-            # common pattern) make it into the project bibliography
-            # without requiring a per-paper sidecar.
+            # 2a. Scrape `## References to ground` from each step's
+            # conclusions.md so prose-cited refs (the AI's most common
+            # pattern) make it into the project bibliography without
+            # requiring a per-paper sidecar.
             conc = step_dir / "conclusions.md"
             if conc.exists():
                 try:

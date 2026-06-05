@@ -25,9 +25,9 @@ that workflow:
 * ``step_figure_inventory(step_id, root)`` — lists every figure
   produced by a step + its sidecar status. Used by the audit gate.
 
-Removed in v1.3.0 (was "premade chart code masquerading as guidance"):
 ``figure_create`` / ``tool_figure_create`` and all ``_render_*``
-chart-kind dispatchers. The AI writes its own plotting code now. See
+chart-kind dispatchers were removed (they were premade chart code
+masquerading as guidance). The AI writes its own plotting code. See
 CHANGELOG → migration.
 """
 
@@ -292,10 +292,10 @@ def audit_figure_quality(
                     )
                 except ValueError:
                     continue
-            # v1.3.1 — Pattern 2: matplotlib wraps every text in a <g
+            # Pattern 2: matplotlib wraps every text in a <g
             # transform="translate(X Y)" ...><text>...</text></g> with
             # the text element itself having no x/y. Parse the translate
-            # so the e2e's matplotlib SVGs actually get audited.
+            # so matplotlib SVGs actually get audited.
             mpl_pat = re.compile(
                 r"<g[^>]*?transform=\"translate\(([\d.\-]+)\s+([\d.\-]+)\)\"[^>]*?>"
                 r"\s*(?:<g[^>]*?>\s*)?"

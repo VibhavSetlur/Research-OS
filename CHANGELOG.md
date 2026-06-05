@@ -6,6 +6,67 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.5.3] — Token-waste hygiene PATCH: strip historical version commentary from live doctrine (2026-06-05)
+
+PATCH release. Implements ROADMAP Theme 26: live-doctrine vs
+historical-commentary separation. Strips inline `v1.X.Y` references,
+"as of vN", "previously this clobbered, now we …", and
+"promoted from WARN to BLOCK in vN" narrative from protocol bodies,
+MCP tool descriptions, and tool-action code comments. Doctrine is now
+timeless; version history stays in CHANGELOG + git log + `version:`
+/ `last_reviewed:` fields.
+
+### Changed
+
+- 13 protocol YAMLs cleaned (audit/, guidance/, literature/,
+  synthesis/, visualization/, writing/). The `version:` field is
+  unchanged (PATCH; doctrine unchanged). `last_reviewed:` bumped to
+  `'2026-06-04'` on every touched protocol.
+- `src/research_os/server.py` — 48 tool-description / section-header
+  strings stripped of version commentary. Every `sys_tool_describe`
+  + every routing call now sees cleaner descriptions.
+- `src/research_os/tools/actions/**/*.py` — 100+ inline comments +
+  module docstrings cleaned. Load-bearing "why this is non-obvious"
+  comments preserved; "vN added this" narration removed.
+- `src/research_os/project_ops.py` + `wizard.py` — cleaned.
+
+### Added
+
+- `scripts/lint_no_version_chatter.py` — regex linter over the live
+  surfaces. Flags `v\d+\.\d+(?:\.\d+)?` references plus the common
+  "previously this / was the bug / promoted from WARN to BLOCK in vN"
+  phrasings. Modes: `--strict` (fail on any hit), `--diff` (fail only
+  on hits in files modified vs HEAD), `--quiet` (summary only).
+- Preflight check #15: "No historical version commentary in live
+  doctrine" — invokes the linter and fails the build if any hit
+  remains. Preflight count: 14 → 15.
+- `docs/PROTOCOL_DOCTRINE.md` — new "No version commentary in live
+  bodies" section codifying the rule, the rationale, and the
+  enforcement mechanism.
+
+### Token savings
+
+- Net **−4.4 KB** across 43 modified files (`+443 / −460` line
+  count; `+31,120 / −35,514` bytes).
+- ~80 chatter-laden lines stripped from the protocol routing surface
+  (every routing call now pays less context).
+- Embeddings rebuilt against the cleaner descriptions.
+
+### Validation
+
+- `python scripts/preflight.py` — 15/15
+- `python -m pytest -q` — all pass
+- `ruff check src/ tests/ scripts/` — clean
+- No tool count change; no protocol count change; no behavioral change.
+
+### Why a PATCH, not MINOR
+
+Pure refactor — no new tools, no new protocols, no new config knobs,
+no behavior change. Existing projects upgrade transparently and pay
+fewer tokens per session.
+
+---
+
 ## [1.5.2] — Fix v1.5.1 stress-audit blockers that missed the v1.5.1 race (2026-06-05)
 
 PATCH release. Ships the three critical fixes the v1.5.1 stress audit

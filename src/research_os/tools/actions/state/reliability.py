@@ -1,4 +1,4 @@
-"""Telemetry-free local reliability logging (v1.5.0 — Theme 9).
+"""Telemetry-free local reliability logging.
 
 Writes one JSONL event per significant occurrence (gate fire, tool error,
 recovery, abandon) to ``workspace/.os_state/reliability.jsonl``. Local

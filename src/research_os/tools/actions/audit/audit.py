@@ -85,11 +85,12 @@ def audit_synthesis(
                 end = min(len(lower), m.end() + 40)
                 causal_hits.append({"term": term.strip("\\b "), "context": lower[start:end]})
 
-        # Citation density: count [@key] or \cite{key}
-        # v1.3.4: ALSO count author-year prose form `(Author 2024)` / `(Author
-        # et al. 2024)` / `(Author, 2024)` since most modern Markdown drafts
-        # use that style instead of Pandoc citekeys. v1.3.3 over-reported
-        # citation_count=0 on a 5,500-word draft that had 35 author-year refs.
+        # Citation density: count [@key] or \cite{key}, and ALSO count
+        # author-year prose form `(Author 2024)` / `(Author et al.
+        # 2024)` / `(Author, 2024)` since most modern Markdown drafts
+        # use that style instead of Pandoc citekeys. Without the
+        # author-year regex, citation_count under-reports on drafts
+        # that use prose citations.
         citations_pandoc = re.findall(r"\[@[^\]]+\]|\\cite\{[^}]+\}", text)
         citations_authoryear = re.findall(
             r"\(([A-Z][a-zA-Z\-]+(?:\s+et\s+al\.?)?(?:\s*&\s*[A-Z][a-zA-Z\-]+)?(?:\s*,)?\s+(?:19|20)\d{2}[a-z]?)\)",
@@ -111,11 +112,11 @@ def audit_synthesis(
 
         has_bibliography = "## references" in lower or "\\bibliography" in text
 
-        # v1.3.3: quality-bar gates against the available workspace evidence.
-        # The previous audit only checked structural completeness (sections
-        # exist, citations cited). It missed the actual failure mode the
-        # v1.3.2 e2e surfaced: paper.md was 900 words and used 10 of 17
-        # workspace figures — structurally fine, substantively a sketch.
+        # Quality-bar gates against the available workspace evidence.
+        # A purely structural audit (sections exist, citations cited)
+        # misses the failure mode where paper.md is 900 words and uses
+        # 10 of 17 workspace figures — structurally fine, substantively
+        # a sketch.
         workspace = root / "workspace"
         figures_available = []
         if workspace.is_dir():
@@ -142,10 +143,10 @@ def audit_synthesis(
         coverage = (figures_used_from_workspace / n_available) if n_available else 1.0
 
         # Word counts per IMRAD section.
-        # v1.3.4: terminator `^##\s` (require space) so `###` / `####`
-        # sub-section headers don't truncate the parent section. Previous
-        # form `^##` was the bug that forced turn-22 of the stress test
-        # to demote sub-headers to bold so the audit would count properly.
+        # Terminator `^##\s` (require space) so `###` / `####`
+        # sub-section headers don't truncate the parent section. A
+        # plain `^##` form would force sub-headers to be demoted to
+        # bold for the audit to count properly.
         section_word_counts: dict[str, int] = {}
         for sec in ("abstract", "introduction", "methods", "results", "discussion"):
             m = re.search(
@@ -203,9 +204,9 @@ def audit_synthesis(
                     "`## Findings` blocks."
                 )
 
-        # v1.3.4: pre-initialise the new aggregation fields so the
-        # report dict builds before the step-warning + citations-md
-        # walks (which run below + populate them).
+        # Pre-initialise the aggregation fields so the report dict
+        # builds before the step-warning + citations-md walks (which
+        # run below + populate them).
         propagated_step_warnings: list[dict[str, Any]] = []
         recurring_blockers: list[str] = []
         unverified_citations = 0
@@ -241,12 +242,12 @@ def audit_synthesis(
             f"- Bibliography present: {has_bibliography}\n"
         )
 
-        # v1.3.4: aggregate per-step warnings from every step_summary.yaml.
-        # The audit was previously structural-only — it never opened the
-        # per-step ledger, so a project where 10 steps each carried
-        # "literature grounding deferred" silently passed synthesis. Now
-        # we walk every workspace step's yaml, pull `warnings: [...]`,
-        # and dedupe by signature; any signature that recurs across ≥3
+        # Aggregate per-step warnings from every step_summary.yaml.
+        # A purely structural audit never opens the per-step ledger,
+        # so a project where 10 steps each carried "literature
+        # grounding deferred" would silently pass synthesis. Walk
+        # every workspace step's yaml, pull `warnings: [...]`, and
+        # dedupe by signature; any signature that recurs across ≥3
         # steps (or any signature matching the literature-deferred
         # pattern, regardless of count) escalates to a gate_blocker.
         try:
@@ -267,12 +268,12 @@ def audit_synthesis(
                 for w in (ss.get("warnings") or []):
                     sig = re.sub(r"\s+", " ", str(w))[:60].lower().strip()
                     sig_to_steps.setdefault(sig, []).append(step_dir.name)
-                # v1.4.0: per-step literature deferrals are first-class.
+                # Per-step literature deferrals are first-class.
                 ld = ss.get("literature_deferred") or []
                 if isinstance(ld, list) and ld:
                     lit_deferred_steps.append(step_dir.name)
-                # v1.4.0: literature.claims_grounded == 0 means the step
-                # ran the loop but found nothing — also a deferral signal.
+                # literature.claims_grounded == 0 means the step ran
+                # the loop but found nothing — also a deferral signal.
                 lit_block = ss.get("literature") or {}
                 if (
                     isinstance(lit_block, dict)
@@ -300,7 +301,7 @@ def audit_synthesis(
                         "before synthesis — the deferred-pattern audit gate "
                         "blocks final assembly until resolved."
                     )
-            # v1.4.0: surface per-step literature_deferred + zero-grounding.
+            # Surface per-step literature_deferred + zero-grounding.
             if lit_deferred_steps:
                 recurring_blockers.append(
                     f"{len(lit_deferred_steps)} step(s) have non-empty "
@@ -323,7 +324,7 @@ def audit_synthesis(
         except Exception as e:
             logger.debug("step-warning aggregation skipped: %s", e)
 
-        # v1.3.4: hard-block on `pending verification` citations.
+        # Hard-block on `pending verification` citations.
         # citations.md aggregates per-step ## References to ground + per-PDF
         # sidecars; if ANY entry is still pending after the synthesis
         # paper has been drafted, the audit must block (override via
@@ -352,10 +353,10 @@ def audit_synthesis(
         # escalation logic below treats them with full BLOCKER weight.
         gate_blockers.extend(recurring_blockers)
 
-        # v1.5.0 — default-deny when zero PDFs across all literature-required
-        # steps. Closes the v1.4.0 audit gap where `papers_downloaded == 0`
-        # with mixed AGREES sailed through. Override path:
-        # override_no_pdfs=true + override_rationale=...
+        # Default-deny when zero PDFs across all literature-required
+        # steps. Closes the audit gap where `papers_downloaded == 0`
+        # with mixed AGREES would otherwise sail through. Override
+        # path: override_no_pdfs=true + override_rationale=...
         zero_pdf_block = ""
         try:
             import yaml as _yaml_mod
@@ -387,10 +388,9 @@ def audit_synthesis(
                 total_pdfs += sum(1 for _ in project_lit_dir.glob("*.pdf"))
             report["literature_required_steps"] = lit_required_steps
             report["total_pdfs_across_workspace"] = total_pdfs
-            # v1.5.1 — require BOTH override_no_pdfs=true AND a non-empty
-            # override_rationale. v1.5.0 stress audit caught the case
-            # where the boolean alone silently bypassed the gate and left
-            # no audit trail.
+            # Require BOTH override_no_pdfs=true AND a non-empty
+            # override_rationale. The boolean alone would silently
+            # bypass the gate and leave no audit trail.
             override_active = (
                 bool(override_no_pdfs) and bool(override_rationale.strip())
             )
@@ -436,12 +436,13 @@ def audit_synthesis(
         report["unverified_citations"] = unverified_citations
         report["gate_blockers"] = gate_blockers
 
-        # v1.3.3: gate_blockers (quality bars) escalate to status='error'
-        # — but ONLY when the paper is large enough to plausibly be a real
-        # submission attempt. A 50-word stub fixture / early-draft scratch
-        # gets only warnings; the BLOCKER status fires once the paper has
-        # crossed the "looks like an actual paper" threshold (≥500 words
-        # total OR the AI explicitly called final_assembly).
+        # gate_blockers (quality bars) escalate to status='error' —
+        # but ONLY when the paper is large enough to plausibly be a
+        # real submission attempt. A 50-word stub fixture / early-
+        # draft scratch gets only warnings; the BLOCKER status fires
+        # once the paper has crossed the "looks like an actual paper"
+        # threshold (≥500 words total OR the AI explicitly called
+        # final_assembly).
         looks_like_real_paper = total_words >= 500
         if gate_blockers and looks_like_real_paper:
             status = "error"
@@ -1410,20 +1411,22 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
             "reproducible from this folder alone."
         )
 
-    # v1.5.0: missing scratch/stack_plan.md is now a BLOCKER (was WARN in
-    # v1.4.0). `methodology/pick_tool_stack` asks the AI to persist its
-    # language/library choice + the field-practice rationale before coding;
-    # a missing artefact means the choice was implicit (typically
-    # default-to-Python). Override: write the file with a one-line rationale
-    # — there is no flag-based bypass because the cost of writing the
-    # rationale down is small and the gap matters at synthesis time.
+    # Missing scratch/stack_plan.md is a BLOCKER.
+    # `methodology/pick_tool_stack` asks the AI to persist its
+    # language/library choice + the field-practice rationale before
+    # coding; a missing artefact means the choice was implicit
+    # (typically default-to-Python). Override: write the file with a
+    # one-line rationale — there is no flag-based bypass because the
+    # cost of writing the rationale down is small and the gap matters
+    # at synthesis time.
     if scripts:
         stack_plan = step_dir / "scratch" / "stack_plan.md"
         if not stack_plan.exists():
-            # v1.5.1 adaptive friction: honour active self-certification +
+            # Adaptive friction: honour active self-certification +
             # per-step skip annotation before BLOCKing. The rule still
             # applies; the gate just downgrades to a warning when the
-            # researcher has explicitly accepted accountability outside RO.
+            # researcher has explicitly accepted accountability outside
+            # RO.
             skipped = False
             try:
                 from research_os.tools.actions.state.certifications import (
@@ -1456,8 +1459,8 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
                     "library choice not documented. Run methodology/pick_tool_stack "
                     "to record the field-practice rationale (R Bioconductor for "
                     "bulk DE, Python scanpy for scRNA-seq, R survival for Cox PH, "
-                    "etc.). v1.5.0 BLOCKS — write at minimum a one-line "
-                    "rationale to scratch/stack_plan.md. v1.5.1: this gate "
+                    "etc.). This BLOCKS — write at minimum a one-line "
+                    "rationale to scratch/stack_plan.md. The gate "
                     "downgrades to a warning when tool_self_certify(domain="
                     "'stack_plan', ...) has been called OR when conclusions.md "
                     "carries <!-- ro:skip stack_plan, reason: ... -->."
@@ -1465,11 +1468,11 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
                 info["missing_stack_plan"] = True
 
     # 5. Multi-script steps must declare a pipeline.yaml (sub-task DAG).
-    #    Tightened in v1.0.0: a step that emits outputs in MULTIPLE
-    #    categories (figures + tables + reports) is "non-trivial" and
-    #    must be split into atomic sub-tasks — otherwise a single mega
-    #    script ends up producing every output, defeating reproducibility
-    #    and incremental re-runs. The rule:
+    #    A step that emits outputs in MULTIPLE categories (figures +
+    #    tables + reports) is "non-trivial" and must be split into
+    #    atomic sub-tasks — otherwise a single mega script ends up
+    #    producing every output, defeating reproducibility and
+    #    incremental re-runs. The rule:
     #      - >2 scripts, no pipeline.yaml             →  warning  (legacy)
     #      - outputs in ≥2 categories, 1 script       →  BLOCKER  (mega)
     #      - outputs in ≥2 categories, no pipeline.yaml → BLOCKER (mega)

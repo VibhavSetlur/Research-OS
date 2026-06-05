@@ -202,7 +202,7 @@ def download_literature(
         if not safe_name.lower().endswith((".pdf", ".epub", ".djvu", ".ps")):
             safe_name += ".pdf"
 
-        # v1.5.0 — paywall memory pre-check. Skip download retries when the
+        # Paywall memory pre-check. Skip download retries when the
         # URL/DOI is in workspace/.os_state/tool_failures.jsonl with
         # permanent=true OR has hit the max-retries threshold.
         try:
@@ -275,7 +275,7 @@ def download_literature(
             urllib.request.urlretrieve(url, out_path)
         except Exception as e:
             err_text = str(e)
-            # v1.5.0 — record the failure for paywall memory.
+            # Record the failure for paywall memory.
             if record_failure:
                 reason = "download_failed"
                 permanent_flag = False

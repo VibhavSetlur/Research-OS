@@ -35,30 +35,30 @@ from research_os.tools.actions.state.scratch import (  # noqa: F401
     scratch_run,
     scratch_write,
 )
-from research_os.tools.actions.state.reliability import (  # noqa: F401  v1.5.0
+from research_os.tools.actions.state.reliability import (  # noqa: F401
     log_event as reliability_log_event,
     reliability_report,
 )
-from research_os.tools.actions.state.freshness import (  # noqa: F401  v1.5.0
+from research_os.tools.actions.state.freshness import (  # noqa: F401
     state_freshness_check,
 )
-from research_os.tools.actions.state.paywall_memory import (  # noqa: F401  v1.5.0
+from research_os.tools.actions.state.paywall_memory import (  # noqa: F401
     is_known_bad,
     list_failures,
     record_failure,
     step_summary_failures,
 )
-from research_os.tools.actions.state.rigor_signals import (  # noqa: F401  v1.5.1
+from research_os.tools.actions.state.rigor_signals import (  # noqa: F401
     resolve_gate_strictness,
     rigor_signals_scan,
 )
-from research_os.tools.actions.state.certifications import (  # noqa: F401  v1.5.1
+from research_os.tools.actions.state.certifications import (  # noqa: F401
     has_active_certification,
     list_certifications,
     self_certify,
     step_has_skip_annotation,
 )
-from research_os.tools.actions.state.quick_mode import (  # noqa: F401  v1.5.1
+from research_os.tools.actions.state.quick_mode import (  # noqa: F401
     detect_quick_intent,
     project_tier_strictness,
     promote_to_step,

@@ -1,4 +1,4 @@
-"""Cross-step coherence audit (v1.5.0 — Theme 11).
+"""Cross-step coherence audit.
 
 Verifies every paragraph in ``synthesis/paper.md`` maps back to a step's
 ``conclusions.md`` via key-phrase overlap. Flags orphan paragraphs —
@@ -51,9 +51,9 @@ _CODE_FENCE_RE = re.compile(r"^\s*```")
 def _paragraphs(text: str) -> list[tuple[str, str]]:
     """Return (section, paragraph) pairs. Section is the most-recent ## heading.
 
-    v1.5.1 fixes (stress audit carried from v1.5.0): match any digit
-    prefix for numbered lists (not just '1.'), and track in_code state
-    so fenced-block bodies are skipped (not just the ``` fence line).
+    Match any digit prefix for numbered lists (not just '1.'), and
+    track in_code state so fenced-block bodies are skipped (not just
+    the ``` fence line).
     """
     out: list[tuple[str, str]] = []
     current_section = "preamble"

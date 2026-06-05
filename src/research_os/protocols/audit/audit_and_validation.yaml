@@ -2,6 +2,7 @@ id: audit_and_validation
 name: Audit & Validation
 version: '1.5.1'
 schema_version: '2.0'
+last_reviewed: '2026-06-04'
 description: |
   Validate citations, statistical assumptions, figure quality,
   per-step completeness, causal language, and code style across the
@@ -112,7 +113,7 @@ steps:
       Otherwise skip. Save warnings to workspace/logs/code_lint.md.
 
   - id: audit_coherence
-    name: Cross-step coherence audit (v1.5.0 — Theme 11)
+    name: Cross-step coherence audit
     description: |
       tool_audit_coherence
       Catches the failure mode where the Discussion / Results carries
@@ -124,7 +125,7 @@ steps:
       workspace/logs/coherence_audit.md.
 
   - id: audit_discussion_coverage
-    name: Verdict-coverage gate for the Discussion (v1.5.0 — Theme 1)
+    name: Verdict-coverage gate for the Discussion
     description: |
       tool_discussion_coverage_audit
       Every non-AGREES verdict in any step's
@@ -144,7 +145,7 @@ steps:
       The step-completeness section is mandatory — surface every BLOCKER
       from tool_audit_step_completeness at the top.
 
-      v1.5.0: include the reliability summary at the bottom by calling
+      Include the reliability summary at the bottom by calling
         tool_reliability_report
       so the report carries a redacted count of gate fires / tool errors
       this session. The researcher can paste this into a bug filing if

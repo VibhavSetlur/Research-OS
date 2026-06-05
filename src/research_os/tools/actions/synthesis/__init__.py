@@ -19,7 +19,7 @@ from research_os.tools.actions.synthesis.synthesize import (  # noqa: F401
     synthesize_plan,
     synthesize_workspace,
 )
-from research_os.tools.actions.synthesis.discussion_from_verdicts import (  # noqa: F401  v1.5.0
+from research_os.tools.actions.synthesis.discussion_from_verdicts import (  # noqa: F401
     discussion_coverage_audit,
     emit_discussion_paragraphs,
 )
