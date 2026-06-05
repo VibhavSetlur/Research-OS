@@ -1,0 +1,154 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index fff2c47..df922bc 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,16 +8,149 @@ Versioning: [SemVer](https://semver.org).
+ 
+ ## [Unreleased — v2.0.0]
+ 
++> **WORK-IN-PROGRESS SCAFFOLD.** Phase 16 will finalize this section with
++> the full validation matrix + per-cluster migration rows. The bullets
++> below are stubs to be filled in as each phase lands.
++
++### Highlights
++
++End-to-end coherent system, field-validated by 20 independent agents across 4
++perspectives (naive_ai, researcher, auditor, maintainer) × 5 scenarios
++(biology RNA-seq, humanities close reading, qualitative interviews,
++engineering benchmark, theory/math proof). Tool surface consolidated
++from ~352 to ~120 canonical names via the proven alias-with-param-injection
++pattern. Server.py refactored from a 7499-line monolith into a modular
++`server/` package. Five CRAFT-inspired additions land in this release:
++structured audit-as-data (JSON companions to every audit), review-rewrite
++loops on paper/slides/poster drafters, `research-os doctor` diagnostic,
++`docs/CONTRACT.md` stable-surface promise, and audience-segmented docs landing.
++
+ ### Added
+ 
++- **Audit-as-data** (Phase 4): every audit now emits a JSON companion
++  alongside the human-readable Markdown report. Schema
++  `src/research_os/schemas/audit_finding.schema.json` is part of the
++  stable v2.0.0 contract. New tools `tool_audit_findings(operation=query|diff)`
++  query the cross-audit findings ledger; `tool_synthesize` BLOCK-gates
++  on unresolved BLOCK findings.
++- **Review-rewrite loops** (Phase 5): paper / slides / poster drafters
++  iterate draft → adversarial review → rewrite, bounded by
++  `researcher_config.synthesis.drafter_loop_max_iterations` (default 3,
++  forced to 1 in throwaway tier). Per-iteration quality progression
++  written to `workspace/logs/drafter_loops/quality_progression.md`.
++- **`research-os doctor`** (Phase 6): 18+ install + workspace health
++  checks. Exit codes: 0=all-pass, 1=warn-only, 2=fail.
++- **`docs/CONTRACT.md`** (Phase 7): the v2.0.0 stable-surface promise.
++  Public tool names, audit-finding JSON schema, `researcher_config`
++  field names, workspace directory layout, and protocol routing
++  intent_class enum are all MAJOR-bumped on change.
++- **Audience-segmented docs landing** (Phase 7): `docs/README.md` is now
++  a four-audience router (researcher / AI agent / plugin author /
++  maintainer / integrator). New: `docs/PLUGIN_AUTHORING.md`,
++  `docs/MAINTAINER_GUIDE.md`, `docs/INTEGRATION.md`.
++- **Tier-aware router** (Phase 8): every protocol now carries a `tier:`
++  annotation (intake | plan | execute | ground | synthesize | review |
++  finalize). `tool_route` output gains `tier:` + `tier_transition:` so
++  the AI tracks situational awareness across long projects.
++  `workspace/.os_state/current_tier.json` persists state.
++- **Router discovery tools** (Phase 11a): `tool_protocols_list` (flat
++  AI-friendly protocol list, replaces grepping _router_index.yaml) +
++  `tool_tools_list` (flat AI-friendly tool list, replaces grepping
++  server.py). `tool_route` adds `why_matched` + `recommended_action`.
++- **`research-os ide config-path <name>`** (Phase 13 follow-up):
++  print the conventional MCP config path for one IDE.
++- **MCP `instructions` field** in server initialize handshake
++  (Phase 9 cross-cutting): the AI sees the boot sequence on first
++  connect: sys_boot → tool_route → sys_protocol_get(summary) →
++  sys_active_tools.
++
+ ### Changed
+ 
++- **`sys_protocol_get` default `format` is now `summary`** (was `full`).
++  This is the single biggest token-cost win for naive AI clients
++  per the Phase 15a baseline. Migration: pass `format="full"` explicitly
++  if you need the rich body.
++- **Tool surface consolidated** (Phase 9, ~232 → ~15 unified): see
++  `docs/V2_MIGRATION_TABLE.md` for the full old→new mapping. Legacy
++  names continue to dispatch via `_DEPRECATED_ALIASES` with
++  `_ALIAS_PARAM_INJECTION`; removal scheduled for v2.1.0.
++  - `tool_audit_*` (26 → 3): `tool_audit(scope, dimension)` +
++    `tool_audit_findings(operation)` + `tool_audit_quality_full`
++  - `tool_dashboard_*` (7 → 1): `tool_dashboard(operation)`
++  - `tool_step_*` (10 → 2): `tool_step` + `tool_step_pipeline`
++  - `tool_failure/reliability/lessons/dead_end/mistake_*` (10 → 2):
++    `tool_lessons(operation)` + `tool_reliability(operation)`
++  - `tool_sensitivity_*` (2 → 1): `tool_sensitivity(operation)`
++  - `tool_preregister_*` (2 → 1): `tool_preregister(operation)`
++  - `tool_reviewer/response_to_reviewers/rebuttal_*` (4 → 1):
++    `tool_reviewer(operation)`
++  - `tool_data_*` (3 → 1): `tool_data(operation)`
++  - `tool_figure_*` (4 → 1): `tool_figure(operation)`
++  - `tool_thought_*` (2 → 1): `tool_thought(operation)`
++- **server.py refactored into modular `server/` package** (Phase 10):
++  no single module exceeds 600 lines; the old top-level `server.py`
++  is now a backwards-compat shim. Public API
++  (`from research_os.server import TOOL_DEFINITIONS, _HANDLERS, ...`)
++  preserved.
++- **`tool_tools_list` defaults to `status='live'`** filter (Phase 9
++  cross-cutting): deprecated aliases are hidden from the discovery
++  surface by default. Pass `include_deprecated=true` to see them.
++- **Every tool gains `status: live|alias|deprecated` field** and
++  **every tool gains `pack: core|<pack>` field** (Phase 9 cross-cutting).
++- **Every protocol gains `scope_tags: {domain, audience, workflow_shape}`**
++  so the router filters wet_lab tools out of dry-lab queries.
++- **`tool_route` output gains `recommended_action`** (Phase 9 cross-cutting):
++  encodes the next call to make server-side instead of forcing the AI
++  to infer from `method + confidence + matched_protocols`.
++- **`.gitignore` template** (Phase 13 follow-up) now writes
++  `workspace/cache/` and `workspace/scratch/`.
++- **`research-os doctor` output** (Phase 13 follow-up) appends a
++  one-line exit-code policy footer.
++
+ ### Deprecated
+ 
++- All consolidated legacy tool names from Phase 9 (live as
++  `_DEPRECATED_ALIASES` for v2.0.x, hard-removed in v2.1.0). Full list
++  in `docs/V2_MIGRATION_TABLE.md`.
++
+ ### Removed
+ 
++- Aliases that hit their v1.6.1 deprecation runway (Phase 14a).
++- Orphan tools never called by any protocol/doc/test (Phase 14b).
++- tikzposter LaTeX poster path — fully replaced by Typst poster in
++  v1.11.0; tikzposter modules + templates deleted (Phase 14b).
++- Dead config fields from the v1.9.2 Lens 7 audit (Phase 14e).
++- Dead code from the v1.9.2 Lens 9 audit (Phase 14f).
++- See `docs/MIGRATION_v1_to_v2.md` for the per-name replacement path.
++
+ ### Fixed
+ 
++- MCP `initialize` response now reports the canonical `__version__`
++  rather than a stale hard-coded string (Phase 13 follow-up #1).
++- _setup_gitignore writes `workspace/cache/` and `workspace/scratch/`
++  so fresh inits don't trip the `gitignore_covers_state` doctor check
++  (Phase 13 follow-up #2).
++- New `research-os ide config-path <ide>` subcommand prints the
++  conventional MCP config path for shell pipelines (Phase 13 follow-up #3).
++- `doctor` output appends a one-line exit-code-policy footer
++  (Phase 13 follow-up #4).
++- (Phase 15a + 15b friction items: ~120 baseline, target ≤5 after
++  re-validation. Full per-item list TBD in Phase 16.)
++
++### Validation
++
++(TBD by Phase 16. Source: `docs/V2_VALIDATION_REPORT.md`.)
++
++Baseline (Phase 15a, pre-consolidation):
++- Avg rating: ~6.3/10
++- Total HIGH friction: ~120
++- 24 tools flagged never-called in ≥10/20 runs
++
++Re-validation (Phase 15b, post-consolidation + refactor + cleanup):
++- Avg rating: TBD
++- Total HIGH friction: TBD
++- Improvement delta: TBD
++
+ ---
+ 
+ ## [1.11.0] - v1.11.0 - Figure auto-embed + real slides/poster + reviewer scaffold + 8 deferred items closed (2026-06-05)
