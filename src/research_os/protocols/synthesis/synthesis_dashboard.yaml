@@ -94,7 +94,7 @@ quality_bar:
 prerequisite_gate:
   rule: |
     tool_dashboard_create soft-fails (renders with a warning ribbon)
-    when tool_audit_step_completeness has blockers. For the FINAL
+    when tool_audit(scope='step', dimension='completeness') has blockers. For the FINAL
     deliverable, resolve all blockers first.
 
 steps:
@@ -126,7 +126,7 @@ steps:
   - id: run_completeness_audit
     name: Run Step Completeness Audit
     description: |
-      tool_audit_step_completeness
+      tool_audit(scope='step', dimension='completeness')
       Reports per-step BLOCKERS for: missing focal figures, missing
       caption sidecars, stub conclusions, missing summary sidecars.
       Writes workspace/logs/step_completeness.md which the dashboard's
@@ -215,7 +215,7 @@ steps:
   - id: ensure_interactive_companions
     name: Ensure Per-Figure Interactive Companions
     description: |
-      tool_audit_figure_interactivity
+      tool_audit(scope='step', dimension='figure_interactivity')
       Walks workspace/<step>/outputs/figures/ and reports any figure
       that should have an HTML companion next to its PNG but doesn't:
         - >200-mark scatter / volcano / UMAP
@@ -306,7 +306,7 @@ steps:
         - No <script src="http..."> (must be fully offline)
         - No proper-noun call-outs unless the spec authorises them
       tool_citations_verify (references must all resolve).
-      tool_audit_step_completeness (resolve blockers before sharing).
+      tool_audit(scope='step', dimension='completeness') (resolve blockers before sharing).
 
   - id: share
     name: Tell the Researcher Where to Open It

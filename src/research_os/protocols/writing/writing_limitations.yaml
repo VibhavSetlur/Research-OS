@@ -205,7 +205,7 @@ steps:
     description: |
       sys_file_validate_md filepath="synthesis/limitations.md"
         protocol_name="writing_core"
-      Run tool_audit_prose on the section — surfaces vague
+      Run tool_audit(scope='project', dimension='prose') on the section — surfaces vague
       quantifiers ("some", "many", "a few") which are particularly
       damaging in limitations prose.
 

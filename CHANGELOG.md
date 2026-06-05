@@ -9,10 +9,15 @@ Versioning: [SemVer](https://semver.org).
 ## [Unreleased — v2.0.0]
 
 ### Added
+- `tool_audit(scope=, dimension=)` unified per-dimension audit dispatcher and `tool_audit_findings(operation=query|diff)` ledger reader. Both share the existing `_ALIAS_PARAM_INJECTION` / `_DEPRECATED_ALIASES` machinery so the prior tool surface (`tool_audit_synthesis`, `tool_audit_step_completeness`, `tool_audit_findings_query`, etc.) keeps dispatching with the legacy behaviour preserved end-to-end. `tool_audit_quality_full` stays separate as the canonical aggregator.
+- `docs/V2_MIGRATION_TABLE.md` — running ledger of every old→new tool consolidation (old name, new name, dispatch kwarg, value, status). First entry: the 26→3 audit-family collapse (phase-9-c1).
 
 ### Changed
+- Audit family consolidated 26 → 3 tools (phase-9-c1). 23 per-dimension `tool_audit_*` tools collapse into `tool_audit(scope=, dimension=)`; the 2 findings-ledger tools collapse into `tool_audit_findings(operation=)`. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output. `_ALIAS_PARAM_INJECTION` now accepts multi-kwarg specs (tuple of `(key, value)` pairs) so the audit family can inject both `scope` and `dimension` from a single alias.
+- All shipped protocol YAMLs that previously referenced per-dimension audit tool names now reference the consolidated `tool_audit(scope='…', dimension='…')` / `tool_audit_findings(operation='…')` form (96 substitutions across 33 protocol files) so reviewer-facing guidance stays on the canonical surface.
 
 ### Deprecated
+- Legacy per-dimension audit tool names — `tool_audit_assumptions`, `tool_audit_citations`, `tool_audit_claims`, `tool_audit_cliches`, `tool_audit_code_quality`, `tool_audit_coherence`, `tool_audit_cross_deliverable_consistency`, `tool_audit_dashboard_content`, `tool_audit_evalue`, `tool_audit_figure`, `tool_audit_figure_coverage`, `tool_audit_figure_full`, `tool_audit_figure_interactivity`, `tool_audit_figure_quality`, `tool_audit_power`, `tool_audit_prose`, `tool_audit_reproducibility`, `tool_audit_reviewer_responses`, `tool_audit_statistical_power`, `tool_audit_step_completeness`, `tool_audit_step_literature`, `tool_audit_synthesis`, `tool_audit_version_coherence`, `tool_audit_findings_query`, `tool_audit_findings_diff`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
 
 ### Removed
 

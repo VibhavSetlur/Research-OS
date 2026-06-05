@@ -172,7 +172,7 @@ steps:
         - whether the claim is fully supported by the data or whether
           it needs caveating
 
-      This is also the input to tool_audit_claims at synthesis time.
+      This is also the input to tool_audit(scope='project', dimension='claims') at synthesis time.
       Surface unsupported beats NOW so the analysis can fill the gap
       before drafting.
 

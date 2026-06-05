@@ -156,7 +156,7 @@ steps:
       sys_file_list directory="workspace" — find every
       outputs/figures/*.png.
       For format=poster: pick the 2-4 BEST (clearest message,
-      highest DPI, most surprising result). Run tool_audit_figure
+      highest DPI, most surprising result). Run tool_audit(scope='step', dimension='figure')
       on each candidate; replace any with DPI < 300.
       For format=handout: pick exactly ONE — the figure that
       carries the headline. Stand-alone caption mandatory.

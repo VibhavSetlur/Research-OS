@@ -727,9 +727,12 @@ def test_tool_alias_resolution(tmp_path):
     from research_os.server import _resolve_tool_name
     # Dot → underscore
     assert _resolve_tool_name("sys.state.get") == "sys_state_get"
-    assert _resolve_tool_name("tool.audit.synthesis") == "tool_audit_synthesis"
-    # Legacy alias
-    assert _resolve_tool_name("tool_audit_figure_quality") == "tool_audit_figure_full"
+    # v2.0.0: tool.audit.synthesis → tool_audit_synthesis → tool_audit
+    # (consolidated audit family; param injection sets scope=synthesis,
+    # dimension=all on dispatch).
+    assert _resolve_tool_name("tool.audit.synthesis") == "tool_audit"
+    # Legacy alias — also routed through the v2 audit dispatcher.
+    assert _resolve_tool_name("tool_audit_figure_quality") == "tool_audit"
     assert _resolve_tool_name("tool_log_decision") == "mem_decision_log"
     # No-op for canonical names
     assert _resolve_tool_name("sys_boot") == "sys_boot"

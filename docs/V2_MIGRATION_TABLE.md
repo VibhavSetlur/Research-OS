@@ -1,0 +1,43 @@
+# Research-OS v2 — Migration Table
+
+Tracks every legacy tool name that has been folded into a consolidated v2
+entry point. Old names continue to work via `_ALIASES`; callers see the
+expected behaviour because `_ALIAS_PARAM_INJECTION` sets the dispatch
+kwarg(s) automatically. Each row records the version this alias was
+introduced (status `aliased v2.0.x`) and the version it will be removed
+in (status `removed v2.1.0`).
+
+## Audit family (26 → 3)  — phase-9-c1
+
+The 23 per-dimension `tool_audit_*` tools collapse into `tool_audit`
+(dispatched by `scope` + `dimension`). The 2 ledger tools collapse into
+`tool_audit_findings` (dispatched by `operation`). `tool_audit_quality_full`
+stays as the canonical aggregator.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_audit_assumptions | tool_audit | scope, dimension | step, assumptions | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_citations | tool_audit | scope, dimension | project, citations | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_claims | tool_audit | scope, dimension | project, claims | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_cliches | tool_audit | scope, dimension | project, cliches | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_code_quality | tool_audit | scope, dimension | step, code_quality | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_coherence | tool_audit | scope, dimension | project, coherence | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_cross_deliverable_consistency | tool_audit | scope, dimension | project, cross_deliverable | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_dashboard_content | tool_audit | scope, dimension | synthesis, dashboard_content | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_evalue | tool_audit | scope, dimension | step, evalue | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_figure | tool_audit | scope, dimension | step, figure | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_figure_coverage | tool_audit | scope, dimension | synthesis, figure_coverage | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_figure_full | tool_audit | scope, dimension | step, figure_full | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_figure_interactivity | tool_audit | scope, dimension | step, figure_interactivity | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_figure_quality | tool_audit | scope, dimension | step, figure_full | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_power | tool_audit | scope, dimension | step, power | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_prose | tool_audit | scope, dimension | project, prose | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_reproducibility | tool_audit | scope, dimension | step, reproducibility | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_reviewer_responses | tool_audit | scope, dimension | synthesis, reviewer_responses | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_statistical_power | tool_audit | scope, dimension | step, power | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_step_completeness | tool_audit | scope, dimension | step, completeness | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_step_literature | tool_audit | scope, dimension | step, literature | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_synthesis | tool_audit | scope, dimension | synthesis, all | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_version_coherence | tool_audit | scope, dimension | project, version_coherence | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_findings_query | tool_audit_findings | operation | query | aliased v2.0.x, removed v2.1.0 |
+| tool_audit_findings_diff | tool_audit_findings | operation | diff | aliased v2.0.x, removed v2.1.0 |

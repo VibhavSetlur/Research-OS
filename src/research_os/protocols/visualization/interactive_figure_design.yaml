@@ -172,11 +172,11 @@ steps:
   - id: audit
     name: Audit the static (gate) + flag missing interactive companions
     description: |
-      `tool_audit_figure_full filepath="<NN>_<descriptor>.png"` —
+      `tool_audit(scope='step', dimension='figure_full') filepath="<NN>_<descriptor>.png"` —
       the static is what the figure-quality gate checks. The HTML is
       a companion artefact; it doesn't pass through that gate.
 
-      `tool_audit_figure_interactivity` — separately enforces that
+      `tool_audit(scope='step', dimension='figure_interactivity')` — separately enforces that
       figures which NEED an interactive companion actually have one.
       In normal strictness it auto-generates a Vega-Lite or vis-network
       fallback HTML next to the static (tagged

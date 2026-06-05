@@ -51,7 +51,7 @@ rules:
        workspace/<step>/outputs/, or a verified citation."
     - "No vague-evidence phrasing ('many studies have shown', 'most
        researchers agree'); cite explicitly."
-    - "tool_audit_claims and tool_verify enforce this at
+    - "tool_audit(scope='project', dimension='claims') and tool_verify enforce this at
        synthesis time."
   banned_phrases:
     - "it is important to note that"
@@ -119,7 +119,7 @@ rules:
            - cited_paper (a citation_key)
            - figure (a figure path)
            - table (a table path)
-      4. tool_audit_claims reads the ledger when present —
+      4. tool_audit(scope='project', dimension='claims') reads the ledger when present —
          every `[C<n>]` in the draft must have a ledger entry
          that resolves to a real artefact / verified citation.
       5. Before final assembly, strip the tags from the prose

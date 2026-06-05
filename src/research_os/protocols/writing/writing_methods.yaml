@@ -20,7 +20,7 @@ steps:
     name: Pre-audit the evidence grid (BEFORE prose is appended)
     description: |
       MANDATORY first step. Before any methods line is appended to
-      `workspace/methods.md`, run `tool_audit_claims` against the
+      `workspace/methods.md`, run `tool_audit(scope='project', dimension='claims')` against the
       existing evidence floor that the methods prose will draw from.
 
       The methods prose references:
@@ -32,10 +32,10 @@ steps:
         - citation keys from `workspace/citations.md`.
 
       Call:
-        tool_audit_claims target="workspace/methods.md"
+        tool_audit(scope='project', dimension='claims') target="workspace/methods.md"
           (when a prior version exists)
         OR
-        tool_audit_claims target="<the methods-evidence floor>:
+        tool_audit(scope='project', dimension='claims') target="<the methods-evidence floor>:
           the conclusions / parameter dumps / citations file the
           new line will quote".
 

@@ -198,7 +198,7 @@ steps:
   - id: audit_composite
     name: Audit the composite figure
     description: |
-      tool_audit_figure_full filepath="<composite.png>"
+      tool_audit(scope='step', dimension='figure_full') filepath="<composite.png>"
       In addition, manually verify:
         - panel labels (A, B, C, ...) visible and in consistent
           position across all panels

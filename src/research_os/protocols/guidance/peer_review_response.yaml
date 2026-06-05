@@ -145,7 +145,7 @@ steps:
         - Every "we have added <citation>" must verify via
           `tool_citations_verify`.
         - Every "we now report <metric>" must trace through
-          `tool_audit_claims` (the number must live in a
+          `tool_audit(scope='project', dimension='claims')` (the number must live in a
           workspace output).
 
   - id: editor_cover_letter

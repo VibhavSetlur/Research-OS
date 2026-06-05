@@ -189,9 +189,11 @@ def check_dispatcher_aliases():
     cases = {
         # Dot-notation rewrite is generic.
         "sys.state.get": "sys_state_get",
-        # Surviving nickname aliases.
-        "tool_audit_figure_quality": "tool_audit_figure_full",
-        "tool_audit_statistical_power": "tool_audit_power",
+        # Audit-family legacy nicknames now flow through the consolidated
+        # tool_audit entry point (param injection sets scope+dimension so
+        # the original behaviour is preserved end-to-end).
+        "tool_audit_figure_quality": "tool_audit",
+        "tool_audit_statistical_power": "tool_audit",
         "sys_state_summary": "sys_state_get",
         "tool_log_decision": "mem_decision_log",
         "view_workspace_tree": "sys_workspace_tree",

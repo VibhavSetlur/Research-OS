@@ -64,11 +64,25 @@ def test_every_deprecated_alias_has_param_injection():
 
 
 def test_alias_param_injection_targets_are_valid_keys():
-    # Sanity: the injected key must be one of the consolidation params we
-    # expect (operation / kind / source / mode / scope).
-    valid_keys = {"operation", "kind", "source", "mode", "scope"}
-    for old, (key, _) in _ALIAS_PARAM_INJECTION.items():
-        assert key in valid_keys, f"{old} injects unknown key '{key}'"
+    # Sanity: every injected key must be one of the consolidation params
+    # we expect (operation / kind / source / mode / scope / dimension).
+    # Two value shapes are supported in _ALIAS_PARAM_INJECTION:
+    #   * (key, value) — single-kwarg injection
+    #   * tuple of (key, value) tuples — multi-kwarg injection
+    # (the audit family injects both scope and dimension).
+    valid_keys = {"operation", "kind", "source", "mode", "scope", "dimension"}
+    for old, spec in _ALIAS_PARAM_INJECTION.items():
+        # Multi-kwarg form: tuple of (key, value) pairs.
+        if (
+            isinstance(spec, tuple)
+            and spec
+            and all(isinstance(p, tuple) and len(p) == 2 for p in spec)
+        ):
+            pairs = spec
+        else:
+            pairs = (spec,)
+        for key, _ in pairs:
+            assert key in valid_keys, f"{old} injects unknown key '{key}'"
 
 
 # ── new consolidated tools registered ─────────────────────────────

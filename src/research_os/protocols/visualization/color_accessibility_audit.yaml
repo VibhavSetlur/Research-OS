@@ -6,7 +6,7 @@ schema_version: '2.0'
 description: |
   Audit one or more figures (or a dashboard's CSS palette) for
   color-blindness safety, contrast adequacy, and WCAG-aligned
-  accessibility. `tool_audit_figure_full` checks DPI, dimensions, and
+  accessibility. `tool_audit(scope='step', dimension='figure_full')` checks DPI, dimensions, and
   sidecars; this protocol goes deeper on the COLOUR + ACCESSIBILITY
   layer that's usually missed.
 

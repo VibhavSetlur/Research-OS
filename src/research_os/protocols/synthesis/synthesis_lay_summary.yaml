@@ -218,8 +218,8 @@ steps:
         - no untrue precision ("50.2%" reads as more precise than the
           study supports; round to the precision the data warrant)
 
-      tool_audit_synthesis paper_path="synthesis/lay_summary.md"
-      and tool_audit_claims if the source numbers came from the
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/lay_summary.md"
+      and tool_audit(scope='project', dimension='claims') if the source numbers came from the
       workspace.
 
   - id: handback

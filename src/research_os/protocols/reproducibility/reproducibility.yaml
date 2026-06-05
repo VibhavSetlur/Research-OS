@@ -56,7 +56,7 @@ steps:
       compares output hashes against `workspace/logs/output_hashes.json`.
 
       Call:
-        tool_audit_reproducibility
+        tool_audit(scope='step', dimension='reproducibility')
 
       Report goes to `workspace/logs/reproducibility_report.md`.
 
@@ -71,7 +71,7 @@ steps:
       OPT-OUT — the researcher MAY skip this audit only via an
       EXPLICIT opt-out, by either:
         (a) invoking the audit with `--skip-rerun-audit`
-            (`tool_audit_reproducibility skip=true` documents the
+            (`tool_audit(scope='step', dimension='reproducibility') skip=true` documents the
              opt-out in the report), OR
         (b) telling the AI "skip the re-run audit; I'll accept the
             unverified state" — the AI then `mem_log`s the

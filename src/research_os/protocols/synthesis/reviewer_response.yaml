@@ -36,7 +36,7 @@ trigger: |
   practice".
 
 prerequisites:
-  - synthesis/paper.md exists and has been through `tool_audit_synthesis`.
+  - synthesis/paper.md exists and has been through `tool_audit(scope='synthesis', dimension='all')`.
   - At least one experiment step has a substantive conclusions.md.
 
 editorial_voice:
@@ -127,7 +127,7 @@ steps:
   - id: audit_responses
     name: Audit rebuttals — block hand-waving + missing evidence
     description: |
-      tool_audit_reviewer_responses
+      tool_audit(scope='synthesis', dimension='reviewer_responses')
       WARNs on:
         - hand-waving language ("we believe", "future work will
           address", "the reviewer misunderstands")
@@ -145,7 +145,7 @@ steps:
     description: |
       For every rebuttal classified ACCEPT or ACCEPT WITH
       CLARIFICATION: edit synthesis/paper.md accordingly. Re-run
-      tool_audit_synthesis after the edits.
+      tool_audit(scope='synthesis', dimension='all') after the edits.
 
       The dry-run rebuttals stay in version control as the first
       draft of the real response letter — if the same concern lands

@@ -1065,133 +1065,96 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Audit ─────────────────────────────────────────────────────────
-    "tool_audit_synthesis": {
-        "description": "Audit a generated manuscript for completeness, claim grounding, and citation coverage. Default-denies when zero PDFs are present across literature-required steps (override via override_no_pdfs=true + override_rationale).",
+    # tool_audit is the unified per-dimension auditor. Pass scope (step |
+    # project | synthesis) + dimension. Legacy per-dimension audit tool
+    # names alias here with their scope+dimension injected automatically.
+    # tool_audit_quality_full stays separate as the canonical aggregator.
+    "tool_audit": {
+        "short": "Unified per-dimension audit. scope=step|project|synthesis; dimension=completeness|literature|code_quality|prose|claims|figure|citations|assumptions|power|reproducibility|evalue|cliches|coherence|version_coherence|cross_deliverable|reviewer_responses|dashboard_content|figure_full|figure_interactivity|figure_coverage|all.",
+        "description": "Unified audit dispatcher. Pick (scope, dimension): scope='step' for per-step gates (completeness, literature, code_quality, evalue, figure, figure_full, figure_interactivity, power, assumptions, reproducibility); scope='project' for project-wide gates (citations, claims, cliches, coherence, cross_deliverable, prose, version_coherence); scope='synthesis' for synthesis-side gates (all, dashboard_content, figure_coverage, reviewer_responses). Per-dimension kwargs are accepted on the same call (e.g. step_id, paper_path, filepath, target_path, override_no_pdfs, override_rationale, ...). Output schema matches the legacy per-dimension tool for the chosen (scope, dimension). Use tool_audit_quality_full to run all primary gates in one shot. Use tool_audit_findings to read the cross-audit findings ledger after one or more audits have written to it.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "paper_path": {"type": "string"},
-                "override_no_pdfs": {"type": "boolean", "description": "Bypass the zero-PDF default-deny. Must be paired with override_rationale."},
-                "override_rationale": {"type": "string"},
-            },
-            "required": ["paper_path"],
-        },
-    },
-    "tool_audit_power": {
-        "description": "Compute post-hoc statistical power. Warns if power < 0.8. Writes a report to the current experiment's outputs/reports/.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "filepath": {"type": "string"},
-                "effect_size": {"type": "number"},
-                "alpha": {"type": "number"},
-                "n": {"type": "number"},
-            },
-            "required": ["filepath", "alpha", "n"],
-        },
-    },
-    "tool_audit_assumptions": {
-        "description": "Re-run assumption checks (normality, homoscedasticity, independence) on residuals or model output.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"filepath": {"type": "string"}},
-            "required": ["filepath"],
-        },
-    },
-    "tool_audit_figure": {
-        "description": "Check figure quality: DPI, colorblind-friendly palette, axis labels, error bars.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"filepath": {"type": "string"}},
-            "required": ["filepath"],
-        },
-    },
-    "tool_audit_citations": {
-        "description": "Verify every citation in workspace/citations.md against an online lookup (Crossref / Semantic Scholar). Flags unverified entries.",
-        "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_audit_reproducibility": {
-        "description": "Re-run every experiment script in a clean environment and verify outputs match. Slow but the gold-standard reproducibility check.",
-        "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_audit_step_completeness": {
-        "short": "Per-step gate: focal figure + caption + summary + non-stub conclusions + no mega-script. BLOCKS tool_synthesize when failing.",
-        "description": "Server-enforced 'did the step actually finish?' check. Validates that EVERY active numbered step has: (a) conclusions.md with non-stub Findings + Decision; (b) at least one focal figure under outputs/figures/; (c) sibling .caption.md + .summary.md for each figure; (d) at least one runnable script; (e) when outputs span multiple categories (figures + tables + reports) a pipeline.yaml MUST declare the sub-task DAG — mega-scripts are blocked. Returns status='error' if any step has BLOCKERS — tool_synthesize honours this and refuses to assemble until cleared. Pass step_id to audit one step instead of the whole project. Writes report to workspace/logs/step_completeness.md.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {
+                "scope": {
                     "type": "string",
-                    "description": "Optional — audit one step instead of all active ones.",
-                }
-            },
-        },
-    },
-    "tool_audit_step_literature": {
-        "short": "Per-step literature-loop gate. Blocks if findings_vs_literature.md missing or DISAGREES verdicts lack discussion.",
-        "description": "Companion to tool_audit_step_completeness — gates the literature loop scaffolded by `research/literature_per_step`. For every step with a non-stub Findings section, verifies: (a) workspace/<step>/literature/findings_vs_literature.md exists and has at least one `## Claim:` block; (b) every claim has a Verdict line (AGREES|DISAGREES|EXTENDS|DEFERRED); (c) every DISAGREES verdict has a matching Discussion implication block; (d) all-DEFERRED steps have at least one PDF in workspace/<step>/literature/ OR a documented literature_deferred reason; (e) step_summary.yaml carries a `literature:` block with the roll-up. Blockers are hard stops for tool_path_finalize unless override_literature_gate=true is passed. Writes workspace/logs/step_literature_audit.md.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {
-                    "type": "string",
-                    "description": "Optional — audit one step instead of every step with conclusions.md.",
-                }
-            },
-        },
-    },
-    "tool_audit_findings_query": {
-        "short": "Filter the cross-audit findings ledger by severity / dimension / step / since.",
-        "description": "Phase-4c read tool. Loads workspace/logs/.audit_findings.jsonl (the append-only ledger that every Phase-4 audit appends to via write_audit_outputs), reduces it to the latest snapshot per stable finding id, then filters by severity ('block' | 'warn' | 'info'), dimension (e.g. 'completeness', 'prose', 'claims', 'grounding'), step (any path containing '/<step>/' in evidence_paths), and/or since (ISO-8601 — keep only findings whose generated_at is on/after the cutoff). Read-only — never mutates the ledger. Returns {findings: [...], count: N, filters: {...}}.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "severity": {
-                    "type": "string",
-                    "enum": ["block", "warn", "info"],
-                    "description": "Optional severity filter.",
+                    "enum": ["step", "project", "synthesis"],
+                    "description": "Audit scope. step = per-step gate. project = project-wide gate (paper / repo / citations). synthesis = synthesis-side gate (paper / dashboard / reviewer responses).",
                 },
                 "dimension": {
                     "type": "string",
-                    "description": "Optional dimension filter (e.g. 'completeness', 'prose').",
+                    "description": "What to audit. See the description for the full (scope, dimension) matrix.",
                 },
-                "step": {
-                    "type": "string",
-                    "description": "Optional step folder filter (e.g. '02_eda'); matches evidence_paths containing '/<step>/'.",
-                },
-                "since": {
-                    "type": "string",
-                    "description": "Optional ISO-8601 cutoff (e.g. '2026-06-05T12:00:00Z'); returns findings on/after this timestamp.",
-                },
+                # Common per-dimension kwargs (all optional; consumed by the
+                # downstream legacy handler). Listed here so MCP clients can
+                # auto-complete; extra unknown kwargs are forwarded verbatim.
+                "step_id": {"type": "string", "description": "scope='step' dimensions — optional step folder, default = all active steps."},
+                "paper_path": {"type": "string", "description": "scope='synthesis' dimension='all' — manuscript to audit (default 'synthesis/paper.md')."},
+                "filepath": {"type": "string", "description": "scope='step' dimensions ∈ {figure, power, assumptions} — file to audit."},
+                "figure_path": {"type": "string", "description": "scope='step' dimension='figure_full' — figure to audit."},
+                "target_path": {"type": "string", "description": "scope='project' dimension='claims' — manuscript to audit (default 'synthesis/paper.md')."},
+                "tolerance": {"type": "number", "description": "scope='project' dimension='claims' — numeric tolerance (default 0.01 = 1%)."},
+                "dashboard_path": {"type": "string", "description": "scope='synthesis' dimension='dashboard_content' — dashboard file path."},
+                "effect_size": {"type": "number"},
+                "alpha": {"type": "number"},
+                "n": {"type": "number"},
+                "risk_ratio": {"type": "number"},
+                "ci_lower": {"type": "number"},
+                "ci_upper": {"type": "number"},
+                "run_ruff": {"type": "boolean"},
+                "run_mypy": {"type": "boolean"},
+                "targets": {"type": "array", "items": {"type": "string"}},
+                "is_observational": {"type": "boolean"},
+                "strictness": {"type": "string"},
+                "autogen": {"type": "boolean"},
+                "override_no_pdfs": {"type": "boolean"},
+                "override_dashboard_content_gate": {"type": "boolean"},
+                "override_cross_deliverable": {"type": "boolean"},
+                "override_rationale": {"type": "string"},
             },
+            "required": ["scope", "dimension"],
         },
     },
-    "tool_audit_findings_diff": {
-        "short": "Diff two snapshots of the cross-audit findings ledger by stable id.",
-        "description": "Phase-4c read tool. Snapshots workspace/logs/.audit_findings.jsonl as of two ISO-8601 timestamps and reports {added: [...], resolved: [...], changed: [{id, before, after}]}. Diff is keyed by the finding's stable id; structural comparison covers severity / dimension / evidence_paths / suggested_fix (re-emission of an unchanged finding is NOT reported as changed). timestamp_a is the EARLIER snapshot; timestamp_b is the LATER. Use this to confirm a fix actually resolved a BLOCK finding between two audit runs.",
+    "tool_audit_findings": {
+        "short": "Read the cross-audit findings ledger. operation='query' filters; operation='diff' compares two snapshots.",
+        "description": "Unified read interface for workspace/logs/.audit_findings.jsonl (the append-only ledger every Phase-4 audit writes to via write_audit_outputs). operation='query' (default) reduces to the latest snapshot per stable finding id and filters by severity ('block' | 'warn' | 'info'), dimension, step (matches evidence_paths containing '/<step>/'), and since (ISO-8601 cutoff). operation='diff' snapshots the ledger as of timestamp_a (EARLIER) and timestamp_b (LATER) and reports {added: [...], resolved: [...], changed: [...]} keyed by stable finding id. Read-only — never mutates the ledger. operation defaults to 'diff' when both timestamps are supplied without an explicit operation, otherwise 'query'.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["query", "diff"],
+                    "description": "Default 'query'. Use 'diff' to compare two ledger snapshots.",
+                },
+                # query kwargs
+                "severity": {
+                    "type": "string",
+                    "enum": ["block", "warn", "info"],
+                    "description": "operation='query' — optional severity filter.",
+                },
+                "dimension": {
+                    "type": "string",
+                    "description": "operation='query' — optional dimension filter (e.g. 'completeness', 'prose').",
+                },
+                "step": {
+                    "type": "string",
+                    "description": "operation='query' — optional step folder filter (e.g. '02_eda').",
+                },
+                "since": {
+                    "type": "string",
+                    "description": "operation='query' — optional ISO-8601 cutoff; returns findings on/after this timestamp.",
+                },
+                # diff kwargs
                 "timestamp_a": {
                     "type": "string",
-                    "description": "ISO-8601 timestamp for the EARLIER snapshot (e.g. '2026-06-04T09:00:00Z').",
+                    "description": "operation='diff' — ISO-8601 timestamp for the EARLIER snapshot.",
                 },
                 "timestamp_b": {
                     "type": "string",
-                    "description": "ISO-8601 timestamp for the LATER snapshot (e.g. '2026-06-05T12:00:00Z'); must be on/after timestamp_a.",
+                    "description": "operation='diff' — ISO-8601 timestamp for the LATER snapshot; must be on/after timestamp_a.",
                 },
             },
-            "required": ["timestamp_a", "timestamp_b"],
         },
     },
     "tool_step_revision_options": {
@@ -1235,17 +1198,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["step_id"],
         },
     },
-    "tool_audit_version_coherence": {
-        "short": "Flag version drift: outputs whose .prov.json points at a script no longer on disk OR not the highest _v<n>.",
-        "description": "Walk every numbered step (or just one if step_id given) and flag drift between scripts, outputs, and captions. Specifically: (1) an output whose .prov.json names a script that no longer exists, (2) an output produced by a v<k> script when v<k+1> is now the highest version in scripts/, (3) a caption sidecar older than its figure, (4) an iterations.yaml entry whose snapshot dir was deleted. Writes report to workspace/logs/version_coherence.md. Status='warning' (not error) so it surfaces without blocking deliverables; use the report to decide whether to re-run.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string", "description": "Optional — audit one step instead of every active step."},
-            },
-        },
-    },
     "tool_figure_caption_synthesise": {
         "short": "Write a plain-English <name>.summary.md next to a figure.",
         "description": "Generate a 2-3 sentence plain-language description next to a figure for non-expert / accessibility audiences (W3C two-part guidance). Reads the figure's existing <name>.caption.md sidecar + the step's conclusions.md Findings section to anchor the summary in the actual result. Idempotent — pass overwrite=true to replace an existing summary.",
@@ -1257,18 +1209,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "technical_caption": {"type": "string"},
                 "findings_context": {"type": "string"},
                 "overwrite": {"type": "boolean"},
-            },
-            "required": ["figure_path"],
-        },
-    },
-    "tool_audit_figure_full": {
-        "short": "Full figure audit — DPI + caption + summary + SVG companion + aspect ratio.",
-        "description": "Strict superset of `tool_audit_figure` (which checks DPI + dimensions only). Adds: missing caption / summary sidecars, PNG without SVG companion, time-series aspect-ratio sanity. Emits BLOCKERs vs warnings the step-completeness gate consumes. Use this for any figure heading into the dashboard, paper, or poster.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "figure_path": {"type": "string"},
             },
             "required": ["figure_path"],
         },
@@ -1495,58 +1435,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["goal"],
         },
     },
-    # ── New audit tools (code, prose, claims, preregistration, master) ──
-    "tool_audit_code_quality": {
-        "short": "Per-script audit: ruff + AST complexity + smells + docstrings.",
-        "description": "Walks workspace/<step>/scripts/*.py. Runs ruff if installed; runs an AST-based scan for cyclomatic complexity (>10 warn, >20 block), function length (>80 warn, >150 block), missing module/public-function docstrings, bare-except / import-* / eval-exec / hardcoded-absolute-path smells. Writes workspace/logs/code_quality.md; returns blockers that the master quality auditor consumes.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string"},
-                "run_ruff": {"type": "boolean"},
-                "run_mypy": {"type": "boolean"},
-            },
-        },
-    },
-    "tool_audit_prose": {
-        "short": "Prose audit: hedging, vague quantifiers, passive voice, reading level, reporting-standard coverage.",
-        "description": "Audits synthesis/*.md + every conclusions.md. Flags 40+ hedge phrases, numbers-without-precision ('many subjects'), passive-voice ratio, Flesch-Kincaid grade level, causal language on observational designs. Checks CONSORT / STROBE / PRISMA / ARRIVE section coverage based on the project's domain. Writes workspace/logs/prose_audit.md.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "targets": {"type": "array", "items": {"type": "string"}},
-                "is_observational": {"type": "boolean"},
-            },
-        },
-    },
-    "tool_audit_claims": {
-        "short": "Verify every quantitative number in the paper traces to a workspace output.",
-        "description": "Extracts every numeric claim (AUROC = 0.84, p = 0.012, n = 423) from synthesis/paper.md (or target_path) and confirms each appears verbatim or within 1% tolerance in some workspace CSV/TSV/JSON/MD/TXT. Catches AI-hallucinated numbers. BLOCKS tool_synthesize when ungrounded claims are found.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "target_path": {"type": "string", "description": "Default synthesis/paper.md."},
-                "tolerance": {"type": "number", "description": "Float tolerance (default 0.01 = 1%)."},
-            },
-        },
-    },
-    "tool_audit_evalue": {
-        "short": "E-value sensitivity to unmeasured confounding (VanderWeele & Ding 2017).",
-        "description": "Given an observed risk ratio + 95% CI, computes the E-value — the minimum strength of association an unmeasured confounder would need (with BOTH exposure and outcome) to explain away the observed effect. Persists workspace/<step>/outputs/reports/evalue_report.md.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "risk_ratio": {"type": "number"},
-                "ci_lower": {"type": "number"},
-                "ci_upper": {"type": "number"},
-            },
-            "required": ["risk_ratio"],
-        },
-    },
+    # ── audit tools (code/prose/claims/evalue collapsed into tool_audit) ──
     "tool_preregister_freeze": {
         "short": "Freeze SAP + hypotheses BEFORE data analysis (content-hashed, immutable).",
         "description": "Snapshots methods.md + active hypotheses to workspace/.preregistration/prereg_<iso>.{md,yaml}. Diffed at synthesis time via tool_preregister_diff. See methodology/preregistration for the full SAP field list and the OSF submission flow.",
@@ -2309,17 +2198,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_audit_coherence": {
-        "short": "Verify every Discussion/Results/Intro paragraph in synthesis/paper.md maps back to a step's conclusions.md.",
-        "description": "Cross-step coherence audit. For each paragraph in synthesis/paper.md (Results / Discussion / Introduction / Conclusion sections), scores its key-phrase overlap against every step's conclusions.md. Paragraphs with score < 0.05 are flagged as orphan — likely carried over from a prior chat about a step that was later abandoned, or invented without grounding. Writes workspace/logs/coherence_audit.md.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "paper_path": {"type": "string"},
-            },
-        },
-    },
     # ------------------------------------------------------------------
     # Intake re-entry detection.
     # ------------------------------------------------------------------
@@ -2656,18 +2534,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "audit",
         "inputSchema": {"type": "object", "properties": {}},
     },
-    "tool_audit_figure_interactivity": {
-        "short": "Per-figure interactive-companion gate (Theme 20). Scatter/volcano/UMAP > 200 marks, heatmaps > 50x50, networks, and >1k-point time-series all need a sibling <stem>.html or get flagged. Auto-generates Vega-Lite / vis-network fallbacks in normal mode.",
-        "description": "Walks workspace/<step>/outputs/figures/ and reports per-figure interactivity status. Strictness comes from researcher_config.gate_strictness (light | normal | strict | auto): strict → missing companion is BLOCKER; normal → WARN + autogen a Vega-Lite/vis-network fallback HTML next to the static figure (offline-capable, marked with <meta name='ro-auto-generated' content='true'>); light → WARN only. Per-figure researcher override: put '<!-- ro:interactive-not-applicable, reason: ... -->' in the figure's .caption.md sidecar. Writes workspace/logs/figure_interactivity_audit.md and returns {blockers, warnings, passes, overrides, autogen_log}.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "strictness": {"type": "string", "description": "light | normal | strict. Default: resolved from researcher_config + rigor signals."},
-                "autogen": {"type": "boolean", "description": "Write Vega-Lite/vis-network HTML companions for flagged figures. Default: true when strictness=normal."},
-            },
-        },
-    },
     "tool_figure_interactive_autogen": {
         "short": "Write an interactive HTML companion (Vega-Lite for scatter/heatmap/time-series, vis-network for graphml) next to a static figure. Offline-capable.",
         "description": "Given a static figure (.png/.svg/.jpg), look for the sibling data file (<stem>_data.csv / <stem>_matrix.csv / <stem>_series.csv / <stem>.graphml), choose the right interactive kind by heuristics, and write <stem>.html next to the figure. The companion inlines the vendored Vega/Vega-Lite/Vega-Embed (or vis-network) bundle so it runs offline. Tagged with <meta name='ro-auto-generated' content='true'> so the researcher knows they can replace it. Idempotent — returns status='exists' if a companion is already there.",
@@ -2678,19 +2544,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "figure_path": {"type": "string", "description": "Path to the static figure under workspace/<step>/outputs/figures/."},
             },
             "required": ["figure_path"],
-        },
-    },
-    "tool_audit_dashboard_content": {
-        "short": "Content gates for synthesis/dashboard.html: numeric grounding, figure proximity, substantiveness, accessibility, print, palette, reviewer-skim.",
-        "description": "Runs 7 sub-checks against the rendered dashboard: (1) numeric grounding — every dashboard number must appear in workspace tables or citations (±1% tolerance); (2) figure-to-text proximity — figures must be cited within ±2 paragraphs; (3) per-section substantiveness — word floors + claim/figure counts per section; (4) WCAG 2.2 AA accessibility — contrast, alt text, heading hierarchy; (5) print stylesheet sanity; (6) color-palette consistency (Okabe-Ito / viridis / PuOr); (7) reviewer simulator — would a 5-minute skim get the finding? Ungrounded numbers + missing-abstract-number = BLOCKER. Other issues are WARNINGs.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "dashboard_path": {"type": "string", "description": "Default 'synthesis/dashboard.html'."},
-                "override_dashboard_content_gate": {"type": "boolean", "description": "Suppress BLOCKERs. Set only on explicit researcher approval. Logged."},
-                "override_rationale": {"type": "string", "description": "Required when override_dashboard_content_gate=true."},
-            },
         },
     },
     "tool_dashboard_reviewer_sim": {
@@ -2728,18 +2581,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_audit_cliches": {
-        "short": "Scan synthesis/paper.md for AI-cliché phrases that pad without informing.",
-        "description": "Standalone cliché-only audit. Flags banned phrases ('in this study, we investigate', 'our results demonstrate', 'future work should explore', 'it is important to note that', 'however, more research is needed', 'this finding has important implications for', etc.) with a per-cliché replacement hint. Returns hits + n_hits + warnings.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
-            },
-        },
-    },
-
     # ── humanities essay scaffold ──────────────────────────────────────
     "tool_humanities_essay_scaffold": {
         "short": "Scaffold a non-IMRAD humanities essay.",
@@ -2773,13 +2614,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
-    "tool_audit_figure_coverage": {
-        "short": "BLOCK when a step has a figure on disk with figures_for_paper!=false but synthesis/paper.md does not embed it.",
-        "description": "Companion gate to tool_paper_figures_autoembed. Walks discover_figures(root) and confirms every returned figure stem appears inside synthesis/paper.md (either as a markdown ![alt](path) image, a Typst image() call, or a label <fig:STEM>). Returns status='error' with a blockers list when at least one figure is orphaned. The intent is to fail loudly when a researcher hand-writes paper.md and forgets to pull in figures, or when auto-embed is off and the audit must still flag the gap. Opt out for a single step by setting step_summary.yaml.figures_for_paper=false; opt out for a single figure by setting figures_for_paper=false in its .caption.md frontmatter. Wires into the master quality audit so tool_synthesize refuses to assemble when coverage fails.",
-        "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
-    },
-
     # ── real slide compilation engine ──────────────────────────────────
     "tool_slides_create": {
         "short": "Compile a real presentation deck — Reveal.js HTML or Touying-compatible Typst PDF — from workspace findings + slides_spec.yaml.",
@@ -2815,26 +2649,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "output_format": {
                     "type": "string",
                     "description": "Back-compat: legacy kwarg. 'reveal'/'html' maps to engine='reveal'; 'beamer'/'pdf'/'typst'/'touying' maps to engine='touying'.",
-                },
-            },
-        },
-    },
-
-    # ── cross-deliverable consistency audit ────────────────────────────
-    "tool_audit_cross_deliverable_consistency": {
-        "short": "Cross-deliverable consistency audit: 5 dimensions across paper/dashboard/slides/poster.",
-        "description": "Verifies the project's outward-facing deliverables tell the same story along 5 dimensions: (1) numeric_claims_consistent — shared p-values, percentages, sample sizes, and decimals agree within ±1% relative tolerance; (2) figures_consistent — figure stems in the paper that are missing from dashboard/slides/poster are flagged (paper is canonical); (3) citations_consistent — secondary deliverables must not cite keys absent from the paper bibliography; (4) findings_top_line_consistent — Jaccard overlap of headline 'Findings'/'Results' sections across each pair ≥ 0.30; (5) reproducibility_footer_consistent — Research-OS version + git commit hash + build timestamp present + identical in every deliverable. Skipped (not blocked) when <2 deliverables exist. Override via override_cross_deliverable=true + override_rationale (logged to workspace/logs/override_log.md). Writes workspace/logs/cross_deliverable_audit.md. Depends on figure_auto_embed metadata for the figures dimension.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "override_cross_deliverable": {
-                    "type": "boolean",
-                    "description": "Suppress BLOCKERs. Set only on explicit researcher approval. Logged to override_log.md.",
-                },
-                "override_rationale": {
-                    "type": "string",
-                    "description": "Required when override_cross_deliverable=true.",
                 },
             },
         },
@@ -2878,12 +2692,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "short": "Assemble workspace/reviewer/rebuttals/*.md into response_to_reviewers.md (+ PDF via Typst when available).",
         "description": "Concatenates every rebuttal markdown under workspace/reviewer/rebuttals/, grouped by persona, into workspace/reviewer/response_to_reviewers.md. Best-effort PDF compile via the bundled Typst generic_two_column template — returns status='skipped' for the PDF leg when typst is not on PATH; the markdown is always produced. Returns rebuttal_count, personas_addressed, response_md path, response_pdf path (or null).",
         "category": "synthesis",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_audit_reviewer_responses": {
-        "short": "Audit workspace/reviewer/rebuttals/*.md: WARN on hand-waving, missing evidence, unaddressed comments.",
-        "description": "Walks every rebuttal and WARNs on (a) hand-waving phrases ('we believe', 'future work will address', 'the reviewer misunderstands', ...); (b) rebuttals whose Response section is empty (only the scaffold comment remains); (c) rebuttals that cite no concrete evidence path (no backticked .md/.csv/.png/.pdf/.py/etc); (d) rebuttals still containing the 'supplied evidence path missing' scaffold warning. Returns {audited, passed, failed, warnings[]} and writes workspace/reviewer/audit_report.md. Run BEFORE tool_reviewer_response_compile produces the final response or BEFORE the paper goes out.",
-        "category": "audit",
         "inputSchema": {"type": "object", "properties": {}},
     },
 }
@@ -3898,6 +3706,99 @@ def _handle_tool_data_convert(name, arguments, root):
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", res.get("error", "convert failed"))))
+
+
+# ── tool_audit dispatcher ───────────────────────────────────────────
+#
+# The audit family collapses per-dimension audit tools into a single
+# tool_audit(scope=, dimension=) entry point. Legacy per-dimension names
+# continue to dispatch via _ALIASES + _ALIAS_PARAM_INJECTION (which set
+# scope+dimension from the legacy name). The dispatcher reads scope+
+# dimension off ``arguments`` and forwards to the matching private
+# per-dimension handler — no audit logic is rewritten here; this is
+# purely a surface unification.
+_AUDIT_DISPATCH: dict[tuple[str, str], str] = {
+    # scope=step
+    ("step", "assumptions"):            "_handle_tool_audit_assumptions",
+    ("step", "code_quality"):           "_handle_tool_audit_code_quality",
+    ("step", "completeness"):           "_handle_tool_audit_step_completeness",
+    ("step", "evalue"):                 "_handle_tool_audit_evalue",
+    ("step", "figure"):                 "_handle_tool_audit_figure",
+    ("step", "figure_full"):            "_handle_tool_audit_figure_full",
+    ("step", "figure_interactivity"):   "_handle_tool_audit_figure_interactivity",
+    ("step", "literature"):             "_handle_tool_audit_step_literature",
+    ("step", "power"):                  "_handle_tool_audit_power",
+    ("step", "reproducibility"):        "_handle_tool_audit_reproducibility",
+    # scope=project
+    ("project", "citations"):           "_handle_tool_audit_citations",
+    ("project", "claims"):              "_handle_tool_audit_claims",
+    ("project", "cliches"):             "_handle_tool_audit_cliches",
+    ("project", "coherence"):           "_handle_tool_audit_coherence",
+    ("project", "cross_deliverable"):   "_handle_tool_audit_cross_deliverable_consistency",
+    ("project", "prose"):               "_handle_tool_audit_prose",
+    ("project", "version_coherence"):   "_handle_tool_audit_version_coherence",
+    # scope=synthesis
+    ("synthesis", "all"):               "_handle_tool_audit_synthesis",
+    ("synthesis", "dashboard_content"): "_handle_tool_audit_dashboard_content",
+    ("synthesis", "figure_coverage"):   "_handle_tool_audit_figure_coverage",
+    ("synthesis", "reviewer_responses"): "_handle_tool_audit_reviewer_responses",
+}
+
+
+def _handle_tool_audit(name, arguments, root):
+    """Unified audit dispatcher.
+
+    Routes (scope, dimension) → the matching per-dimension handler.
+    Every legacy ``tool_audit_*`` name is aliased to this entry point and
+    has its scope+dimension injected via ``_ALIAS_PARAM_INJECTION``, so
+    callers (researchers, scripts, protocols) using the older per-
+    dimension names keep working unchanged.
+    """
+    scope = arguments.get("scope")
+    dimension = arguments.get("dimension")
+    if not scope or not dimension:
+        return _text(_error(
+            "tool_audit requires scope= and dimension=. "
+            "Valid scopes: step | project | synthesis. "
+            "See docs/V2_MIGRATION_TABLE.md for the full dimension list."
+        ))
+    handler_name = _AUDIT_DISPATCH.get((scope, dimension))
+    if not handler_name:
+        return _text(_error(
+            f"tool_audit: unknown (scope='{scope}', dimension='{dimension}'). "
+            "See docs/V2_MIGRATION_TABLE.md for valid combinations."
+        ))
+    handler = globals().get(handler_name)
+    if not callable(handler):
+        return _text(_error(
+            f"tool_audit: handler '{handler_name}' is not callable."
+        ))
+    return handler(name, arguments, root)
+
+
+def _handle_tool_audit_findings(name, arguments, root):
+    """Unified findings-ledger dispatcher (query | diff).
+
+    Replaces the two per-operation tools (tool_audit_findings_query +
+    tool_audit_findings_diff). Operation defaults to 'query' when the
+    diff-specific timestamps are absent and the caller did not specify
+    operation explicitly.
+    """
+    op = arguments.get("operation")
+    if not op:
+        # Infer: diff if both timestamps are present, else query.
+        if arguments.get("timestamp_a") and arguments.get("timestamp_b"):
+            op = "diff"
+        else:
+            op = "query"
+    if op == "query":
+        return _handle_tool_audit_findings_query(name, arguments, root)
+    if op == "diff":
+        return _handle_tool_audit_findings_diff(name, arguments, root)
+    return _text(_error(
+        f"tool_audit_findings: unknown operation '{op}'. "
+        "Use operation='query' or operation='diff'."
+    ))
 
 
 def _handle_tool_audit_synthesis(name, arguments, root):
@@ -6803,23 +6704,13 @@ _HANDLERS = {
     "tool_data_sample": _handle_tool_data_sample,
     "tool_data_profile": _handle_tool_data_profile,
     "tool_data_convert": _handle_tool_data_convert,
-    # audit
-    "tool_audit_synthesis": _handle_tool_audit_synthesis,
-    "tool_audit_power": _handle_tool_audit_power,
-    "tool_audit_assumptions": _handle_tool_audit_assumptions,
-    "tool_audit_figure": _handle_tool_audit_figure,
-    "tool_audit_citations": _handle_tool_audit_citations,
-    "tool_audit_reproducibility": _handle_tool_audit_reproducibility,
-    "tool_audit_step_completeness": _handle_tool_audit_step_completeness,
-    "tool_audit_step_literature": _handle_tool_audit_step_literature,
-    "tool_audit_findings_query": _handle_tool_audit_findings_query,
-    "tool_audit_findings_diff": _handle_tool_audit_findings_diff,
-    "tool_audit_version_coherence": _handle_tool_audit_version_coherence,
+    # audit (see tool_audit dispatcher above)
+    "tool_audit": _handle_tool_audit,
+    "tool_audit_findings": _handle_tool_audit_findings,
     "tool_step_revision_options": _handle_tool_step_revision_options,
     "tool_step_iterate": _handle_tool_step_iterate,
     "tool_step_iterations_list": _handle_tool_step_iterations_list,
     "tool_figure_caption_synthesise": _handle_tool_figure_caption_synthesise,
-    "tool_audit_figure_full": _handle_tool_audit_figure_full,
     "tool_figure_palette": _handle_tool_figure_palette,
     "tool_step_pipeline_define": _handle_tool_step_pipeline_define,
     "tool_step_pipeline_run": _handle_tool_step_pipeline_run,
@@ -6837,11 +6728,7 @@ _HANDLERS = {
     "tool_lessons_record": _handle_tool_lessons_record,
     "tool_lessons_consult": _handle_tool_lessons_consult,
     "tool_plan_step_grounded": _handle_tool_plan_step_grounded,
-    # New audit suite.
-    "tool_audit_code_quality": _handle_tool_audit_code_quality,
-    "tool_audit_prose": _handle_tool_audit_prose,
-    "tool_audit_claims": _handle_tool_audit_claims,
-    "tool_audit_evalue": _handle_tool_audit_evalue,
+    # New audit suite (audit handlers now folded into tool_audit dispatcher).
     "tool_preregister_freeze": _handle_tool_preregister_freeze,
     "tool_preregister_diff": _handle_tool_preregister_diff,
     "tool_sensitivity_define": _handle_tool_sensitivity_define,
@@ -6860,8 +6747,6 @@ _HANDLERS = {
     "tool_latex_compile": _handle_tool_latex_compile,
     # Typst + dashboard content + preview + content depth
     "tool_paper_compile_typst": _handle_tool_paper_compile_typst,
-    "tool_audit_dashboard_content": _handle_tool_audit_dashboard_content,
-    "tool_audit_figure_interactivity": _handle_tool_audit_figure_interactivity,
     "tool_figure_interactive_autogen": _handle_tool_figure_interactive_autogen,
     "tool_dashboard_story_generate": _handle_tool_dashboard_story_generate,
     "tool_dashboard_story_edit": _handle_tool_dashboard_story_edit,
@@ -6869,19 +6754,15 @@ _HANDLERS = {
     "tool_dashboard_reviewer_sim": _handle_tool_dashboard_reviewer_sim,
     "tool_synthesis_preview": _handle_tool_synthesis_preview,
     "tool_section_substantiveness": _handle_tool_section_substantiveness,
-    "tool_audit_cliches": _handle_tool_audit_cliches,
     "tool_poster_create": _handle_tool_poster_create,
     "tool_dashboard_create": _handle_tool_dashboard_create,
     # ── headline tools ─────────────────────────────────
     "tool_humanities_essay_scaffold": _handle_tool_humanities_essay_scaffold,
     "tool_paper_figures_autoembed": _handle_tool_paper_figures_autoembed,
-    "tool_audit_figure_coverage": _handle_tool_audit_figure_coverage,
     "tool_slides_create": _handle_tool_slides_create,
-    "tool_audit_cross_deliverable_consistency": _handle_tool_audit_cross_deliverable_consistency,
     "tool_reviewer_simulate": _handle_tool_reviewer_simulate,
     "tool_rebuttal_draft": _handle_tool_rebuttal_draft,
     "tool_reviewer_response_compile": _handle_tool_reviewer_response_compile,
-    "tool_audit_reviewer_responses": _handle_tool_audit_reviewer_responses,
     # research / reasoning
     "tool_research_method": _handle_tool_research_method,
     "tool_research_tool": _handle_tool_research_tool,
@@ -6926,7 +6807,6 @@ _HANDLERS = {
     "tool_reliability_log_event": _handle_tool_reliability_log_event,
     "tool_reliability_report": _handle_tool_reliability_report,
     "tool_state_freshness_check": _handle_tool_state_freshness_check,
-    "tool_audit_coherence": _handle_tool_audit_coherence,
     "tool_failure_record": _handle_tool_failure_record,
     "tool_failure_check": _handle_tool_failure_check,
     "tool_failure_list": _handle_tool_failure_list,
@@ -6968,8 +6848,6 @@ _HANDLERS = {
 _ALIASES = {
     # Dot notation is handled generically by the dispatcher's dot→underscore
     # rewrite, no need to list here.
-    "tool_audit_figure_quality": "tool_audit_figure_full",
-    "tool_audit_statistical_power": "tool_audit_power",
     "sys_state_summary": "sys_state_get",
     "tool_log_decision": "mem_decision_log",
     "view_workspace_tree": "sys_workspace_tree",
@@ -7002,6 +6880,38 @@ _ALIASES = {
     "mem_decision_log": "mem_log",
     "mem_hypothesis_update": "mem_log",
     "mem_analysis_log": "mem_log",
+
+    # ── audit cluster ───────────────────────────────────
+    # Per-step audits.
+    "tool_audit_assumptions": "tool_audit",
+    "tool_audit_code_quality": "tool_audit",
+    "tool_audit_evalue": "tool_audit",
+    "tool_audit_figure": "tool_audit",
+    "tool_audit_figure_full": "tool_audit",
+    "tool_audit_figure_interactivity": "tool_audit",
+    "tool_audit_power": "tool_audit",
+    "tool_audit_reproducibility": "tool_audit",
+    "tool_audit_step_completeness": "tool_audit",
+    "tool_audit_step_literature": "tool_audit",
+    # Project-wide audits.
+    "tool_audit_citations": "tool_audit",
+    "tool_audit_claims": "tool_audit",
+    "tool_audit_cliches": "tool_audit",
+    "tool_audit_coherence": "tool_audit",
+    "tool_audit_cross_deliverable_consistency": "tool_audit",
+    "tool_audit_prose": "tool_audit",
+    "tool_audit_version_coherence": "tool_audit",
+    # Synthesis-side audits.
+    "tool_audit_synthesis": "tool_audit",
+    "tool_audit_dashboard_content": "tool_audit",
+    "tool_audit_figure_coverage": "tool_audit",
+    "tool_audit_reviewer_responses": "tool_audit",
+    # Findings ledger (2 → 1).
+    "tool_audit_findings_query": "tool_audit_findings",
+    "tool_audit_findings_diff": "tool_audit_findings",
+    # Legacy nickname aliases — chain through the consolidated entry point.
+    "tool_audit_figure_quality": "tool_audit",
+    "tool_audit_statistical_power": "tool_audit",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7028,6 +6938,35 @@ _DEPRECATED_ALIASES = {
     "mem_decision_log",
     "mem_hypothesis_update",
     "mem_analysis_log",
+    # ── audit cluster ───────────────────────────────────
+    "tool_audit_assumptions",
+    "tool_audit_code_quality",
+    "tool_audit_evalue",
+    "tool_audit_figure",
+    "tool_audit_figure_full",
+    "tool_audit_figure_interactivity",
+    "tool_audit_power",
+    "tool_audit_reproducibility",
+    "tool_audit_step_completeness",
+    "tool_audit_step_literature",
+    "tool_audit_citations",
+    "tool_audit_claims",
+    "tool_audit_cliches",
+    "tool_audit_coherence",
+    "tool_audit_cross_deliverable_consistency",
+    "tool_audit_prose",
+    "tool_audit_version_coherence",
+    "tool_audit_synthesis",
+    "tool_audit_dashboard_content",
+    "tool_audit_figure_coverage",
+    "tool_audit_reviewer_responses",
+    "tool_audit_findings_query",
+    "tool_audit_findings_diff",
+    # Legacy nickname aliases now also flow through the consolidated
+    # tool_audit dispatcher and need param injection. Pre-v2 they silently
+    # mapped to tool_audit_figure_full / tool_audit_power.
+    "tool_audit_figure_quality",
+    "tool_audit_statistical_power",
 }
 
 
@@ -7037,11 +6976,16 @@ def _resolve_tool_name(name: str) -> str:
     return _ALIASES.get(canonical, canonical)
 
 
-# Maps legacy alias → (kwarg to inject, value). Lets the consolidated
-# handler infer operation/kind/source/mode/scope from the caller's name
-# so an old-style `tool_search_pubmed(query=...)` keeps working without
-# the caller supplying `source='pubmed'`.
-_ALIAS_PARAM_INJECTION = {
+# Maps legacy alias → kwarg(s) to inject. Lets the consolidated handler
+# infer operation/kind/source/mode/scope from the caller's name so an
+# old-style `tool_search_pubmed(query=...)` keeps working without the
+# caller supplying `source='pubmed'`.
+#
+# Two value shapes are accepted:
+#   * (key, value) tuple — single-kwarg injection (most clusters).
+#   * tuple of (key, value) tuples — multi-kwarg injection (audit cluster
+#     needs both scope and dimension).
+_ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_search_semantic_scholar": ("source", "semantic_scholar"),
     "tool_search_pubmed":           ("source", "pubmed"),
     "tool_search_crossref":         ("source", "crossref"),
@@ -7063,19 +7007,63 @@ _ALIAS_PARAM_INJECTION = {
     "mem_decision_log":             ("kind", "decision"),
     "mem_hypothesis_update":        ("kind", "hypothesis"),
     "mem_analysis_log":             ("kind", "analysis"),
+    # ── audit cluster ──
+    # Per-step audits.
+    "tool_audit_assumptions":             (("scope", "step"), ("dimension", "assumptions")),
+    "tool_audit_code_quality":            (("scope", "step"), ("dimension", "code_quality")),
+    "tool_audit_evalue":                  (("scope", "step"), ("dimension", "evalue")),
+    "tool_audit_figure":                  (("scope", "step"), ("dimension", "figure")),
+    "tool_audit_figure_full":             (("scope", "step"), ("dimension", "figure_full")),
+    "tool_audit_figure_interactivity":    (("scope", "step"), ("dimension", "figure_interactivity")),
+    "tool_audit_power":                   (("scope", "step"), ("dimension", "power")),
+    "tool_audit_reproducibility":         (("scope", "step"), ("dimension", "reproducibility")),
+    "tool_audit_step_completeness":       (("scope", "step"), ("dimension", "completeness")),
+    "tool_audit_step_literature":         (("scope", "step"), ("dimension", "literature")),
+    # Project-wide audits.
+    "tool_audit_citations":               (("scope", "project"), ("dimension", "citations")),
+    "tool_audit_claims":                  (("scope", "project"), ("dimension", "claims")),
+    "tool_audit_cliches":                 (("scope", "project"), ("dimension", "cliches")),
+    "tool_audit_coherence":               (("scope", "project"), ("dimension", "coherence")),
+    "tool_audit_cross_deliverable_consistency": (("scope", "project"), ("dimension", "cross_deliverable")),
+    "tool_audit_prose":                   (("scope", "project"), ("dimension", "prose")),
+    "tool_audit_version_coherence":       (("scope", "project"), ("dimension", "version_coherence")),
+    # Synthesis-side audits.
+    "tool_audit_synthesis":               (("scope", "synthesis"), ("dimension", "all")),
+    "tool_audit_dashboard_content":       (("scope", "synthesis"), ("dimension", "dashboard_content")),
+    "tool_audit_figure_coverage":         (("scope", "synthesis"), ("dimension", "figure_coverage")),
+    "tool_audit_reviewer_responses":      (("scope", "synthesis"), ("dimension", "reviewer_responses")),
+    # Findings ledger (2 → 1).
+    "tool_audit_findings_query":          ("operation", "query"),
+    "tool_audit_findings_diff":           ("operation", "diff"),
+    # Legacy nickname aliases.
+    "tool_audit_figure_quality":          (("scope", "step"), ("dimension", "figure_full")),
+    "tool_audit_statistical_power":       (("scope", "step"), ("dimension", "power")),
 }
 
 
 def _inject_consolidation_param(source_name: str, arguments: dict) -> dict:
-    """Inject the consolidation parameter implied by a deprecated alias.
+    """Inject the consolidation parameter(s) implied by a deprecated alias.
 
-    No-op if the caller already supplied the parameter (caller wins).
+    Accepts either a single (key, value) tuple or a tuple of (key, value)
+    pairs. No-op if the caller already supplied the parameter (caller wins).
     """
-    pair = _ALIAS_PARAM_INJECTION.get(source_name)
-    if not pair:
+    spec = _ALIAS_PARAM_INJECTION.get(source_name)
+    if not spec:
         return arguments
-    key, value = pair
-    arguments.setdefault(key, value)
+    # Multi-kwarg form: tuple of (key, value) pairs.
+    if (
+        isinstance(spec, tuple)
+        and spec
+        and all(isinstance(p, tuple) and len(p) == 2 for p in spec)
+    ):
+        for key, value in spec:
+            arguments.setdefault(key, value)
+        return arguments
+    # Single-kwarg form: (key, value).
+    if isinstance(spec, tuple) and len(spec) == 2 and not isinstance(spec[0], tuple):
+        key, value = spec
+        arguments.setdefault(key, value)
+        return arguments
     return arguments
 
 

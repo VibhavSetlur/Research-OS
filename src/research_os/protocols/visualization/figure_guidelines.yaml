@@ -335,7 +335,7 @@ mandatory_per_step_figure:
     saved to workspace/<step>/outputs/figures/<step_number>_<descriptor>.png
     even if the step's role is data plumbing or methodology selection.
     A step with no visual representation is hard to follow, hard to
-    review, and gets skipped in dashboards. tool_audit_step_completeness
+    review, and gets skipped in dashboards. tool_audit(scope='step', dimension='completeness')
     flags this as a BLOCKER that gates tool_synthesize.
   rationale: |
     Researchers follow analysis visually before they follow it
@@ -601,7 +601,7 @@ steps:
   - id: pre_publish_self_review
     name: Pre-publish self-review (run before audit + finalize)
     description: |
-      Before calling `tool_audit_figure_full` or `tool_path_finalize`,
+      Before calling `tool_audit(scope='step', dimension='figure_full')` or `tool_path_finalize`,
       walk this checklist for EVERY figure you wrote. Each item
       catches a real reviewer-blocking mistake.
 
@@ -644,12 +644,12 @@ steps:
   - id: audit
     name: Audit the Figure (server-enforced gate)
     description: |
-      tool_audit_figure_full filepath="workspace/<step>/outputs/figures/<name>.png"
+      tool_audit(scope='step', dimension='figure_full') filepath="workspace/<step>/outputs/figures/<name>.png"
       Checks DPI, dimensions, caption + summary presence, SVG companion,
       aspect-ratio sanity for time series, AND (when SVG is present)
       a text-overlap heuristic that catches the "stacked labels"
       pitfall above. Emits BLOCKERs and warnings that
-      tool_audit_step_completeness aggregates.
+      tool_audit(scope='step', dimension='completeness') aggregates.
 
       `tool_path_finalize` ALSO runs this audit on every figure in
       the step automatically, and surfaces blockers / warnings in

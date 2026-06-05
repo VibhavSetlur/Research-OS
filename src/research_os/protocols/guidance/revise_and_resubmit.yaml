@@ -20,7 +20,7 @@ description: |
     - `synthesis/response_to_reviewers.md` — the formal point-by-
       point reply letter.
     - re-audited `synthesis/paper.md` — every claim re-passes
-      `tool_audit_claims` and the prose re-passes `tool_audit_prose`.
+      `tool_audit(scope='project', dimension='claims')` and the prose re-passes `tool_audit(scope='project', dimension='prose')`.
 
 trigger: |
   Researcher pastes a reviewer report and says any of:
@@ -151,18 +151,18 @@ steps:
       The revision is not done until the audit chain re-passes.
       Run, in order:
 
-        tool_audit_claims target="synthesis/paper.md"
+        tool_audit(scope='project', dimension='claims') target="synthesis/paper.md"
           — every number traces to a workspace artefact;
             NEW numbers from new experiments must be groundable.
 
-        tool_audit_prose target="synthesis/paper.md"
+        tool_audit(scope='project', dimension='prose') target="synthesis/paper.md"
           — hedging, vague quantifiers, causal-language drift,
             reading level, section-coverage per reporting standard.
 
-        tool_audit_citations
+        tool_audit(scope='project', dimension='citations')
           — every new citation resolves on Crossref / Semantic Scholar.
 
-        tool_audit_figure_full per any figure that changed.
+        tool_audit(scope='step', dimension='figure_full') per any figure that changed.
 
         tool_audit_quality_full (or the per-component audits)
           — master audit; the grid's `audit` column gets the

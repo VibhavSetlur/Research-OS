@@ -102,7 +102,7 @@ steps:
     description: |
       Before handing off, the AI should verify the project ACTUALLY
       reproduces from the bundled assets:
-        - `tool_audit_reproducibility` (slow but the gold standard)
+        - `tool_audit(scope='step', dimension='reproducibility')` (slow but the gold standard)
           OR a manual walk through the final step's
           `entrypoint.sh`.
         - Record the verification outcome in

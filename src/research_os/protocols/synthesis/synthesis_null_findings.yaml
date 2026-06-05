@@ -14,7 +14,7 @@ description: |
 
   This protocol is opt-in but strongly recommended whenever the
   project's hypothesis tracker carries any `refuted` or
-  `inconclusive` entries, or when `tool_audit_power` flagged tests
+  `inconclusive` entries, or when `tool_audit(scope='step', dimension='power')` flagged tests
   as underpowered.
 
 trigger: |

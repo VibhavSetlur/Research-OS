@@ -75,7 +75,11 @@ def test_dispatcher_resolves_dots_to_underscores():
 
 
 def test_dispatcher_resolves_legacy_aliases():
-    assert _resolve_tool_name("tool_audit_statistical_power") == "tool_audit_power"
+    # v2.0.0: tool_audit_statistical_power resolves to the consolidated
+    # tool_audit entry point (was tool_audit_power before the audit-family
+    # collapse). Param injection sets scope=step / dimension=power so the
+    # legacy behaviour is preserved end-to-end.
+    assert _resolve_tool_name("tool_audit_statistical_power") == "tool_audit"
     assert _resolve_tool_name("sys_state_summary") == "sys_state_get"
     # _resolve_tool_name does a single-step lookup; tool_log_decision
     # resolves to mem_decision_log, which itself remains a handler (kept

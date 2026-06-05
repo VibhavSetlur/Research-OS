@@ -164,7 +164,7 @@ steps:
     description: |
       For each figure the deliverable will use:
         - if the input figure is publication-grade (≥300 DPI, both
-          sidecars, the kind tool_audit_figure_full will pass) →
+          sidecars, the kind tool_audit(scope='step', dimension='figure_full') will pass) →
           copy into workspace/<step>/outputs/figures/ with a manifest
           line recording the source.
         - if the input figure is sub-quality but the SOURCE DATA is

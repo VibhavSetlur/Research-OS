@@ -250,7 +250,7 @@ steps:
       missed terms) and re-run.
 
       The audit numbers feed the synthesis-level pre-submission
-      audit (`tool_audit_synthesis`) as a "data-handling provenance"
+      audit (`tool_audit(scope='synthesis', dimension='all')`) as a "data-handling provenance"
       block.
 
   - id: handoff_to_qualitative_research

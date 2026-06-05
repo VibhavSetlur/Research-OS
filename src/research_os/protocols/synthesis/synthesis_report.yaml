@@ -84,7 +84,7 @@ steps:
       tool_synthesize output_type="report" output_format=markdown
       Writes synthesis/report.md + synthesis/report_references.bib.
 
-      tool_audit_synthesis paper_path="synthesis/report.md"
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/report.md"
       Check banned phrases, missing sections, ungrounded claims.
       tool_citations_verify
 

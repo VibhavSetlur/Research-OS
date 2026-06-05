@@ -141,7 +141,7 @@ steps:
   - id: audit
     name: Final Audit
     description: |
-      tool_audit_synthesis paper_path="synthesis/grant.md"
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/grant.md"
       Check: every Aim mentioned in Summary appears in Approach; every claim
       has a citation; no banned phrases; word counts within limits.
 

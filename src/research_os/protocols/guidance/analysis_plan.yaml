@@ -193,11 +193,11 @@ steps:
 
       Gate consequences (read in tandem with the per-gate notes below):
         plan / ground / proof / apparatus → figure_required auto-False
-          (no focal figure expected). tool_audit_step_completeness
+          (no focal figure expected). tool_audit(scope='step', dimension='completeness')
           downgrades empty outputs/figures/ from BLOCK to PASS for
           these intents.
         visualise → literature_required inherited from prior step.
-          tool_audit_step_literature accepts a verdict block whose
+          tool_audit(scope='step', dimension='literature') accepts a verdict block whose
           `inherits_from: <NN_slug>` references the prior step's
           findings_vs_literature.md instead of re-running the loop.
         synth → both figure_required and literature_required default
@@ -338,10 +338,10 @@ steps:
       `tool_step_iterate` when materially changing a sub-task.
 
       Server-enforced gates (no fast path through them):
-        - tool_audit_step_completeness BLOCKS multi-script steps (>2)
+        - tool_audit(scope='step', dimension='completeness') BLOCKS multi-script steps (>2)
           without a pipeline.yaml, missing focal figures, missing
           caption / summary sidecars, missing provenance coverage <50%.
-        - tool_audit_code_quality BLOCKS scripts with bare `except`,
+        - tool_audit(scope='step', dimension='code_quality') BLOCKS scripts with bare `except`,
           `import *`, `eval`/`exec`, hardcoded absolute paths, or
           functions >150 lines / complexity >20.
         - tool_audit_quality_full runs every gate together before
@@ -421,14 +421,14 @@ steps:
         - Set RNG seeds explicitly; print library versions to stderr.
 
       Empty outputs/figures/ is a HARD FAIL FOR `analyse` STEPS —
-      tool_audit_step_completeness BLOCKS the final synthesis until
+      tool_audit(scope='step', dimension='completeness') BLOCKS the final synthesis until
       cleared. A step with numeric findings but empty outputs/tables/
       surfaces as a WARNING from the same audit (a missing table is a
       research-record gap, not a block-the-paper gap).
 
       AUTO-WAIVER (per step_intent — see `classify_step_intent`):
         step_intent ∈ {plan, ground, proof, apparatus, synth}
-          → tool_audit_step_completeness downgrades empty
+          → tool_audit(scope='step', dimension='completeness') downgrades empty
             outputs/figures/ from BLOCK to PASS automatically. No
             override needed; the step's intent IS the override
             rationale.
@@ -464,7 +464,7 @@ steps:
           conclusion into .versions/v<n>/ as a coordinated unit so the
           prior version is preserved before you edit anything. Then
           rename the live scripts using the suggested _v<n+1> suffix
-          and re-run. Use tool_audit_version_coherence to confirm
+          and re-run. Use tool_audit(scope='project', dimension='version_coherence') to confirm
           every output traces to the highest-version script on disk.
 
       Bump _v<n> on every meaningful re-run; do NOT silently overwrite.
@@ -514,7 +514,7 @@ steps:
       to what the literature says.
 
       This step is **pipeline-mandatory**. `finalize_step` (below) runs
-      `tool_audit_step_literature` as its first gate and BLOCKS the
+      `tool_audit(scope='step', dimension='literature')` as its first gate and BLOCKS the
       finalize if `findings_vs_literature.md` is missing for any step
       whose `step_summary.yaml` lacks `literature_required: false`.
 
@@ -539,7 +539,7 @@ steps:
         7. Updates step_summary.yaml with a `literature:` block
 
       Then GATE:
-        tool_audit_step_literature step_id="<NN_slug>"
+        tool_audit(scope='step', dimension='literature') step_id="<NN_slug>"
 
       Blocks if findings_vs_literature.md missing, claims lack verdicts,
       DISAGREES verdicts have no discussion, or all-deferred without
@@ -555,11 +555,11 @@ steps:
               step_intent: visualise
               literature:
                 inherits_from: <NN_slug_of_prior_step>
-          `tool_audit_step_literature` will PASS by confirming the
+          `tool_audit(scope='step', dimension='literature')` will PASS by confirming the
           referenced step's findings_vs_literature.md exists,
           rather than re-running the loop on the same claims.
 
-      The synthesis-level audit (`tool_audit_synthesis`) blocks final
+      The synthesis-level audit (`tool_audit(scope='synthesis', dimension='all')`) blocks final
       assembly when any step has literature_deferred non-empty or
       literature.claims_grounded == 0 without `literature_required: false`.
 
@@ -636,10 +636,10 @@ steps:
     name: Lightweight In-Step Audit
     description: |
       Whichever apply:
-        - tool_audit_figure on the primary figure (DPI / size).
-        - tool_audit_power if a statistical test with known n was run.
-        - tool_audit_assumptions if residuals were saved.
-        - tool_audit_step_literature step_id=<NN_slug> — gate for
+        - tool_audit(scope='step', dimension='figure') on the primary figure (DPI / size).
+        - tool_audit(scope='step', dimension='power') if a statistical test with known n was run.
+        - tool_audit(scope='step', dimension='assumptions') if residuals were saved.
+        - tool_audit(scope='step', dimension='literature') step_id=<NN_slug> — gate for
           the per-step literature loop (blocks finalize if
           findings_vs_literature.md missing or verdicts incomplete).
         - tool_verify step_id=<NN_slug> — confirms every

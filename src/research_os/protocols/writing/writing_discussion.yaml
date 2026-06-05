@@ -256,7 +256,7 @@ steps:
 
       Causal language is licensed when design supports it
       (RCT / IV / RDD / DiD / mathematical proof). For everything
-      else, the audit (tool_audit_synthesis) will flag every causal
+      else, the audit (tool_audit(scope='synthesis', dimension='all')) will flag every causal
       verb and BLOCK the paper assembly. Save the audit the round
       trip — do the pass here.
 
@@ -265,9 +265,9 @@ steps:
     description: |
       sys_file_validate_md filepath="synthesis/discussion.md"
         protocol_name="writing_core"
-      Run tool_audit_prose on synthesis/discussion.md — surfaces
+      Run tool_audit(scope='project', dimension='prose') on synthesis/discussion.md — surfaces
       hedging clusters, vague quantifiers, reading-level issues.
-      Run tool_audit_claims if any numbers in the Discussion;
+      Run tool_audit(scope='project', dimension='claims') if any numbers in the Discussion;
       every number must trace to workspace/scratch/discussion_evidence.md
       OR to a verified citation.
 

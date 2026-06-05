@@ -201,7 +201,7 @@ steps:
   - id: audit_figures
     name: Audit each figure (DPI + sidecars + aspect ratio)
     description: |
-      tool_audit_figure_full filepath="<png>"
+      tool_audit(scope='step', dimension='figure_full') filepath="<png>"
       Checks DPI, dimensions, caption + summary presence, SVG companion,
       aspect-ratio sanity for time series. For decks with many figures,
       aggregate the warnings into workspace/logs/figure_audit_summary.md.

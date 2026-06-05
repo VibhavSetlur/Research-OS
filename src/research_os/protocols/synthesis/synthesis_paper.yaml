@@ -136,7 +136,7 @@ steps:
   - id: gate_completeness
     name: Run Completeness Gate (BLOCKING)
     description: |
-      tool_audit_step_completeness
+      tool_audit(scope='step', dimension='completeness')
       The first step. If any active step has BLOCKERS (missing focal
       figure, missing caption sidecar, missing summary sidecar, stub
       conclusions sections), tool_synthesize REFUSES to assemble and
@@ -239,14 +239,14 @@ steps:
       (accessibility), `interactive_required`. Multi-paragraph captions
       split into a headline + a "Note:" appendix. The pass is idempotent —
       re-running tool_synthesize after a manual figure edit preserves
-      the edit. The companion tool_audit_figure_coverage BLOCKs when a
+      the edit. The companion tool_audit(scope='synthesis', dimension='figure_coverage') BLOCKs when a
       step has a figure on disk but the paper doesn't embed it (opt out
       by setting `figures_for_paper: false` on the step OR sidecar).
 
       Then:
-        tool_audit_synthesis paper_path="synthesis/paper.md"
+        tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/paper.md"
         tool_citations_verify
-        tool_audit_figure_coverage
+        tool_audit(scope='synthesis', dimension='figure_coverage')
       Read all three reports. Address BLOCKER warnings (missing sections,
       hallucinated citations, causal-language hits, orphan figures).
       Re-assemble.
@@ -294,7 +294,7 @@ steps:
           biber → pdflatex × 2).
 
       The PDF lives at `synthesis/paper.pdf` regardless of source.
-      `tool_audit_synthesis` MUST re-run on the compiled artefact
+      `tool_audit(scope='synthesis', dimension='all')` MUST re-run on the compiled artefact
       (PDF text extraction) to catch any LaTeX-only hallucination
       (citations resolving differently after \bibliography expansion).
 
