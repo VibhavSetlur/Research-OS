@@ -67,6 +67,33 @@ and throwaway work. Two themes from `docs/ROADMAP.md`:
 - **`tool_route` short-circuits on quick intent** — wired at the top of
   the hierarchical router so quick prompts never load a protocol.
 
+### Fixed — v1.5.0 stress-audit findings rolled forward
+
+PR #36 ("fix(v1.5.0): address 6 stress-audit findings before tag")
+didn't merge before v1.5.0 was tagged. The fixes are carried here.
+
+- **`tool_audit_synthesis` override pairing.** `override_no_pdfs=true`
+  with an empty `override_rationale` silently bypassed the
+  default-deny gate. Now both are required; passing only the boolean
+  returns a distinct blocker explaining the rationale is required.
+- **`tool_audit_coherence` numbered-list filter.** v1.5.0 only skipped
+  items starting with `1.`; items 2-N fell through and produced
+  phantom orphan paragraphs. Now matches any digit prefix.
+- **`tool_audit_coherence` code-block handling.** v1.5.0 only skipped
+  the triple-backtick fence line, not the code body. Now tracks
+  `in_code` state so fenced bodies are excluded.
+- **`tool_discussion_coverage_audit` single-keyword claims.** v1.5.0
+  threshold `max(2, n//2)` made short claims like "BMI rises"
+  permanently uncovered. Now requires all-of-N when n ≤ 2. Also
+  switched substring match to word-boundary regex (opposite
+  false-positive: 'expr' hit 'expression').
+- **`tool_path_finalize` first-gate literature check.** v1.5.0
+  documented `tool_audit_step_literature` as a hard-stop but never
+  wired the call. v1.5.1 wires it: finalize BLOCKs when the step's
+  `findings_vs_literature.md` is missing unless
+  `override_literature_gate=true` + `override_rationale=...` are
+  supplied.
+
 ### Validation
 
 - `python scripts/preflight.py` — 14/14
