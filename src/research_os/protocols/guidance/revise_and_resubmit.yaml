@@ -277,4 +277,5 @@ quality_bar:
   cover_letter_exists: true
 
 next_protocol: audit/pre_submission_checklist
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

@@ -182,4 +182,5 @@ expected_outputs:
   - workspace/lemmas/<slug>_audit.md       # only when audit was triggered
 
 next_protocol: theory_math/proof/theorem_dependency_graph
+next_protocol_kind: forward_default
 on_failure: theory_math/proof/proof_verification_workflow

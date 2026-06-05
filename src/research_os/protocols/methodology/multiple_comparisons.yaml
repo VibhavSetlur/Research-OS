@@ -232,4 +232,5 @@ quality_bar:
   reported_in_methods_and_results: true
 
 next_protocol: methodology/preregistration
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

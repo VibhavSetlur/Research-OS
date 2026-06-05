@@ -171,4 +171,5 @@ expected_outputs:
   - workspace/conjectures/<slug>_audit_<YYYY-MM-DD>.md  # per audit pass
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: theory_math/research/literature_survey

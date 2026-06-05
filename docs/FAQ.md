@@ -160,6 +160,91 @@ the ID), `mem_hypothesis_update` to log evidence + change status
 see the ledger. Every experiment step is asked which hypothesis IDs it
 touches.
 
+### I have a text corpus / interview transcripts / a theorem to prove. Where do my files go?
+
+The wizard creates `inputs/{raw_data, literature, context}/` by
+default. Some packs and protocols expect additional subfolders:
+
+* **Text corpus (humanities)** — `inputs/corpus/` for the full corpus,
+  `inputs/textual/passages/` for hand-picked close-reading passages
+  with edition pins.
+* **Interview transcripts (qualitative)** — `inputs/raw_data/` is
+  fine. Drop IRB protocols and interview guides in
+  `inputs/context/instruments/`.
+* **A theorem to prove (theory_math)** — write
+  `inputs/preliminaries.md` defining every object in your claim and
+  citing key prior results. This is a **hard prerequisite** of
+  `theory_math/method/proof_strategy_selection`; the protocol blocks
+  if it's missing.
+* **Code under benchmark (engineering)** — `inputs/context/code/` for
+  the source you're measuring (not your analysis scripts). Keeping it
+  here instead of `raw_data/` makes it editable so you can iterate on
+  the implementation.
+
+The full table is in [START.md § Drop your files](START.md#drop-your-files-1-min)
+and [AI_GUIDE.md § inputs/ directory conventions](AI_GUIDE.md#inputs-directory-conventions-read-on-cold-start).
+Just `mkdir` whichever subfolder you need; the immutability guarantee
+only applies to `inputs/raw_data/` and `inputs/literature/`.
+
+### Does Research OS support theory / pure-math projects?
+
+Yes — there's a dedicated `theory_math` pack with 8 protocols
+(conjecture tracking, proof strategy selection, proof verification
+workflow, lemma library, theorem dependency graph, formal-check
+decision, theory paper structure, citation chains for theory). The
+trigger phrases that route into it include "prove this", "I have a
+claim I need to prove", "proof verification", "theorem", and
+"conjecture". The pack uses `inputs/preliminaries.md` instead of
+`inputs/raw_data/` as the load-bearing input.
+
+For the validated end-to-end recipe (conjecture → strategy → lemmas →
+main theorem → theory paper → PDF), start by saying:
+
+> "I have a conjecture: <statement>. Help me prove it and write it up
+> as a theory paper."
+
+### Does Research OS support humanities / literary / textual analysis?
+
+Yes — there's a humanities pack with field-true protocols
+(`close_reading`, `distant_reading`, `digital_humanities_workflow`,
+`citation_chains`). The pack treats interpretive claims with the same
+rigor as quantitative ones: every claim is anchored to a line/page
+number, every passage is edition-pinned, every reading declares its
+critical tradition, and every cluster requires a counter-pattern.
+
+Drop your corpus in `inputs/corpus/` and your close-reading passages
+in `inputs/textual/passages/`, then say:
+
+> "I have <N> texts in inputs/ — test whether <stylistic claim>."
+
+Note: foundational humanities monographs (Princeton UP, Cornell UP,
+Oxford UP) often lack Crossref DOIs, so the citation-verify gate may
+flag them on first pass. That's a known last-mile gap — drop the PDFs
+in `inputs/literature/` and the verifier will accept the local copies.
+
+### Does Research OS support qualitative / interview research?
+
+Yes — `methodology/qualitative_research` is the entry point, and the
+end-to-end chain is:
+
+1. `methodology/qualitative_research` — interview protocol design,
+   transcript ingestion, open + axial coding, theme synthesis,
+   trustworthiness statement.
+2. `methodology/coding_scheme_development` — codebook construction
+   (inductive / deductive / hybrid).
+3. `methodology/qualitative_quality_audit` — saturation evidence,
+   reflexivity statement, intercoder agreement, member-checking,
+   quote anonymisation, audit-trail check.
+4. `audit/audit_and_validation` — master quality audit.
+5. `synthesis/synthesis_paper` — IMRAD-flavoured paper assembly.
+6. `synthesis/synthesis_dashboard` — story-mode dashboard.
+
+Sample-size justification for qualitative work routes through
+SATURATION evidence (Guest, Bunce, Johnson 2006), not power analysis.
+Don't call `tool_audit_power` on a qualitative step — the right
+answer is the saturation curve produced by
+`qualitative_quality_audit::saturation_evidence_check`.
+
 ---
 
 ## Outputs

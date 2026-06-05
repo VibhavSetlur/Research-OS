@@ -9,6 +9,39 @@ picks the protocol. This page exists so you know what's possible.
 
 ---
 
+## Common first prompts (start here)
+
+These are the highest-leverage first-turn prompts validated against five
+end-to-end scenarios. Each one routes cleanly; pick the row that matches
+what you actually have on disk, paste a one-line variant into the chat,
+and let the AI work.
+
+| What you arrived with | Try this first prompt | Routes to |
+|---|---|---|
+| Data + a specific hypothesis | "I dropped my <dataset> in inputs/ — I want to test whether <hypothesis>." | `guidance/project_startup` → `tool_intake_autofill` |
+| Data, no hypothesis yet | "I have <dataset> in inputs/ — explore it and help me find a hypothesis." | `methodology/exploratory_data_analysis` |
+| A text corpus (humanities / lit) | "I have <N> texts in inputs/raw_data/ — test whether <stylistic claim>." (e.g. James's late-style vocabulary shift) | `humanities/method/digital_humanities_workflow` (auto-loads the humanities pack); see also `humanities/textual/distant_reading` + `humanities/method/close_reading` |
+| Interview transcripts | "I have <N> interview transcripts in inputs/raw_data/ — walk this through to a paper + dashboard." | `methodology/qualitative_research` → `methodology/coding_scheme_development` → `methodology/qualitative_quality_audit` |
+| Benchmark / engineering measurements | "Benchmark <variant A> vs <variant B> vs <variant C> across <input sizes>; quantify when A wins." | `methodology/method_comparison` (engineering pack auto-detects) |
+| A theorem to prove | "I have a conjecture: <statement>. Help me prove it and write it up as a theory paper." | `theory_math/proof/proof_verification_workflow` (theory_math pack); see also `theory_math/conjecture/conjecture_tracking` |
+| Mixed: "I have a draft and some data" | "I'm bringing this project into Research-OS; we've been working on it for months." | `guidance/mid_pipeline_entry` |
+| You're not sure yet | "I have some data and some ideas — help me figure out where to start." | `guidance/scope_clarification` |
+
+A couple of fresh-agent tips that the validation surfaced:
+
+* **You don't have to phrase it as one of the above.** `tool_route` does
+  semantic matching first, then a hierarchical L1 → L2 → L3 trigger
+  picker. "head-to-head", "bake-off", "horse race" all hit
+  `method_comparison`; "prove this", "I have a claim I need to prove",
+  "proof verification" all hit the theory_math pack.
+* **If the router picks the wrong protocol, say "actually I meant X".**
+  The AI re-routes without re-loading the workspace.
+* **If you don't have data yet, just say so.** "Teach me about <method>
+  before I use it" loads `methodology/methodological_consultation` and
+  doesn't commit you to a project.
+
+---
+
 ## By role
 
 ### The graduate student / postdoc running their own analyses
@@ -104,6 +137,43 @@ picks the protocol. This page exists so you know what's possible.
 | Defense talk | "defense slides" | `synthesis/synthesis_slides` (audience: defense) |
 | Invited seminar / job talk | "invited seminar deck" | `synthesis/synthesis_slides` (audience: invited_seminar) |
 | Conference poster | "make a poster" | `synthesis/synthesis_poster` |
+
+### The theorist / mathematician (theory_math pack)
+
+The theory_math pack ships eight protocols for conjecture → proof
+→ formal-check workflows. Activate by saying "prove this", "I have a
+conjecture", "draft a proof", or by dropping a `.lean` / `.v` /
+`.tex` proof draft into `inputs/raw_data/`. The pack also detects
+`inputs/preliminaries.md` (definitions / lemmas the proofs assume).
+
+| You want to… | Say something like… | Protocol |
+|---|---|---|
+| Register an open problem you might tackle later | "log this conjecture for now" | `theory_math/conjecture/conjecture_tracking` |
+| Choose between direct / contradiction / induction / contrapositive / construction | "which proof strategy fits this claim" | `theory_math/method/proof_strategy_selection` |
+| Walk a claim from statement to verified proof | "prove this claim end-to-end" | `theory_math/proof/proof_verification_workflow` |
+| Maintain a reusable lemma library across proofs | "register this as a lemma" | `theory_math/proof/lemma_library` |
+| Render the dependency DAG across lemmas + theorems | "show me the theorem dependency graph" | `theory_math/proof/theorem_dependency_graph` |
+| Formalise a proof in Lean 4 + Mathlib | "formalise this in Lean" | `theory_math/formal/lean_integration` |
+| Formalise a proof in Coq | "formalise this in Coq" | `theory_math/formal/coq_integration` |
+| Compile the theory paper (Theorem / Proof / Refs, NOT IMRAD) | "compile the theory paper" | `theory_math/output/theory_paper_structure` |
+
+Three theory-only tools come with the pack:
+
+* `tool_theory_math_lean_check` — runs `lean --make` on a `.lean` file
+  with structured error parsing. Writes an install hint when Lean is
+  absent.
+* `tool_theory_math_coq_check` — `coqc` equivalent for Coq sources.
+* `tool_theory_math_dep_graph` — parses every `.lean` / `.v` under a
+  source directory, extracts named theorems / lemmas / definitions +
+  module imports, writes a Mermaid + JSON dependency graph.
+
+When the formal-check trigger fires
+(`proof_verification_workflow.quality_bar.formal_check_required_when`),
+the workflow flags the candidate proof and routes through
+`lean_integration` or `coq_integration`. Bourbaki-style careful
+informal proofs remain valid — formal check is required only when the
+result is foundational, contradicts a widely-believed conjecture, or
+uses an unusual axiom.
 
 ### The "I'm starting in the middle" researcher
 
@@ -206,6 +276,26 @@ don't want to redo the intake.
 | Per-step literature grounding (`findings_vs_literature.md`) | `literature/literature_per_step` *(v1.4.0)* |
 | Language / tool-stack decision (R vs Python per sub-task) | `methodology/pick_tool_stack` *(v1.4.0)* |
 | Mixed-language step (Python ↔ R ↔ Bash composition) | `methodology/mixed_language_orchestration` *(v1.4.0)* |
+
+---
+
+## End-to-end recipes (the protocol stack for a complete deliverable)
+
+`tool_route` picks ONE protocol per researcher message. A full project
+is many protocols composed in a pipeline. The recipes below show the
+canonical compositions — the AI walks them automatically when each
+protocol's `next_protocol` advances forward.
+
+| If your project is… | The pipeline | Final deliverable |
+|---|---|---|
+| **Qualitative interview / focus-group study** | `guidance/project_startup` → `methodology/qualitative_research` → `methodology/coding_scheme_development` → `methodology/qualitative_quality_audit` → `audit/audit_and_validation` → `synthesis/synthesis_paper` → `synthesis/synthesis_dashboard` *(optional)* | `synthesis/paper.md` (+ `synthesis/dashboard.html`) |
+| **Quantitative ML benchmark** | `guidance/project_startup` → `methodology/methodology_selection` → `methodology/evaluation_design` → `methodology/method_comparison` → `audit/audit_and_validation` → `synthesis/synthesis_paper` | `synthesis/paper.md` |
+| **Theory / math proof** | `guidance/project_startup` → `theory_math/method/proof_strategy_selection` → `theory_math/proof/proof_verification_workflow` → `theory_math/output/theory_paper_structure` → `synthesis/synthesis_paper` (citation_style: amsplain) | `synthesis/paper.md` (Theorem / Proof / References) |
+| **Close-reading humanities essay** | `guidance/project_startup` → `humanities/method/close_reading` → `synthesis/synthesis_paper` (citation_style: mla or chicago_author_date) | `synthesis/paper.md` |
+| **Visualization-only deliverable** | `visualization/visualization_workflow` *(no full project pipeline)* | One figure or figure deck |
+
+When the wrong recipe gets picked, say *"actually I meant <X>"* and the
+AI re-routes without losing the workspace.
 
 ---
 

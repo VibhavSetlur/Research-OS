@@ -81,12 +81,36 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 
 ---
 
+## `inputs/` directory conventions (read on cold-start)
+
+The wizard always creates three canonical subdirectories under
+`inputs/`. Some pack-specific protocols expect additional locations
+that the wizard does NOT pre-create:
+
+| Path | Created by wizard | Notes |
+|---|---|---|
+| `inputs/raw_data/` | yes | server-immutable; observational data |
+| `inputs/literature/` | yes | server-immutable; PDFs |
+| `inputs/context/` | yes | notes, drafts, prior reports — editable |
+| `inputs/corpus/` | no | text corpus for humanities pack; `tool_intake_autofill` populates `corpus_manifest.csv` when present |
+| `inputs/textual/passages/` | no | close-reading passages with edition pins (humanities) |
+| `inputs/preliminaries.md` | no | definitions + cited prior results — **hard prerequisite** of `theory_math/method/proof_strategy_selection` |
+| `inputs/context/code/` | no | source code under benchmark (engineering); kept editable so the researcher can iterate on the implementation |
+| `inputs/context/instruments/` | no | IRB protocols, interview guides, consent forms (qualitative) |
+
+When the researcher's prompt implies one of these (humanities corpus,
+proof, benchmark, qualitative interviews), tell the researcher where to
+drop the files BEFORE running `tool_intake_autofill` — the autofill
+benefits from the right files being in the right place.
+
+---
+
 ## Protocol categories (114 protocols, organised in 9)
 
 | Category | What it covers |
 |---|---|
 | guidance | session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree / scope_clarification / revise) |
-| discover | intake + question lock-in + scope_clarification |
+| discover | intake routing — `tool_intake_autofill` (a shortcut tool, not a YAML protocol) plus `guidance/scope_clarification`. There is no `protocols/discover/` directory; the category exists as a router intent_class, and `tool_route` returns `shortcut_tool=tool_intake_autofill` for it. |
 | domain | domain classification + study design |
 | methodology | method picking + per-method protocols (42 protocols, incl. **v1.4.0** `pick_tool_stack` + `mixed_language_orchestration`) |
 | literature | search + systematic review + evidence synthesis + comparative review + **v1.4.0** `literature_per_step` (per-step findings_vs_literature.md loop) |
@@ -94,6 +118,12 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 | visualization | figures (rules / workflow / critique / multi-panel / arc / a11y / interactive) |
 | synthesis | final deliverables (18 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable) |
 | audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + **v1.4.0** `tool_audit_step_literature` gate |
+
+If a category looks like it should have a folder but you can't find one
+(`discover/` is the canonical example), it's because the category
+resolves to a shortcut tool rather than a YAML protocol. Trust the
+router — do not grep `src/` to verify; the protocol catalogue is
+authoritative via `sys_protocol_list`.
 
 For a category-specific orientation, call `sys_help(topic="<category>")`.
 Useful operational topics that aren't categories:
@@ -282,6 +312,25 @@ For HUMAN collaborators (not the next AI), use
 `guidance/collaboration_handoff` — writes a COLLABORATOR.md in their
 vocabulary and packages a share-safe zip.
 
+### When to proactively hand off
+
+`tool_plan_turn` returns `chat_split_recommended: true` when the
+remaining plan won't fit comfortably in the current chat. The
+heuristic is approximately:
+
+* `model_profile=small` — hand off after every 3 steps, or any single
+  step expected to add >2K tokens of artefact-loading.
+* `model_profile=medium` — hand off after ~5 steps finalized this
+  conversation, or when the active plan still has >6 steps to walk.
+* `model_profile=large` — hand off after ~8 steps finalized this
+  conversation, or when context utilisation crosses ~70%.
+
+`tool_step_revision_options.handoff_recommended` returns `true` on the
+same logic at the per-step level. When EITHER signal fires, write the
+handoff doc and tell the researcher to open a fresh chat — don't try
+to push through. Continuing past `chat_split_recommended` is the most
+common cause of mid-session context exhaustion that loses state.
+
 ---
 
 ## Per-section paper-writing protocols
@@ -332,6 +381,54 @@ the plotting script in the appropriate language — matplotlib / ggplot2 /
 plotnine / Altair / d3 / plotly — guided by `figure_guidelines`. The
 server enforces DPI, sidecars, palette via `tool_audit_figure_full` and
 `tool_path_finalize`.
+
+---
+
+## Domain packs (theory_math, qualitative, humanities, engineering, wet_lab)
+
+Five domain packs ship in the default wheel. They activate
+automatically when their detectors fire (filename heuristics, intake
+keywords, researcher_config domain tags) — you don't load them
+explicitly.
+
+### `theory_math` — proofs, formal verification, theorems
+
+Fires when: researcher says "prove this" / "I have a conjecture" /
+"draft a proof" / "iterate on the proof"; OR `.lean` / `.v` / `.tex`
+proof drafts appear under `inputs/raw_data/`; OR
+`inputs/preliminaries.md` lists definitions / lemmas the proofs use.
+
+Pack ships 8 protocols + 3 tools (see TOOLS.md § Theory + math pack
+and PROTOCOLS.md § Theory + math pack). The canonical workflow:
+
+1. `theory_math/conjecture/conjecture_tracking` — register the open
+   problem if you're not ready to tackle it yet
+2. `theory_math/method/proof_strategy_selection` — choose between
+   direct / contradiction / induction / contrapositive / construction
+3. `theory_math/proof/proof_verification_workflow` — claim → strategy
+   → draft → independent review (via `tool_redteam_review focus='proof'`)
+   → optional formal check → publish
+4. `theory_math/proof/lemma_library` and
+   `theory_math/proof/theorem_dependency_graph` — maintain reusable
+   lemmas + render the dependency DAG
+5. `theory_math/formal/lean_integration` or
+   `theory_math/formal/coq_integration` — formalise when the
+   `formal_check_required_when` triggers fire (foundational claim /
+   contradicts widely-believed conjecture / uses unusual axiom)
+6. `theory_math/output/theory_paper_structure` — compile the theory
+   paper (Theorem / Proof / References, NOT IMRAD)
+
+The IMRAD assumptions baked into `synthesis/synthesis_paper` do not
+apply — load `theory_paper_structure` instead. For citation style on
+theory papers, set `researcher_config.citation_style: amsplain`
+when the venue is a math journal.
+
+### `qualitative`, `humanities`, `engineering`, `wet_lab`
+
+Activated the same way (detector-driven). Each ships its own
+protocols + a small toolkit; see TOOLS.md (Qualitative / Humanities /
+Engineering / Wet-lab pack sections) and PROTOCOLS.md for the
+catalogue.
 
 ---
 

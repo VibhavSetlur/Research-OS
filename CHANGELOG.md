@@ -6,6 +6,220 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.9.4] — Fresh-agent usability validation: 22 fixes across docs / protocols / templates (2026-06-05)
+
+MINOR release. Closes 21 of 22 prioritized fixes from a 5-scenario
+fresh-agent usability validation (Claude Opus 4.7, 1M ctx, doc-surface
+only across biology RNA-seq, humanities close-reading, qualitative
+interviews, engineering microbenchmark, theory/math proof). Average
+usability rating moved **6.6 / 10 → 7.8 / 10**; HIGH-severity friction
+**12 → 1**; first-5-turns HIGH friction **2 → 0**. One new protocol
+(`methodology/qualitative_pii_redaction`), one new schema field
+(`next_protocol_kind` on all 148 protocols), `citation_style` enum
+widened, two new Typst venue templates. No public-API tool removed.
+No tool's existing input schema changed.
+
+Full detail: [`docs/USABILITY_v1.9.4.md`](docs/USABILITY_v1.9.4.md)
+(synthesis), `docs/usability_v1.9.4/scenario_{1..5}*.md` (per-scenario
+trace + re-run reports), and the "Validated in v1.9.4" appendix in
+[`docs/AUDIT_v1.9.2.md`](docs/AUDIT_v1.9.2.md).
+
+Release gates: preflight 23/23 (new check: `next_protocol_kind
+declared on every protocol`); pytest **899 passed** (was 896
+baseline; +3 from new Typst venue parametrisations for
+`humanities_essay` + `chicago_thesis`); ruff clean.
+
+### Added
+
+* **`docs/USABILITY_v1.9.4.md`** — 5-scenario fresh-agent validation
+  synthesis (165 turns logged, friction matrix, cross-scenario
+  themes, 22-fix priority list, deferred items, full re-validation
+  results table).
+* **5 per-scenario reports** under `docs/usability_v1.9.4/`
+  (initial + re-run for biology / humanities / qualitative / theory;
+  initial only for engineering).
+* **New protocol: `methodology/qualitative_pii_redaction.yaml`** —
+  HIPAA Safe Harbor 18-class + GDPR Art. 9 + IRB-compliant
+  pre-coding gate. Hard prerequisite of `methodology/qualitative_research`.
+  Routes via `_router_index.yaml` when raw transcripts present without
+  redacted counterpart (F-017).
+* **New schema field: `next_protocol_kind`** on every protocol YAML
+  (`forward_default` | `iterate_back` | `terminal`). Backfilled across
+  all 148 protocols (base + 5 packs) via inference. Documented in
+  `PROTOCOL_DOCTRINE.md` (F-007). Soft preflight check added.
+* **`step_intent` field** in `templates/step_summary.yaml.template`
+  (plan / ground / analyse / visualise / synth / proof / apparatus).
+  Per-step audit waivers documented per intent class (F-001).
+* **2 new Typst venue templates**: `humanities_essay.typ`
+  (single-column, footnotes, block-quote macro, generous margins) +
+  `chicago_thesis.typ` for humanities + Chicago-citation outputs
+  (F-018). Registered in `VENUE_TEMPLATES` + `VENUE_CITATION_STYLE`.
+* **PII redaction policy template**: `templates/qualitative/pii_policy.md`
+  (F-017 supporting material).
+* **End-to-end recipes table** in `docs/USE_CASES.md` (qualitative
+  pipeline, ML benchmark, theory/math proof, humanities essay,
+  viz-only). Plus "Common first prompts (start here)" table covering
+  data+hypothesis, text corpus, interview transcripts, benchmark
+  vocabulary, conjecture-to-prove, mid-pipeline, unclear-intent
+  (F-008, F-021).
+* **Appendix A — Common figure recipes** in
+  `docs/RESEARCHER_GUIDE.md` (volcano / UMAP / heatmap / forest /
+  survival KM / log-log benchmark) mapping each to its protocol
+  stack + enforced sidecar/audit conventions (F-016).
+* **Theory_math pack surfaced in 4 user-facing docs**:
+  `docs/USE_CASES.md` (theorist row, 8 protocols + 3 tools),
+  `docs/PROTOCOLS.md` (8-protocol section), `docs/START.md` (theory +
+  qualitative + humanities first prompts), `docs/AI_GUIDE.md` (full
+  domain-packs section with theory_math workflow) (F-014).
+* **Return-shape JSON examples** in `docs/TOOLS.md` for
+  `tool_intake_autofill`, `tool_dashboard_create`, `tool_step_complete`,
+  `tool_audit_quality_full` (F-013). Cited by the biology re-validation
+  as "single highest-leverage doc choice; lets a fresh agent simulate
+  calls without grepping src/".
+
+### Improved (AI guidance prose across protocols)
+
+Scenarios improved: biology RNA-seq DE (S1), humanities close-reading
+(S2), qualitative interviews (S3), engineering benchmark (S4),
+theory/math proof (S5) — all 5.
+
+* **`methodology/qualitative_research.yaml`** — `next_protocol` fixed
+  from `guidance/analysis_plan` → `methodology/qualitative_quality_audit`
+  (F-006). `ingest_transcripts` step now STOPs and routes when raw
+  transcripts lack redacted counterpart (F-017). `declare_step_contract`
+  step added per F-002 (figure-gate auto-waiver).
+* **`methodology/method_comparison.yaml`** — engineering / systems
+  benchmark addendum step added (warm-up runs vs folds, CPU governor
+  control, paired Wilcoxon on heavy-tailed timings, log-log scaling
+  plots, language-stdlib baselines, requirements-traceability binding)
+  (F-010).
+* **`guidance/analysis_plan.yaml`** — `classify_step_intent` step added
+  at step-create time; visualise-step literature exemption via
+  `literature.inherits_from` documented (F-001, F-004).
+* **`literature/literature_per_step.yaml`** — verdict enum extended
+  to AGREES | DISAGREES | EXTENDS | **IMPORTED_AS_CITED** |
+  **SPECIALIZES** | DEFERRED. Verdict-selection guide added.
+  Visualise-step inheritance contract documented (F-003, F-004).
+* **`research_os_humanities/protocols/textual/close_reading.yaml`** —
+  `declare_step_contract` step added (apparatus contract waives
+  generic completeness gate); `tool_humanities_apparatus_audit`
+  cross-link (F-002, F-020).
+* **`research_os_theory_math/protocols/proof/proof_verification_workflow.yaml`** —
+  `step_intent: proof` contract declaration (F-002).
+
+### Improved (error messages + tool surface)
+
+* **`tool_dashboard_create`** — `mode` enum (explore / story /
+  executive / teaching) enumerated in TOOLS.md; composition with
+  `audience=` documented; story-mode dependency on `dashboard_story.md`
+  surfaced (F-011).
+* **`tool_step_complete`** — first-class TOOLS.md entry with gate
+  sequence, return shape, and alias-superset relationship to
+  `tool_path_finalize` (F-012).
+* **`tool_engineering_requirements_matrix`** — cross-referenced from
+  `method_comparison` engineering / systems-benchmark addendum (F-009).
+* **`tool_redteam_review`** — row added to TOOLS.md (Audit extensions)
+  clarifying `focus=` values and distinction from `quick_paper_review`
+  and `peer_review_response` (F-015).
+
+### Improved (onboarding flow)
+
+* `docs/START.md` — extra `inputs/` subfolders table after the
+  file-drop section; pointer to validated first-prompts table in
+  USE_CASES.md; theory + qualitative + humanities first prompts
+  (F-021, F-022).
+* `docs/AI_GUIDE.md` — `discover/` clarified as shortcut-tool-only
+  intent_class (no FS folder, stops fresh agents grepping src/);
+  `inputs/` directory conventions table; `chat_split_recommended`
+  heuristic per `model_profile`; full domain-packs section (F-014,
+  F-022, C-extras).
+* `docs/RESEARCHER_GUIDE.md` — extra-subfolders table after file-layout
+  diagram; inline citation_style + venue_template comments flagging
+  humanities/math gaps and workarounds; Appendix A common figure
+  recipes (F-016, F-022).
+* `docs/FAQ.md` — text-corpus-vs-transcripts file placement;
+  theory-math support discoverability; humanities pack support +
+  monograph citation gotcha; qualitative end-to-end chain +
+  saturation-not-power-analysis (F-022, C-extras).
+
+### Fixed (edge cases)
+
+* **Per-step audits now intent-aware** — F-001 + F-002 ship the
+  `step_intent` contract; figure-required hard-fail auto-waives for
+  plan / ground / proof / apparatus / synth steps. Drove 5/5 scenarios'
+  per-step-audit over-fire to zero.
+* **Literature gate verdict enum gap closed** — F-003 extends enum
+  with IMPORTED_AS_CITED + SPECIALIZES, closing theory's 9-HIGH
+  literature-gate verdict-mismatch cluster. F-004 documents the
+  visualise-step exemption via `literature.inherits_from`.
+* **`qualitative_research.next_protocol` mis-route fixed** — F-006
+  one-line YAML fix.
+* **`next_protocol` semantic ambiguity resolved** — F-007 backfills
+  `next_protocol_kind` on all 148 protocols.
+* **`citation_style` enum widened** — F-018 adds mla,
+  chicago_author_date, chicago_notes_bib, amsplain, siam (mirrored
+  in `CONFIG_TEMPLATE` + `VENUE_TEMPLATES` + `VENUE_CITATION_STYLE`
+  with researcher-facing → Typst hyphenated CSL translator).
+
+### Fixed (per-domain composition gaps)
+
+* **Qualitative** — pre-coding PII redaction protocol now exists
+  upstream of coding (was: only quote-level audit AFTER coding, too
+  late for HIPAA/IRB/GDPR). Most material protective gap closed (F-017).
+* **Humanities** — `citation_style` MLA / Chicago + `humanities_essay.typ`
+  + `chicago_thesis.typ` Typst templates shipped; `humanities_apparatus_audit`
+  cross-linked from `close_reading` (F-018, F-020). Two HIGH frictions
+  removed.
+* **Theory/math** — pack surfaced in user-facing docs (F-014); paper
+  rating moved 5 → 8.
+* **Engineering** — `method_comparison` gains
+  engineering/systems-benchmark addendum + cross-link to
+  `tool_engineering_requirements_matrix` (F-009, F-010).
+
+### Deferred to v1.11.0
+
+* **F-005** — Per-step audit override path documentation
+  (`override_completeness_gate`, `override_literature_gate`) with
+  examples in TOOLS.md + AI_GUIDE.md.
+* **F-019** — WorldCat / OpenLibrary / LOC ISBN-based verifiers in
+  `tool_citations_verify` (humanities monograph DOI gap). Doc-side
+  workaround language landed in v1.9.4.
+* **Humanities essay structure protocol** parallel to
+  `theory_math/output/theory_paper_structure` — `humanities_essay.typ`
+  ships but no protocol drives it.
+* **`tool_audit_step_literature` descriptive/prep step waiver** —
+  partial via F-003; full descriptive-step waiver still open
+  (continuation of AUDIT-v1.9.2-022).
+* **D-01 .. D-07** — pack-aware `tool_audit_prose`, theory dashboard
+  schema, LLM-assisted qualitative coding tool, informal-markdown
+  proof parser for `tool_theory_math_dep_graph`,
+  `chat_split_recommended` heuristic exposure, router decomposition
+  algorithm exposure, `single_coder` branch in
+  `coding_scheme_development`.
+
+### Validation metrics
+
+* **Average usability rating**: **7.8 / 10** (vs 6.6 / 10 initial baseline; +1.2)
+* **HIGH-severity friction events**: **1** (vs 12 initial; −11)
+* **Onboarding HIGH friction (first 5 turns)**: **0** (vs 2 initial)
+* **Scenarios reaching `paper.pdf` step**: 5 / 5
+* **Scenarios reaching `dashboard.html` step**: 5 / 5 (was 5 / 5 with 1 partial)
+* **Top scenario movement**: theory/math 5 → 8 (+3) on F-014 + F-001/F-002 + F-003
+
+Targets met: HIGH ≤ 5 (1) ✓; onboarding HIGH = 0 ✓. Target missed:
+average ≥ 8.5 (got 7.8); concentrated in S2 humanities where the
+missing `humanities_essay_structure` protocol and the still-empirical
+descriptive/prep literature-verdict gap account for the 0.7-point gap.
+
+### Bumped — protocols
+
+148 protocol YAMLs (base + 5 packs) gained `next_protocol_kind` field
+via scripted backfill (inferred: `null` → terminal, self-id →
+iterate_back, otherwise → forward_default). Embeddings rebuilt
+(151 protocols + 212 tools, BAAI/bge-small-en-v1.5, dim=384).
+
+---
+
 ## [1.9.3] — Audit followup: 33 of 35 v1.9.2 findings resolved (2026-06-05)
 
 MINOR release. Closes the v1.9.2 audit work-list: 4 CRITICAL +

@@ -204,4 +204,5 @@ quality_bar:
   pinned_library_in_requirements_txt: true
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: visualization/figure_guidelines

@@ -263,4 +263,5 @@ expected_outputs:
   - workspace/logs/wet_lab_reproducibility_audit.md
 
 next_protocol: wet_lab/output/methods_section_wet_lab
+next_protocol_kind: forward_default
 on_failure: null

@@ -1384,3 +1384,35 @@ Release gates at synthesis time:
 | 03 | Qualitative interview study | 9 | 3 (+ 1 new internal-drift item) | 8/10 |
 
 Average usability across 3 lenses: **7.67 / 10** (was ~5 in v1.9.2).
+
+---
+
+## Appendix: Validated in v1.9.4 (2026-06-05)
+
+The v1.9.4 release ran a full 5-scenario fresh-agent usability validation (Claude Opus 4.7, 1M ctx, doc-surface only — no `src/research_os/**/*.py` reads). The validation harness fired the same trace template (~33 turns/scenario, sys_boot → tool_route → analysis_plan → per-step audits → synthesis_paper → tool_paper_compile_typst → tool_dashboard_create → pre_submission_checklist) across biology RNA-seq DE, humanities close-reading, qualitative interview thematic analysis, engineering microbenchmark, and theory/math proof. See `docs/USABILITY_v1.9.4.md` for full synthesis.
+
+### v1.9.4 validation outcome (vs initial baseline)
+
+| Metric | Initial baseline | After v1.9.4 fix sprint |
+|---|---|---|
+| Average usability rating | 6.6 / 10 | **7.8 / 10** |
+| Total HIGH-severity friction events | 12 | **1** |
+| Total MEDIUM-severity friction events | 27 | 17 |
+| Onboarding HIGH friction (first 5 turns) | 2 | **0** |
+| Scenarios reaching `paper.pdf` step | 5 / 5 | 5 / 5 |
+| Scenarios reaching `dashboard.html` step | 5 / 5 (1 partial) | 5 / 5 (all clean) |
+
+22 prioritized fixes shipped across 3 clusters: AI guidance + missing prompts + tool discoverability (11 fixes), error messages + edge cases + domain composition (7 fixes), onboarding flow + docs polish (3 fixes + extras). Two of three quality targets met (HIGH friction ≤ 5: **YES**, onboarding HIGH = 0: **YES**); average-rating target (≥ 8.5) missed by 0.7 points, driven by 4 remaining MEDIUM frictions in S2 humanities (no `humanities_essay_structure` protocol; literature-gate verdict mismatch on descriptive/prep steps; corpus placement recovery; story-mode dashboard tools opacity). Top per-scenario gain: theory/math moved 5 → 8 (+3) on the back of F-014 pack visibility + F-001/F-002 step-intent waivers + F-003 IMPORTED_AS_CITED verdict. See `docs/USABILITY_v1.9.4.md` §9 for full re-validation table + deferred-to-v1.11.0 gap accounting.
+
+### Resolutions to deferred AUDIT-v1.9.2 findings
+
+| ID | Title | v1.9.4 status |
+|---|---|---|
+| AUDIT-v1.9.2-022 | `literature_per_step` empirical-only | PARTIAL — verdict enum extended (IMPORTED_AS_CITED, SPECIALIZES); descriptive/prep step waiver still open (re-deferred to v1.11.0) |
+| AUDIT-v1.9.2-023 | `synthesis_paper` p-value formatting | DEFERRED to v1.11.0 (no validation surface hit) |
+| AUDIT-v1.9.2-024 | `audit_and_validation` auto-routes codebook to qualitative gate | RESOLVED (F-006 + F-008 closed the qualitative chain) |
+| AUDIT-v1.9.2-060 | `tool_paper_compile_typst` `next_steps` field | RESOLVED (F-013 documented return shapes including next_steps) |
+| AUDIT-v1.9.2-065 | `synthesis_paper` prerequisites assume literature_index ≥ 3 | DEFERRED to v1.11.0 |
+| AUDIT-v1.9.2-074 | Humanities pack chains dead-end at `next_protocol: null` | PARTIAL — F-007 labelled all 148 protocols with `next_protocol_kind`; humanities-essay-structure protocol still missing (re-deferred to v1.11.0) |
+
+Release gates at v1.9.4 sign-off: preflight 23/23 (one new check added: `next_protocol_kind declared on every protocol`); pytest 899 passed (up from 896 baseline; +3 from new Typst venue parametrisations covering `humanities_essay` + `chicago_thesis`); ruff clean across `src/ tests/ scripts/`.

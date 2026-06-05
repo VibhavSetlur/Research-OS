@@ -130,4 +130,5 @@ expected_outputs:
   - workspace/*/outputs/figures/<step>_participant_flow.png
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

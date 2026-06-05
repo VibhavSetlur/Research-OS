@@ -97,4 +97,5 @@ quality_bar: |
   - The decision is justified by feasibility data, not hope.
 
 next_protocol: domain/research_design
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

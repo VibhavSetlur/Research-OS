@@ -125,6 +125,25 @@ You touch `inputs/`. The AI touches `workspace/` and `synthesis/`.
 Nothing in `inputs/raw_data/` or `inputs/literature/` is ever modified
 — Research OS blocks writes at the server level.
 
+### Extra `inputs/` subfolders some packs expect
+
+The wizard always creates `raw_data/`, `literature/`, and `context/`.
+Pack-specific protocols may also expect:
+
+| Subfolder | What goes there | Required by |
+|---|---|---|
+| `inputs/corpus/` | A text corpus you'll analyse computationally (novels, transcripts, primary sources). Create when you stage the corpus; the humanities pack will populate `inputs/corpus/corpus_manifest.csv` during intake. | `humanities/textual/distant_reading`, `humanities/method/digital_humanities_workflow` |
+| `inputs/textual/passages/` | Hand-picked passages for line-by-line close reading. One Markdown file per passage with the block quote at the top + edition pin in the front matter. | `humanities/method/close_reading` |
+| `inputs/preliminaries.md` | Free-text Markdown defining every object in your theorem claim, plus the key prior results you'll cite as lemmas. Hard prerequisite — `proof_strategy_selection` blocks if this file is missing. | `theory_math/method/proof_strategy_selection`, downstream theory protocols |
+| `inputs/context/code/` | The source code under benchmark (the C / Rust / Python implementation you're measuring, **not** your analysis scripts). Keeping it under `context/` instead of `raw_data/` makes it inspectable but not server-immutable, so you can iterate on the implementation. | `methodology/method_comparison` (engineering pack) |
+| `inputs/context/instruments/` | IRB protocols, interview guides, survey instruments, consent forms. Surfaces in `tool_audit_quality_full` and `methodology/qualitative_quality_audit`. | `methodology/qualitative_research` |
+
+The wizard does not pre-create these because most projects don't need
+them — but mention them when you stage files so a fresh AI agent knows
+where to look. The immutability guarantee only applies to
+`inputs/raw_data/` and `inputs/literature/`; the extra subfolders
+above stay editable.
+
 ---
 
 ## 4. A typical session (narrative)
@@ -453,10 +472,20 @@ model_profile: "medium"           # small | medium | large
 
 writing_preferences:
   citation_style: "apa"           # apa | vancouver | acm | ieee | nature
+                                  # Humanities (MLA / Chicago) + math
+                                  # (amsplain / siam) styles are on the
+                                  # roadmap; for now use the closest
+                                  # match and edit the bibliography
+                                  # style in the generated .tex / .typ
+                                  # if your venue requires a specific
+                                  # one.
   language: "en-US"
   # Typst venue template for tool_paper_compile_typst.
   #   nature | science | nejm | cell | ieee_conf | neurips | acl
   #   plos  | generic_two_column | generic_thesis
+  # For humanities-essay or Chicago-thesis layouts, use
+  # generic_thesis and adjust the front matter; dedicated
+  # humanities_essay and chicago_thesis templates are planned.
   venue_template: "generic_two_column"
   # PDF engine for the synthesis pipeline. "typst" recommended (fast,
   # single-binary install). Use "latex" when a journal requires .tex.
@@ -715,6 +744,43 @@ Preflight (everything-is-wired check):
 ```bash
 python scripts/preflight.py
 ```
+
+---
+
+## Appendix A. Common figure recipes (which protocol stack builds each)
+
+The visualization category has 14 protocols and Research-OS does not
+ship a parametric chart-builder — the AI writes the plotting script
+per the `visualization/figure_guidelines` style guide. The table below
+maps the six most common publication-grade figures to the protocol
+stack that produces each, so you (or the AI) know which one-liner gets
+you there fastest.
+
+| Figure recipe | When you'd reach for it | Protocol stack the AI walks |
+|---|---|---|
+| **Volcano plot** (-log10 p-value vs effect size, labelled tails) | Differential expression / GWAS / any "many tests, name the hits" output | `visualization/figure_guidelines` → `visualization/visualization_workflow` → `visualization/interactive_figure_design` (>200 marks gets an HTML companion via `tool_audit_figure_interactivity`) |
+| **UMAP / t-SNE** (per-cell or per-sample embedding, colored by cluster / condition) | scRNA-seq / single-cell ATAC / any high-dim sample-level visualisation | `visualization/figure_guidelines` → `visualization/visualization_workflow` → `visualization/interactive_figure_design` (>200 cells) → `visualization/color_accessibility_audit` (cluster palettes are the most common a11y miss) |
+| **Heatmap with row/column clustering** (genes × samples; correlations; ARI confusion) | Co-expression / correlation matrix / clustering quality | `visualization/figure_guidelines` → `visualization/visualization_workflow` → `visualization/multi_panel_composition` (paired with the dendrogram + annotation bars) → `tool_audit_figure_interactivity` (auto-companion when matrix > 50×50) |
+| **Forest plot** (effect size + CI per study / subgroup) | Meta-analysis / multi-cohort comparison / Cox PH subgroup interactions | `methodology/meta_analysis` (or `methodology/cox_ph_diagnostics`) → `visualization/figure_guidelines` → `visualization/uncertainty_visualization` (the CI is the figure) |
+| **Survival / Kaplan-Meier curve** (with at-risk table, log-rank p) | Time-to-event analysis; clinical trials; cohort studies | `methodology/clinical_trials` / `methodology/cox_ph_diagnostics` → `visualization/figure_guidelines` → `visualization/uncertainty_visualization` (CI ribbons, at-risk row) |
+| **Log-log benchmark scaling plot** (runtime vs n, fitted exponent + CI) | Systems / algorithms benchmark; engineering pack | `methodology/method_comparison` (including the engineering / systems-benchmark addendum) → `visualization/figure_guidelines` → `visualization/uncertainty_visualization` (the CI on the exponent is the headline) |
+
+For every recipe, the AI also pairs `tool_audit_figure_full` and
+auto-synthesises a `<figure>.caption.md` + `<figure>.summary.md`
+sidecar via `tool_figure_caption_synthesise`. Skipping the sidecar
+blocks at the per-step completeness audit, so don't.
+
+Two general principles the stack enforces:
+
+- **Pick the chart family from `figure_guidelines` before plotting**,
+  not after. Bar-with-error-bars is rarely the right comparison; the
+  guidelines protocol routes you to `distribution_comparison`,
+  `uncertainty_visualization`, or `multi_panel_composition` as
+  appropriate.
+- **Run `color_accessibility_audit` on every figure that uses
+  colour to encode information.** WCAG contrast + colour-blindness
+  simulation + grayscale-survivability is one tool call; reviewers
+  catch un-redundant colour encoding more than any other figure flaw.
 
 ---
 

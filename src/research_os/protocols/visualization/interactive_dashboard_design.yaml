@@ -277,4 +277,5 @@ quality_bar:
   static_pdf_export_for_archival_present: true
 
 next_protocol: synthesis/synthesis_dashboard
+next_protocol_kind: forward_default
 on_failure: visualization/figure_guidelines

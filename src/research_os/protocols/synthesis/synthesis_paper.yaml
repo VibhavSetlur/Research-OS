@@ -335,4 +335,5 @@ expected_outputs:
   - synthesis/references.bib
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

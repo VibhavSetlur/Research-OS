@@ -238,4 +238,5 @@ quality_bar:
   no_hand_written_sidecars_without_re_run: true
 
 next_protocol: audit/audit_and_validation
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

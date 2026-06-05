@@ -186,4 +186,5 @@ quality_bar:
   amendment_process_for_post_freeze_changes_documented: true
 
 next_protocol: methodology/inter_rater_reliability
+next_protocol_kind: forward_default
 on_failure: methodology/interview_guide_design

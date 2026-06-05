@@ -164,4 +164,5 @@ expected_outputs:
   - docs/research_overview.md
 
 next_protocol: domain/domain_analysis
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

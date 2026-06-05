@@ -185,4 +185,5 @@ expected_outputs:
   - "workspace/docs/dep_graph_cycle_<n>.md  # only when a cycle was found"
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: theory_math/proof/proof_verification_workflow

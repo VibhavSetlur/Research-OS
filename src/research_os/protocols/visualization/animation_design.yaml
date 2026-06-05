@@ -213,4 +213,5 @@ quality_bar:
   works_on_target_deliverable_environment: true
 
 next_protocol: visualization/figure_critique
+next_protocol_kind: forward_default
 on_failure: visualization/multi_panel_composition

@@ -241,4 +241,5 @@ quality_bar:
 # break a 2-cycle; re-enter coding_scheme_development via the
 # dispatcher when remediation requires another codebook iteration.
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

@@ -13,7 +13,7 @@ description: |
   Doctrine
   --------
   A finding is not a finding until it has been compared to what the
-  literature says. Three outcomes per finding:
+  literature says. Five outcomes per finding:
     1. AGREES — literature confirms the result. Strengthens the claim;
        cite to anchor the paragraph.
     2. DISAGREES — literature reports the opposite or qualifies it.
@@ -21,10 +21,44 @@ description: |
        the literature consensus has shifted. Discussion MUST address.
     3. EXTENDS — finding goes beyond what's published. Novel claim;
        discussion must justify the leap + acknowledge limits.
+    4. IMPORTED_AS_CITED — finding is a step-internal use of a prior
+       result (a cited lemma in a proof, an inherited definition, a
+       standard library routine treated as a black box). The
+       "literature" IS the cited result; no agreement / disagreement
+       is meaningful because the step doesn't re-derive it. The
+       citation key + a one-line "where it's used here" satisfies
+       grounding. Most common in `step_intent: proof` work; also
+       fits computational steps that lean on a single canonical
+       implementation (e.g. "we use scipy.stats.fisher_exact as
+       authoritative").
+    5. SPECIALIZES — finding is a STRICT special case of a published
+       result (a corollary, an instantiation at a specific parameter
+       value, an application to a sub-population). Distinct from
+       EXTENDS, which claims BEYOND the literature. SPECIALIZES
+       claims WITHIN it, narrower. Discussion notes the parent
+       result + the specialisation conditions.
 
-  Silent third state: NO LITERATURE FOUND. That's a deferral, NOT a
-  free pass. Goes into `literature_deferred` in step_summary.yaml and
-  audit_synthesis will block synthesis until resolved.
+  Silent sixth state: NO LITERATURE FOUND. That's a deferral
+  (verdict DEFERRED), NOT a free pass — but the deferral IS the
+  intended answer in the following cases (record the reason in
+  `literature_deferred`; the synthesis audit honours these):
+
+    - "offline": no network access at the time the loop ran. Resolve
+      by re-running once online.
+    - "no_literature_in_10y_window": niche claim with no recent
+      coverage. Acceptable when the claim is methodological /
+      operational rather than a substantive scientific finding.
+    - "pure_data_engineering": the step is QC, normalisation, format
+      conversion. Better: set `literature_required: false` in
+      step_summary.yaml (see `Do NOT use when` below).
+    - "exploratory_null": the finding is the absence of an effect in
+      a sketch / pilot analysis. The literature loop would be
+      circular (no effect → nothing to compare). Better: revisit
+      after the confirmatory pass.
+
+  In every OTHER case, DEFERRED is a deferral the synthesis audit
+  will BLOCK on. Use IMPORTED_AS_CITED or SPECIALIZES when those
+  fit; use DEFERRED only when the loop genuinely could not run.
 
   This protocol is invoked AFTER `analysis_plan` writes the findings
   but BEFORE `path_finalize` closes the step. The grounding tools
@@ -42,10 +76,24 @@ trigger: |
 
   Do NOT use when:
     - The step is pure data engineering (QC, normalization, format
-      conversion) with no claims to ground. tag step with
+      conversion) with no claims to ground. Tag the step with
       `literature_required: false` in step_summary.yaml instead.
     - The step's findings are exploratory / null (the literature
       check would be circular).
+    - The step is a PURE VISUALISATION of a prior step
+      (`step_intent: visualise` — e.g. step 04_volcano_plot
+      visualises step 03_deseq2_de's results). The visualisation
+      makes no new claims; the prior step's
+      findings_vs_literature.md already covers them. Set in
+      step_summary.yaml:
+        step_intent: visualise
+        literature:
+          inherits_from: <NN_slug_of_prior_step>
+      tool_audit_step_literature will PASS when it confirms the
+      referenced step's findings_vs_literature.md exists. The
+      `literature_required: false` escape also works, but
+      `inherits_from` is preferred because the synthesis audit can
+      trace the inheritance chain.
 
 prerequisites:
   - "`workspace/<step>/conclusions.md` exists with at least `## Findings`."
@@ -130,7 +178,7 @@ steps:
 
         **Literature says:** <consensus from the downloaded papers>
 
-        **Verdict:** AGREES | DISAGREES | EXTENDS | DEFERRED
+        **Verdict:** AGREES | DISAGREES | EXTENDS | IMPORTED_AS_CITED | SPECIALIZES | DEFERRED
 
         **Evidence:**
         - [@key1] (year) — one-sentence relevant finding
@@ -139,8 +187,26 @@ steps:
         **Discussion implication:**
         <one paragraph: if AGREES, where to anchor the synthesis;
          if DISAGREES, what to investigate or qualify; if EXTENDS,
-         what novelty boundary to acknowledge; if DEFERRED, why
+         what novelty boundary to acknowledge; if IMPORTED_AS_CITED,
+         where in the step the cited result is used (no
+         agreement claim is made); if SPECIALIZES, name the parent
+         result + the specialisation conditions; if DEFERRED, why
          + what would unblock>
+
+      VERDICT SELECTION GUIDE (most-common confusions):
+        - "I used DESeq2 to run DE" → IMPORTED_AS_CITED on the DESeq2
+          paper, NOT AGREES.
+        - "My corollary applies Theorem 3.2 with k=2" → SPECIALIZES
+          on the parent theorem.
+        - "My finding contradicts the consensus, but I haven't found
+          a single paper to point at" → DISAGREES (cite the
+          textbook / review article that states the consensus); do
+          NOT use DEFERRED to dodge the disagreement.
+        - "My null result agrees with the null literature" → AGREES
+          on the null-result papers.
+        - "There genuinely is no recent literature" → DEFERRED with
+          `literature_deferred: ["claim_N: no_literature_in_10y_window"]`
+          and a one-sentence justification.
 
       Save the file at `workspace/<step>/literature/findings_vs_literature.md`.
 
@@ -204,11 +270,17 @@ steps:
           claims_grounded: <int>           # number of claims with verdict ≠ DEFERRED
           claims_deferred: <int>           # number with verdict == DEFERRED
           papers_downloaded: <int>
-          verdicts: {agrees: N, disagrees: N, extends: N}
+          verdicts:
+            agrees: N
+            disagrees: N
+            extends: N
+            imported_as_cited: N
+            specializes: N
           findings_vs_literature_path: "workspace/<step>/literature/findings_vs_literature.md"
+          inherits_from: ""                # set only for step_intent: visualise
         literature_deferred:               # list of deferral reasons
           - "offline"          # if applicable
-          - "claim_3: no relevant publications found in 10y window"
+          - "claim_3: no_literature_in_10y_window"
 
       `tool_audit_step_literature` reads this block.
 
@@ -246,10 +318,14 @@ expected_outputs:
 
 quality_bar:
   every_step_with_findings_has_findings_vs_literature_md: true
-  every_claim_verdict_is_one_of_AGREES_DISAGREES_EXTENDS_DEFERRED: true
+  every_claim_verdict_is_one_of_AGREES_DISAGREES_EXTENDS_IMPORTED_AS_CITED_SPECIALIZES_DEFERRED: true
   every_DISAGREES_has_discussion_block: true
+  every_IMPORTED_AS_CITED_names_the_cited_result_AND_where_used: true
+  every_SPECIALIZES_names_the_parent_result_AND_specialisation_conditions: true
   every_non_deferred_claim_has_grounding_record: true
   top_3_claims_have_cove_verification: true
+  visualise_steps_either_inherit_or_set_literature_required_false: true
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null

@@ -239,4 +239,5 @@ quality_bar:
   accessibility_audit_passed_or_routed: true
 
 next_protocol: visualization/figure_critique
+next_protocol_kind: forward_default
 on_failure: visualization/figure_guidelines

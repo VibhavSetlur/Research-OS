@@ -166,4 +166,5 @@ expected_outputs:
   - workspace/manuscript/supplementary/<standard>_checklist.pdf
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null

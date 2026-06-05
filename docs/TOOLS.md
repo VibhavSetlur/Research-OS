@@ -151,7 +151,7 @@ the router picks one for you.
 | `tool_paper_compile_typst` | synthesis/paper.md → paper.typ → paper.pdf via Typst with a venue template (nature / science / nejm / cell / ieee_conf / neurips / acl / plos / generic_two_column / generic_thesis). Recommended PDF path. |
 | `tool_latex_compile` | pdflatex + bibtex on synthesis/paper.tex. Use when a venue requires .tex submission. |
 | `tool_poster_create` | Tikzposter LaTeX poster. |
-| `tool_dashboard_create` | Single-file offline HTML dashboard. |
+| `tool_dashboard_create` | Single-file offline HTML dashboard. `mode=` parameter selects the renderer's framing: `explore` (default, sidebar TOC + verdicts grid for self-service browsing), `story` (linear top-to-bottom walk-through driven by `synthesis/dashboard_story.md`), `executive` (collapsed everything-but-the-headline + verdicts; for stakeholders who need 5 minutes), `teaching` (defers jargon, leads with plain-English summaries, surfaces the glossary). Pair with the `audience=` parameter (academic / executive / technical / teaching) for section ordering. |
 | `tool_citations_verify` | Re-verify every citation_key in workspace/citations.md. |
 
 ### Research / grounding
@@ -173,6 +173,12 @@ the router picks one for you.
 | `tool_scratch_run` | Execute by extension (`.py` / `.R` / `.jl` / `.sh`). |
 | `tool_scratch_list` | List scratch files. (Excludes `.gitkeep`.) |
 | `tool_scratch_clear` | Wipe scratch contents (keeps README + .gitignore + .gitkeep). |
+
+### Step completion
+
+| Tool | Purpose |
+|---|---|
+| `tool_step_complete` | One-call gate for "this step is done." Runs `tool_audit_step_completeness` + `tool_audit_step_literature` + the per-step pieces of `tool_audit_quality_full` in sequence, then calls `tool_path_finalize` if every gate passes. Use this at the end of each numbered experiment step before moving on. Returns `passed: bool` + `blockers: [...]` + the same `next_steps` hint the per-gate tools return. Functionally an alias-superset of `tool_path_finalize` for callers who want a single entrypoint. |
 
 ### Workspace robustness
 
@@ -279,6 +285,7 @@ researchers rarely call them directly.
 | `tool_audit_coherence` | Verify every Discussion / Results / Intro paragraph in `synthesis/paper.md` maps back to a step's `conclusions.md`. |
 | `tool_audit_figure_interactivity` | Per-figure interactive-companion gate (Theme 20). Scatter / volcano / UMAP > 200 marks, heatmaps > 50×50, networks, > 1k-point time-series need a sibling `<stem>.html`. Auto-generates Vega-Lite / vis-network fallbacks. |
 | `tool_discussion_coverage_audit` | BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph. |
+| `tool_redteam_review` | Adversarial review of a deliverable BEFORE peer review sees it. Stages a structured critique skeleton: assumptions / claims / threats-to-validity / alternative explanations / weakest step. Takes `focus='manuscript' \| 'proof' \| 'figure' \| 'methods'`. Distinct from `guidance/quick_paper_review` (critique of someone ELSE'S paper) and from `guidance/peer_review_response` (responding to reviews received). Referenced by `theory_math/proof/proof_verification_workflow` (focus='proof') and `writing/writing_limitations` (focus='manuscript'). |
 
 ### Synthesis extensions
 
@@ -351,7 +358,7 @@ researchers rarely call them directly.
 |---|---|
 | `tool_engineering_fault_tree_render` | Render a fault tree as Mermaid + (optional) SVG. Top event + AND/OR gates + basic events. |
 | `tool_engineering_fmea_render` | Render an FMEA (Failure Mode & Effects Analysis) table from YAML to CSV + Markdown (+ optional `.xlsx`). Computes RPN = severity × occurrence × detection. |
-| `tool_engineering_requirements_matrix` | Bidirectional requirements traceability matrix: requirements ↔ design elements ↔ test cases ↔ test results. Markdown + optional Excel. |
+| `tool_engineering_requirements_matrix` | Bidirectional requirements traceability matrix: requirements ↔ design elements ↔ test cases ↔ test results. Markdown + optional Excel. Cross-referenced from `methodology/method_comparison`'s engineering / systems-benchmark addendum — bind each measured property (wall-clock, throughput, memory) back to a stated requirement when the comparison feeds an engineering deliverable (release decision, contract milestone, internal RFC). |
 
 ### Wet-lab pack
 
@@ -478,6 +485,103 @@ Bypasses append to `workspace/logs/override_log.md`;
 **Plan creation**
 * `tool_plan_step_grounded` — every sub-task has explicit
   Thought / Required-grounding / Action / Verification slots.
+
+---
+
+## Return-shape examples (what these tools actually hand back)
+
+Most `tool_*` handlers return a dict the AI parses to decide the next
+step. The examples below cover the four tools most often called on a
+fresh project — `tool_intake_autofill`, `tool_dashboard_create`,
+`tool_step_complete`, `tool_audit_quality_full` — so the AI doesn't
+have to guess the shape from the description alone.
+
+### `tool_intake_autofill`
+
+```json
+{
+  "status": "ok",
+  "domain_inferred": "qualitative_interviews",
+  "research_question": "How do early-career engineers narrate the moment they reframed a stuck design problem?",
+  "hypotheses_drafted": [
+    {"id": "H01", "text": "Reframing moments cluster around external prompts from peers, not from documentation."}
+  ],
+  "files_seen": {
+    "raw_data": ["12 transcripts (.docx + .txt)"],
+    "literature": ["3 PDFs"],
+    "context": ["IRB approval letter"]
+  },
+  "wrote": ["inputs/intake.md", "docs/research_overview.md", ".os_state/state.json"],
+  "next_steps": "Run methodology/qualitative_research to enter the COREQ/SRQR loop, or methodology/qualitative_pii_redaction first if transcripts contain PHI."
+}
+```
+
+### `tool_dashboard_create`
+
+```json
+{
+  "status": "ok",
+  "wrote": "synthesis/dashboard.html",
+  "size_kb": 612,
+  "audience": "academic",
+  "mode": "explore",
+  "embedded_figures": 7,
+  "verdicts_rendered": 3,
+  "blockers_surfaced": 0,
+  "warnings": [
+    "Two figures lack an interactive companion; gate auto-generated Vega-Lite fallbacks."
+  ],
+  "next_steps": "Open synthesis/dashboard.html in any browser. To share, the file is self-contained — email or upload as-is."
+}
+```
+
+### `tool_step_complete`
+
+```json
+{
+  "status": "blocked",
+  "step_id": "03_logistic_baseline",
+  "passed": false,
+  "gates_run": ["tool_audit_step_completeness", "tool_audit_step_literature", "tool_audit_code_quality"],
+  "blockers": [
+    {"gate": "tool_audit_step_literature", "issue": "findings_vs_literature.md missing — run literature/literature_per_step on this step's ## Findings"}
+  ],
+  "warnings": [
+    {"gate": "tool_audit_step_completeness", "issue": "scratch/stack_plan.md missing"}
+  ],
+  "next_steps": "Resolve the one BLOCKER above, then re-run tool_step_complete. Override path: tool_step_complete(override_literature_gate=true, override_rationale='...') when justified."
+}
+```
+
+### `tool_audit_quality_full`
+
+```json
+{
+  "status": "warning",
+  "wrote": "workspace/logs/audit_master.md",
+  "gates_run": [
+    "tool_audit_step_completeness",
+    "tool_audit_code_quality",
+    "tool_audit_prose",
+    "tool_audit_claims",
+    "tool_preregister_diff",
+    "tool_ground"
+  ],
+  "blockers": 0,
+  "warnings": 3,
+  "per_gate": {
+    "tool_audit_step_completeness": {"status": "ok", "summary": "5/5 steps pass"},
+    "tool_audit_claims": {"status": "warning", "summary": "1 paragraph in Discussion lacks a numeric source"}
+  },
+  "note": "Does NOT run the per-step literature gate; call tool_audit_step_literature per step (or tool_step_complete) before synthesis.",
+  "next_steps": "Address the 3 warnings or proceed to synthesis if scope is provisional."
+}
+```
+
+The exact keys may evolve; the AI should treat unknown keys as
+forward-compatible (read what it understands, log+ignore the rest).
+When a tool returns `next_steps` or `advice`, the AI should surface
+that hint verbatim to the researcher rather than re-paraphrasing.
 
 ---
 

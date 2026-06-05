@@ -177,4 +177,5 @@ expected_outputs:
   - workspace/engineering/traceability/sign_off.md
 
 next_protocol: engineering/safety/fmea_protocol
+next_protocol_kind: forward_default
 on_failure: null

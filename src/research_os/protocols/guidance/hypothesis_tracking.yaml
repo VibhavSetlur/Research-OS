@@ -35,4 +35,5 @@ steps:
 expected_outputs: []
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null

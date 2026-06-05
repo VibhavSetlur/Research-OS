@@ -243,4 +243,5 @@ quality_bar:
       notes. Editions do not silently overwrite their predecessors.
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null

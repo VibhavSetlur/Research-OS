@@ -160,4 +160,5 @@ expected_outputs:
   - workspace/logs/step_completeness.md
 
 next_protocol: synthesis/synthesis_paper
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

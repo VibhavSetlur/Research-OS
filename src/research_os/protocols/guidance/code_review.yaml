@@ -171,4 +171,5 @@ expected_outputs:
   - workspace/<step>/outputs/reports/code_review.md
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: null
