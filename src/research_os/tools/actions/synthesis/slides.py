@@ -351,8 +351,8 @@ def _resolve_meta(
                     cfg = yaml.safe_load(fh) or {}
                 meta["author"] = cfg.get("researcher_name") or cfg.get("author") or ""
                 meta["affiliation"] = cfg.get("affiliation") or meta["affiliation"]
-            except Exception:
-                pass
+            except (OSError, yaml.YAMLError):
+                pass  # researcher_config absent or malformed; keep defaults
     return meta
 
 

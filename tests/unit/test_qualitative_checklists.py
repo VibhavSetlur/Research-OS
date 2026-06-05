@@ -108,9 +108,9 @@ def _import_select_standard():
     after wiring."""
     try:
         from research_os_qualitative.tools import select_standard
+        return select_standard
     except ImportError:
         pytest.skip("tool_qualitative_select_standard not yet wired")
-    return select_standard
 
 
 def _result_payload(result):

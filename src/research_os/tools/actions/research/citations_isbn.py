@@ -231,9 +231,6 @@ def verify_loc(citation: dict[str, Any]) -> tuple[bool, dict[str, Any], str]:
 # ---------------------------------------------------------------------------
 
 
-_ISBN_VERIFIER_NAMES = ("worldcat", "openlibrary", "loc")
-
-
 def _isbn_verifiers() -> list[tuple[str, Any]]:
     """Resolve verifier callables at call time so test-suite ``patch``
     decorators on the module-level names propagate into the chain."""

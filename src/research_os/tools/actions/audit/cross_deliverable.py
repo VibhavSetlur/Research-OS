@@ -380,13 +380,13 @@ _CITE_KEY_RE = re.compile(
     r"""
     (?:
         # @citekey (markdown / pandoc / typst)
-        @([A-Za-z][A-Za-z0-9_\-:]+)
+        @([A-Za-z][\w:-]+)
         |
         # \cite{key1,key2}
         \\cite[ptn]?\{([^}]+)\}
         |
         # [@key1; @key2] (pandoc)
-        \[@([A-Za-z][A-Za-z0-9_\-:]+)
+        \[@([A-Za-z][\w:-]+)
     )
     """,
     re.VERBOSE,

@@ -11,6 +11,7 @@ import io
 import json
 import urllib.error
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -97,7 +98,7 @@ def test_verify_openlibrary_happy_path():
     assert ok is True
     assert evidence["title"] == "Paradise Lost"
     assert "John Milton" in evidence["authors"]
-    assert "openlibrary.org" in url
+    assert urlparse(url).hostname == "openlibrary.org"
 
 
 def test_verify_openlibrary_offline_returns_unreachable():
@@ -108,7 +109,7 @@ def test_verify_openlibrary_offline_returns_unreachable():
         ok, evidence, url = verify_openlibrary({"isbn": "9780199536852"})
     assert ok is False
     assert "unreachable" in evidence["reason"]
-    assert "openlibrary.org" in url
+    assert urlparse(url).hostname == "openlibrary.org"
 
 
 def test_verify_openlibrary_no_isbn_returns_no_isbn_reason():
@@ -143,7 +144,7 @@ def test_verify_worldcat_happy_path():
     assert evidence["title"] == "Paradise Lost"
     assert "Milton" in evidence["author"]
     assert evidence["owi"] == "123456789"
-    assert "classify.oclc.org" in url
+    assert urlparse(url).hostname == "classify.oclc.org"
 
 
 def test_verify_worldcat_offline_returns_unreachable():
@@ -193,7 +194,7 @@ def test_verify_loc_happy_path():
     assert ok is True
     assert evidence["title"] == "Paradise Lost"
     assert evidence["hit_count"] == 1
-    assert "loc.gov" in url
+    assert (urlparse(url).hostname or "").endswith("loc.gov")
 
 
 def test_verify_loc_offline_returns_unreachable():
