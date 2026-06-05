@@ -6,6 +6,20 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [Unreleased — v2.0.0]
+
+### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+---
+
 ## [1.11.0] - v1.11.0 - Figure auto-embed + real slides/poster + reviewer scaffold + 8 deferred items closed (2026-06-05)
 
 MINOR release. Closes F-005 + F-019 + AUDIT-026 + AUDIT-047 + AUDIT-063
