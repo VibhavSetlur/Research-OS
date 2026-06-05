@@ -4534,11 +4534,30 @@ def _handle_tool_dashboard_create(name, arguments, root):
 
 
 def _handle_tool_audit_step_completeness(name, arguments, root):
-    from research_os.tools.actions.audit.audit import audit_step_completeness
+    from research_os.tools.actions.audit._base import write_audit_outputs
+    from research_os.tools.actions.audit.audit import (
+        StepCompletenessAudit,
+        audit_step_completeness,
+    )
 
-    return _text(_success(audit_step_completeness(
-        root, step_id=arguments.get("step_id"),
-    )))
+    step_id = arguments.get("step_id")
+    # Legacy procedural call still produces workspace/logs/step_completeness.md
+    # byte-identical to v1.x — it is the source of truth for the
+    # response body that callers (tool_synthesize, tool_path_finalize,
+    # tool_dashboard_create) consume.
+    result = audit_step_completeness(root, step_id=step_id)
+
+    # Phase-4 AuditBase fan-out: emit structured AuditFindings to the
+    # standard {gate}_audit.md + {gate}_audit.json + .audit_findings.jsonl
+    # artefacts. Failure to write the audit-outputs artefacts must not
+    # mask the legacy auditor's response — wrap in a guard.
+    try:
+        findings = StepCompletenessAudit().run(root, step_id=step_id)
+        write_audit_outputs(findings, "step_completeness", root)
+    except Exception:  # pragma: no cover - defensive guard
+        pass
+
+    return _text(_success(result))
 
 
 def _handle_tool_audit_step_literature(name, arguments, root):
@@ -5003,13 +5022,42 @@ def _handle_tool_null_findings_report(name, arguments, root):
 
 
 def _handle_tool_audit_quality_full(name, arguments, root):
-    from research_os.tools.actions.audit.audit import audit_quality_full
+    from research_os.tools.actions.audit._base import write_audit_outputs
+    from research_os.tools.actions.audit.audit import (
+        AuditMaster,
+        audit_quality_full,
+    )
 
-    return _text(_success(audit_quality_full(
+    # 1) Legacy aggregator — writes workspace/logs/audit_master.md and
+    # returns the dict shape MCP clients (and tool_synthesize) already
+    # know how to read. The markdown format is pinned by snapshot test
+    # and must stay byte-for-byte stable.
+    legacy = audit_quality_full(
         root,
         target_path=arguments.get("target_path"),
         skip=arguments.get("skip"),
-    )))
+    )
+
+    # 2) Phase-4 structured findings — fan out to the v2 writer so the
+    # JSON companion + the cross-audit .audit_findings.jsonl ledger
+    # pick up this run. Failures here must NEVER take the legacy
+    # result down with them; the v2 writer is best-effort and
+    # supplementary.
+    try:
+        audit = AuditMaster()
+        findings = audit.run(root, legacy_result=legacy)
+        paths = write_audit_outputs(findings, audit.name, root)
+        legacy["audit_master_v2"] = {
+            "finding_count": len(findings),
+            "json_path": str(paths["json"].relative_to(root)),
+            "jsonl_path": str(paths["jsonl"].relative_to(root)),
+            "md_path": str(paths["md"].relative_to(root)),
+        }
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.exception("audit_master v2 writer failed")
+        legacy["audit_master_v2_error"] = str(exc)
+
+    return _text(_success(legacy))
 
 
 def _handle_tool_slurm_submit(name, arguments, root):
