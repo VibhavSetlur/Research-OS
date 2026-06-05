@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 17
+version: 18
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -362,7 +362,10 @@ protocols:
       - "DESeq2"
       - "deseq2"
       - "differential expression"
-      - "DEG"
+      - "DEG analysis"
+      - "DEG list"
+      - "DEGs"
+      - "differentially expressed genes"
       - "DE analysis"
       - "single-cell DE"
       - "scRNA-seq QC"
