@@ -1540,8 +1540,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_audit_quality_full": {
-        "short": "Run every quality gate in one call — completeness + code + prose + claims + prereg diff.",
-        "description": "Master auditor. Runs tool_audit_step_completeness + tool_audit_code_quality + tool_audit_prose + tool_audit_claims + tool_preregister_diff in one shot; aggregates the blocker set; writes workspace/logs/audit_master.md. tool_synthesize calls this as its first gate when no `section` is given.",
+        "short": "Run every quality gate in one call — completeness + code + prose + claims + prereg diff + grounding.",
+        "description": "Master auditor. Runs all 6 quality gates: tool_audit_step_completeness + tool_audit_code_quality + tool_audit_prose + tool_audit_claims + tool_preregister_diff + tool_ground (grounding_verify) in one shot; aggregates the blocker set; writes workspace/logs/audit_master.md. tool_synthesize calls this as its first gate when no `section` is given. Grounding blockers surface as `[grounding] N decision(s) without grounding records`. NB: this master audit does NOT run the per-step literature gate — call `tool_audit_step_literature` per step (or rely on `tool_step_complete` to have caught it). The per-step literature check is run separately at synthesis time by `tool_audit_synthesis` / `tool_path_finalize`; if you skip it during the run, expect blockers at synthesis.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
@@ -2219,9 +2219,21 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_discussion_coverage_audit": {
         "short": "BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph.",
-        "description": "Companion to tool_writing_discussion_from_verdicts. Walks every step's findings_vs_literature.md and verifies synthesis/discussion.md mentions each DISAGREES/EXTENDS claim (>=50% key-word overlap). Returns status='error' + a blocker list if any verdict is uncovered — tool_writing_discussion's validate step honours this as a hard BLOCK unless override_discussion_coverage=true.",
+        "description": "Companion to tool_writing_discussion_from_verdicts. Walks every step's findings_vs_literature.md and verifies synthesis/discussion.md mentions each DISAGREES/EXTENDS claim (>=50% key-word overlap). Returns status='error' + a blocker list if any verdict is uncovered — tool_writing_discussion's validate step honours this as a hard BLOCK unless override_discussion_coverage=true (logged to override_log.md with override_rationale).",
         "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "override_discussion_coverage": {
+                    "type": "boolean",
+                    "description": "Set true to bypass the BLOCK when verdicts are intentionally not in the Discussion (e.g. the section is being rewritten). Requires override_rationale under interaction.quality_gate_policy=enforce. Logged to override_log.md.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "Short justification for the override. Required when quality_gate_policy=enforce.",
+                },
+            },
+        },
     },
     # ------------------------------------------------------------------
     # Adaptive friction (rigor signals + self-certify).
@@ -3556,6 +3568,7 @@ def _handle_tool_data_convert(name, arguments, root):
 
 def _handle_tool_audit_synthesis(name, arguments, root):
     from research_os.tools.actions.audit import audit_synthesis
+    from research_os.project_ops import log_override
 
     res = audit_synthesis(
         arguments["paper_path"],
@@ -3563,6 +3576,20 @@ def _handle_tool_audit_synthesis(name, arguments, root):
         override_no_pdfs=bool(arguments.get("override_no_pdfs", False)),
         override_rationale=str(arguments.get("override_rationale", "")),
     )
+    # Mirror the other six override gates in this file: when the bypass
+    # is actually honoured by audit_synthesis (reflected in the result
+    # via report["override_no_pdfs"]=True), append it to override_log.md
+    # so pre_submission_checklist can surface the bypass.
+    if res.get("override_no_pdfs"):
+        try:
+            log_override(
+                root,
+                tool="tool_audit_synthesis",
+                gate="audit_synthesis_no_pdfs",
+                rationale=str(arguments.get("override_rationale", "")),
+            )
+        except Exception as exc:  # pragma: no cover - logging best effort
+            logger.debug("log_override(audit_synthesis_no_pdfs) failed: %s", exc)
     if res.get("status") != "error":
         return _text(_success(res))
     return _text(_error(res.get("message", "audit failed")))
@@ -5269,7 +5296,30 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
     from research_os.tools.actions.synthesis.discussion_from_verdicts import (
         discussion_coverage_audit,
     )
-    return _text(discussion_coverage_audit(root))
+    from research_os.project_ops import log_override
+    from research_os.tools.actions.state.config import get_interaction_policy
+
+    override_requested = bool(arguments.get("override_discussion_coverage", False))
+    rationale = arguments.get("override_rationale")
+    policy = get_interaction_policy(root)["quality_gate_policy"]
+    if (policy == "enforce" and override_requested
+            and (not rationale or not str(rationale).strip())):
+        return _text(_error(
+            "interaction.quality_gate_policy=enforce: "
+            "override_discussion_coverage=true requires override_rationale."
+        ))
+    res = discussion_coverage_audit(root)
+    if res.get("blockers") and override_requested:
+        log_override(
+            root,
+            tool="tool_discussion_coverage_audit",
+            gate="discussion_coverage",
+            rationale=rationale or "",
+            extra={"uncovered_count": res.get("uncovered_count", 0)},
+        )
+        res["override_applied"] = True
+        res["status"] = "success"
+    return _text(res)
 
 
 # Adaptive-friction + quick-mode handlers.

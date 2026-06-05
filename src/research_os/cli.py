@@ -20,7 +20,6 @@ All real research work happens by talking to the AI in the IDE.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import re
 import shutil

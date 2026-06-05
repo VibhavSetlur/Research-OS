@@ -18,7 +18,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -226,31 +225,6 @@ def manifest_path(root: Path) -> Path:
 # ---------------------------------------------------------------------------
 # Atomic JSON / YAML I/O
 # ---------------------------------------------------------------------------
-
-
-def read_yaml(path: Path) -> dict | None:
-    if not yaml:
-        raise RuntimeError("PyYAML is required (pip install pyyaml).")
-    try:
-        with open(path) as f:
-            return yaml.safe_load(f)
-    except (FileNotFoundError, yaml.YAMLError, OSError):
-        return None
-
-
-def write_yaml(path: Path, data: dict) -> None:
-    if not yaml:
-        raise RuntimeError("PyYAML is required (pip install pyyaml).")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
-        os.replace(tmp_path, str(path))
-    except Exception:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-        raise
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -503,32 +477,9 @@ def _update_manifest(root: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def compute_input_hashes(root: Path | None = None) -> dict[str, str]:
-    root = _resolve_root(root)
-    hashes: dict[str, str] = {}
-    for base in (root / "inputs" / "raw_data", root / "inputs" / "literature", root / "inputs" / "context"):
-        if not base.exists():
-            continue
-        for path in sorted(base.rglob("*")):
-            if (
-                path.is_file()
-                and not path.name.startswith(".")
-                and path.name not in {"README.md", ".gitkeep"}
-            ):
-                hashes[path.relative_to(root).as_posix()] = compute_file_hash(path)
-    return hashes
-
-
 # ---------------------------------------------------------------------------
 # Scaffolding
 # ---------------------------------------------------------------------------
-
-
-def write_readme(path: Path, title: str, body: str) -> None:
-    path.mkdir(parents=True, exist_ok=True)
-    readme = path / "README.md"
-    if not readme.exists():
-        readme.write_text(f"# {title}\n\n{body.strip()}\n")
 
 
 def scaffold_minimal_workspace(
@@ -2436,10 +2387,3 @@ def generate_citations_md(root: Path) -> str:
     return str(citations_path.absolute())
 
 
-# ---------------------------------------------------------------------------
-# Diff log (unused-but-kept hook for future state-diff watchers)
-# ---------------------------------------------------------------------------
-
-
-def state_diff_log_path(root: Path) -> Path:
-    return root / "workspace" / "logs" / "state_changes.log"

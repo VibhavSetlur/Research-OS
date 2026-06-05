@@ -203,7 +203,11 @@ def promote_to_step(
 def project_tier_strictness(root: Path) -> dict[str, Any]:
     """Map researcher_config.project_tier → gate_strictness default."""
     try:
-        cfg_path = root / "researcher_config.yaml"
+        cfg_path = root / "inputs" / "researcher_config.yaml"
+        if not cfg_path.exists():
+            legacy = root / "researcher_config.yaml"
+            if legacy.exists():
+                cfg_path = legacy
         tier = "production"
         if cfg_path.exists():
             try:

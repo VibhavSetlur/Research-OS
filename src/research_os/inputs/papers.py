@@ -247,12 +247,6 @@ def fetch_one(token: str, dest: Path) -> DownloadResult:
                           error="couldn't recognise this as an arxiv ID, DOI, or URL")
 
 
-def fetch_many(tokens: list[str], dest: Path) -> list[DownloadResult]:
-    """Fetch many in sequence. We don't parallelise — arxiv has aggressive
-    rate-limit policies and the volumes here are tiny (rarely > 10)."""
-    return [fetch_one(t, dest) for t in tokens if t.strip()]
-
-
 def parse_tokens(blob: str) -> list[str]:
     """Split a freeform paste into individual paper tokens.
 

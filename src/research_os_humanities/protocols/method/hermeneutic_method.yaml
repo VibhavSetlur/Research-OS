@@ -1,6 +1,6 @@
 id: hermeneutic_method
 name: Hermeneutic Method — name your theory of interpretation
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-04'
 description: |
@@ -210,21 +210,27 @@ steps:
       this section before declaring the reading complete.
 
 quality_bar:
-  - The framework is named by author (Schleiermacher, Gadamer, Ricoeur,
-    Schüssler Fiorenza, Sugirtharajah, Sedgwick, Gutiérrez, Jauss),
-    not just by adjective ("hermeneutical", "interpretive").
-  - "The 'priors' section answers at least three of these: intention,
+  framework_named_by_author: |
+    The framework is named by author (Schleiermacher, Gadamer,
+    Ricoeur, Schüssler Fiorenza, Sugirtharajah, Sedgwick, Gutiérrez,
+    Jauss), not just by adjective ("hermeneutical", "interpretive").
+  priors_section_substantive: |
+    The 'priors' section answers at least three of these: intention,
     determinate-meaning-vs-horizon, role of interpreter location,
-    suspicion-as-phase-vs-permanent, criterion of successful reading."
-  - The positionality paragraph exists, even if the chosen framework
+    suspicion-as-phase-vs-permanent, criterion of successful reading.
+  positionality_declared: |
+    The positionality paragraph exists, even if the chosen framework
     methodologically brackets the interpreter — the bracketing is
     declared, not silent.
-  - The reception chain has at least three links for any text older
+  reception_chain_minimum_three_links: |
+    The reception chain has at least three links for any text older
     than the interpreter or in translation. "I'm reading the Greek"
     is not a reception chain; it's a claim that has to be defended.
-  - The interpretive question's grammar is framework-shaped — a
+  question_grammar_framework_shaped: |
+    The interpretive question's grammar is framework-shaped — a
     reader could guess the framework from the question alone.
-  - Failure conditions are stated in the framework's own vocabulary,
+  failure_conditions_in_framework_vocabulary: |
+    Failure conditions are stated in the framework's own vocabulary,
     not in generic "the reading didn't work" terms.
 
 expected_outputs:
@@ -236,10 +242,12 @@ expected_outputs:
 next_protocol: humanities/textual/close_reading
 on_failure: |
   If the researcher cannot name a framework, do NOT proceed to
-  close_reading. Instead, call sys_path to surface the
-  intellectual_history or critical_theory_survey protocol so the
-  framework gets picked deliberately rather than by default. An
-  un-named hermeneutic is the AI's hermeneutic, and the AI's
-  hermeneutic is whatever the training data averaged to — which is
-  usually a vague horizon-fusion-flavored formalism that satisfies
-  no actual tradition's standards.
+  close_reading. Instead, route to literature/literature_search so
+  the researcher can survey the methodological tradition (Gadamer's
+  Truth and Method, Ricoeur's Conflict of Interpretations,
+  Schüssler Fiorenza's But She Said, etc.) and re-enter this
+  protocol with a named framework. An un-named hermeneutic is the
+  AI's hermeneutic, and the AI's hermeneutic is whatever the
+  training data averaged to — which is usually a vague
+  horizon-fusion-flavored formalism that satisfies no actual
+  tradition's standards.

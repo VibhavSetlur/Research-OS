@@ -137,6 +137,39 @@ def mock_model_call(canned_responses: dict) -> ModelCall:
     return _call
 
 
+def _detect_pack(inputs_dir: Path, expected: str) -> dict | None:
+    """Best-effort: import the named pack's detector and run it on inputs_dir.
+
+    Returns the detector's payload (``{"pack": ..., "confidence": ...}``) or
+    ``None`` when the pack/detector cannot be loaded. Caller treats ``None``
+    as "detector unavailable" rather than "mismatch".
+
+    Recognised packs follow the ``research_os_<name>`` import convention;
+    unknown names return ``None`` quietly.
+    """
+    detectors = {
+        "humanities": ("research_os_humanities.detector", "detect_humanities"),
+        "qualitative": ("research_os_qualitative.detector", "detect_qualitative"),
+        "engineering": ("research_os_engineering.detector", "detect_engineering"),
+        "wet_lab": ("research_os_wet_lab.detector", "detect_wet_lab"),
+        "theory_math": ("research_os_theory_math.detector", "detect_theory_math"),
+    }
+    target = detectors.get(expected)
+    if not target:
+        return None
+    module_name, func_name = target
+    try:
+        import importlib
+
+        mod = importlib.import_module(module_name)
+        fn = getattr(mod, func_name, None)
+        if fn is None:
+            return None
+        return fn(inputs_dir)
+    except Exception:
+        return None
+
+
 # ── stress runner ─────────────────────────────────────────────────────
 
 
@@ -234,6 +267,36 @@ def run_stress(
         duration_seconds=0.0,
     )
 
+    # ── expected_pack contract ─────────────────────────────────────────
+    # The manifest's ``expected_pack`` declares which domain pack should
+    # claim the project. When set, run the matching pack's detector and
+    # surface a note if the detected pack doesn't match. A mismatch is
+    # NOT a failure (the runner is a smoke harness), but it IS an
+    # observability signal that pack detection drifted.
+    expected_pack = project.expected_pack
+    if expected_pack:
+        try:
+            detected = _detect_pack(project.inputs_dir, expected_pack)
+            if detected is None:
+                result.notes.append(
+                    f"expected_pack={expected_pack!r}: detector unavailable"
+                )
+            elif detected.get("pack") != expected_pack:
+                result.notes.append(
+                    f"expected_pack={expected_pack!r} did not match: "
+                    f"got pack={detected.get('pack')!r} "
+                    f"confidence={detected.get('confidence', 0.0)}"
+                )
+            elif detected.get("confidence", 0.0) < 0.4:
+                result.notes.append(
+                    f"expected_pack={expected_pack!r} detected but "
+                    f"low confidence ({detected.get('confidence')})"
+                )
+        except Exception as exc:
+            result.notes.append(
+                f"expected_pack check raised: {exc}"
+            )
+
     # Walk protocols_expected and simulate the LLM driving each step.
     # The mock model uses the canned_responses keyed by step_id.
     for protocol_name in project.protocols_expected:
@@ -309,19 +372,6 @@ def run_stress(
     total_calls = max(1, result.tool_calls + result.tool_errors)
     result.tool_error_rate = result.tool_errors / total_calls
     return result
-
-
-def run_matrix(
-    projects: list[ReferenceProject],
-    *,
-    model_calls: dict[str, ModelCall],
-) -> list[StressResult]:
-    """Run every project against every (label, model_call) in the matrix."""
-    out: list[StressResult] = []
-    for project in projects:
-        for label, call in model_calls.items():
-            out.append(run_stress(project, model_call=call, model_label=label))
-    return out
 
 
 def results_to_json(results: list[StressResult]) -> str:

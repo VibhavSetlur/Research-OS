@@ -162,6 +162,49 @@ Scaffold:
     a positive justification, not a default.
 ```
 
+## Cross-referencing protocols (`see_also`, optional)
+
+A growing protocol library is only useful if a researcher (or the AI
+following a protocol) can find adjacent work without scanning every
+file. The recommended convention for cross-references is a top-level
+`see_also:` field carrying a short list of related protocol IDs.
+
+```yaml
+id: methodology/missing_data_strategy
+name: "Missing-data strategy"
+version: '1.9.3'
+see_also:
+  - methodology/multiple_comparisons     # both shape the analysis plan
+  - audit/preregistration                # missingness assumptions belong in the prereg
+  - methodology/sensitivity_analysis     # sensitivity sweep tests robustness
+steps: ...
+```
+
+**When to populate `see_also`:**
+
+- The reader of THIS protocol almost always needs ONE of those other
+  protocols within the same session (sequential or branching).
+- The protocols share a foundational artefact (a registered plan, a
+  shared assumption log, a common output the reader will return to).
+- The relationship is non-obvious — the trigger phrases of the related
+  protocol wouldn't surface it via `tool_route` on their own.
+
+**When NOT to add `see_also`:**
+
+- The related protocol is already reachable via `next_protocol`
+  (that's the linear successor; `see_also` is for lateral siblings).
+- The relationship is "any audit protocol" or "any synthesis protocol"
+  — too coarse to be actionable.
+- You're padding to make a protocol look thorough. Empty / blank
+  `see_also:` is a docs smell; better to omit the field.
+
+**Status (v1.9.3):** the field is documented but not yet wired into
+any tool or auto-rendered surface. A future release may surface
+`see_also` in `sys_protocol_get format='summary'` and in the workflow
+DAG. Adding `see_also` to your own protocols today is a low-risk
+investment — the schema accepts the field; downstream tools will pick
+it up when they're built.
+
 ## No version commentary in live bodies
 
 Protocol bodies, MCP tool descriptions, and code docstrings/comments

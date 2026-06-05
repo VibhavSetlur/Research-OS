@@ -626,6 +626,21 @@ def route_request(
         # ── Step 1: score every protocol; group by (class, sub_intent) ─
         scored = _score_protocols(prompt_norm, protocols)
 
+        # state_hint bias: when the caller passes the AI's currently-active
+        # phase (e.g. ``{"current_phase": "synthesize"}`` mid-paper), nudge
+        # protocols in the matching intent_class up by 1 point. This is a
+        # tie-breaker, not a winner-flipper — a real trigger match still
+        # outranks a hint-only bias.
+        if state_hint and isinstance(state_hint, dict) and scored:
+            hint_phase = state_hint.get("current_phase")
+            if isinstance(hint_phase, str) and hint_phase:
+                phase_lc = hint_phase.strip().lower()
+                for entry in scored:
+                    cls = (entry["data"].get("intent_class") or "").lower()
+                    if cls == phase_lc:
+                        entry["score"] = int(entry.get("score", 0)) + 1
+                scored.sort(key=lambda e: e.get("score", 0), reverse=True)
+
         # No matches at all and no shortcut.
         if not scored and not shortcut_hit:
             return _fallback_response(prompt_norm, hierarchy, is_complex)

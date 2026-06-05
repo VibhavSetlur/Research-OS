@@ -27,10 +27,37 @@ max_seconds: 30
 
 # Canned mock-model responses keyed by step_id. The mock_model_call
 # matches "STEP: <id>" in the prompt and replies with the canned string.
+# Step IDs must match the canonical protocols listed in protocols_expected.
 canned_responses:
-  intake_files: "Surveyed inputs/data/Snakefile, inputs/scripts/run_pipeline.sh, inputs/context/. Detected Snakemake workflow with 6 rules and an sbatch wrapper carrying 7 #SBATCH headers."
-  classify_project: "Domain=biology, sub_domain=bulk_rnaseq_pipeline, output_type=pipeline."
-  lock_in_question: "Question locked: differential expression of TCGA-BRCA primary tumor vs adjacent-normal samples (N=200) using STAR + featureCounts + DESeq2."
-  pick_method: "Selected Snakemake-orchestrated STAR alignment + featureCounts + DESeq2 Wald test; sbatch profile on Slurm; logged justification."
-  fit_model: "Fitted DESeq2 model ~ condition; saved results to workspace/05_deseq2/results.tsv."
+  # guidance/project_startup
+  scan_inputs: "Surveyed inputs/data/Snakefile, inputs/scripts/run_pipeline.sh, inputs/context/. Detected Snakemake workflow with 6 rules and an sbatch wrapper carrying 7 #SBATCH headers."
+  check_intake_freshness: "Intake last refreshed today; no drift detected against inputs/."
+  autofill_intake: "Autofilled inputs/context/intake.md with TCGA-BRCA primary tumor vs adjacent-normal, Snakemake + Slurm execution profile."
+  profile_each_dataset: "Profiled inputs/data/Snakefile: 6 rules, 1 sbatch wrapper, 7 #SBATCH headers. No raw datasets to profile in this pipeline fixture."
+  snapshot_global_environment: "Snapshot logged: Snakemake 8.x, Slurm sbatch wrapper, conda env pinned."
+  ground_in_recent_literature: "Cited Love et al. 2014 (DESeq2), Dobin et al. 2013 (STAR); pulled into inputs/literature/."
+  present_startup_summary: "Startup summary: bulk-RNAseq differential expression, Snakemake orchestrator, Slurm execution, DESeq2 stats."
+
+  # methodology/exploratory_data_analysis
+  scope_the_eda: "EDA scoped to count matrix QC and library-size distribution; deferred sample swaps audit to confirmatory phase."
+  pre_register_exploration_shape: "Registered: ~30 min, dataset-level pass over count matrix, no per-gene tests."
+  profile_data_quality: "Count matrix profile: 0 NAs, library size 12-48M; one outlier flagged in inputs/data/."
+  univariate_pass: "Univariate pass: library size + gene-detection histograms saved to workspace/eda/."
+  bivariate_pass: "Bivariate pass: PCA of vst-transformed counts; PC1 separates tumor vs normal."
+  multivariate_or_dimensionality: "Dimensionality reduction (PCA, UMAP) saved; ran sample-correlation heatmap."
+  capture_anomalies_and_backlog: "Logged 1 outlier sample to workspace/eda/anomalies.md; no immediate exclusion."
+  register_hypotheses: "Hypothesis logged: differential expression between tumor and normal driven by ECM remodeling pathways."
+  audit_for_eda_failure_modes: "Checked p-hacking / multiple-testing leaks; none detected at EDA stage."
+  route_to_confirmation: "Routed to methodology/regression for DESeq2 Wald-test confirmation step."
+
+  # audit/audit_and_validation
   audit_master: "audit_master ran; 0 blockers."
+  audit_citations: "Citations resolved; no orphan refs."
+  audit_assumptions: "Assumptions log compiled; DESeq2 negative-binomial assumption justified."
+  audit_figures: "All figures have captions, units, and provenance."
+  audit_step_readmes: "Step READMEs present for all 5 workspace steps."
+  audit_causal_language: "No unwarranted causal claims found."
+  audit_code_style: "Snakemake + R code linted clean."
+  audit_coherence: "Question -> methods -> results -> discussion coherence verified."
+  audit_discussion_coverage: "Discussion covers all gates_expected_pass items."
+  write_audit_summary: "Audit summary written to synthesis/audit_summary.md; 0 blockers."

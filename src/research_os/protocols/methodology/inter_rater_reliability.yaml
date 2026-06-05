@@ -1,6 +1,6 @@
 id: inter_rater_reliability
 name: Inter-rater Reliability (IRR) — design + computation + reporting
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 last_reviewed: '2026-06-02'
 description: |
@@ -152,6 +152,18 @@ steps:
       area) and commit to it BEFORE running. Lowering the threshold
       after seeing the result is a researcher degree of freedom.
 
+      Research-OS defaults (single source of truth — every other
+      protocol that references κ should cite this protocol):
+        - LIGHT gate (exploratory / formative work): κ >= 0.60
+          (fair-to-moderate floor; documents IRR was measured).
+        - NORMAL gate (default for thematic / codebook coding):
+          κ >= 0.70 (Landis & Koch 'substantial' floor; this is the
+          BLOCKER threshold in qualitative_quality_audit).
+        - STRICT gate (clinical / confirmatory work): κ >= 0.80
+          (McHugh 2012; Krippendorff confirmatory α).
+      Pack-side `per_code_kappa_minimum` defaults follow the NORMAL
+      gate (0.70); override only with a documented rationale.
+
   - id: compute_agreement
     name: Compute agreement on the IRR sample
     description: |
@@ -225,5 +237,8 @@ quality_bar:
   remediation_plan_followed_if_threshold_not_met: true
   no_post_hoc_threshold_lowering: true
 
-next_protocol: methodology/coding_scheme_development
+# Back-edge to methodology/coding_scheme_development removed to
+# break a 2-cycle; re-enter coding_scheme_development via the
+# dispatcher when remediation requires another codebook iteration.
+next_protocol: null
 on_failure: guidance/dead_end_routing

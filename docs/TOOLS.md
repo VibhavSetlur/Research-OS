@@ -194,6 +194,180 @@ the router picks one for you.
 | `mem_hypothesis_add` | Register a new hypothesis (state.active_hypotheses + analysis.md). |
 | `mem_hypothesis_update` | Update a hypothesis (status + evidence). |
 | `mem_hypothesis_list` | List every tracked hypothesis. |
+| `mem_log` | Unified memory append. `kind='methods' \| 'decision' \| 'hypothesis' \| 'analysis'`. Replaces `mem_{methods_append, decision_log, hypothesis_update, analysis_log}`. |
+
+---
+
+## Infrastructure + power-user tools
+
+The tables above cover the protocol-facing surface. The block below is
+the **ground-truth roster** of every other `sys_*` / `tool_*` defined
+in `TOOL_DEFINITIONS` — boot helpers, semantic search, unified
+dispatchers, adapter framework, reliability / freshness probes, the
+domain-pack tools (qualitative / humanities / engineering / wet-lab /
+theory-math), and the SLURM / Snakemake / Nextflow / Synapse / REDCap
+infrastructure adapters. Most are router-internal or pack-internal;
+researchers rarely call them directly.
+
+### Routing + dispatch helpers (mostly internal)
+
+| Tool | Purpose |
+|---|---|
+| `sys_active_project` | Return the project root the server resolved for THIS request (global-server mode). |
+| `sys_help` | AI orientation — how to use Research-OS efficiently (protocols + tools + routing). |
+| `sys_packs_installed` | List installed protocol packs (name, version, tool count, router entries, errors). |
+| `sys_adapters_installed` | List installed infrastructure adapters (SLURM / Snakemake / Nextflow / Cytoscape / REDCap / Synapse / external). |
+| `sys_semantic_tool_search` | Find tools by what they do — semantic search over tool descriptions. |
+| `tool_quick_route` | Detect throwaway / sanity-check / exploratory intent and short-circuit protocol load. |
+| `tool_semantic_route` | Direct semantic search over protocol embeddings. Returns top-k candidates with scores. |
+| `tool_search` | Unified literature/web search. Replaces `tool_search_{semantic_scholar,pubmed,crossref,arxiv,web}` via `source=…` or `auto`. |
+| `tool_plan` | Unified plan dispatcher. `operation='turn'|'advance'|'clear'`. Replaces `tool_plan_{turn,advance,clear}`. |
+| `tool_verify` | Verify a claim or the whole project's grounded claims. `scope='claim'|'project'`. Replaces `tool_claim_verify + tool_grounding_verify`. |
+| `tool_lessons` | Unified lessons store. `operation='record'|'consult'`. Replaces `tool_lessons_record + tool_lessons_consult`. |
+| `tool_dry_run` | Preview a protocol's tool-call sequence without executing — for supervised review. |
+| `tool_deprecations_summary` | Aggregate counts from `.os_state/deprecations.log` — which deprecated aliases / redirects this project is still hitting. |
+
+### State / config / files / checkpoints
+
+| Tool | Purpose |
+|---|---|
+| `sys_config_set` | Set a single config value (dot notation, e.g. `researcher.expertise_level=advanced`). |
+| `sys_config_validate` | Validate the config schema and report which API keys are present. |
+| `sys_file_write` | Write a file. Refuses to write into `inputs/raw_data/` or `inputs/literature/` (immutable). `force=true` to overwrite in `synthesis/`. |
+| `sys_file_list` | List files in a workspace directory (recursive). |
+| `sys_file_delete` | Delete a workspace file or empty directory. |
+| `sys_file_validate_md` | Validate a markdown file against the headings/sections expected by a writing protocol. |
+| `sys_checkpoint_list` | List all checkpoints with descriptions and timestamps. |
+| `sys_checkpoint_rollback` | Restore the workspace to a checkpoint. Current state is backed up first. |
+| `sys_path` | Unified path dispatcher. `operation='create'|'abandon'|'list'`. Replaces `sys_path_{create,abandon,list}`. |
+| `sys_env_docker_generate` | Generate a Dockerfile from the environment snapshot for full reproducibility. |
+| `sys_export_share_archive` | Build a share-safe zip of the project (excludes AI-internal files). |
+
+### Reliability / freshness / coaching
+
+| Tool | Purpose |
+|---|---|
+| `tool_reliability_log_event` | Append a structural event (gate fire, tool error, recovery) to `workspace/.os_state/reliability.jsonl`. |
+| `tool_reliability_report` | Redacted markdown summary of `reliability.jsonl`. |
+| `tool_failure_record` | Record a tool failure (paywall / 404 / etc.) to `workspace/.os_state/tool_failures.jsonl`. |
+| `tool_failure_check` | Is this URL/DOI known-bad (paywall, prior failure)? |
+| `tool_failure_list` | List recent tool failures. |
+| `tool_state_freshness_check` | Detect stale workspace state (state.json > 30d, citations older than newest PDF, orphan provenance). |
+| `tool_intake_freshness` | Recommended intake depth (full / refresh-only / skip) based on intake.md freshness + step count. |
+| `tool_rigor_signals_scan` | Score project rigor 0-100 from methods.md, citations, git, preregistration, scripts, prior step summaries. |
+| `tool_project_tier_strictness` | Map `researcher_config.project_tier` (throwaway / sketch / production) → default `gate_strictness`. |
+| `tool_resolve_gate_strictness` | Resolve effective gate strictness (light / normal / strict) from config + trust_score. |
+| `tool_self_certify` | Persist a researcher self-certification (domain + scope + rationale). |
+| `tool_list_certifications` | List active researcher self-certifications. |
+| `tool_mistake_replay` | Surface recurring patterns from reliability log + override log — coaching-mode learning artifact. |
+| `tool_promote_to_step` | Retroactively wrap a scratch result in proper provenance (new numbered step + sidecar + summary). |
+| `tool_step_revision_options` | After a step finalize, surface the pause-and-revise heuristic + alternative paths + handoff hint. |
+| `tool_alternative_path_propose` | Confidence-gated scan that pulls literature on the chosen method AND alternatives framed for the specific data shape. |
+
+### Sub-task step pipelines (Theme 17)
+
+| Tool | Purpose |
+|---|---|
+| `tool_step_pipeline_run` | Execute the step's sub-task DAG with content-hash caching. |
+| `tool_step_pipeline_status` | Per-node staleness report — what's fresh, stale, or never run. |
+| `tool_step_pipeline_diagram` | Render the step's sub-task DAG as Mermaid + (optional) PNG. |
+
+### Audit extensions (beyond the master quality gate)
+
+| Tool | Purpose |
+|---|---|
+| `tool_audit_coherence` | Verify every Discussion / Results / Intro paragraph in `synthesis/paper.md` maps back to a step's `conclusions.md`. |
+| `tool_audit_figure_interactivity` | Per-figure interactive-companion gate (Theme 20). Scatter / volcano / UMAP > 200 marks, heatmaps > 50×50, networks, > 1k-point time-series need a sibling `<stem>.html`. Auto-generates Vega-Lite / vis-network fallbacks. |
+| `tool_discussion_coverage_audit` | BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph. |
+
+### Synthesis extensions
+
+| Tool | Purpose |
+|---|---|
+| `tool_synthesis_curate_figures` | Collect each step's focal figure into `synthesis/figures/` with stable, ordered names (`fig01_<slug>.png`, …). |
+| `tool_writing_discussion_from_verdicts` | Append one Discussion paragraph per non-AGREES verdict in any step's `findings_vs_literature.md`. |
+| `tool_dashboard_story_generate` | Build `synthesis/dashboard_story.md` (Theme 21 story-mode source) from workspace state. |
+| `tool_dashboard_story_edit` | Read or patch `synthesis/dashboard_story.md`. |
+| `tool_dashboard_story_quality_bar` | Quality bar for `dashboard_story.md`: 5-20 min read, figure in first 1000 words, ≥1 DISAGREES / EXTENDS callout. |
+| `tool_figure_interactive_autogen` | Write an interactive HTML companion (Vega-Lite / vis-network) next to a static figure. Offline-capable. |
+
+### Visualization adapters
+
+| Tool | Purpose |
+|---|---|
+| `tool_cytoscape_export_static` | Render a static PNG / SVG snapshot of one or every network embedded in a `.cys` archive. |
+
+### SLURM (deeper than `tool_slurm_submit`)
+
+| Tool | Purpose |
+|---|---|
+| `tool_slurm_status` | Live status via `squeue` + finished status via `sacct` for one or all project jobs. |
+| `tool_slurm_fetch` | Block until a SLURM job finishes; return stdout / stderr paths. |
+| `tool_slurm_list` | List every SLURM job submitted from this project. |
+| `tool_slurm_job_status` | Adapter-level: query Slurm (`squeue --json`) or PBS (`qstat -f`) for a job's status. Parsed JSON when supported, otherwise raw tail. |
+| `tool_slurm_estimate_cost` | Estimate compute cost from `#SBATCH walltime + nodes × $/node-hour`. Real bills depend on queue priority + GPU surcharges. |
+
+### Workflow-engine adapters
+
+| Tool | Purpose |
+|---|---|
+| `tool_snakemake_dryrun` | `snakemake --dry-run -s <snakefile>`; status=warning with install hint if missing. |
+| `tool_snakemake_dag_render` | Render the workflow DAG to PNG via `snakemake --dag | dot -Tpng`. Falls back to regex-derived Mermaid. |
+| `tool_nextflow_validate` | `nextflow run <main.nf> --help`. Surfaces parse / config / DSL syntax issues. |
+
+### Data-repo + clinical-data adapters
+
+| Tool | Purpose |
+|---|---|
+| `tool_synapse_entity_info` | Opt-in live query of a Synapse entity's metadata via `synapseclient` using the project's `.synapseConfig`. |
+| `tool_redcap_schema_describe` | Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/data/redcap_schema.md`. |
+
+### Adapter framework
+
+| Tool | Purpose |
+|---|---|
+| `tool_adapters_list` | List adapters + detection status on the current project (e.g. `slurm: detected_in_project=true`). |
+| `tool_adapter_extract` | Run one adapter's `extract()` + write provenance YAML to `workspace/<step>/provenance/<adapter>.yaml`. |
+| `tool_adapters_run_all` | Run every detected adapter's `extract()` and write per-adapter provenance YAMLs. |
+
+### Qualitative pack
+
+| Tool | Purpose |
+|---|---|
+| `tool_qualitative_codebook_diff` | Diff two versions of a qualitative codebook + optional per-code Cohen's κ from two rounds of applied coding. |
+| `tool_qualitative_quote_provenance` | Register a participant quote in `workspace/quotes/registry.jsonl` with full provenance (participant_id, transcript path, line range, optional timestamp). |
+
+### Humanities pack
+
+| Tool | Purpose |
+|---|---|
+| `tool_humanities_archive_lookup` | Query digital archives (Internet Archive / HathiTrust / DPLA / Europeana / Gallica / Library of Congress) for primary sources. Writes a structured lookup plan. |
+| `tool_humanities_citation_chain` | Build a chain-of-custody for a quotation: original ms → critical edition → translation → secondary citation. |
+| `tool_humanities_transcribe` | Scaffold an OCR + manual-correction workflow for an archival image. Side-by-side transcription template. |
+
+### Engineering pack
+
+| Tool | Purpose |
+|---|---|
+| `tool_engineering_fault_tree_render` | Render a fault tree as Mermaid + (optional) SVG. Top event + AND/OR gates + basic events. |
+| `tool_engineering_fmea_render` | Render an FMEA (Failure Mode & Effects Analysis) table from YAML to CSV + Markdown (+ optional `.xlsx`). Computes RPN = severity × occurrence × detection. |
+| `tool_engineering_requirements_matrix` | Bidirectional requirements traceability matrix: requirements ↔ design elements ↔ test cases ↔ test results. Markdown + optional Excel. |
+
+### Wet-lab pack
+
+| Tool | Purpose |
+|---|---|
+| `tool_wet_lab_plate_map_render` | Render a 96- or 384-well plate layout as PNG / SVG from a YAML spec. Visual sanity check for control placement. |
+| `tool_wet_lab_reagent_query` | Structured query plan + write-into-`reagents.yaml` stub for one reagent. No live supplier API calls. |
+| `tool_wet_lab_sample_lineage_export` | Render the parent → split → aliquot → readout tree as JSON + Mermaid. |
+
+### Theory + math pack
+
+| Tool | Purpose |
+|---|---|
+| `tool_theory_math_lean_check` | `lean --make` on a `.lean` file with structured error parsing. Writes an install hint when Lean is missing. |
+| `tool_theory_math_coq_check` | `coqc` on a `.v` file with structured error parsing. Same install-detection behaviour as `_lean_check`. |
+| `tool_theory_math_dep_graph` | Parse every `.lean` and `.v` under `source_dir`, extract named theorems / lemmas / definitions + module imports, write Mermaid + JSON dependency graph. |
 
 ---
 
@@ -253,7 +427,13 @@ that workflow:
 > `visualization/figure_guidelines`.
 
 **Quality auditors**
-* `tool_audit_quality_full` — runs every gate in one call.
+* `tool_audit_quality_full` — runs every gate in one call. Bundles
+  `tool_audit_step_completeness` + `tool_audit_code_quality` +
+  `tool_audit_prose` + `tool_audit_claims` + `tool_preregister_diff`
+  + `tool_ground`. **Does NOT run the per-step literature gate** —
+  call `tool_audit_step_literature` per step (or rely on
+  `tool_step_complete` to catch it). Skipping it surfaces as a blocker
+  later in `tool_audit_synthesis` / `tool_path_finalize`.
 * `tool_audit_code_quality` — ruff + AST complexity + smells.
 * `tool_audit_prose` — hedging + vague quantifiers + reporting
   standards.

@@ -265,7 +265,9 @@ def audit_results(text: str, root: Path) -> dict[str, Any]:
         )
     return {
         "blockers": blockers, "warnings": warnings,
-        "n_statistics": len(stats), "figures_unreferenced": missing,
+        "n_statistics": len(stats),
+        "figures_referenced": referenced,
+        "figures_unreferenced": missing,
     }
 
 

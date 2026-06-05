@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-_INTERVIEW_HINT_EXTS = {".vtt", ".otr", ".docx", ".rtf"}
+_INTERVIEW_HINT_EXTS = {".vtt", ".otr", ".docx", ".rtf", ".txt", ".md"}
 _QUAL_TOOL_HINTS = {
     "nvivo", "atlas.ti", "atlas_ti", "maxqda", "dedoose",
     "transana", "quirkos", "taguette",
@@ -53,12 +53,15 @@ def detect_qualitative(inputs_dir: Path) -> dict:
         if _IRB_PATTERNS.search(text):
             irb_hits += 1
         # Speaker-turn pattern: lines like "P1:" or "Interviewer:" or "P:"
+        # A 12-person study often ships short transcripts (3–4 turns each),
+        # so the threshold is ≥3 matches; a single transcript with that
+        # many speaker turns is already a strong qualitative signal.
         if ext in {".txt", ".md", ".docx", ".vtt", ".rtf"}:
             matches = _SPEAKER_TURN_RE.findall(text)
-            if len(matches) >= 5:
+            if len(matches) >= 3:
                 speaker_turn_files += 1
                 signals.append(
-                    f"speaker-turn pattern (≥5 turns) in {path.name}"
+                    f"speaker-turn pattern ({len(matches)} turns) in {path.name}"
                 )
         # Small-N demographic CSV
         if ext == ".csv":

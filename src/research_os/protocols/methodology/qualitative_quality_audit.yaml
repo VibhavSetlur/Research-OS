@@ -1,6 +1,6 @@
 id: qualitative_quality_audit
 name: Qualitative Quality Audit (COREQ + SRQR enforcement)
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: |
   Companion to `methodology/qualitative_research`. The research protocol
@@ -141,13 +141,17 @@ steps:
         Write to `outputs/reports/intercoder_agreement.md`:
           - shared subset size + selection method,
           - per-pair κ (or α),
-          - verdict per the field convention:
-              κ ≥ 0.80 = excellent,
-              0.60 ≤ κ < 0.80 = substantial,
-              0.40 ≤ κ < 0.60 = moderate,
-              κ < 0.40 = poor.
-          - if κ < 0.70: a RECONCILIATION plan (disagreements
-            discussed, codebook revised, subset re-coded).
+          - verdict per the canonical Landis & Koch (1977) table —
+            see methodology/inter_rater_reliability for the single
+            source of truth:
+              κ ≥ 0.81 = almost perfect,
+              0.61 ≤ κ < 0.81 = substantial,
+              0.41 ≤ κ < 0.61 = moderate,
+              0.21 ≤ κ < 0.41 = fair,
+              κ < 0.21 = slight / poor.
+          - if κ < 0.70 (i.e. below the 'substantial' floor): a
+            RECONCILIATION plan (disagreements discussed, codebook
+            revised, subset re-coded).
 
       A verdict < 0.70 without a reconciliation plan is a BLOCKER.
 

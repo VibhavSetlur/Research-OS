@@ -63,16 +63,32 @@ def _dump_config_roundtrip(path: Path, data) -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# CONFIG_TEMPLATE — single source of truth for the per-project schema.
+#
+# The canonical schema is documented in ``templates/researcher_config.yaml``
+# (source-tree copy). This in-code constant MUST stay byte-for-byte
+# synchronised with that file except for the leading ``project_name: ""``
+# line, which is replaced with the ``project_name: "{project_name}"``
+# placeholder so init_config can stamp the directory name on first write.
+# The ``test_config_template_matches_file`` test
+# (tests/unit/test_config_template_matches_file.py) asserts the sync.
+#
+# When updating the schema, edit ``templates/researcher_config.yaml`` first
+# and then mirror the change here. The wizard reads from this template via
+# init_config, so both consumers see the same shape.
+# ---------------------------------------------------------------------------
+
 CONFIG_TEMPLATE = """# Research OS — Researcher Configuration
 #
 # Tells the AI who it's working with and how you want it to behave.
 # Research OS does NOT manage LLM providers — your AI client (Claude Code /
 # OpenCode / Antigravity / Cursor / Claude / VS Code) handles model access.
 #
-# EVERY field below is OPTIONAL, but the more you fill in here, the better
-# the AI orients. Domain / research question / hypotheses are NOT in this
-# file — drop data + notes into inputs/ and say "fill out the intake" to
-# the AI; it writes those to inputs/intake.md and docs/research_overview.md.
+# EVERY field is OPTIONAL, but the more you fill in here, the better the
+# AI orients. Domain / research question / hypotheses are NOT in this file
+# — drop data + notes into inputs/ and say "fill out the intake" to the
+# AI; it writes those to inputs/intake.md and docs/research_overview.md.
 
 # ── Who you are ─────────────────────────────────────────────────────────
 researcher:
@@ -86,68 +102,100 @@ project_name: "{project_name}"
 
 # ── What you want to produce (blank = AI suggests; start exploratory) ───
 research_goal:
-  output_types: []               # any of: paper | abstract | poster | dashboard | report | exploratory
+  output_types: []               # paper | abstract | poster | dashboard | report | exploratory
   target_venue: ""               # journal | conference | preprint | dissertation | report
   poster_dimensions: "36x48"
 
 # ── How the AI should behave ────────────────────────────────────────────
 interaction:
-  autonomy_level: "supervised"   # manual | supervised | autopilot
-  # manual     → ask before every tool call.
-  # supervised → ask before path creation, synthesis, destructive writes.
-  # autopilot  → run autonomously; ask only before synthesis / very long jobs.
+  autonomy_level: "supervised"   # manual | supervised | autopilot | coaching
+  # coaching → AI doesn't auto-execute; surfaces pedagogical preludes,
+  #            explains WHY each gate exists, asks the researcher to draft
+  #            then critiques. Great for graduate students / new PIs
+  #            learning how to use a methodology rigorously. Pair with
+  #            tool_mistake_replay each session for self-coaching across
+  #            recurring patterns the researcher keeps tripping.
 
-  # Quality-gate posture. The AI NEVER bypasses a gate on its own; this
-  # only sets the friction level when the researcher asks to bypass.
-  #   enforce        → AI refuses to bypass without an explicit researcher
-  #                    instruction in the current message.
-  #   allow_override → AI may pass override_completeness_gate=true when
-  #                    the researcher asks, but must record the rationale.
-  #   warn_only      → Treat blockers as warnings (still logged); deliverables
-  #                    proceed. Use only for sandbox / exploratory projects.
+  # Quality-gate posture (the AI NEVER bypasses on its own).
+  #   enforce        → refuse bypass without an explicit researcher ask
+  #   allow_override → allow override_completeness_gate=true on request,
+  #                    rationale logged to workspace/logs/override_log.md
+  #   warn_only      → treat gate blockers as warnings (sandbox use only)
   quality_gate_policy: "enforce"
 
-  # Whether the AI should ask follow-ups vs. take a reasonable default
-  # when a protocol step is ambiguous.
-  #   ask_when_uncertain → default. Surfaces ask_user from tool_route.
-  #   take_best_default  → AI proceeds with the most defensible choice
-  #                        and surfaces it in the conclusion for review.
+  # Ambiguity posture
+  #   ask_when_uncertain → default; AI asks a one-line follow-up
+  #   take_best_default  → AI proceeds, surfaces the chosen default for review
   ambiguity_posture: "ask_when_uncertain"
+
+# ── Audit strictness ───────────────────────────────────────────────────
+# How hard audits enforce gates. "light" downgrades most blockers to
+# notes; "strict" keeps every gate at full enforcement; "normal" is the
+# baseline. "auto" follows tool_rigor_signals_scan — a project with
+# substantive methods.md + citations + git + preregistration scores
+# high and gets "light"; a sketch scores low and gets "strict".
+gate_strictness: "auto"               # light | normal | strict | auto
+
+# ── Project tier ───────────────────────────────────────────────────────
+# Sets the default audit strictness across the whole project.
+#   throwaway → light  (sandbox / exploratory; no publication intent)
+#   sketch    → normal (working draft; may or may not publish)
+#   production → strict (active path to submission / hand-off)
+project_tier: "production"            # throwaway | sketch | production
 
 # ── Match the AI model class running in your IDE ────────────────────────
 #
-# The single most important knob if you're not on a frontier model.
+# The single most important knob if you're NOT on a frontier model.
+# Tells Research OS how to batch steps, load protocols, and what to skip.
+#
 #   small  → 1 step/turn, summary-only protocol loads, skip optional
-#            sub-sections. Pick for: Claude Haiku 4.5, GPT-4o-mini,
-#            Gemini 2.5 Flash, Llama 3.3, Mistral, Phi-4, local models.
+#            sub-sections, prefer shortcut_tool over decomposition.
+#            Pick for: Claude Haiku 4.5, GPT-4o-mini, Gemini 2.5 Flash,
+#            Llama 3.3-70B, Mistral, Phi-4, any local model.
 #   medium → 3 steps/turn, summary loads with on-demand drill-down.
-#            Pick for: Claude Sonnet 4.5/4.6, GPT-4o/4.1, Gemini 2.5 Pro,
-#            Llama 4 Maverick.
-#   large  → 6 steps/turn, full protocol loads when useful, deeper plans.
-#            Pick for: Claude Opus 4.x, GPT-5/o-series, Gemini 3 Pro.
-model_profile: "medium"          # small | medium | large
+#            Pick for: Claude Sonnet 4.5/4.6, GPT-4o / GPT-4.1, Gemini
+#            2.5 Pro, Llama 4 Maverick.
+#   large  → 6 steps/turn, full protocol loads when useful, deeper
+#            multi-step reasoning chains.
+#            Pick for: Claude Opus 4.x, GPT-5 / o-series, Gemini 3 Pro.
+model_profile: "medium"
 
 # ── Writing preferences ─────────────────────────────────────────────────
 writing_preferences:
   citation_style: "apa"          # apa | vancouver | acm | ieee | nature
   language: "en-US"
+  # Typst venue template for tool_paper_compile_typst. One of:
+  #   nature | science | nejm | cell | ieee_conf | neurips | acl
+  #   plos  | generic_two_column | generic_thesis
+  venue_template: "generic_two_column"
+  # PDF engine for the synthesis pipeline. "typst" is the recommended
+  # default (fast, single-binary install, modern type-safe macros).
+  # Use "latex" when a journal requires .tex submission.
+  pdf_compile_engine: "typst"    # typst | latex | both
 
 # ── Compute environment ─────────────────────────────────────────────────
 runtime:
-  shared_server: false           # true → AI uses background tasks for long jobs,
-                                 #        and warns before heavy memory/CPU bursts.
-  long_running_threshold_seconds: 60   # jobs longer than this prefer background.
-  default_n_for_sampling: 1000   # default head-sample for tabular exploration.
+  shared_server: false           # set true on HPC / shared boxes
+  long_running_threshold_seconds: 60
+  default_n_for_sampling: 1000
+
+# ── Language + tool-stack preferences ──────────────────────────────────
+# Read by `methodology/pick_tool_stack`. AI uses these as hints (NOT
+# hard constraints); field-practice for a given method still wins.
+tool_stack:
+  preferred_languages: ["python", "R"]   # order = tie-breaker; empty = no preference
+  allow_mixed_language_steps: true        # false → split mixed work into separate steps
+  field_practice_overrides_preference: true   # true → R Bioconductor wins for DE even if Python listed first
+  cite_field_practice_when_choosing: true     # require literature citation per language choice
 
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
-# These are for literature search and web scraping only.
 api_keys:
-  semantic_scholar: ""           # https://www.semanticscholar.org/product/api
-  pubmed: ""                     # https://www.ncbi.nlm.nih.gov/account/
-  crossref: ""                   # https://www.crossref.org  (rarely needed)
-  firecrawl: ""                  # https://firecrawl.io  — web search + scrape
-  serpapi: ""                    # https://serpapi.com   — fallback web search
+  semantic_scholar: ""
+  pubmed: ""
+  crossref: ""
+  firecrawl: ""
+  serpapi: ""
 """
 
 
@@ -215,6 +263,26 @@ def save_profile(profile: dict[str, Any]) -> dict[str, Any]:
 
 VALID_GATE_POLICIES = ("enforce", "allow_override", "warn_only")
 VALID_AMBIGUITY_POSTURES = ("ask_when_uncertain", "take_best_default")
+
+# ``coaching`` is a pedagogical surface (extra preludes, no auto-execute) but
+# carries no scheduling difference vs ``supervised``; the actual code branches
+# that gate on autonomy treat it as supervised. Keeping the alias here so the
+# display value (``"coaching"``) survives in get_config / sys_help output while
+# scheduling code only sees the three executable modes.
+_AUTONOMY_ALIASES = {"coaching": "supervised"}
+
+
+def normalize_autonomy_level(value: Any, *, default: str = "supervised") -> str:
+    """Return one of ``manual | supervised | autopilot`` for the executable
+    scheduler. ``coaching`` aliases to ``supervised``. Unknown / blank values
+    fall back to ``default``.
+    """
+    if not isinstance(value, str):
+        return default
+    v = value.strip()
+    if v in {"manual", "supervised", "autopilot"}:
+        return v
+    return _AUTONOMY_ALIASES.get(v, default)
 
 
 def get_interaction_policy(root: Path) -> dict[str, str]:
@@ -423,8 +491,43 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     }
 
 
+# Enum-membership contracts for fields whose template documents a
+# closed set. validate_config flags off-enum values so a typo (e.g.
+# ``gate_strictness: lite``) surfaces at validate time instead of
+# being silently treated as the documented default.
+_ENUM_FIELDS: dict[str, tuple[str, ...]] = {
+    "interaction.autonomy_level": (
+        "manual", "supervised", "autopilot", "coaching",
+    ),
+    "interaction.quality_gate_policy": VALID_GATE_POLICIES,
+    "interaction.ambiguity_posture": VALID_AMBIGUITY_POSTURES,
+    "gate_strictness": ("light", "normal", "strict", "auto"),
+    "project_tier": ("throwaway", "sketch", "production"),
+    "model_profile": ("small", "medium", "large"),
+    "writing_preferences.pdf_compile_engine": ("typst", "latex", "both"),
+    "writing_preferences.citation_style": (
+        "apa", "vancouver", "acm", "ieee", "nature",
+    ),
+}
+
+
+def _dotted_get(cfg: dict[str, Any], path: str) -> Any:
+    cursor: Any = cfg
+    for part in path.split("."):
+        if not isinstance(cursor, dict):
+            return None
+        cursor = cursor.get(part)
+    return cursor
+
+
 def validate_config(root: Path) -> dict[str, Any]:
-    """Report which keys are present + whether API keys are configured."""
+    """Report which keys are present + whether API keys are configured.
+
+    Also validates enum-membership for fields whose template documents a
+    closed set (autonomy_level, gate_strictness, project_tier, etc.).
+    A field set to an off-enum value (typo, stale alias) is surfaced in
+    ``enum_violations`` and counts toward the human-readable message.
+    """
     res = get_config(root)
     if res.get("status") != "success":
         return res
@@ -440,16 +543,42 @@ def validate_config(root: Path) -> dict[str, Any]:
 
     missing = [k for k, v in required_paths if not v]
 
+    enum_violations: list[dict[str, Any]] = []
+    for field, allowed in _ENUM_FIELDS.items():
+        value = _dotted_get(config, field)
+        if value is None or value == "":
+            continue
+        if not isinstance(value, str) or value not in allowed:
+            enum_violations.append({
+                "field": field,
+                "value": value,
+                "allowed": list(allowed),
+            })
+
     api_keys = config.get("api_keys") or {}
     keys_present = sorted(k for k, v in api_keys.items() if v and v != "***" and not str(v).endswith("…"))
     keys_missing = sorted(k for k, v in api_keys.items() if not v)
 
+    if missing and enum_violations:
+        message = (
+            f"Missing required fields: {', '.join(missing)}; "
+            f"off-enum values: {', '.join(v['field'] for v in enum_violations)}"
+        )
+    elif missing:
+        message = f"Missing required fields: {', '.join(missing)}"
+    elif enum_violations:
+        message = (
+            "Off-enum values: "
+            + ", ".join(f"{v['field']}={v['value']!r}" for v in enum_violations)
+        )
+    else:
+        message = "Config OK."
+
     return {
         "status": "success",
         "required_fields_missing": missing,
+        "enum_violations": enum_violations,
         "api_keys_configured": keys_present,
         "api_keys_blank": keys_missing,
-        "message": (
-            "Config OK." if not missing else f"Missing required fields: {', '.join(missing)}"
-        ),
+        "message": message,
     }

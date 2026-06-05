@@ -40,7 +40,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 logger = logging.getLogger("research_os.audit.claim_grounding")
 

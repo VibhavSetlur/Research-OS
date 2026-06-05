@@ -1,6 +1,6 @@
 id: synthesis_report
 name: Synthesis — Internal / Technical Report
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: Compile a non-journal report for internal stakeholders, clients, or a technical audience.
 trigger: Researcher asks "write a report" / "write up findings for my PI / client / team"; OR `research_goal.output_types` includes "report".

@@ -1,6 +1,6 @@
 id: reproducibility
 name: Reproducibility
-version: '1.7.1'
+version: '1.9.3'
 schema_version: '2.0'
 description: Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability.
 trigger: After all planned experiments are complete. Before audit_and_validation.

@@ -47,23 +47,6 @@ VENUE_CITATION_STYLE = {
 # ---------------------------------------------------------------------------
 
 
-def _escape_typst_text(text: str) -> str:
-    """Escape characters that have a special meaning in Typst markup.
-
-    We only escape OUTSIDE code spans / code blocks; the caller is
-    responsible for protecting those regions first.
-    """
-    # Typst-active characters that we don't want interpreted as markup.
-    out = text.replace("\\", "\\\\")
-    out = out.replace("@", "\\@")
-    out = out.replace("#", "\\#")
-    # Square brackets are syntactic in Typst; only escape isolated ones —
-    # paired [...] inside our own #figure / #link will already be safe
-    # because we emit them ourselves. We escape here only as a guard for
-    # leftover prose like "[note]".
-    return out
-
-
 def _inline_md_to_typst(text: str) -> str:
     """Convert inline markdown constructs in a single paragraph.
 
@@ -502,48 +485,6 @@ def _parse_typst_errors(stderr: str) -> list[dict[str, Any]]:
             out[-1]["line"] = int(m.group(2))
             out[-1]["col"] = int(m.group(3))
     return out
-
-
-# ---------------------------------------------------------------------------
-# Figure embedding helpers
-# ---------------------------------------------------------------------------
-
-
-def _prefer_vector_figure(path: Path) -> Path:
-    """Return the best on-disk variant of a figure (.pdf > .svg > .png)."""
-    stem = path.with_suffix("")
-    for ext in (".pdf", ".svg", ".png", ".jpg", ".jpeg"):
-        candidate = stem.with_suffix(ext)
-        if candidate.exists():
-            return candidate
-    return path
-
-
-def _maybe_convert_svg_to_pdf(svg_path: Path) -> Path:
-    """If rsvg-convert or inkscape is available, render svg → pdf and
-    return the new path; otherwise return the original (Typst handles
-    SVG natively, so this is best-effort)."""
-    out = svg_path.with_suffix(".pdf")
-    if out.exists():
-        return out
-    for tool, args in (
-        ("rsvg-convert", ["rsvg-convert", "-f", "pdf", "-o"]),
-        ("inkscape", ["inkscape", "--export-type=pdf", "--export-filename"]),
-    ):
-        if shutil.which(tool):
-            try:
-                if tool == "rsvg-convert":
-                    subprocess.run(args + [str(out), str(svg_path)], check=True, timeout=30)
-                else:
-                    subprocess.run([
-                        "inkscape", "--export-type=pdf",
-                        f"--export-filename={out}", str(svg_path),
-                    ], check=True, timeout=30)
-                if out.exists():
-                    return out
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                continue
-    return svg_path
 
 
 # ---------------------------------------------------------------------------

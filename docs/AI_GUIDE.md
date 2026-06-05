@@ -318,6 +318,14 @@ The visualization category has 14 protocols for distinct needs:
 | `multi_panel_composition` | Composing Figure 2 = panels A / B / C / D |
 | `figure_narrative_arc` | Ordering figures across a paper / talk / poster |
 | `color_accessibility_audit` | Color-blind simulation + WCAG contrast + grayscale |
+| `distribution_comparison` | Comparing distributions across groups — pick a chart family beyond bar-with-error-bar |
+| `uncertainty_visualization` | Error bars, fan charts, calibration plots — making uncertainty legible |
+| `interactive_figure_design` | One figure benefits from hover / brush / click (volcano, UMAP, heatmap) |
+| `interactive_dashboard_design` | Multi-page interactive dashboard (next tier above single-file `synthesis_dashboard`) |
+| `geospatial_visualization` | Data has a location dimension — choropleths, points, trajectories; map-projection pitfalls |
+| `network_visualization` | Relationships > aggregates — co-authorship, gene regulatory, causal DAGs |
+| `animation_design` | Change over time IS the story — training trajectories, epidemic spread, attention shifts |
+| `showcase_visualization` | HCI / data-art / journalism explainers / journal covers — figure as primary artefact |
 
 Research-OS does NOT ship a parametric chart-builder. You (the AI) write
 the plotting script in the appropriate language — matplotlib / ggplot2 /
