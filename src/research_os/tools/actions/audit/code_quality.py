@@ -38,8 +38,11 @@ import logging
 import re
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._base import AuditBase, AuditFinding
 
 logger = logging.getLogger("research_os.audit.code_quality")
 
@@ -402,4 +405,201 @@ def audit_code_quality(
     }
 
 
-__all__ = ["audit_code_quality", "audit_script"]
+# ---------------------------------------------------------------------------
+# Phase-4 migration: AuditBase subclass emitting AuditFinding objects
+# ---------------------------------------------------------------------------
+
+
+# Stable UUID namespace for deterministic finding ids. Re-runs against the
+# same workspace state produce the same finding ids so downstream consumers
+# (dashboards, history queries) can dedupe by id across runs.
+_FINDING_UUID_NAMESPACE = uuid.NAMESPACE_DNS
+
+
+def _finding_uuid(audit_name: str, dimension: str, evidence_paths: list[str],
+                  detail: str = "") -> str:
+    """Deterministic uuid5 derived from audit_name + dimension + paths + detail.
+
+    Including ``detail`` lets a single (path, dimension) pair distinguish
+    multiple findings (e.g. several blockers in the same script) without
+    clashing on the id. Re-runs against the same code state still produce
+    the same ids — the inputs are pure functions of the source artefacts.
+    """
+    key = "|".join([
+        audit_name,
+        dimension,
+        ",".join(sorted(evidence_paths)),
+        detail,
+    ])
+    return str(uuid.uuid5(_FINDING_UUID_NAMESPACE, key))
+
+
+def _smell_dimension(message: str) -> str:
+    """Map a smell/blocker/warning message to a stable dimension tag.
+
+    The dimension axis groups findings in the markdown report and in
+    downstream dashboards. We bucket by the substantive code-quality
+    concern rather than by severity (severity is its own field).
+    """
+    m = message.lower()
+    if "bare `except" in m or "bare except" in m:
+        return "error_handling"
+    if "import *" in m:
+        return "imports"
+    if "eval()" in m or "exec()" in m:
+        return "dynamic_exec"
+    if "absolute path" in m:
+        return "reproducibility"
+    if "todo" in m or "fixme" in m:
+        return "wip"
+    if "complexity" in m:
+        return "complexity"
+    if "lines" in m and "function" in m:
+        return "length"
+    if "docstring" in m:
+        return "docs"
+    if "syntaxerror" in m:
+        return "syntax"
+    if "cannot read" in m:
+        return "io"
+    return "code_quality"
+
+
+class CodeQualityAudit(AuditBase):
+    """AuditBase subclass for the analysis-script code-quality gate.
+
+    Delegates to :func:`audit_code_quality` for the heavy lifting (which
+    preserves the legacy markdown contract at ``workspace/logs/code_quality.md``)
+    and converts the per-script blocker/warning lists into structured
+    :class:`AuditFinding` objects.
+    """
+
+    name = "code_quality"
+
+    def run(
+        self,
+        root: Path,
+        *,
+        step_id: str | None = None,
+        run_ruff: bool = True,
+        run_mypy: bool = False,
+        **_: Any,
+    ) -> list[AuditFinding]:
+        """Run the code-quality audit and return structured findings.
+
+        Side effect: writes the legacy ``workspace/logs/code_quality.md``
+        report (preserved byte-for-byte from the pre-AuditBase entry
+        point) so callers that relied on the markdown artefact keep
+        working.
+        """
+        report = audit_code_quality(
+            root,
+            step_id=step_id,
+            run_ruff=run_ruff,
+            run_mypy=run_mypy,
+        )
+        findings: list[AuditFinding] = []
+        if report.get("status") == "error" and "message" in report:
+            # workspace/ missing — single info finding describing the gap.
+            findings.append(
+                AuditFinding(
+                    id=_finding_uuid(self.name, "workspace", [],
+                                     report["message"]),
+                    audit_name=self.name,
+                    severity="info",
+                    dimension="workspace",
+                    evidence_paths=[],
+                    suggested_fix=(
+                        "Create workspace/<NN>_<slug>/scripts/ before "
+                        "running the code-quality audit."
+                    ),
+                )
+            )
+            return findings
+
+        for step in report.get("per_step", []) or []:
+            step_id_val = step.get("step_id", "")
+            for sc in step.get("scripts", []) or []:
+                # Workspace-relative path for evidence (audit_script stores
+                # whatever Path it received — typically absolute).
+                try:
+                    rel_path = str(
+                        Path(sc["path"]).resolve().relative_to(root.resolve())
+                    )
+                except (ValueError, OSError):
+                    rel_path = sc["path"]
+                evidence = [rel_path]
+                for b in sc.get("blockers") or []:
+                    dim = _smell_dimension(b)
+                    findings.append(
+                        AuditFinding(
+                            id=_finding_uuid(self.name, dim, evidence, b),
+                            audit_name=self.name,
+                            severity="block",
+                            dimension=dim,
+                            evidence_paths=evidence,
+                            suggested_fix=b,
+                        )
+                    )
+                for w in sc.get("warnings") or []:
+                    dim = _smell_dimension(w)
+                    findings.append(
+                        AuditFinding(
+                            id=_finding_uuid(self.name, dim, evidence, w),
+                            audit_name=self.name,
+                            severity="warn",
+                            dimension=dim,
+                            evidence_paths=evidence,
+                            suggested_fix=w,
+                        )
+                    )
+            # ruff issues — surfaced as a single info finding per step so
+            # the report doesn't explode when the linter is verbose.
+            ruff = step.get("ruff") or {}
+            if ruff.get("ran") and ruff.get("issue_count", 0) > 0:
+                detail = f"{step_id_val}:ruff:{ruff['issue_count']}"
+                findings.append(
+                    AuditFinding(
+                        id=_finding_uuid(self.name, "lint",
+                                         [f"workspace/{step_id_val}/scripts"],
+                                         detail),
+                        audit_name=self.name,
+                        severity="info",
+                        dimension="lint",
+                        evidence_paths=[f"workspace/{step_id_val}/scripts"],
+                        suggested_fix=(
+                            f"ruff reported {ruff['issue_count']} issue(s) "
+                            f"in {step_id_val}/scripts; run `ruff check "
+                            f"workspace/{step_id_val}/scripts` for the full "
+                            "list."
+                        ),
+                    )
+                )
+            mypy = step.get("mypy") or {}
+            if mypy.get("ran") and mypy.get("error_count", 0) > 0:
+                detail = f"{step_id_val}:mypy:{mypy['error_count']}"
+                findings.append(
+                    AuditFinding(
+                        id=_finding_uuid(self.name, "types",
+                                         [f"workspace/{step_id_val}/scripts"],
+                                         detail),
+                        audit_name=self.name,
+                        severity="info",
+                        dimension="types",
+                        evidence_paths=[f"workspace/{step_id_val}/scripts"],
+                        suggested_fix=(
+                            f"mypy reported {mypy['error_count']} error(s) "
+                            f"in {step_id_val}/scripts; type-hints are "
+                            "optional for analysis scripts but help with "
+                            "refactors."
+                        ),
+                    )
+                )
+        return findings
+
+
+__all__ = [
+    "audit_code_quality",
+    "audit_script",
+    "CodeQualityAudit",
+]
