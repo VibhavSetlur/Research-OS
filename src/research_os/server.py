@@ -4813,14 +4813,40 @@ def _handle_tool_plan_step_grounded(name, arguments, root):
 
 
 def _handle_tool_audit_code_quality(name, arguments, root):
-    from research_os.tools.actions.audit.code_quality import audit_code_quality
+    from research_os.tools.actions.audit._base import write_audit_outputs
+    from research_os.tools.actions.audit.code_quality import (
+        CodeQualityAudit,
+        audit_code_quality,
+    )
 
-    return _text(_success(audit_code_quality(
+    # Legacy report (preserves workspace/logs/code_quality.md byte-for-byte).
+    legacy = audit_code_quality(
         root,
         step_id=arguments.get("step_id"),
         run_ruff=bool(arguments.get("run_ruff", True)),
         run_mypy=bool(arguments.get("run_mypy", False)),
-    )))
+    )
+
+    # Phase-4 structured artefacts (JSON + JSONL ledger) alongside the
+    # legacy markdown. Re-running audit_code_quality is cheap and keeps
+    # the two output paths trivially consistent; if that ever shows up
+    # in a profile, lift the per_step walk out into a shared helper.
+    findings = CodeQualityAudit().run(
+        root,
+        step_id=arguments.get("step_id"),
+        run_ruff=bool(arguments.get("run_ruff", True)),
+        run_mypy=bool(arguments.get("run_mypy", False)),
+    )
+    written = write_audit_outputs(findings, "code_quality", root)
+    legacy["audit_findings"] = {
+        "count": len(findings),
+        "block": sum(1 for f in findings if f.severity == "block"),
+        "warn": sum(1 for f in findings if f.severity == "warn"),
+        "info": sum(1 for f in findings if f.severity == "info"),
+        "json_path": str(written["json"].relative_to(root)),
+        "jsonl_path": str(written["jsonl"].relative_to(root)),
+    }
+    return _text(_success(legacy))
 
 
 def _handle_tool_audit_prose(name, arguments, root):
