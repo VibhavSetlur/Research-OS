@@ -31,6 +31,45 @@ logger = logging.getLogger("research_os.tools.protocol")
 
 PROTOCOLS_DIR = Path(__file__).parent.parent.parent / "protocols"
 PROTOCOL_LOG_FILE = "protocol_execution_log.jsonl"
+DEPRECATIONS_LOG_FILE = "deprecations.log"
+
+
+def _log_redirect(source: str, target: str, params: dict | None = None) -> None:
+    """Append a redirect event to .os_state/deprecations.log (best-effort).
+
+    Resolves project root via RESEARCH_OS_WORKSPACE env var; falls back to
+    walking up CWD for `.os_state/`. Silently no-ops if no workspace.
+    """
+    import os
+    root: Path | None = None
+    env_root = os.environ.get("RESEARCH_OS_WORKSPACE", "").strip()
+    if env_root:
+        candidate = Path(env_root).expanduser().resolve()
+        if candidate.exists():
+            root = candidate
+    if root is None:
+        cur = Path.cwd().resolve()
+        for p in [cur, *cur.parents]:
+            if (p / ".os_state").exists():
+                root = p
+                break
+    if root is None:
+        return
+    log_dir = root / ".os_state"
+    if not log_dir.exists():
+        return
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "kind": "protocol_redirect",
+        "source": source,
+        "target": target,
+        "params": params or {},
+    }
+    try:
+        with open(log_dir / DEPRECATIONS_LOG_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +270,7 @@ def load_protocol(
     *,
     format: str = "full",
     step_id: str | None = None,
+    _redirect_chain: tuple[str, ...] | None = None,
 ) -> dict:
     """Load a protocol YAML and post-process it.
 
@@ -258,6 +298,44 @@ def load_protocol(
         raise FileNotFoundError(f"Protocol '{name}' not found in {PROTOCOLS_DIR}")
     with open(file) as f:
         data = yaml.safe_load(f) or {}
+
+    # Redirect-stub support: a stub YAML carries `redirect_to: <target_name>`
+    # (and optional
+    # `redirect_params: {key: value}`). The stub is reduced to a thin
+    # alias: the target is loaded, the source name is recorded on the
+    # result for traceability, and any params are injected into the
+    # `_redirect_params` field for the caller. Loops are detected via
+    # a seen-set; cycles raise. Stubs must NOT carry `steps:`; the
+    # preflight check enforces that.
+    redirect_target = data.get("redirect_to")
+    if isinstance(redirect_target, str) and redirect_target.strip():
+        target = redirect_target.strip()
+        params = data.get("redirect_params", {}) or {}
+        try:
+            _log_redirect(name, target, params)
+        except Exception:
+            pass
+        # Cycle detection across the whole redirect chain (not just self).
+        chain = (_redirect_chain or ()) + (name, target)
+        target_norm = target.split("/")[-1]
+        name_norm = name.split("/")[-1]
+        chain_norms = {c.split("/")[-1] for c in (_redirect_chain or ())}
+        if target_norm in chain_norms or target_norm == name_norm:
+            raise ValueError(
+                f"Redirect cycle detected: {' -> '.join(chain)}"
+            )
+        resolved = load_protocol(
+            target,
+            model_profile=model_profile,
+            format=format,
+            step_id=step_id,
+            _redirect_chain=chain,
+        )
+        if isinstance(resolved, dict):
+            resolved.setdefault("_redirected_from", name)
+            if params:
+                resolved.setdefault("_redirect_params", params)
+        return resolved
 
     # Inject any per-profile step overrides explicitly attached as
     # ``model_adaptations: {small: {step_id: {key: value}}}``.
