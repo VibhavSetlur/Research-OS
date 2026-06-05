@@ -156,4 +156,5 @@ quality_bar:
   tools_md_lists_every_language_actually_used: true
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: methodology/pick_tool_stack

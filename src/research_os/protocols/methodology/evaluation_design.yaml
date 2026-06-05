@@ -257,4 +257,5 @@ quality_bar:
   same_budget_per_variant: true
 
 next_protocol: methodology/methodology_selection
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

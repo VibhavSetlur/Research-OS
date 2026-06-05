@@ -270,4 +270,5 @@ quality_bar:
 # break a 2-cycle; route via the dispatcher when uncertainty work
 # is needed after fairness analysis.
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/scope_clarification

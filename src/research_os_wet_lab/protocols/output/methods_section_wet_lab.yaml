@@ -259,6 +259,7 @@ expected_outputs:
   - workspace/methods/materials_and_methods.md
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: |
   If the audit blocks submission, do not paper over it in the
   manuscript. Route the specific gap back to its source protocol:

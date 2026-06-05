@@ -286,4 +286,5 @@ quality_bar:
   failure_distinguishes_mechanical_from_substantive: true
 
 next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

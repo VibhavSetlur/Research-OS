@@ -249,4 +249,5 @@ quality_bar:
   every_anomaly_has_provisional_interpretation: true
 
 next_protocol: methodology/methodology_selection
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

@@ -26,8 +26,13 @@ logger = logging.getLogger("research_os.tools.synthesis.typst")
 VENUE_TEMPLATES = (
     "nature", "science", "nejm", "cell", "ieee_conf",
     "neurips", "acl", "plos", "generic_two_column", "generic_thesis",
+    "humanities_essay", "chicago_thesis",
 )
 
+# Map venue template → Typst built-in bibliography style identifier.
+# Typst uses CSL identifiers with hyphens (e.g. "chicago-notes", NOT
+# "chicago_notes_bib"); the researcher-facing config carries the
+# pretty underscore form (chicago_notes_bib) and this map translates.
 VENUE_CITATION_STYLE = {
     "nature": "nature",
     "science": "ieee",
@@ -39,6 +44,31 @@ VENUE_CITATION_STYLE = {
     "plos": "ieee",
     "generic_two_column": "apa",
     "generic_thesis": "apa",
+    # Humanities templates. Footnote-citation thesis defaults to
+    # Chicago notes; the generic humanities essay defaults to MLA
+    # (the modal humanities convention).
+    "humanities_essay": "modern-language-association",
+    "chicago_thesis": "chicago-notes",
+}
+
+# Researcher-facing citation_style → Typst CSL identifier. Used when
+# the researcher sets writing_preferences.citation_style explicitly
+# AND the venue template doesn't pin one.
+CITATION_STYLE_TO_TYPST = {
+    "apa": "apa",
+    "vancouver": "vancouver",
+    "acm": "ieee",                      # ACM ≅ IEEE numeric for Typst
+    "ieee": "ieee",
+    "nature": "nature",
+    "mla": "modern-language-association",
+    "chicago_author_date": "chicago-author-date",
+    "chicago_notes_bib": "chicago-notes",
+    # Mathematical sciences: Typst doesn't ship AMS / SIAM CSL out of
+    # the box; the closest accepted built-in is springer-basic-
+    # author-date for SIAM-flavoured author-date numerics, and a
+    # numeric fallback for AMS plain.
+    "amsplain": "ieee",
+    "siam": "springer-basic-author-date",
 }
 
 

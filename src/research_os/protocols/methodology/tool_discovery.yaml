@@ -56,4 +56,5 @@ expected_outputs:
   - environment/requirements.txt
 
 next_protocol: methodology/methodology_selection
+next_protocol_kind: forward_default
 on_failure: null

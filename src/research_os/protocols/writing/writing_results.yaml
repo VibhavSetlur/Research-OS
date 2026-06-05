@@ -264,4 +264,5 @@ quality_bar:
   number_format_consistent_with_field_convention: true
 
 next_protocol: writing/writing_discussion
+next_protocol_kind: forward_default
 on_failure: null

@@ -225,4 +225,5 @@ quality_bar:
   budget_implications_captured_when_funder_requires: true
 
 next_protocol: audit/pre_submission_checklist
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

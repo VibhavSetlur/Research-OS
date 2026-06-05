@@ -117,4 +117,5 @@ expected_outputs:
   - workspace/engineering/fmea/rubric.md
 
 next_protocol: engineering/safety/fault_tree_analysis
+next_protocol_kind: forward_default
 on_failure: null

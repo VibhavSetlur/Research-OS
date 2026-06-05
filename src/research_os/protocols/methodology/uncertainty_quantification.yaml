@@ -216,4 +216,5 @@ quality_bar:
   deployment_calibrator_serialised_and_documented: true
 
 next_protocol: methodology/fairness_audit
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

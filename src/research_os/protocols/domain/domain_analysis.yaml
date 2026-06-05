@@ -81,4 +81,5 @@ expected_outputs:
   - docs/domain_summary.md
 
 next_protocol: methodology/deep_domain_research
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

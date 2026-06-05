@@ -162,11 +162,32 @@ model_profile: "medium"
 
 # ── Writing preferences ─────────────────────────────────────────────────
 writing_preferences:
-  citation_style: "apa"          # apa | vancouver | acm | ieee | nature
+  # Citation style. Pick the convention your field expects:
+  #   STEM / biomedical / quantitative social science
+  #     apa                 → APA 7 (author-date); psychology, education, much
+  #                           of the social sciences.
+  #     vancouver           → Vancouver (numeric); biomedical journals.
+  #     acm                 → ACM (numeric); computer science conferences.
+  #     ieee                → IEEE (numeric); engineering, signal processing.
+  #     nature              → Nature superscript-numeric.
+  #   Humanities / theory
+  #     mla                 → MLA 9 (author-page); literature, modern
+  #                           languages, cultural studies.
+  #     chicago_author_date → Chicago 17 author-date; history, social
+  #                           sciences that prefer Chicago over APA.
+  #     chicago_notes_bib   → Chicago 17 notes + bibliography; literary
+  #                           studies, theology, art history (footnotes).
+  #     amsplain            → AMS plain (numeric, alpha-keyed bib);
+  #                           pure mathematics + theoretical CS.
+  #     siam                → SIAM (numeric); applied math, scientific
+  #                           computing.
+  citation_style: "apa"
   language: "en-US"
   # Typst venue template for tool_paper_compile_typst. One of:
   #   nature | science | nejm | cell | ieee_conf | neurips | acl
   #   plos  | generic_two_column | generic_thesis
+  #   humanities_essay      → single-column, footnote-friendly, MLA/Chicago.
+  #   chicago_thesis        → Chicago notes+bibliography thesis layout.
   venue_template: "generic_two_column"
   # PDF engine for the synthesis pipeline. "typst" is the recommended
   # default (fast, single-binary install, modern type-safe macros).
@@ -506,7 +527,12 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     "model_profile": ("small", "medium", "large"),
     "writing_preferences.pdf_compile_engine": ("typst", "latex", "both"),
     "writing_preferences.citation_style": (
+        # STEM / biomedical / quantitative
         "apa", "vancouver", "acm", "ieee", "nature",
+        # Humanities / theory
+        "mla", "chicago_author_date", "chicago_notes_bib",
+        # Mathematical sciences
+        "amsplain", "siam",
     ),
 }
 

@@ -208,4 +208,5 @@ quality_bar:
   target_venue_recorded_in_researcher_config: true
 
 next_protocol: synthesis/synthesis_paper
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

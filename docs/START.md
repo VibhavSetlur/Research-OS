@@ -75,6 +75,26 @@ before I use them").
 `inputs/raw_data/` and `inputs/literature/` are **immutable** — Research
 OS blocks writes server-side.
 
+### When your project needs extra `inputs/` subfolders
+
+The wizard always creates `raw_data/`, `literature/`, and `context/`.
+Some packs and protocols expect additional subfolders that the
+protocol itself will create the first time you use it — but if you
+want to pre-stage files, drop them in the right place from the start:
+
+| You have… | Drop it here | Used by |
+|---|---|---|
+| A text corpus (novels, transcripts, primary sources) | `inputs/corpus/` (humanities) OR `inputs/raw_data/<slug>/` | `humanities/textual/distant_reading`, `humanities/method/digital_humanities_workflow` |
+| Hand-picked passages for close reading | `inputs/textual/passages/` | `humanities/method/close_reading` |
+| Definitions / preliminaries for a theorem | `inputs/preliminaries.md` (free-text Markdown — define every object in your claim, plus key prior results) | `theory_math/method/proof_strategy_selection` (hard prerequisite — the protocol blocks without it) |
+| Source code under benchmark (the C / Rust / Python you're measuring, not analysis scripts) | `inputs/context/code/` | `methodology/method_comparison` (engineering pack) |
+| Interview / survey instruments, IRB protocols, consent forms | `inputs/context/` | `methodology/qualitative_research`, audit gates |
+| Reference / lookup tables that aren't raw observations | `inputs/context/` | analysis steps that need them |
+
+If you only realise mid-session, just `mkdir inputs/<subfolder>` and
+drop the files in — the immutability guarantee only applies to
+`raw_data/` and `literature/`.
+
 ---
 
 ## Open your AI IDE on the project and talk
@@ -97,6 +117,12 @@ explain ANCOVA to me
 
 The AI translates your plain-English prompt into the right protocol via
 `tool_route`. You don't call MCP tools directly; you just talk.
+
+For longer, scenario-flavoured first-turn prompts (text corpus,
+interview transcripts, benchmark study, theorem-to-prove, mixed data +
+hypothesis), see the **Common first prompts** table at the top of
+[USE_CASES.md](USE_CASES.md) — those are the variants validated
+against five end-to-end fresh-agent walkthroughs.
 
 ### Using a small or medium AI? Set `model_profile` first
 
@@ -156,6 +182,9 @@ After install + scaffold, your first prompt should be one of:
 | A draft / partial work | "i'm bringing this into research-os" |
 | A question, no data | "teach me about <method> before i use it" |
 | A pilot already done elsewhere | "we already analysed this, just write it up" |
+| A conjecture you want to prove | "I have a conjecture — set up a theory_math project, pick a strategy, draft a verified proof" |
+| Interview transcripts | "qualitative project — assume thematic analysis unless transcripts suggest grounded theory" |
+| A text corpus for close reading | "humanities project — close reading on the corpus in inputs/raw_data/" |
 
 ### Minutes 15-30 — run your first real step
 

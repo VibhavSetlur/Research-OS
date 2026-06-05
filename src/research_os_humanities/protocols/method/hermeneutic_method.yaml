@@ -240,6 +240,7 @@ expected_outputs:
     (close_reading, critical_synthesis) to consume
 
 next_protocol: humanities/textual/close_reading
+next_protocol_kind: forward_default
 on_failure: |
   If the researcher cannot name a framework, do NOT proceed to
   close_reading. Instead, route to literature/literature_search so

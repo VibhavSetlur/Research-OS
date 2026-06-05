@@ -50,6 +50,35 @@ quality_bar:
     - "proof uses an unusual axiom (e.g. choice, large cardinals)"
 
 steps:
+  - id: declare_step_contract
+    name: Declare the step contract (proof IS a proof step)
+    description: |
+      Write `workspace/<step>/step_summary.yaml` with the proof
+      contract so the empirical / quantitative audits don't BLOCK on
+      missing figures or empirical literature loops:
+
+        step_intent: proof          # the unit of work is a proof
+                                    # body + review. No figures, no
+                                    # tables, no datasets.
+        figure_required: false      # proof bodies are prose +
+                                    # equations. Diagrams (when
+                                    # present) are illustrative, not
+                                    # required.
+        table_required: false
+        literature_required: true   # cited prior lemmas / theorems
+                                    # still go through the literature
+                                    # loop — but with verdict
+                                    # IMPORTED_AS_CITED (see
+                                    # literature/literature_per_step
+                                    # for the verdict enum), NOT
+                                    # AGREES/DISAGREES/EXTENDS which
+                                    # presume empirical claims.
+
+      See templates/step_summary.yaml.template for the full schema
+      and analysis_plan.yaml `classify_step_intent` for why
+      `proof` auto-waives the figure-gate (consistent with `plan`,
+      `ground`, `apparatus`).
+
   - id: state_claim
     name: State the claim
     description: |
@@ -122,4 +151,5 @@ expected_outputs:
   - workspace/proofs/<slug>.v       # only when formal-checked
 
 next_protocol: theory_math/output/theory_paper_structure
+next_protocol_kind: forward_default
 on_failure: theory_math/method/proof_strategy_selection

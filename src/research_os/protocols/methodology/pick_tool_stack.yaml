@@ -141,4 +141,5 @@ quality_bar:
   rationale_cites_literature_or_documents_why_not: true
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: methodology/methodology_selection

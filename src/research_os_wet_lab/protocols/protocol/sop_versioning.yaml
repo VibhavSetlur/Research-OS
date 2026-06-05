@@ -208,4 +208,5 @@ expected_outputs:
   - "workspace/<NN>_<sop_id>_v<new>_validation/ (for MAJOR bumps)"
 
 next_protocol: wet_lab/protocol/reagent_lot_tracking
+next_protocol_kind: forward_default
 on_failure: null

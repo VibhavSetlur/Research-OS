@@ -300,4 +300,5 @@ quality_bar:
   every_quantitative_claim_grounded: true
 
 next_protocol: writing/writing_limitations
+next_protocol_kind: forward_default
 on_failure: null

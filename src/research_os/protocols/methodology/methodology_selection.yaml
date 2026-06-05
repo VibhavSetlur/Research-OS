@@ -208,4 +208,5 @@ expected_outputs:
   - workspace/<active step>/outputs/reports/method_research_*.md (when deep grounding)
 
 next_protocol: literature/literature_search
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

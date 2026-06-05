@@ -204,4 +204,5 @@ quality_bar:
   irb_alignment_explicitly_verified: true
 
 next_protocol: methodology/coding_scheme_development
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

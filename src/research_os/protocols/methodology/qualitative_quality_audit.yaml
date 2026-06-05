@@ -258,4 +258,5 @@ quality_bar:
   audit_summary_written_for_synthesis_consumption: true
 
 next_protocol: audit/audit_and_validation
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

@@ -221,4 +221,5 @@ expected_outputs:
   - "mem_log entry under formal_tool_choice — why Coq, not Lean"
 
 next_protocol: theory_math/proof/proof_verification_workflow
+next_protocol_kind: forward_default
 on_failure: theory_math/formal/lean_integration

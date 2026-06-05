@@ -228,6 +228,56 @@ steps:
       This paragraph is what separates a useful comparison from a
       mis-cited one.
 
+  - id: engineering_or_systems_benchmark_addendum
+    name: Engineering / systems-benchmark addendum (when applicable)
+    description: |
+      Fires when the comparison's task vocabulary is engineering /
+      systems-flavoured rather than ML-flavoured — i.e. the methods
+      compared are algorithms / data-structures / runtimes / hardware
+      configs / OS schedulers, and the primary outcome is wall-clock,
+      throughput, latency, memory footprint, or energy.
+
+      The default protocol body above assumes ML-vocabulary defaults
+      (split / fold / accuracy). For systems benchmarks the equivalent
+      reasoning lives in DIFFERENT operational primitives — translate
+      explicitly:
+
+        - WARM-UP RUNS, NOT FOLDS. Discard the first N iterations
+          (JIT compilation, cache warming, page faults). Cite the
+          warm-up convention the subfield uses.
+        - HARDWARE / OS GOVERNOR CONTROL. CPU frequency governor
+          set to `performance`; turbo / SMT / address-space layout
+          randomisation explicitly logged. A benchmark on a laptop
+          with battery saver on is not the same benchmark.
+        - PAIRED WILCOXON ON HEAVY-TAILED TIMINGS. Wall-clock
+          distributions are heavy-tailed; paired t-tests
+          underweight outliers that matter operationally. Wilcoxon
+          signed-rank on paired timings is the field-standard test
+          when the subfield's reporting convention names it; cite
+          the source.
+        - LOG-LOG PLOTS WITH ASYMPTOTIC FITS. Scaling plots
+          (runtime vs n) belong on log-log axes with a fitted
+          exponent + CI on the exponent. Comparing a quadratic
+          algorithm to a linearithmic one on a linear-axis plot
+          is misleading.
+        - LANGUAGE-STDLIB-AS-BASELINE. The baseline a real
+          engineer cares about is the language's standard
+          sort / map / hash / IO — not "random predictor". A new
+          allocator beats malloc, a new sort beats std::sort, a new
+          hash table beats the standard library's, or it doesn't
+          ship.
+        - REQUIREMENTS-TRACEABILITY MATRIX. When the comparison
+          feeds an engineering deliverable (a release decision, a
+          contract milestone, an internal RFC), call
+          `tool_engineering_requirements_matrix` to bind each
+          measured property back to a stated requirement. The
+          matrix is the artefact the next reviewer (or auditor)
+          will read first; pair it with the comparison plan so the
+          decision trail is end-to-end traceable.
+
+      Skip this step when the comparison really is an ML accuracy
+      shoot-out; record the skip in the comparison plan.
+
 expected_outputs:
   - workspace/<step>/comparison_plan.md
   - workspace/<step>/scripts/<method>_v*.py
@@ -246,4 +296,5 @@ quality_bar:
   no_winner_overstated_beyond_dataset: true
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

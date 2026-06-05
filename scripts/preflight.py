@@ -518,6 +518,50 @@ def check_router_index_bumped():
     return True, f"_router_index.yaml fresher than all {total} protocols"
 
 
+def check_next_protocol_kind_present():
+    """Soft check: every protocol with `next_protocol:` should also declare
+    `next_protocol_kind:` (forward_default | iterate_back | terminal).
+
+    Doctrine lives in docs/PROTOCOL_DOCTRINE.md. The field is OPTIONAL —
+    when absent the loader infers from the value of `next_protocol`. This
+    check WARNs on absence so maintainers notice catalogue-wide drift,
+    but always returns True so preflight doesn't gate on it.
+    """
+    import yaml
+
+    missing: list[str] = []
+    total = 0
+    valid_kinds = {"forward_default", "iterate_back", "terminal"}
+    invalid: list[str] = []
+    for f in sorted(PROTOCOLS_DIR.rglob("*.yaml")):
+        if "light" in f.parts or f.name.startswith("_"):
+            continue
+        try:
+            data = yaml.safe_load(f.read_text()) or {}
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        if "next_protocol" not in data:
+            continue
+        total += 1
+        rel = f.relative_to(PROTOCOLS_DIR).with_suffix("").as_posix()
+        kind = data.get("next_protocol_kind")
+        if kind is None:
+            missing.append(rel)
+        elif kind not in valid_kinds:
+            invalid.append(f"{rel} (got {kind!r})")
+    if invalid:
+        return False, f"invalid next_protocol_kind values: {invalid[:3]}"
+    if missing:
+        return True, (
+            f"{len(missing)}/{total} protocol(s) missing next_protocol_kind "
+            f"(soft): {', '.join(missing[:3])}"
+            + ("..." if len(missing) > 3 else "")
+        )
+    return True, f"{total} protocol(s) all declare next_protocol_kind"
+
+
 def check_protocol_freshness():
     """Warn (don't fail) when a protocol hasn't been touched in 180+ days.
 
@@ -734,6 +778,7 @@ def main() -> int:
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Router index mtime tracks protocols", check_router_index_bumped)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
+    tally.check("next_protocol_kind declared on every protocol", check_next_protocol_kind_present)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)

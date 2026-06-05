@@ -162,6 +162,45 @@ Scaffold:
     a positive justification, not a default.
 ```
 
+## `next_protocol_kind` — how the AI should interpret `next_protocol`
+
+`next_protocol:` alone is ambiguous: does the AI **advance forward** to
+the next stage, **loop back** to the same protocol for the next item, or
+**stop** because this protocol is terminal? Add `next_protocol_kind:` to
+disambiguate. Values:
+
+| Value | When to use |
+|---|---|
+| `forward_default` | The named protocol is the next stage in the canonical pipeline. The AI advances. This is the most common case. |
+| `iterate_back` | `next_protocol` points back at THIS protocol (or a sibling that re-enters this one's loop). The AI re-runs the same protocol on the next item / step / hypothesis until the researcher says to stop. Example: `guidance/analysis_plan` after one step is done — the AI loops back for the next step, not forward to reproducibility. |
+| `terminal` | This protocol ends the workflow. `next_protocol:` should be `null`. The AI stops and reports the deliverable. Example: `synthesis/synthesis_paper` after the paper compiles. |
+
+```yaml
+id: guidance/analysis_plan
+next_protocol: guidance/analysis_plan      # loops back per step
+next_protocol_kind: iterate_back
+
+id: domain/research_design
+next_protocol: methodology/methodology_selection
+next_protocol_kind: forward_default
+
+id: synthesis/synthesis_paper
+next_protocol: null
+next_protocol_kind: terminal
+```
+
+The field is OPTIONAL but recommended for any protocol whose default
+routing would confuse a fresh AI. When omitted, the AI infers:
+
+- `next_protocol: null` → `terminal`
+- `next_protocol` equals this protocol's own `id` → `iterate_back`
+- otherwise → `forward_default`
+
+Preflight emits a soft warning when a protocol is missing the field but
+the inference would have flipped the AI's behaviour (e.g. a step-loop
+protocol whose `next_protocol` points sideways at a sibling, not
+backward at itself).
+
 ## Cross-referencing protocols (`see_also`, optional)
 
 A growing protocol library is only useful if a researcher (or the AI

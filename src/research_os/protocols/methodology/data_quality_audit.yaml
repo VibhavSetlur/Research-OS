@@ -246,4 +246,5 @@ quality_bar:
   verdict_explicit_not_implicit: true
 
 next_protocol: methodology/methodology_selection
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

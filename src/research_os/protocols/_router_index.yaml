@@ -636,6 +636,17 @@ protocols:
               "srqr", "grounded theory", "ethnography", "focus group",
               "open coding", "axial coding"]
 
+  methodology/qualitative_pii_redaction:
+    intent_class: methodology
+    sub_intent: qualitative
+    summary: "HIPAA / IRB / GDPR-safe transcript redaction BEFORE coding (presidio + spaCy NER + regex; deterministic pseudonym map)."
+    triggers: ["redact transcripts", "anonymise interviews",
+               "anonymize interviews", "hipaa transcripts",
+               "gdpr transcripts", "remove pii", "pseudonymise participants",
+               "pseudonymize participants", "de-identify transcripts",
+               "deidentify transcripts", "pii redaction",
+               "safe harbor", "irb redaction"]
+
   methodology/interview_guide_design:
     intent_class: methodology
     sub_intent: qual_design

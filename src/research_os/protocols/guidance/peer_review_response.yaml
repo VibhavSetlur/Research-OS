@@ -166,4 +166,5 @@ expected_outputs:
   - synthesis/cover_letter_*.md (when applicable)
 
 next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
 on_failure: null
