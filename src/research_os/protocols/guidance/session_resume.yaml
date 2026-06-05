@@ -1,6 +1,6 @@
 id: session_resume
 name: Session Resume
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: |
   Re-enter a paused / interrupted / handed-off project — possibly in a
@@ -49,6 +49,23 @@ steps:
       The handoff includes: open hypotheses, dead-end lessons, critical
       assumptions, and a "Notes for the next AI" addendum. Use it to
       avoid re-asking the researcher questions they already answered.
+
+  - id: check_freshness
+    name: Stale-state check (v1.5.0 — Theme 11)
+    description: |
+      tool_state_freshness_check
+      If is_stale=true, surface the `signals` + `prompt_for_ai` to the
+      researcher BEFORE present_brief. A workspace that hasn't been
+      touched in > 30 days, OR whose citations.md predates new PDFs,
+      OR whose .prov.json sidecars point to deleted scripts, is at
+      high risk of silent drift — better to reconfirm current state
+      than to resume into a stale plan.
+
+      Also call:
+        tool_reliability_log_event event_type="protocol_start"
+          protocol_name="session_resume"
+      so the reliability log captures the resume (helps the maintainer
+      spot regressions across releases — no project content leaks).
 
   - id: present_brief
     name: Present the Resume Brief

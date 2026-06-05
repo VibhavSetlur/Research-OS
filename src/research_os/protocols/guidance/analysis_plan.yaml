@@ -1,6 +1,6 @@
 id: analysis_plan
 name: Analysis Plan (Core Loop)
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
@@ -419,12 +419,20 @@ steps:
       Also: mem_analysis_log entry="<step_id> done: <one-line summary>".
 
   - id: ground_findings_in_literature
-    name: Ground Findings in Literature (v1.4.0 — per-step loop)
+    name: Ground Findings in Literature (v1.5.0 — pipeline-mandatory)
     description: |
       AFTER conclusions.md is written but BEFORE finalize_step, run the
       per-step literature loop. The methods choice was grounded above
       (`ground_methods`); now the FINDINGS themselves must be compared
       to what the literature says.
+
+      v1.5.0 — this step is **pipeline-mandatory**. v1.4.0 routed it
+      via the trigger system, which let the AI skip ahead to
+      finalize_step in autopilot mode without grounding findings.
+      v1.5.0 hard-wires the call: `finalize_step` (below) runs
+      `tool_audit_step_literature` as its first gate and BLOCKS the
+      finalize if `findings_vs_literature.md` is missing for any step
+      whose `step_summary.yaml` lacks `literature_required: false`.
 
       Load and follow:
         sys_protocol_get format='full' name='literature/literature_per_step'

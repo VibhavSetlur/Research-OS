@@ -1,6 +1,6 @@
 id: audit_and_validation
 name: Audit & Validation
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: |
   Validate citations, statistical assumptions, figure quality,
@@ -111,6 +111,31 @@ steps:
       If ruff or pylint is available in the env, run on workspace/*/scripts/.
       Otherwise skip. Save warnings to workspace/logs/code_lint.md.
 
+  - id: audit_coherence
+    name: Cross-step coherence audit (v1.5.0 — Theme 11)
+    description: |
+      tool_audit_coherence
+      Catches the failure mode where the Discussion / Results carries
+      paragraphs from a prior chat about a step that was later
+      abandoned, or where the AI invented prose during synthesis
+      without grounding it in any step's conclusions.md. Per-paragraph
+      Jaccard-overlap against every step's conclusions.md; flags
+      paragraphs scoring < 0.05. Writes
+      workspace/logs/coherence_audit.md.
+
+  - id: audit_discussion_coverage
+    name: Verdict-coverage gate for the Discussion (v1.5.0 — Theme 1)
+    description: |
+      tool_discussion_coverage_audit
+      Every non-AGREES verdict in any step's
+      `findings_vs_literature.md` must have a corresponding paragraph
+      in `synthesis/discussion.md`. BLOCKs assembly if any verdict is
+      uncovered. The companion writer is
+      `tool_writing_discussion_from_verdicts` (also runnable
+      standalone) — re-running idempotently replaces the
+      auto-generated block without touching researcher's hand-written
+      prose outside the markers.
+
   - id: write_audit_summary
     name: Aggregate Audit Report
     description: |
@@ -118,6 +143,12 @@ steps:
       One section per audit. Mark blocking issues with "BLOCKER:" prefix.
       The step-completeness section is mandatory — surface every BLOCKER
       from tool_audit_step_completeness at the top.
+
+      v1.5.0: include the reliability summary at the bottom by calling
+        tool_reliability_report
+      so the report carries a redacted count of gate fires / tool errors
+      this session. The researcher can paste this into a bug filing if
+      a regression is suspected — it contains no project content.
 
 expected_outputs:
   - workspace/logs/audit_report.md

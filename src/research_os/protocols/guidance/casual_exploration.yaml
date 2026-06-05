@@ -1,6 +1,6 @@
 id: casual_exploration
 name: Casual Exploration
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: |
   Lightweight mode for "I just want to poke at this." Skips reproducibility

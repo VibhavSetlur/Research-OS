@@ -52,7 +52,13 @@ def _report_path(root: Path, filename: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
+def audit_synthesis(
+    paper_path: str,
+    root: Path,
+    *,
+    override_no_pdfs: bool = False,
+    override_rationale: str = "",
+) -> dict[str, Any]:
     try:
         p = root / paper_path
         if not p.exists() or not p.is_file():
@@ -345,6 +351,66 @@ def audit_synthesis(paper_path: str, root: Path) -> dict[str, Any]:
         # Merge recurring_blockers into gate_blockers so the existing
         # escalation logic below treats them with full BLOCKER weight.
         gate_blockers.extend(recurring_blockers)
+
+        # v1.5.0 — default-deny when zero PDFs across all literature-required
+        # steps. Closes the v1.4.0 audit gap where `papers_downloaded == 0`
+        # with mixed AGREES sailed through. Override path:
+        # override_no_pdfs=true + override_rationale=...
+        zero_pdf_block = ""
+        try:
+            import yaml as _yaml_mod
+            workspace = root / "workspace"
+            lit_required_steps: list[str] = []
+            total_pdfs = 0
+            if workspace.is_dir():
+                for step_dir in workspace.iterdir():
+                    if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
+                        continue
+                    if step_dir.name.endswith("__DEAD_END"):
+                        continue
+                    if not (step_dir / "conclusions.md").exists():
+                        continue
+                    ss_path = step_dir / "step_summary.yaml"
+                    if ss_path.exists():
+                        try:
+                            ss = _yaml_mod.safe_load(ss_path.read_text()) or {}
+                        except Exception:
+                            ss = {}
+                        if ss.get("literature_required") is False:
+                            continue
+                    lit_required_steps.append(step_dir.name)
+                    lit_dir = step_dir / "literature"
+                    if lit_dir.is_dir():
+                        total_pdfs += sum(1 for _ in lit_dir.glob("*.pdf"))
+            project_lit_dir = root / "inputs" / "literature"
+            if project_lit_dir.is_dir():
+                total_pdfs += sum(1 for _ in project_lit_dir.glob("*.pdf"))
+            report["literature_required_steps"] = lit_required_steps
+            report["total_pdfs_across_workspace"] = total_pdfs
+            if (
+                lit_required_steps
+                and total_pdfs == 0
+                and not override_no_pdfs
+            ):
+                zero_pdf_block = (
+                    f"DEFAULT-DENY: synthesis blocked because zero PDFs "
+                    f"are present across {len(lit_required_steps)} "
+                    "literature-required step(s) (and inputs/literature/ "
+                    "is also empty). A paper with no grounded literature "
+                    "is structurally a sketch. Either run "
+                    "tool_literature_search_and_save for each step's "
+                    "claims, OR call tool_audit_synthesis with "
+                    "`override_no_pdfs=true` + `override_rationale=...` "
+                    "if literature is structurally unavailable (closed "
+                    "field, novel measurement, etc.)."
+                )
+                gate_blockers.append(zero_pdf_block)
+            elif override_no_pdfs and override_rationale:
+                report["override_no_pdfs"] = True
+                report["override_rationale"] = override_rationale
+        except Exception as e:
+            logger.debug("zero-PDF default-deny check skipped: %s", e)
+
         # Reflect populated values back into the report dict (they were
         # pre-initialised empty above so the dict constructor succeeded
         # before the walks ran).
@@ -1327,20 +1393,23 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
             "reproducible from this folder alone."
         )
 
-    # v1.4.0: warn when a step has scripts but no stack_plan.md. The
-    # `methodology/pick_tool_stack` protocol asks the AI to persist its
-    # language/library choice + the field-practice rationale before
-    # coding; a missing artefact means the choice was implicit (typically
-    # default-to-Python). Promoted to BLOCKER in v1.5.0.
+    # v1.5.0: missing scratch/stack_plan.md is now a BLOCKER (was WARN in
+    # v1.4.0). `methodology/pick_tool_stack` asks the AI to persist its
+    # language/library choice + the field-practice rationale before coding;
+    # a missing artefact means the choice was implicit (typically
+    # default-to-Python). Override: write the file with a one-line rationale
+    # — there is no flag-based bypass because the cost of writing the
+    # rationale down is small and the gap matters at synthesis time.
     if scripts:
         stack_plan = step_dir / "scratch" / "stack_plan.md"
         if not stack_plan.exists():
-            warnings.append(
+            blockers.append(
                 f"{step_dir.name}: no scratch/stack_plan.md — language + "
                 "library choice not documented. Run methodology/pick_tool_stack "
                 "to record the field-practice rationale (R Bioconductor for "
                 "bulk DE, Python scanpy for scRNA-seq, R survival for Cox PH, "
-                "etc.). v1.4.0 warns; v1.5.0 will block."
+                "etc.). v1.5.0 BLOCKS — write at minimum a one-line "
+                "rationale to scratch/stack_plan.md."
             )
             info["missing_stack_plan"] = True
 

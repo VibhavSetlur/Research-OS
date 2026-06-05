@@ -377,9 +377,9 @@ def test_audit_missing_summary_md_now_blocks(tmp_path):
     )
 
 
-def test_audit_step_completeness_warns_on_missing_stack_plan(tmp_path):
-    """v1.4.0 (audit fix B-lite): step with scripts but no
-    scratch/stack_plan.md gets a WARNING (BLOCKER in v1.5.0)."""
+def test_audit_step_completeness_blocks_on_missing_stack_plan(tmp_path):
+    """v1.5.0 (Theme 1): step with scripts but no scratch/stack_plan.md
+    is a BLOCKER (was WARN in v1.4.0)."""
     from research_os.tools.actions.audit.audit import audit_step_completeness
     from research_os.project_ops import scaffold_minimal_workspace
 
@@ -400,7 +400,7 @@ def test_audit_step_completeness_warns_on_missing_stack_plan(tmp_path):
     (figs / "01_volcano.summary.md").write_text("**What it shows.** Volcano.\n")
     # Intentionally no scratch/stack_plan.md
     res = audit_step_completeness(tmp_path, step_id="03_run_deseq2")
-    warns = res.get("steps", [{}])[0].get("warnings", [])
-    assert any("stack_plan" in w.lower() for w in warns), (
-        f"missing stack_plan.md must WARN in v1.4.0; got {warns}"
+    blockers = res.get("steps", [{}])[0].get("blockers", [])
+    assert any("stack_plan" in b.lower() for b in blockers), (
+        f"missing stack_plan.md must BLOCK in v1.5.0; got blockers={blockers}"
     )

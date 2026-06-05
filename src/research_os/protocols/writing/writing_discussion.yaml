@@ -1,6 +1,6 @@
 id: writing_discussion
 name: Writing — Discussion (the hardest section)
-version: '1.4.0'
+version: '1.5.0'
 schema_version: '2.0'
 description: |
   Draft / iterate the Discussion section. The Discussion is where most
@@ -127,6 +127,32 @@ steps:
       Write to synthesis/discussion.md under the structure's first
       section.
 
+  - id: pipe_verdicts_into_discussion
+    name: Pipe per-step literature verdicts into the Discussion (v1.5.0 — closes v1.4.0 audit gap)
+    description: |
+      MANDATORY before drafting the comparison-to-prior-work section.
+
+      The v1.4.0 audit gap: per-step `findings_vs_literature.md` files
+      record verdicts (AGREES | DISAGREES | EXTENDS | DEFERRED) plus a
+      "Discussion implication" block — but nothing piped those into
+      `synthesis/discussion.md`. The literature loop was write-only.
+
+      v1.5.0 fixes:
+
+        tool_writing_discussion_from_verdicts
+
+      Reads every `workspace/<step>/literature/findings_vs_literature.md`,
+      parses `## Claim:` blocks + Verdict + Discussion implication, and
+      appends one Discussion paragraph per non-AGREES verdict citing the
+      contested literature. Idempotent — repeated calls replace the
+      auto-generated block (HTML-comment-delimited markers) while
+      preserving your hand-edited prose outside the markers.
+
+      After this step, the BLOCK gate `tool_discussion_coverage_audit`
+      verifies every non-AGREES verdict has a corresponding paragraph in
+      `synthesis/discussion.md`. The validate step (below) honours it as
+      a hard BLOCKER unless you pass `override_discussion_coverage=true`.
+
   - id: build_comparison_to_prior_work
     name: Compare to prior work (cited)
     description: |
@@ -235,7 +261,7 @@ steps:
       trip — do the pass here.
 
   - id: validate
-    name: Validate against writing standards
+    name: Validate against writing standards + verdict coverage gate (v1.5.0)
     description: |
       sys_file_validate_md filepath="synthesis/discussion.md"
         protocol_name="writing_core"
@@ -244,6 +270,22 @@ steps:
       Run tool_audit_claims if any numbers in the Discussion;
       every number must trace to workspace/scratch/discussion_evidence.md
       OR to a verified citation.
+
+      v1.5.0 MANDATORY BLOCK gate:
+        tool_discussion_coverage_audit
+      Returns status='error' + a blocker list if any non-AGREES
+      verdict from `findings_vs_literature.md` is not addressed in
+      `synthesis/discussion.md`. If the gate blocks:
+        - Re-run `tool_writing_discussion_from_verdicts` (the
+          pipe_verdicts_into_discussion step above), OR
+        - Hand-write the missing paragraph(s) covering each claim, OR
+        - If the verdict is genuinely no longer relevant (claim
+          retracted, step abandoned), update the
+          `findings_vs_literature.md` verdict to AGREES or DEFERRED
+          with a one-line rationale before re-running the audit.
+
+      There is no override flag — coverage of contested literature is
+      the entire point of the Discussion section.
 
 expected_outputs:
   - synthesis/discussion.md
