@@ -6,6 +6,143 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.9.1] — Interactive dashboard rebuild + per-figure interactive enforcement + story mode (2026-06-05)
+
+MINOR release. The dashboard becomes a real single-page web app.
+Three themes land together because they share the same renderer and
+vendored JS toolchain:
+
+* **Theme 17 — Interactive dashboard rebuild.** New
+  `dashboard_v2` renderer at
+  `src/research_os/tools/actions/synthesis/dashboard_v2.py`. Produces
+  a self-contained single-page app: header + collapsible sidebar nav
+  + full-text MiniSearch index + URL-hash-persisted filter chips +
+  reactive `<ro-table>` (sort / filter / CSV export) + per-figure
+  `<ro-figure-toggle>` (static PNG ↔ interactive HTML companion via
+  iframe) + Vega-Lite brushing + lazy-rendered Plotly / Mermaid /
+  vis-network components + print stylesheet. Eleven vanilla custom
+  elements; no React / Vue / Svelte. Offline-only: every JS bundle
+  is vendored under `src/research_os/assets/js/` and inlined at
+  render time — no `<script src=https://…>` ever ships in the
+  output.
+* **Theme 20 — Per-figure interactive companion enforcement.**
+  `tool_audit_figure_interactivity` walks every figure under
+  `workspace/<step>/outputs/figures/`. Scatter / volcano / UMAP with
+  > 200 marks, > 50×50 heatmaps, networks, and > 1000-point time
+  series all need a sibling `<stem>.html` companion. In normal
+  strictness the gate auto-generates a Vega-Lite or vis-network
+  HTML next to the static figure (tagged with
+  `<meta name="ro-auto-generated">`); in strict mode missing
+  companions BLOCK; in light mode they WARN. Per-figure researcher
+  override: drop `<!-- ro:interactive-not-applicable, reason: … -->`
+  into the figure's `.caption.md`.
+* **Theme 21 — Dashboard story mode + explore mode.** Two reading
+  modes share the same dashboard. Story is a single-column,
+  serif-font, narrative scroll (Distill.pub-inspired) generated
+  from each step's plain-language summary + key figure + adversarial
+  verdicts surfaced as block-quote callouts. Explore keeps today's
+  search + filter + figure-toggle interaction. Mode toggle persists
+  in `localStorage` and is shareable via `#mode=story` /
+  `#mode=explore`.
+
+### Added — dashboard v2 renderer
+
+* `src/research_os/tools/actions/synthesis/dashboard_v2.py` —
+  `render_dashboard_v2(root, default_mode, search_enabled,
+  print_optimized)` + `bundled_js` (concatenates the JS bundles
+  this project actually needs, conditional on whether
+  `*.plotly.json`, `*.mermaid`, or `*.graphml` files exist in the
+  workspace; no Mermaid bytes for projects that don't use it).
+* Eleven vanilla custom elements inlined as `CUSTOM_ELEMENTS_JS`:
+  `<ro-mode-toggle>`, `<ro-sidebar>`, `<ro-search>`, `<ro-filter>`,
+  `<ro-figure-toggle>`, `<ro-table>`, `<ro-brush-link>`, `<ro-vega>`,
+  `<ro-plotly>`, `<ro-mermaid>`, `<ro-jump-to>`. Heavy components
+  (Vega-Lite, Plotly, Mermaid) defer render via
+  `IntersectionObserver` so off-screen figures don't tax the first
+  paint.
+* `tool_dashboard_create` gains `dashboard_legacy` (default false →
+  v2), `dashboard_default_mode` (explore | story),
+  `dashboard_search_enabled`, and `dashboard_print_optimized`. The
+  v1 long-scroll renderer stays available as a fallback.
+
+### Added — figure interactivity gate (Theme 20)
+
+* `src/research_os/tools/actions/audit/figure_interactivity.py` —
+  `audit_figure_interactivity(root, strictness, autogen)` walks
+  every static figure under `workspace/<step>/outputs/figures/`,
+  detects the figure kind via naming patterns + companion data
+  files, and reports blockers / warnings / passes / overrides.
+  Writes `workspace/logs/figure_interactivity_audit.md`.
+* `figure_interactive_autogen(fig, root)` writes an offline-capable
+  Vega-Lite (scatter / volcano / UMAP / heatmap / time-series) or
+  vis-network (graphml) HTML companion next to a flagged figure.
+  Idempotent — returns `status="exists"` when a companion is
+  already there.
+* `tool_audit_figure_interactivity` + `tool_figure_interactive_autogen`
+  registered in the MCP surface.
+
+### Added — story mode (Theme 21)
+
+* `src/research_os/tools/actions/synthesis/dashboard_story.py` —
+  `dashboard_story_generate(root)` builds
+  `synthesis/dashboard_story.md` from the spec abstract + each
+  step's plain-language summary + key figure + adversarial verdicts
+  parsed from `findings_vs_literature.md` (DISAGREES / EXTENDS /
+  CONTRADICTS / MIXED rendered as block-quote callouts).
+  `dashboard_story_edit(root, edits, mode)` reads or patches the
+  generated markdown (`patch` mode applies one or more
+  `<<<<replace>>>>old\n----with----\nnew\n<<<<end>>>>` blocks
+  atomically; `overwrite` mode replaces the whole file).
+  `dashboard_story_quality_bar(root)` enforces three soft rules:
+  reading time 5-20 min, figure in the first 1000 words, at least
+  one adversarial-grounding callout.
+* `tool_dashboard_story_generate`, `tool_dashboard_story_edit`,
+  `tool_dashboard_story_quality_bar` registered in the MCP surface.
+
+### Added — vendored JS bundles
+
+* `src/research_os/assets/js/` ships seven minified JS bundles
+  (MiniSearch 7.1.2, Vega 5.30.0, Vega-Lite 5.21.0, Vega-Embed
+  6.26.0, Plotly basic 2.35.2, Mermaid 9.4.3, vis-network 9.1.9)
+  plus their upstream LICENSE files under `licenses/` and a
+  top-level `NOTICE.md` listing each library, version, SPDX
+  identifier, and upstream URL. Total vendored weight ~5.2 MB.
+* `MANIFEST.json` lists each bundle + intended purpose; the loader
+  in `dashboard_v2` reads filenames from disk so swapping versions
+  doesn't require code changes.
+
+### Added — optional extras
+
+* `interactive_figures = ["pyvis>=0.3"]` for projects that prefer
+  the Python-side pyvis API over the inlined vis-network bundle.
+* `story_math = []` reserved as a marker for future MathJax /
+  KaTeX integration in story mode.
+
+### Bumped — protocols
+
+* `synthesis/synthesis_dashboard` → 1.9.1: new
+  `ensure_interactive_companions` + `build_story_mode_source`
+  steps before `build_dashboard`; documents the new
+  `dashboard_default_mode` / `dashboard_legacy` knobs on
+  `tool_dashboard_create`.
+* `visualization/interactive_figure_design` → 1.9.1: documents
+  `tool_audit_figure_interactivity` + `tool_figure_interactive_autogen`
+  + the `<!-- ro:interactive-not-applicable -->` override syntax.
+* Router index → version 14 (new tool refs).
+
+### Tests
+
+* 67 new tests across three files:
+  `tests/unit/test_v191_dashboard_v2.py` (28),
+  `tests/unit/test_v191_figure_interactivity.py` (21),
+  `tests/unit/test_v191_story_mode.py` (18). Covers HTML render
+  shape, offline-only constraint enforcement, bundle conditional
+  loading, custom-element registration, full audit-gate state
+  machine, autogen output validity, story patch roundtrip, and
+  quality-bar rules.
+
+---
+
 ## [1.9.0] — Typst PDF compilation + dashboard content gates + synthesis preview + content depth (2026-06-04)
 
 MINOR release. First phase of the synthesis output overhaul: paper.md

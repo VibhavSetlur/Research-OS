@@ -1672,7 +1672,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_dashboard_create": {
-        "description": "Generate a standalone, offline HTML dashboard (sortable tables, lightbox gallery, light/dark toggle, print-friendly) at synthesis/dashboard.html. Tailored to audience: academic | executive | technical | teaching. Step-completeness gate is soft (warnings only) since the dashboard is most useful as a 'where are we now' snapshot, but set override_completeness_gate=true to suppress the warning panel for the FINAL deliverable.",
+        "description": "Generate a standalone, offline HTML dashboard at synthesis/dashboard.html. Default renderer is the single-page-app v2 (sidebar nav + full-text MiniSearch + filter chips + per-figure static-vs-interactive toggle + reactive tables + Story/Explore mode toggle, all offline via vendored Vega/Plotly/MiniSearch). Set dashboard_legacy=true to use the long-scroll v1 renderer (kept as a fallback). Set dashboard_default_mode='story' for narrative-first reading. Tailored to audience: academic | executive | technical | teaching. Step-completeness gate is soft (warnings only); set override_completeness_gate=true to suppress the warning panel for the FINAL deliverable.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -1681,6 +1681,22 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "audience": {
                     "type": "string",
                     "description": "academic (default) | executive | technical | teaching",
+                },
+                "dashboard_legacy": {
+                    "type": "boolean",
+                    "description": "Use the v1 long-scroll renderer (back-compat). Default false (v2 single-page app).",
+                },
+                "dashboard_default_mode": {
+                    "type": "string",
+                    "description": "explore (default) | story. URL hash #mode=... and localStorage override at view time.",
+                },
+                "dashboard_search_enabled": {
+                    "type": "boolean",
+                    "description": "Inline the MiniSearch full-text index. Default true.",
+                },
+                "dashboard_print_optimized": {
+                    "type": "boolean",
+                    "description": "Include the print stylesheet that hides chrome + paginates sections. Default true.",
                 },
                 "override_completeness_gate": {
                     "type": "boolean",
@@ -2476,6 +2492,54 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "venue": {"type": "string", "description": "One of: nature, science, nejm, cell, ieee_conf, neurips, acl, plos, generic_two_column, generic_thesis. Falls back to researcher_config or 'generic_two_column'."},
                 "output": {"type": "string", "description": "Default 'synthesis/paper.pdf'."},
             },
+        },
+    },
+    "tool_dashboard_story_generate": {
+        "short": "Build synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state.",
+        "description": "Assembles a single-column narrative scroll markdown from synthesis_spec.abstract + per-step plain-language summaries + per-step key figure + adversarial verdicts pulled from each step's findings_vs_literature.md. Idempotent — re-running regenerates from current state. The v2 dashboard reads this when the reader toggles Story mode. Returns {path, word_count, reading_minutes, steps, callouts, figures}.",
+        "category": "synthesis",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_dashboard_story_edit": {
+        "short": "Read or patch synthesis/dashboard_story.md (Theme 21).",
+        "description": "Opens the story markdown for AI/researcher rewriting. Call with no args to read the current contents (auto-generates if missing). Pass `edits` as a unified-diff-style payload (`<<<<replace>>>>old\\n----with----\\nnew\\n<<<<end>>>>` blocks, one per change) to patch atomically; or `mode='overwrite'` + `edits=<full text>` to replace. The next tool_dashboard_create picks up the edits.",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "edits": {"type": "string", "description": "Patch payload OR full file content (with mode='overwrite')."},
+                "mode": {"type": "string", "description": "patch (default) | overwrite."},
+            },
+        },
+    },
+    "tool_dashboard_story_quality_bar": {
+        "short": "Quality bar for synthesis/dashboard_story.md (Theme 21): 5-20 min read, figure in first 1000 words, at least one DISAGREES/EXTENDS callout.",
+        "description": "Three WARNINGs (no BLOCKERs — story mode is optional): reading time outside 5-20 min (trivial or too long to finish); no figure in the first 1000 words (engagement); no DISAGREES/EXTENDS/CONTRADICTS/MIXED callout (proves the project engaged the literature, not just confirmed itself). Returns {reading_minutes, word_count, warnings, has_adversarial_callout, has_figure}.",
+        "category": "audit",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
+    "tool_audit_figure_interactivity": {
+        "short": "Per-figure interactive-companion gate (Theme 20). Scatter/volcano/UMAP > 200 marks, heatmaps > 50x50, networks, and >1k-point time-series all need a sibling <stem>.html or get flagged. Auto-generates Vega-Lite / vis-network fallbacks in normal mode.",
+        "description": "Walks workspace/<step>/outputs/figures/ and reports per-figure interactivity status. Strictness comes from researcher_config.gate_strictness (light | normal | strict | auto): strict → missing companion is BLOCKER; normal → WARN + autogen a Vega-Lite/vis-network fallback HTML next to the static figure (offline-capable, marked with <meta name='ro-auto-generated' content='true'>); light → WARN only. Per-figure researcher override: put '<!-- ro:interactive-not-applicable, reason: ... -->' in the figure's .caption.md sidecar. Writes workspace/logs/figure_interactivity_audit.md and returns {blockers, warnings, passes, overrides, autogen_log}.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "strictness": {"type": "string", "description": "light | normal | strict. Default: resolved from researcher_config + rigor signals."},
+                "autogen": {"type": "boolean", "description": "Write Vega-Lite/vis-network HTML companions for flagged figures. Default: true when strictness=normal."},
+            },
+        },
+    },
+    "tool_figure_interactive_autogen": {
+        "short": "Write an interactive HTML companion (Vega-Lite for scatter/heatmap/time-series, vis-network for graphml) next to a static figure. Offline-capable.",
+        "description": "Given a static figure (.png/.svg/.jpg), look for the sibling data file (<stem>_data.csv / <stem>_matrix.csv / <stem>_series.csv / <stem>.graphml), choose the right interactive kind by heuristics, and write <stem>.html next to the figure. The companion inlines the vendored Vega/Vega-Lite/Vega-Embed (or vis-network) bundle so it runs offline. Tagged with <meta name='ro-auto-generated' content='true'> so the researcher knows they can replace it. Idempotent — returns status='exists' if a companion is already there.",
+        "category": "viz",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "figure_path": {"type": "string", "description": "Path to the static figure under workspace/<step>/outputs/figures/."},
+            },
+            "required": ["figure_path"],
         },
     },
     "tool_audit_dashboard_content": {
@@ -3711,6 +3775,71 @@ def _handle_tool_paper_compile_typst(name, arguments, root):
     )))
 
 
+def _handle_tool_dashboard_story_generate(name, arguments, root):
+    from research_os.tools.actions.synthesis.dashboard_story import (
+        dashboard_story_generate,
+    )
+    res = dashboard_story_generate(root)
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "dashboard_story_generate failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_dashboard_story_edit(name, arguments, root):
+    from research_os.tools.actions.synthesis.dashboard_story import (
+        dashboard_story_edit,
+    )
+    res = dashboard_story_edit(
+        root,
+        edits=arguments.get("edits"),
+        mode=arguments.get("mode", "patch"),
+    )
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "dashboard_story_edit failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_dashboard_story_quality_bar(name, arguments, root):
+    from research_os.tools.actions.synthesis.dashboard_story import (
+        dashboard_story_quality_bar,
+    )
+    res = dashboard_story_quality_bar(root)
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "dashboard_story_quality_bar failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_audit_figure_interactivity(name, arguments, root):
+    from research_os.tools.actions.audit.figure_interactivity import (
+        audit_figure_interactivity,
+    )
+
+    res = audit_figure_interactivity(
+        root,
+        strictness=arguments.get("strictness"),
+        autogen=arguments.get("autogen"),
+    )
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "audit_figure_interactivity failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_figure_interactive_autogen(name, arguments, root):
+    from research_os.tools.actions.audit.figure_interactivity import (
+        figure_interactive_autogen,
+    )
+
+    fig_path = Path(arguments["figure_path"])
+    if not fig_path.is_absolute():
+        fig_path = root / fig_path
+    if not fig_path.exists():
+        return _text(_error(f"figure not found: {fig_path}"))
+    res = figure_interactive_autogen(fig_path, root)
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "figure_interactive_autogen failed")))
+    return _text(_success(res))
+
+
 def _handle_tool_audit_dashboard_content(name, arguments, root):
     from research_os.tools.actions.audit.dashboard_content import audit_dashboard_content
     from research_os.project_ops import log_override
@@ -3822,14 +3951,25 @@ def _handle_tool_dashboard_create(name, arguments, root):
                 extra={"blocker_count": len(completeness_warnings or [])},
             )
 
-    res = create_dashboard(
-        root,
-        title=arguments.get("title"),
-        audience=arguments.get("audience", "academic"),
-        # Only suppress the panel when there was something to suppress —
-        # the renderer no-ops the flag on a clean workspace.
-        suppress_audit_panel=override_requested and bool(completeness_warnings),
-    )
+    legacy = bool(arguments.get("dashboard_legacy", False))
+    if legacy:
+        res = create_dashboard(
+            root,
+            title=arguments.get("title"),
+            audience=arguments.get("audience", "academic"),
+            suppress_audit_panel=override_requested and bool(completeness_warnings),
+        )
+    else:
+        from research_os.tools.actions.synthesis.dashboard_v2 import render_dashboard_v2
+        res = render_dashboard_v2(
+            root,
+            title=arguments.get("title"),
+            audience=arguments.get("audience", "academic"),
+            default_mode=arguments.get("dashboard_default_mode", "explore"),
+            search_enabled=bool(arguments.get("dashboard_search_enabled", True)),
+            print_optimized=bool(arguments.get("dashboard_print_optimized", True)),
+            suppress_audit_panel=override_requested and bool(completeness_warnings),
+        )
     if res.get("status") == "success":
         if completeness_warnings and not override_requested:
             res["completeness_warnings"] = completeness_warnings
@@ -5589,6 +5729,11 @@ _HANDLERS = {
     # Typst + dashboard content + preview + content depth
     "tool_paper_compile_typst": _handle_tool_paper_compile_typst,
     "tool_audit_dashboard_content": _handle_tool_audit_dashboard_content,
+    "tool_audit_figure_interactivity": _handle_tool_audit_figure_interactivity,
+    "tool_figure_interactive_autogen": _handle_tool_figure_interactive_autogen,
+    "tool_dashboard_story_generate": _handle_tool_dashboard_story_generate,
+    "tool_dashboard_story_edit": _handle_tool_dashboard_story_edit,
+    "tool_dashboard_story_quality_bar": _handle_tool_dashboard_story_quality_bar,
     "tool_dashboard_reviewer_sim": _handle_tool_dashboard_reviewer_sim,
     "tool_synthesis_preview": _handle_tool_synthesis_preview,
     "tool_section_substantiveness": _handle_tool_section_substantiveness,
