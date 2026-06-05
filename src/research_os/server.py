@@ -343,10 +343,18 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_list": {
-        "short": "Full catalog dump (~100+ items). Prefer tool_route / tool_semantic_route — semantic routing scales as the catalog grows.",
-        "description": "Returns every protocol name + one-line summary. Designed for debugging + maintainer browsing; not the primary entrypoint at runtime. For routing a user prompt, call tool_route (hybrid semantic + trigger). For inspecting ranked alternatives, call tool_semantic_route. For finding tools by what they do, call sys_semantic_tool_search. As the catalog grows beyond ~150 protocols, dumping the full list every turn wastes context — semantic retrieval is the AI-friendly path.",
+        "short": "Full catalog dump across core + all packs (~100+ items). Optional `category` filter (pack name or first path segment). Prefer tool_route / tool_semantic_route — semantic routing scales as the catalog grows.",
+        "description": "Returns every protocol name + one-line summary + pack_or_core source, walking both the in-tree core protocols and every registered pack (humanities, qualitative, theory_math, wet_lab, engineering, plus any externally-installed packs). Pass `category` (e.g. 'theory_math', 'audit', 'guidance') to narrow to one pack or one core category. Designed for debugging + maintainer browsing; not the primary entrypoint at runtime. For routing a user prompt, call tool_route (hybrid semantic + trigger). For inspecting ranked alternatives, call tool_semantic_route. For finding tools by what they do, call sys_semantic_tool_search. As the catalog grows beyond ~150 protocols, dumping the full list every turn wastes context — semantic retrieval is the AI-friendly path.",
         "category": "protocol",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Filter to a single category. For core protocols this matches the first path segment (e.g. 'guidance', 'audit'). For pack protocols it matches the pack name (e.g. 'theory_math') or the pack-internal category.",
+                },
+            },
+        },
     },
     "tool_protocols_list": {
         "short": "Flat protocol catalog with category + pack + intent_class. Filterable.",
@@ -2926,8 +2934,14 @@ def _read_profile(root: Path) -> dict:
 
 def _handle_sys_protocol_list(name, arguments, root):
     try:
-        protocols = list_protocols()
-        return _text(_success({"protocols": protocols}))
+        cat = arguments.get("category") if isinstance(arguments, dict) else None
+        cat = cat if isinstance(cat, str) and cat else None
+        protocols = list_protocols(category=cat)
+        return _text(_success({
+            "protocols": protocols,
+            "count": len(protocols),
+            "category": cat,
+        }))
     except Exception as e:
         return _text(_error(str(e)))
 

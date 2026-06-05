@@ -499,17 +499,39 @@ def load_protocol(
     return data
 
 
-def list_protocols() -> list[dict]:
-    """Return every protocol with name and one-line description."""
+def list_protocols(category: str | None = None) -> list[dict]:
+    """Return every protocol with name, one-line summary, and source pack.
+
+    Walks both the in-tree ``PROTOCOLS_DIR`` and every pack-registered
+    ``protocols_dir`` returned by :func:`_pack_protocol_dirs_safe`, so the
+    full multi-pack catalog is visible to ``sys_protocol_list``. Pack
+    protocols (humanities, qualitative, theory_math, wet_lab, engineering,
+    plus externally installed packs) are first-class catalog entries
+    alongside core protocols and are tagged with their source via
+    ``pack_or_core``.
+
+    Args:
+      category: Optional first-segment filter (e.g. ``"theory_math"``,
+        ``"audit"``, ``"guidance"``). For core protocols the first segment
+        of the relative path is matched; for pack protocols the pack name
+        itself counts as a match so that ``category="theory_math"`` returns
+        every protocol contributed by that pack.
+    """
     out: list[dict] = []
-    for yaml_file in sorted(PROTOCOLS_DIR.rglob("*.yaml")):
-        if "light" in yaml_file.parts:
-            continue
-        # Skip registry/index files (e.g. _router_index.yaml).
-        if yaml_file.name.startswith("_"):
-            continue
-        rel = yaml_file.relative_to(PROTOCOLS_DIR).with_suffix("")
-        name = str(rel).replace("\\", "/")
+    for name, yaml_file, source in _iter_protocol_files():
+        if category is not None:
+            first = name.split("/", 1)[0] if name else ""
+            if source == "core":
+                if first != category:
+                    continue
+            else:
+                # Pack protocols match either by pack name or by the inner
+                # category segment (e.g. ``theory_math/proof/...`` matches
+                # both ``category="theory_math"`` and ``category="proof"``).
+                inner = name.split("/")
+                inner_cat = inner[1] if len(inner) > 1 else source
+                if category != source and category != inner_cat:
+                    continue
         summary = ""
         try:
             with open(yaml_file) as f:
@@ -517,7 +539,7 @@ def list_protocols() -> list[dict]:
             summary = (data.get("description") or "").split("\n")[0]
         except Exception:
             pass
-        out.append({"name": name, "summary": summary})
+        out.append({"name": name, "summary": summary, "pack_or_core": source})
     return out
 
 
