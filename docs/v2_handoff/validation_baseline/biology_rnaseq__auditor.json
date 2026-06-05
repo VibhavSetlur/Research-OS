@@ -1,0 +1,144 @@
+{
+  "scenario": "biology_rnaseq",
+  "perspective": "auditor",
+  "final_rating": 7.4,
+  "high_friction_count": 5,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "surface_area_bloat",
+      "description": "344 tools and 118 protocols are exposed to the client. From an auditor perspective there are at least 7 audit entry points (tool_audit_quality_full, tool_audit_synthesis, tool_audit_step_completeness, tool_audit_step_literature, tool_audit_coherence, tool_audit_version_coherence, tool_audit_findings_query) plus per-pillar (audit_code_quality / audit_prose / audit_claims / audit_citations / audit_assumptions / audit_figure / audit_figure_full / audit_reproducibility / audit_evalue / audit_dashboard_content / audit_cross_deliverable_consistency / audit_reviewer_responses / audit_cliches / audit_figure_coverage / audit_figure_interactivity / audit_quality_full). For an RNA-seq audit, an auditor cannot quickly determine which single tool to run; the master tool description even WARNS that audit_quality_full does NOT run audit_step_literature, audit_synthesis, audit_reproducibility, audit_coherence, audit_discussion_coverage, or wet_lab_reproducibility_audit. That is a leaky abstraction.",
+      "suggested_fix": "Make tool_audit_quality_full a TRUE master: run every applicable gate including step_literature, synthesis, coherence, reproducibility, and the wet-lab pack audit when the pack is active. Deprecate (alias) tool_audit_figure in favor of tool_audit_figure_full. Demote per-pillar audits to internal helpers exposed through a single dispatcher with a 'gate' parameter."
+    },
+    {
+      "severity": "HIGH",
+      "category": "fragmented_ledger",
+      "description": "The auditor must read at least 9 separate report files to reconstruct one verdict: workspace/logs/audit_report.md, audit_master.md, step_completeness.md, code_quality.md, prose_audit.md, citation_audit.md, figure_audit_summary.md, coherence_audit.md, provenance_audit.md, output_inventory.json, step_literature_audit.md, preregistration_diff.md, grounding_audit.md, output_hashes.json, reproducibility_report.md, .audit_findings.jsonl. tool_audit_findings_query queries the JSONL ledger BUT that ledger is described as Phase-4c only — older audits write only the markdown. Result: the JSONL ledger is incomplete and audit_findings_diff cannot tell whether a fix actually cleared a BLOCKER unless every audit emits to the ledger.",
+      "suggested_fix": "Make the .audit_findings.jsonl ledger the single source of truth — every audit (including reproducibility, citations, provenance, wet_lab pack) MUST emit findings to it via a shared write_audit_outputs helper. Markdown reports become rendered views off the ledger, not the primary artifact. Add a tool_audit_status that returns one rolled-up dict {green/yellow/red, blockers_by_dimension, last_run_ts}."
+    },
+    {
+      "severity": "HIGH",
+      "category": "provenance_gap_for_R",
+      "description": "provenance_completeness audit assumes write_output_provenance is called from Python. For an RNA-seq scenario where DESeq2 / edgeR / limma run in R via tool_r_exec, the sidecar must be written 'via reticulate or by hand per the JSON schema in provenance.py'. That is a load-bearing footnote — every R script that produces a figure / table is at risk of failing the audit silently. The auditor cannot easily tell whether an R-produced output's missing sidecar is the script's fault or the harness's failure to expose an R-callable helper. Equivalent ergonomics gap for Julia.",
+      "suggested_fix": "Ship a thin R helper package (research_os_provenance::write_output_provenance) that mirrors the Python signature, document it in reproducibility.yaml + provenance_completeness.yaml, and have tool_r_exec auto-inject it into the R session. Same for Julia."
+    },
+    {
+      "severity": "HIGH",
+      "category": "scenario_specific_coverage_missing",
+      "description": "There is NO dedicated protocol for the RNA-seq DE pipeline (alignment QC, count-matrix sanity, dispersion estimation diagnostics, MA / volcano plot conventions, multiple-testing FDR ceiling, GO/KEGG enrichment FDR audit). cox_ph_diagnostics is the model for this kind of method-specific audit hook; an auditor reviewing an RNA-seq submission has to manually piece together checks from generic audit_assumptions / audit_figure_full / audit_claims. mixed_language_orchestration mentions DESeq2 in passing but only as a routing example.",
+      "suggested_fix": "Add methodology/rnaseq_de_diagnostics.yaml (dispersion plot, p-value histogram uniformity, MA-plot shrinkage, library-size normalization sanity, batch-confound matrix). Add an audit hook in audit_and_validation that routes to it when DESeq2 / edgeR / limma signatures are detected in scripts/. Same wiring as cox_ph_diagnostics. Add a wet_lab_pack RNA-seq-specific instrument audit extension (Illumina sequencer parameter set, library prep kit lot)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "opaque_blocker_messages",
+      "description": "tool_audit_quality_full surfaces grounding blockers as '[grounding] N decision(s) without grounding records'. From the auditor's chair this is information-free — it tells you N but not WHICH decisions, in which step, or what evidence each needs. Same pattern in tool_audit_step_completeness ('any step has BLOCKERS'). The auditor must then run a second tool (tool_audit_findings_query) with the right severity/dimension filters to get rows. That is an unnecessary second turn.",
+      "suggested_fix": "Inline the top-K blockers (with step + path + suggested_fix) directly into the master audit response payload. Reserve the markdown report for the long tail. Defer the JSONL query for diff-only use."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "protocol_jargon",
+      "description": "audit_and_validation.yaml step audit_master inlines a 6-bullet 'what audit_quality_full does' block that duplicates the tool description and references 6 protocols + 6 tools in a single dense paragraph. An auditor reading the protocol for the first time has to context-switch into the tool docs to know which gate produces which artifact. Same density in provenance_completeness step descriptions (240+ lines).",
+      "suggested_fix": "Move long 'how this gate works internally' explanations out of the per-step description and into a protocol-level 'reference' section the AI client can skip. Per-step descriptions should be ~3 sentences: trigger, tool call, success criterion."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "ambiguous_gate_routing",
+      "description": "Auditor cannot tell from the master audit description whether tool_audit_synthesis is included or excluded; the docstring says master includes 'completeness + code + prose + claims + prereg diff + grounding' but NOT synthesis-level audit, citation lookup, reproducibility re-run, coherence, or discussion coverage. Each is a separate call. The NB caveat in tool_audit_quality_full lists step_literature as excluded but is silent on the other 4 — a careless auditor will assume the master is comprehensive and ship a paper with unverified citations.",
+      "suggested_fix": "Either (a) make master truly comprehensive with a 'skip' list parameter (already exists but rarely used), or (b) document a tier: 'cheap gates run on every save, mid gates run before synthesis, expensive gates (rerun, online citation lookup) run before submission'. Wire tier into pre_submission_checklist."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "rng_seed_loophole",
+      "description": "provenance_completeness allows null rng_seed if the artifact is 'deterministic-by-construction', requiring justification via mem_log. There is no machine check on that justification — the audit accepts any string. For RNA-seq, DESeq2's local fit, edgeR's TMM normalization, and any permutation-based GSEA are NOT deterministic-by-construction, but the AI may slip a null seed through with a plausible-sounding excuse.",
+      "suggested_fix": "Maintain a curated list of non-deterministic R/Python signatures (DESeq2::estimateDispersions, fgsea::fgsea, scanpy.tl.leiden, anything calling sample/permute). If the producing script matches one of these signatures, REJECT null rng_seed regardless of justification."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "no_dataset_provenance",
+      "description": "For a GEO-accession scenario (GSEXXXXX), the auditor must verify: (a) the accession is the one the paper cites, (b) the downloaded SRR list matches what was processed, (c) the count matrix sha256 matches the published one when applicable. There is no tool_dataset_provenance / tool_geo_verify; intake handling treats GEO accessions as just another context note.",
+      "suggested_fix": "Add tool_dataset_register (accession_id, source, sha256, retrieved_at) + an audit gate that synthesis-cited datasets carry such a record. Hooks into existing grounding_register typing but is enforced separately."
+    },
+    {
+      "severity": "LOW",
+      "category": "wet_lab_pack_discoverability",
+      "description": "The wet_lab pack ships wet_lab_reproducibility_audit but it is not invoked by tool_audit_quality_full or pre_submission_checklist. An auditor walking through the standard chain will miss the wet-lab pillars unless they happen to know to call it. The router_entries.py wires it via triggers but the master audit does not.",
+      "suggested_fix": "When a pack is active (detected via detector.py), have tool_audit_quality_full and pre_submission_checklist enumerate and run the pack's audit/* protocols too. Make pack audit discovery automatic."
+    },
+    {
+      "severity": "LOW",
+      "category": "version_coherence_warning_too_quiet",
+      "description": "tool_audit_version_coherence returns status='warning' even when an output's .prov.json points at a deleted script — that is a hard reproducibility break, not a warning. An auditor expects status='error' for the unrecoverable cases.",
+      "suggested_fix": "Split into two severities: missing-script-or-deleted-snapshot = error; older-version-of-existing-script = warning. Surface error-tier rows in master audit."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full (advertised as master but excludes step_literature, synthesis, reproducibility, coherence, discussion_coverage, wet_lab audits — leaky)",
+    "tool_audit_findings_query (requires three filter args plus knowing the dimension vocabulary; vocab is undocumented outside server.py)",
+    "tool_audit_findings_diff (requires two ISO-8601 timestamps the auditor must guess from filesystem mtimes since no timestamp index exists)",
+    "tool_grounding_register vs tool_ground_from_context vs tool_ground vs tool_grounding_verify (four overlapping verbs for one concept)",
+    "tool_audit_figure vs tool_audit_figure_full (two tools where one with a 'strict' bool would do)",
+    "tool_audit_step_completeness vs tool_audit_step_literature (sibling gates that should be one call with a 'gates' parameter)",
+    "tool_preregister_freeze + tool_preregister_diff (overlapping intent with tool_step_iterate snapshots; preregistration deserves a sub-namespace)"
+  ],
+  "confusing_protocols": [
+    "audit_and_validation (mixes guidance, tool catalog, and routing into one 165-line file; the auditor has to read it linearly)",
+    "provenance_completeness (240+ lines; correct, but reads like a maintainer doctrine rather than a runnable protocol)",
+    "pre_submission_checklist (overlap with audit_and_validation is unclear — auditor must read both to know which runs when)",
+    "reproducibility (the opt-out language buries the default-on behavior; an auditor scanning fast may miss that re-run is mandatory)",
+    "wet_lab_reproducibility_audit (good content, but not discoverable from the master audit chain)"
+  ],
+  "never_called_tools": [
+    "tool_julia_exec (no Julia in RNA-seq DE)",
+    "tool_humanities_essay_scaffold",
+    "tool_audit_evalue (only relevant to observational epi with risk ratios)",
+    "tool_audit_cliches (synthesis-prose only; auditor cares about content, not style)",
+    "tool_redteam_review (peer-review simulation, not a baseline audit gate)",
+    "tool_response_to_reviewers (revisions only)",
+    "tool_rebuttal_draft",
+    "tool_reviewer_response_compile",
+    "tool_audit_reviewer_responses",
+    "tool_dashboard_story_quality_bar (no dashboard in baseline DE)",
+    "tool_dashboard_reviewer_sim",
+    "tool_audit_dashboard_content",
+    "tool_audit_figure_interactivity",
+    "tool_figure_interactive_autogen",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_paper_compile_typst",
+    "tool_latex_compile",
+    "tool_slurm_submit (unless the lab uses cluster — many small RNA-seq runs are laptop-scale)",
+    "tool_slurm_status / tool_slurm_fetch / tool_slurm_list",
+    "tool_dashboard_create",
+    "tool_dashboard_story_generate / tool_dashboard_story_edit",
+    "tool_animation_design helpers",
+    "tool_lessons_consult (auditor reviews, does not learn)",
+    "tool_lessons_record",
+    "tool_self_certify",
+    "tool_list_certifications",
+    "tool_dry_run",
+    "tool_mistake_replay",
+    "tool_paper_figures_autoembed",
+    "tool_audit_figure_coverage (subsumable into figure_full)",
+    "tool_synthesis_curate_figures",
+    "tool_quick_review (synthesis-side)",
+    "tool_dead_end_lessons",
+    "tool_progress_digest",
+    "tool_cache_clear",
+    "tool_branch_recommendation"
+  ],
+  "recommendations": [
+    "Phase 9 consolidation: collapse the audit surface from ~17 tools to 3 — tool_audit_run (gate=master|completeness|literature|synthesis|reproducibility|wet_lab|all), tool_audit_status (one-shot read), tool_audit_diff (timestamp_a, timestamp_b). All other audit_* tools become aliases for one cycle, then are removed in v3.",
+    "Make .audit_findings.jsonl the canonical store. Every audit (Python, R, Julia, wet_lab pack) writes through write_audit_outputs. Markdown reports are rendered views, not sources.",
+    "Add methodology/rnaseq_de_diagnostics.yaml + auto-routing from audit_assumptions when DESeq2 / edgeR / limma signatures are detected. Mirror cox_ph_diagnostics pattern.",
+    "Ship research_os_provenance R + Julia helper packages so write_output_provenance is a one-liner from any language. tool_r_exec / tool_julia_exec auto-inject the import.",
+    "Auto-include pack audits (wet_lab, qualitative, theory_math, etc.) in tool_audit_quality_full when the pack is detected. Discovery, not opt-in.",
+    "Inline the top-10 blockers (step + path + suggested_fix) into master audit response payloads. Reserve the markdown report for the tail.",
+    "Tighten rng_seed null-check: maintain a curated non-deterministic signature list; reject null seed when matched regardless of justification text.",
+    "Add tool_dataset_register + audit gate that synthesis-cited datasets (GEO / SRA / ENA / dbGaP accessions) carry verifiable provenance records.",
+    "Split tool_audit_version_coherence severities — deleted-script = error, older-version = warning. Surface errors in the master gate.",
+    "Trim ~25 tools that an auditor scenario never touches (dashboard story, slides, poster, animation, slurm-when-no-cluster, certify/replay helpers); move to optional 'extras' surface gated by capability flags.",
+    "Per-protocol: cap step descriptions at ~5 sentences; move maintainer-doctrine text into a separate 'reference' block the AI may skip when format=summary."
+  ]
+}

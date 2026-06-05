@@ -246,11 +246,15 @@ ${COMMON_RULES}`,
 
 phase('Cluster consolidation')
 
-const clusterResults = await parallel(
-  CLUSTERS.map(c => () =>
-    agent(c.instructions, { label: c.id, phase: 'Cluster consolidation' })
-  )
-)
+// SERIAL: each cluster touches the same dict literals in server.py
+// (TOOL_DEFINITIONS, _HANDLERS, _ALIASES, _DEPRECATED_ALIASES, _ALIAS_PARAM_INJECTION).
+// Running them in parallel would cause edit collisions. We trade wall-clock for safety.
+const clusterResults = []
+for (const c of CLUSTERS) {
+  const result = await agent(c.instructions, { label: c.id, phase: 'Cluster consolidation' })
+  clusterResults.push(result)
+  log(`cluster ${c.id} complete — moving to next`)
+}
 
 // Cross-cutting annotations + cheap MCP wins — run sequentially after clusters
 phase('Cross-cutting annotations')
