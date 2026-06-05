@@ -15,7 +15,6 @@ Covers the surfaces introduced in v1.5.0:
 
 from __future__ import annotations
 
-import json
 import os
 import time
 from pathlib import Path
