@@ -513,6 +513,21 @@ def cmd_ide(args: argparse.Namespace) -> None:
         print()
         return
 
+    if action == "config-path":
+        names = args.names or []
+        if not names:
+            wizard.fail("`research-os ide config-path` needs at least one IDE name",
+                        f"e.g. `research-os ide config-path cursor`")
+            sys.exit(1)
+        unknown = [n for n in names if n not in collab.IDE_FILES]
+        if unknown:
+            wizard.fail(f"Unknown IDE(s): {', '.join(unknown)}",
+                        f"Choose from: {', '.join(sorted(collab.IDE_FILES))}")
+            sys.exit(1)
+        for ide in names:
+            print(collab.IDE_FILES[ide][0])
+        return
+
     if action in ("add", "remove"):
         names = args.names or []
         if not names:
@@ -629,10 +644,10 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p_ide.add_argument("action", choices=["list", "add", "remove"],
-                       help="What to do.")
+    p_ide.add_argument("action", choices=["list", "add", "remove", "config-path"],
+                       help="What to do. `config-path <name>` prints the expected MCP config path for one IDE.")
     p_ide.add_argument("names", nargs="*",
-                       help="IDE names (only required for add / remove).")
+                       help="IDE names (required for add / remove / config-path).")
     p_ide.add_argument("--no-color", action="store_true",
                        help="Disable ANSI styling.")
 

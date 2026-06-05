@@ -738,6 +738,9 @@ def _render_human(report: DoctorRun, *, verbose: bool, color: bool) -> str:
         lines.append(f"  {_c('OK with warnings.', _Style.YELLOW, color)}")
     else:
         lines.append(f"  {_c('FAILURES present — fix before shipping.', _Style.RED, color)}")
+    lines.append(
+        f"  {_c('Exit code policy:', _Style.GREY, color)} 0=all-pass, 1=warn-only, 2=fail."
+    )
     lines.append("")
     return "\n".join(lines)
 
