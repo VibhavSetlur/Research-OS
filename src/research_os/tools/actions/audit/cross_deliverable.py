@@ -46,9 +46,12 @@ from __future__ import annotations
 import json
 import logging
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._base import AuditBase, AuditFinding
 
 logger = logging.getLogger("research_os.audit.cross_deliverable")
 
@@ -822,6 +825,235 @@ def _write_log(
     log_path.write_text("\n".join(lines) + "\n")
 
 
+# ---------------------------------------------------------------------------
+# Phase-4 AuditBase wrapper
+# ---------------------------------------------------------------------------
+
+
+# Map dimension name → (severity for any failure, terse human label used in
+# the suggested_fix scaffold). The cross-deliverable check is opinionated:
+# any divergence between two deliverables is a blocker because it lands in
+# front of a reviewer either way, but a missing footer is a warning because
+# the deliverable still works without one.
+_DIM_SEVERITY: dict[str, str] = {
+    "numeric_claims_consistent": "block",
+    "figures_consistent": "block",
+    "citations_consistent": "block",
+    "findings_top_line_consistent": "block",
+    "reproducibility_footer_consistent": "warn",
+}
+
+
+class CrossDeliverableConsistencyAudit(AuditBase):
+    """Phase-4 :class:`AuditBase` wrapper around
+    :func:`audit_cross_deliverable_consistency`.
+
+    Calls the legacy procedural auditor (so
+    ``workspace/logs/cross_deliverable_audit.md`` continues to be written
+    byte-identically and the response payload consumed by callers is
+    preserved verbatim) and then translates each per-dimension result
+    into a list of :class:`AuditFinding` objects:
+
+    * one ``severity="block"`` finding per failing structural dimension
+      (numeric / figures / citations / findings), one ``severity="warn"``
+      finding per failing reproducibility-footer dimension — these are
+      the same severities the original aggregator used for its
+      ``blockers`` / ``warnings`` lists, preserved through the bridge;
+    * one ``severity="info"`` summary finding per run carrying the audit
+      status + deliverable count, so the append-only
+      ``.audit_findings.jsonl`` ledger gets a heartbeat entry even when
+      every dimension passes.
+
+    Each finding's UUID is derived deterministically with ``uuid5`` over
+    ``(audit_name, dimension, sorted evidence_paths, suggested_fix)`` so
+    that re-running the audit against the same workspace + deliverables
+    does NOT churn finding IDs — important for downstream diffing of the
+    jsonl ledger across runs.
+    """
+
+    name = "cross_deliverable_consistency"
+
+    def run(  # type: ignore[override]
+        self,
+        root: Path,
+        **_: Any,
+    ) -> list[AuditFinding]:
+        root = Path(root)
+        result = audit_cross_deliverable_consistency(root)
+
+        findings: list[AuditFinding] = []
+
+        # Audit short-circuited: not enough deliverables on disk to do a
+        # cross-deliverable check. Emit an info heartbeat carrying the
+        # skip reason so the ledger reflects the no-op run.
+        if result.get("status") == "skipped":
+            warns = result.get("warnings") or []
+            findings.append(
+                _make_finding(
+                    severity="info",
+                    dimension="cross_deliverable_skipped",
+                    evidence_paths=[],
+                    suggested_fix=(
+                        warns[0]
+                        if warns
+                        else (
+                            "Cross-deliverable audit skipped: fewer than 2 "
+                            "deliverables on disk."
+                        )
+                    ),
+                )
+            )
+            return findings
+
+        # Audit crashed at the top level — no per-dimension data to translate.
+        if result.get("status") == "error" and not result.get("dimensions"):
+            blockers = result.get("blockers") or [
+                "cross_deliverable audit failed with no per-dimension data"
+            ]
+            for msg in blockers:
+                findings.append(
+                    _make_finding(
+                        severity="block",
+                        dimension="cross_deliverable_error",
+                        evidence_paths=[],
+                        suggested_fix=msg,
+                    )
+                )
+            return findings
+
+        deliverables_found = list(result.get("deliverables_found") or [])
+        # All deliverables live under synthesis/; surface them as evidence
+        # so the structured finding lets a reviewer jump straight to the
+        # files that diverge.
+        evidence_paths_all = sorted(
+            f"synthesis/{d}.md" for d in deliverables_found
+        )
+        log_path = result.get("log_path") or (
+            "workspace/logs/cross_deliverable_audit.md"
+        )
+
+        dim_results: dict[str, dict[str, Any]] = result.get("dimensions") or {}
+        for dim_name, dim_result in dim_results.items():
+            if dim_result.get("pass"):
+                continue
+            severity = _DIM_SEVERITY.get(dim_name, "block")
+            suggested_fix = _suggested_fix_for_dimension(
+                dim_name, dim_result.get("details") or {}
+            )
+            findings.append(
+                _make_finding(
+                    severity=severity,
+                    dimension=dim_name,
+                    evidence_paths=[*evidence_paths_all, log_path],
+                    suggested_fix=suggested_fix,
+                )
+            )
+
+        # Always emit an info summary so the ledger gets a heartbeat
+        # even when every dimension passes cleanly.
+        passing = sum(1 for r in dim_results.values() if r.get("pass"))
+        failing = len(dim_results) - passing
+        findings.append(
+            _make_finding(
+                severity="info",
+                dimension="cross_deliverable_summary",
+                evidence_paths=[*evidence_paths_all, log_path],
+                suggested_fix=(
+                    f"{passing} of {len(dim_results)} dimensions passed "
+                    f"({failing} failing) across "
+                    f"{len(deliverables_found)} deliverable(s): "
+                    f"{', '.join(deliverables_found) or '—'}."
+                ),
+            )
+        )
+
+        return findings
+
+
+def _suggested_fix_for_dimension(dim_name: str, details: dict[str, Any]) -> str:
+    """Human-readable one-liner for each failing dimension.
+
+    Mirrors the blocker phrasing the legacy aggregator already emits, but
+    flips it into an actionable second-person remediation that the AI or
+    user can paste straight into the next edit.
+    """
+    if dim_name == "numeric_claims_consistent":
+        n = details.get("mismatch_count", 0)
+        return (
+            f"{n} numeric claim(s) diverge between deliverables (>1% "
+            "relative difference). Reconcile the values in "
+            "workspace/logs/cross_deliverable_audit.md and re-render."
+        )
+    if dim_name == "figures_consistent":
+        missing = details.get("paper_figures_missing_elsewhere") or []
+        stems = ", ".join(m.get("figure_stem", "?") for m in missing[:3])
+        more = "" if len(missing) <= 3 else f" (+{len(missing) - 3} more)"
+        return (
+            f"{len(missing)} paper figure(s) absent from one or more "
+            f"secondary deliverables: {stems}{more}. Embed them via "
+            "tool_figure_auto_embed or drop them from the paper."
+        )
+    if dim_name == "citations_consistent":
+        rogue = details.get("rogue_citations") or []
+        return (
+            f"{len(rogue)} deliverable(s) cite key(s) not in the paper "
+            "bibliography. Add the missing keys to the paper or remove "
+            "them from the secondary deliverable."
+        )
+    if dim_name == "findings_top_line_consistent":
+        pairs = details.get("weak_pairs") or []
+        thresh = details.get("min_jaccard", 0.30)
+        return (
+            f"{len(pairs)} deliverable pair(s) below Jaccard threshold "
+            f"{thresh}: the headline finding doesn't read consistently. "
+            "Rewrite the Findings sections so they share core vocabulary."
+        )
+    if dim_name == "reproducibility_footer_consistent":
+        miss = details.get("missing_footer_in") or []
+        disc = details.get("discrepancies") or []
+        return (
+            f"{len(miss)} deliverable(s) missing footer; "
+            f"{len(disc)} cross-deliverable discrepancy. Re-run the "
+            "render pipeline so every deliverable carries the same "
+            "Research-OS version + commit + timestamp."
+        )
+    return f"{dim_name} failed; inspect dimensions.{dim_name}.details."
+
+
+def _make_finding(
+    *,
+    severity: str,
+    dimension: str,
+    evidence_paths: list[str],
+    suggested_fix: str,
+) -> AuditFinding:
+    """Build an :class:`AuditFinding` with a deterministic uuid5 id.
+
+    Keying off ``(audit_name, dimension, sorted evidence_paths,
+    suggested_fix)`` keeps the id stable across reruns where the audit
+    finds the same problem in the same place, so the append-only
+    ``.audit_findings.jsonl`` ledger can be diffed cleanly. ``severity``
+    is intentionally NOT part of the key — re-classifying a known
+    finding from warn → block should preserve its identity.
+    """
+    audit_name = "cross_deliverable_consistency"
+    key = "|".join([
+        audit_name,
+        dimension,
+        ",".join(sorted(evidence_paths)),
+        suggested_fix,
+    ])
+    stable_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
+    return AuditFinding(
+        audit_name=audit_name,
+        severity=severity,
+        dimension=dimension,
+        id=stable_id,
+        evidence_paths=list(evidence_paths),
+        suggested_fix=suggested_fix,
+    )
+
+
 __all__ = [
     "audit_cross_deliverable_consistency",
     "numeric_claims_consistent",
@@ -830,4 +1062,5 @@ __all__ = [
     "findings_top_line_consistent",
     "reproducibility_footer_consistent",
     "_numeric_claim_extractor",
+    "CrossDeliverableConsistencyAudit",
 ]
