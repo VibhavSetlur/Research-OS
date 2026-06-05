@@ -381,7 +381,34 @@ The flip is local (no `override_rationale` required) because no
 quality gate is bypassed — the rewrite is a convenience pass, not a
 deny. The auto-embed log still records that the rewrite was skipped.
 
-### 7. Cross-deliverable divergence the supervisor approved
+### 7. Unresolved BLOCK findings in the audit ledger (Phase-4c)
+
+**v2.0.0.** `tool_synthesize` also gates on
+`workspace/logs/.audit_findings.jsonl` — the append-only ledger every
+Phase-4 audit writes to via `write_audit_outputs`. The gate uses
+latest-snapshot semantics: a BLOCK finding emitted on an earlier audit
+run but absent from the most recent rerun for the same audit is treated
+as resolved. Only currently-active BLOCKs stop synthesis.
+
+If the researcher has explicitly authorised compiling with active BLOCK
+findings on record (e.g. they accept a known prose-quality blocker for
+a WIP review pass), bypass with rationale:
+
+```python
+tool_synthesize(
+    output_type="paper",
+    override_unresolved_blocks=True,
+    override_rationale="reviewer wants the draft tonight; prose blockers known + queued for tomorrow",
+)
+```
+
+The bypass appends to `workspace/logs/override_log.md` with the active
+blocker ids so the pre-submission audit can re-surface them. Use
+`tool_audit_findings_query(severity="block")` to list the current
+active blockers and `tool_audit_findings_diff(timestamp_a, timestamp_b)`
+to confirm a fix actually resolved a finding between two audit runs.
+
+### 8. Cross-deliverable divergence the supervisor approved
 
 `tool_audit_cross_deliverable_consistency` BLOCKs when the poster,
 slides, dashboard, or paper disagree along the 5 dimensions (numeric

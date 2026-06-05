@@ -1140,6 +1140,52 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "tool_audit_findings_query": {
+        "short": "Filter the cross-audit findings ledger by severity / dimension / step / since.",
+        "description": "Phase-4c read tool. Loads workspace/logs/.audit_findings.jsonl (the append-only ledger that every Phase-4 audit appends to via write_audit_outputs), reduces it to the latest snapshot per stable finding id, then filters by severity ('block' | 'warn' | 'info'), dimension (e.g. 'completeness', 'prose', 'claims', 'grounding'), step (any path containing '/<step>/' in evidence_paths), and/or since (ISO-8601 — keep only findings whose generated_at is on/after the cutoff). Read-only — never mutates the ledger. Returns {findings: [...], count: N, filters: {...}}.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "severity": {
+                    "type": "string",
+                    "enum": ["block", "warn", "info"],
+                    "description": "Optional severity filter.",
+                },
+                "dimension": {
+                    "type": "string",
+                    "description": "Optional dimension filter (e.g. 'completeness', 'prose').",
+                },
+                "step": {
+                    "type": "string",
+                    "description": "Optional step folder filter (e.g. '02_eda'); matches evidence_paths containing '/<step>/'.",
+                },
+                "since": {
+                    "type": "string",
+                    "description": "Optional ISO-8601 cutoff (e.g. '2026-06-05T12:00:00Z'); returns findings on/after this timestamp.",
+                },
+            },
+        },
+    },
+    "tool_audit_findings_diff": {
+        "short": "Diff two snapshots of the cross-audit findings ledger by stable id.",
+        "description": "Phase-4c read tool. Snapshots workspace/logs/.audit_findings.jsonl as of two ISO-8601 timestamps and reports {added: [...], resolved: [...], changed: [{id, before, after}]}. Diff is keyed by the finding's stable id; structural comparison covers severity / dimension / evidence_paths / suggested_fix (re-emission of an unchanged finding is NOT reported as changed). timestamp_a is the EARLIER snapshot; timestamp_b is the LATER. Use this to confirm a fix actually resolved a BLOCK finding between two audit runs.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timestamp_a": {
+                    "type": "string",
+                    "description": "ISO-8601 timestamp for the EARLIER snapshot (e.g. '2026-06-04T09:00:00Z').",
+                },
+                "timestamp_b": {
+                    "type": "string",
+                    "description": "ISO-8601 timestamp for the LATER snapshot (e.g. '2026-06-05T12:00:00Z'); must be on/after timestamp_a.",
+                },
+            },
+            "required": ["timestamp_a", "timestamp_b"],
+        },
+    },
     "tool_step_revision_options": {
         "short": "After a step finalize, surface the pause-and-revise heuristic + alternative paths + handoff hint.",
         "description": "Call AFTER tool_path_finalize. Returns: would_benefit_from_revision (bool); suggested_revisions (list of specific fixes); alternative_paths (stratified / sensitivity / method-comparison branches the researcher could consider); handoff_recommended (bool, true when 5+ steps have been finalized in this conversation — context is getting long); risk_signals (e.g. citations claimed but no tool_search_* calls logged). The AI MUST present these options VERBATIM to the researcher and WAIT for their choice (proceed | revise | branch | handoff). Do NOT auto-scaffold the next step unless researcher_config.interaction.autonomy_level == 'autopilot' AND would_benefit_from_revision is False. This is the anti-one-shot gate: AI agents tend to complete long plans as fast as possible which hurts quality; forcing a mandatory pause at well-defined checkpoints — with concrete revision options — gives the researcher a moment to redirect.",
@@ -1656,7 +1702,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_synthesize": {
-        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure. Quality gate: refuses to build a full document if tool_audit_quality_full reports BLOCKERS. The researcher (NOT the AI) can authorise a partial / WIP deliverable by passing override_completeness_gate=true with a one-line override_rationale — both are logged to workspace/logs/override_log.md for the audit trail.",
+        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure. Quality gate: refuses to build a full document if tool_audit_quality_full reports BLOCKERS. Phase-4c BLOCK-finding gate: ALSO refuses to compile when any unresolved BLOCK finding sits in workspace/logs/.audit_findings.jsonl (latest-snapshot semantics — a BLOCK from an earlier audit run that the latest rerun no longer reproduces is treated as resolved). The researcher (NOT the AI) can authorise a partial / WIP deliverable by passing override_completeness_gate=true (master quality gate bypass) or override_unresolved_blocks=true (BLOCK-finding ledger bypass) with a one-line override_rationale — both are logged to workspace/logs/override_log.md for the audit trail.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -1681,9 +1727,13 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "boolean",
                     "description": "Bypass the master quality gate for a partial / WIP deliverable. ONLY set when the researcher has explicitly authorised it. Logged.",
                 },
+                "override_unresolved_blocks": {
+                    "type": "boolean",
+                    "description": "Phase-4c: bypass the unresolved-BLOCK-findings gate (workspace/logs/.audit_findings.jsonl). ONLY set when the researcher has explicitly authorised compiling with active BLOCK findings on record. Logged to workspace/logs/override_log.md with the blocker ids.",
+                },
                 "override_rationale": {
                     "type": "string",
-                    "description": "Required when override_completeness_gate=true. One-line reason the researcher authorised the bypass (e.g. 'reviewer asked for a preview of the discussion section before the final figures are in').",
+                    "description": "Required when override_completeness_gate=true OR override_unresolved_blocks=true. One-line reason the researcher authorised the bypass (e.g. 'reviewer asked for a preview of the discussion section before the final figures are in').",
                 },
                 "skip_gates": {
                     "type": "array",
@@ -3926,6 +3976,9 @@ def _handle_tool_synthesize(name, arguments, root):
     from research_os.tools.actions.audit.audit import (
         audit_quality_full, audit_step_completeness,
     )
+    from research_os.tools.actions.audit.findings_query import (
+        unresolved_block_findings,
+    )
     from research_os.tools.actions.synthesis.synthesize import synthesize_workspace
     from research_os.project_ops import log_override
     from research_os.tools.actions.state.config import get_interaction_policy
@@ -3944,6 +3997,76 @@ def _handle_tool_synthesize(name, arguments, root):
     full_doc = not arguments.get("section")
     bypass_logged = False
     policy = get_interaction_policy(root)["quality_gate_policy"]
+
+    # Phase-4c gate: if any unresolved BLOCK finding sits in the
+    # cross-audit ledger (workspace/logs/.audit_findings.jsonl), refuse
+    # to compile. The latest-snapshot semantics mean a BLOCK finding
+    # emitted on an earlier audit run but absent from the most recent
+    # rerun is treated as resolved — only currently-active BLOCKs
+    # stop synthesis. Override path: pass
+    # override_unresolved_blocks=true with a rationale; the override is
+    # recorded to workspace/logs/override_log.md so the pre-submission
+    # audit can flag it.
+    override_unresolved_blocks = bool(
+        arguments.get("override_unresolved_blocks", False)
+    )
+    try:
+        active_blocks = unresolved_block_findings(Path(root))
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.debug("unresolved_block_findings scan failed: %s", exc)
+        active_blocks = []
+    if active_blocks and not override_unresolved_blocks and not (
+        policy == "warn_only"
+    ):
+        if (
+            policy == "enforce"
+            and override_requested
+            and (not rationale or not str(rationale).strip())
+        ):
+            # Fall through to the existing enforce check below — it
+            # rejects with the same shape and we don't want two errors
+            # racing for the response slot.
+            pass
+        else:
+            top = active_blocks[:10]
+            lines = [
+                f"- [{b.get('dimension','?')}] "
+                f"{b.get('audit_name','?')}: "
+                f"{(b.get('suggested_fix') or '').strip()[:160]}"
+                for b in top
+            ]
+            extra = (
+                f"\n  … and {len(active_blocks) - 10} more"
+                if len(active_blocks) > 10
+                else ""
+            )
+            return _text(_error(
+                "BLOCKED by unresolved audit findings ledger "
+                f"({len(active_blocks)} BLOCK finding(s) in "
+                "workspace/logs/.audit_findings.jsonl). Resolve them "
+                "(re-run the originating audit so the latest snapshot "
+                "no longer surfaces them) before tool_synthesize.\n\n"
+                + "\n".join(lines)
+                + extra
+                + "\n\nTo bypass for a partial / WIP deliverable, call "
+                "again with override_unresolved_blocks=true AND "
+                "override_rationale='<one-line why>'."
+            ))
+    elif active_blocks and override_unresolved_blocks:
+        # Record the bypass before we run anything else so the override
+        # trail captures it even if synthesis fails later.
+        log_override(
+            Path(root),
+            tool="tool_synthesize",
+            gate="unresolved_block_findings",
+            rationale=rationale,
+            extra={
+                "blocker_count": len(active_blocks),
+                "blocker_ids": [b.get("id") for b in active_blocks[:20]],
+                "output_type": arguments.get("output_type", "paper"),
+                "section": arguments.get("section"),
+            },
+        )
     # warn_only ⇒ never block; the gate-blocker list is surfaced as
     # warnings on the response. Sandbox / exploratory use only.
     soft_gate = policy == "warn_only"
@@ -4566,6 +4689,53 @@ def _handle_tool_audit_step_literature(name, arguments, root):
     return _text(_success(audit_step_literature(
         root, step_id=arguments.get("step_id"),
     )))
+
+
+def _handle_tool_audit_findings_query(name, arguments, root):
+    """Phase-4c: filter the cross-audit findings ledger.
+
+    Reads ``workspace/logs/.audit_findings.jsonl`` (latest snapshot per
+    stable finding id), then filters by severity / dimension / step /
+    since. Returns the list — does NOT mutate the ledger.
+    """
+    from research_os.tools.actions.audit.findings_query import (
+        audit_findings_query,
+    )
+
+    res = audit_findings_query(
+        Path(root),
+        severity=arguments.get("severity"),
+        dimension=arguments.get("dimension"),
+        step=arguments.get("step"),
+        since=arguments.get("since"),
+    )
+    return _text(_success(res))
+
+
+def _handle_tool_audit_findings_diff(name, arguments, root):
+    """Phase-4c: diff two snapshots of the findings ledger by stable id.
+
+    Snapshots the ledger as of ``timestamp_a`` and ``timestamp_b`` (both
+    ISO-8601), then reports findings added / resolved / changed between
+    them. The structural diff ignores re-emission churn (generated_at +
+    ro_version) so a finding that simply reruns is NOT reported as
+    changed.
+    """
+    from research_os.tools.actions.audit.findings_query import (
+        audit_findings_diff,
+    )
+
+    ts_a = arguments.get("timestamp_a")
+    ts_b = arguments.get("timestamp_b")
+    if not ts_a or not ts_b:
+        return _text(_error(
+            "tool_audit_findings_diff requires both timestamp_a and "
+            "timestamp_b (ISO-8601 strings, e.g. '2026-06-05T12:00:00Z')."
+        ))
+    res = audit_findings_diff(Path(root), timestamp_a=ts_a, timestamp_b=ts_b)
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "audit_findings_diff failed")))
+    return _text(_success(res))
 
 
 def _handle_tool_step_revision_options(name, arguments, root):
@@ -6352,6 +6522,8 @@ _HANDLERS = {
     "tool_audit_reproducibility": _handle_tool_audit_reproducibility,
     "tool_audit_step_completeness": _handle_tool_audit_step_completeness,
     "tool_audit_step_literature": _handle_tool_audit_step_literature,
+    "tool_audit_findings_query": _handle_tool_audit_findings_query,
+    "tool_audit_findings_diff": _handle_tool_audit_findings_diff,
     "tool_audit_version_coherence": _handle_tool_audit_version_coherence,
     "tool_step_revision_options": _handle_tool_step_revision_options,
     "tool_step_iterate": _handle_tool_step_iterate,

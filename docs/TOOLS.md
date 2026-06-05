@@ -131,6 +131,8 @@ the router picks one for you.
 | `tool_audit_synthesis` | Audit a manuscript: claim grounding, citation coverage, causal language. v1.3.4+ aggregates per-step `step_summary.yaml` warnings and BLOCKs on pending-verification citations; v1.4.0+ BLOCKs on per-step `literature_deferred` + `literature.claims_grounded == 0`. |
 | `tool_audit_step_completeness` | Per-step gate: focal figure + caption + summary sidecars + non-stub conclusions + no mega-script. v1.4.0+ BLOCKs on missing `.summary.md` (was WARN) + WARNs on missing `scratch/stack_plan.md`. |
 | `tool_audit_step_literature` | **v1.4.0.** Per-step literature-loop gate. BLOCKs if `workspace/<step>/literature/findings_vs_literature.md` missing, any claim lacks a Verdict (AGREES \| DISAGREES \| EXTENDS \| DEFERRED), any DISAGREES verdict lacks a Discussion implication block, all-DEFERRED with no PDFs, or stub `## Findings`. Override: `override_literature_gate=true` + rationale. Writes `workspace/logs/step_literature_audit.md`. |
+| `tool_audit_findings_query` | **v2.0.0 (Phase-4c).** Read the cross-audit findings ledger (`workspace/logs/.audit_findings.jsonl`). Filters by `severity` (`block`\|`warn`\|`info`), `dimension`, `step` (matches `evidence_paths` containing `/<step>/`), and `since` (ISO-8601). Returns the latest snapshot per stable finding id — a finding that was emitted, then re-emitted unchanged on rerun, appears once. Read-only; never mutates the ledger. |
+| `tool_audit_findings_diff` | **v2.0.0 (Phase-4c).** Diff two snapshots of `workspace/logs/.audit_findings.jsonl` by stable finding id. Required: `timestamp_a` (earlier) + `timestamp_b` (later), both ISO-8601. Returns `{added, resolved, changed}` where `changed` compares structural fields only (`severity`, `dimension`, `evidence_paths`, `suggested_fix`) — a pure rerun with no content change is NOT reported as changed. Use to confirm a fix actually resolved a BLOCK finding between two audit runs. |
 | `tool_audit_power` | Post-hoc statistical power. |
 | `tool_audit_assumptions` | Normality + homoscedasticity + independence on residuals. |
 | `tool_audit_figure` | DPI / colorblind palette / axis labels / error bars. |
@@ -146,7 +148,7 @@ the router picks one for you.
 | Tool | Purpose |
 |---|---|
 | `tool_synthesize_plan` | Inspect available sources; propose section order. |
-| `tool_synthesize` | Compile workspace into paper / abstract / poster / dashboard / grant / report. Verified citations only. |
+| `tool_synthesize` | Compile workspace into paper / abstract / poster / dashboard / grant / report. Verified citations only. **v2.0.0:** also refuses to compile when any unresolved BLOCK finding sits in `workspace/logs/.audit_findings.jsonl` (latest-snapshot semantics). Override: `override_unresolved_blocks=true` + `override_rationale='<why>'`; logged to `workspace/logs/override_log.md`. |
 | `tool_synthesis_preview` | Cheap deterministic dry-run before `tool_synthesize` — predicts word counts, page count, figures, citations, gaps. `mode='diff'` compares against the existing deliverable. |
 | `tool_paper_compile_typst` | synthesis/paper.md → paper.typ → paper.pdf via Typst with a venue template (nature / science / nejm / cell / ieee_conf / neurips / acl / plos / generic_two_column / generic_thesis). Recommended PDF path. |
 | `tool_latex_compile` | pdflatex + bibtex on synthesis/paper.tex. Use when a venue requires .tex submission. |
