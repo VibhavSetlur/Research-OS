@@ -1091,7 +1091,7 @@ protocols:
     token_estimate: 1300
     decomposition:
       - protocol: audit/provenance_completeness
-        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running by re-running the figure script (which should drop the provenance sidecar) or by calling tool_write_provenance_sidecar manually."
+        purpose: "Enumerate outputs, check sibling .prov.json existence, validate fields, fix missing by re-running the figure script (which should drop the provenance sidecar) or by calling tool_write_provenance_sidecar manually."
       - tool: tool_python_exec
         purpose: "Re-run any artefact-producing script under provenance to backfill missing sidecars."
 

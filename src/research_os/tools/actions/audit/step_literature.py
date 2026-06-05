@@ -6,7 +6,7 @@ papers per claim, write `workspace/<step>/literature/findings_vs_literature.md`,
 and update `step_summary.yaml.literature`. This module gates that work.
 
 Returns blockers/warnings/info; the caller (typically `tool_path_finalize`
-or `tool_audit_master`) treats blockers as a hard stop unless the user
+or `tool_audit_quality_full`) treats blockers as a hard stop unless the user
 passes an explicit override.
 """
 
