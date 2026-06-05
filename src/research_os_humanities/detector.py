@@ -59,7 +59,7 @@ def detect_humanities(inputs_dir: Path) -> dict:
                 signals.append(f"TEI/XML manuscript markup: {path.name}")
         if suffix in _TABULAR_EXTENSIONS:
             tabular_count += 1
-        # Prose-corpus heuristic: .txt / .md / .pdf bodies
+        # Prose-corpus heuristic: .txt / .md / .tex bodies
         if suffix in {".txt", ".md", ".tex"}:
             try:
                 prose_byte_total += path.stat().st_size

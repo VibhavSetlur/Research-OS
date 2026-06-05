@@ -6,6 +6,105 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.9.2] — Discovery sprint: comprehensive 10-lens system audit (2026-06-05)
+
+PATCH release. After 8 minor releases (v1.4.0 → v1.9.1) shipping tools,
+protocols, audits, refactors, vendored assets, and deprecations, the
+system needed an end-to-end audit before further feature work
+(v1.10.0 slides+poster, v2.0.0 deprecation cleanup). v1.9.2 ships the
+findings doc + only the most trivial fixes; substance is deferred to
+v1.9.3.
+
+### Added
+
+* **`docs/AUDIT_v1.9.2.md`** — comprehensive audit synthesis
+  (~12,000 words) aggregating 75 findings across 10 lenses: 5 CRITICAL,
+  27 HIGH, 29 MEDIUM, 22 LOW. Includes per-finding IDs (AUDIT-v1.9.2-001
+  through 075), reproduction steps, suggested fixes, target-version
+  routing, and a 35-item v1.9.3 work-list (~28 agent-hours).
+* **`docs/audit_v1.9.2/`** — per-lens raw findings:
+  - `lens_01_biology_stress.md` — full RNA-seq workflow trace
+  - `lens_02_humanities_stress.md` — DH/literary-analysis composition
+  - `lens_03_qualitative_stress.md` — 12-participant interview study
+  - `lens_04_tool_protocol_consistency.md` — tool↔protocol↔server wiring
+  - `lens_05_protocol_graph.md` — recommendation graph topology
+  - `lens_06_docs_accuracy.md` — doc currency + cross-ref integrity
+  - `lens_07_config_schema.md` — researcher_config field health
+  - `lens_08_test_coverage.md` — coverage + brittleness audit
+  - `lens_09_dead_code.md` — vulture + orphan-module sweep
+  - `lens_10_audit_gates.md` — audit-of-audits consistency
+* **`docs/PROTOCOL_GRAPH.mermaid`** — recommendation graph (Mermaid)
+  rendered from `next_protocol` + `see_also` edges across all 114
+  protocols.
+
+### Fixed (trivial only — substantive bugs deferred to v1.9.3)
+
+* Stale protocol/tool counts corrected across 8 user-facing docs:
+  `README.md`, `START.md`, `AI_GUIDE.md`, `PROTOCOLS.md`, `TOOLS.md`,
+  `FAQ.md`, `RESEARCHER_GUIDE.md`, `ROADMAP.md`, `CONTRIBUTING.md`
+  (113 → 114 protocols, 146 → 212 tools, 438 → 872 tests).
+* `sys_help` topic descriptions: methodology count (29 → 42),
+  synthesis count (14 → 18), `sys_active_tools` description
+  (143 → 212 tools).
+* Stale `tool_audit_master` references (renamed to
+  `tool_audit_quality_full` earlier): fixed in `docs/ROADMAP.md` and
+  `src/research_os/tools/actions/audit/step_literature.py` docstring.
+* `src/research_os/protocols/_router_index.yaml`: removed accidental
+  "re-running by re-running" duplication in provenance_completeness
+  decomposition purpose.
+* `src/research_os/tools/actions/state/path.py`: removed unreachable
+  `return out` after the real return (dead code, no behavior change).
+* `src/research_os_humanities/detector.py`: docstring extension list
+  corrected (`.pdf` → `.tex` to match actual filter).
+* `.gitignore`: added `.claude/` and `.coverage` (dev artefacts).
+
+### Deferred to v1.9.3 (next release — bug fix + coherence sweep)
+
+35 work-items totalling ~28 agent-hours. Highlights:
+
+* CRITICAL: `gate_strictness` / `project_tier` / reliability
+  `model_profile` are read from the wrong path — v1.5.1 features
+  silently inert in real projects (lens 07).
+* CRITICAL: `override_discussion_coverage` documented but handler
+  discards args and function takes no override (lens 10).
+* CRITICAL: Step-completeness gate hard-requires a PNG/SVG focal
+  figure per step — structurally blocks every humanities project from
+  reaching synthesis (lens 02).
+* CRITICAL: Seven tools referenced by `digital_humanities_workflow` +
+  `scholarly_edition` do not exist; humanities pack unrunnable as
+  written (lens 02).
+* CRITICAL: `project_tier` never propagates to
+  `resolve_gate_strictness`; throwaway/sketch/production tags do
+  nothing (lens 10).
+* HIGH: `tool_audit_quality_full` runs 6 gates but description
+  advertises 5; `grounding_verify` is invisible (lens 10).
+* HIGH: `override_no_pdfs` bypass does not write to
+  `override_log.md`; audit trail invisible (lens 10).
+* HIGH: `RESEARCHER_GUIDE.md` config schema is 5 fields behind
+  template (lens 06).
+* HIGH: `PROTOCOLS.md` silently omits 34 of 114 protocols including
+  8 of 14 visualization protocols and 4 newest synthesis protocols
+  (lens 06).
+* MEDIUM: Router miscarries "fit a DESeq2 differential expression
+  model" to `methodology/bayesian_analysis` (lens 01).
+* MEDIUM: `synthesis_paper` decomposition omits
+  `tool_paper_compile_typst` — small-model agents never produce a PDF
+  (lens 01).
+
+Subsystem health snapshot: protocol_graph, tool_wiring, tests,
+dead_code, biology_core_path → **green**; documentation,
+qualitative_pack → **yellow**; researcher_config_schema,
+audit_gate_machinery, humanities_pack → **red**.
+
+### Surface
+
+No protocol or tool surface changes. No new dependencies (dev tools
+`pytest-cov` and `vulture` used in-session but not added to runtime
+requirements). 114 protocols, 212 tools, 872 tests — identical to
+v1.9.1.
+
+---
+
 ## [1.9.1] — Interactive dashboard rebuild + per-figure interactive enforcement + story mode (2026-06-05)
 
 MINOR release. The dashboard becomes a real single-page web app.

@@ -249,7 +249,7 @@ The MCP CAN detect existing workspace artifacts before re-running intake.
 The MCP CAN bundle frequently-called-together tools into single tool calls.
 
 - **`tool_step_complete`** new bundle: runs `tool_path_finalize` + `tool_audit_step_completeness` + `tool_audit_step_literature` + `tool_step_revision_options` in one call. Returns combined result. Reduces 4 tool calls → 1; eliminates small-model drift between calls.
-- **Audit family bundle.** `tool_audit_master` already does this; verify coverage for the new v1.4.0 gates.
+- **Audit family bundle.** `tool_audit_quality_full` already does this; verify coverage for the new v1.4.0 gates.
 - **Search + download bundle.** Already exists: `tool_literature_search_and_save`. Add similar bundles for other multi-step flows.
 
 **Effort:** ~1 week. **Lands v1.6.0.**

@@ -81,7 +81,7 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 
 ---
 
-## Protocol categories (113 protocols, organised in 9)
+## Protocol categories (114 protocols, organised in 9)
 
 | Category | What it covers |
 |---|---|
@@ -92,7 +92,7 @@ the working set for a protocol, call `sys_active_tools(protocol_name)`.
 | literature | search + systematic review + evidence synthesis + comparative review + **v1.4.0** `literature_per_step` (per-step findings_vs_literature.md loop) |
 | writing | per-section drafting (methods / results / discussion / limitations / end_matter) |
 | visualization | figures (rules / workflow / critique / multi-panel / arc / a11y / interactive) |
-| synthesis | final deliverables (17 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title) |
+| synthesis | final deliverables (18 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable) |
 | audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + **v1.4.0** `tool_audit_step_literature` gate |
 
 For a category-specific orientation, call `sys_help(topic="<category>")`.
@@ -333,5 +333,5 @@ server enforces DPI, sidecars, palette via `tool_audit_figure_full` and
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 113 protocols indexed
+- `sys_protocol_list` → all 114 protocols indexed
 - `sys_tool_describe(tool_name)` → full schema for a tool

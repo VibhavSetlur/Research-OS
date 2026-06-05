@@ -19,6 +19,7 @@ build/
 /.cursorrules
 /.clinerules
 /AGENTS.md
+.claude/
 
 # OS state (auto-created during pipeline runs)
 .os_state/
@@ -75,6 +76,7 @@ desktop.ini
 .env.local
 
 # Task logs
+.coverage
 *.log
 
 # Temporary scratch folder
