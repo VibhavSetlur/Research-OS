@@ -103,8 +103,8 @@ steps:
 
         POSTERIOR DENSITY — solid curve with HDI (highest density
           interval) shaded; mark the posterior mean / median; add a
-          ROPE band when defined (Bayesian decision context).
-          Use a `posterior` chart per the guidance in visualization/figure_guidelines or arviz.
+          ROPE band when defined (Bayesian decision context). arviz
+          (Python) and bayesplot (R) are the standard libraries.
 
         PREDICTIVE PROBABILITY ATLAS — pixel-level uncertainty on
           a map / image. Bivariate colour scheme (value + uncertainty)

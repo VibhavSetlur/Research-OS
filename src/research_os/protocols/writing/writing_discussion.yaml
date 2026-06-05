@@ -151,7 +151,7 @@ steps:
       After this step, the BLOCK gate `tool_discussion_coverage_audit`
       verifies every non-AGREES verdict has a corresponding paragraph in
       `synthesis/discussion.md`. The validate step (below) honours it as
-      a hard BLOCKER unless you pass `override_discussion_coverage=true`.
+      a hard BLOCKER.
 
   - id: build_comparison_to_prior_work
     name: Compare to prior work (cited)

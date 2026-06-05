@@ -15,8 +15,7 @@ description: |
                         one, reads it on the train, decides whether to
                         chase the full artefact. Anchored by ONE
                         headline + ONE figure + ONE QR.
-    * format=one_pager— alias for handout (kept for back-compat with
-                        the "make a one-pager" trigger phrasing).
+    * format=one_pager— alias for handout.
 
   Print constraints are real for every format: contrast survives
   greyscale photocopy; small gridlines vanish; serif <11pt is

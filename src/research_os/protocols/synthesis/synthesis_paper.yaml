@@ -8,7 +8,7 @@ description: |
   Compile the final IMRAD paper into synthesis/paper.md (and
   synthesis/paper.tex → PDF when requested), tuned to the target venue.
   Uses pandoc for the LaTeX render when available; otherwise our own
-  inline-formatting + table-aware fallback (no more raw-escaped text).
+  inline-formatting + table-aware fallback.
   Server-side completeness gate blocks the assembly until every active
   step has a focal figure + caption + summary + non-stub conclusions.
 
@@ -38,7 +38,7 @@ description: |
   WITHOUT a fresh prompt, but each section is still its own
   tool_synthesize call + its own audit pass.
 
-  **Autopilot short-circuit (AUDIT-063).** When
+  **Autopilot short-circuit.** When
   `interaction.autonomy_level == autopilot`, tool_synthesize accepts
   `auto_proceed=true` to process every section (methods → results →
   discussion → introduction → abstract) AND run the full assembly in
@@ -50,7 +50,7 @@ description: |
   returns an error — the multi-turn cadence is enforced precisely
   because it is the deliberation pace those modes exist to provide.
 
-  Citation auto-verify is now part of final_assembly — `tool_citations_verify`
+  Citation auto-verify is part of final_assembly — `tool_citations_verify`
   runs as a HARD gate; any citation still in `pending verification`
   state blocks the assembly until the AI runs the actual lookup.
 

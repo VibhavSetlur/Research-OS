@@ -7,8 +7,8 @@ description: |
   Compose a multi-panel figure — the kind where Figure 2 has panels
   A, B, C, D each making a related point. Real papers spend a lot of
   visual budget on multi-panel composites; this protocol handles the
-  composition discipline that an AI-authored plotting script (see `visualization/figure_guidelines`) (single-panel)
-  does not address.
+  composition discipline that single-panel figure rules (see
+  `visualization/figure_guidelines`) do not address.
 
   Topics covered: which panels belong together, how to label them,
   how to align axes / colour scales across panels, how to size them
@@ -126,27 +126,25 @@ steps:
       ylim / clim args.
 
   - id: build_panels_individually
-    name: Build each panel individually in an AI-authored plotting script
+    name: Build each panel individually
     description: |
-      For each panel:
-        an AI-authored plotting script
-          step_id="<NN_slug>"
-          name="<figure_slug>_panel<letter>"
-          kind=<chart family>
-          data="<path>"
-          x="<col>" y="<col>"
-          caption="<panel-specific finding>"
-          plain_english="<panel-specific summary>"
-          palette=<palette aligned with the other panels>
-          style=<style aligned with the other panels>
+      Write a plotting script per panel that captures:
+        - step_id (which analysis step the panel belongs to)
+        - name (<figure_slug>_panel<letter>)
+        - chart family (per visualization/figure_guidelines)
+        - data path + x / y columns
+        - caption (panel-specific finding)
+        - plain-English summary (panel-specific)
+        - palette aligned with the other panels
+        - style aligned with the other panels
 
       Each individual panel ends with both caption sidecars.
       Outputs: workspace/<step>/outputs/figures/<figure_slug>_panel<letter>.png
 
       When the chart family is bespoke (network / map / custom),
-      fall back to a small matplotlib script — but apply the SAME
-      palette / DPI / aspect ratio as the tool would, AND still
-      write the caption sidecar by hand.
+      use a small matplotlib script but apply the SAME palette / DPI /
+      aspect ratio as the rest of the deck, AND still write the
+      caption sidecar by hand.
 
   - id: compose_via_subplots_or_pdf_grid
     name: Compose the panels into one figure
