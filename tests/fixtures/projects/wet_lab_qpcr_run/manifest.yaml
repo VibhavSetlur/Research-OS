@@ -1,0 +1,54 @@
+# Reference project: wet_lab_qpcr_run
+#
+# One qPCR experiment (GAPDH housekeeping + IL6 target, N=3 biological
+# x 3 technical replicates) with full plate map + reagent tracking +
+# one instrument readout. Exercises the wet_lab pack end-to-end.
+
+domain: wet_lab
+expected_pack: wet_lab
+
+protocols_expected:
+  - wet_lab/protocol/reagent_lot_tracking
+  - wet_lab/protocol/plate_map_provenance
+  - wet_lab/protocol/instrument_run_log
+
+gates_expected_pass:
+  - wet_lab/protocol/reagent_lot_tracking:reagents_registered
+  - wet_lab/protocol/plate_map_provenance:plate_map_archived
+  - wet_lab/protocol/instrument_run_log:run_log_complete
+
+artifacts_required:
+  - inputs/context/study_brief.md
+
+max_tool_calls: 60
+max_seconds: 30
+
+# Canned mock-model responses keyed by step_id. The mock_model_call
+# matches "STEP: <id>" in the prompt and replies with the canned string.
+# link_to_analysis is shared between plate_map_provenance + instrument_run_log
+# (the runner looks up by step_id alone).
+canned_responses:
+  # wet_lab/protocol/reagent_lot_tracking
+  enumerate_reagents: "Listed 9 reagents for the qPCR run (SYBR master mix, GAPDH F/R primers, IL6 F/R primers, RNase-free H2O, MMLV-RT, RNase inhibitor, dNTP mix); wrote workspace/01_qpcr/reagents_list.md."
+  query_supplier_portals: "Stubbed per-reagent YAMLs via tool_wet_lab_reagent_query; CoAs + RRIDs filled for all 9 reagents."
+  classify_per_reagent_class: "Added class-specific fields: GAPDH/IL6 primer sequences (HPLC-purified) + SYBR master mix lot + MMLV-RT lot."
+  link_to_step: "Built workspace/01_qpcr/reagents.yaml referencing the 9 per-reagent YAMLs via !include."
+  handle_new_lot: "No lot transition this run; reagent_lot_changelog.md initialized with current lots."
+  audit: "wet_lab_reproducibility_audit ran on the reagent set; 0 TODO placeholders, 0 missing RRIDs."
+
+  # wet_lab/protocol/plate_map_provenance
+  declare_assay_geometry: "Plate format = 96-well; controls = 3 NTCs + 3 inter-plate calibrators + 6 buffer-only edge blanks; standard curve = 5 points on GAPDH; wrote plate_geometry.md."
+  enumerate_samples: "Built samples.csv with 18 reactions (2 conditions x 3 biological x 3 technical) + standards + controls; sample IDs back-reference the cDNA prep step."
+  assign_wells_with_randomisation: "tool_wet_lab_plate_map_randomise produced workspace/01_qpcr/plate_map_PM001.yaml with seed=20260604; edge wells blanked; no row/column confounds."
+  render_for_visual_check: "Rendered plate_map_PM001.png; operator + second reviewer signed off before pipetting."
+  archive_with_raw_data: "Archived plate_map_PM001.yaml + raw/PM001__amplification.csv + raw/PM001__melt.csv under workspace/01_qpcr/raw/ with README.md listing both reads."
+  link_to_analysis: "analyses/01_qpcr/qpcr.R loads map by map_id=PM001, subtracts blanks, normalises IL6 Cq to GAPDH (ddCt), excludes edge wells per declared policy."
+  log_run_to_instrument_log: "Appended entry to instrument run log: map_id=PM001, instrument_id=QS5_A, operator=VAS, run_date=2026-06-04."
+
+  # wet_lab/protocol/instrument_run_log
+  capture_run_context: "tool_wet_lab_run_log_init stubbed workspace/01_qpcr/runs/QS5_A_20260604T1430.yaml for family=qpcr; operator_initials=VAS, logged_by=VAS."
+  pull_instrument_state: "last_calibration_date=2026-05-12, last_qc_pass_date=2026-06-04 (today's bead QC passed), method_file=GAPDH_IL6_v3.edt."
+  register_raw_files: "Checksummed raw/PM001__amplification.csv + raw/PM001__melt.csv via tool_wet_lab_checksum_raw; SHA-256s written back to the run YAML."
+  capture_parameter_block: "Captured full qpcr parameter_block: cycle_program (50C/2min RT-skipped, 95C/10min, 40x [95C/15s, 60C/60s]), reference_dye=ROX, baseline_method=auto, plate_map_version=PM001."
+  link_samples_and_plate_map: "sample_ids = 18 cDNA registry IDs (CDNA-001..018); plate_map_version=PM001 referenced at workspace/01_qpcr/plate_maps/PM001.yaml."
+  post_run_qc_and_flags: "tool_wet_lab_run_qc_qpcr: NTCs clean, GAPDH standard curve R^2=0.998, single melt peak per amplicon; flag=pass. mem_log entry written."

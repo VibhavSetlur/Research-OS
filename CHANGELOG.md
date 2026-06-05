@@ -6,6 +6,74 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.7.1] — 3 more domain packs: theory_math + wet_lab + engineering (2026-06-04)
+
+MINOR release. Three new bundled domain packs (theory_math, wet_lab,
+engineering) ship using the v1.7.0 plugin infrastructure unchanged.
+5 domain packs total now bundled with the core wheel. No breaking
+changes; the plugin API, namespace conventions, and stress-runner
+contract from v1.7.0 are stable.
+
+### Added — theory_math pack (bundled)
+
+- `src/research_os_theory_math/` — 8 protocols + 3 tools + domain detector + 8 router entries.
+- Protocols: `proof/proof_verification_workflow`, `proof/lemma_library`, `proof/theorem_dependency_graph`, `conjecture/conjecture_tracking`, `formal/lean_integration`, `formal/coq_integration`, `output/theory_paper_structure`, `method/proof_strategy_selection`.
+- Tools: `tool_theory_math_lean_check` (runs `lean --make` + parses errors), `tool_theory_math_coq_check` (runs `coqc` + parses errors), `tool_theory_math_dep_graph` (parses .lean / .v imports + theorems → Mermaid + JSON DAG).
+- Domain detector: .lean / .v / .agda / .thy files, LaTeX `\begin{proof}` / `\begin{theorem}` envs, Mathlib references, theory terminology.
+- Naming note: tools are `tool_theory_math_*` (matches the `tool_<pack>_` namespace rule; the brief's shorthand `tool_theory_*` would have collided with future packs starting `theory_*`).
+
+### Added — wet_lab pack (bundled)
+
+- `src/research_os_wet_lab/` — 8 protocols + 3 tools + domain detector + 8 router entries.
+- Protocols: `protocol/sop_versioning`, `protocol/reagent_lot_tracking`, `protocol/plate_map_provenance`, `protocol/instrument_run_log`, `protocol/sample_lineage`, `method/wet_lab_experiment_design`, `audit/wet_lab_reproducibility_audit`, `output/methods_section_wet_lab`.
+- Tools: `tool_wet_lab_plate_map_render` (96/384-well layout → PNG + SVG + ASCII fallback), `tool_wet_lab_reagent_query` (per-supplier portal link + reagent YAML stub; no live API calls), `tool_wet_lab_sample_lineage_export` (parent → splits → readouts as Mermaid + JSON).
+- Domain detector: instrument output files (.fcs / .qpcr / .czi / .raw / .tiff), catalog-number patterns, FACS / qPCR / ELISA / Western terminology, `inputs/protocols/` subdirectory.
+
+### Added — engineering pack (bundled)
+
+- `src/research_os_engineering/` — 7 protocols + 3 tools + domain detector + 7 router entries.
+- Protocols: `design/design_iteration`, `design/requirements_traceability`, `safety/fmea_protocol`, `safety/fault_tree_analysis`, `test/test_failure_causation`, `test/build_test_fix_loop`, `output/engineering_report_structure`.
+- Tools: `tool_engineering_fmea_render` (Failure Mode and Effects Analysis table → CSV + Markdown + optional Excel; auto-computes RPN; flags RPN ≥ 100), `tool_engineering_fault_tree_render` (AND / OR gates + basic events → Mermaid), `tool_engineering_requirements_matrix` (bidirectional SRS ↔ SDD ↔ test cases ↔ results → Markdown + optional Excel; flags orphan requirements + orphan tests).
+- Domain detector: CAD files (.stp / .iges / .sldprt / .dwg / .dxf), simulation outputs (.odb / .raw), control-system code (.plc / .st), SRS / SDD / REQ / FR / TC IDs, V&V terminology.
+
+### Added — stress-matrix fixtures
+
+- 3 new reference projects under `tests/fixtures/projects/`: `theory_math_short_proof` (2-page theorem + lemma library + dependency graph), `wet_lab_qpcr_run` (single qPCR experiment with plate map + reagent tracking + instrument run log), `engineering_fmea_simple` (5-item FMEA + 3 requirements traced to test cases).
+- CI stress matrix updated: 5 → 8 reference projects, each running against the mock model on every PR.
+- `docs/RELIABILITY.md` auto-regenerates with the 3 new fixtures added to the per-project + per-protocol tables.
+
+### Added — extras
+
+- `pip install research-os[theory_math]`, `[wet_lab]`, `[engineering]` reserved as no-op extras (packs ship bundled).
+- `pip install research-os[all_packs]` convenience meta-extra → installs every domain pack.
+
+### Added — tests
+
+- 50 new tests under `tests/unit/test_v171_three_packs.py`: all 5 packs register, 23 new pack protocols load, 9 new pack tools register + dispatch, 3 domain detectors trigger on their signature inputs, 3 reference projects parse + stress-run at 100% success against mock model, preflight checks pass with 5 packs.
+
+### Bumped
+
+- `version 1.7.0 → 1.7.1` in `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff`.
+- All 114 core protocol YAMLs bumped 1.7.0 → 1.7.1.
+- All 36 bundled-pack protocol YAMLs ship at 1.7.1 (humanities + qualitative pack protocols bumped along with the new theory_math + wet_lab + engineering protocols).
+- `_router_index.yaml` version 12 → 13.
+- Embeddings rebuilt (now 150 protocol docs + 189 tool docs).
+
+### Counts
+
+- Bundled packs: 2 → 5 (humanities, qualitative, theory_math, wet_lab, engineering).
+- Tools surface: 180 → 189 (+9 new pack tools).
+- Protocols: 127 → 150 (+8 theory_math, +8 wet_lab, +7 engineering).
+- Stress matrix: 5 → 8 reference projects × 1 model = 8 stress jobs per PR.
+- Preflight: 19/19 green.
+- Pytest: 635 → 685 passes.
+
+### Compatibility
+
+No breaking changes. Every v1.6.x and v1.7.0 tool name, protocol name, alias, redirect stub, plugin API surface, and stress-runner contract continues to work. The 5 bundled packs use the v1.7.0 plugin infrastructure unchanged.
+
+---
+
 ## [1.7.0] — Plugin system + 2 launch domain packs + multi-model CI stress matrix (2026-06-04)
 
 MINOR release. Implements ROADMAP Themes 4 and 10. Adds a plugin

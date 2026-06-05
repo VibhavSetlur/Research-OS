@@ -1,6 +1,6 @@
 id: writing_readme
 name: Writing — README
-version: '1.7.0'
+version: '1.7.1'
 schema_version: '2.0'
 description: |
   Maintain the project-level README and per-step READMEs. Per-step

@@ -1,0 +1,40 @@
+# Requirements for the battery-powered IoT environmental sensor.
+# Each row: id, text, design_elements (SDD refs), test_cases.
+# Verification method is "test" for all three so traceability is
+# exercised end-to-end.
+
+requirements:
+  - id: SRS-001
+    text: |
+      The sensor SHALL sample ambient temperature and relative
+      humidity at a configurable interval no longer than 10 minutes
+      and report each reading with tolerance +/- 0.5 C and +/- 3% RH.
+    verification_method: test
+    design_elements:
+      - SDD-SENSE-001  # SHT40 driver + sampling scheduler
+    test_cases:
+      - tests/firmware/test_sample_interval.py::test_default_10min
+      - tests/firmware/test_sht40_accuracy.py::test_tolerance_envelope
+
+  - id: SRS-002
+    text: |
+      The sensor SHALL transmit each reading over LoRaWAN using an
+      adaptive spreading factor (SF7 through SF12), retry once on
+      NAK, and drop the reading after a second consecutive failure
+      without blocking subsequent samples.
+    verification_method: test
+    design_elements:
+      - SDD-RADIO-001  # SX1262 LoRa stack + retry state machine
+    test_cases:
+      - tests/firmware/test_lora_retry.py::test_single_retry_then_drop
+
+  - id: SRS-003
+    text: |
+      Between samples the sensor SHALL enter deep-sleep such that
+      average current draw is below 50 uA at 25 C, measured over a
+      full 10-minute sample interval.
+    verification_method: test
+    design_elements:
+      - SDD-POWER-001  # RTC wake + deep-sleep entry sequence
+    test_cases:
+      - tests/firmware/test_power_budget.py::test_avg_current_under_50ua

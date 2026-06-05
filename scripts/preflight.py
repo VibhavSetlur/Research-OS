@@ -217,7 +217,7 @@ def check_packs_discovered():
     packs = installed_packs()
     # The two bundled packs MUST register for the shipped wheel to be valid.
     bundled_names = {p["name"] for p in packs}
-    required = {"humanities", "qualitative"}
+    required = {"humanities", "qualitative", "theory_math", "wet_lab", "engineering"}
     missing = sorted(required - bundled_names)
     if missing:
         return False, f"bundled packs missing: {missing}"
