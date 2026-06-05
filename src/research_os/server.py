@@ -5788,6 +5788,119 @@ TOOL_DEFINITIONS["sys_packs_installed"] = {
 _HANDLERS["sys_packs_installed"] = _handle_sys_packs_installed
 
 
+# ── Adapter discovery ────────────────────────────────────────────────
+
+
+def _discover_adapters_once() -> None:
+    """Discover installed infrastructure adapters and merge their tools.
+
+    Mirrors `_discover_packs_once()` but operates over the
+    `research_os.adapter` entry-point group + the in-tree bundled
+    adapter list. Idempotent; safe to call again from a test.
+    """
+    try:
+        from research_os.adapters import discover_adapters
+    except Exception as exc:
+        logger.debug("adapter loader import failed: %s", exc)
+        return
+    bundled = [
+        ("slurm", "research_os_adapter_slurm:register"),
+        ("snakemake", "research_os_adapter_snakemake:register"),
+        ("nextflow", "research_os_adapter_nextflow:register"),
+        ("cytoscape", "research_os_adapter_cytoscape:register"),
+        ("redcap", "research_os_adapter_redcap:register"),
+        ("synapse", "research_os_adapter_synapse:register"),
+    ]
+    try:
+        discover_adapters(
+            tool_definitions=TOOL_DEFINITIONS,
+            handlers=_HANDLERS,
+            bundled=bundled,
+        )
+    except Exception as exc:
+        logger.warning("adapter discovery raised unexpectedly: %s", exc)
+
+
+_discover_adapters_once()
+
+
+def _handle_sys_adapters_installed(name, arguments, root):
+    from research_os.adapters import installed_adapters, load_adapter_errors
+    adapters = installed_adapters()
+    errors = load_adapter_errors()
+    return _text(_success({
+        "adapters": adapters,
+        "adapter_count": len(adapters),
+        "errors": errors,
+        "error_count": len(errors),
+    }))
+
+
+def _handle_tool_adapter_extract(name, arguments, root):
+    from research_os.adapters.runner import run_extract
+    adapter_name = arguments.get("adapter_name")
+    if not adapter_name:
+        return _text(_error("adapter_name is required"))
+    res = run_extract(root, adapter_name, step_id=arguments.get("step_id"))
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "extract failed")))
+
+
+def _handle_tool_adapters_list(name, arguments, root):
+    from research_os.adapters.runner import list_adapters
+    return _text(_success(list_adapters(root)))
+
+
+def _handle_tool_adapters_run_all(name, arguments, root):
+    from research_os.adapters.runner import run_all
+    return _text(_success(run_all(root, step_id=arguments.get("step_id"))))
+
+
+TOOL_DEFINITIONS["sys_adapters_installed"] = {
+    "short": "List installed infrastructure adapters (Slurm / Snakemake / Nextflow / Cytoscape / REDCap / Synapse / external).",
+    "description": "Returns the set of infrastructure adapters currently registered via the `research_os.adapter` entry-point group. Adapters are pluggable detectors + provenance extractors for HPC schedulers, workflow engines, analysis platforms, and data systems. Use to confirm an adapter is loaded; pair with tool_adapters_list to check detection on the current project.",
+    "category": "routing",
+    "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+_HANDLERS["sys_adapters_installed"] = _handle_sys_adapters_installed
+
+TOOL_DEFINITIONS["tool_adapter_extract"] = {
+    "short": "Run one adapter's extract() + write provenance YAML to workspace/<step>/provenance/<adapter>.yaml.",
+    "description": "Executes a specific installed adapter against the current project (or one step within it) and persists the extracted provenance as a structured YAML file. Returns the path to the YAML plus a small summary of cardinalities. Idempotent — re-running overwrites the YAML so it always reflects the current filesystem state.",
+    "category": "state",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "adapter_name": {"type": "string"},
+            "step_id": {"type": "string"},
+        },
+        "required": ["adapter_name"],
+    },
+}
+_HANDLERS["tool_adapter_extract"] = _handle_tool_adapter_extract
+
+TOOL_DEFINITIONS["tool_adapters_list"] = {
+    "short": "List adapters + their detection status on the current project (e.g. 'slurm: detected_in_project=true').",
+    "description": "Walks every installed adapter, calls its detect(root) callable, and returns the combined status. Detect is cheap (filesystem-only; no network). Use to surface which adapters are relevant before deciding whether to run tool_adapter_extract / tool_adapters_run_all.",
+    "category": "state",
+    "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+_HANDLERS["tool_adapters_list"] = _handle_tool_adapters_list
+
+TOOL_DEFINITIONS["tool_adapters_run_all"] = {
+    "short": "Run every detected adapter's extract() and write per-adapter provenance YAMLs.",
+    "description": "Bulk version of tool_adapter_extract — walks every installed adapter, calls detect(), and runs extract() only on the matches. Writes one provenance/<adapter>.yaml per match. Returns a per-adapter status list.",
+    "category": "state",
+    "inputSchema": {
+        "type": "object",
+        "properties": {"step_id": {"type": "string"}},
+        "additionalProperties": False,
+    },
+}
+_HANDLERS["tool_adapters_run_all"] = _handle_tool_adapters_run_all
+
+
 if HAS_MCP:
     server = Server("research-os")
 

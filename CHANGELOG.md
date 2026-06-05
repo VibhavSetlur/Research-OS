@@ -6,6 +6,125 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [1.8.0] — 6 infrastructure adapters + multi-language tools.md extractor (2026-06-04)
+
+MINOR release. Adds a new entry-point group `research_os.adapter` for pluggable
+detectors + provenance extractors for the tools a project uses *around* its
+code (HPC schedulers, workflow engines, analysis platforms, data systems).
+Six adapters ship bundled with the core wheel. Also extends the tools.md
+extractor from Python-only to multi-language with adapter-contributed
+regex patterns, so a step's `tools.md` finally captures R libraries, HPC
+modules, Snakemake rules, Nextflow processes, etc. Distinct from the
+v1.7.0 `research_os.protocol_pack` group: packs add protocols; adapters
+add provenance extractors. They share the loader pattern but have separate
+registries.
+
+### Added — adapter framework
+
+- `src/research_os/adapters/__init__.py`, `base.py`, `loader.py`, `runner.py`.
+- `AdapterRegistration` dataclass + `register_adapter()` convenience constructor
+  with namespace validation + regex compile-time check.
+- Discovery via `research_os.adapter` entry-point group + in-tree bundled list.
+- Per-adapter error isolation: bad adapters log to
+  `workspace/logs/adapter_errors.log` and are skipped without blocking startup
+  or other adapters.
+- Three new core MCP tools: `sys_adapters_installed` (diagnostic),
+  `tool_adapter_extract` (run one), `tool_adapters_list` (status of all),
+  `tool_adapters_run_all` (run every detected).
+
+### Added — 6 bundled adapters
+
+| Adapter | Detects | Extracts |
+|---|---|---|
+| `slurm` | `#SBATCH`/`#PBS` directives + inline `sbatch`/`qsub` | partition, time, nodes, cpus, mem, GPU, dependencies, modules |
+| `snakemake` | `Snakefile` / `*.smk` | rules: name, inputs, outputs, shell preview, conda, container, threads |
+| `nextflow` | `*.nf` / `nextflow.config` / `main.nf` | process blocks, containers, resources, executor profiles |
+| `cytoscape` | `*.cys` session archives | per-network: nodes, edges, attribute schemas, layout, visual styles |
+| `redcap` | data-dictionary CSV OR exports with `record_id` + `redcap_event_name` | fields (name/type/validation/identifier), longitudinal vs cross-sectional, sample N, PHI warnings |
+| `synapse` | `.synapseConfig` / `synapseclient` imports / `synXXXXXXXX` refs | referenced entity IDs with source script + line + nearby comment |
+
+### Added — 8 adapter-contributed tools
+
+`tool_slurm_job_status`, `tool_slurm_estimate_cost`,
+`tool_snakemake_dryrun`, `tool_snakemake_dag_render`,
+`tool_nextflow_validate`, `tool_cytoscape_export_static`,
+`tool_redcap_schema_describe`, `tool_synapse_entity_info`.
+All gracefully degrade when their optional system deps (snakemake,
+nextflow, synapseclient, matplotlib, openpyxl) are absent — returning
+a `status='warning'` envelope with an install hint instead of failing.
+
+### Added — multi-language tools.md extractor
+
+`src/research_os/tools/actions/state/extractors.py` (new module). Per-language
+extractors return `(kind, name, version)` tuples; a dispatcher routes by
+file suffix; an adapter-pattern collector applies every registered adapter's
+`tools_md_patterns` on top.
+
+Languages covered: Python imports, R `library()` / `require()` / `p_load()` /
+`BiocManager::install()`, R `DESCRIPTION` parsing, `renv.lock`,
+Bash `module load` + `conda activate` + `source venv`,
+Node `package.json` + JS/TS import / require,
+Rust `Cargo.toml` + `.rs` use statements,
+Julia `Project.toml` + `.jl` using / import.
+
+`src/research_os/tools/actions/state/path.py` `_render_tools_md_section` now
+delegates to `extract_from_tree`. Output format unchanged but vastly more
+populated: a step's `tools.md` entry now reads like a full reproducibility
+manifest ("R library: DESeq2", "HPC module: bwa/0.7.17", "Snakemake rule:
+align").
+
+### Added — 3 reference projects
+
+- `slurm_snakemake` — RNA-seq pipeline (Snakefile + sbatch wrapper, exercises
+  slurm + snakemake adapters)
+- `nextflow_chipseq` — ChIP-seq DSL2 pipeline (exercises nextflow adapter)
+- `redcap_longitudinal` — 3-event observational cohort (exercises redcap adapter)
+
+CI stress matrix: **8 → 11 projects** × mock model on every PR.
+
+### Added — extras
+
+`pip install research-os[slurm]`, `[snakemake]`, `[nextflow]`, `[cytoscape]`,
+`[redcap]`, `[synapse]` reserved as no-op extras (adapters ship bundled).
+`pip install research-os[all_adapters]` installs all six.
+
+### Added — preflight + tests
+
+Two new preflight checks: **Bundled adapters discovered** + **Adapter regex
+patterns compile**. Preflight: 19/19 → **21/21** green.
+
+43 new tests under `tests/unit/test_v180_adapters_extractors.py` covering:
+framework validation, all 6 adapters detect + extract, optional tools
+dispatch, multi-language extractor coverage, 3 new reference projects
+stress-run at 100% success, adapter cross-detection on real fixtures.
+
+### Added — docs
+
+- `docs/ADAPTERS.md` (new) — overview + write-your-own-adapter quickstart.
+
+### Bumped
+
+- `version 1.7.1 → 1.8.0` in `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff`.
+- Embeddings rebuilt (now 150 protocol docs + 201 tool docs).
+
+### Counts
+
+- Adapters: 0 → **6** (slurm, snakemake, nextflow, cytoscape, redcap, synapse).
+- Tools surface: 189 → **201** (+3 core adapter tools + 9 optional pack tools).
+- Reference projects: 8 → **11** (+3 infra-focused).
+- Preflight: 19 → **21** checks.
+- Pytest: 685 → **728** passes.
+
+### Compatibility
+
+No breaking changes. Every v1.6.x / v1.7.x tool name, protocol name, alias,
+redirect stub, plugin API, stress-runner contract continues to work. The
+adapter framework is a NEW namespace (`research_os.adapter`) separate from
+the protocol-pack namespace (`research_os.protocol_pack`); they don't
+cross-contaminate.
+
+---
+
 ## [1.7.1] — 3 more domain packs: theory_math + wet_lab + engineering (2026-06-04)
 
 MINOR release. Three new bundled domain packs (theory_math, wet_lab,
