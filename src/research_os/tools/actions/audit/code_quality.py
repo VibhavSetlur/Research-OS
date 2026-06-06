@@ -406,7 +406,7 @@ def audit_code_quality(
 
 
 # ---------------------------------------------------------------------------
-# Phase-4 migration: AuditBase subclass emitting AuditFinding objects
+# AuditBase subclass emitting AuditFinding objects
 # ---------------------------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-"""Workspace ``current_tier.json`` — Phase 8 tier-aware routing state.
+"""Workspace ``current_tier.json`` — tier-aware routing state.
 
 Lives at ``workspace/.os_state/current_tier.json``. Holds the project's
 current tier (one of ``research_os.protocols._tiers.TIERS``), a small
