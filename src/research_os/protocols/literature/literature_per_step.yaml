@@ -3,6 +3,10 @@ tier: 'ground'
 name: Per-Step Literature Loop (find → download → cite → validate)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, theory_math, engineering]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   After every analysis step writes its findings, RO grounds those

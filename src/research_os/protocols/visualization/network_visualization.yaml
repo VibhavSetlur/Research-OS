@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Network / Graph Visualization (DAGs, citation networks, knowledge graphs)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-02'
 description: |
   When relationships matter more than aggregates — co-authorship,

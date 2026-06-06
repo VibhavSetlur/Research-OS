@@ -3,6 +3,10 @@ tier: 'plan'
 name: Qualitative Research (COREQ / SRQR)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor]
+  workflow_shape: [interview_study]
 description: |
   Interview / focus-group / ethnographic studies with thematic, framework,
   grounded theory, or content analysis. Enforces COREQ (interviews/focus

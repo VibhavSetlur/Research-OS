@@ -2,6 +2,10 @@ id: archival_research
 name: Archival Research — locate, capture, transcribe, annotate, cite
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities]
+  audience: [researcher]
+  workflow_shape: [linear_essay]
 last_reviewed: '2026-06-04'
 description: |
   Working with primary sources end-to-end: locate the holding,

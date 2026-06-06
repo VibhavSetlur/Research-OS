@@ -2,6 +2,10 @@ id: methods_section_wet_lab
 name: Materials & Methods Section (wet-lab format)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [wet_lab, biology, qualitative, humanities]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   A wet-lab Materials & Methods section is structurally different

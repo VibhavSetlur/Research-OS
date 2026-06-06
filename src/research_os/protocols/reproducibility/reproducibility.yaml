@@ -3,6 +3,10 @@ tier: 'finalize'
 name: Reproducibility
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability.
 trigger: After all planned experiments are complete. Before audit_and_validation.
 

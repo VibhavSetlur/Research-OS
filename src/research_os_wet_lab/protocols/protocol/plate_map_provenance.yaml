@@ -2,6 +2,10 @@ id: plate_map_provenance
 name: Plate-Map Provenance — 96/384/1536-well assays
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [wet_lab, biology, humanities]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   For plate-based assays the layout (which sample in which well) is

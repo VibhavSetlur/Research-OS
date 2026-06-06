@@ -3,6 +3,10 @@ tier: 'plan'
 name: Autopilot Mode
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Hands-off "drive the project to its next deliverable without checking in
   on every step" mode. Defines the exact gates where the AI MUST stop and

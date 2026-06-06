@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Synthesis — Lay Summary (public / press / outreach)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor, maintainer]
+  workflow_shape: [systems_benchmark]
 description: |
   Compile a plain-language summary of the project for a NON-EXPERT
   audience — funder lay-summary section, press release, university

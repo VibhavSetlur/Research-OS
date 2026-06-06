@@ -3,6 +3,10 @@ tier: 'plan'
 name: Fairness Audit (ML / decision systems / clinical AI)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-02'
 description: |
   When a predictive model or decision system will be used in a

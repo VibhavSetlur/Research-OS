@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Synthesis — Abstract (venue-tailored)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
 description: Generate a structured / unstructured abstract tuned to the target venue.
 trigger: Researcher asks for "an abstract", OR `research_goal.output_types` includes "abstract", OR called from synthesis_paper.
 

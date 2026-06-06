@@ -2,6 +2,10 @@ id: member_checking
 name: Member Checking — sharing interpretations back with participants
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor, maintainer]
+  workflow_shape: [interview_study]
 last_reviewed: '2026-06-04'
 description: |
   Protocol for sharing interpretations back with participants and

@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Uncertainty Visualization (intervals, fans, ensembles, posteriors)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-02'
 description: |
   Point estimates without uncertainty mislead. A bar with no error,

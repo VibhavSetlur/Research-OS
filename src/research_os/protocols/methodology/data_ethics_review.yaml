@@ -3,6 +3,10 @@ tier: 'plan'
 name: Data Ethics Review (IRB / privacy / consent / fairness)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology]
+  audience: [auditor, maintainer]
+  workflow_shape: [any]
 description: |
   Walk an ethics review of the data + analysis. Covers IRB / REC
   scope, informed-consent status, privacy + de-identification,

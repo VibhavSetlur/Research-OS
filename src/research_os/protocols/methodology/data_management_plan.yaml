@@ -3,6 +3,10 @@ tier: 'plan'
 name: Data Management Plan (DMP) — funder-compliant, FAIR-aligned
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-02'
 description: |
   A Data Management Plan (DMP) is a standalone document — distinct from

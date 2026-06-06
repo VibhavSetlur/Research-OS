@@ -3,6 +3,10 @@ tier: 'review'
 name: Revise & Resubmit (full R&R orchestration)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   End-to-end orchestration for a Revise & Resubmit decision from a
   journal. Distinct from `guidance/peer_review_response`, which

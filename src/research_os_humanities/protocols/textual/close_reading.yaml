@@ -2,6 +2,10 @@ id: close_reading
 name: Close Reading — annotation-based textual analysis
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities, theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   Annotation-based textual analysis with provenance per interpretive

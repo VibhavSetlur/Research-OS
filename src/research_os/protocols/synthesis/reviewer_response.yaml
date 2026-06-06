@@ -3,6 +3,10 @@ tier: 'review'
 name: Synthesis — Pre-submission Reviewer Simulation + Rebuttal Scaffold
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-05'
 description: |
   Run a 7-persona adversarial self-review against the FINISHED paper

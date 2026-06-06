@@ -2,6 +2,10 @@ id: scholarly_edition
 name: Scholarly Edition — critical edition + apparatus + translation
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities, theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   Prepares a critical edition end-to-end: collate the witnesses to

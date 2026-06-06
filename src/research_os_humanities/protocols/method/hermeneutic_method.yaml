@@ -2,6 +2,10 @@ id: hermeneutic_method
 name: Hermeneutic Method — name your theory of interpretation
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities, qualitative]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline, interview_study, linear_essay]
 last_reviewed: '2026-06-04'
 description: |
   Forces an explicit declaration of the hermeneutic framework guiding

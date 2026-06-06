@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Interactive Figure Design (per-figure, NOT dashboard-scale)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-05'
 description: |
   When a SINGLE figure is best served by interactivity — hover-to-

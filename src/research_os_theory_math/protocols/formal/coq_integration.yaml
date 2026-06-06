@@ -2,6 +2,10 @@ id: coq_integration
 name: "Coq Integration — formalising claims in Coq when Coq is the right tool"
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math, humanities, engineering]
+  audience: [maintainer]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: |
   Sister protocol to lean_integration, but Coq-specific. Coq is the

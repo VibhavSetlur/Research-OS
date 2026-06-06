@@ -3,6 +3,10 @@ tier: 'finalize'
 name: Pre-Submission Checklist (final ready-to-submit gate)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities]
+  audience: [auditor, maintainer]
+  workflow_shape: [any]
 last_reviewed: '2026-06-04'
 description: |
   Final ready-to-submit gate. Walks the project through every

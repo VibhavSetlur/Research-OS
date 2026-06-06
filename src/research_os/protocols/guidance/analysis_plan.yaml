@@ -3,6 +3,10 @@ tier: 'execute'
 name: Analysis Plan (Core Loop)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, humanities, theory_math, engineering]
+  audience: [naive_ai, auditor]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".

@@ -3,6 +3,10 @@ tier: 'plan'
 name: Qualitative PII Redaction (HIPAA / IRB / GDPR-safe transcripts before coding)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative, humanities, engineering]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, interview_study]
 last_reviewed: '2026-06-05'
 description: |
   Run BEFORE `qualitative_research` opens transcripts for coding.

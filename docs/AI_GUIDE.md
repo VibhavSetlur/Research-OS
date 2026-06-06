@@ -43,8 +43,17 @@ back-to-back before doing anything else:
    `chat_split_recommended` is true, hand off + tell the researcher
    to open a fresh chat.
 4. **For `complexity: low`**: call the `shortcut_tool` directly OR
-   load the protocol with `sys_protocol_get format='summary'`
-   (~300 tokens) and execute.
+   load the protocol with `sys_protocol_get` (`format='summary'` is
+   now the **v2.0 default** — ~300 tokens; pass `format='full'`
+   explicitly only when you genuinely need the entire YAML
+   ~1.5-3K tokens) and execute.
+
+> **v2.0 breaking change.** `sys_protocol_get` used to default to
+> `format='full'`. As of v2.0 it defaults to `'summary'` to reclaim
+> the single biggest per-turn token cost identified in the Phase-15a
+> baseline. Callers that omit `format` now get the summary view; pass
+> `format='full'` (or `'step'` / `'lean'` / `'dryrun'`) explicitly to
+> opt in to anything richer.
 
 On **subsequent turns** of the same session, skip `sys_boot` — its
 payload is already in context — and go straight to `tool_route` (or
@@ -163,7 +172,7 @@ prior knowledge.
 | Don't | Why |
 |---|---|
 | Call `sys_state_get + sys_config_get + sys_protocol_history` separately | `sys_boot` returns all of them in one call |
-| Load full protocols with `sys_protocol_get format='full'` when summary suffices | Summary is ~300 tokens; full is 1.5-3K |
+| Pass `format='full'` to `sys_protocol_get` when summary suffices | Summary is ~300 tokens; full is 1.5-3K. In v2.0, `summary` is the default — only pass `format='full'` when you actually need the entire YAML |
 | One-shot 400-line scripts | `tool_plan_step` forces atomic sub-tasks; `pipeline.yaml` for >2-script steps |
 | Invent citations | Synthesis tools VERIFY every citation against Crossref / Semantic Scholar / PubMed / arXiv |
 | Pick a method from training memory | `tool_research_method` is mandatory before any method commit |

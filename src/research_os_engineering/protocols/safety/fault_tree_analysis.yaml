@@ -2,6 +2,10 @@ id: fault_tree_analysis
 name: Fault Tree Analysis (top-down failure)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering, qualitative]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Top-down decomposition of a single top-level failure event ("the

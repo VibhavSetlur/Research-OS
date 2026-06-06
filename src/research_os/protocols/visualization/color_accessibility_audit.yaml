@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Color + Accessibility Audit (figures + dashboards)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Audit one or more figures (or a dashboard's CSS palette) for
   color-blindness safety, contrast adequacy, and WCAG-aligned

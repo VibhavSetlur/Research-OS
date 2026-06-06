@@ -3,6 +3,10 @@ tier: 'plan'
 name: Deep Domain Research (subfield-canonical pipeline)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, systems_benchmark]
 description: |
   Reasoning scaffold for entering an unfamiliar subfield. Before any
   statistical test or tool is named, this protocol walks the AI

@@ -2,6 +2,10 @@ id: theory_paper_structure
 name: Theory-Paper Structure (non-IMRAD)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [researcher]
+  workflow_shape: [proof, linear_essay]
 last_reviewed: '2026-06-04'
 description: |
   Paper format for theory papers. Explicitly NOT IMRAD. The five-act

@@ -3,6 +3,10 @@ tier: 'finalize'
 name: Chat / Session Handoff
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [naive_ai]
+  workflow_shape: [any]
 description: |
   Produce a fully-formed handoff brief so the project can be picked up by
   a different chat, a different AI model, or a different person — without

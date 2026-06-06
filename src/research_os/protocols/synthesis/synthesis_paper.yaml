@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Synthesis — Paper (IMRAD, venue-tailored)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Compile the final IMRAD paper into synthesis/paper.md (and

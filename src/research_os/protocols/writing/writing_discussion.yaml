@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Writing — Discussion (the hardest section)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   Draft / iterate the Discussion section. The Discussion is where most

@@ -210,8 +210,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_route": {
-        "short": "Prompt → protocol + decomposition. Call after every researcher message.",
-        "description": "Hybrid router. Tries SEMANTIC search first (embeddings cosine over protocol descriptions + triggers) — best for fuzzy intent + as the protocol catalog grows. Falls back to the hierarchical L1→L2→L3 trigger picker when semantic confidence is low / unavailable. Returns primary_protocol, shortcut_tool, decomposition, complexity, ask_user, alternatives, method (=semantic|trigger), confidence (=high|medium|low|none). High-complexity prompts get an active_plan persisted to .os_state/.",
+        "short": "Prompt → protocol + decomposition + recommended_action. Call after every researcher message.",
+        "description": "Hybrid router. Tries SEMANTIC search first (embeddings cosine over protocol descriptions + triggers) — best for fuzzy intent + as the protocol catalog grows. Falls back to the hierarchical L1→L2→L3 trigger picker when semantic confidence is low / unavailable. Returns primary_protocol, shortcut_tool, decomposition, complexity, ask_user, alternatives, method (=semantic|trigger), confidence (=high|medium|low|none), and `recommended_action` — a single-string hint naming the exact next tool to call (typically `sys_protocol_get(protocol_name='<primary>', format='summary')`, or the shortcut tool, or an `ask_user:` prompt, or a `tool_semantic_route` fallback when nothing resolved). High-complexity prompts get an active_plan persisted to .os_state/.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -279,8 +279,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "sys_tool_describe": {
-        "short": "Return the full description + schema for one tool.",
-        "description": "list_tools ships only short descriptions to keep context lean. When you genuinely need the full detail (parameter semantics, longer rationale, examples) for one tool, call this. Cheaper than re-listing every tool.",
+        "short": "Return the full description + schema + status + pack for one tool.",
+        "description": "list_tools ships only short descriptions to keep context lean. When you genuinely need the full detail (parameter semantics, longer rationale, examples) for one tool, call this. Returns name, category, short, description, inputSchema, plus the Phase-9 introspection fields: status ('live' = canonical | 'alias' = legacy name dispatched to a consolidated tool | 'deprecated' = removed but still tagged) and pack ('core' = built-in | '<pack_name>' = contributed by an installed protocol pack or adapter). Cheaper than re-listing every tool.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -321,8 +321,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
 
     # ── Protocols / guidance ──────────────────────────────────────────
     "sys_protocol_get": {
-        "short": "Load a protocol — format='summary' (cheap), 'step' (one step), 'lean' (small-model), 'dryrun' (preview), or 'full'.",
-        "description": "Load a protocol YAML by name (e.g. 'guidance/project_startup'). Five formats — summary returns id + step headings + quality_bar + expected outputs in ~300 tokens; step returns one specific step body (requires step_id); full returns the entire YAML (~1.5-3K tokens); lean serves the protocol's explicit lean_variant block if present, else auto-distils (cap 3 steps, drop optional sub-steps, trim step descriptions to 200 chars) for small/fast models; dryrun returns the full tool-call sequence with predicted args without executing — for supervised review. Prefer summary first then step on demand; use lean when researcher_config.model_profile=='small'; use dryrun in supervised mode to preview before commit. Routing tip: call tool_route(prompt) BEFORE this to pick the right protocol_name.",
+        "short": "Load a protocol — defaults to format='summary' (cheap). Use 'step' (one step), 'lean' (small-model), 'dryrun' (preview), or 'full' explicitly.",
+        "description": "Load a protocol YAML by name (e.g. 'guidance/project_startup'). Five formats — summary (the default) returns id + step headings + quality_bar + expected outputs in ~300 tokens; step returns one specific step body (requires step_id); full returns the entire YAML (~1.5-3K tokens) and requires opt-in; lean serves the protocol's explicit lean_variant block if present, else auto-distils (cap 3 steps, drop optional sub-steps, trim step descriptions to 200 chars) for small/fast models; dryrun returns the full tool-call sequence with predicted args without executing — for supervised review. Prefer summary first then step on demand; use lean when researcher_config.model_profile=='small'; use dryrun in supervised mode to preview before commit. Routing tip: call tool_route(prompt) BEFORE this to pick the right protocol_name.",
         "category": "protocol",
         "inputSchema": {
             "type": "object",
@@ -331,7 +331,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "format": {
                     "type": "string",
                     "enum": ["summary", "step", "full", "lean", "dryrun"],
-                    "description": "summary | step | full | lean | dryrun (default: full for back-compat, but summary or lean is recommended).",
+                    "default": "summary",
+                    "description": "summary | step | full | lean | dryrun (default: summary, ~300 tokens — pass 'full' explicitly when you actually need the whole YAML).",
                 },
                 "step_id": {
                     "type": "string",
@@ -2794,7 +2795,11 @@ def _handle_tool_tools_list(name, arguments, root):
 
 def _handle_sys_protocol_get(name, arguments, root):
     p_name = arguments.get("protocol_name")
-    fmt = (arguments.get("format") or "full").lower()
+    # Default is "summary" (~300 tokens). Callers who need the bulk
+    # YAML must pass format="full" explicitly. See CHANGELOG for the
+    # rationale behind the default; this comment intentionally stays
+    # timeless.
+    fmt = (arguments.get("format") or "summary").lower()
     step_id = arguments.get("step_id")
     profile = _read_profile(root)
     model_profile = profile.get("model_profile", "medium")
@@ -2834,6 +2839,38 @@ def _handle_sys_boot(name, arguments, root):
     return _text(_error(res.get("message", "sys_boot failed")))
 
 
+def _recommended_action_for_route(res: dict) -> str:
+    """Phase-9 cross-cutting: name the exact next tool to call.
+
+    The router already returns method / confidence / primary_protocol /
+    shortcut_tool / decomposition / ask_user. The AI then has to reason
+    about "what do I call next?" — a hop we can collapse by naming it
+    directly in the response.
+
+    Priority:
+      1. ask_user set → ask the researcher first.
+      2. shortcut_tool present → call the shortcut directly.
+      3. primary_protocol resolved → load it summary-first.
+      4. No primary, but alternatives exist → call tool_semantic_route to
+         eyeball the ranked candidates.
+      5. Total dead end → fall back to tool_route again or sys_help.
+    """
+    if res.get("ask_user"):
+        return "ask_user: " + str(res["ask_user"])
+    shortcut = res.get("shortcut_tool")
+    if shortcut:
+        return f"{shortcut}(...)"
+    primary = res.get("primary_protocol")
+    if primary:
+        return (
+            f"sys_protocol_get(protocol_name='{primary}', format='summary')"
+        )
+    alts = res.get("alternatives") or []
+    if alts:
+        return "tool_semantic_route(prompt=<refined>, top_k=5)"
+    return "sys_help(topic=...)"
+
+
 def _handle_tool_route(name, arguments, root):
     from research_os.tools.actions.router import route_request
 
@@ -2843,6 +2880,9 @@ def _handle_tool_route(name, arguments, root):
         persist_plan=bool(arguments.get("persist_plan", True)),
     )
     if res.get("status") == "success":
+        # Phase-9 cross-cutting: name the next tool to call so the AI
+        # doesn't burn a turn deciding.
+        res.setdefault("recommended_action", _recommended_action_for_route(res))
         return _text(_success(res))
     return _text(_error(res.get("message", "tool_route failed")))
 
@@ -2868,6 +2908,20 @@ def _handle_tool_semantic_route(name, arguments, root):
     payload = semantic.semantic_route(prompt, k=top_k) or {}
     payload["status"] = "success"
     payload["matches"] = [{"id": m.id, "score": round(m.score, 4)} for m in matches]
+    # Phase-9 cross-cutting: mirror tool_route's recommended_action hint.
+    # When semantic produces a primary candidate, recommend loading it
+    # summary-first; otherwise fall back to tool_route for a full pass.
+    primary = (matches[0].id if matches else None) or payload.get("primary_protocol")
+    if primary:
+        payload.setdefault(
+            "recommended_action",
+            f"sys_protocol_get(protocol_name='{primary}', format='summary')",
+        )
+    else:
+        payload.setdefault(
+            "recommended_action",
+            "tool_route(prompt=<original_or_refined>)",
+        )
     return _text(_success(payload))
 
 
@@ -3010,6 +3064,9 @@ def _handle_sys_tool_describe(name, arguments, root):
                 "short": schema.get("short", ""),
                 "description": schema.get("description", ""),
                 "inputSchema": schema.get("inputSchema", {}),
+                # Phase-9 cross-cutting introspection.
+                "status": schema.get("status", "live"),
+                "pack": schema.get("pack", "core"),
             }
         )
     )
@@ -8041,8 +8098,81 @@ TOOL_DEFINITIONS["tool_adapters_run_all"] = {
 _HANDLERS["tool_adapters_run_all"] = _handle_tool_adapters_run_all
 
 
+# ── Phase-9 cross-cutting: status + pack annotation ───────────────────
+#
+# Every TOOL_DEFINITIONS entry carries two introspection fields so the
+# router, list_tools, and sys_tool_describe can filter without
+# re-deriving the answer:
+#
+#   status: "live"        — canonical, in-surface tool. Routes to a real handler.
+#           "alias"       — legacy name still listed in TOOL_DEFINITIONS but
+#                            dispatched through _DEPRECATED_ALIASES to a
+#                            consolidated tool. Kept for back-compat with
+#                            older plans / docs / third-party callers.
+#           "deprecated"  — a defensive marker for any tool that somehow
+#                            survives in TOOL_DEFINITIONS while also being
+#                            listed in _REMOVED_TOOLS. The list_tools wiring
+#                            uses this to suppress the entry. Should never
+#                            be populated in a clean build.
+#
+#   pack:   "core"        — defined in server.py (this module).
+#           "<pack_name>" — contributed by an installed protocol pack or
+#                            adapter (set at registration time inside
+#                            plugins/loader.py and adapters/loader.py).
+#
+# Pack tools already get pack=<name> + status="live" from the merge
+# logic in those loaders. _annotate_core_tool_metadata fills in the rest
+# (every entry that wasn't already annotated by a loader is core), and
+# also enforces the alias/deprecated rules for the legacy-alias overlap.
+def _annotate_core_tool_metadata() -> None:
+    """Backfill `pack` + `status` on every TOOL_DEFINITIONS entry.
+
+    Pack/adapter loaders set these at registration time. Anything that
+    doesn't yet have a `pack` field is therefore a core tool defined in
+    this module. Aliases that still appear in TOOL_DEFINITIONS get
+    status='alias'; anything in _REMOVED_TOOLS that leaked in gets
+    status='deprecated' (and a logger warning — it's a bug).
+    """
+    for tool_name, schema in TOOL_DEFINITIONS.items():
+        # 1) pack — anything not already set is core.
+        schema.setdefault("pack", "core")
+        # 2) status — alias > deprecated > live.
+        if tool_name in _REMOVED_TOOLS:
+            # Defensive: a removed tool should never have a TOOL_DEFINITIONS
+            # entry. Flag it, but don't crash startup.
+            schema["status"] = "deprecated"
+            logger.warning(
+                "tool %r is in _REMOVED_TOOLS but still has a TOOL_DEFINITIONS "
+                "entry. Remove the entry or drop it from _REMOVED_TOOLS.",
+                tool_name,
+            )
+        elif tool_name in _DEPRECATED_ALIASES:
+            # Legacy alias still visible in the surface, dispatched via
+            # _ALIASES + _ALIAS_PARAM_INJECTION to the canonical tool.
+            schema["status"] = "alias"
+        else:
+            schema.setdefault("status", "live")
+
+
+_annotate_core_tool_metadata()
+
+
+# Phase-9 cross-cutting: MCP-level instructions surfaced at handshake.
+# Any compliant MCP client (Claude Code, Cursor, Cline, etc.) will show
+# these to the model on the first turn, removing the need for the AI to
+# discover the canonical session-start ritual by calling sys_help first.
+_MCP_INSTRUCTIONS = (
+    "On every turn: "
+    "(1) call sys_boot once per session, "
+    "(2) call tool_route(prompt=<user_message>) to identify the right protocol, "
+    "(3) load returned protocol with sys_protocol_get format=summary, "
+    "(4) call sys_active_tools to scope your working tool set. "
+    "Pack tools are loaded on-demand via tool_route routing."
+)
+
+
 if HAS_MCP:
-    server = Server("research-os")
+    server = Server("research-os", instructions=_MCP_INSTRUCTIONS)
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:

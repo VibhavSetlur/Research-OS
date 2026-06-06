@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Synthesis — Journal Cover Letter
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Draft the cover letter that accompanies a journal submission. The
   cover letter is the editor's first read — it determines whether the

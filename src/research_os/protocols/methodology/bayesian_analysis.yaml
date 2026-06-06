@@ -4,6 +4,10 @@ name: Bayesian Analysis Workflow
 version: '1.9.3'
 last_reviewed: '2026-06-02'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   A first-class Bayesian workflow following Gelman et al.'s Bayesian
   Workflow paper (2020): prior elicitation → simulation-based

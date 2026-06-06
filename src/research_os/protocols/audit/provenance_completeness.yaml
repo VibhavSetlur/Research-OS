@@ -3,6 +3,10 @@ tier: 'review'
 name: Provenance Completeness Audit (every output has a .prov.json sidecar)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: |
   Every figure, table, model artefact, and report output in the workspace
   must ship with a sibling `<stem>.prov.json` sidecar. The sidecar records:

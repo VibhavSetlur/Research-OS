@@ -3,6 +3,10 @@ tier: 'plan'
 name: Survey & Psychometrics
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
 description: |
   Reasoning scaffold for analysing survey / multi-item-scale /
   complex-sample-design data. Names the dimensions an analyst must

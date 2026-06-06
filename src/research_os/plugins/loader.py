@@ -268,6 +268,11 @@ def _merge(
                 "short": short,
                 "category": sch.get("category", reg.name),
                 "inputSchema": input_schema,
+                # Phase-9 cross-cutting: every tool carries its pack origin
+                # and a lifecycle status so introspection (sys_tool_describe,
+                # list_tools, router) can filter without re-deriving it.
+                "pack": reg.name,
+                "status": "live",
             }
             handlers[t.name] = t.handler
     _PACK_PROTOCOL_DIRS[reg.name] = reg.protocols_dir

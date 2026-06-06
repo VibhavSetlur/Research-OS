@@ -3,6 +3,10 @@ tier: 'intake'
 name: Session Resume
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [naive_ai, maintainer]
+  workflow_shape: [any]
 last_reviewed: '2026-06-04'
 description: |
   Re-enter a paused / interrupted / handed-off project — possibly in a

@@ -3,6 +3,10 @@ tier: 'ground'
 name: Literature Search
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [systems_benchmark]
 last_reviewed: '2026-06-04'
 description: |
   Systematic search across 2-4 academic databases. Produces a

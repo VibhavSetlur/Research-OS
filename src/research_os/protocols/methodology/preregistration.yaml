@@ -3,6 +3,10 @@ tier: 'plan'
 name: Pre-registration & Statistical Analysis Plan
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [researcher]
+  workflow_shape: [any]
 description: |
   Freeze the Statistical Analysis Plan (SAP) BEFORE data analysis so
   the project has a clean confirmatory-vs-exploratory split when the

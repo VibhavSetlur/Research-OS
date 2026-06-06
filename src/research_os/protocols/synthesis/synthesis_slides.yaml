@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative, theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 description: |
   Compile a presentation deck — lab meeting, conference talk, defense,
   invited seminar, or job talk — from the project's existing artefacts.

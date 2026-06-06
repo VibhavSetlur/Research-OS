@@ -3,6 +3,10 @@ tier: 'review'
 name: Figure Critique (review a single figure — yours or theirs)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Reviewer-style critique of ONE figure. Distinct from
   `audit/audit_and_validation` (mechanical DPI / sidecar checks) and from

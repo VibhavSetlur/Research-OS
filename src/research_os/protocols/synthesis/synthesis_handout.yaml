@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Synthesis — Printable Handout / One-Pager (redirect)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-04'
 description: |
   Redirect stub. The handout / one-pager content was consolidated

@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Writing — Citations
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 description: Maintain workspace/citations.md so every claim is grounded and every citation is verified online.
 
 steps:

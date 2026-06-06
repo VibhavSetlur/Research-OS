@@ -2,6 +2,10 @@ id: proof_strategy_selection
 name: Proof-Strategy Selection
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: |
   Choose among direct proof, proof by contradiction, induction

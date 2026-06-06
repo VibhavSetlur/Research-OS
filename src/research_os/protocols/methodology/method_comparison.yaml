@@ -3,6 +3,10 @@ tier: 'plan'
 name: Method Comparison (head-to-head benchmark)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering]
+  audience: [maintainer]
+  workflow_shape: [systems_benchmark]
 description: |
   Compare N candidate methods on the SAME prediction / estimation
   task with the SAME data, the SAME evaluation, and the SAME

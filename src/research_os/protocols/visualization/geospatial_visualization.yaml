@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Geospatial Visualization (choropleth, points, flow, raster)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-02'
 description: |
   Data with a location dimension — counties, countries, points,

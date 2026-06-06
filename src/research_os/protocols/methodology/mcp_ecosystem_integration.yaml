@@ -3,6 +3,10 @@ tier: 'plan'
 name: MCP Ecosystem Integration (compose other MCP servers with Research OS)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
 last_reviewed: '2026-06-02'
 description: |
   Research OS is one MCP server. Researchers may need access to

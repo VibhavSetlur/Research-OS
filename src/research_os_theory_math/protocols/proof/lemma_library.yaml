@@ -2,6 +2,10 @@ id: lemma_library
 name: Lemma Library — versioned, with dependents tracking
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math, engineering]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: |
   Each reusable lemma in a theory project is a versioned document

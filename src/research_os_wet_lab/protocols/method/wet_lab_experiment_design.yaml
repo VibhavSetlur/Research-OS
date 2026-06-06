@@ -2,6 +2,10 @@ id: wet_lab_experiment_design
 name: Wet-Lab Experiment Design
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [wet_lab, biology]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Pre-experiment design protocol that locks the study's statistical

@@ -3,6 +3,10 @@ tier: 'synthesize'
 name: Manuscript Outline + Narrative Arc (before drafting)
 version: '1.11.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, humanities, engineering]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, systems_benchmark]
 last_reviewed: '2026-06-02'
 description: |
   Drafting a paper before outlining is the most common source of

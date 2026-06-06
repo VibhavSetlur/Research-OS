@@ -3,6 +3,10 @@ tier: 'plan'
 name: Mixed-Language Orchestration (Python ↔ R ↔ Bash within a step)
 version: '1.9.3'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   When `pick_tool_stack` lands on "mixed" — i.e. one analysis step
