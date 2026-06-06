@@ -1,23 +1,35 @@
 # Protocol Reference
 
-Research OS ships **114 YAML protocols** organised into nine categories.
-Each protocol is a sequence of steps the AI should follow, with explicit
-`expected_outputs`, a `next_protocol` pointer, and a `quality_bar`. All
-are indexed in `src/research_os/protocols/_router_index.yaml` for
-hierarchical routing via `tool_route`.
+Research OS ships **117 core YAML protocols** organised into nine
+categories, plus pack-specific protocols (humanities, qualitative,
+theory_math, wet_lab, engineering) when those packs are installed.
+Each protocol is a sequence of steps the AI should follow, with
+explicit `expected_outputs`, a `next_protocol` pointer, a
+`quality_bar`, and — new in v2.0.0 — a `tier:` annotation +
+`scope_tags: {domain, audience, workflow_shape}` block. All are
+indexed in `src/research_os/protocols/_router_index.yaml` for
+hierarchical + semantic routing via `tool_route`.
 
 | Category | Count | What's in it |
 |---|---|---|
-| `methodology/` | 42 | Method pickers + per-family deep workflows (causal, ML, Bayesian, time-series, clinical, qualitative, mixed-methods, simulation, replication, ablation, pilot, evaluation design, hyperparameter sweep design, ethics review, EDA + hypothesis generation, method comparison, data-quality audit, power analysis, reproduction, methodological consultation). **v1.4.0** adds `pick_tool_stack` (R vs Python per sub-task, field-practice grounded) and `mixed_language_orchestration` (Python↔R↔Bash composition doctrine). |
-| `guidance/` | 19 | Session boot / resume / handoff / autopilot / collaboration, intake, iterative planning, dead-end routing, hypothesis + glossary tracking, mid-pipeline entry, code review, peer-review response, **scope-clarification**. |
-| `synthesis/` | 18 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs, manuscript_outline, journal_selection, defense_prep, printable. |
-| `visualization/` | 14 | Figure guidelines, viz workflow, single-figure critique, multi-panel composition, narrative arc, colour-accessibility audit, interactive figure design. |
+| `methodology/` | 43 | Method pickers + per-family deep workflows (causal, ML, Bayesian, time-series, clinical, qualitative, mixed-methods, simulation, replication, ablation, pilot, evaluation design, hyperparameter sweep design, ethics review, EDA + hypothesis generation, method comparison, data-quality audit, power analysis, reproduction, methodological consultation), plus the cross-cutting protocols `pick_tool_stack` (R vs Python per sub-task), `mixed_language_orchestration` (Python↔R↔Bash composition), `qualitative_pii_redaction`, `bootstrapping_design`, `cox_ph_diagnostics`, `data_management_plan`, `fairness_audit`, `inter_rater_reliability`, `interview_guide_design`, `mcp_ecosystem_integration`, `missing_data_strategy`, `multiple_comparisons`, `survey_design`, `uncertainty_quantification`. |
+| `synthesis/` | 20 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs, manuscript_outline, journal_selection, defense_prep, printable, `humanities_essay_structure`, `reviewer_response`. |
+| `guidance/` | 19 | Session boot / resume / handoff / autopilot / collaboration, intake, iterative planning, dead-end routing, hypothesis + glossary tracking, mid-pipeline entry, code review, peer-review response, scope-clarification, constructive_disagreement, revise_and_resubmit. |
+| `visualization/` | 14 | Figure guidelines, viz workflow, single-figure critique, multi-panel composition, narrative arc, colour-accessibility audit, interactive figure design, animation, distribution comparison, geospatial, interactive dashboard design, network, showcase, uncertainty. |
 | `writing/` | 10 | Per-section drafting (methods / results / discussion / limitations / end-matter), writing core rules, citations ledger, conclusions, analysis log, README. |
-| `literature/` | 5 | Search, systematic review (PRISMA), evidence synthesis (GRADE), comparative paper review. **v1.4.0** adds `literature_per_step` — per-step search → download → cite → write `findings_vs_literature.md` (AGREES \| DISAGREES \| EXTENDS \| DEFERRED). |
+| `literature/` | 5 | Search, systematic review (PRISMA), evidence synthesis (GRADE), comparative paper review, `literature_per_step` (per-step search → download → cite → write `findings_vs_literature.md` with `AGREES \| DISAGREES \| EXTENDS \| DEFERRED \| IMPORTED_AS_CITED` verdicts). |
 | `audit/` | 3 | Master audit + validation, pre-submission checklist, provenance completeness. |
 | `domain/` | 2 | Domain classification, research-design + sample-size justification. |
 | `reproducibility/` | 1 | Per-step env lock, seed verification, container generation. |
-| **Total** | **114** | |
+| **Core total** | **117** | 117/117 carry `tier:` + `scope_tags`. |
+
+Pack-specific protocols (loaded only when the matching pack is
+installed) add ~36 more across `humanities/` (archival, citation,
+method, output, textual), `qualitative/` (coding, method, output,
+validity), and `theory_math/` (conjecture, formal, method, output,
+proof). Run `sys_packs_installed` to see which packs are active in
+your project and `tool_protocols_list` for the flat catalogue with
+filters.
 
 The protocol surface deliberately covers BOTH the canonical
 data → publication pipeline AND the partial / off-axis workflows
@@ -38,31 +50,62 @@ For the format of a protocol file, see
 
 ---
 
-## How the AI picks a protocol (the hierarchical router)
+## How the AI picks a protocol (the v2 router)
 
 The AI does **not** load every YAML to find the right one. The AI only
 ever acts AFTER a researcher message arrives; on the first turn of a
-session it fires these two calls back-to-back:
+session it fires these calls back-to-back:
 
 1. **`sys_boot`** — FIRST MCP call (first turn only). Returns workspace
-   state + recommended pipeline-next protocol + advice.
+   state + config + history + dep inventory + recommended pipeline-next
+   protocol + pause classification + any active plan.
 2. **`tool_route(prompt=<researcher's verbatim message>)`** — SECOND
-   MCP call. Hierarchical L1 → L2 → L3 picker. Returns the deepest
-   unambiguous level:
+   MCP call. Hybrid router: tries SEMANTIC search first (embeddings
+   over protocol descriptions + triggers) and falls back to the
+   hierarchical L1 → L2 → L3 trigger picker when semantic confidence
+   is low. Returns:
+   * `primary_protocol` — name of the best-matching protocol
+   * **`recommended_action`** *(v2.0 new)* — literal next-call
+     string, e.g. `sys_protocol_get(protocol_name='X', format='summary')`.
+     Use it verbatim — no decoding required.
+   * **`why_matched`** *(v2.0 new)* — short rationale (semantic
+     similarity score, matched triggers, tier).
+   * **`tier`** *(v2.0 new)* — the matched protocol's tier (one of
+     `intake | plan | execute | ground | synthesize | review |
+     finalize`) for filtering candidates.
+   * `alternatives` — ranked alternates each with their own
+     `recommended_action` + `why_matched`.
    * L1 `intent_class` — one of `session | discover | plan | execute |
      methodology | literature | synthesize | audit_wrap | memory |
-     review`
-   * L2 `sub_intent` — narrower bucket within the class
-   * L3 specific protocol
-   When ambiguous at any level, the router returns an `ask_user`
-   sentence so the AI disambiguates with one researcher follow-up
-   instead of guessing wrong.
-3. **`sys_protocol_get format='summary'`** loads step headings only
-   (~300 tokens). `format='step' step_id='<id>'` loads one step body
-   when ready to execute.
+     review`.
+   * L2 `sub_intent` — narrower bucket within the class.
+   * `decomposition` — ordered sub-task list (for `complexity: high`).
+   * `complexity` — `low` vs `high`.
+   * `ask_user` — one-sentence clarifier when the prompt is genuinely
+     ambiguous.
+   * `shortcut_tool` — when a single tool handles the intent (e.g.
+     `tool_intake_autofill`), skip the protocol load entirely.
+3. **`sys_protocol_get`** — defaults to `format='summary'`
+   *(v2.0 change — was `full`)*. Step headings only, ~300 tokens.
+   `format='step' step_id='<id>'` loads one step body when ready to
+   execute (~150-500 tokens). The response includes a `_load_hint`
+   guiding the AI to drill into `format='full'` only when needed.
+4. **`sys_active_tools(protocol_name=<from-step-3>)`** — returns the
+   tight 13-18-tool shortlist the AI should prefer while executing the
+   protocol. Shrinks the working surface ~10× per turn.
 
 This entire path costs ~1.2K tokens — vs the ~5K it took before the
 routing layer existed.
+
+### Discovery: `tool_protocols_list`
+
+For audits, dashboards, or AI-driven catalogue browsing, call
+**`tool_protocols_list`** *(v2.0 new)* — returns the flat protocol
+catalogue with structured metadata (name, category, pack, intent_class,
+tier, version, short description). Supports filters by `category`,
+`pack`, `intent_class`, and `tier`. The discovery counterpart of
+`sys_protocol_list` (which returns one-liners suitable for AI
+orientation).
 
 ---
 
@@ -247,10 +290,78 @@ Three theory-only tools ship with the pack: `tool_theory_math_lean_check`,
   (`tool_audit_quality_full`): step completeness, code quality, prose
   quality, claim grounding, pre-registration diff, grounding
   verification. Single call, every gate. Aggregates to
-  `workspace/logs/audit_master.md`.
+  `workspace/logs/audit_master.md`. **v2.0.0:** returns structured
+  per-component verdicts: `components: {step_completeness,
+  code_quality, prose_quality, claims, preregistration_diff,
+  grounding}` each with `{status, blockers, advice}`.
+* `audit/pre_submission_checklist` — final GREEN/YELLOW/RED gate.
+  Reads `workspace/logs/override_log.md` and asks the researcher to
+  confirm each bypass before submission.
+* `audit/provenance_completeness` — every figure / table / model /
+  report output in the workspace has a `.prov.json` sidecar with
+  inputs, version, content hash.
 * `reproducibility/reproducibility` — per-step env snapshot, seed
   verification, output hashing, Apptainer + Dockerfile + entrypoint
   generation.
+
+### Per-dimension audits via `tool_audit`
+
+v2.0.0 collapsed 23 per-dimension `tool_audit_*` tools into the
+`tool_audit(scope, dimension)` dispatcher. The matching `scope` +
+`dimension` per gate:
+
+| Gate | Call |
+|---|---|
+| Step completeness | `tool_audit(scope='step', dimension='completeness')` |
+| Step code quality | `tool_audit(scope='step', dimension='code_quality')` |
+| Step assumptions (residual normality, etc.) | `tool_audit(scope='step', dimension='assumptions')` |
+| Step figure full (DPI / sidecars / SVG / text overlap) | `tool_audit(scope='step', dimension='figure_full')` |
+| Step figure interactivity | `tool_audit(scope='step', dimension='figure_interactivity')` |
+| Step literature loop | `tool_audit(scope='step', dimension='literature')` |
+| Step power | `tool_audit(scope='step', dimension='power')` |
+| Step reproducibility | `tool_audit(scope='step', dimension='reproducibility')` |
+| Step E-value (causal sensitivity) | `tool_audit(scope='step', dimension='evalue')` |
+| Project claims (numeric grounding) | `tool_audit(scope='project', dimension='claims')` |
+| Project citations | `tool_audit(scope='project', dimension='citations')` |
+| Project cliches | `tool_audit(scope='project', dimension='cliches')` |
+| Project coherence | `tool_audit(scope='project', dimension='coherence')` |
+| Project cross-deliverable consistency | `tool_audit(scope='project', dimension='cross_deliverable')` |
+| Project prose | `tool_audit(scope='project', dimension='prose')` |
+| Project version coherence | `tool_audit(scope='project', dimension='version_coherence')` |
+| Synthesis manuscript (all gates) | `tool_audit(scope='synthesis', dimension='all')` |
+| Synthesis dashboard content | `tool_audit(scope='synthesis', dimension='dashboard_content')` |
+| Synthesis figure coverage | `tool_audit(scope='synthesis', dimension='figure_coverage')` |
+| Synthesis reviewer responses | `tool_audit(scope='synthesis', dimension='reviewer_responses')` |
+
+The legacy per-dimension names (`tool_audit_step_completeness`,
+`tool_audit_claims`, etc.) continue to dispatch through the v2.0.x
+runway via aliases — old calls still work. Phase 14a hard-removed the
+v1.6.1 first-wave aliases (`tool_search_*`, `tool_plan_*`,
+`tool_ground_*`, `tool_verify_*`, `sys_path_*`, `mem_*_log` /
+`mem_*_append`); calling those returns a friendly `_REMOVED_TOOLS`
+error envelope naming the canonical v2 entry point. See
+[`MIGRATION_v1_to_v2.md`](MIGRATION_v1_to_v2.md) for the full table.
+
+### Cross-audit findings ledger (v2.0.0 new)
+
+Every audit emits a JSON companion alongside the Markdown report and
+appends structured rows to the project-level append-only ledger at
+`workspace/logs/.audit_findings.jsonl`. Each row carries `id` (stable
+UUIDv5), `audit_name`, `severity` (`block | warn | info`), `dimension`,
+`evidence_paths`, `suggested_fix`, `ro_version`, `generated_at`.
+
+Query the ledger with `tool_audit_findings`:
+
+* `tool_audit_findings(operation='query', severity='block')` — list
+  current active blockers (latest snapshot per stable id).
+* `tool_audit_findings(operation='query', dimension='claims', step='03_de_analysis')` —
+  filter by dimension + step.
+* `tool_audit_findings(operation='diff', timestamp_a=..., timestamp_b=...)` —
+  confirm a fix actually resolved a BLOCK finding between two audit runs.
+
+`tool_synthesize` BLOCK-gates on unresolved BLOCKs in the ledger and
+names the exact override flag in the error envelope
+(`override_unresolved_blocks=true` + `override_rationale='...'`).
 
 ### Visualization
 
@@ -287,7 +398,7 @@ it via `_router_index.yaml`; load it with `sys_protocol_get`.
 <!-- AUTO:PROTOCOL_CATALOGUE_START -->
 <!-- AUTO-GENERATED by scripts/regen_protocols_doc.py — DO NOT EDIT BY HAND -->
 
-_All 114 protocols, grouped by category, alphabetised within each._
+_All 117 protocols, grouped by category, alphabetised within each._
 
 ### `audit/` (3 protocols)
 
@@ -338,7 +449,7 @@ _All 114 protocols, grouped by category, alphabetised within each._
 | `literature_search` | Systematic search across 2-4 academic databases. Produces a |
 | `systematic_review` | Full PRISMA workflow for a primary systematic review or meta-analysis project. |
 
-### `methodology/` (42 protocols)
+### `methodology/` (43 protocols)
 
 | Protocol | One-liner |
 |---|---|
@@ -374,6 +485,7 @@ _All 114 protocols, grouped by category, alphabetised within each._
 | `pilot_study` | Small-N preliminary run to de-risk a full study: feasibility, instrument |
 | `power_analysis` | Standalone power / sample-size justification — for the case where the |
 | `preregistration` | Freeze the Statistical Analysis Plan (SAP) BEFORE data analysis so |
+| `qualitative_pii_redaction` | Run BEFORE `qualitative_research` opens transcripts for coding. |
 | `qualitative_quality_audit` | Companion to `methodology/qualitative_research`. The research protocol |
 | `qualitative_research` | Interview / focus-group / ethnographic studies with thematic, framework, |
 | `replication_study` | Re-execute a previously published analysis with explicit comparison to |
@@ -391,14 +503,16 @@ _All 114 protocols, grouped by category, alphabetised within each._
 |---|---|
 | `reproducibility` | Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability. |
 
-### `synthesis/` (18 protocols)
+### `synthesis/` (20 protocols)
 
 | Protocol | One-liner |
 |---|---|
 | `defense_prep` | A dissertation defense, a job talk, or a high-stakes conference |
+| `humanities_essay_structure` | Interpretive-structure protocol for the humanities essay form. The |
 | `journal_selection` | Picking the wrong venue wastes months. The right venue is the |
 | `manuscript_outline` | Drafting a paper before outlining is the most common source of |
 | `printable` | One protocol for every print-first deliverable. The protocol is |
+| `reviewer_response` | Run a 7-persona adversarial self-review against the FINISHED paper |
 | `synthesis_abstract` | Generate a structured / unstructured abstract tuned to the target venue. |
 | `synthesis_cover_letter` | Draft the cover letter that accompanies a journal submission. The |
 | `synthesis_dashboard` | Generate a polished single-file HTML dashboard that reads as |
@@ -456,15 +570,18 @@ _All 114 protocols, grouped by category, alphabetised within each._
 `tool_route` also matches cross-cutting intents that don't need a
 protocol:
 
-| Trigger | Tool called |
+| Trigger | Tool called (v2 canonical name) |
 |---|---|
 | "progress", "where are we", "digest" | `tool_progress_digest` |
-| "lessons", "what did we learn" | `tool_dead_end_lessons` |
-| "list protocols", "available protocols" | `sys_protocol_list` |
+| "lessons", "what did we learn" | `tool_lessons(operation='dead_end')` |
+| "list protocols", "available protocols" | `sys_protocol_list` or `tool_protocols_list` |
+| "list tools", "available tools" | `tool_tools_list` |
 | "missing dependencies", "what's installed" | `sys_dep_inventory` |
 | "broken", "fix workspace" | `tool_workspace_repair` |
-| "background", "kick off", "going to lunch" | `tool_task_run` |
-| "quick test", "scratch", "throwaway" | `tool_scratch_write` |
+| "background", "kick off", "going to lunch" | `tool_task(operation='run')` |
+| "quick test", "scratch", "throwaway" | `tool_scratch(operation='write')` |
+| "fill out the intake", "what do I have" | `tool_intake_autofill` |
+| "is install OK", "health check" | (CLI) `research-os doctor` |
 
 ---
 
@@ -475,12 +592,17 @@ OR conjunctions like "and then" / "also"), it persists a planning
 record to `.os_state/active_plan.json` and returns `complexity="high"`.
 The AI MUST walk the plan instead of one-shotting:
 
-* `tool_plan_turn` — returns `this_turn` (steps to execute now) +
-  `next_turn` (queued), sized to the researcher's `model_profile`
+* `tool_plan(operation='turn')` — returns `this_turn` (steps to execute
+  now) + `next_turn` (queued), sized to the researcher's `model_profile`
   (small=1 step/turn, medium=3, large=6; heavy tools like
   `tool_synthesize` count for more).
-* `tool_plan_advance` — after each step completes.
-* `tool_plan_clear` — if the researcher pivots mid-plan.
+* `tool_plan(operation='advance')` — after each step completes.
+* `tool_plan(operation='clear')` — if the researcher pivots mid-plan.
+
+(The legacy `tool_plan_turn` / `tool_plan_advance` / `tool_plan_clear`
+names were hard-removed in v2.0.0 — call `tool_plan(operation=...)`
+with the matching `operation`. The `_REMOVED_TOOLS` error envelope
+names the canonical entry point if a stale caller hits the old name.)
 
 When `chat_split_recommended=true` (long plan remaining), the AI hands
 off + asks the researcher to open a fresh chat with "pick up where we
@@ -528,22 +650,95 @@ When the protocol loader reads a YAML, it applies the researcher's
 * `medium` — standard (default).
 * `large` — full detail; protocols may suggest multi-step planning.
 
-`tool_plan_turn` also reads `model_profile` to size per-turn batches.
-A researcher on a small local model gets 1 tool call per turn; a large
-frontier model gets 6.
+`tool_plan(operation='turn')` also reads `model_profile` to size
+per-turn batches. A researcher on a small local model gets 1 tool call
+per turn; a large frontier model gets 6.
+
+---
+
+## Tier annotations (v2.0.0 new)
+
+Every protocol carries a `tier:` annotation that places it in the
+project lifecycle. The tier taxonomy is intentionally narrow (7
+buckets, ordered) — it's about progress reporting + flow rules, not
+protocol search. The existing `intent_class` (10 values) +
+`sub_intent` (60+ values) remain the routing axes.
+
+```
+intake → plan → execute → ground → synthesize → review → finalize
+```
+
+* `intake` — bootstrap, project intake, research overview
+  (`guidance/project_startup`, `domain/domain_analysis`, …).
+* `plan` — hypothesis, methodology, decomposition
+  (`guidance/analysis_plan`, `methodology/methodology_selection`,
+  `methodology/preregistration`, …).
+* `execute` — analysis, code, data steps (per-method protocols, EDA,
+  `methodology/exploratory_data_analysis`, …).
+* `ground` — literature gate, claim grounding
+  (`literature/literature_per_step`, `literature/literature_search`,
+  …).
+* `synthesize` — paper, slides, poster, dashboard drafting
+  (`synthesis/synthesis_paper`, `synthesis/synthesis_dashboard`, …).
+* `review` — reviewer simulation, drafter loop, peer-review prep
+  (`synthesis/reviewer_response`, `guidance/peer_review_response`,
+  …).
+* `finalize` — cross-deliverable consistency, submission prep
+  (`audit/pre_submission_checklist`, `audit/provenance_completeness`,
+  …).
+
+`tool_route` echoes the resolved protocol's tier in `why_matched` on
+every successful match; `tool_step_complete` advances the workspace's
+`current_tier` when a step moves the project across a tier boundary.
+Backward transitions (re-running an `execute` step after the project
+has reached `synthesize`) are tracked so the AI can flag pivots in
+progress digests.
+
+---
+
+## `scope_tags` (v2.0.0 new)
+
+Every protocol carries a `scope_tags:` block that describes its
+applicability:
+
+```yaml
+scope_tags:
+  domain: [any]                # or [theory_math, qualitative, ...]
+  audience: [researcher, naive_ai]
+  workflow_shape: [experiment_pipeline]
+```
+
+* `domain` — `any` or any subset of
+  `theory_math | qualitative | humanities | wet_lab | engineering |
+  empirical_statistical`. Cross-cutting protocols (e.g.
+  `audit/audit_and_validation`) use `[any]`.
+* `audience` — `researcher | naive_ai | auditor | maintainer`. Drives
+  prose voice + assumed expertise.
+* `workflow_shape` — `experiment_pipeline | proof |
+  archive_lookup | benchmark | qualitative_interview |
+  systematic_review | ...`. Used by the router to filter candidates
+  whose shape obviously doesn't match the prompt.
+
+The router can now filter wet-lab protocols out of dry-lab queries
+based on `scope_tags`, though default-filter wiring is scheduled for
+v2.1.0 — the infrastructure shipped in v2.0.0 carries the tags but
+the router does not yet exclude on them automatically.
 
 ---
 
 ## Adding a new protocol
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for the schema. Two
-mandatory follow-ups:
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for the schema. Mandatory
+follow-ups for v2.0.0:
 
-1. Add an entry to `_router_index.yaml` with `intent_class`,
+1. Set `tier:` on the protocol (one of the 7 lifecycle buckets above).
+2. Set `scope_tags: {domain, audience, workflow_shape}` (preflight
+   fails if missing).
+3. Add an entry to `_router_index.yaml` with `intent_class`,
    `sub_intent`, `summary`, `triggers` (plus optional `shortcut_tool`,
    `token_estimate`, `decomposition`). Preflight will fail if you
    forget.
-2. Add a test in `tests/tools/test_router.py` for a triggering prompt
+4. Add a test in `tests/tools/test_router.py` for a triggering prompt
    to verify the router picks your protocol.
 
 The loader auto-injects a `protocol_completion` step — don't add one
