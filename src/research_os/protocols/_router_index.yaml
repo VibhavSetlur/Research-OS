@@ -289,6 +289,11 @@ protocols:
       - "what do you think of this paper"
       - "peer review"
       - "brutal review"
+      - "reviewing a paper"
+      - "reviewing this paper"
+      - "journal review"
+      - "structured feedback"
+      - "walk me through structured feedback"
     shortcut_tool: tool_quick_review
     token_estimate: 700
     decomposition:
@@ -1027,7 +1032,9 @@ protocols:
     intent_class: synthesize
     sub_intent: poster
     summary: "Typst poster (academic_36x48 default). Redirects to synthesis/printable(format=poster)."
-    triggers: ["make a poster", "conference poster", "academic poster"]
+    triggers: ["make a poster", "make me a poster", "build me a poster",
+               "create a poster", "build a poster", "conference poster",
+               "academic poster", "poster", "i need a poster"]
     shortcut_tool: tool_poster_create
 
   synthesis/synthesis_dashboard:
@@ -1139,7 +1146,9 @@ protocols:
     intent_class: audit_wrap
     sub_intent: audit
     summary: "Full audit pass on a synthesis output."
-    triggers: ["audit", "validate", "check the paper", "is this ready"]
+    triggers: ["audit", "validate", "check the paper", "is this ready",
+               "is this paper ready", "ready to submit", "ready for submission",
+               "is this paper ready to submit"]
     decomposition:
       - tool: tool_audit_synthesis
       - tool: tool_audit_citations
@@ -1620,6 +1629,16 @@ protocols:
       - "bringing this into ro"
       - "import this project"
       - "migrate this into ro"
+      - "fork"
+      - "fork a pipeline"
+      - "fork this pipeline"
+      - "fork an existing pipeline"
+      - "inherited"
+      - "took over"
+      - "took over from"
+      - "former student"
+      - "previous student"
+      - "predecessor"
       - "migrate this into research-os"
       - "starting from in-progress"
       - "i have the analysis i need the writing"
