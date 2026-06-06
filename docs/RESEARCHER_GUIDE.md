@@ -8,7 +8,7 @@ tools, the config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
 [AI_GUIDE.md](AI_GUIDE.md). For the v2.0.0 upgrade recipe, see
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md).
+`CHANGELOG.md [2.0.0]`.
 
 ---
 
@@ -909,9 +909,9 @@ For more: [FAQ.md](FAQ.md).
 * [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 117 core protocols.
 * [TOOLS.md](TOOLS.md) — catalogue of all 146 live MCP tools.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
-* [MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) — upgrade recipe + old → new tool table.
-* [V2_RELEASE_NOTES.md](V2_RELEASE_NOTES.md) — celebratory v2.0.0 release notes.
-* [V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md) — Phase 15b 20-agent validation results.
+* `CHANGELOG.md [2.0.0]` — upgrade recipe + old → new tool table.
+* `CHANGELOG.md [2.0.0]` — celebratory v2.0.0 release notes.
+* `CHANGELOG.md [2.0.0]` — Phase 15b validation results.
 * [CONTRACT.md](CONTRACT.md) — stable surface for integrators.
 * [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — scaffold-not-script
   principle (for protocol authors / contributors).

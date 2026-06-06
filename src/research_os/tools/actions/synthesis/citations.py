@@ -62,7 +62,7 @@ SECTION_CAPS: dict[str, int] = {
 
 
 # ---------------------------------------------------------------------------
-# Failure logging — surface what the catch-all previously buried
+# Failure logging — surface what the catch-all would otherwise bury
 # ---------------------------------------------------------------------------
 
 

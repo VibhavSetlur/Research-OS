@@ -340,7 +340,7 @@ v1.6.1 first-wave aliases (`tool_search_*`, `tool_plan_*`,
 `tool_ground_*`, `tool_verify_*`, `sys_path_*`, `mem_*_log` /
 `mem_*_append`); calling those returns a friendly `_REMOVED_TOOLS`
 error envelope naming the canonical v2 entry point. See
-[`MIGRATION_v1_to_v2.md`](MIGRATION_v1_to_v2.md) for the full table.
+`CHANGELOG.md [2.0.0]` for the full table.
 
 ### Cross-audit findings ledger (v2.0.0 new)
 

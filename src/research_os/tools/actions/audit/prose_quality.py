@@ -21,13 +21,12 @@ Targets the writing the AI puts into ``synthesis/*.md``, per-step
   checks based on the standard the project's `domain_analysis` step
   surfaced from the literature.
 
-Output: ``workspace/logs/prose_audit.md`` (legacy markdown report,
-preserved verbatim for backward compatibility) + a structured dict the
-master quality auditor can consume. In Phase 4 the
-:class:`ProseQualityAudit` class also emits a list of
-:class:`AuditFinding` objects, which the server-side handler fans out
-to ``workspace/prose_quality_audit.{md,json}`` and appends to
-``workspace/logs/.audit_findings.jsonl`` via
+Output: ``workspace/logs/prose_audit.md`` (markdown report, preserved
+verbatim for backward compatibility) + a structured dict the master
+quality auditor can consume. The :class:`ProseQualityAudit` class also
+emits a list of :class:`AuditFinding` objects, which the server-side
+handler fans out to ``workspace/prose_quality_audit.{md,json}`` and
+appends to ``workspace/logs/.audit_findings.jsonl`` via
 :func:`write_audit_outputs`.
 """
 
@@ -66,11 +65,11 @@ def _finding_uuid(
     """Derive a stable UUIDv5 from the finding's salient fields.
 
     Two runs over an unchanged workspace yield identical IDs, which is
-    the point — Phase-4 dashboards diff findings by id, so churning UUIDs
-    on every run would make every finding look "new". We include
-    severity + suggested_fix in the key so a recategorisation (warn →
-    block) registers as a different finding rather than silently
-    overwriting the old one in any downstream id-keyed store.
+    the point — dashboards diff findings by id, so churning UUIDs on
+    every run would make every finding look "new". We include severity
+    + suggested_fix in the key so a recategorisation (warn → block)
+    registers as a different finding rather than silently overwriting
+    the old one in any downstream id-keyed store.
     """
     key = "|".join([
         audit_name,
@@ -555,7 +554,7 @@ def audit_prose(
 
 
 # ---------------------------------------------------------------------------
-# Phase-4 AuditBase subclass
+# AuditBase subclass
 # ---------------------------------------------------------------------------
 
 
@@ -645,10 +644,10 @@ def _findings_from_doc_report(rep: dict[str, Any]) -> list[AuditFinding]:
 
 
 class ProseQualityAudit(AuditBase):
-    """Phase-4 wrapper around the prose-quality audit.
+    """Wrapper around the prose-quality audit.
 
     Delegates the heavy lifting to :func:`audit_prose` (which preserves
-    the legacy markdown report verbatim) and then folds the resulting
+    the markdown report verbatim) and then folds the resulting
     per-document blockers + warnings into a flat ``list[AuditFinding]``
     that the orchestrator can persist via :func:`write_audit_outputs`.
     """

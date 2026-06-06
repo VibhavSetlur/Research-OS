@@ -1,6 +1,0 @@
-version=version = "1.11.0"
-protocols=118
-tools=344
-server_lines=6813
-router_lines=2019
-branch=feat/v2.0.0

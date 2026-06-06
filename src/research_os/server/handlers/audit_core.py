@@ -234,7 +234,7 @@ def _handle_tool_audit_figure_coverage(name, arguments, root):
 
     root_path = Path(root)
     audit = FigureCoverageAudit()
-    # Run the Phase-4 audit to get structured findings, then fan them
+    # Run the audit to get structured findings, then fan them
     # out to workspace/figure_coverage_audit.{md,json} +
     # workspace/logs/.audit_findings.jsonl. Best-effort writes — if the
     # workspace dir is read-only we still want to return the audit verdict.
@@ -281,7 +281,7 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
 
     res = audit_cross_deliverable_consistency(root)
 
-    # Phase-4 AuditBase fan-out: emit structured AuditFindings to the
+    # AuditBase fan-out: emit structured AuditFindings to the
     # standard {gate}_audit.md + {gate}_audit.json + .audit_findings.jsonl
     # artefacts. Failure to write the audit-outputs artefacts must not
     # mask the legacy auditor's response — wrap in a guard.
@@ -326,13 +326,12 @@ def _handle_tool_audit_step_completeness(name, arguments, root):
     )
 
     step_id = arguments.get("step_id")
-    # Legacy procedural call still produces workspace/logs/step_completeness.md
-    # byte-identical to v1.x — it is the source of truth for the
-    # response body that callers (tool_synthesize, tool_path_finalize,
-    # tool_dashboard_create) consume.
+    # Legacy procedural call produces workspace/logs/step_completeness.md
+    # and is the source of truth for the response body that callers
+    # (tool_synthesize, tool_path_finalize, tool_dashboard_create) consume.
     result = audit_step_completeness(root, step_id=step_id)
 
-    # Phase-4 AuditBase fan-out: emit structured AuditFindings to the
+    # AuditBase fan-out: emit structured AuditFindings to the
     # standard {gate}_audit.md + {gate}_audit.json + .audit_findings.jsonl
     # artefacts. Failure to write the audit-outputs artefacts must not
     # mask the legacy auditor's response — wrap in a guard.
@@ -354,7 +353,7 @@ def _handle_tool_audit_step_literature(name, arguments, root):
 
 
 def _handle_tool_audit_findings_query(name, arguments, root):
-    """Phase-4c: filter the cross-audit findings ledger.
+    """Filter the cross-audit findings ledger.
 
     Reads ``workspace/logs/.audit_findings.jsonl`` (latest snapshot per
     stable finding id), then filters by severity / dimension / step /
@@ -375,7 +374,7 @@ def _handle_tool_audit_findings_query(name, arguments, root):
 
 
 def _handle_tool_audit_findings_diff(name, arguments, root):
-    """Phase-4c: diff two snapshots of the findings ledger by stable id.
+    """Diff two snapshots of the findings ledger by stable id.
 
     Snapshots the ledger as of ``timestamp_a`` and ``timestamp_b`` (both
     ISO-8601), then reports findings added / resolved / changed between
@@ -431,7 +430,7 @@ def _handle_tool_audit_code_quality(name, arguments, root):
         run_mypy=bool(arguments.get("run_mypy", False)),
     )
 
-    # Phase-4 structured artefacts (JSON + JSONL ledger) alongside the
+    # Structured artefacts (JSON + JSONL ledger) alongside the
     # legacy markdown. Re-running audit_code_quality is cheap and keeps
     # the two output paths trivially consistent; if that ever shows up
     # in a profile, lift the per_step walk out into a shared helper.
@@ -473,12 +472,12 @@ def _handle_tool_audit_claims(name, arguments, root):
     target_path = arguments.get("target_path")
     tolerance = float(arguments.get("tolerance", 0.01))
 
-    # Legacy procedural call still produces synthesis/claim_index.json and
-    # workspace/logs/claim_grounding.md byte-identical to v1.x — keep it
-    # as the source of truth for the response body that callers consume.
+    # Legacy procedural call produces synthesis/claim_index.json and
+    # workspace/logs/claim_grounding.md and is the source of truth for
+    # the response body that callers consume.
     result = audit_claims(root, target_path=target_path, tolerance=tolerance)
 
-    # Phase-4 AuditBase fan-out: emit structured AuditFindings to the
+    # AuditBase fan-out: emit structured AuditFindings to the
     # standard {gate}_audit.md + {gate}_audit.json + .audit_findings.jsonl
     # artefacts. Failure to write the audit-outputs artefacts must not
     # mask the legacy auditor's response — wrap in a guard.
@@ -520,10 +519,10 @@ def _handle_tool_audit_quality_full(name, arguments, root):
         skip=arguments.get("skip"),
     )
 
-    # 2) Phase-4 structured findings — fan out to the v2 writer so the
+    # 2) Structured findings — fan out to the writer so the
     # JSON companion + the cross-audit .audit_findings.jsonl ledger
     # pick up this run. Failures here must NEVER take the legacy
-    # result down with them; the v2 writer is best-effort and
+    # result down with them; the structured writer is best-effort and
     # supplementary.
     try:
         audit = AuditMaster()

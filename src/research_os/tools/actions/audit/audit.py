@@ -479,9 +479,9 @@ def audit_synthesis(
             "blockers": gate_blockers,
             "message": message,
         }
-        # Phase-4 migration: derive structured AuditFindings from the
-        # result dict and emit the companion .json + .audit_findings.jsonl
-        # artefacts. The legacy markdown report written above (under
+        # Derive structured AuditFindings from the result dict and emit
+        # the companion .json + .audit_findings.jsonl artefacts. The
+        # markdown report written above (under
         # outputs/reports/synthesis_audit.md or logs/synthesis_audit.md)
         # is preserved byte-for-byte so existing readers + the documented
         # report_path return field keep working; the new artefacts are
@@ -500,7 +500,7 @@ def audit_synthesis(
             write_audit_outputs(findings, "synthesis", root)
             result["findings"] = [f.to_dict() for f in findings]
         except Exception as exc:  # pragma: no cover - best-effort persist
-            logger.debug("phase-4 synthesis findings persist failed: %s", exc)
+            logger.debug("synthesis findings persist failed: %s", exc)
         return result
     except Exception as e:
         logger.exception("audit_synthesis failed")
@@ -1061,16 +1061,15 @@ def audit_quality_full(
 
 
 # ---------------------------------------------------------------------------
-# Phase-4 wrapper — AuditBase subclass for ``audit_quality_full``.
+# AuditBase subclass for ``audit_quality_full``.
 #
-# The legacy aggregator still writes ``workspace/logs/audit_master.md`` and
-# returns the dict shape that ``tool_synthesize`` + the dashboard already
-# parse. ``AuditMaster`` is additive: it repackages the same blocker /
-# warning set as structured :class:`AuditFinding` objects so the v2
-# ``write_audit_outputs`` writer can fan them out to
-# ``workspace/audit_master_audit.{md,json}`` + the
-# ``workspace/logs/.audit_findings.jsonl`` cross-audit ledger. The legacy
-# markdown is NEVER replaced — a snapshot test pins its format.
+# The aggregator writes ``workspace/logs/audit_master.md`` and returns the
+# dict shape that ``tool_synthesize`` + the dashboard parse. ``AuditMaster``
+# is additive: it repackages the same blocker / warning set as structured
+# :class:`AuditFinding` objects so the ``write_audit_outputs`` writer can
+# fan them out to ``workspace/audit_master_audit.{md,json}`` + the
+# ``workspace/logs/.audit_findings.jsonl`` cross-audit ledger. The markdown
+# is NEVER replaced — a snapshot test pins its format.
 # ---------------------------------------------------------------------------
 
 
@@ -1203,16 +1202,16 @@ def _build_master_finding(
 
 
 class AuditMaster(AuditBase):
-    """Phase-4 :class:`AuditBase` wrapper around :func:`audit_quality_full`.
+    """:class:`AuditBase` wrapper around :func:`audit_quality_full`.
 
     Subclasses :class:`AuditBase`; emits the same blocker / warning set
-    as the legacy aggregator, repackaged as :class:`AuditFinding`
-    objects so the v2 ``write_audit_outputs`` writer can fan them to
+    as the aggregator, repackaged as :class:`AuditFinding` objects so
+    the ``write_audit_outputs`` writer can fan them to
     ``workspace/audit_master_audit.{md,json}`` + the
     ``workspace/logs/.audit_findings.jsonl`` ledger.
 
-    The legacy markdown at ``workspace/logs/audit_master.md`` is NOT
-    replaced — :func:`audit_quality_full` writes it on every call, and a
+    The markdown at ``workspace/logs/audit_master.md`` is NOT replaced
+    — :func:`audit_quality_full` writes it on every call, and a
     snapshot regression test pins the format. This class is additive
     so downstream readers (the dashboard, ``tool_synthesize``) keep
     working byte-for-byte unchanged.
@@ -2106,7 +2105,7 @@ def audit_step_completeness(
 
 
 # ---------------------------------------------------------------------------
-# Phase-4 AuditBase wrapper for tool_audit_step_completeness
+# AuditBase wrapper for tool_audit_step_completeness
 # ---------------------------------------------------------------------------
 
 
@@ -2114,8 +2113,7 @@ def audit_step_completeness(
 # NAMESPACE_DNS with a deterministic key (audit_name + dimension +
 # evidence_paths) means re-running the same audit against the same
 # workspace produces the same id — the .audit_findings.jsonl ledger
-# doesn't churn IDs across reruns, which is what Phase-4 dashboards
-# diff on.
+# doesn't churn IDs across reruns, which is what dashboards diff on.
 _STEP_COMPLETENESS_NS = uuid.NAMESPACE_DNS
 
 
@@ -2127,12 +2125,12 @@ def _step_completeness_finding_uuid(
 ) -> str:
     """Derive a stable UUIDv5 from the salient fields of a finding.
 
-    Per Phase-4 spec: ``audit_name + dimension + evidence_paths`` is the
-    key. Severity + suggested_fix are deliberately omitted so a blocker
-    that downgrades to a warning across runs (e.g. the stack_plan rule
-    with an active self-certification) keeps the same id — Phase-4
-    dashboards then see "same finding, severity changed" rather than
-    "old finding gone, new finding appeared".
+    The id key is ``audit_name + dimension + evidence_paths``. Severity
+    + suggested_fix are deliberately omitted so a blocker that
+    downgrades to a warning across runs (e.g. the stack_plan rule with
+    an active self-certification) keeps the same id — dashboards then
+    see "same finding, severity changed" rather than "old finding
+    gone, new finding appeared".
     """
     key = "|".join([
         audit_name,
@@ -2229,16 +2227,16 @@ def _completeness_evidence_paths(step_id: str, dimension: str) -> list[str]:
 
 
 class StepCompletenessAudit(AuditBase):
-    """Phase-4 :class:`AuditBase` wrapper around :func:`audit_step_completeness`.
+    """:class:`AuditBase` wrapper around :func:`audit_step_completeness`.
 
     Delegates the heavy lifting to :func:`audit_step_completeness` (which
     preserves the legacy markdown report at
-    ``workspace/logs/step_completeness.md`` byte-identical to v1.x) and
-    then folds the resulting per-step blockers + warnings into a flat
-    ``list[AuditFinding]`` that the orchestrator can persist via
-    :func:`write_audit_outputs`. The legacy markdown stays untouched so
-    every downstream consumer (dashboard, override log, finalize gate)
-    continues to read the same file.
+    ``workspace/logs/step_completeness.md``) and then folds the resulting
+    per-step blockers + warnings into a flat ``list[AuditFinding]`` that
+    the orchestrator can persist via :func:`write_audit_outputs`. The
+    legacy markdown stays untouched so every downstream consumer
+    (dashboard, override log, finalize gate) continues to read the same
+    file.
     """
 
     name = "step_completeness"

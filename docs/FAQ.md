@@ -12,7 +12,7 @@ projects upgrade with zero call-site edits. After
 `pip install --upgrade research-os`, run **`research-os doctor`** for
 an 18-check install + workspace health report (exit 0 = all pass,
 1 = warn-only, 2 = fail). See
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) for the full upgrade
+`CHANGELOG.md [2.0.0]` for the full upgrade
 recipe.
 
 Other v2.0.0 highlights:
@@ -43,7 +43,7 @@ The Phase 15b 20-agent validation moved the mean rating
 v2.0.0 ships with a documented YELLOW caveat that the absolute
 release-gate targets (calibrated against a v3-grade product) were
 not met. See
-[V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md) for the full
+`CHANGELOG.md [2.0.0]` for the full
 analysis.
 
 ---
@@ -519,13 +519,13 @@ for a quick view of which deprecated aliases your project still hits.
 
 The canonical v2 name is `tool_audit(scope='step',
 dimension='completeness')`. The full old → new mapping is at
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md).
+`CHANGELOG.md [2.0.0]`.
 
 ### What if my AI invents a tool name that doesn't exist?
 
 If the AI calls a name that's in `_REMOVED_TOOLS` (24 names
 hard-removed in v2.0.0 — see Phase 14a in
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md)), Research-OS returns
+`CHANGELOG.md [2.0.0]`), Research-OS returns
 a friendly error naming the canonical v2 entry point. Example:
 
 > `tool_search_pubmed` was renamed to `tool_search` in v1.6.1 and

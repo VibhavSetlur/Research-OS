@@ -15,28 +15,24 @@ _ALIASES = {
     # Dot notation is handled generically by the dispatcher's dot→underscore
     # rewrite, no need to list here.
     "sys_state_summary": "sys_state_get",
-    # tool_log_decision was historically a nickname chaining through
-    # mem_decision_log → mem_log. mem_decision_log was hard-removed in
-    # phase-14a, so tool_log_decision now maps directly to mem_log
-    # with kind=decision injection so the nickname keeps working.
+    # Silent nickname mapping directly to mem_log with kind=decision injection.
     "tool_log_decision": "mem_log",
     "view_workspace_tree": "sys_workspace_tree",
 
     # ── consolidation aliases ─────────────────────────
-    # NOTE — Phase 14a: the 21 first-wave consolidation aliases
-    # (tool_search_*, tool_plan_*, tool_ground[ing]_*, tool_claim_verify,
-    # tool_grounding_verify, tool_lessons_record/consult, sys_path_*,
-    # mem_methods_append, mem_decision_log, mem_hypothesis_update,
-    # mem_analysis_log) were hard-removed after a 4+ minor-version
-    # deprecation runway. Callers using those names now get a friendly
+    # The first-wave consolidation aliases (tool_search_*, tool_plan_*,
+    # tool_ground[ing]_*, tool_claim_verify, tool_grounding_verify,
+    # tool_lessons_record/consult, sys_path_*, mem_methods_append,
+    # mem_decision_log, mem_hypothesis_update, mem_analysis_log) are
+    # hard-removed. Callers using those names now get a friendly
     # _REMOVED_TOOLS message naming the canonical entry point.
-    # Lessons + failure-memory + dead-end + mistake-replay (8 → 1) — phase-9-c4.
+    # Lessons + failure-memory + dead-end + mistake-replay (8 → 1).
     "tool_failure_record":   "tool_lessons",
     "tool_failure_check":    "tool_lessons",
     "tool_failure_list":     "tool_lessons",
     "tool_dead_end_lessons": "tool_lessons",
     "tool_mistake_replay":   "tool_lessons",
-    # Reliability log (2 → 1) — phase-9-c4.
+    # Reliability log (2 → 1).
     "tool_reliability_log_event": "tool_reliability",
     "tool_reliability_report":    "tool_reliability",
 
@@ -94,44 +90,44 @@ _ALIASES = {
     "tool_step_pipeline_status":   "tool_step_pipeline",
     "tool_step_pipeline_diagram":  "tool_step_pipeline",
 
-    # ── sensitivity cluster (2 → 1) — phase-9-c5 ──────
+    # ── sensitivity cluster (2 → 1) ──────
     "tool_sensitivity_define":     "tool_sensitivity",
     "tool_sensitivity_run":        "tool_sensitivity",
-    # ── preregister cluster (2 → 1) — phase-9-c5 ──────
+    # ── preregister cluster (2 → 1) ──────
     "tool_preregister_freeze":     "tool_preregister",
     "tool_preregister_diff":       "tool_preregister",
-    # ── reviewer cluster (4 → 1) — phase-9-c6 ─────────
+    # ── reviewer cluster (4 → 1) ─────────
     "tool_reviewer_simulate":          "tool_reviewer",
     "tool_response_to_reviewers":      "tool_reviewer",
     "tool_rebuttal_draft":             "tool_reviewer",
     "tool_reviewer_response_compile":  "tool_reviewer",
-    # ── data cluster (3 → 1) — phase-9-c7 ─────────────
+    # ── data cluster (3 → 1) ─────────────
     "tool_data_sample":                "tool_data",
     "tool_data_profile":               "tool_data",
     "tool_data_convert":               "tool_data",
-    # ── figure cluster (4 → 1) — phase-9-c7 ───────────
+    # ── figure cluster (4 → 1) ───────────
     "tool_figure_palette":             "tool_figure",
     "tool_figure_caption_synthesise":  "tool_figure",
     "tool_figure_interactive_autogen": "tool_figure",
     "tool_paper_figures_autoembed":    "tool_figure",
-    # ── thought cluster (2 → 1) — phase-9-c7 ──────────
+    # ── thought cluster (2 → 1) ──────────
     "tool_thought_log":                "tool_thought",
     "tool_thought_trace":              "tool_thought",
-    # ── scratch cluster (4 → 1) — phase-9-c8 ──────────
+    # ── scratch cluster (4 → 1) ──────────
     "tool_scratch_write":              "tool_scratch",
     "tool_scratch_run":                "tool_scratch",
     "tool_scratch_list":               "tool_scratch",
     "tool_scratch_clear":              "tool_scratch",
-    # ── task cluster (4 → 1) — phase-9-c8 ─────────────
+    # ── task cluster (4 → 1) ─────────────
     "tool_task_run":                   "tool_task",
     "tool_task_status":                "tool_task",
     "tool_task_list":                  "tool_task",
     "tool_task_kill":                  "tool_task",
-    # ── sys_config cluster (3 → 1) — phase-9-c9 ──────
+    # ── sys_config cluster (3 → 1) ──────
     "sys_config_get":                  "sys_config",
     "sys_config_set":                  "sys_config",
     "sys_config_validate":             "sys_config",
-    # ── sys_env cluster (2 → 1) — phase-9-c9 ──────────
+    # ── sys_env cluster (2 → 1) ──────────
     "sys_env_snapshot":                "sys_env",
     "sys_env_docker_generate":         "sys_env",
 }
@@ -139,19 +135,17 @@ _ALIASES = {
 # Aliases that should fire deprecation telemetry when invoked. Every name
 # here MUST resolve through _ALIASES to a real handler — preflight enforces.
 #
-# NOTE — Phase 14a: the 21 first-wave consolidation aliases
-# (tool_search_*, tool_plan_*, tool_ground[ing]_*, tool_claim_verify,
-# tool_grounding_verify, tool_lessons_record/consult, sys_path_*,
-# mem_methods_append, mem_decision_log, mem_hypothesis_update,
-# mem_analysis_log) were hard-removed after a 4+ minor-version
-# deprecation runway and now live in _REMOVED_TOOLS, not here.
+# The first-wave consolidation aliases (tool_search_*, tool_plan_*,
+# tool_ground[ing]_*, tool_claim_verify, tool_grounding_verify,
+# tool_lessons_record/consult, sys_path_*, mem_methods_append,
+# mem_decision_log, mem_hypothesis_update, mem_analysis_log) are
+# hard-removed and now live in _REMOVED_TOOLS, not here.
 _DEPRECATED_ALIASES = {
-    # tool_log_decision is a silent nickname pre-dating v1.6.1, but with
-    # mem_decision_log removed in v2.0.0 it now needs param injection to
+    # tool_log_decision is a silent nickname that needs param injection to
     # reach the canonical mem_log handler. Listed here so the dispatcher
     # invokes _inject_consolidation_param on every call.
     "tool_log_decision",
-    # ── lessons + failure + reliability cluster (10 → 2) — phase-9-c4 ──
+    # ── lessons + failure + reliability cluster (10 → 2) ──
     "tool_failure_record",
     "tool_failure_check",
     "tool_failure_list",
@@ -183,9 +177,9 @@ _DEPRECATED_ALIASES = {
     "tool_audit_reviewer_responses",
     "tool_audit_findings_query",
     "tool_audit_findings_diff",
-    # Legacy nickname aliases now also flow through the consolidated
-    # tool_audit dispatcher and need param injection. Pre-v2 they silently
-    # mapped to tool_audit_figure_full / tool_audit_power.
+    # Legacy nickname aliases that flow through the consolidated
+    # tool_audit dispatcher and need param injection. They map to
+    # tool_audit_figure_full / tool_audit_power respectively.
     "tool_audit_figure_quality",
     "tool_audit_statistical_power",
     # ── dashboard cluster (7 → 1) ──────────────────────
@@ -205,44 +199,44 @@ _DEPRECATED_ALIASES = {
     "tool_step_pipeline_run",
     "tool_step_pipeline_status",
     "tool_step_pipeline_diagram",
-    # ── sensitivity cluster (2 → 1) — phase-9-c5 ──────
+    # ── sensitivity cluster (2 → 1) ──────
     "tool_sensitivity_define",
     "tool_sensitivity_run",
-    # ── preregister cluster (2 → 1) — phase-9-c5 ──────
+    # ── preregister cluster (2 → 1) ──────
     "tool_preregister_freeze",
     "tool_preregister_diff",
-    # ── reviewer cluster (4 → 1) — phase-9-c6 ─────────
+    # ── reviewer cluster (4 → 1) ─────────
     "tool_reviewer_simulate",
     "tool_response_to_reviewers",
     "tool_rebuttal_draft",
     "tool_reviewer_response_compile",
-    # ── data cluster (3 → 1) — phase-9-c7 ─────────────
+    # ── data cluster (3 → 1) ─────────────
     "tool_data_sample",
     "tool_data_profile",
     "tool_data_convert",
-    # ── figure cluster (4 → 1) — phase-9-c7 ───────────
+    # ── figure cluster (4 → 1) ───────────
     "tool_figure_palette",
     "tool_figure_caption_synthesise",
     "tool_figure_interactive_autogen",
     "tool_paper_figures_autoembed",
-    # ── thought cluster (2 → 1) — phase-9-c7 ──────────
+    # ── thought cluster (2 → 1) ──────────
     "tool_thought_log",
     "tool_thought_trace",
-    # ── scratch cluster (4 → 1) — phase-9-c8 ──────────
+    # ── scratch cluster (4 → 1) ──────────
     "tool_scratch_write",
     "tool_scratch_run",
     "tool_scratch_list",
     "tool_scratch_clear",
-    # ── task cluster (4 → 1) — phase-9-c8 ─────────────
+    # ── task cluster (4 → 1) ─────────────
     "tool_task_run",
     "tool_task_status",
     "tool_task_list",
     "tool_task_kill",
-    # ── sys_config cluster (3 → 1) — phase-9-c9 ──────
+    # ── sys_config cluster (3 → 1) ──────
     "sys_config_get",
     "sys_config_set",
     "sys_config_validate",
-    # ── sys_env cluster (2 → 1) — phase-9-c9 ──────────
+    # ── sys_env cluster (2 → 1) ──────────
     "sys_env_snapshot",
     "sys_env_docker_generate",
 }
@@ -258,10 +252,9 @@ _DEPRECATED_ALIASES = {
 #   * tuple of (key, value) tuples — multi-kwarg injection (audit cluster
 #     needs both scope and dimension).
 _ALIAS_PARAM_INJECTION: dict[str, Any] = {
-    # Silent nickname kept alive across v2.0.0 — chains to mem_log
-    # (mem_decision_log itself was hard-removed in phase-14a).
+    # Silent nickname — chains to mem_log with kind=decision injection.
     "tool_log_decision":            ("kind", "decision"),
-    # ── lessons + failure + reliability cluster — phase-9-c4 ──
+    # ── lessons + failure + reliability cluster ──
     "tool_failure_record":          ("operation", "failure_record"),
     "tool_failure_check":           ("operation", "failure_check"),
     "tool_failure_list":            ("operation", "failure_list"),
@@ -317,44 +310,44 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_step_pipeline_run":             ("operation", "run"),
     "tool_step_pipeline_status":          ("operation", "status"),
     "tool_step_pipeline_diagram":         ("operation", "diagram"),
-    # ── sensitivity cluster (2 → 1) — phase-9-c5 ──────
+    # ── sensitivity cluster (2 → 1) ──────
     "tool_sensitivity_define":            ("operation", "define"),
     "tool_sensitivity_run":               ("operation", "run"),
-    # ── preregister cluster (2 → 1) — phase-9-c5 ──────
+    # ── preregister cluster (2 → 1) ──────
     "tool_preregister_freeze":            ("operation", "freeze"),
     "tool_preregister_diff":              ("operation", "diff"),
-    # ── reviewer cluster (4 → 1) — phase-9-c6 ─────────
+    # ── reviewer cluster (4 → 1) ─────────
     "tool_reviewer_simulate":             ("operation", "simulate"),
     "tool_response_to_reviewers":         ("operation", "response"),
     "tool_rebuttal_draft":                ("operation", "rebuttal"),
     "tool_reviewer_response_compile":     ("operation", "compile"),
-    # ── data cluster (3 → 1) — phase-9-c7 ─────────────
+    # ── data cluster (3 → 1) ─────────────
     "tool_data_sample":                   ("operation", "sample"),
     "tool_data_profile":                  ("operation", "profile"),
     "tool_data_convert":                  ("operation", "convert"),
-    # ── figure cluster (4 → 1) — phase-9-c7 ───────────
+    # ── figure cluster (4 → 1) ───────────
     "tool_figure_palette":                ("operation", "palette"),
     "tool_figure_caption_synthesise":     ("operation", "caption_synthesise"),
     "tool_figure_interactive_autogen":    ("operation", "interactive_autogen"),
     "tool_paper_figures_autoembed":       ("operation", "paper_autoembed"),
-    # ── thought cluster (2 → 1) — phase-9-c7 ──────────
+    # ── thought cluster (2 → 1) ──────────
     "tool_thought_log":                   ("operation", "log"),
     "tool_thought_trace":                 ("operation", "trace"),
-    # ── scratch cluster (4 → 1) — phase-9-c8 ──────────
+    # ── scratch cluster (4 → 1) ──────────
     "tool_scratch_write":                 ("operation", "write"),
     "tool_scratch_run":                   ("operation", "run"),
     "tool_scratch_list":                  ("operation", "list"),
     "tool_scratch_clear":                 ("operation", "clear"),
-    # ── task cluster (4 → 1) — phase-9-c8 ─────────────
+    # ── task cluster (4 → 1) ─────────────
     "tool_task_run":                      ("operation", "run"),
     "tool_task_status":                   ("operation", "status"),
     "tool_task_list":                     ("operation", "list"),
     "tool_task_kill":                     ("operation", "kill"),
-    # ── sys_config cluster (3 → 1) — phase-9-c9 ──────
+    # ── sys_config cluster (3 → 1) ──────
     "sys_config_get":                     ("operation", "get"),
     "sys_config_set":                     ("operation", "set"),
     "sys_config_validate":                ("operation", "validate"),
-    # ── sys_env cluster (2 → 1) — phase-9-c9 ──────────
+    # ── sys_env cluster (2 → 1) ──────────
     "sys_env_snapshot":                   ("operation", "snapshot"),
     "sys_env_docker_generate":            ("operation", "docker_generate"),
 }
@@ -373,8 +366,8 @@ _REMOVED_TOOLS = {
         "you're unsure which plotting library is canonical for this data type. "
         "tool_figure(operation='palette') + tool_audit(scope='step', dimension='figure_full') are unchanged."
     ),
-    # ── Phase 14a: first-wave consolidation aliases hard-removed
-    # after their deprecation runway expired (see CHANGELOG for the
+    # First-wave consolidation aliases hard-removed after their
+    # deprecation runway expired (see CHANGELOG for the
     # introduction → removal version pair).
     # Search cluster (5 → 1).
     "tool_search_semantic_scholar": (
@@ -427,8 +420,8 @@ _REMOVED_TOOLS = {
         "tool_grounding_verify: renamed to tool_verify in v1.6.1, removed in v2.0.0; "
         "call tool_verify(scope='project', ...) instead."
     ),
-    # Lessons cluster (record/consult slice was the first-wave introduction;
-    # the rest of the lessons family is still aliased — see CHANGELOG).
+    # Lessons cluster (record/consult slice; the rest of the lessons
+    # family is still aliased — see CHANGELOG).
     "tool_lessons_record": (
         "tool_lessons_record: renamed to tool_lessons in v1.6.1, removed in v2.0.0; "
         "call tool_lessons(operation='record', ...) instead."
@@ -467,11 +460,11 @@ _REMOVED_TOOLS = {
         "mem_analysis_log: renamed to mem_log in v1.6.1, removed in v2.0.0; "
         "call mem_log(kind='analysis', entry='...') instead."
     ),
-    # ── Phase 14b: tikzposter LaTeX poster path hard-removed in v2.0.0.
-    # The tool name is unchanged (tool_poster_create) but the engine='latex'
-    # branch + the create_poster() function under synthesis/latex.py +
-    # the layout/audience kwargs are gone. Callers that referenced the old
-    # tool name nicknames get a clear migration message.
+    # Tikzposter LaTeX poster path is hard-removed. tool_poster_create
+    # still exists but the engine='latex' branch, create_poster() under
+    # synthesis/latex.py, and the layout/audience kwargs are gone.
+    # Callers that referenced the old tool name nicknames get a clear
+    # migration message.
     "tool_poster_create_latex": (
         "tool_poster_create_latex was never a real tool name. The legacy "
         "tikzposter LaTeX poster path was reachable through tool_poster_create "

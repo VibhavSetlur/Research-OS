@@ -14,6 +14,62 @@ See `research-os <command> --help` for full flag reference.
 
 ---
 
+## `research-os init`
+
+Scaffolds a Research OS workspace ready for any AI IDE. Interactive by default; pass `--yes` for non-interactive / scripted use.
+
+```bash
+# Interactive 7-step arrow-key wizard (default).
+research-os init
+
+# Non-interactive / CI / scripted — wires only Claude Code, no prompts.
+research-os init . --yes --name "my-project" --ide claude
+
+# Wire all supported IDEs.
+research-os init . --yes --ide all
+
+# Skip IDE wiring entirely (e.g. for headless / CI / multi-user HPC).
+research-os init . --yes --ide none
+
+# Comma-separated list of specific IDEs.
+research-os init . --yes --ide cursor,vscode,windsurf
+```
+
+### `--ide` values
+
+`cursor`, `claude`, `antigravity`, `opencode`, `vscode`, `windsurf`, `continue`, `aider` — plus the sentinels:
+
+- `all` — wire every supported IDE (drops MCP config files in each).
+- `none` — first-class opt-out; no MCP config written.
+
+Unknown values exit non-zero with a message listing valid options.
+
+---
+
+## `research-os ide add | remove | list`
+
+Wires / unwires / inspects AI IDE MCP configs in an existing workspace without re-running `init`. Use this when you start using a new IDE on a project that's already initialized.
+
+```bash
+research-os ide add cursor              # add Cursor MCP config to this workspace
+research-os ide remove vscode           # remove VS Code's
+research-os ide list                    # which IDEs are wired here
+research-os ide config-path claude      # print the absolute path of the config file
+```
+
+---
+
+## `research-os start`
+
+Runs the MCP server. Your AI IDE auto-launches this; you rarely call it directly.
+
+```bash
+research-os start                       # uses current directory as workspace
+research-os start --workspace /path/to/project
+```
+
+---
+
 ## `research-os doctor`
 
 Runs a battery of health checks against the install and (if invoked

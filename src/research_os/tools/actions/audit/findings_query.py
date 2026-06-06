@@ -1,6 +1,6 @@
-"""Phase-4c downstream consumers for the cross-audit findings ledger.
+"""Downstream consumers for the cross-audit findings ledger.
 
-Every Phase-4 audit appends one JSON-per-line entry to
+Every audit appends one JSON-per-line entry to
 ``workspace/logs/.audit_findings.jsonl`` via
 :func:`research_os.tools.actions.audit._base.write_audit_outputs`. The
 ledger is append-only so a project rerun preserves the full historical
@@ -395,7 +395,7 @@ def audit_findings_diff(
 
 
 # ---------------------------------------------------------------------------
-# Helper used by tool_synthesize's BLOCK-gate (Phase-4c task 3)
+# Helper used by tool_synthesize's BLOCK-gate
 # ---------------------------------------------------------------------------
 
 
