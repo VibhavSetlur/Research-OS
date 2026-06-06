@@ -152,6 +152,12 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/research_os/server.py" = ["E402"]
 "src/research_os/state/state_ledger.py" = ["E402"]
+# Phase-10 modular split: handler modules use `from .._handlers_runtime
+# import *` so each carved-out file inherits the runtime surface (envelopes,
+# logger, lazy-imported tool actions, helper funcs) without re-declaring it.
+# F403/F405 are the intended pattern here.
+"src/research_os/server/handlers/*.py" = ["F403", "F405"]
+"src/research_os/server/__init__.py" = ["F403", "F405"]
 # __init__.py re-exports legitimately import-and-export without using
 # the symbol inline. Limit F401 ignore to __init__.py so the rest of
 # the source tree can flag genuinely unused imports.

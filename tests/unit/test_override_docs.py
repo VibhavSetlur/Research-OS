@@ -16,7 +16,9 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SERVER_PY = REPO_ROOT / "src" / "research_os" / "server.py"
+# Phase 10 — server.py was split into a server/ package; override_* kwargs
+# now live across server/_core.py + server/handlers/*.py. Grep all of them.
+SERVER_DIR = REPO_ROOT / "src" / "research_os" / "server"
 TOOLS_MD = REPO_ROOT / "docs" / "TOOLS.md"
 AI_GUIDE_MD = REPO_ROOT / "docs" / "AI_GUIDE.md"
 
@@ -33,12 +35,16 @@ _RESPONSE_ONLY = {
 
 
 def _override_kwargs_from_server() -> set[str]:
-    """Return every override_<name> token used as a kwarg on server.py.
+    """Return every override_<name> token used as a kwarg on server source.
 
     Excludes response-shape / local-variable tokens that are not
     user-facing call-site kwargs.
     """
-    src = SERVER_PY.read_text()
+    src = ""
+    for path in SERVER_DIR.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        src += path.read_text()
     # Match override_<lowercase_word> tokens.
     tokens = set(re.findall(r"override_[a-z_]+", src))
     return tokens - _RESPONSE_ONLY
