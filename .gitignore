@@ -86,3 +86,18 @@ scratch/
 
 # Workflow per-release spec scratch (workflow run artefacts, not source)
 /.v*.*_specs/
+
+# docs/ clutter blocklist — version-tagged reports + working scratchpads
+# belong in CHANGELOG + git history, never in the working tree.
+/docs/v*_handoff/
+/docs/*_handoff/
+/docs/AUDIT_v*.md
+/docs/USABILITY_v*.md
+/docs/CHANGELOG_DETAILED_v*.md
+/docs/MIGRATION_v*.md
+/docs/V[0-9]*.md
+/docs/V[0-9]*/
+/docs/audit_v*/
+/docs/usability_v*/
+/docs/PHASE_*.md
+/docs/archive/

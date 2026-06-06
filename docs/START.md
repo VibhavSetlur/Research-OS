@@ -238,7 +238,7 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
   `tool_step`, `tool_lessons`, etc.) dispatch by `scope` / `operation`
   / `dimension`. Every v1 tool name still works via 80 backward-compat
   aliases for the v2.0.x patch line — see
-  [MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) for the surface map.
+  `CHANGELOG.md [2.0.0]` for the surface map.
 
 ---
 
@@ -511,7 +511,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    - `docs/RESEARCHER_GUIDE.md` — full workflow walkthrough
 >    - `docs/USE_CASES.md` — role × goal × output map
 >    - `docs/FAQ.md` — common questions
->    - `docs/MIGRATION_v1_to_v2.md` — if upgrading from v1.x
+>    - `CHANGELOG.md [2.0.0]` — if upgrading from v1.x
 
 ---
 
@@ -527,7 +527,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 * [FAQ.md](FAQ.md) — common questions.
 * [PROTOCOLS.md](PROTOCOLS.md) — catalogue of every protocol.
 * [TOOLS.md](TOOLS.md) — catalogue of every MCP tool.
-* [MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) — if you're coming
+* `CHANGELOG.md [2.0.0]` — if you're coming
   from v1.x: the consolidated tool surface + alias map.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving
   Research OS (useful for debugging "why did the AI do that?").

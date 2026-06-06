@@ -167,7 +167,7 @@ Every legacy name still works via `_ALIASES` + `_ALIAS_PARAM_INJECTION`
 through the v2.0.x patch line. Phase 14 hard-removed 24 explicit
 `_REMOVED_TOOLS` entries; calling those returns a structured error
 naming the canonical entry point. Full surface map:
-[`docs/MIGRATION_v1_to_v2.md`](MIGRATION_v1_to_v2.md).
+`CHANGELOG.md [2.0.0]`.
 
 ---
 

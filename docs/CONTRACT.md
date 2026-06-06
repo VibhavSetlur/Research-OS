@@ -14,7 +14,7 @@ MAJOR-bump signal.
 v2.0.x patch line and v2.x minor series. Pin `~= 2.0` and the listed
 guarantees hold. The v2.0.0 release ships with a documented YELLOW
 caveat on absolute quality targets (see
-[V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md)); none of the
+`CHANGELOG.md [2.0.0]`); none of the
 deferred items affect the contract surface.
 
 Versioning rules (see also [RELEASING.md](RELEASING.md)):
@@ -58,7 +58,7 @@ required-field changes are MAJOR. Deprecated names live on as
 aliases for one MAJOR line: v2.0.x dispatches 78 deprecated names
 via `_DEPRECATED_ALIASES` + `_ALIAS_PARAM_INJECTION`; the v1.6.1
 first-wave aliases (21 names — see Phase 14a in
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md)) were hard-removed
+`CHANGELOG.md [2.0.0]`) were hard-removed
 in v2.0.0 after their 4-minor-version deprecation runway.
 
 Every tool definition carries two MAJOR-stable metadata fields:
@@ -355,8 +355,8 @@ MINOR.
 | Top-level `researcher_config.yaml` sections | 12 |
 
 The v2.0.0 release notes and migration table live at
-[V2_RELEASE_NOTES.md](V2_RELEASE_NOTES.md),
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md), and
-[V2_MIGRATION_TABLE.md](V2_MIGRATION_TABLE.md). The 20-agent
+`CHANGELOG.md [2.0.0]`,
+`CHANGELOG.md [2.0.0]`, and
+`CHANGELOG.md [2.0.0]`. The 20-agent
 validation report (Phase 15b) is
-[V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md).
+`CHANGELOG.md [2.0.0]`.
