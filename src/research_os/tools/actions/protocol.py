@@ -332,7 +332,31 @@ def load_protocol(
     """
     file = _find_protocol_file(name)
     if not file:
-        raise FileNotFoundError(f"Protocol '{name}' not found in {PROTOCOLS_DIR}")
+        # Build a nearest-match suggestion list so the AI gets a "did you
+        # mean" hint instead of just "not found".
+        try:
+            import difflib
+            available = [
+                p.relative_to(PROTOCOLS_DIR).with_suffix("").as_posix()
+                for p in PROTOCOLS_DIR.rglob("*.yaml")
+                if not p.name.startswith("_")
+            ]
+            for pdir in _pack_protocol_dirs_safe().values():
+                available.extend(
+                    p.relative_to(pdir).with_suffix("").as_posix()
+                    for p in pdir.rglob("*.yaml") if not p.name.startswith("_")
+                )
+            suggestions = difflib.get_close_matches(name, available, n=3, cutoff=0.6)
+        except Exception:
+            suggestions = []
+        suffix = (
+            f" Did you mean: {', '.join(suggestions)}?"
+            if suggestions else ""
+        )
+        raise FileNotFoundError(
+            f"Protocol '{name}' not found in {PROTOCOLS_DIR}.{suffix} "
+            "Call sys_protocols_list to see the live catalog."
+        )
     with open(file) as f:
         data = yaml.safe_load(f) or {}
 
