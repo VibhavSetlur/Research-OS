@@ -107,6 +107,9 @@ from .aliases import (  # noqa: E402,F401
     _REMOVED_TOOLS,
 )
 
+# Dispatcher resolution used by sys_tool_describe to follow alias chains.
+from .dispatch import _resolve_tool_name  # noqa: E402,F401
+
 
 # Shared helper funcs used by multiple handler modules (_log_search,
 # _read_profile, _recommended_action_for_route, _build_tree,
@@ -130,6 +133,7 @@ from ._helpers import (  # noqa: E402,F401
 __all__ = [
     # aliases
     "_ALIASES", "_DEPRECATED_ALIASES", "_ALIAS_PARAM_INJECTION", "_REMOVED_TOOLS",
+    "_resolve_tool_name",
     # helpers
     "_log_search", "_read_profile", "_recommended_action_for_route",
     "_build_tree", "_latest_protocol_for_step", "_build_tier_progress",

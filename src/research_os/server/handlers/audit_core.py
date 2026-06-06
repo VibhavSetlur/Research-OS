@@ -96,7 +96,7 @@ def _handle_tool_audit_synthesis(name, arguments, root):
     from research_os.project_ops import log_override
 
     res = audit_synthesis(
-        arguments["paper_path"],
+        arguments.get("paper_path", "synthesis/paper.md"),
         root,
         override_no_pdfs=bool(arguments.get("override_no_pdfs", False)),
         override_rationale=str(arguments.get("override_rationale", "")),
