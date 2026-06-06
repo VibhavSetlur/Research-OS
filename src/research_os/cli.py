@@ -291,7 +291,7 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     )
     wizard.ok("Workspace scaffolded", str(target_dir))
 
-    # 2a. v1.3.0: opt-in cross-project profile save.
+    # 2a. Opt-in cross-project profile save.
     if getattr(r, "save_as_profile", False) and any(researcher_block.values()):
         try:
             from research_os.tools.actions.state.config import (
@@ -390,11 +390,10 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     if r.start_server:
         _try_start_server(target_dir)
 
-    # NOTE (v1.3.0): `CONTRIBUTORS.md` is no longer created automatically
-    # at init time. The previous default produced an opaque audit file in
-    # every fresh project that confused new users. It now only gets
-    # written when an action explicitly logs to it (e.g. `research-os ide
-    # add ...`, which is a deliberate change to project wiring).
+    # NOTE: `CONTRIBUTORS.md` is not created automatically at init time.
+    # It only gets written when an action explicitly logs to it (e.g.
+    # `research-os ide add ...`, which is a deliberate change to project
+    # wiring).
 
     # 11. Final report.
     stats = _count_scaffold(target_dir)
