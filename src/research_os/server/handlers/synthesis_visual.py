@@ -313,8 +313,8 @@ def _handle_tool_dashboard_create(name, arguments, root):
             suppress_audit_panel=override_requested and bool(completeness_warnings),
         )
     else:
-        from research_os.tools.actions.synthesis.dashboard_v2 import render_dashboard_v2
-        res = render_dashboard_v2(
+        from research_os.tools.actions.synthesis.dashboard_app import render_dashboard_app
+        res = render_dashboard_app(
             root,
             title=arguments.get("title"),
             audience=arguments.get("audience", "academic"),

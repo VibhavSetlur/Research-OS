@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from research_os.tools.actions.synthesis.dashboard_v2 import (
+from research_os.tools.actions.synthesis.dashboard_app import (
     CUSTOM_ELEMENTS_JS,
-    DASHBOARD_V2_CSS,
+    DASHBOARD_APP_CSS,
     _detect_capabilities,
     _build_search_index,
     bundled_js,
-    render_dashboard_v2,
+    render_dashboard_app,
 )
 
 
@@ -136,7 +136,7 @@ def test_bundled_js_conditional_loaded(tmp_path: Path):
 
 def test_renderer_basic_success(tmp_path: Path):
     _scaffold(tmp_path, n_steps=2)
-    res = render_dashboard_v2(tmp_path)
+    res = render_dashboard_app(tmp_path)
     assert res["status"] == "success"
     assert res["renderer"] == "v2"
     assert res["steps"] == 2
@@ -146,7 +146,7 @@ def test_renderer_basic_success(tmp_path: Path):
 
 def test_rendered_html_has_custom_elements(tmp_path: Path):
     _scaffold(tmp_path, with_interactive=True)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     for tag in ("ro-sidebar", "ro-search", "ro-filter", "ro-figure-toggle",
                 "ro-table", "ro-mode-toggle"):
@@ -156,7 +156,7 @@ def test_rendered_html_has_custom_elements(tmp_path: Path):
 def test_rendered_html_no_external_urls_in_src_href(tmp_path: Path):
     """Offline-only: no <script src=https://...> or <link href=https://...>."""
     _scaffold(tmp_path)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     bad = re.findall(r'(?:src|href)\s*=\s*["\']https?://[^"\']+["\']', html)
     assert not bad, f"external src/href found: {bad[:3]}"
@@ -164,14 +164,14 @@ def test_rendered_html_no_external_urls_in_src_href(tmp_path: Path):
 
 def test_rendered_html_has_meta_renderer_v2(tmp_path: Path):
     _scaffold(tmp_path)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert '<meta name="ro-renderer" content="v2">' in html
 
 
 def test_renderer_default_mode_respected(tmp_path: Path):
     _scaffold(tmp_path)
-    render_dashboard_v2(tmp_path, default_mode="story")
+    render_dashboard_app(tmp_path, default_mode="story")
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert '<meta name="ro-default-mode" content="story">' in html
     assert 'default="story"' in html
@@ -179,7 +179,7 @@ def test_renderer_default_mode_respected(tmp_path: Path):
 
 def test_renderer_search_disabled_drops_index(tmp_path: Path):
     _scaffold(tmp_path)
-    res = render_dashboard_v2(tmp_path, search_enabled=False)
+    res = render_dashboard_app(tmp_path, search_enabled=False)
     assert res["search_enabled"] is False
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     # The index script must be absent (the JS querySelector reference
@@ -193,7 +193,7 @@ def test_renderer_search_disabled_drops_index(tmp_path: Path):
 
 def test_renderer_print_optimized_toggle(tmp_path: Path):
     _scaffold(tmp_path)
-    render_dashboard_v2(tmp_path, print_optimized=False)
+    render_dashboard_app(tmp_path, print_optimized=False)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     # Without print css the @media print block is gone.
     assert "@media print" not in html
@@ -201,7 +201,7 @@ def test_renderer_print_optimized_toggle(tmp_path: Path):
 
 def test_search_index_includes_step_content(tmp_path: Path):
     _scaffold(tmp_path, n_steps=3)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     m = re.search(
         r'<script type="application/x-ro-search-index">(.*?)</script>',
@@ -217,7 +217,7 @@ def test_search_index_includes_step_content(tmp_path: Path):
 
 def test_figure_toggle_has_both_static_and_interactive(tmp_path: Path):
     _scaffold(tmp_path, with_interactive=True)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert 'interactive-src=' in html
     # The toggle element renders the tabs in JS; the data attrs are present:
@@ -226,7 +226,7 @@ def test_figure_toggle_has_both_static_and_interactive(tmp_path: Path):
 
 def test_figure_toggle_only_static_when_no_companion(tmp_path: Path):
     _scaffold(tmp_path, with_interactive=False)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     # interactive-src is still emitted (as empty) — verify
     assert re.search(r'interactive-src="\s*"', html), "expected empty interactive-src"
@@ -244,7 +244,7 @@ def test_verdicts_section_renders_as_ro_table(tmp_path: Path):
         {"id": "H2", "text": "another", "status": "refuted"},
     ]
     rl._save(data)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert '<ro-table name="verdicts">' in html
     assert "H1" in html and "H2" in html
@@ -252,7 +252,7 @@ def test_verdicts_section_renders_as_ro_table(tmp_path: Path):
 
 def test_sidebar_lists_steps(tmp_path: Path):
     _scaffold(tmp_path, n_steps=3)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     for i in range(1, 4):
         assert f"#step-0{i}-demo" in html or f"#step-{i:02d}-demo" in html
@@ -260,7 +260,7 @@ def test_sidebar_lists_steps(tmp_path: Path):
 
 def test_filter_chips_have_status_keys(tmp_path: Path):
     _scaffold(tmp_path)
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert 'data-key="status:completed"' in html or 'data-key="status:active"' in html
 
@@ -271,14 +271,14 @@ def test_renderer_records_commit_hash_when_git_present(tmp_path: Path):
     (git_dir / "refs" / "heads").mkdir(parents=True)
     (git_dir / "refs" / "heads" / "main").write_text("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n")
     (git_dir / "HEAD").write_text("ref: refs/heads/main\n")
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert "deadbeefdead" in html  # first 12 chars in footer
 
 
 def test_renderer_returns_js_bundles_list(tmp_path: Path):
     _scaffold(tmp_path)
-    res = render_dashboard_v2(tmp_path)
+    res = render_dashboard_app(tmp_path)
     assert "minisearch.min.js" in res["js_bundles"]
     assert "ro-custom-elements" in res["js_bundles"]
 
@@ -298,11 +298,11 @@ def test_custom_elements_define_all_eight(tmp_path: Path):
 
 
 def test_css_includes_print_stylesheet():
-    assert "@media print" in DASHBOARD_V2_CSS
+    assert "@media print" in DASHBOARD_APP_CSS
 
 
 def test_css_includes_dark_mode_block():
-    assert "prefers-color-scheme: dark" in DASHBOARD_V2_CSS
+    assert "prefers-color-scheme: dark" in DASHBOARD_APP_CSS
 
 
 def test_search_index_builder_produces_documents():

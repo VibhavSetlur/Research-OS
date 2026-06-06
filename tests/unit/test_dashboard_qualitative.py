@@ -14,14 +14,14 @@ from pathlib import Path
 import pytest
 import yaml
 
-from research_os.tools.actions.synthesis.dashboard_v2_qualitative import (
+from research_os.tools.actions.synthesis.dashboard_qualitative import (
     _build_codebook_section,
     _build_member_check_section,
     _build_saturation_section,
     _build_themes_section,
     render_qualitative_section,
 )
-from research_os.tools.actions.synthesis.dashboard_v2 import detect_active_pack
+from research_os.tools.actions.synthesis.dashboard_app import detect_active_pack
 
 
 # ── helpers ───────────────────────────────────────────────────────────
