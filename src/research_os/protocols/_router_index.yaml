@@ -1370,7 +1370,7 @@ protocols:
     decomposition:
       - protocol: methodology/exploratory_data_analysis
         purpose: "Pre-register scope, profile, build univariate + bivariate views."
-      - tool: tool_data_profile
+      - tool: tool_data
   methodology/method_comparison:
     intent_class: methodology
     sub_intent: comparison
@@ -1417,7 +1417,7 @@ protocols:
     decomposition:
       - protocol: methodology/data_quality_audit
         purpose: "Schema + completeness + distribution + duplicate + leakage + bias checks."
-      - tool: tool_data_profile
+      - tool: tool_data
 
   methodology/power_analysis:
     intent_class: methodology
@@ -1503,7 +1503,7 @@ protocols:
     decomposition:
       - protocol: methodology/missing_data_strategy
         purpose: "Quantify missingness, justify mechanism, pick handling, run primary + sensitivity, pre-register if confirmatory."
-      - tool: tool_data_profile
+      - tool: tool_data
         purpose: "Profile missingness per column / row / stratum."
       - tool: tool_python_exec
         purpose: "Run MICE / IPW / pattern-mixture scripts."

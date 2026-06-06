@@ -230,7 +230,7 @@ steps:
       with deduplicated verified citations capped at 40.
 
       Figure auto-embed. When researcher_config.synthesis.figures_auto_embed
-      is true (default), tool_synthesize calls tool_paper_figures_autoembed
+      is true (default), tool_synthesize calls tool_figure(operation='paper_autoembed')
       at the end of the assembly so every step's outputs/figures/ (with
       `figures_for_paper: true` in step_summary.yaml AND in the figure's
       .caption.md frontmatter) lands in the right paper section. Sidecar

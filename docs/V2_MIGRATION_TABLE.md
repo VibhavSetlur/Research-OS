@@ -164,3 +164,42 @@ dispatcher forwards to the matching private per-operation worker.
 | tool_response_to_reviewers | tool_reviewer | operation | response | aliased v2.0.x, removed v2.1.0 |
 | tool_rebuttal_draft | tool_reviewer | operation | rebuttal | aliased v2.0.x, removed v2.1.0 |
 | tool_reviewer_response_compile | tool_reviewer | operation | compile | aliased v2.0.x, removed v2.1.0 |
+
+## Data + figure + thought families (9 → 3) — phase-9-c7
+
+Three small dispatch-style families collapse in one cluster:
+
+* **Data (3 → 1)** — the three per-operation `tool_data_*` tools
+  (`sample` returns N rows via head|random|tail, `profile` returns
+  schema + dtypes + missingness + descriptive stats, `convert` swaps a
+  dataset between CSV / Parquet / Feather / RDS) collapse into a single
+  `tool_data(operation=sample|profile|convert)` entry point.
+* **Figure (4 → 1)** — the four figure helpers (`palette` returns
+  CVD-safe palettes; `caption_synthesise` drafts a plain-English
+  `<name>.summary.md` sidecar; `interactive_autogen` writes an
+  offline-capable Vega-Lite / vis-network HTML companion next to a
+  static figure; `paper_autoembed` walks every step's `outputs/figures/`
+  and embeds them into the right `synthesis/paper.md` section) collapse
+  into a single `tool_figure(operation=palette|caption_synthesise|interactive_autogen|paper_autoembed)`
+  entry point.
+* **Thought (2 → 1)** — the two ReAct trace tools (`log` appends one
+  trace entry to `workspace/.thoughts/thoughts.jsonl`; `trace` returns
+  the recent tail filterable by step / decision) collapse into a single
+  `tool_thought(operation=log|trace)` entry point.
+
+Every legacy name remains callable via `_ALIASES` +
+`_ALIAS_PARAM_INJECTION`; the dispatcher forwards to the matching
+private per-operation worker so existing scripts, protocols, and
+researcher commands produce identical output.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_data_sample | tool_data | operation | sample | aliased v2.0.x, removed v2.1.0 |
+| tool_data_profile | tool_data | operation | profile | aliased v2.0.x, removed v2.1.0 |
+| tool_data_convert | tool_data | operation | convert | aliased v2.0.x, removed v2.1.0 |
+| tool_figure_palette | tool_figure | operation | palette | aliased v2.0.x, removed v2.1.0 |
+| tool_figure_caption_synthesise | tool_figure | operation | caption_synthesise | aliased v2.0.x, removed v2.1.0 |
+| tool_figure_interactive_autogen | tool_figure | operation | interactive_autogen | aliased v2.0.x, removed v2.1.0 |
+| tool_paper_figures_autoembed | tool_figure | operation | paper_autoembed | aliased v2.0.x, removed v2.1.0 |
+| tool_thought_log | tool_thought | operation | log | aliased v2.0.x, removed v2.1.0 |
+| tool_thought_trace | tool_thought | operation | trace | aliased v2.0.x, removed v2.1.0 |

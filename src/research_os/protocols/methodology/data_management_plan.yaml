@@ -83,7 +83,7 @@ steps:
         - whether re-identification risk exists
         - the analysis it feeds
 
-      Use the project's inputs/raw_data/ profile via tool_data_profile
+      Use the project's inputs/raw_data/ profile via tool_data(operation='profile')
       when data is already present; reason from the research design
       otherwise.
 

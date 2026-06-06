@@ -35,7 +35,7 @@ description: |
 
 trigger: |
   Any of the following:
-    - tool_data_profile flags >0% missingness in any column the analysis
+    - tool_data(operation='profile') flags >0% missingness in any column the analysis
       will use,
     - methods.md or a script mentions `dropna`, `na.omit`, `mice`,
       `IterativeImputer`, `KNNImputer`, `MICE`, `MissForest`,
@@ -49,7 +49,7 @@ prerequisites:
   - Dataset is staged in `workspace/<step>/data/input/`.
   - The analysis question + which variables are PRIMARY vs. AUXILIARY
     is documented.
-  - A `tool_data_profile` run exists for the staged dataset (so the
+  - A `tool_data(operation='profile')` run exists for the staged dataset (so the
     missingness numbers are not guessed).
 
 editorial_voice:
@@ -82,7 +82,7 @@ steps:
   - id: quantify_missingness
     name: Quantify missingness (per column, row, stratum, time-point)
     description: |
-      Build the missingness profile via `tool_data_profile` (already in
+      Build the missingness profile via `tool_data(operation='profile')` (already in
       prerequisites) OR write a `tool_python_exec` script that produces
       `outputs/reports/missingness_profile.md` with:
 

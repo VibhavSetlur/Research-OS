@@ -415,7 +415,7 @@ steps:
           (plain-English; 2-3 short paragraphs for non-expert
           audiences). An AI-authored script writes both when you pass
           `caption` + `plain_english`. Otherwise
-          tool_figure_caption_synthesise auto-drafts the summary from
+          tool_figure(operation='caption_synthesise') auto-drafts the summary from
           the caption + the step's Findings.
 
         - Set RNG seeds explicitly; print library versions to stderr.
@@ -764,14 +764,14 @@ steps:
       Log the decision as a ReAct trace entry so future audit can
       reconstruct WHY each step branched / proceeded / died:
 
-        tool_thought_log
-            step_id=<NN_slug>
-            entry_type=decision
-            content=<one-line decision + rationale>
-            decision_id=<NN_slug>_<proceed|revise|branch|handoff|abandon>
+        tool_thought(operation='log',
+            step_id=<NN_slug>,
+            entry_type=decision,
+            content=<one-line decision + rationale>,
+            decision_id=<NN_slug>_<proceed|revise|branch|handoff|abandon>)
 
       Cheap (single-line write to .thoughts/thoughts.jsonl); makes
-      `tool_thought_trace` actually useful during synthesis.
+      `tool_thought(operation='trace')` actually useful during synthesis.
 
 expected_outputs:
   - workspace/*/README.md

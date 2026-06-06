@@ -70,7 +70,7 @@ steps:
     description: |
       For each tabular file:
         - sys_file_read the first ~100 rows + the header
-        - tool_data_profile filepath=<path>     # full profile sample
+        - tool_data(operation='profile', filepath=<path>)     # full profile sample
 
       Check:
         - column types — does each column hold what its name suggests?

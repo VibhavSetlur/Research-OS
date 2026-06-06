@@ -1026,41 +1026,41 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Data ──────────────────────────────────────────────────────────
-    "tool_data_sample": {
-        "description": "Sample N rows from a dataset (CSV, Parquet, Feather, JSON, Excel).",
+    # tool_data is the unified data-inspection / conversion dispatcher.
+    # Legacy per-operation names (tool_data_sample / tool_data_profile /
+    # tool_data_convert) alias here with operation injected.
+    "tool_data": {
+        "short": "Unified data tool. operation=sample|profile|convert.",
+        "description": "Unified data-inspection / conversion dispatcher. operation='sample' returns N rows from a tabular dataset (CSV, Parquet, Feather, JSON, Excel) via head|random|tail strategy. operation='profile' returns schema, dtypes, missingness, descriptive stats, and suggested next steps for a tabular dataset. operation='convert' converts a dataset between CSV / Parquet / Feather / RDS. Every legacy tool_data_sample / tool_data_profile / tool_data_convert name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "data",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "filepath": {"type": "string"},
-                "n_rows": {"type": "number"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["sample", "profile", "convert"],
+                    "description": "Which data sub-operation to invoke.",
+                },
+                "filepath": {
+                    "type": "string",
+                    "description": "Path to the dataset file. Required for every operation.",
+                },
+                # operation='sample' kwargs
+                "n_rows": {
+                    "type": "number",
+                    "description": "operation='sample' — REQUIRED. Number of rows to sample.",
+                },
                 "strategy": {
                     "type": "string",
-                    "description": "head | random | tail (default: head)",
+                    "description": "operation='sample' — head | random | tail (default: head).",
+                },
+                # operation='convert' kwargs
+                "output_format": {
+                    "type": "string",
+                    "description": "operation='convert' — REQUIRED. Target format (csv | parquet | feather | rds).",
                 },
             },
-            "required": ["filepath", "n_rows"],
-        },
-    },
-    "tool_data_profile": {
-        "description": "Profile a tabular dataset: schema, dtypes, missingness, descriptive stats, plus suggested next steps.",
-        "category": "data",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"filepath": {"type": "string"}},
-            "required": ["filepath"],
-        },
-    },
-    "tool_data_convert": {
-        "description": "Convert a dataset between CSV / Parquet / Feather / RDS.",
-        "category": "data",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "filepath": {"type": "string"},
-                "output_format": {"type": "string"},
-            },
-            "required": ["filepath", "output_format"],
+            "required": ["operation", "filepath"],
         },
     },
 
@@ -1218,31 +1218,64 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["operation"],
         },
     },
-    "tool_figure_caption_synthesise": {
-        "short": "Write a plain-English <name>.summary.md next to a figure.",
-        "description": "Generate a 2-3 sentence plain-language description next to a figure for non-expert / accessibility audiences (W3C two-part guidance). Reads the figure's existing <name>.caption.md sidecar + the step's conclusions.md Findings section to anchor the summary in the actual result. Idempotent — pass overwrite=true to replace an existing summary.",
+    # tool_figure is the unified figure helper. Legacy per-operation names
+    # (tool_figure_palette / tool_figure_caption_synthesise /
+    # tool_figure_interactive_autogen / tool_paper_figures_autoembed)
+    # alias here with operation injected.
+    "tool_figure": {
+        "short": "Unified figure helper. operation=palette|caption_synthesise|interactive_autogen|paper_autoembed.",
+        "description": "Unified figure dispatcher. operation='palette' returns colour-blind-safe palettes — Okabe-Ito (qualitative), viridis (sequential), PuOr (diverging), or the dashboard primary/gold/green/red accent set. operation='caption_synthesise' generates a 2-3 sentence plain-language description (<name>.summary.md sidecar) next to a figure for non-expert / accessibility audiences (W3C two-part guidance); reads the figure's existing <name>.caption.md + the step's conclusions.md Findings section; idempotent (pass overwrite=true to replace). operation='interactive_autogen' writes an interactive HTML companion (Vega-Lite for scatter/heatmap/time-series, vis-network for graphml) next to a static figure; offline-capable (inlines vendored Vega/vis-network bundles); tagged <meta name='ro-auto-generated' content='true'>; idempotent (returns status='exists' when companion is already there). operation='paper_autoembed' walks every step's outputs/figures/ where step_summary.yaml.figures_for_paper is true, reads each figure's <stem>.caption.md frontmatter (section_hint, figure_priority, alt_text, ...), and inserts markdown image blocks into synthesis/paper.md; three modes (append_to_section | explicit_map | reorder); idempotent — stems already present are never re-inserted; calls rewrite_figure_xrefs automatically unless override_xref_rewrite is set. Every legacy tool_figure_palette / tool_figure_caption_synthesise / tool_figure_interactive_autogen / tool_paper_figures_autoembed name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "viz",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "figure_path": {"type": "string", "description": "Path relative to project root (e.g. workspace/03_baseline/outputs/figures/03_calibration.png)."},
-                "technical_caption": {"type": "string"},
-                "findings_context": {"type": "string"},
-                "overwrite": {"type": "boolean"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["palette", "caption_synthesise", "interactive_autogen", "paper_autoembed"],
+                    "description": "Which figure sub-operation to invoke.",
+                },
+                # operation='palette' kwargs
+                "kind": {
+                    "type": "string",
+                    "description": "operation='palette' — qualitative (default) | sequential | diverging | accent.",
+                },
+                "n": {
+                    "type": "number",
+                    "description": "operation='palette' — Number of colours (default 8).",
+                },
+                # operation='caption_synthesise' / 'interactive_autogen' kwargs
+                "figure_path": {
+                    "type": "string",
+                    "description": "operation='caption_synthesise' / 'interactive_autogen' — Path relative to project root (e.g. workspace/03_baseline/outputs/figures/03_calibration.png). REQUIRED for both.",
+                },
+                "technical_caption": {
+                    "type": "string",
+                    "description": "operation='caption_synthesise' — Optional technical caption text to anchor the plain-language summary.",
+                },
+                "findings_context": {
+                    "type": "string",
+                    "description": "operation='caption_synthesise' — Optional findings context from conclusions.md.",
+                },
+                "overwrite": {
+                    "type": "boolean",
+                    "description": "operation='caption_synthesise' — Overwrite an existing summary sidecar (default false).",
+                },
+                # operation='paper_autoembed' kwargs
+                "mode": {
+                    "type": "string",
+                    "description": "operation='paper_autoembed' — Placement mode: append_to_section (default) | explicit_map | reorder.",
+                },
+                "section_map": {
+                    "type": "object",
+                    "description": "operation='paper_autoembed' — Only used when mode='explicit_map'. {figure_stem: section_name}. Overrides each figure's section_hint frontmatter.",
+                    "additionalProperties": {"type": "string"},
+                },
+                "override_xref_rewrite": {
+                    "type": "boolean",
+                    "description": "operation='paper_autoembed' — When true, skip the figure-xref rewrite pass even if researcher_config.synthesis.figure_xref_rewrite=true. Use when paper.md has pre-formatted Pandoc cross-refs the AI must not touch.",
+                },
             },
-            "required": ["figure_path"],
-        },
-    },
-    "tool_figure_palette": {
-        "short": "Recommended palette for a chart's encoding.",
-        "description": "Returns colour-blind-safe defaults: Okabe-Ito (qualitative), viridis (sequential), PuOr (diverging), or the dashboard primary/gold/green/red accent set.",
-        "category": "viz",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "kind": {"type": "string", "description": "qualitative (default) | sequential | diverging | accent"},
-                "n": {"type": "number", "description": "Number of colours (default 8)."},
-            },
+            "required": ["operation"],
         },
     },
     "tool_step_pipeline": {
@@ -1297,33 +1330,49 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     # ── Grounded reasoning (ReAct + PROV-O + CoVe + Reflexion) ──────────
-    "tool_thought_log": {
-        "short": "Append one ReAct trace entry — thought / plan / action / observation / reflection / decision.",
-        "description": "Persistent thinking log at workspace/.thoughts/thoughts.jsonl. Use to surface reasoning BEFORE acting (ReAct: thought → action → observation). Optional decision_id links the trace to a grounding record.",
+    # tool_thought is the unified ReAct trace tool. Legacy tool_thought_log
+    # and tool_thought_trace alias here with operation injected.
+    "tool_thought": {
+        "short": "Unified ReAct trace tool. operation=log|trace.",
+        "description": "Unified thinking-log dispatcher (ReAct: thought → action → observation). operation='log' appends one trace entry — thought / plan / action / observation / reflection / decision — to workspace/.thoughts/thoughts.jsonl; use to surface reasoning BEFORE acting; optional decision_id links the trace to a grounding record. operation='trace' returns the tail of workspace/.thoughts/thoughts.jsonl, filterable by step / decision; use to remind yourself what you concluded earlier in the session. Every legacy tool_thought_log / tool_thought_trace name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "memory",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "kind": {"type": "string", "description": "thought | plan | action | observation | reflection | decision"},
-                "content": {"type": "string"},
-                "step_id": {"type": "string"},
-                "decision_id": {"type": "string"},
-                "metadata": {"type": "object"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["log", "trace"],
+                    "description": "Which thought sub-operation to invoke.",
+                },
+                # operation='log' kwargs
+                "kind": {
+                    "type": "string",
+                    "description": "operation='log' — REQUIRED. thought | plan | action | observation | reflection | decision.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "operation='log' — REQUIRED. The trace entry text.",
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "operation='log' — Optional structured metadata to attach to the entry.",
+                },
+                # operation='trace' kwargs
+                "tail": {
+                    "type": "number",
+                    "description": "operation='trace' — Number of recent entries to return (default 50).",
+                },
+                # Shared by both operations
+                "step_id": {
+                    "type": "string",
+                    "description": "operation='log' / 'trace' — Optional step folder to scope the entry / filter.",
+                },
+                "decision_id": {
+                    "type": "string",
+                    "description": "operation='log' / 'trace' — Optional decision id to link / filter by.",
+                },
             },
-            "required": ["kind", "content"],
-        },
-    },
-    "tool_thought_trace": {
-        "short": "Read the recent thought trace (filterable by step / decision).",
-        "description": "Returns the tail of workspace/.thoughts/thoughts.jsonl. Use to remind yourself what you concluded earlier in the session.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string"},
-                "decision_id": {"type": "string"},
-                "tail": {"type": "number"},
-            },
+            "required": ["operation"],
         },
     },
     "tool_grounding_register": {
@@ -2491,18 +2540,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     # tool_dashboard_story_generate / story_edit / story_quality_bar
     # consolidated into tool_dashboard(operation=story_*) — phase-9-c2.
-    "tool_figure_interactive_autogen": {
-        "short": "Write an interactive HTML companion (Vega-Lite for scatter/heatmap/time-series, vis-network for graphml) next to a static figure. Offline-capable.",
-        "description": "Given a static figure (.png/.svg/.jpg), look for the sibling data file (<stem>_data.csv / <stem>_matrix.csv / <stem>_series.csv / <stem>.graphml), choose the right interactive kind by heuristics, and write <stem>.html next to the figure. The companion inlines the vendored Vega/Vega-Lite/Vega-Embed (or vis-network) bundle so it runs offline. Tagged with <meta name='ro-auto-generated' content='true'> so the researcher knows they can replace it. Idempotent — returns status='exists' if a companion is already there.",
-        "category": "viz",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "figure_path": {"type": "string", "description": "Path to the static figure under workspace/<step>/outputs/figures/."},
-            },
-            "required": ["figure_path"],
-        },
-    },
+    # tool_figure_interactive_autogen consolidated into
+    # tool_figure(operation='interactive_autogen') — phase-9-c7.
     # tool_dashboard_reviewer_sim consolidated into
     # tool_dashboard(operation=reviewer_sim) — phase-9-c2.
     "tool_synthesis_preview": {
@@ -2538,30 +2577,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── figure auto-embed + orphan-coverage audit ──────────────────────
-    "tool_paper_figures_autoembed": {
-        "short": "Walk every step's outputs/figures/ and embed them into the right section of synthesis/paper.md.",
-        "description": "Discovers each numbered step's outputs/figures/ where step_summary.yaml.figures_for_paper is true (default), reads each figure's <stem>.caption.md YAML frontmatter (section_hint, figure_priority, poster_priority, alt_text, figures_for_paper, interactive_required), and inserts the markdown image blocks into synthesis/paper.md. Three modes: append_to_section (default; uses section_hint), explicit_map (caller supplies section_map={stem: section}), reorder (clusters all figures at end of Results sorted by figure_priority). Idempotent — a stem already present in the document is never re-inserted, so manual figure placements are preserved. Multi-paragraph captions split into a headline + a 'Note:' appendix. Calls rewrite_figure_xrefs automatically when researcher_config.synthesis.figure_xref_rewrite=true unless override_xref_rewrite is set. Writes an append-only log to workspace/logs/figure_auto_embed.md so the audit trail captures every run.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "mode": {
-                    "type": "string",
-                    "description": "Placement mode: append_to_section (default) | explicit_map | reorder.",
-                },
-                "section_map": {
-                    "type": "object",
-                    "description": "Only used when mode='explicit_map'. {figure_stem: section_name}. Overrides each figure's section_hint frontmatter.",
-                    "additionalProperties": {"type": "string"},
-                },
-                "override_xref_rewrite": {
-                    "type": "boolean",
-                    "description": "When true, skip the figure-xref rewrite pass even if researcher_config.synthesis.figure_xref_rewrite=true. Use when paper.md has pre-formatted Pandoc cross-refs the AI must not touch.",
-                },
-            },
-            "additionalProperties": False,
-        },
-    },
+    # tool_paper_figures_autoembed consolidated into
+    # tool_figure(operation='paper_autoembed') — phase-9-c7.
     # ── real slide compilation engine ──────────────────────────────────
     "tool_slides_create": {
         "short": "Compile a real presentation deck — Reveal.js HTML or Touying-compatible Typst PDF — from workspace findings + slides_spec.yaml.",
@@ -3657,6 +3674,49 @@ def _handle_tool_data_convert(name, arguments, root):
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", res.get("error", "convert failed"))))
+
+
+# ── tool_data dispatcher ────────────────────────────────────────────
+#
+# The data family collapses per-operation data tools into a single
+# tool_data(operation=, filepath=) entry point. Legacy per-operation
+# names (tool_data_sample / tool_data_profile / tool_data_convert)
+# continue to dispatch via _ALIASES + _ALIAS_PARAM_INJECTION (which
+# inject operation from the legacy name). The dispatcher reads
+# operation off ``arguments`` and forwards to the matching private
+# per-operation handler — no data logic is rewritten here; this is
+# purely a surface unification.
+
+
+def _handle_tool_data(name, arguments, root):
+    """Unified data dispatcher.
+
+    Operations:
+      sample  → tool_data_sample  (N-row sample by head|random|tail)
+      profile → tool_data_profile (schema + dtypes + missingness + stats)
+      convert → tool_data_convert (CSV/Parquet/Feather/RDS interchange)
+
+    Every legacy ``tool_data_sample`` / ``tool_data_profile`` /
+    ``tool_data_convert`` name is aliased to this entry point and has
+    its operation injected via ``_ALIAS_PARAM_INJECTION`` so callers
+    (researchers, scripts, protocols) using the older per-operation
+    names keep working unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_data requires operation='sample'|'profile'|'convert'."
+        ))
+    if op == "sample":
+        return _handle_tool_data_sample(name, arguments, root)
+    if op == "profile":
+        return _handle_tool_data_profile(name, arguments, root)
+    if op == "convert":
+        return _handle_tool_data_convert(name, arguments, root)
+    return _text(_error(
+        f"tool_data: unknown operation '{op}'. "
+        "Valid: sample | profile | convert."
+    ))
 
 
 # ── tool_audit dispatcher ───────────────────────────────────────────
@@ -4999,6 +5059,54 @@ def _handle_tool_figure_palette(name, arguments, root):
                            "colors": colors}))
 
 
+# ── tool_figure dispatcher ──────────────────────────────────────────
+#
+# The figure family collapses per-operation figure tools into a single
+# tool_figure(operation=) entry point. Legacy per-operation names
+# (tool_figure_palette / tool_figure_caption_synthesise /
+# tool_figure_interactive_autogen / tool_paper_figures_autoembed)
+# continue to dispatch via _ALIASES + _ALIAS_PARAM_INJECTION (which
+# inject operation from the legacy name). The dispatcher reads
+# operation off ``arguments`` and forwards to the matching private
+# per-operation handler — no figure logic is rewritten here; this is
+# purely a surface unification.
+
+
+def _handle_tool_figure(name, arguments, root):
+    """Unified figure dispatcher.
+
+    Operations:
+      palette             → tool_figure_palette             (CVD-safe colour palette)
+      caption_synthesise  → tool_figure_caption_synthesise  (plain-English <name>.summary.md)
+      interactive_autogen → tool_figure_interactive_autogen (interactive HTML companion)
+      paper_autoembed     → tool_paper_figures_autoembed    (embed figures into synthesis/paper.md)
+
+    Every legacy ``tool_figure_palette`` / ``tool_figure_caption_synthesise``
+    / ``tool_figure_interactive_autogen`` / ``tool_paper_figures_autoembed``
+    name is aliased to this entry point and has its operation injected via
+    ``_ALIAS_PARAM_INJECTION`` so callers (researchers, scripts, protocols)
+    using the older per-operation names keep working unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_figure requires operation='palette'|'caption_synthesise'|"
+            "'interactive_autogen'|'paper_autoembed'."
+        ))
+    if op == "palette":
+        return _handle_tool_figure_palette(name, arguments, root)
+    if op == "caption_synthesise":
+        return _handle_tool_figure_caption_synthesise(name, arguments, root)
+    if op == "interactive_autogen":
+        return _handle_tool_figure_interactive_autogen(name, arguments, root)
+    if op == "paper_autoembed":
+        return _handle_tool_paper_figures_autoembed(name, arguments, root)
+    return _text(_error(
+        f"tool_figure: unknown operation '{op}'. "
+        "Valid: palette | caption_synthesise | interactive_autogen | paper_autoembed."
+    ))
+
+
 def _handle_tool_step_pipeline_define(name, arguments, root):
     from research_os.tools.actions.exec.step_pipeline import define_pipeline
 
@@ -5092,6 +5200,46 @@ def _handle_tool_thought_trace(name, arguments, root):
         decision_id=arguments.get("decision_id"),
         tail=int(arguments.get("tail", 50)),
     )))
+
+
+# ── tool_thought dispatcher ─────────────────────────────────────────
+#
+# The thought family collapses the two ReAct-trace tools into a
+# single tool_thought(operation=log|trace) entry point. Legacy names
+# (tool_thought_log / tool_thought_trace) continue to dispatch via
+# _ALIASES + _ALIAS_PARAM_INJECTION (which inject operation from the
+# legacy name). The dispatcher reads operation off ``arguments`` and
+# forwards to the matching private per-operation handler — no
+# thought-log logic is rewritten here; this is purely a surface
+# unification.
+
+
+def _handle_tool_thought(name, arguments, root):
+    """Unified thought dispatcher.
+
+    Operations:
+      log   → tool_thought_log   (append one ReAct trace entry)
+      trace → tool_thought_trace (read the recent thought trace tail)
+
+    Every legacy ``tool_thought_log`` / ``tool_thought_trace`` name is
+    aliased to this entry point and has its operation injected via
+    ``_ALIAS_PARAM_INJECTION`` so callers (researchers, scripts,
+    protocols) using the older per-operation names keep working
+    unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_thought requires operation='log'|'trace'."
+        ))
+    if op == "log":
+        return _handle_tool_thought_log(name, arguments, root)
+    if op == "trace":
+        return _handle_tool_thought_trace(name, arguments, root)
+    return _text(_error(
+        f"tool_thought: unknown operation '{op}'. "
+        "Valid: log | trace."
+    ))
 
 
 def _handle_tool_grounding_register(name, arguments, root):
@@ -6915,10 +7063,10 @@ _HANDLERS = {
     "tool_julia_exec": _handle_tool_script_exec,
     "tool_bash_exec": _handle_tool_script_exec,
     "tool_package_install": _handle_tool_package_install,
-    # data
-    "tool_data_sample": _handle_tool_data_sample,
-    "tool_data_profile": _handle_tool_data_profile,
-    "tool_data_convert": _handle_tool_data_convert,
+    # data (see tool_data dispatcher above) — phase-9-c7. Legacy per-
+    # operation tool_data_sample / tool_data_profile / tool_data_convert
+    # names alias to tool_data and their operation is injected.
+    "tool_data": _handle_tool_data,
     # audit (see tool_audit dispatcher above)
     "tool_audit": _handle_tool_audit,
     "tool_audit_findings": _handle_tool_audit_findings,
@@ -6929,13 +7077,15 @@ _HANDLERS = {
     # pipeline tools (define / run / status / diagram) into tool_step_pipeline.
     "tool_step": _handle_tool_step,
     "tool_step_pipeline": _handle_tool_step_pipeline,
-    "tool_figure_caption_synthesise": _handle_tool_figure_caption_synthesise,
-    "tool_figure_palette": _handle_tool_figure_palette,
+    # tool_figure_caption_synthesise / tool_figure_palette consolidated
+    # into tool_figure(operation=caption_synthesise|palette) — phase-9-c7.
+    "tool_figure": _handle_tool_figure,
     # tool_dashboard_test_generate / test_run consolidated into
     # tool_dashboard(operation=test_*) — phase-9-c2.
     # Grounded reasoning.
-    "tool_thought_log": _handle_tool_thought_log,
-    "tool_thought_trace": _handle_tool_thought_trace,
+    # tool_thought_log / tool_thought_trace consolidated into
+    # tool_thought(operation=log|trace) — phase-9-c7.
+    "tool_thought": _handle_tool_thought,
     "tool_grounding_register": _handle_tool_grounding_register,
     "tool_ground_from_context": _handle_tool_ground_from_context,
     "tool_claim_verify": _handle_tool_claim_verify,
@@ -6960,7 +7110,8 @@ _HANDLERS = {
     "tool_latex_compile": _handle_tool_latex_compile,
     # Typst + dashboard content + preview + content depth
     "tool_paper_compile_typst": _handle_tool_paper_compile_typst,
-    "tool_figure_interactive_autogen": _handle_tool_figure_interactive_autogen,
+    # tool_figure_interactive_autogen consolidated into
+    # tool_figure(operation='interactive_autogen') — phase-9-c7.
     # tool_dashboard_story_* / reviewer_sim / create consolidated into
     # tool_dashboard(operation=...) — phase-9-c2.
     "tool_synthesis_preview": _handle_tool_synthesis_preview,
@@ -6969,7 +7120,8 @@ _HANDLERS = {
     "tool_dashboard": _handle_tool_dashboard,
     # ── headline tools ─────────────────────────────────
     "tool_humanities_essay_scaffold": _handle_tool_humanities_essay_scaffold,
-    "tool_paper_figures_autoembed": _handle_tool_paper_figures_autoembed,
+    # tool_paper_figures_autoembed consolidated into
+    # tool_figure(operation='paper_autoembed') — phase-9-c7.
     "tool_slides_create": _handle_tool_slides_create,
     # tool_reviewer_simulate / tool_rebuttal_draft / tool_reviewer_response_compile
     # consolidated into tool_reviewer(operation='simulate'|'rebuttal'|'compile') — phase-9-c6.
@@ -7163,6 +7315,18 @@ _ALIASES = {
     "tool_response_to_reviewers":      "tool_reviewer",
     "tool_rebuttal_draft":             "tool_reviewer",
     "tool_reviewer_response_compile":  "tool_reviewer",
+    # ── data cluster (3 → 1) — phase-9-c7 ─────────────
+    "tool_data_sample":                "tool_data",
+    "tool_data_profile":               "tool_data",
+    "tool_data_convert":               "tool_data",
+    # ── figure cluster (4 → 1) — phase-9-c7 ───────────
+    "tool_figure_palette":             "tool_figure",
+    "tool_figure_caption_synthesise":  "tool_figure",
+    "tool_figure_interactive_autogen": "tool_figure",
+    "tool_paper_figures_autoembed":    "tool_figure",
+    # ── thought cluster (2 → 1) — phase-9-c7 ──────────
+    "tool_thought_log":                "tool_thought",
+    "tool_thought_trace":              "tool_thought",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7254,6 +7418,18 @@ _DEPRECATED_ALIASES = {
     "tool_response_to_reviewers",
     "tool_rebuttal_draft",
     "tool_reviewer_response_compile",
+    # ── data cluster (3 → 1) — phase-9-c7 ─────────────
+    "tool_data_sample",
+    "tool_data_profile",
+    "tool_data_convert",
+    # ── figure cluster (4 → 1) — phase-9-c7 ───────────
+    "tool_figure_palette",
+    "tool_figure_caption_synthesise",
+    "tool_figure_interactive_autogen",
+    "tool_paper_figures_autoembed",
+    # ── thought cluster (2 → 1) — phase-9-c7 ──────────
+    "tool_thought_log",
+    "tool_thought_trace",
 }
 
 
@@ -7361,6 +7537,18 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_response_to_reviewers":         ("operation", "response"),
     "tool_rebuttal_draft":                ("operation", "rebuttal"),
     "tool_reviewer_response_compile":     ("operation", "compile"),
+    # ── data cluster (3 → 1) — phase-9-c7 ─────────────
+    "tool_data_sample":                   ("operation", "sample"),
+    "tool_data_profile":                  ("operation", "profile"),
+    "tool_data_convert":                  ("operation", "convert"),
+    # ── figure cluster (4 → 1) — phase-9-c7 ───────────
+    "tool_figure_palette":                ("operation", "palette"),
+    "tool_figure_caption_synthesise":     ("operation", "caption_synthesise"),
+    "tool_figure_interactive_autogen":    ("operation", "interactive_autogen"),
+    "tool_paper_figures_autoembed":       ("operation", "paper_autoembed"),
+    # ── thought cluster (2 → 1) — phase-9-c7 ──────────
+    "tool_thought_log":                   ("operation", "log"),
+    "tool_thought_trace":                 ("operation", "trace"),
 }
 
 

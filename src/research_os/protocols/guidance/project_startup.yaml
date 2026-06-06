@@ -82,7 +82,7 @@ steps:
     name: Profile Each Data File (sampled)
     description: |
       For every tabular file (csv|tsv|parquet|feather|xlsx|json|jsonl) in
-      inputs/raw_data/, call tool_data_profile filepath=<that file>.
+      inputs/raw_data/, call tool_data(operation='profile', filepath=<that file>).
       Read the resulting reports — note any high-missingness columns or tiny
       sample sizes. These constraints feed methodology_selection later.
       For non-tabular files (.fasta, .nii, .dcm, …) just note their presence

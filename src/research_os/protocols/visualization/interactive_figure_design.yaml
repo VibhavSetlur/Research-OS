@@ -186,8 +186,8 @@ steps:
       in the figure's .caption.md sidecar.
 
       If a single auto-generated companion is needed in isolation,
-      call `tool_figure_interactive_autogen
-      figure_path=<workspace/.../figures/<stem>.png>`.
+      call `tool_figure(operation='interactive_autogen',
+      figure_path=<workspace/.../figures/<stem>.png>)`.
 
       Optionally `tool_dashboard(operation='test_generate')` if the
       HTML is complex enough to need its own smoke test.
