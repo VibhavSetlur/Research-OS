@@ -1,7 +1,7 @@
 id: tool_discovery
 tier: 'plan'
 name: Tool / Library Discovery
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]

@@ -1,6 +1,6 @@
 id: test_failure_causation
 name: Test-Failure Causation (5-whys + fishbone + classification)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering]

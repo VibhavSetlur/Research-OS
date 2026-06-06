@@ -1,0 +1,125 @@
+{
+  "scenario": "qualitative_interviews",
+  "perspective": "researcher",
+  "final_rating": 7.4,
+  "high_friction_count": 5,
+  "first_5_turns_high_friction": 3,
+  "every_deliverable_produced": false,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "hidden_prerequisite",
+      "description": "qualitative_pii_redaction step `detect_and_redact` STILL tells the researcher to invoke `tool_python_exec script='scripts/qual_pii_redact.py'` against a script the project does NOT ship. v2 is more honest about it ('a dedicated first-class MCP wrapper is planned but not yet shipped; see docs/ROADMAP.md'), and a `templates/qualitative/pii_policy.md` template DID land with the 18 HIPAA rows pre-filled — but the actual presidio/spaCy/regex execution still requires the researcher to author the pipeline from scratch. Baseline HIGH friction remains."
+    },
+    {
+      "severity": "HIGH",
+      "category": "phase_10_refactor_leak",
+      "description": "sys_tool_describe crashes with `NameError: name '_resolve_tool_name' is not defined`. The handler in src/research_os/server/handlers/meta_routing.py:278 calls `_resolve_tool_name(tool_name)` but only imports via `from .._handlers_runtime import *`, which doesn't re-export the symbol that lives in dispatch.py. Any AI client trying to learn about a tool not in the active_tools scope (e.g. `tool_qualitative_quote_provenance`, which IS NOT in qualitative_research's 13-tool scope) hits this immediately and gives up. This is a Phase 10 modular-split regression."
+    },
+    {
+      "severity": "HIGH",
+      "category": "phase_10_refactor_leak",
+      "description": "tool_audit scope=synthesis dimension=all raises a raw `KeyError: 'paper_path'` instead of returning a structured error or defaulting to 'synthesis/paper.md' (which the tool's OWN description claims is the default). audit_core.py:99 accesses arguments['paper_path'] without a `.get()` guard. The researcher gets a useless one-line traceback instead of a 'missing manuscript' message. Baseline complained about opaque audit messages; v2 made it worse by surfacing Python tracebacks."
+    },
+    {
+      "severity": "HIGH",
+      "category": "manual_per_quote_overhead",
+      "description": "tool_qualitative_quote_provenance is still one-quote-per-call with no bulk register tool shipped. The baseline recommendation `tool_qualitative_quotes_bulk_register` (CSV/JSON ingest) was NOT acted on. A 5-theme paper still requires 15+ sequential tool calls or the researcher skips the registry and fails the qualitative_report_format audit. No alternative path provided."
+    },
+    {
+      "severity": "HIGH",
+      "category": "deliverable_proliferation",
+      "description": "No `study_size: pilot | standard | publication` knob exists in researcher_config or in qualitative_quality_audit. For an 8-participant study the researcher is still on the hook for the full COREQ/SRQR battery: intercoder, saturation curve, member checking, reflexivity, quote provenance audit, trustworthiness, anonymisation audit, plus ~12 other artefacts. Baseline recommendation explicitly asked for a pilot mode that collapses these into a single small_n_limitations.md; v2 did not ship it."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "scope_tags_invisible",
+      "description": "Every protocol YAML now has `scope_tags: {domain, audience, workflow_shape}` (117/117 coverage confirmed), but sys_protocol_get format=summary STRIPS the scope_tags block from the rendered output. The AI client never sees them, which defeats the routing-disambiguation value the tags were meant to provide. They are essentially dead metadata at the moment."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "pack_misclassification",
+      "description": "10 of the 15 baseline 'never called' tools that survived the Phase 9 prune are STILL tagged `pack=core`: tool_slurm_submit, tool_julia_exec, tool_r_exec, tool_rmarkdown_render, tool_notebook_exec, tool_latex_compile, tool_paper_compile_typst, tool_humanities_essay_scaffold, sys_export_share_archive, tool_workspace_repair. None of these are needed by a qualitative-interviews researcher and they inflate the core surface that loads at every session. They should be pushed into packs (engineering, humanities, archive) or marked pack=optional and lazy-loaded."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "single_coder_block_loop",
+      "description": "qualitative_quality_audit's intercoder_agreement_check still phrases the gate as 'A verdict < 0.70 without a reconciliation plan is a BLOCKER'. A single-coder small-N study still has to argue with the protocol prose to unblock. Baseline recommendation to split the YAML branch (auto-PASS when coders==1 AND limitation_documented) was not acted on."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "saturation_for_small_n",
+      "description": "saturation_evidence_check still returns a binary SATURATED / NOT_SATURATED verdict driven by 'slope at the last transcript > 0'. With N=8 the curve is statistically noisy and the verdict is brittle. Baseline asked for a 3-valued (SATURATED | LIKELY_NOT_SATURATED | UNDERPOWERED_TO_JUDGE) verdict with N<12 -> UNDERPOWERED. Not shipped."
+    },
+    {
+      "severity": "LOW",
+      "category": "naming_inconsistency",
+      "description": "tool_qualitative_codebook_diff still hardcodes its output filename to 'diff_v1_to_v2.md' regardless of input version labels. Diffing v3->v4 silently overwrites v1->v2. Baseline flagged this as a quiet data-loss bug; v2 did not fix it."
+    },
+    {
+      "severity": "LOW",
+      "category": "router_remaining_ambiguity",
+      "description": "tool_route on the natural-language prompt 'I need to iterate on my codebook' returns primary_protocol=methodology/coding_scheme_development (a core methodology protocol) with semantic confidence 0.797, while qualitative/coding/coding_scheme_iteration (the pack protocol the researcher actually wants for iterative codebook refinement) appears only as alternative #2 with score 0.665. The pack protocol's triggers are too narrow. Router now surfaces `why_matched` per alternative which is a real improvement, but the picker still favors core over pack when the core protocol's description is broader."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_route",
+    "tool_semantic_route",
+    "tool_quick_route",
+    "tool_audit",
+    "tool_qualitative_quote_provenance",
+    "sys_tool_describe"
+  ],
+  "confusing_protocols": [
+    "qualitative_pii_redaction",
+    "qualitative_quality_audit",
+    "qualitative_report_format"
+  ],
+  "never_called_tools": [
+    "tool_slurm_submit",
+    "tool_slurm_status",
+    "tool_slurm_list",
+    "tool_slurm_fetch",
+    "tool_julia_exec",
+    "tool_r_exec",
+    "tool_rmarkdown_render",
+    "tool_notebook_exec",
+    "tool_latex_compile",
+    "tool_paper_compile_typst",
+    "tool_humanities_essay_scaffold",
+    "sys_export_share_archive",
+    "tool_workspace_repair",
+    "tool_alternative_path_propose",
+    "tool_deprecations_summary"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface reduced 204 -> 146 (28% smaller). 37 of the 52 baseline 'never-called' tools were pruned from the core surface.",
+    "Every TOOL_DEFINITIONS entry now carries `status: live` and `pack: core|<pack>` fields, giving clients a first-class way to scope and filter the surface.",
+    "MCP server now advertises an `instructions=` field at handshake naming the canonical boot sequence (sys_boot -> tool_route -> sys_protocol_get format=summary -> sys_active_tools). The AI no longer has to discover the ritual.",
+    "New sys_boot replaces 4-5 separate calls (state + config + history + dep inventory + next protocol) with one ~1.2KB envelope. Concrete token saving on every session start.",
+    "tool_route now returns a `recommended_action` field naming the exact next tool call to make (e.g. \"sys_protocol_get(protocol_name='...', format='summary')\"). Pairs with `why_matched` strings on the primary protocol AND each alternative. This is the single biggest router UX win.",
+    "sys_protocol_get default format is now `summary` (was `full`). qualitative_research drops from ~7K chars to 3K chars. _load_hint guides the AI to format='step' or format='full' when needed.",
+    "tool_audit consolidates 10+ per-dimension audit tools (tool_audit_evalue, tool_audit_power, tool_audit_code_quality, tool_audit_reproducibility, tool_audit_figure_interactivity, tool_audit_figure_full, tool_audit_citations, tool_audit_claims, tool_audit_cliches, tool_audit_coherence, tool_audit_cross_deliverable_consistency, ...) behind a single (scope, dimension) dispatcher. Major surface shrink.",
+    "tool_step_pipeline consolidates 4 prior step-pipeline tools (define/diagram/run/status) into one operation-dispatched tool.",
+    "tool_reviewer consolidates 4 dashboard/reviewer-sim tools (tool_dashboard_test_generate, tool_dashboard_test_run, tool_dashboard_story_quality_bar, tool_dashboard_reviewer_sim) into one.",
+    "sys_active_tools returns a 13-tool scoped working set for qualitative_research instead of dumping all 204. AI working context shrinks ~15x.",
+    "All 117 protocol YAMLs now declare `scope_tags: {domain, audience, workflow_shape}`. The metadata is present even if the summary loader doesn't expose it yet.",
+    "templates/qualitative/pii_policy.md now ships as a complete template with all 18 HIPAA classes pre-filled with sensible default actions. Removes some of the baseline 'type NOT_APPLICABLE 12 times' tax (though the YAML gate still asserts the file 'addresses' each class).",
+    "Backward compatibility preserved: 80 aliases in src/research_os/server/aliases.py keep the old tool names (tool_audit_evalue, tool_audit_power, etc.) callable. No silent breakage for v1 user code or downstream tooling.",
+    "tool_route on prompts that name a method ('Braun & Clarke') correctly resolves directly to the pack protocol (qualitative/method/thematic_analysis_braun_clarke), with the active_tools list scoped to the 13 tools needed for the methodology stage."
+  ],
+  "remaining_recommendations": [
+    "Ship `tool_qualitative_pii_redact` as a first-class MCP tool that wraps the presidio + spaCy + regex pipeline end-to-end. The protocol description already says it's 'planned' — actually ship it and remove the scripts/qual_pii_redact.py burden.",
+    "Ship `tool_qualitative_quotes_bulk_register` taking a CSV / JSON file (or auto-scraping themes.md for `[P01:42-47]` markers). 15+ sequential tool calls per paper is unworkable.",
+    "Fix the Phase 10 leak: src/research_os/server/handlers/meta_routing.py needs `from ..dispatch import _resolve_tool_name` (or the symbol needs to be re-exported through _handlers_runtime). sys_tool_describe is dead at HEAD.",
+    "Fix audit_core.py:99 to use `arguments.get('paper_path', 'synthesis/paper.md')` instead of subscripting. Match the default the tool's own description advertises.",
+    "Add `study_size: pilot | standard | publication` knob to inputs/researcher_config.yaml. Pilot mode collapses intercoder + member_checking + saturation into a single `small_n_limitations.md` and auto-passes the related gates when limitation is documented.",
+    "Split qualitative_quality_audit's intercoder gate explicitly in YAML: PASS when coders == 1 AND limitation_documented, BLOCK only when coders >= 2 AND kappa < 0.70 AND no reconciliation. Make the branch readable, not folded into prose.",
+    "Make saturation_evidence_check 3-valued (SATURATED | LIKELY_NOT_SATURATED | UNDERPOWERED_TO_JUDGE) and emit UNDERPOWERED_TO_JUDGE automatically when N < 12.",
+    "Move tool_slurm_*, tool_julia_exec, tool_r_exec, tool_rmarkdown_render, tool_notebook_exec, tool_latex_compile, tool_paper_compile_typst, tool_humanities_essay_scaffold from pack=core into the relevant packs (engineering, humanities). They are noise for a qualitative researcher.",
+    "Surface scope_tags in sys_protocol_get format=summary OR in sys_protocol_list output. The tags are now present in 117 YAMLs but invisible to the AI client.",
+    "Fix tool_qualitative_codebook_diff to derive its output filename from the version labels in the input (or accept explicit v1_label/v2_label args). Silent overwrite is a data-loss bug that survived from baseline.",
+    "Tighten qualitative/coding/coding_scheme_iteration triggers so it wins over methodology/coding_scheme_development on 'iterate on codebook' prompts. Currently the pack protocol loses on score (0.665 vs 0.797) even though its name better matches the iterative-refinement intent.",
+    "Add an `auto_fill_pii_policy` flag (or have a tool initialize inputs/policy/pii_policy.md by copying templates/qualitative/pii_policy.md) so the researcher doesn't have to hand-edit 18 rows even with the new template."
+  ]
+}

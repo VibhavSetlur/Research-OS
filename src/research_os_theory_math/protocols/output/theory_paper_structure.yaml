@@ -1,6 +1,6 @@
 id: theory_paper_structure
 name: Theory-Paper Structure (non-IMRAD)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [theory_math]

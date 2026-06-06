@@ -1,7 +1,7 @@
 id: interview_guide_design
 tier: 'plan'
 name: Interview / Topic Guide Design (qualitative pre-collection)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, humanities]

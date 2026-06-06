@@ -1,0 +1,95 @@
+{
+  "scenario": "humanities_close_reading",
+  "perspective": "auditor",
+  "final_rating": 7.9,
+  "high_friction_count": 2,
+  "first_5_turns_high_friction": 1,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "stem_centric_audit_chain_misfires_on_humanities",
+      "description": "Phase 9 consolidated the per-dimension audit tools into a single `tool_audit(scope, dimension)` plus `tool_audit_quality_full`, which IS a real improvement — the auditor now has one entry point and 24 fewer surface names to learn. But the underlying gate logic is still STEM-shaped on humanities inputs. Concrete: a `01_close_reading_dover_beach` step with `step_intent: apparatus` + `figure_required: false` + `table_required: false` declared in step_summary.yaml still BLOCKS with `No figure produced — every step MUST emit at least one focal figure to outputs/figures/01_<descriptor>.png` and `conclusions.md → Findings section is still a stub`. The completeness gate is NOT reading step_intent: apparatus to auto-waive figure_required, and the conclusions.md stub-scanner is looking for the STEM template's `## Findings` / `## Decision` headers that don't exist in humanities apparatus conclusions. Additionally, `tool_audit(scope='project', dimension='claims')` flags '2 numeric claim(s) in synthesis/paper.md not grounded in workspace outputs' on a humanities essay whose only 'numbers' are citation years (1986, 1969). From the auditor's seat the master audit_quality_full STILL default-denies humanities synthesis without any humanities-aware override path surfaced in the blocker text.",
+      "suggested_fix": "Make `tool_audit(scope='step', dimension='completeness')` read step_summary.yaml's step_intent + figure_required + table_required and short-circuit the corresponding sub-checks; add a humanities-aware conclusions schema (apparatus.findings = anchors, decision = tradition_declared + secondary_ledger). For claims-grounding, exempt 4-digit years in `(Author YYYY)` citation patterns. Surface a humanities branch in audit_and_validation's scope_tags.domain (currently only [qualitative]; add [humanities])."
+    },
+    {
+      "severity": "HIGH",
+      "category": "promised_humanities_audit_tool_still_missing",
+      "description": "Phase 9 / Phase 14 did NOT ship `tool_humanities_apparatus_audit`. close_reading.yaml line 94 still reads `If the audit tool_humanities_apparatus_audit is available (planned; see docs/ROADMAP.md), it replaces the generic completeness gate with a close-reading-aware check`. The humanities pack still ships only 3 tools (archive_lookup, transcribe, citation_chain — all scaffold writers) — same as baseline. The protocol's quality_bar (anchor_density, tradition_declared, counter_instance, edition_pinned, secondary_ledger) has no machine gate. So even though the unified `tool_audit` is leaner, the auditor's machine-readable check for humanities rigor is still the STEM completeness gate, which fires wrong. The auditor's only path is to manually read workspace/close_readings/<slug>_apparatus.md and check each quality_bar key by hand.",
+      "suggested_fix": "Ship tool_humanities_apparatus_audit in the humanities pack — parses apparatus.md, grep-checks ≥1 line/folio anchor per claim, Tradition: header presence, Counter-instance: section, Secondary criticism: ledger with ≥1 cite. Wire into _router_index.yaml + audit/audit_and_validation step list when scope_tags.domain includes humanities. Remove the 'planned' hedge from close_reading.yaml. Same shape for tool_humanities_dangling_link_audit + tool_humanities_edition_pinning_audit per the baseline recommendations."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "opaque_blocker_error_messages_still_unstructured",
+      "description": "Phase 9's audit consolidation kept the OLD envelope shape: blockers are still flat string arrays like `['01_close_reading_dover_beach: conclusions.md → Findings section is still a stub.', ...]`. The recommended Phase 8 envelope upgrade — `blockers: [{code, message, fix_hint, override_param}]` — is NOT in. So when `tool_audit_quality_full` returns `status: error` with 4 blockers, the auditor sees human-readable strings but no machine-readable code, no override_param name to flip, no fix_hint pointing at the step_intent: apparatus waiver path. The override flag IS accepted (override_no_pdfs, override_dashboard_content_gate, override_cross_deliverable, override_rationale visible in the inputSchema) but the error message itself doesn't name them. Still requires the AI to know the API from training data or read the tool description.",
+      "suggested_fix": "Upgrade _audit handler envelopes to structured blockers as recommended in baseline. Phase 9 was the right time to ship this with the surface consolidation — it's a clean cut now that fewer audit tools means fewer envelopes to migrate."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "audit_protocol_count_unchanged",
+      "description": "Three audit protocols still in protocols/audit/ (audit_and_validation, pre_submission_checklist, provenance_completeness). The cross-reference DAG between them is still undocumented. tool_route on 'audit a humanities project for rigor and provenance' picked provenance_completeness as primary with audit_and_validation as alternative (0.76) — but the auditor doesn't know whether to chain them, in what order, or which one's blockers gate synthesis. The new `recommended_action: sys_protocol_get(protocol_name='audit/provenance_completeness', format='summary')` field IS a meaningful improvement (auditor knows the next call), but it only names ONE protocol, not the chain. provenance_completeness still applies a STEM sidecar schema (rng_seed, sha256, software.packages) to humanities prose with no humanities exemption visible in scope_tags.domain (it's [any] which is fine but the schema mismatch remains).",
+      "suggested_fix": "Generate docs/audit_flow.md from next_protocol chains as recommended in baseline. Add a humanities sidecar schema (edition / translator / source_archive / shelfmark / archive_url / accessed_at) and route provenance_completeness through it when researcher_config.domain == humanities."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "protocol_description_block_still_dense_under_format_summary",
+      "description": "format='summary' returns ~300 tokens including a full description block (~25 lines of literary-critical doctrine for close_reading.yaml). The auditor reading it via sys_protocol_get default sees the full prose before the structured step_summary + expected_outputs + quality_bar. There is no explicit `summary:` field separate from `description:` — the baseline recommendation 'Add a summary (3-sentence) field to every protocol top matter; render summary first in sys_protocol_get' did not land. summary IS used in _router_index.yaml entries (Phase 11a) but the per-protocol YAML still surfaces the full description block under format='summary'.",
+      "suggested_fix": "Add a top-matter `summary: 'one-paragraph what-this-promises-and-produces'` field to every protocol YAML; have load_protocol(format='summary') render summary in place of description (and demote description into a rationale block the auditor can opt into via format='full')."
+    },
+    {
+      "severity": "LOW",
+      "category": "literature_gate_mismatch_partially_addressed",
+      "description": "tool_audit(scope='step', dimension='literature') still parses the STEM-shaped findings_vs_literature.md format (AGREES/DISAGREES/EXTENDS/DEFERRED verdicts) — the humanities secondary-criticism ledger format in apparatus.md (named critic + agreement/departure prose) is not yet a parsed alternative. literature_required: true is honored as a flag but the parse format isn't humanities-aware.",
+      "suggested_fix": "Per baseline: when step_intent: apparatus + secondary_ledger_path is set in step_summary.yaml, parse the ledger format from close_reading.yaml (named critic + agreement/departure) instead of the AGREES/DISAGREES verdict schema."
+    },
+    {
+      "severity": "LOW",
+      "category": "override_log_visibility_unchanged",
+      "description": "pre_submission_checklist's override_audit_review distinction between AUTO-WAIVED (step_intent: apparatus waives figure_gate) and MANUAL-OVERRIDE (override_completeness_gate=true) is still not surfaced. The baseline recommendation to record auto-waivers in step_summary.yaml under gates_waived: [figure_gate: 'apparatus intent'] did not land. So the auditor still sees apparatus-intent waivers either invisibly (gate doesn't fire) or as opaque blockers (gate fires anyway because step_intent isn't read — see the HIGH item above)."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit — the new unified dispatcher is a big improvement, but the (scope, dimension) matrix in the inputSchema lists 22 dimensions inline ('completeness|literature|code_quality|prose|claims|figure|citations|assumptions|power|reproducibility|evalue|cliches|coherence|version_coherence|cross_deliverable|reviewer_responses|dashboard_content|figure_full|figure_interactivity|figure_coverage|all') with no scope-aware filter. The auditor reading the schema sees the full menu and has to know which (scope, dimension) pairs are legal. The description text DOES enumerate scope=step / scope=project / scope=synthesis sub-lists, but the JSON schema's dimension enum is missing — it's a free-form string. A small-model auditor can still pick scope='step' + dimension='cliches' (a project-only dimension) and get a runtime error instead of an input-schema rejection.",
+    "tool_audit_quality_full vs tool_step_complete — both are aggregating wrappers (full = all 6 quality gates at project level; step_complete = path_finalize + completeness + literature + revision per step). Auditor reading both descriptions sees overlapping language ('master auditor', 'bundles 4 calls') without a clear line on which runs WHEN.",
+    "tool_audit vs tool_audit_findings vs tool_audit_quality_full — three tools whose names start the same and whose descriptions all reference 'audit'. tool_audit is the per-dimension dispatcher, tool_audit_findings is the read interface for the cross-audit ledger, tool_audit_quality_full is the master wrapper. Confusion is much less than baseline's ~30 audit tools, but the naming still buries the role distinction."
+  ],
+  "confusing_protocols": [
+    "humanities/textual/close_reading — STILL references tool_humanities_apparatus_audit which still does not exist; the 'planned; see docs/ROADMAP.md' hedge is unchanged from baseline. Auditor cannot tell whether the rigor gate is enforced.",
+    "audit/audit_and_validation — scope_tags.domain: [qualitative] excludes humanities; the protocol still walks the AI through Cox PH diagnostics, missing-data, statistical residuals as if every project is empirical-quantitative. The 'PREFERRED' master-audit step exists but the 7-step component decomposition still reads as a doctrine essay.",
+    "audit/provenance_completeness — still applies STEM sidecar schema (rng_seed / sha256 / software.packages) uniformly to humanities prose outputs; no humanities exemption visible.",
+    "audit/pre_submission_checklist — scope_tags.domain: [humanities] is correct (Phase 11a added it) but the long 10-step structure is unchanged; the gates_waived vs manual-override distinction is still missing."
+  ],
+  "never_called_tools": [
+    "tool_humanities_archive_lookup (not relevant for closereading-only auditor)",
+    "tool_humanities_transcribe (not relevant for printed-text auditor)",
+    "tool_audit_findings (auditor in 4 turns doesn't reach the diff use case)",
+    "tool_redteam_review (one-shot review tool — auditor uses tool_audit_quality_full instead)",
+    "tool_null_findings_report (no null finding in this scenario)",
+    "tool_discussion_coverage_audit (synthesis-side, would fire after auditor's 4 turns)",
+    "tool_section_substantiveness (synthesis-side)"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface dropped from 344 to 146 tools (~58% reduction). Audit category collapsed from ~30 specialty tools to 9 (tool_audit unified dispatcher + tool_audit_findings + tool_audit_quality_full + 6 wrappers). The auditor now has one obvious entry point.",
+    "Every tool def carries `status: live` and `pack: core|<pack>` so the auditor can filter to in-scope tools. 80 deprecated aliases + 78 legacy aliases + 24 removed-tool stubs cover back-compat without bloating the active surface.",
+    "MCP `instructions` field at handshake now names the boot sequence verbatim: 'sys_boot once → tool_route → sys_protocol_get format=summary → sys_active_tools'. Auditor opening a fresh session has the 4-call discovery path without reading docs.",
+    "sys_protocol_get default format flipped from `full` to `summary`. Auditor's first protocol load is ~300 tokens (id + step_summary + expected_outputs + quality_bar + next_protocol) instead of the 2K full YAML dump.",
+    "tool_route response now includes `recommended_action: sys_protocol_get(protocol_name=..., format='summary')` so the auditor knows the next tool to call without burning a turn deciding. The `why_matched` field (Phase 11a) is also surfaced alongside.",
+    "tool_route output includes `active_tools` shortlist (13-15 tools) right on the routing response — auditor doesn't need a second sys_active_tools call.",
+    "Every protocol YAML now carries scope_tags {domain, audience, workflow_shape}. close_reading.yaml correctly tags audience: [auditor] and domain: [humanities, theory_math]. pre_submission_checklist.yaml correctly tags domain: [humanities]. Auditor can filter the protocol catalog by audience: [auditor] in principle.",
+    "server.py refactored from 7499 lines to a modular `server/` package (~3.7k lines across 18 files). Tool defs cleanly split into 7 domain modules (audit / synthesis / methodology / research / grounding / meta / __init__). Maintainability gain — and the auditor's tool definitions live in audit.py, easy to grep.",
+    "Humanities pack moved into its own `research_os_humanities/` package with its own protocol tree. Cleaner separation of concerns; humanities pack is now load-on-demand.",
+    "tool_step_complete bundles 4 calls (path_finalize + completeness + literature + revision_options) into one — meaningful round-trip latency win for the auditor at end-of-step."
+  ],
+  "remaining_recommendations": [
+    "Ship tool_humanities_apparatus_audit + tool_humanities_dangling_link_audit + tool_humanities_edition_pinning_audit in the humanities pack. The 'planned' hedge in close_reading.yaml is now ~6 months old; the auditor's machine-checkable rigor gate is still phantom.",
+    "Wire step_intent: apparatus + figure_required: false + table_required: false through the completeness gate so humanities apparatus steps don't false-blocker on missing focal figures. This is the single biggest remaining auditor-perspective friction.",
+    "Add domain-aware skip-list in audit_and_validation: when researcher_config.domain == humanities, auto-skip audit_assumptions / audit_figures / audit_power / preregister_diff and replace with humanities-equivalents (citation_chain_recoverability_audit, edition_pinned_check, dangling_link_count).",
+    "Upgrade audit envelopes to structured blockers: [{code, message, fix_hint, override_param}] so the AI surfaces actionable failures + override flag names without sys_file_read follow-ups. Now that there are 9 audit tools instead of 30, the migration cost is real but tractable.",
+    "Add a `summary:` field separate from `description:` to every protocol YAML; have format='summary' render summary in place of description. close_reading.yaml's description block is 25 lines of doctrine — beautiful but not what an auditor needs first.",
+    "Add humanities branch to tool_audit(scope='step', dimension='literature') — parse the secondary-criticism ledger format (named critic + agreement/departure prose) when step_intent: apparatus, instead of the AGREES/DISAGREES verdict schema.",
+    "Define a humanities provenance sidecar schema (edition / translator / source_archive / shelfmark / archive_url / accessed_at) and route provenance_completeness through it for apparatus + archival outputs. Right now the rng_seed / sha256 / software.packages schema is uniform.",
+    "Generate docs/audit_flow.md from next_protocol chains so the auditor can see the DAG (provenance → audit_and_validation → discussion_coverage → pre_submission_checklist) at a glance.",
+    "Tighten tool_audit's dimension parameter to an enum constrained on (scope, dimension) legality — a small-model auditor picking dimension='cliches' with scope='step' should get an inputSchema rejection, not a runtime error.",
+    "Add scope_tags.domain: [humanities] to audit_and_validation.yaml (currently only [qualitative]). The auditor filtering by domain=humanities won't surface the main audit protocol."
+  ]
+}

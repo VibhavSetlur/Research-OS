@@ -1,7 +1,7 @@
 id: machine_learning
 tier: 'plan'
 name: Machine Learning / Predictive Modelling
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]

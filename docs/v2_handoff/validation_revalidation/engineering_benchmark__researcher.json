@@ -1,0 +1,114 @@
+{
+  "scenario": "engineering_benchmark",
+  "perspective": "researcher",
+  "final_rating": 7.4,
+  "high_friction_count": 4,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": false,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "missing_protocol",
+      "description": "Engineering pack still has 7 protocols (design_iteration, requirements_traceability, fmea_protocol, fault_tree_analysis, test_failure_causation, build_test_fix_loop, engineering_report_structure) and NONE targets a simple algorithmic / systems benchmark. Phase 9 consolidation reduced tools but did NOT add the missing protocol. A researcher saying 'benchmark these three sort algorithms across 5 sizes x 10 runs' now routes to methodology/replication_study (top score 0.7632) or methodology/hyperparameter_search_design (top score 0.6579) depending on how 'engineering' is phrased. Both protocols frame the work around paper-replication or hyperparameter-search semantics, not algorithmic perf benchmarks. The semantic router has gotten better at landing somewhere plausible, but the destination protocol remains a poor fit."
+    },
+    {
+      "severity": "HIGH",
+      "category": "missing_tool",
+      "description": "Still no benchmark-sweep execution tool. Searching the 146-tool surface for benchmark/sweep/timing/perf returns only false positives (sys_protocol_list, tool_cache_clear, tool_slurm_submit, tool_task, tool_scratch, tool_slides_create). Researcher still has to hand-roll algorithms x sizes x runs via tool_python_exec or tool_scratch and parse outputs manually. The Phase 9 consolidation of tool_data / tool_task / tool_scratch helps somewhat (clear 'operation=' pattern), but the load-bearing gap from baseline #2 is unaddressed."
+    },
+    {
+      "severity": "HIGH",
+      "category": "naming_confusion",
+      "description": "build_test_fix_loop is still named build_test_fix_loop. It still surfaces in tool_route alternatives for engineering-framed benchmark queries (score 0.6386, ranked 4th). A researcher who reads only the name will pick it, fight the diagnose_dominance / consecutive_same_failure quality_bar gates, and either abandon or produce a confused log. The baseline rename recommendation (dev_cycle_time_loop) was not applied."
+    },
+    {
+      "severity": "HIGH",
+      "category": "wrong_default_report_structure",
+      "description": "research_os_engineering/__init__.py still declares paper_sections=(background, requirements, design, verification, validation, conclusions). For a 3-algorithm runtime benchmark this V&V structure is wrong — IMRAD-with-perf-tables fits better. The synthesis pipeline reads this hint and forces B/R/D/V/V/C on every engineering project, including benchmark projects. No conditional logic was added to let benchmark projects fall through to IMRAD."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "no_benchmark_audit",
+      "description": "tool_audit consolidation IS a real improvement (one tool, dimension=completeness|literature|code_quality|prose|claims|figure|citations|assumptions|power|reproducibility|evalue|cliches|coherence|versioning) — but the dimension list contains zero benchmark-specific options. Description does not mention 'benchmark', 'warmup', or 'governor'. Researcher still has no audit hook for benchmark-specific confounds (warm-up vs steady-state, CPU governor, thermal throttling, replication count, variance reported, same compiler flags)."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "missing_short_field",
+      "description": "36% of the 146 advertised tools (53 tools) have an empty short field, including tool_python_exec, tool_synthesize, tool_synthesize_plan, tool_path_finalize, tool_synthesis_curate_figures, sys_file_*, sys_protocol_next/validate/log/history, sys_state_get, sys_workspace_*, sys_checkpoint_*, sys_notify, sys_session_handoff, mem_* . The Phase 9 cross-cutting work added status+pack fields and an MCP instructions field but didn't backfill short across all tools. list_tools falls back to the longer description, so the AI either pays the token cost or skims past tools. For a researcher whose first-turn ritual is tool_route then sys_active_tools, this is mild — but for any custom flow it's a real legibility cost."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "jargon_overload_persists",
+      "description": "engineering_report_structure protocol body and design_iteration still lead with FDA/ISO/IEC/DO-178C regulatory framing and CAD/PLM/EDA/ECO vocabulary. The Phase 9/11b protocol body cleanup did not reach the engineering pack's plain-language framing. A researcher benchmarking algorithms in Python still bounces off this on first contact."
+    },
+    {
+      "severity": "LOW",
+      "category": "missing_visualization",
+      "description": "No built-in benchmark-curves viz tool. tool_figure consolidated into operation=palette|caption_synthesise|interactive_autogen|paper_autoembed — none of these emit the canonical mean-runtime + error-bars per algorithm across sizes (or log-log scaling plot). Researcher must hand-roll matplotlib via tool_python_exec."
+    },
+    {
+      "severity": "LOW",
+      "category": "router_pack_collision_persists",
+      "description": "detect_engineering still does not sub-classify benchmark vs V&V vs safety-critical vs embedded. So even though tool_route now correctly lands a benchmark query on methodology/replication_study rather than an engineering protocol, the engineering detector still flags the project as engineering downstream and forces the V&V report structure when synthesis runs."
+    },
+    {
+      "severity": "LOW",
+      "category": "three_route_entrypoints_persist",
+      "description": "tool_route, tool_semantic_route, and sys_semantic_tool_search all still exist as separate live tools. sys_help still does not give an AI-readable decision tree between them. The MCP instructions field correctly says 'use tool_route', which is the right nudge, but the surface still has three near-identical entrypoints."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_engineering_requirements_matrix (heavy SRS/SDD YAML schema — unchanged from baseline, still overkill outside regulated context)",
+    "tool_engineering_fmea_render (safety-critical artifact — still always advertised even for benchmark scenarios)",
+    "tool_synthesize (still no short field; researcher cannot tell what it will produce on call)",
+    "sys_boot (large return shape; replaces 4-5 calls but undocumented to the AI)"
+  ],
+  "confusing_protocols": [
+    "engineering/test/build_test_fix_loop (name suggests benchmark loop; still actually a TDD cycle-time tracker)",
+    "engineering/output/engineering_report_structure (V&V framing assumes regulated context; still forces B/R/D/V/V/C on benchmark projects)",
+    "methodology/method_comparison (still ML-statistics framed — McNemar, DeLong, ROC AUC — alien to algorithmic perf benchmarks; surfaces as alternative)",
+    "methodology/replication_study (now the top router pick for benchmark queries — paper-replication framing fits poorly)"
+  ],
+  "never_called_tools": [
+    "tool_engineering_fmea_render",
+    "tool_engineering_fault_tree_render",
+    "tool_engineering_requirements_matrix",
+    "tool_audit_findings (subset of tool_audit; unclear when to use vs unified tool_audit)",
+    "tool_audit_quality_full (overlaps with tool_audit scope=project)",
+    "mem_citations_generate",
+    "tool_literature_download",
+    "tool_paper_compile_typst (most benchmark writeups land in markdown/HTML, not Typst)",
+    "sys_export_share_archive",
+    "tool_humanities_*",
+    "tool_qualitative_*",
+    "tool_theory_math_*",
+    "tool_wet_lab_*",
+    "tool_redcap_schema_describe",
+    "tool_synapse_entity_info",
+    "tool_cytoscape_export_static"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface reduced 344 -> 146 (58% reduction). First-turn list_tools dump cost is dramatically smaller.",
+    "Phase 9 consolidation visible across the surface: tool_audit(scope=, dimension=) replaces audit_synthesis/audit_assumptions/audit_power/audit_figure/etc as a single unified entrypoint. Same pattern for tool_data, tool_task, tool_scratch, tool_step, tool_figure, tool_thought, tool_dashboard, tool_reviewer, tool_plan — all show operation= dispatch.",
+    "tool_route now returns recommended_action field (e.g. \"sys_protocol_get(protocol_name='methodology/replication_study', format='summary')\") — AI no longer has to infer the next call from the protocol name alone.",
+    "sys_protocol_get default format is now summary (was full). Returns ~700 tokens with a _load_hint explaining how to drill into format='step' step_id='<id>' or format='full'. Token budget on the plan turn drops 3-4x.",
+    "MCP instructions field is set at handshake — names the canonical boot sequence (sys_boot -> tool_route -> sys_protocol_get summary -> sys_active_tools). New AI clients no longer have to discover the ritual via sys_help.",
+    "scope_tags: {domain, audience, workflow_shape} present on every protocol I sampled (replication_study, build_test_fix_loop). Sets up future targeted routing/filtering.",
+    "Every tool now carries status + pack fields. Currently 0 deprecated and 0 aliases — Phase 14a clean cut. Easier to reason about the surface; no zombie tools.",
+    "tool_route active_tools list is scoped to ~13 tools (the protocol shortlist) rather than dumping all 146 — significant first-turn context savings.",
+    "Modular server/ package (Phase 10) — server/handlers/{meta_routing,meta_help,meta_sys,research_exec,synthesis_*,audit_*}.py — easier for the team to maintain, but does NOT directly improve the AI-facing surface (transparent to clients).",
+    "Engineering pack tool count down (3 always-advertised: fmea_render, fault_tree_render, requirements_matrix) — was 6 in baseline-era estimate. Less FMEA/FTA/REQS bloat on benchmark-irrelevant scenarios."
+  ],
+  "remaining_recommendations": [
+    "Add engineering/test/algorithm_benchmark protocol (or methodology/perf_benchmark) covering warm-up runs, CPU-freq governor controls, replications + variance reporting, parameter sweep, scaling-law fitting (O(n log n) etc.), and an Introduction-Setup-Methodology-Results-Analysis-Conclusions report shape. This was the #1 HIGH friction in baseline and remains the #1 HIGH friction now. Phase 9 was the consolidation phase; Phase 11/12 was protocol-body cleanup; the missing protocol falls through the cracks.",
+    "Add tool_engineering_benchmark_sweep(algorithms[], sizes[], n_runs, command_template, warmup_runs) -> CSV of (algo, size, run_id, wall_s, cpu_s, mem_kb) + summary stats + scaling-fit. Even a thin wrapper over python-timeit / hyperfine removes the hand-rolling step.",
+    "Rename engineering/test/build_test_fix_loop -> engineering/test/dev_cycle_time_loop (or tdd_cycle_tracking). Free up 'benchmark loop' triggers for the new algorithm_benchmark protocol. Soften its quality_bar to remove the hardcoded diagnose_dominance_threshold_pct=40 / consecutive_same_failure_limit=3 numeric gates that read as scripts not scaffolds.",
+    "Split engineering pack's paper_sections registration: V&V projects get B/R/D/V/V/C; benchmark projects fall through to IMRAD. Either detect_engineering returns a sub-classification (benchmark | hardware | safety_critical | embedded) and __init__.py picks paper_sections accordingly, or move the V&V structure into engineering_report_structure protocol body only and stop forcing it via the pack.yaml hint.",
+    "Add tool_audit dimension='benchmark_controls' (or similar) covering warmup_count, governor_setting, isolation, replicate_count, variance_reported, fair_comparison_harness. The existing audit dimensions list has no benchmark hook.",
+    "Add tool_figure operation='benchmark_curves' for mean+CI per algorithm across sizes (linear and log-log). Currently figure ops are palette|caption_synthesise|interactive_autogen|paper_autoembed — none emit the canonical perf plot.",
+    "Backfill short field on the 53 tools (36%) that have it empty — especially tool_python_exec, tool_synthesize, tool_synthesize_plan, tool_path_finalize, sys_file_*. The Phase 9 cross-cutting work added status+pack but didn't normalize short. Concise shorts make list_tools cheaper for clients that don't honor MCP instructions or send a small-model profile.",
+    "Disambiguate tool_route vs tool_semantic_route vs sys_semantic_tool_search — fold tool_semantic_route into tool_route as a mode (semantic-only vs trigger+semantic), and demote sys_semantic_tool_search to an internal helper not advertised in the MCP surface.",
+    "Strip the FDA/ISO/IEC/DO-178C regulatory standards from the top of engineering_report_structure description; move into a 'when_required' subsection. Same for design_iteration's CAD/PLM/EDA/ECO opening. Pack still reads as written for medical-device / aerospace engineers, not for CS / systems researchers.",
+    "tool_audit_findings and tool_audit_quality_full overlap with the consolidated tool_audit. Either fold them in as scope/dimension combos or document when each is the right call. Currently the AI sees three audit entrypoints and cannot disambiguate."
+  ]
+}

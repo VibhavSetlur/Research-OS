@@ -1,7 +1,7 @@
 id: fairness_audit
 tier: 'plan'
 name: Fairness Audit (ML / decision systems / clinical AI)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]

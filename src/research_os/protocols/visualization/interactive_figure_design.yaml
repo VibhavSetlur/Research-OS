@@ -1,7 +1,7 @@
 id: interactive_figure_design
 tier: 'synthesize'
 name: Interactive Figure Design (per-figure, NOT dashboard-scale)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, humanities]

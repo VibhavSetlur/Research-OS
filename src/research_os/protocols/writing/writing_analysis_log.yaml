@@ -1,7 +1,7 @@
 id: writing_analysis_log
 tier: 'plan'
 name: Writing — Analysis Log
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]

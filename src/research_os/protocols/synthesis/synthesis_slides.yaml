@@ -1,7 +1,7 @@
 id: synthesis_slides
 tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, theory_math]

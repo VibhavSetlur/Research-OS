@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, qualitative, humanities, theory_math, engineering]

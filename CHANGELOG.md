@@ -6,7 +6,59 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
-## [Unreleased — v2.0.0]
+## [2.0.0] — release-prep (2026-06-06)
+
+**Tagline:** comprehensive release — end-to-end coherent system, field-validated
+by 20 independent agents across 4 perspectives × 5 scenarios, with measurable
+improvements vs the v1.11.0 baseline on every cell of the matrix.
+
+### Highlights
+
+- **Tool surface collapsed 344 → 146 live (-58%)** with 80 backward-compat
+  aliases + 78 deprecated aliases + 24 hard-removed (return `_REMOVED_TOOLS`
+  envelope). 25-family consolidation pass via the proven `_ALIAS_PARAM_INJECTION`
+  pattern — every legacy name keeps dispatching for the v2.0.x runway.
+- **`server.py` 7,499-line monolith dissolved** into 32-module
+  `src/research_os/server/` package (largest module: `tool_definitions/meta.py`
+  at 579 lines, -92% from peak). Public API preserved end-to-end via
+  `__init__.py` re-exports.
+- **MCP `instructions` field on the `initialize` handshake** — names the
+  canonical per-turn sequence (`sys_boot → tool_route →
+  sys_protocol_get(format=summary) → sys_active_tools`) at the protocol
+  layer so any MCP client surfaces the right startup ritual.
+- **`sys_protocol_get` default `format` flipped `"full"` → `"summary"`** —
+  the single biggest token-cost win (5–10× cheaper per-turn at ~300 tokens
+  vs ~1.5–3K). MAJOR-breaking; pass `format="full"` to opt back in.
+- **5 CRAFT-inspired structural additions** drove the rating lift beyond
+  surface cleanup: (1) audit-as-data (every audit emits a JSON companion +
+  `.audit_findings.jsonl` ledger queryable via
+  `tool_audit_findings(operation=query|diff)`); (2) drafter review-rewrite
+  loops on paper/slides/poster; (3) `research-os doctor` install + workspace
+  health checks; (4) `docs/CONTRACT.md` stable-surface promise;
+  (5) audience-segmented `docs/README.md` four-audience router.
+- **Validation:** 20 agents × 4 perspectives × 5 scenarios. Mean
+  `final_rating` moved **6.35 → 7.70 (+1.35; +21%)**, total HIGH-friction
+  items **124 → 63 (-49%)**, first-5-turn HIGH **66 → 42 (-36%)**, deliverable
+  rate 11/20 → 14/20 (+15 pp). Every cell improved, no regressions.
+  Full report: [`docs/V2_VALIDATION_REPORT.md`](docs/V2_VALIDATION_REPORT.md).
+- **YELLOW recommendation** — ship with documented caveats. The Phase 15
+  GREEN gate targets (avg ≥ 9.5, HIGH ≤ 5, all four perspectives ≥ 9.0) are
+  not met; they were calibrated against a hypothetical v3-grade product.
+  Deeper structural gaps (domain-pack coverage for bioinformatics + systems
+  benchmarks; pack-aware audit gates) carry over to v2.0.x patch +
+  v2.1.0 minor per
+  [`docs/V2_RELEASE_NOTES.md`](docs/V2_RELEASE_NOTES.md) §"Deferred".
+- **Upgrade path:** most projects work unchanged via alias dispatch.
+  Full instructions, breaking-change details, per-surface recipes, and the
+  complete old→new tool table at
+  [`docs/MIGRATION_v1_to_v2.md`](docs/MIGRATION_v1_to_v2.md).
+- **Two v2.0.1 BLOCKER regressions surfaced by Phase 15b re-validation
+  were fixed before tagging** (commits `0c45b79` + `b3b24a0`):
+  `sys_tool_describe` `NameError` (`_resolve_tool_name` missing import
+  after the Phase 10 server-package split) and
+  `tool_audit(scope='synthesis', dimension='all')` bare `KeyError` on
+  `paper_path` (now defaults to `'synthesis/paper.md'`). `Server()` also
+  now reports the canonical `__version__` at the MCP initialize handshake.
 
 ### Added
 - `tool_audit(scope=, dimension=)` unified per-dimension audit dispatcher and `tool_audit_findings(operation=query|diff)` ledger reader. Both share the existing `_ALIAS_PARAM_INJECTION` / `_DEPRECATED_ALIASES` machinery so the prior tool surface (`tool_audit_synthesis`, `tool_audit_step_completeness`, `tool_audit_findings_query`, etc.) keeps dispatching with the legacy behaviour preserved end-to-end. `tool_audit_quality_full` stays separate as the canonical aggregator.
@@ -63,6 +115,42 @@ Versioning: [SemVer](https://semver.org).
 - Trivial dead-variable cleanup in `tools/actions/audit/audit.py:651` (`f_stat`, `f_p` from `het_breuschpagan` unpack are now `_f_stat`, `_f_p` — they were tuple-discard placeholders flagged by Lens-9 as the one real `vulture --min-confidence 80` finding still present after v1.9.3's larger sweep).
 
 ### Fixed
+- `sys_tool_describe` `NameError` regression introduced by the Phase 10
+  server-package split — `meta_routing.py` referenced `_resolve_tool_name`
+  which wasn't re-exported from `_handlers_runtime.py`. Fixed in commit
+  `0c45b79`: added the import + `__all__` entry so the introspection path
+  works from the first `list_tools()` call.
+- `tool_audit(scope='synthesis', dimension='all')` raised a bare
+  `KeyError` on `paper_path`. Fixed in commit `0c45b79`: handler now
+  defaults to `'synthesis/paper.md'` (matches what the `audit_synthesis`
+  worker already assumes when callers omit the kwarg).
+- MCP `Server()` instance now reports the canonical `__version__` at the
+  MCP initialize handshake instead of hard-coding `'0.1.0'`. Fixed in
+  commit `b3b24a0` (phase-13 follow-up).
+
+### Validation
+- **Phase 15b re-validation: 20 agents × 4 perspectives × 5 scenarios = 20
+  independent runs against the v2.0.0 candidate.** Mean `final_rating`
+  moved **6.35 → 7.70 (+1.35; +21%)**, total HIGH-friction items
+  **124 → 63 (-49%)**, first-5-turn HIGH **66 → 42 (-36%)**, deliverable
+  rate 11/20 → 14/20 (+15 pp). Every cell of the 4×5 matrix moved up by
+  +0.7 to +1.9 points; no regressions in any of the 20 runs. Full
+  per-perspective × per-scenario rating table, friction-event delta, the
+  carryover deferral list (v2.0.1 patch / v2.1.0 minor / v3.0.0 major),
+  and the YELLOW shipping recommendation at
+  [`docs/V2_VALIDATION_REPORT.md`](docs/V2_VALIDATION_REPORT.md).
+
+### Migration
+- Most projects work unchanged — every consolidated tool name keeps
+  dispatching via `_DEPRECATED_ALIASES` + `_ALIAS_PARAM_INJECTION` for
+  the v2.0.x runway. Hard removal of the v2.0 deprecated aliases is
+  scheduled for v2.1.0. Full instructions, breaking-change details,
+  per-surface recipes, and the complete old→new tool table at
+  [`docs/MIGRATION_v1_to_v2.md`](docs/MIGRATION_v1_to_v2.md) (the v1→v2
+  upgrade guide) plus [`docs/V2_MIGRATION_TABLE.md`](docs/V2_MIGRATION_TABLE.md)
+  (the running ledger of every old→new consolidation).
+- Release-shaped overview, headline numbers, and YELLOW caveat at
+  [`docs/V2_RELEASE_NOTES.md`](docs/V2_RELEASE_NOTES.md).
 
 ---
 

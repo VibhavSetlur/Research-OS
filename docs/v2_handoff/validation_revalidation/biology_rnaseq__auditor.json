@@ -1,0 +1,101 @@
+{
+  "scenario": "biology_rnaseq",
+  "perspective": "auditor",
+  "final_rating": 8.6,
+  "high_friction_count": 2,
+  "first_5_turns_high_friction": 1,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "leaky_master_audit_persists",
+      "description": "tool_audit_quality_full is still NOT a true master. Its own docstring now openly admits it does NOT run step_literature, synthesis, reproducibility, coherence, cross_deliverable, discussion_coverage, or wet_lab pack audits. Phase 9 collapsed ~17 audit tools into 4 (tool_audit, tool_audit_quality_full, tool_audit_findings, tool_discussion_coverage_audit) — which is a major improvement — but the master still ships a partial verdict. For an RNA-seq submission with a wet-lab pack active, an auditor following the master chain alone WILL miss instrument-run-log gaps, cross-deliverable inconsistencies, and reproducibility re-runs. The transparency of the warning is better than v1 (it is now explicit, not buried), but the integration gap itself remains."
+    },
+    {
+      "severity": "HIGH",
+      "category": "scenario_specific_coverage_still_missing",
+      "description": "There is STILL no methodology/rnaseq_de_diagnostics.yaml protocol (dispersion plot, p-value histogram uniformity, MA-plot shrinkage, batch-confound matrix, GO/KEGG FDR ceiling). cox_ph_diagnostics remains the only method-specific audit hook of this shape. An RNA-seq auditor must hand-stitch checks from generic audit_assumptions + audit_figure + audit_claims. The grep for 'rnaseq|deseq|edger' in protocol bodies returns 14 incidental mentions but zero dedicated hook. No tool_dataset_register / tool_geo_verify exists either — GEO accessions and SRR lists are still treated as plain context notes with no provenance audit gate."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "R_julia_provenance_helper_not_shipped",
+      "description": "The R / Julia ergonomics gap for write_output_provenance persists. No research_os_provenance R package or Julia module is shipped under src/research_os/{assets,templates}. R scripts (DESeq2, edgeR, limma) must still write the .prov.json sidecar by hand against the JSON schema; tool_r_exec does not auto-inject the helper. Same for tool_julia_exec. provenance_coverage_pct on the master audit reports 0.0 for the R-DESeq2 + Python-scanpy mini-project, which is consistent with that gap (no auto-emission)."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "pack_scope_too_permissive",
+      "description": "13 of the 19 baseline never-called tools that survived Phase 9 are still pack='core' (tool_julia_exec, tool_slurm_submit/status/fetch/list, tool_humanities_essay_scaffold, tool_poster_create, tool_slides_create, tool_paper_compile_typst, tool_latex_compile, tool_self_certify, tool_dry_run). For an auditor reviewing a laptop-scale RNA-seq DE submission with no LaTeX / Slurm / poster involvement, these clutter the core surface. They should move to packs 'slurm', 'humanities', 'latex'/'typst', 'presentation' so they auto-hide when the corresponding context is absent."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_decomposition_still_names_aliases",
+      "description": "tool_route's decomposition for an audit-flavored prompt returns ['tool_audit_synthesis','tool_audit_citations','tool_audit_figure'] — the deprecated alias names, not the consolidated tool_audit(scope=..., dimension=...) call. The aliases work via dispatcher param-injection (verified), but a fresh auditor following the router output will silently invoke the deprecation telemetry path on every call. Router protocol-decomposition metadata needs to be regenerated against the consolidated tool names so the happy path no longer fires deprecation logs."
+    },
+    {
+      "severity": "LOW",
+      "category": "rng_seed_loophole_unaddressed",
+      "description": "The provenance_completeness null-rng-seed loophole called out in the baseline is not yet enforced. There is no curated list of non-deterministic R/Python signatures (DESeq2::estimateDispersions, fgsea::fgsea, scanpy.tl.leiden) that machine-rejects null seed regardless of justification text. The audit still accepts any string in the mem_log justification."
+    },
+    {
+      "severity": "LOW",
+      "category": "version_coherence_severity_split_not_done",
+      "description": "The recommendation to split tool_audit_version_coherence into error (missing/deleted script) vs warning (older-version) is not yet wired. A .prov.json pointing at a deleted script still surfaces only as status='warning' in the consolidated audit dispatcher path."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full overlap with tool_audit(scope='step', dimension='*') — two ways to spell the same idea; an auditor must know to prefer the master form OR loop over per-dimension calls, and the boundary is undocumented",
+    "tool_audit_findings operation='query' vs 'diff' shares 7 params but only some apply to each operation; the inputSchema does not encode which params are operation-specific"
+  ],
+  "confusing_protocols": [
+    "audit/audit_and_validation step_summary still lists ten sibling steps (audit_master + 9 per-dimension steps) — the protocol body presents them in parallel even though audit_master alone covers six of them; reader must re-derive which siblings are subsumed",
+    "audit/pre_submission_checklist overlap with audit/audit_and_validation remains undisambiguated in the summary view",
+    "audit/provenance_completeness still loads as 'maintainer doctrine' at full size; format=summary helps a lot but the full body for the deep-dive case is still dense"
+  ],
+  "never_called_tools": [
+    "tool_julia_exec",
+    "tool_humanities_essay_scaffold",
+    "tool_redteam_review",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_paper_compile_typst",
+    "tool_latex_compile",
+    "tool_slurm_submit",
+    "tool_slurm_status",
+    "tool_slurm_fetch",
+    "tool_slurm_list",
+    "tool_self_certify",
+    "tool_list_certifications",
+    "tool_dry_run",
+    "tool_synthesis_curate_figures",
+    "tool_quick_review",
+    "tool_progress_digest",
+    "tool_cache_clear",
+    "tool_branch_recommendation"
+  ],
+  "improvements_vs_baseline": [
+    "Surface area dropped from 344 to 146 top-level live tools (-58%). For an auditor scanning the inventory this is the single biggest UX win.",
+    "Audit cluster collapsed from ~17 separate tools to 4 (tool_audit dispatcher, tool_audit_quality_full master, tool_audit_findings ledger reader, tool_discussion_coverage_audit). The dispatcher form tool_audit(scope='step'|'project'|'synthesis', dimension=...) is exactly the 'gate parameter' the baseline recommended.",
+    "Per-audit aliases (21 names) hard-resolve through dispatcher param-injection AND fire deprecation telemetry to .os_state/deprecations.log — backward-compat plus visibility of legacy call sites.",
+    "Every tool definition now carries status='live' and pack='<name>'. Auditor can in principle filter to pack=core for a clean baseline view.",
+    "Every protocol (117/117) carries scope_tags with domain + audience + workflow_shape — full coverage, not partial.",
+    "sys_protocol_get default format is now 'summary' (~300 tokens) instead of 'full'. Massively reduces token cost of the planning turn; _load_hint tells the AI exactly how to drill in further. This was the dominant per-turn friction in the baseline.",
+    "The MCP server now ships _MCP_INSTRUCTIONS naming the canonical boot sequence (sys_boot → tool_route → sys_protocol_get format=summary → sys_active_tools). Removes the v1 ambiguity about start-of-session ordering.",
+    "tool_route output now includes recommended_action AND why_matched on the primary protocol AND every alternative — auditor can read the router output and know exactly the next tool call without guessing.",
+    ".audit_findings.jsonl is now populated by audit_master with structured rows (id, severity, dimension, suggested_fix, evidence_paths, ro_version, generated_at). The baseline's 'ledger is Phase-4c only' problem is largely fixed for the master path.",
+    "Blocker messages from tool_audit_quality_full are now inlined with step + path + diagnostic (e.g. '[completeness] 01_de_analysis: conclusions.md → Findings section is still a stub.'). The baseline's 'opaque blocker messages' HIGH friction is downgraded — the auditor no longer needs a second tool_audit_findings_query turn just to find out which step is failing.",
+    "Grounding cluster trimmed from 4 overlapping verbs (tool_grounding_register / tool_ground_from_context / tool_ground / tool_grounding_verify) to 2 (tool_ground + tool_plan_step_grounded). One of the baseline's 'convoluted_tools' items is resolved.",
+    "Step cluster, dashboard cluster, reviewer cluster, figure cluster, data cluster, thought cluster, scratch cluster, task cluster, sys_config, sys_env all consolidated — net effect is a noticeably terser tool list when scanning for an auditor entry point."
+  ],
+  "remaining_recommendations": [
+    "Make tool_audit_quality_full a TRUE master in v2.1.0: include step_literature, synthesis, reproducibility, coherence, cross_deliverable_consistency, discussion_coverage, and any active pack audits (wet_lab, qualitative, theory_math, engineering). Keep the existing skip-list parameter for power users. Either that, or rename it to tool_audit_quality_fast and add tool_audit_quality_comprehensive that runs the full set.",
+    "Ship methodology/rnaseq_de_diagnostics.yaml (dispersion plot, p-value histogram uniformity, MA-plot shrinkage, library-size normalization sanity, batch-confound matrix, GO/KEGG FDR ceiling) and wire it as an auto-detected hook from tool_audit when DESeq2/edgeR/limma signatures appear in scripts/. Mirror cox_ph_diagnostics.",
+    "Ship the R helper package (research_os_provenance::write_output_provenance) under src/research_os/assets/r/ and have tool_r_exec source it into every R session. Same for Julia. Without this, provenance_coverage_pct will keep reporting 0% on R-driven RNA-seq projects.",
+    "Regenerate router decomposition metadata against the consolidated tool names so an audit-flavored prompt routes to tool_audit(scope='project', dimension='citations') etc., not the deprecated alias forms. Currently every audit-prompt route fires deprecation telemetry on the happy path.",
+    "Move pack-relevant tools off pack='core': tool_slurm_* → pack='slurm', tool_julia_exec → pack='julia', tool_latex_compile/tool_paper_compile_typst → pack='typst' (or 'latex'), tool_poster_create/tool_slides_create → pack='presentation', tool_humanities_essay_scaffold → pack='humanities'. Use pack detection (already present) to render the right surface per project.",
+    "Add tool_dataset_register(accession_id, source, sha256, retrieved_at) + an audit gate that synthesis-cited datasets carry such a record. Hook from tool_audit when the dimension includes 'dataset_provenance' or when grounding sources are GEO/SRA/ENA/dbGaP accessions.",
+    "Curated non-deterministic signature list (DESeq2::estimateDispersions, fgsea::fgsea, scanpy.tl.leiden, anything calling sample/permute) — provenance_completeness rejects null rng_seed when matched, regardless of mem_log justification text.",
+    "Split tool_audit_version_coherence severity: missing/deleted script = error, older-version-of-existing-script = warning. Surface errors in master audit payload.",
+    "Encode operation-conditional schema constraints on tool_audit_findings (timestamp_a/timestamp_b apply only to operation='diff'; severity/dimension/step/since apply only to operation='query'). Right now the inputSchema admits all 7 params for both operations.",
+    "Trim or collapse tool_synthesis_curate_figures, tool_quick_review, tool_progress_digest, tool_cache_clear, tool_branch_recommendation, tool_dry_run, tool_self_certify, tool_list_certifications into existing clusters or move to an 'extras' pack — these still appear in the core surface but are not load-bearing for an auditor."
+  ]
+}

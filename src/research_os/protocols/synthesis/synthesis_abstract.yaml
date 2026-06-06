@@ -1,7 +1,7 @@
 id: synthesis_abstract
 tier: 'synthesize'
 name: Synthesis — Abstract (venue-tailored)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]

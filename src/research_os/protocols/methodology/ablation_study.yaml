@@ -1,7 +1,7 @@
 id: ablation_study
 tier: 'plan'
 name: Ablation Study
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, engineering]

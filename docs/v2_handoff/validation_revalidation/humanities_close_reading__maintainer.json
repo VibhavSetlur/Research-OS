@@ -1,0 +1,74 @@
+{
+  "scenario": "humanities_close_reading",
+  "perspective": "maintainer",
+  "final_rating": 8.1,
+  "high_friction_count": 1,
+  "first_5_turns_high_friction": 1,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "phantom_tool_persists",
+      "description": "src/research_os_humanities/protocols/textual/close_reading.yaml line 94 still references `tool_humanities_apparatus_audit` in step prose ('If the audit `tool_humanities_apparatus_audit` is available (planned; see docs/ROADMAP.md)...'). The tool is still not in TOOL_DEFINITIONS, not in _HANDLERS, not in _ALIASES. Preflight's `Protocol tool refs all resolve` check passes (24/24) because the phantom is only in description prose, not in a hard `tool:` callout — but an AI reading the protocol via sys_protocol_get format=full WILL still see it and try to call it. The new format=summary default does mask this on the first read (apparatus_audit ref count 0 in summary, 1 in full), but the gap is unfixed in the source. This is the single un-shipped baseline IOU."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_taxonomy_drift_persists",
+      "description": "src/research_os_humanities/router_entries.py still uses `sub_intent: method_pick` for close_reading, distant_reading, hermeneutic_method, digital_humanities_workflow, and scholarly_edition. Core hierarchy uses `pick`. tool_route still surfaces this drift in its response (sub_intent: 'method_pick'). No preflight check catches the pack↔core sub_intent mismatch."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "pack_version_stale",
+      "description": "src/research_os_humanities/__init__.py still pins `__version__ = '1.9.3'` while core is `__version__ = '2.0.0-dev'`. Every humanities pack protocol still declares `version: '1.9.3'` in its YAML. Preflight reports humanities@1.9.3 alongside qualitative@1.11.0 — the drift is now visible in preflight output but is not enforced as a check. Phase 16 release-prep must bump these in lockstep with 2.0.0."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "next_protocol_inconsistency_persists",
+      "description": "close_reading.yaml line 235 still has `next_protocol: humanities/citation/citation_chains` (and `next_protocol_kind: forward_default`). humanities_essay_structure's `trigger:` block still claims it fires from close_reading.next_protocol — same self-inconsistency as baseline. The chain close_reading → humanities_essay_structure (which is the close-reading→essay scenario the validator runs) is still indirect, requires user override. Baseline LOW issue: this is unfixed."
+    },
+    {
+      "severity": "LOW",
+      "category": "protocol_jargon_persists",
+      "description": "close_reading.yaml description is still 50+ lines of literary-theory exposition (I.A. Richards, New Critics, Empson, de Man, Brooks, Wimsatt, Beardsley). Token_estimate still 1500. The new format=summary default cuts the BURDEN by ~70% (summary 5KB vs full 17KB) which substantially reduces the impact of this issue, but the underlying source is unchanged. The new default mitigates the symptom without addressing the root cause."
+    },
+    {
+      "severity": "LOW",
+      "category": "shortcut_tool_still_missing",
+      "description": "humanities/textual/close_reading router entry still has no `shortcut_tool` field. tool_route correctly returns `shortcut_tool: null`. distant_reading and digital_humanities_workflow also still missing. Baseline MEDIUM, demoted to LOW because tool_route's new `recommended_action` field (e.g. `sys_protocol_get(protocol_name='humanities/textual/close_reading', format='summary')`) gives a clean one-call entry even without a shortcut_tool. Recommended_action partially substitutes."
+    }
+  ],
+  "convoluted_tools": [
+    "sys_protocol_* cluster still 6 tools (sys_protocol_get, _list, _next, _validate, _log, _history). Baseline called for collapse to 1-2 via operation= kwarg; consolidation did not reach this cluster.",
+    "sys_checkpoint_* cluster still 3 tools (sys_checkpoint_create, _rollback, _list). Could be one with operation=create|rollback|list."
+  ],
+  "confusing_protocols": [
+    "humanities/textual/close_reading — description body still dominated by literary-theory exposition; default summary load mitigates this but source is unchanged.",
+    "humanities/method/hermeneutic_method — sub_intent 'method_pick' is itself a method, not a method-picker (taxonomy collision unchanged from baseline)."
+  ],
+  "never_called_tools": [
+    "tool_humanities_apparatus_audit (still phantom-referenced in close_reading.yaml description; no handler)",
+    "sys_protocol_validate (no protocol guidance points to it; tested via preflight not at MCP surface)",
+    "tool_dashboard (still loaded as a single tool in humanities scope is correct; but never called in close_reading flow — pack-aware filtering correctly excludes it from active_tools=13)"
+  ],
+  "improvements_vs_baseline": [
+    "TOOL COUNT 204 → 146 (-28%). The 5-variant figure-audit cluster collapsed to a single tool_audit with scope+dimension args. tool_dashboard collapsed from 7 dashboard_* tools to one. tool_step, tool_lessons, tool_reliability all consolidated.",
+    "NEW METADATA: every tool now carries `status: live|alias|deprecated` (146/146 = live) and `pack: core|humanities|...` (123 core + 23 pack-scoped). The maintainer can now scan one column to see what is core vs domain and what is shippable vs deprecated.",
+    "PACK-AWARE FILTERING: sys_active_tools(protocol='humanities/textual/close_reading') returns 13 active tools — a humanities researcher no longer wades through 50+ STEM-only tools (slurm_*, r_exec, notebook_*, sensitivity_*, dashboard_*). Cognitive surface for a close-reading session drops by ~90%.",
+    "MCP INSTRUCTIONS at handshake: server.py boot announces the canonical sequence (sys_boot → tool_route → sys_protocol_get(summary) → sys_active_tools). An AI client no longer has to discover the ritual by calling sys_help. This is a substantial usability win.",
+    "DEFAULT FORMAT=summary on sys_protocol_get: close_reading default load 5004 chars (was 17023 with format=full). 70% reduction in token cost on the routine protocol-load path. Crucially: the phantom apparatus_audit reference is HIDDEN by the new default (count=0 in summary, count=1 in full), which masks the un-shipped IOU on the most-common access path.",
+    "tool_route now returns `recommended_action` field with a concrete next call (e.g. `sys_protocol_get(protocol_name='humanities/textual/close_reading', format='summary')`). Removes one round of AI guesswork; partially substitutes for missing shortcut_tool fields.",
+    "tool_route also returns `why_matched` field with semantic similarity score and confidence — a maintainer can now see WHY the router picked a protocol vs grepping logs.",
+    "SERVER.PY REFACTORED into modular src/research_os/server/ package (entry.py, handlers/, dispatch.py, registry.py, aliases.py, tool_definitions/, optional_deps.py, rate_limiter.py). Was a single 7499-line file. Maintainer navigation is dramatically easier.",
+    "ALIAS TABLE: 80 aliases registered, preserves backward compatibility through the consolidation. No deprecated-alias tool refs in protocols (preflight check is clean across 78 deprecated names).",
+    "PREFLIGHT: now 24 checks (was 22 at baseline). New checks include 'Every tool definition has a handler' (146 tools wired) and 'No deprecated-alias tool refs in protocols'. Catches more wiring drift at CI time."
+  ],
+  "remaining_recommendations": [
+    "Phase 16: SHIP tool_humanities_apparatus_audit OR remove the phantom reference from close_reading.yaml line 94. The new format=summary default masks the issue but does not fix it — an AI reading format=full still sees a phantom callout. Adding a preflight check that scans protocol DESCRIPTION prose (not just step tool: fields) for ``tool_<name>`` patterns and validates them against TOOL_DEFINITIONS would catch this.",
+    "Phase 16: BUMP humanities pack __version__ + every pack protocol's `version:` field from 1.9.3 to 2.0.0 in lockstep with the core 2.0.0 bump. Add a preflight check that pack protocols' version field matches the pack __version__ value.",
+    "Phase 16: RENAME humanities pack router_entries sub_intent `method_pick` → `pick` to match the core hierarchy in _router_index.yaml. Add a preflight check that every pack router_entry's (intent_class, sub_intent) tuple exists in the core hierarchy block.",
+    "Phase 16: FIX close_reading.next_protocol to chain to humanities_essay_structure for the close-reading→essay path (or add a conditional branch). Current chain points to citation_chains, but humanities_essay_structure's trigger claims it fires from close_reading.next_protocol — self-inconsistency.",
+    "v2.1.0 follow-up: COLLAPSE sys_protocol_* cluster (6 tools → 1-2 with operation= kwarg) and sys_checkpoint_* cluster (3 tools → 1). Phase 9 consolidation stopped before reaching these system-meta clusters.",
+    "v2.1.0 follow-up: TRIM close_reading.yaml description from 50 lines of literary-theory exposition to ~10 lines operational summary, move the lineage to an optional `background:` block. Even with format=summary masking most of it, the source bloat slows protocol authoring + review.",
+    "v2.1.0 follow-up: ADD tool_reliability operation=`unused_tools` (scan _HANDLERS vs reliability.jsonl in a project; emit list of never-called handlers since N days). The baseline asked for this; current tool_reliability has only operation=log_event|report. The maintainer telemetry blindspot from baseline is only partly closed."
+  ]
+}

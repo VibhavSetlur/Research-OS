@@ -1,7 +1,7 @@
 id: writing_results
 tier: 'synthesize'
 name: Writing — Results (data with discipline)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab]

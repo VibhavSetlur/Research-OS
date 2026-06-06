@@ -1,7 +1,7 @@
 id: causal_inference_deep
 tier: 'plan'
 name: Causal Inference (observational)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering]
