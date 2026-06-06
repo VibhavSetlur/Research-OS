@@ -1,8 +1,6 @@
 """LaTeX paper compile + high-quality HTML dashboard generation.
 
 Posters are rendered by ``synthesis/poster_typst.py`` (Typst engine).
-The legacy tikzposter LaTeX poster path was removed in v2.0.0; see
-``_REMOVED_TOOLS`` for the migration message.
 
 The dashboard is single-file (all CSS + JS embedded) so it opens directly
 without any server. Features:
