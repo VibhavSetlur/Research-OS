@@ -6,6 +6,76 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.1.1] — Cleanup release (2026-06-06)
+
+PATCH release. Pure cleanup — no behavior changes, no new tools, no
+new protocols, no API or tool-signature changes.
+
+### Changed
+
+- Source files renamed to canonical names (no `_v2`, `_scaffold`,
+  etc.): `humanities_essay_scaffold.py` → `humanities_essay.py`
+  (back-compat shim kept at the old path through v2.2.0). The
+  `dashboard_v2*.py` shims created in v2.1.0 stay in place for one
+  more minor cycle per the migration table (removed v2.2.0). 11
+  unit-test filenames dropped a redundant `_v2` suffix
+  (`test_audit_audit_*_v2.py` → `test_audit_audit_*.py`,
+  `test_router_output_v2.py` → `test_router_output.py`).
+- `docs/` folder reduced to one file per concept, no version
+  suffixes. Version-tagged historical reports + working-session
+  scratchpads removed (preserved in git history; recover via
+  `git show v2.1.0:docs/<file>`). Final shape: 22 markdown files +
+  2 mermaid diagrams (`PROTOCOL_GRAPH.mermaid`, `workflow_dag.mermaid`).
+- `docs/README.md` rewritten as a single audience-routing page
+  (researchers / AI agents + plugin authors / maintainers +
+  integrators).
+- Root `README.md` release badge bumped to v2.1.1; deep links to the
+  deleted V2_RELEASE_NOTES + MIGRATION_v1_to_v2 docs replaced with
+  pointers to `CHANGELOG.md` (with `[2.0.0]` section hint where the
+  context warrants it).
+- Code + protocol comments swept for historical-version references:
+  ~115 strips across 23 files (server, audit/state, synthesis/viz,
+  cli + plugins, router_index protocols). 1 pure-historical block
+  deleted. Git log + CHANGELOG carry version history; live doctrine
+  stays focused on current behavior. Stable surfaces (e.g.
+  `_REMOVED_TOOLS` migration data, the canonical replacement entry
+  points) were KEPT — those name the version because the version is
+  load-bearing user-facing data, not commentary.
+
+### Added
+
+- `.gitignore` entries blocking future creation of version-tagged
+  docs + handoff scratchpads in `docs/`. Patterns added:
+  `/docs/v*_handoff/`, `/docs/*_handoff/`, `/docs/AUDIT_v*.md`,
+  `/docs/USABILITY_v*.md`, `/docs/CHANGELOG_DETAILED_v*.md`,
+  `/docs/MIGRATION_v*.md`, `/docs/V[0-9]*.md`, `/docs/V[0-9]*/`,
+  `/docs/audit_v*/`, `/docs/usability_v*/`, `/docs/PHASE_*.md`,
+  `/docs/archive/`. Prevents the clutter from recurring; future
+  sessions that try to write these paths get them silently ignored.
+
+### Verified
+
+- MCP wiring smoke (in `/tmp/ro_v211_mcp/`): `research-os init`
+  scaffolds correctly, `.claude/mcp.json` writes the standard
+  `research-os start` config, `research-os doctor` reports
+  `mcp_configs_wired: pass`, `research-os start` boots cleanly,
+  and `TOOL_DEFINITIONS` count (146) matches the v2.1.0 surface
+  (unchanged).
+
+### Migration
+
+- No code changes required. Imports from old `_v2` paths still
+  resolve via the deprecation shim (removed v2.2.0).
+- Imports of `from research_os.tools.actions.synthesis.humanities_essay_scaffold import scaffold_humanities_essay`
+  keep working via the new 2-line shim at the old path; update at
+  your convenience to
+  `from research_os.tools.actions.synthesis.humanities_essay import scaffold_humanities_essay`.
+- Anyone with local edits to deleted docs: recover via
+  `git show v2.1.0:docs/<file>` (or any tag where the file lived)
+  and re-save outside the repo as a personal note.
+
+---
+
 ## [2.1.0] — consistency + organization (2026-06-06)
 
 **Tagline:** internal-consistency MINOR with honest validation.
