@@ -130,9 +130,9 @@ steps:
         paper it landed (Section X, lines Y-Z), and any caveat
         worth surfacing.>
 
-      The `tool_response_to_reviewers` tool produces a scaffold
-      with one heading per comment — fill the response prose in
-      this protocol.
+      The `tool_reviewer(operation='response')` call produces a
+      scaffold with one heading per comment — fill the response prose
+      in this protocol.
 
   - id: cross_check_with_paper
     name: Cross-check responses with the revised paper

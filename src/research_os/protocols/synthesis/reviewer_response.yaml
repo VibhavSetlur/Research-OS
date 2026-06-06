@@ -60,7 +60,7 @@ steps:
   - id: bootstrap_simulation
     name: Build the reviewer simulation brief
     description: |
-      tool_reviewer_simulate
+      tool_reviewer(operation='simulate')
       Loads all 7 personas + the paper, writes
       workspace/reviewer/simulation_brief.md.
       Pass `personas=[...]` to run a focused subset (e.g. just
@@ -104,8 +104,8 @@ steps:
     name: Draft rebuttals one comment at a time
     description: |
       For each comment requiring a substantive response:
-        tool_rebuttal_draft(comment=<verbatim>, persona=<id>,
-                            evidence_paths=[...])
+        tool_reviewer(operation='rebuttal', comment=<verbatim>,
+                      persona=<id>, evidence_paths=[...])
       Writes workspace/reviewer/rebuttals/<slug>.md with a scaffold
       that surfaces the auto-discovered evidence inventory (methods
       record, per-step findings_vs_literature, outputs, paper
@@ -117,7 +117,7 @@ steps:
   - id: compile_response
     name: Compile rebuttals into response_to_reviewers
     description: |
-      tool_reviewer_response_compile
+      tool_reviewer(operation='compile')
       Concatenates workspace/reviewer/rebuttals/*.md grouped by
       persona into workspace/reviewer/response_to_reviewers.md and
       attempts a PDF compile via the bundled Typst

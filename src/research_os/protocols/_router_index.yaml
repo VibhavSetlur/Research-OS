@@ -1066,12 +1066,16 @@ protocols:
                "red team the paper", "what will reviewers say", "stress-test the paper",
                "internal review pass", "rebuttal practice", "dry-run review",
                "adversarial review of the paper"]
-    shortcut_tool: tool_reviewer_simulate
+    shortcut_tool: tool_reviewer
     decomposition:
-      - tool: tool_reviewer_simulate
-      - tool: tool_rebuttal_draft
-      - tool: tool_reviewer_response_compile
-      - tool: tool_audit_reviewer_responses
+      - tool: tool_reviewer
+        purpose: "Build the 7-persona pre-submission simulation brief (operation='simulate')."
+      - tool: tool_reviewer
+        purpose: "Scaffold one rebuttal markdown per substantive comment (operation='rebuttal', comment=..., persona=...)."
+      - tool: tool_reviewer
+        purpose: "Assemble rebuttals into response_to_reviewers.md + Typst PDF (operation='compile')."
+      - tool: tool_audit
+        purpose: "Audit rebuttals for hand-waving + missing evidence (scope='synthesis', dimension='reviewer_responses')."
 
   guidance/code_review:
     intent_class: review
@@ -1109,8 +1113,8 @@ protocols:
     decomposition:
       - protocol: guidance/revise_and_resubmit
         purpose: "Ingest reviews, parse to grid, classify + route per comment, execute routes, re-audit, fill response, assemble letter."
-      - tool: tool_response_to_reviewers
-        purpose: "Generate the formal point-by-point letter skeleton."
+      - tool: tool_reviewer
+        purpose: "Generate the formal point-by-point letter skeleton (operation='response')."
       - tool: tool_audit_claims
         purpose: "Re-audit every number in the revised manuscript."
       - tool: tool_audit_prose

@@ -144,3 +144,23 @@ private per-operation worker.
 |---|---|---|---|---|
 | tool_preregister_freeze | tool_preregister | operation | freeze | aliased v2.0.x, removed v2.1.0 |
 | tool_preregister_diff | tool_preregister | operation | diff | aliased v2.0.x, removed v2.1.0 |
+
+## Reviewer family (4 → 1) — phase-9-c6
+
+The four reviewer-response scaffold tools collapse into a single
+`tool_reviewer(operation=simulate|response|rebuttal|compile)` entry
+point. `simulate` builds the 7-persona pre-submission brief against
+`synthesis/paper.md`; `response` writes the response-to-reviewers
+template paired with the latest red-team report; `rebuttal` scaffolds a
+single rebuttal markdown with auto-discovered evidence inventory; and
+`compile` assembles every rebuttal under `workspace/reviewer/rebuttals/`
+into `response_to_reviewers.md` (+ best-effort Typst PDF). Every legacy
+name remains callable via `_ALIASES` + `_ALIAS_PARAM_INJECTION`; the
+dispatcher forwards to the matching private per-operation worker.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_reviewer_simulate | tool_reviewer | operation | simulate | aliased v2.0.x, removed v2.1.0 |
+| tool_response_to_reviewers | tool_reviewer | operation | response | aliased v2.0.x, removed v2.1.0 |
+| tool_rebuttal_draft | tool_reviewer | operation | rebuttal | aliased v2.0.x, removed v2.1.0 |
+| tool_reviewer_response_compile | tool_reviewer | operation | compile | aliased v2.0.x, removed v2.1.0 |

@@ -1503,17 +1503,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_response_to_reviewers": {
-        "short": "Write a response-to-reviewers template paired with the latest red-team report.",
-        "description": "Produces synthesis/response_to_reviewers.md with one heading per reviewer comment (Mn, mn), pre-formatted for line-referenced rebuttal text. Read by the model to generate concrete response text once revisions are in.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "review_path": {"type": "string"},
-            },
-        },
-    },
     "tool_null_findings_report": {
         "short": "Companion document for refuted / inconclusive / underpowered / abandoned analyses.",
         "description": "Walks the hypothesis tracker (refuted + inconclusive), every step's power_report.md (computed power < 0.8), and every __DEAD_END path. Writes synthesis/null_findings.md — a publishable companion that fights the file-drawer problem.",
@@ -2613,45 +2602,48 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
 
-    # ── reviewer-response scaffold (4 tools) ───────────────────────────
-    "tool_reviewer_simulate": {
-        "short": "Build a 7-persona pre-submission reviewer simulation brief against synthesis/paper.md.",
-        "description": "Loads N reviewer personas (default: all 7 — methodology_skeptic, domain_expert, statistician, reproducibility_advocate, scope_creep_critic, novelty_critic, presentation_critic) and the paper, then writes workspace/reviewer/simulation_brief.md with each persona's lens + red flags + typical questions + signature phrasings. The AI in the host IDE drives — walks the paper through each persona, writes per-persona comment lists, then calls tool_rebuttal_draft for each substantive comment. Internal companion to guidance/peer_review_response (which handles ACTUAL external reviewer reports).",
+    # ── reviewer-response scaffold (4 → 1) — phase-9-c6 ────────────────
+    "tool_reviewer": {
+        "short": "Unified reviewer-response tool. operation=simulate|response|rebuttal|compile.",
+        "description": "Unified reviewer-response dispatcher. operation='simulate' loads N reviewer personas (default: all 7 — methodology_skeptic, domain_expert, statistician, reproducibility_advocate, scope_creep_critic, novelty_critic, presentation_critic) and the paper, then writes workspace/reviewer/simulation_brief.md with each persona's lens + red flags + typical questions + signature phrasings. operation='response' produces synthesis/response_to_reviewers.md with one heading per reviewer comment (Mn, mn), pre-formatted for line-referenced rebuttal text, paired with the latest red-team report. operation='rebuttal' writes a single rebuttal scaffold under workspace/reviewer/rebuttals/<slug>.md given a verbatim reviewer comment + the persona id (+ optional evidence_paths); the scaffold surfaces methods record, per-step findings_vs_literature.md, outputs (figures/tables/reports), and paper sections so the AI can ground the response. operation='compile' concatenates every rebuttal markdown under workspace/reviewer/rebuttals/ (grouped by persona) into workspace/reviewer/response_to_reviewers.md; best-effort PDF compile via the bundled Typst generic_two_column template (status='skipped' for the PDF leg when typst is not on PATH; the markdown is always produced). Returns rebuttal_count, personas_addressed, response_md path, response_pdf path (or null). Internal companion to guidance/peer_review_response (which handles ACTUAL external reviewer reports).",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
             "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["simulate", "response", "rebuttal", "compile"],
+                    "description": "Which reviewer sub-operation to invoke.",
+                },
+                # operation='simulate' kwargs
                 "personas": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Subset of persona ids to load. Default: all 7 ship and run.",
+                    "description": "operation='simulate' — subset of persona ids to load. Default: all 7 ship and run.",
                 },
-            },
-        },
-    },
-    "tool_rebuttal_draft": {
-        "short": "Scaffold a single rebuttal markdown file under workspace/reviewer/rebuttals/ with auto-discovered evidence inventory.",
-        "description": "Given a verbatim reviewer comment + the persona id that raised it (+ optional researcher-supplied evidence_paths), write a rebuttal scaffold to workspace/reviewer/rebuttals/<slug>.md. The scaffold surfaces methods record, per-step findings_vs_literature.md, outputs (figures/tables/reports), and paper sections so the AI can ground the response. Flags any supplied evidence_paths that do not exist on disk.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "comment": {"type": "string", "description": "Verbatim reviewer comment."},
-                "persona": {"type": "string", "description": "Persona id that raised the comment (e.g. statistician, novelty_critic)."},
+                # operation='response' kwargs
+                "review_path": {
+                    "type": "string",
+                    "description": "operation='response' — optional path to the red-team review markdown to pair with the response template.",
+                },
+                # operation='rebuttal' kwargs
+                "comment": {
+                    "type": "string",
+                    "description": "operation='rebuttal' — REQUIRED. Verbatim reviewer comment.",
+                },
+                "persona": {
+                    "type": "string",
+                    "description": "operation='rebuttal' — REQUIRED. Persona id that raised the comment (e.g. statistician, novelty_critic).",
+                },
                 "evidence_paths": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Optional workspace-relative paths the rebuttal will cite.",
+                    "description": "operation='rebuttal' — optional workspace-relative paths the rebuttal will cite.",
                 },
+                # operation='compile' takes no extra kwargs.
             },
-            "required": ["comment", "persona"],
+            "required": ["operation"],
         },
-    },
-    "tool_reviewer_response_compile": {
-        "short": "Assemble workspace/reviewer/rebuttals/*.md into response_to_reviewers.md (+ PDF via Typst when available).",
-        "description": "Concatenates every rebuttal markdown under workspace/reviewer/rebuttals/, grouped by persona, into workspace/reviewer/response_to_reviewers.md. Best-effort PDF compile via the bundled Typst generic_two_column template — returns status='skipped' for the PDF leg when typst is not on PATH; the markdown is always produced. Returns rebuttal_count, personas_addressed, response_md path, response_pdf path (or null).",
-        "category": "synthesis",
-        "inputSchema": {"type": "object", "properties": {}},
     },
 }
 
@@ -4648,6 +4640,40 @@ def _handle_tool_reviewer_response_compile(name, arguments, root):
     if res.get("status") == "error":
         return _text(_error(res.get("message", "compile failed")))
     return _text(_success(res))
+
+
+def _handle_tool_reviewer(name, arguments, root):
+    """Unified reviewer-response dispatcher.
+
+    Operations:
+      simulate → tool_reviewer_simulate         (build 7-persona pre-submission brief)
+      response → tool_response_to_reviewers     (write synthesis/response_to_reviewers.md template)
+      rebuttal → tool_rebuttal_draft            (scaffold one rebuttal .md w/ evidence inventory)
+      compile  → tool_reviewer_response_compile (assemble rebuttals into response_to_reviewers.md +PDF)
+
+    Every legacy ``tool_reviewer_simulate`` / ``tool_response_to_reviewers``
+    / ``tool_rebuttal_draft`` / ``tool_reviewer_response_compile`` name is
+    aliased to this entry point and has its operation injected via
+    ``_ALIAS_PARAM_INJECTION`` so callers (researchers, scripts, protocols)
+    using the older per-operation names keep working unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_reviewer requires operation='simulate'|'response'|'rebuttal'|'compile'."
+        ))
+    if op == "simulate":
+        return _handle_tool_reviewer_simulate(name, arguments, root)
+    if op == "response":
+        return _handle_tool_response_to_reviewers(name, arguments, root)
+    if op == "rebuttal":
+        return _handle_tool_rebuttal_draft(name, arguments, root)
+    if op == "compile":
+        return _handle_tool_reviewer_response_compile(name, arguments, root)
+    return _text(_error(
+        f"tool_reviewer: unknown operation '{op}'. "
+        "Valid operations: simulate, response, rebuttal, compile."
+    ))
 
 
 def _handle_tool_audit_reviewer_responses(name, arguments, root):
@@ -6921,7 +6947,7 @@ _HANDLERS = {
     "tool_preregister": _handle_tool_preregister,
     "tool_sensitivity": _handle_tool_sensitivity,
     "tool_redteam_review": _handle_tool_redteam_review,
-    "tool_response_to_reviewers": _handle_tool_response_to_reviewers,
+    # tool_response_to_reviewers consolidated into tool_reviewer(operation='response') — phase-9-c6.
     "tool_null_findings_report": _handle_tool_null_findings_report,
     "tool_audit_quality_full": _handle_tool_audit_quality_full,
     "tool_slurm_submit": _handle_tool_slurm_submit,
@@ -6945,9 +6971,9 @@ _HANDLERS = {
     "tool_humanities_essay_scaffold": _handle_tool_humanities_essay_scaffold,
     "tool_paper_figures_autoembed": _handle_tool_paper_figures_autoembed,
     "tool_slides_create": _handle_tool_slides_create,
-    "tool_reviewer_simulate": _handle_tool_reviewer_simulate,
-    "tool_rebuttal_draft": _handle_tool_rebuttal_draft,
-    "tool_reviewer_response_compile": _handle_tool_reviewer_response_compile,
+    # tool_reviewer_simulate / tool_rebuttal_draft / tool_reviewer_response_compile
+    # consolidated into tool_reviewer(operation='simulate'|'rebuttal'|'compile') — phase-9-c6.
+    "tool_reviewer": _handle_tool_reviewer,
     # research / reasoning
     "tool_research_method": _handle_tool_research_method,
     "tool_research_tool": _handle_tool_research_tool,
@@ -7132,6 +7158,11 @@ _ALIASES = {
     # ── preregister cluster (2 → 1) — phase-9-c5 ──────
     "tool_preregister_freeze":     "tool_preregister",
     "tool_preregister_diff":       "tool_preregister",
+    # ── reviewer cluster (4 → 1) — phase-9-c6 ─────────
+    "tool_reviewer_simulate":          "tool_reviewer",
+    "tool_response_to_reviewers":      "tool_reviewer",
+    "tool_rebuttal_draft":             "tool_reviewer",
+    "tool_reviewer_response_compile":  "tool_reviewer",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7218,6 +7249,11 @@ _DEPRECATED_ALIASES = {
     # ── preregister cluster (2 → 1) — phase-9-c5 ──────
     "tool_preregister_freeze",
     "tool_preregister_diff",
+    # ── reviewer cluster (4 → 1) — phase-9-c6 ─────────
+    "tool_reviewer_simulate",
+    "tool_response_to_reviewers",
+    "tool_rebuttal_draft",
+    "tool_reviewer_response_compile",
 }
 
 
@@ -7320,6 +7356,11 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     # ── preregister cluster (2 → 1) — phase-9-c5 ──────
     "tool_preregister_freeze":            ("operation", "freeze"),
     "tool_preregister_diff":              ("operation", "diff"),
+    # ── reviewer cluster (4 → 1) — phase-9-c6 ─────────
+    "tool_reviewer_simulate":             ("operation", "simulate"),
+    "tool_response_to_reviewers":         ("operation", "response"),
+    "tool_rebuttal_draft":                ("operation", "rebuttal"),
+    "tool_reviewer_response_compile":     ("operation", "compile"),
 }
 
 

@@ -221,8 +221,9 @@ steps:
         ## Reviewer 2
         ...
 
-      Run `tool_response_to_reviewers` to generate the skeleton, then
-      paste each row's response paragraph into the appropriate slot.
+      Run `tool_reviewer(operation='response')` to generate the
+      skeleton, then paste each row's response paragraph into the
+      appropriate slot.
 
       Also emit `synthesis/cover_letter_r1.md` (or _r2, _r3) — the
       brief note to the editor summarising the major revisions and
