@@ -648,7 +648,7 @@ def audit_assumptions(filepath: str, root: Path) -> dict[str, Any]:
                 fitted = df[fitted_col].loc[df[res_col].dropna().index].to_numpy()
                 # Design matrix = [1, fitted]
                 X = np.column_stack([np.ones_like(fitted), fitted])
-                lm_stat, lm_p, f_stat, f_p = het_breuschpagan(resid, X)
+                lm_stat, lm_p, _f_stat, _f_p = het_breuschpagan(resid, X)
                 report["breusch_pagan"] = {
                     "lm_statistic": float(lm_stat),
                     "p_value": float(lm_p),

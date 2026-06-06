@@ -496,7 +496,6 @@ runtime:
   shared_server: false                  # true on HPC / shared boxes
                                         # — flips long_running default
   long_running_threshold_seconds: 60    # tool_task_run vs inline cutoff
-  default_n_for_sampling: 1000          # default sample size for sampling
   cluster_defaults:                     # SLURM defaults for tool_slurm_submit
     partition: ""                       # blank → no --partition flag
     time: "01:00:00"                    # wall clock per job
@@ -512,14 +511,6 @@ runtime:
   max_cpu_seconds: 1800                 # per-subprocess CPU cap (30 min)
   max_memory_mb: 4096                   # per-subprocess RSS cap (4 GiB)
   max_file_size_mb: 100                 # per-output-file size cap
-
-# Language + tool-stack preferences. Read by methodology/pick_tool_stack.
-# AI uses these as hints (NOT hard constraints) — field-practice wins.
-tool_stack:
-  preferred_languages: ["python", "R"]      # order = tie-breaker
-  allow_mixed_language_steps: true
-  field_practice_overrides_preference: true # R Bioconductor for DE etc.
-  cite_field_practice_when_choosing: true
 
 # Top-level helpers read by various tools (all optional):
 # domain: ""                       # short label (e.g. "neuroscience")
