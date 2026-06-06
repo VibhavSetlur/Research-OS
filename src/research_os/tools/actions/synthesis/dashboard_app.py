@@ -1244,7 +1244,7 @@ def render_dashboard_app(
             recorded in result-meta for the override log.
 
     Returns: same shape as v1's ``render_dashboard`` plus an
-    ``renderer="v2"`` discriminator and ``js_bundles`` list.
+    ``renderer="app"`` discriminator and ``js_bundles`` list.
     """
     # Lazy imports: v1 module owns the data-collection helpers; we
     # avoid duplicating ~600 lines by reusing them.
@@ -1344,7 +1344,7 @@ def render_dashboard_app(
             "<!doctype html>\n<html lang='en'><head>",
             "<meta charset='utf-8'>",
             "<meta name='viewport' content='width=device-width,initial-scale=1'>",
-            '<meta name="ro-renderer" content="v2">',
+            '<meta name="ro-renderer" content="app">',
             '<meta name="ro-default-mode" content="', _escape(default_mode), '">',
             f"<title>{_escape(project_title)}</title>",
             f"<style>{css}</style>",
@@ -1369,7 +1369,7 @@ def render_dashboard_app(
         figures_embedded = len(figures)
         result = {
             "status": "success",
-            "renderer": "v2",
+            "renderer": "app",
             "dashboard_path": str(out_path.relative_to(root)),
             "size_kb": round(out_path.stat().st_size / 1024, 1),
             "figures_embedded": figures_embedded,
@@ -1385,7 +1385,7 @@ def render_dashboard_app(
         return result
     except Exception as e:
         logger.exception("render_dashboard_app failed")
-        return {"status": "error", "renderer": "v2", "message": str(e)}
+        return {"status": "error", "renderer": "app", "message": str(e)}
 
 
 def _ro_version() -> str:

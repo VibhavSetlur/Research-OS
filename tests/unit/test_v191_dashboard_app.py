@@ -138,7 +138,7 @@ def test_renderer_basic_success(tmp_path: Path):
     _scaffold(tmp_path, n_steps=2)
     res = render_dashboard_app(tmp_path)
     assert res["status"] == "success"
-    assert res["renderer"] == "v2"
+    assert res["renderer"] == "app"
     assert res["steps"] == 2
     assert (tmp_path / "synthesis" / "dashboard.html").exists()
     assert res["size_kb"] > 100
@@ -162,11 +162,11 @@ def test_rendered_html_no_external_urls_in_src_href(tmp_path: Path):
     assert not bad, f"external src/href found: {bad[:3]}"
 
 
-def test_rendered_html_has_meta_renderer_v2(tmp_path: Path):
+def test_rendered_html_has_meta_renderer_app(tmp_path: Path):
     _scaffold(tmp_path)
     render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
-    assert '<meta name="ro-renderer" content="v2">' in html
+    assert '<meta name="ro-renderer" content="app">' in html
 
 
 def test_renderer_default_mode_respected(tmp_path: Path):
@@ -325,15 +325,15 @@ def test_tool_dashboard_create_legacy_flag_routes_to_v1(tmp_path: Path, monkeypa
     _scaffold(tmp_path)
     from research_os import server
     monkeypatch.chdir(tmp_path)
-    # default (no legacy) → v2
+    # default (no legacy) → app
     out = server._handle_tool_dashboard_create(
         "tool_dashboard_create", {}, tmp_path,
     )
     text = out[0].text if hasattr(out[0], "text") else str(out)
-    assert '"renderer": "v2"' in text or '"v2"' in text
+    assert '"renderer": "app"' in text
     # legacy=true → v1 (no renderer field)
     out2 = server._handle_tool_dashboard_create(
         "tool_dashboard_create", {"dashboard_legacy": True}, tmp_path,
     )
     text2 = out2[0].text if hasattr(out2[0], "text") else str(out2)
-    assert '"renderer": "v2"' not in text2
+    assert '"renderer": "app"' not in text2
