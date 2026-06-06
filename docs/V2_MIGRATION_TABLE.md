@@ -245,3 +245,55 @@ researcher commands produce identical output.
 | tool_task_status | tool_task | operation | status | aliased v2.0.x, removed v2.1.0 |
 | tool_task_list | tool_task | operation | list | aliased v2.0.x, removed v2.1.0 |
 | tool_task_kill | tool_task | operation | kill | aliased v2.0.x, removed v2.1.0 |
+
+## SYS_* families: sys_config + sys_env (5 → 2) — phase-9-c9
+
+C9 was a judgment pass over every `sys_*` family. Most are kept
+separate because they are top-of-funnel discovery primitives or
+single-purpose tools the AI needs to find by name (`sys_boot`,
+`sys_tool_describe`, `sys_help`, `sys_active_tools`, `sys_state_get`,
+`sys_protocol_*` (six), `sys_workspace_scaffold` / `sys_workspace_tree`,
+`sys_file_*` (five), `sys_checkpoint_*` (three), `sys_session_handoff`,
+`sys_export_share_archive`, `sys_notify`, etc.). Hiding any of those
+behind an `operation=` dispatcher would force AIs to discover an extra
+indirection layer for tools they already invoke fluently — net friction
+goes UP, not down. Per the C9 rules: "If consolidation would hide a
+primitive the AI needs to find, LEAVE IT."
+
+Two families were genuinely over-fragmented and DO consolidate cleanly:
+
+* **`sys_config` (3 → 1)** — `get` / `set` / `validate` all operate on
+  the same `inputs/researcher_config.yaml` file and form the canonical
+  read / write / validate trio. Mirrors the proven `sys_path` (3 → 1)
+  pattern already shipped.
+* **`sys_env` (2 → 1)** — `snapshot` then `docker_generate` are paired
+  in every protocol that mentions them ("Use sys_env(operation='docker_generate')
+  after sys_env(operation='snapshot')"). Single conceptual surface (the
+  environment), two sequential operations.
+
+Other candidate families that were considered and **rejected**:
+
+* **`sys_file_*` (5 tools)** — read / write / list / delete /
+  validate_md. File I/O is the highest-frequency MCP surface; every
+  filesystem-style MCP server keeps these split. Consolidating fights
+  AI muscle memory and increases per-call schema parsing.
+* **`sys_workspace_*` (2 tools)** — scaffold is destructive directory
+  creation (rare); tree is a high-frequency read-only orientation
+  tool. Different intents, no shared semantics.
+* **`sys_checkpoint_*` (3 tools)** — the task explicitly carves
+  `sys_checkpoint_rollback` out as KEEP-separate; leaving the other
+  two as a 2 → 1 dispatcher would create an asymmetric API where
+  create/list dispatch but rollback doesn't (worse than status quo).
+
+Every legacy name remains callable via `_ALIASES` +
+`_ALIAS_PARAM_INJECTION`; the dispatcher forwards to the existing
+private per-operation worker so existing scripts, protocols, and
+researcher commands produce identical output.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| sys_config_get | sys_config | operation | get | aliased v2.0.x, removed v2.1.0 |
+| sys_config_set | sys_config | operation | set | aliased v2.0.x, removed v2.1.0 |
+| sys_config_validate | sys_config | operation | validate | aliased v2.0.x, removed v2.1.0 |
+| sys_env_snapshot | sys_env | operation | snapshot | aliased v2.0.x, removed v2.1.0 |
+| sys_env_docker_generate | sys_env | operation | docker_generate | aliased v2.0.x, removed v2.1.0 |

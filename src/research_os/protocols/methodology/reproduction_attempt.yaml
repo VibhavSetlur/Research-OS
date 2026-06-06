@@ -127,7 +127,7 @@ steps:
 
       Set up under workspace/<step>/environment/ with a
       requirements.txt + Dockerfile that captures EXACTLY what was
-      used. Use sys_env_docker_generate after sys_env_snapshot.
+      used. Use sys_env(operation='docker_generate') after sys_env(operation='snapshot').
 
       Document every gap (a library used in the code but not pinned
       in the lock file). Pinning the wrong version of one library

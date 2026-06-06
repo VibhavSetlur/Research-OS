@@ -93,7 +93,7 @@ steps:
   - id: check_env_compatibility
     name: Check env compatibility before committing
     description: |
-      sys_env_snapshot scope="step" step_id="<NN_slug>"
+      sys_env(operation='snapshot', scope='step', step_id='<NN_slug>')
       Confirm the chosen language is installed in the project env. If
       R Bioconductor isn't installed but DESeq2 is the right call,
       surface the install requirement:

@@ -91,7 +91,7 @@ steps:
   - id: snapshot_global_environment
     name: Initialise Global Environment
     description: |
-      sys_env_snapshot — writes the current interpreter's packages to
+      sys_env(operation='snapshot') — writes the current interpreter's packages to
       environment/requirements.txt. Per-experiment environments inherit from
       this baseline. R / Julia / conda lockfiles are picked up automatically
       if they exist at the project root.

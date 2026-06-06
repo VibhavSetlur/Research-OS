@@ -22,7 +22,7 @@ steps:
 
       Also: if you haven't called sys_boot this session, do so once now
       to pick up state + autonomy. Never re-call sys_state_get +
-      sys_config_get separately while sys_boot's payload is still fresh.
+      sys_config(operation='get') separately while sys_boot's payload is still fresh.
 
       BEFORE starting a non-trivial step, optionally:
         tool_lessons tags=[<step_kind>, <method>, <data_type>]
@@ -567,20 +567,20 @@ steps:
   - id: snapshot_step_environment
     name: Snapshot the Environment (every step that actually ran code)
     description: |
-      Default: call sys_env_snapshot EVERY step that ran code.
+      Default: call sys_env(operation='snapshot') EVERY step that ran code.
       It's cheap, idempotent, and the cost of skipping is a published
       result you can't rerun.
 
-        sys_env_snapshot                              # legacy default
-        sys_env_snapshot step_id="<NN_slug>"          # explicit per-step
-        sys_env_snapshot scope="project"              # project-global
+        sys_env(operation='snapshot')                                    # legacy default
+        sys_env(operation='snapshot', step_id='<NN_slug>')               # explicit per-step
+        sys_env(operation='snapshot', scope='project')                   # project-global
 
       Variants:
         - The step uses identical packages to every prior step →
-          `sys_env_snapshot scope="project"` once is enough; per-step
+          `sys_env(operation='snapshot', scope='project')` once is enough; per-step
           snapshots add noise without information.
         - The step needs a different version of even one package →
-          `sys_env_snapshot step_id="<NN_slug>"` so the per-step
+          `sys_env(operation='snapshot', step_id='<NN_slug>')` so the per-step
           requirements.txt captures the variance.
         - Pure-data step (no scripts ran) → skip. finalize_step will
           surface a warning, which is fine.

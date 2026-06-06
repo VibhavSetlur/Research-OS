@@ -120,7 +120,7 @@ steps:
       the project's environment. lifelines (Python), survival
       (R), statsmodels, sksurv, SAS PROC PHREG, and Stata stcox
       all implement the test; pick what the team uses + log the
-      version via sys_env_snapshot.
+      version via sys_env(operation='snapshot').
 
       Use a deterministic RNG seed even though Cox is not
       stochastic — many downstream bootstrap CI calculations are.

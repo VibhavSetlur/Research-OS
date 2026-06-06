@@ -43,7 +43,7 @@ steps:
                      when freshness.is_stale is true)
         - advice — one-line guidance for what to do next
 
-      Do NOT call sys_state_get / sys_config_get / sys_protocol_history /
+      Do NOT call sys_state_get / sys_config(operation='get') / sys_protocol_history /
       sys_dep_inventory / sys_protocol_next / tool_state_freshness_check
       separately. They are all in sys_boot's payload. Sequential or
       parallel — doesn't matter — they cost ~5× more tokens than

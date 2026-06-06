@@ -724,27 +724,33 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Researcher config ─────────────────────────────────────────────
-    "sys_config_get": {
-        "description": "Read inputs/researcher_config.yaml — the source of truth for autonomy level, expertise, model profile, research goal, and API keys (masked).",
-        "category": "config",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "sys_config_set": {
-        "description": "Set a single config value (dot notation, e.g. researcher.expertise_level=advanced).",
+    # sys_config is the unified researcher-config dispatcher. Legacy
+    # per-operation names (sys_config_get / sys_config_set /
+    # sys_config_validate) alias here with operation injected.
+    "sys_config": {
+        "short": "Unified researcher-config tool. operation=get|set|validate.",
+        "description": "Unified researcher-config dispatcher for inputs/researcher_config.yaml. operation='get' reads the full config (autonomy level, expertise, model profile, research goal, API keys masked). operation='set' writes a single value via dot notation (e.g. key='researcher.expertise_level', value='advanced'). operation='validate' checks the schema and reports which API keys are present. Every legacy sys_config_get / sys_config_set / sys_config_validate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "config",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "key": {"type": "string"},
-                "value": {"type": "string"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["get", "set", "validate"],
+                    "description": "Which config sub-operation to invoke.",
+                },
+                # operation='set' kwargs
+                "key": {
+                    "type": "string",
+                    "description": "operation='set' — REQUIRED. Dot-notation key (e.g. 'researcher.expertise_level').",
+                },
+                "value": {
+                    "type": "string",
+                    "description": "operation='set' — REQUIRED. New value as a string.",
+                },
             },
-            "required": ["key", "value"],
+            "required": ["operation"],
         },
-    },
-    "sys_config_validate": {
-        "description": "Validate the config schema and report which API keys are present.",
-        "category": "config",
-        "inputSchema": {"type": "object", "properties": {}},
     },
 
     # ── Notification / handoff ────────────────────────────────────────
@@ -767,28 +773,34 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Environment ───────────────────────────────────────────────────
-    "sys_env_snapshot": {
-        "description": "Snapshot the current Python (and optionally R/Julia) environment. Target by step_id='NN_slug' for a per-step snapshot, scope='project' for the eager-scaffolded project-global environment/ folder, or omit both for the legacy default (most-recent numbered step, or project-global when none exist).",
+    # sys_env is the unified environment dispatcher. Legacy per-operation
+    # names (sys_env_snapshot / sys_env_docker_generate) alias here with
+    # operation injected.
+    "sys_env": {
+        "short": "Unified environment tool. operation=snapshot|docker_generate.",
+        "description": "Unified environment dispatcher. operation='snapshot' captures the current Python (and optionally R/Julia) environment — target by step_id='NN_slug' for a per-step snapshot, scope='project' for the eager-scaffolded project-global environment/ folder, or omit both for the legacy default (most-recent numbered step, or project-global when none exist). operation='docker_generate' generates a Dockerfile from the environment snapshot for full reproducibility (run snapshot first). Every legacy sys_env_snapshot / sys_env_docker_generate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "environment",
         "inputSchema": {
             "type": "object",
             "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["snapshot", "docker_generate"],
+                    "description": "Which environment sub-operation to invoke.",
+                },
+                # operation='snapshot' kwargs
                 "step_id": {
                     "type": "string",
-                    "description": "Optional. NN_slug of the numbered step to snapshot into. Mutually exclusive with scope.",
+                    "description": "operation='snapshot' — optional. NN_slug of the numbered step to snapshot into. Mutually exclusive with scope.",
                 },
                 "scope": {
                     "type": "string",
                     "enum": ["project"],
-                    "description": "Optional. Set to 'project' to snapshot into the project-global environment/ folder.",
+                    "description": "operation='snapshot' — optional. Set to 'project' to snapshot into the project-global environment/ folder.",
                 },
             },
+            "required": ["operation"],
         },
-    },
-    "sys_env_docker_generate": {
-        "description": "Generate a Dockerfile from the environment snapshot for full reproducibility.",
-        "category": "environment",
-        "inputSchema": {"type": "object", "properties": {}},
     },
 
     # ── Memory / append-only logs ─────────────────────────────────────
@@ -6896,6 +6908,45 @@ def _handle_sys_path(name, arguments, root):
     return _text(_error(f"Unknown sys_path operation '{operation}'"))
 
 
+def _handle_sys_config(name, arguments, root):
+    """Unified researcher-config dispatcher (get | set | validate)."""
+    legacy = {
+        "sys_config_get": "get",
+        "sys_config_set": "set",
+        "sys_config_validate": "validate",
+    }
+    operation = arguments.get("operation") or legacy.get(name)
+    if not operation:
+        return _text(_error(
+            "sys_config requires operation='get'|'set'|'validate'"
+        ))
+    if operation == "get":
+        return _handle_sys_config_get(name, arguments, root)
+    if operation == "set":
+        return _handle_sys_config_set(name, arguments, root)
+    if operation == "validate":
+        return _handle_sys_config_validate(name, arguments, root)
+    return _text(_error(f"Unknown sys_config operation '{operation}'"))
+
+
+def _handle_sys_env(name, arguments, root):
+    """Unified environment dispatcher (snapshot | docker_generate)."""
+    legacy = {
+        "sys_env_snapshot": "snapshot",
+        "sys_env_docker_generate": "docker_generate",
+    }
+    operation = arguments.get("operation") or legacy.get(name)
+    if not operation:
+        return _text(_error(
+            "sys_env requires operation='snapshot'|'docker_generate'"
+        ))
+    if operation == "snapshot":
+        return _handle_sys_env_snapshot(name, arguments, root)
+    if operation == "docker_generate":
+        return _handle_sys_env_docker_generate(name, arguments, root)
+    return _text(_error(f"Unknown sys_env operation '{operation}'"))
+
+
 def _handle_tool_ground(name, arguments, root):
     """Unified grounding-register dispatcher.
 
@@ -7127,16 +7178,15 @@ _HANDLERS = {
     "sys_checkpoint_create": _handle_sys_checkpoint_create,
     "sys_checkpoint_rollback": _handle_sys_checkpoint_rollback,
     "sys_checkpoint_list": _handle_sys_checkpoint_list,
-    # config
-    "sys_config_get": _handle_sys_config_get,
-    "sys_config_set": _handle_sys_config_set,
-    "sys_config_validate": _handle_sys_config_validate,
+    # config — consolidated into sys_config(operation=get|set|validate)
+    # via phase-9-c9. Legacy per-operation names alias here.
+    "sys_config": _handle_sys_config,
     # interaction
     "sys_notify": _handle_sys_notify,
     "sys_session_handoff": _handle_sys_session_handoff,
-    # environment
-    "sys_env_snapshot": _handle_sys_env_snapshot,
-    "sys_env_docker_generate": _handle_sys_env_docker_generate,
+    # environment — consolidated into sys_env(operation=snapshot|docker_generate)
+    # via phase-9-c9. Legacy per-operation names alias here.
+    "sys_env": _handle_sys_env,
     # memory
     "mem_analysis_log": _handle_mem_analysis_log,
     "mem_methods_append": _handle_mem_methods_append,
@@ -7429,6 +7479,13 @@ _ALIASES = {
     "tool_task_status":                "tool_task",
     "tool_task_list":                  "tool_task",
     "tool_task_kill":                  "tool_task",
+    # ── sys_config cluster (3 → 1) — phase-9-c9 ──────
+    "sys_config_get":                  "sys_config",
+    "sys_config_set":                  "sys_config",
+    "sys_config_validate":             "sys_config",
+    # ── sys_env cluster (2 → 1) — phase-9-c9 ──────────
+    "sys_env_snapshot":                "sys_env",
+    "sys_env_docker_generate":         "sys_env",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7542,6 +7599,13 @@ _DEPRECATED_ALIASES = {
     "tool_task_status",
     "tool_task_list",
     "tool_task_kill",
+    # ── sys_config cluster (3 → 1) — phase-9-c9 ──────
+    "sys_config_get",
+    "sys_config_set",
+    "sys_config_validate",
+    # ── sys_env cluster (2 → 1) — phase-9-c9 ──────────
+    "sys_env_snapshot",
+    "sys_env_docker_generate",
 }
 
 
@@ -7671,6 +7735,13 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_task_status":                   ("operation", "status"),
     "tool_task_list":                     ("operation", "list"),
     "tool_task_kill":                     ("operation", "kill"),
+    # ── sys_config cluster (3 → 1) — phase-9-c9 ──────
+    "sys_config_get":                     ("operation", "get"),
+    "sys_config_set":                     ("operation", "set"),
+    "sys_config_validate":                ("operation", "validate"),
+    # ── sys_env cluster (2 → 1) — phase-9-c9 ──────────
+    "sys_env_snapshot":                   ("operation", "snapshot"),
+    "sys_env_docker_generate":            ("operation", "docker_generate"),
 }
 
 

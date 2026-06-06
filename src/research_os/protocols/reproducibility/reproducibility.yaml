@@ -12,7 +12,7 @@ steps:
     description: |
       For EACH active (non-dead-end) experiment in workspace/, ensure
       workspace/<step>/environment/requirements.txt exists. If missing, switch
-      to that step (or just call) sys_env_snapshot. R packages → renv.lock,
+      to that step (or just call) sys_env(operation='snapshot'). R packages → renv.lock,
       Julia → Project.toml + Manifest.toml.
 
   - id: verify_seeds
@@ -43,7 +43,7 @@ steps:
   - id: dockerise
     name: Generate Dockerfile
     description: |
-      sys_env_docker_generate — produces environment/Dockerfile from the
+      sys_env(operation='docker_generate') — produces environment/Dockerfile from the
       session snapshot. Verify it would build (read it, sanity check the
       package list).
 

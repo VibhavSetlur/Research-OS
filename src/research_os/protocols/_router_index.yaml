@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 18
+version: 19
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -250,8 +250,8 @@ protocols:
       - "hands off"
     token_estimate: 1100
     decomposition:
-      - tool: sys_config_set
-        args: {key: "interaction.autonomy_level", value: "autopilot"}
+      - tool: sys_config
+        args: {operation: "set", key: "interaction.autonomy_level", value: "autopilot"}
       - protocol: guidance/autopilot
         purpose: "Load gates + heartbeat policy."
       - protocol: guidance/analysis_plan

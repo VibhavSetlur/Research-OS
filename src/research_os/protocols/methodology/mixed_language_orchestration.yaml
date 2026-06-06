@@ -108,7 +108,7 @@ steps:
   - id: capture_versions_per_language
     name: Capture env versions per language used
     description: |
-      sys_env_snapshot scope="step" step_id="<NN_slug>"
+      sys_env(operation='snapshot', scope='step', step_id='<NN_slug>')
       Snapshot must include:
         - environment/requirements.txt (Python: scanpy 1.10.x, …)
         - environment/DESCRIPTION       (R: DESeq2 1.40.x, …)
