@@ -160,7 +160,7 @@ steps:
         - Heavy stages → background via `tool_task_run` or HPC via
           `tool_slurm_submit`.
         - Tag any stage that needs a step-specific environment so
-          `tool_step_env_lock` runs for that step alone.
+          `tool_step(operation='env_lock')` runs for that step alone.
 
       Then call `mem_log` with the pipeline choice + the
       runner-up tool per stage. Runners-up are not waste — they are
@@ -226,7 +226,7 @@ steps:
     description: |
       Final commit:
         - The primary pipeline becomes the active path's
-          `pipeline.yaml` via `tool_step_pipeline_define`. Each
+          `pipeline.yaml` via `tool_step_pipeline(operation='define')`. Each
           stage from `docs/pipeline_plan.md` becomes a pipeline
           node.
         - If an alternative was branched, that branch carries its

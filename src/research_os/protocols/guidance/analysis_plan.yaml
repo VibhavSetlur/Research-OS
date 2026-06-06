@@ -288,10 +288,10 @@ steps:
          ingest → validate → clean → featurize → split → fit
                                                   ↘ diagnose → visualize → report
 
-      Declare it once via tool_step_pipeline_define which seeds
+      Declare it once via tool_step_pipeline(operation='define') which seeds
       workspace/<step>/pipeline.yaml with the 7-node template; edit
       the script + inputs + outputs per node; run with
-      tool_step_pipeline_run. The runner topologically orders nodes,
+      tool_step_pipeline(operation='run'). The runner topologically orders nodes,
       content-hash-caches inputs+params+script (so editing the
       clean script only re-runs clean → fit → diagnose → report),
       writes a .pipeline_run/run_<ts>.json audit trail, and drops a
@@ -335,7 +335,7 @@ steps:
       manually. Use style B only when sub-tasks branch.
 
       In BOTH styles: `_v<k>` is the iteration suffix; bump it via
-      `tool_step_iterate` when materially changing a sub-task.
+      `tool_step(operation='iterate')` when materially changing a sub-task.
 
       Server-enforced gates (no fast path through them):
         - tool_audit(scope='step', dimension='completeness') BLOCKS multi-script steps (>2)
@@ -452,14 +452,14 @@ steps:
       WITHOUT a pipeline.yaml is ALSO a HARD FAIL — the mega-script
       anti-pattern. Separate scripts per sub-task (one for the fit,
       one per figure, one per table, one for the report) and declare
-      them via tool_step_pipeline_define.
+      them via tool_step_pipeline(operation='define').
 
       Versioning has TWO distinct modes:
 
         - BUG FIX → bump `_v<n>` on the affected script, re-run; the
           content-hash cache invalidates downstream nodes automatically.
         - DELIBERATE ITERATION (recolour Fig 2, tighten a cutoff, swap
-          a model spec) → call tool_step_iterate with a rationale FIRST.
+          a model spec) → call tool_step(operation='iterate') with a rationale FIRST.
           It snapshots the current scripts + outputs + captions +
           conclusion into .versions/v<n>/ as a coordinated unit so the
           prior version is preserved before you edit anything. Then
@@ -676,7 +676,7 @@ steps:
 
       Mechanics:
 
-        1. Call `tool_step_revision_options step_id="<NN_slug>"`.
+        1. Call `tool_step(operation='revision_options') step_id="<NN_slug>"`.
            This returns:
              - would_benefit_from_revision (bool)
              - risk_signals (e.g. citations claimed but no
@@ -726,7 +726,7 @@ steps:
 
       ONE-SHOT GUARD: if the AI calls `sys_path` immediately
       after `tool_path_finalize` without calling
-      `tool_step_revision_options` first, the next routing log will
+      `tool_step(operation='revision_options')` first, the next routing log will
       flag this as a protocol violation. Don't do it.
 
   - id: decide_next
@@ -740,7 +740,7 @@ steps:
         - Revise → load `guidance/scope_clarification` for a focused
                    revision pass on the same step (re-iterate the
                    sub-task that needs fixing; bump the script's
-                   `_v<n>` via `tool_step_iterate`).
+                   `_v<n>` via `tool_step(operation='iterate')`).
         - Branch → create a parallel experiment via `sys_path`
                    with `branch_of=<this step>` and a different
                    methodology (kept active alongside this one).

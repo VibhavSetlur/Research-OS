@@ -1157,45 +1157,65 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_step_revision_options": {
-        "short": "After a step finalize, surface the pause-and-revise heuristic + alternative paths + handoff hint.",
-        "description": "Call AFTER tool_path_finalize. Returns: would_benefit_from_revision (bool); suggested_revisions (list of specific fixes); alternative_paths (stratified / sensitivity / method-comparison branches the researcher could consider); handoff_recommended (bool, true when 5+ steps have been finalized in this conversation — context is getting long); risk_signals (e.g. citations claimed but no tool_search_* calls logged). The AI MUST present these options VERBATIM to the researcher and WAIT for their choice (proceed | revise | branch | handoff). Do NOT auto-scaffold the next step unless researcher_config.interaction.autonomy_level == 'autopilot' AND would_benefit_from_revision is False. This is the anti-one-shot gate: AI agents tend to complete long plans as fast as possible which hurts quality; forcing a mandatory pause at well-defined checkpoints — with concrete revision options — gives the researcher a moment to redirect.",
+    "tool_step": {
+        "short": "Unified step lifecycle tool. operation=iterate|iterations_list|revision_options|env_lock.",
+        "description": "Unified step-lifecycle dispatcher. operation='iterate' bumps an analysis step into a new named iteration — copies selected scripts/figures/tables + their sidecars (.caption.md / .summary.md / .prov.json) + conclusions.md into workspace/<step>/.versions/v<n>/, appends a row to workspace/<step>/iterations.yaml with the REQUIRED rationale, and returns the recommended _v<n+1> rename for each script. operation='iterations_list' returns the iterations.yaml ledger for a step (rationale, snapshot dir, script/figure/table names per version). operation='revision_options' (call AFTER tool_path_finalize) surfaces the anti-one-shot pause-and-revise heuristic: would_benefit_from_revision, suggested_revisions, alternative_paths, handoff_recommended (true at 5+ finalized steps), risk_signals — AI MUST present VERBATIM and WAIT for researcher choice. operation='env_lock' pins the step's environment/ for years-later reproduction (requirements + python_version + optional conda.yaml / Dockerfile / Apptainer step.def / entrypoint.sh). Prefer over sys_env_snapshot for any step you intend to publish. Use tool_step_complete for the end-of-step bundle (finalize + completeness audit + literature gate + revision options).",
         "category": "state",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "step_id": {"type": "string", "description": "Numbered step folder, e.g. '03_fit_baseline'."},
+                "operation": {
+                    "type": "string",
+                    "enum": ["iterate", "iterations_list", "revision_options", "env_lock"],
+                    "description": "Which step sub-operation to invoke.",
+                },
+                "step_id": {
+                    "type": "string",
+                    "description": "Numbered step folder, e.g. '03_fit_baseline'. Required for iterate / iterations_list / revision_options; optional for env_lock (defaults to most-recent active step with a warning).",
+                },
+                # operation='iterate' kwargs
+                "rationale": {
+                    "type": "string",
+                    "description": "operation='iterate' — REQUIRED. Why this iteration is happening (design change, parameter sweep, reviewer ask, etc.). Recorded in iterations.yaml.",
+                },
+                "scripts": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "operation='iterate' — optional names under scripts/ to include. Default: every script.",
+                },
+                "figures": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "operation='iterate' — optional names under outputs/figures/ to include. Default: every figure.",
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "operation='iterate' — optional names under outputs/tables/ to include. Default: every table.",
+                },
+                "bump_conclusion": {
+                    "type": "boolean",
+                    "description": "operation='iterate' — copy conclusions.md into the snapshot (default true).",
+                },
+                # operation='env_lock' kwargs
+                "write_conda_yaml": {
+                    "type": "boolean",
+                    "description": "operation='env_lock' — also emit environment/conda.yaml.",
+                },
+                "write_dockerfile": {
+                    "type": "boolean",
+                    "description": "operation='env_lock' — also emit environment/Dockerfile.",
+                },
+                "write_apptainer": {
+                    "type": "boolean",
+                    "description": "operation='env_lock' — emit step.def for HPC Apptainer/Singularity.",
+                },
+                "write_entrypoint": {
+                    "type": "boolean",
+                    "description": "operation='env_lock' — emit environment/entrypoint.sh (default true).",
+                },
             },
-            "required": ["step_id"],
-        },
-    },
-    "tool_step_iterate": {
-        "short": "Take a coordinated iteration snapshot of a step (script+figure+caption+conclusion) into .versions/v<n>/.",
-        "description": "Bumps an analysis step into a new named iteration. Use when the researcher wants to DELIBERATELY iterate (re-colour a figure, tighten a cutoff, swap a model spec) — distinct from a bug fix. Copies the selected scripts / figures / tables AND every sidecar (.caption.md / .summary.md / .prov.json) AND conclusions.md into workspace/<step>/.versions/v<n>/, appends a row to workspace/<step>/iterations.yaml with the (REQUIRED) rationale, and returns the recommended _v<n+1> rename for each script. The live files keep their stable names so cross-step references in conclusions / dashboards don't rot; the snapshot preserves the prior version for audit. After this call, re-run via tool_step_pipeline_run (for code iteration) or regenerate figures live (for cosmetic iteration).",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string", "description": "Numbered step folder, e.g. '03_fit_baseline'."},
-                "rationale": {"type": "string", "description": "REQUIRED. Why this iteration is happening (design change, parameter sweep, reviewer ask, etc.). Recorded in iterations.yaml."},
-                "scripts": {"type": "array", "items": {"type": "string"}, "description": "Optional — names under scripts/ to include. Default: every script."},
-                "figures": {"type": "array", "items": {"type": "string"}, "description": "Optional — names under outputs/figures/ to include. Default: every figure."},
-                "tables": {"type": "array", "items": {"type": "string"}, "description": "Optional — names under outputs/tables/ to include. Default: every table."},
-                "bump_conclusion": {"type": "boolean", "description": "Copy conclusions.md into the snapshot (default true)."},
-            },
-            "required": ["step_id", "rationale"],
-        },
-    },
-    "tool_step_iterations_list": {
-        "short": "Return the iterations.yaml ledger for a step.",
-        "description": "List every recorded iteration of a step (created by tool_step_iterate), including rationale, snapshot dir, and the script/figure/table names captured at each version. Use to surface the iteration history to the researcher or before deciding whether the next change warrants a new iteration vs an in-place edit.",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string"},
-            },
-            "required": ["step_id"],
+            "required": ["operation"],
         },
     },
     "tool_figure_caption_synthesise": {
@@ -1225,55 +1245,55 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_step_pipeline_define": {
-        "short": "Author the step's sub-task DAG (ingest→clean→validate→fit→diagnose→visualize→report).",
-        "description": "Seeds workspace/<step>/pipeline.yaml from a 7-node template; required for any step with >2 scripts (audit gate). See guidance/analysis_plan for the workflow.",
+    "tool_step_pipeline": {
+        "short": "Unified step sub-task pipeline tool. operation=define|run|status|diagram.",
+        "description": "Unified step-pipeline dispatcher for the per-step sub-task DAG (ingest→clean→validate→fit→diagnose→visualize→report). operation='define' (default when name/description/nodes/template imply authoring) seeds workspace/<step>/pipeline.yaml from a 7-node template; required for any step with >2 scripts (audit gate). operation='run' walks the pipeline.yaml DAG in topological order with content-hash caching — nodes whose script+inputs+params hash matches a previous successful run are SKIPPED; only the affected downstream chain re-runs after an edit; each output gets a .prov.json sidecar (PROV-O); pass `only` to restrict to nodes (upstream deps auto-included), `force=true` to bypass cache, `dry_run=true` to plan only. operation='status' reads pipeline.yaml + the most recent run log and per-node reports fresh / stale / never_run. operation='diagram' writes workspace/<step>/pipeline.mermaid which the dashboard's per-step appendix embeds. See guidance/analysis_plan for the workflow.",
         "category": "exec",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "step_id": {"type": "string", "description": "Numbered step folder (e.g. 03_logistic_baseline)."},
-                "name": {"type": "string"},
-                "description": {"type": "string"},
-                "nodes": {"type": "array", "description": "Optional custom node list — see protocol for shape."},
-                "template": {"type": "string", "description": "default (7-node ingest→...→report)."},
+                "operation": {
+                    "type": "string",
+                    "enum": ["define", "run", "status", "diagram"],
+                    "description": "Which pipeline sub-operation to invoke.",
+                },
+                "step_id": {
+                    "type": "string",
+                    "description": "Numbered step folder (e.g. 03_logistic_baseline). Required for every operation.",
+                },
+                # operation='define' kwargs
+                "name": {
+                    "type": "string",
+                    "description": "operation='define' — display name for the pipeline.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "operation='define' — free-text description of the pipeline.",
+                },
+                "nodes": {
+                    "type": "array",
+                    "description": "operation='define' — optional custom node list (see analysis_plan protocol for shape).",
+                },
+                "template": {
+                    "type": "string",
+                    "description": "operation='define' — default (7-node ingest→...→report).",
+                },
+                # operation='run' kwargs
+                "only": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "operation='run' — node IDs to run (transitive deps auto-included).",
+                },
+                "force": {
+                    "type": "boolean",
+                    "description": "operation='run' — skip the cache and re-run every node.",
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "operation='run' — plan only; do not execute.",
+                },
             },
-            "required": ["step_id"],
-        },
-    },
-    "tool_step_pipeline_run": {
-        "short": "Execute the step's sub-task DAG with content-hash caching.",
-        "description": "Walks the pipeline.yaml DAG in topological order. Nodes whose script + inputs + params hash matches a previous successful run are SKIPPED (cached) — only the affected downstream chain re-runs after an edit. Each produced output gets a .prov.json sidecar (PROV-O). Pass `only` to restrict to a subset of nodes (their upstream deps are pulled in automatically). Pass `force=true` to bypass the cache. Pass `dry_run=true` to see what would run.",
-        "category": "exec",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string"},
-                "only": {"type": "array", "items": {"type": "string"}, "description": "Node IDs to run (transitive deps auto-included)."},
-                "force": {"type": "boolean", "description": "Skip the cache and re-run every node."},
-                "dry_run": {"type": "boolean", "description": "Plan only; do not execute."},
-            },
-            "required": ["step_id"],
-        },
-    },
-    "tool_step_pipeline_status": {
-        "short": "Per-node staleness report — what's fresh, stale, or never run.",
-        "description": "Reads pipeline.yaml + the most recent run log; for each node reports fresh (content hash matches last successful run), stale (inputs/params/script changed), or never_run.",
-        "category": "exec",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"step_id": {"type": "string"}},
-            "required": ["step_id"],
-        },
-    },
-    "tool_step_pipeline_diagram": {
-        "short": "Render the step's sub-task DAG as a Mermaid + (optional) PNG.",
-        "description": "Writes workspace/<step>/pipeline.mermaid; the dashboard's per-step appendix embeds it so reviewers see the analysis as a graph, not a mystery script.",
-        "category": "exec",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"step_id": {"type": "string"}},
-            "required": ["step_id"],
+            "required": ["operation", "step_id"],
         },
     },
     # ── Grounded reasoning (ReAct + PROV-O + CoVe + Reflexion) ──────────
@@ -2100,24 +2120,6 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "number",
                     "description": "Only delete entries older than this many days. Omit for all entries.",
                 },
-            },
-        },
-    },
-    "tool_step_env_lock": {
-        "short": "Pin per-step env (requirements + python_version + optional conda / Docker / Apptainer / entrypoint).",
-        "description": "Locks the active step's environment/ for years-later reproduction. Optional artefacts via write_conda_yaml, write_dockerfile, write_apptainer, write_entrypoint. Prefer over sys_env_snapshot for any step you intend to publish.",
-        "category": "execution",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {
-                    "type": "string",
-                    "description": "Numbered step slug (e.g. '01_baseline_eda'). Defaults to the most-recent active step but a warning is returned.",
-                },
-                "write_conda_yaml": {"type": "boolean"},
-                "write_dockerfile": {"type": "boolean"},
-                "write_apptainer": {"type": "boolean", "description": "Emit step.def for HPC Apptainer/Singularity."},
-                "write_entrypoint": {"type": "boolean", "description": "Emit environment/entrypoint.sh (default true)."},
             },
         },
     },
@@ -3828,6 +3830,97 @@ def _handle_tool_dashboard(name, arguments, root):
     if not callable(handler):
         return _text(_error(
             f"tool_dashboard: handler '{handler_name}' is not callable."
+        ))
+    return handler(name, arguments, root)
+
+
+# ── tool_step + tool_step_pipeline dispatchers ──────────────────────
+#
+# The step family collapses four step-lifecycle tools into a single
+# tool_step(operation=...) entry point, and four pipeline tools into a
+# single tool_step_pipeline(operation=...) entry point. Legacy per-
+# operation names (tool_step_iterate / iterations_list / revision_options
+# / env_lock and tool_step_pipeline_{define,run,status,diagram})
+# continue to dispatch via _ALIASES + _ALIAS_PARAM_INJECTION (which
+# inject operation= from the legacy name). The dispatchers read
+# operation off arguments and forward to the matching private per-
+# operation handler — no step logic is rewritten here; this is purely
+# a surface unification mirroring tool_dashboard. tool_step_complete
+# stays standalone as the top-level end-of-step bundle (distinct from
+# the per-operation sub-tools collapsed here).
+_STEP_DISPATCH: dict[str, str] = {
+    "iterate":           "_handle_tool_step_iterate",
+    "iterations_list":   "_handle_tool_step_iterations_list",
+    "revision_options":  "_handle_tool_step_revision_options",
+    "env_lock":          "_handle_tool_step_env_lock",
+}
+
+
+def _handle_tool_step(name, arguments, root):
+    """Unified step-lifecycle dispatcher.
+
+    Routes operation → the matching per-operation handler. Every legacy
+    ``tool_step_*`` name (except ``tool_step_complete`` and the pipeline
+    family) is aliased to this entry point and has its operation
+    injected via ``_ALIAS_PARAM_INJECTION`` so callers (researchers,
+    scripts, protocols) using the older per-operation names keep working
+    unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        valid = ", ".join(sorted(_STEP_DISPATCH))
+        return _text(_error(
+            f"tool_step requires operation=. Valid operations: {valid}."
+        ))
+    handler_name = _STEP_DISPATCH.get(op)
+    if not handler_name:
+        valid = ", ".join(sorted(_STEP_DISPATCH))
+        return _text(_error(
+            f"tool_step: unknown operation '{op}'. "
+            f"Valid operations: {valid}."
+        ))
+    handler = globals().get(handler_name)
+    if not callable(handler):
+        return _text(_error(
+            f"tool_step: handler '{handler_name}' is not callable."
+        ))
+    return handler(name, arguments, root)
+
+
+_STEP_PIPELINE_DISPATCH: dict[str, str] = {
+    "define":  "_handle_tool_step_pipeline_define",
+    "run":     "_handle_tool_step_pipeline_run",
+    "status":  "_handle_tool_step_pipeline_status",
+    "diagram": "_handle_tool_step_pipeline_diagram",
+}
+
+
+def _handle_tool_step_pipeline(name, arguments, root):
+    """Unified step-pipeline dispatcher.
+
+    Routes operation → the matching per-operation handler. Every legacy
+    ``tool_step_pipeline_*`` name is aliased to this entry point and has
+    its operation injected via ``_ALIAS_PARAM_INJECTION`` so callers
+    using the older per-operation names keep working unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        valid = ", ".join(sorted(_STEP_PIPELINE_DISPATCH))
+        return _text(_error(
+            f"tool_step_pipeline requires operation=. "
+            f"Valid operations: {valid}."
+        ))
+    handler_name = _STEP_PIPELINE_DISPATCH.get(op)
+    if not handler_name:
+        valid = ", ".join(sorted(_STEP_PIPELINE_DISPATCH))
+        return _text(_error(
+            f"tool_step_pipeline: unknown operation '{op}'. "
+            f"Valid operations: {valid}."
+        ))
+    handler = globals().get(handler_name)
+    if not callable(handler):
+        return _text(_error(
+            f"tool_step_pipeline: handler '{handler_name}' is not callable."
         ))
     return handler(name, arguments, root)
 
@@ -6667,7 +6760,6 @@ _HANDLERS = {
     "sys_active_project": _handle_sys_active_project,
     "sys_help": _handle_sys_help,
     "tool_cache_clear": _handle_tool_cache_clear,
-    "tool_step_env_lock": _handle_tool_step_env_lock,
     "tool_workflow_dag": _handle_tool_workflow_dag,
     # protocol
     "sys_protocol_get": _handle_sys_protocol_get,
@@ -6738,15 +6830,15 @@ _HANDLERS = {
     # audit (see tool_audit dispatcher above)
     "tool_audit": _handle_tool_audit,
     "tool_audit_findings": _handle_tool_audit_findings,
-    "tool_step_revision_options": _handle_tool_step_revision_options,
-    "tool_step_iterate": _handle_tool_step_iterate,
-    "tool_step_iterations_list": _handle_tool_step_iterations_list,
+    # step (see tool_step / tool_step_pipeline dispatchers above) —
+    # phase-9-c3. tool_step_complete stays standalone as the top-level
+    # end-of-step bundle; the per-operation tools (iterate / iterations_list
+    # / revision_options / env_lock) are collapsed into tool_step and the
+    # pipeline tools (define / run / status / diagram) into tool_step_pipeline.
+    "tool_step": _handle_tool_step,
+    "tool_step_pipeline": _handle_tool_step_pipeline,
     "tool_figure_caption_synthesise": _handle_tool_figure_caption_synthesise,
     "tool_figure_palette": _handle_tool_figure_palette,
-    "tool_step_pipeline_define": _handle_tool_step_pipeline_define,
-    "tool_step_pipeline_run": _handle_tool_step_pipeline_run,
-    "tool_step_pipeline_status": _handle_tool_step_pipeline_status,
-    "tool_step_pipeline_diagram": _handle_tool_step_pipeline_diagram,
     # tool_dashboard_test_generate / test_run consolidated into
     # tool_dashboard(operation=test_*) — phase-9-c2.
     # Grounded reasoning.
@@ -6950,6 +7042,19 @@ _ALIASES = {
     "tool_dashboard_reviewer_sim":      "tool_dashboard",
     "tool_dashboard_test_generate":     "tool_dashboard",
     "tool_dashboard_test_run":          "tool_dashboard",
+
+    # ── step cluster (8 → 2) ──────────────────────────
+    # tool_step_complete stays standalone (top-level end-of-step bundle).
+    # tool_step_literature_list lives with the literature/search family
+    # and is owned by that cluster — NOT consolidated here.
+    "tool_step_iterate":           "tool_step",
+    "tool_step_iterations_list":   "tool_step",
+    "tool_step_revision_options":  "tool_step",
+    "tool_step_env_lock":          "tool_step",
+    "tool_step_pipeline_define":   "tool_step_pipeline",
+    "tool_step_pipeline_run":      "tool_step_pipeline",
+    "tool_step_pipeline_status":   "tool_step_pipeline",
+    "tool_step_pipeline_diagram":  "tool_step_pipeline",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7013,6 +7118,15 @@ _DEPRECATED_ALIASES = {
     "tool_dashboard_reviewer_sim",
     "tool_dashboard_test_generate",
     "tool_dashboard_test_run",
+    # ── step cluster (8 → 2) ──────────────────────────
+    "tool_step_iterate",
+    "tool_step_iterations_list",
+    "tool_step_revision_options",
+    "tool_step_env_lock",
+    "tool_step_pipeline_define",
+    "tool_step_pipeline_run",
+    "tool_step_pipeline_status",
+    "tool_step_pipeline_diagram",
 }
 
 
@@ -7092,6 +7206,15 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_dashboard_reviewer_sim":        ("operation", "reviewer_sim"),
     "tool_dashboard_test_generate":       ("operation", "test_generate"),
     "tool_dashboard_test_run":            ("operation", "test_run"),
+    # ── step cluster (8 → 2) ──────────────────────────
+    "tool_step_iterate":                  ("operation", "iterate"),
+    "tool_step_iterations_list":          ("operation", "iterations_list"),
+    "tool_step_revision_options":         ("operation", "revision_options"),
+    "tool_step_env_lock":                 ("operation", "env_lock"),
+    "tool_step_pipeline_define":          ("operation", "define"),
+    "tool_step_pipeline_run":             ("operation", "run"),
+    "tool_step_pipeline_status":          ("operation", "status"),
+    "tool_step_pipeline_diagram":         ("operation", "diagram"),
 }
 
 

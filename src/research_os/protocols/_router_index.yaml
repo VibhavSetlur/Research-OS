@@ -2010,7 +2010,7 @@ shortcut_intents:
       - "version this iteration"
       - "design iteration"
       - "v2 of this step"
-    tool: tool_step_iterate
+    tool: tool_step
 
   version_coherence:
     triggers:

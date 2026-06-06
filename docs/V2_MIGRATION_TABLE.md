@@ -58,3 +58,32 @@ forwards to the matching private per-operation worker.
 | tool_dashboard_reviewer_sim | tool_dashboard | operation | reviewer_sim | aliased v2.0.x, removed v2.1.0 |
 | tool_dashboard_test_generate | tool_dashboard | operation | test_generate | aliased v2.0.x, removed v2.1.0 |
 | tool_dashboard_test_run | tool_dashboard | operation | test_run | aliased v2.0.x, removed v2.1.0 |
+
+## Step family (8 → 2)  — phase-9-c3
+
+The four step-lifecycle tools (`tool_step_iterate`,
+`tool_step_iterations_list`, `tool_step_revision_options`,
+`tool_step_env_lock`) collapse into `tool_step(operation=...)`. The four
+step sub-task pipeline tools (`tool_step_pipeline_define`,
+`tool_step_pipeline_run`, `tool_step_pipeline_status`,
+`tool_step_pipeline_diagram`) collapse into
+`tool_step_pipeline(operation=...)`. Every legacy name remains callable
+via `_ALIASES` + `_ALIAS_PARAM_INJECTION`; the dispatchers forward to
+the matching private per-operation worker. `tool_step_complete` stays
+standalone as the top-level end-of-step bundle (it composes
+`tool_path_finalize` + `tool_audit(scope='step', dimension='completeness')`
++ `tool_audit(scope='step', dimension='literature')` +
+`tool_step(operation='revision_options')`). `tool_step_literature_list`
+lives with the literature/search family and is owned by that cluster
+(not consolidated here).
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_step_iterate | tool_step | operation | iterate | aliased v2.0.x, removed v2.1.0 |
+| tool_step_iterations_list | tool_step | operation | iterations_list | aliased v2.0.x, removed v2.1.0 |
+| tool_step_revision_options | tool_step | operation | revision_options | aliased v2.0.x, removed v2.1.0 |
+| tool_step_env_lock | tool_step | operation | env_lock | aliased v2.0.x, removed v2.1.0 |
+| tool_step_pipeline_define | tool_step_pipeline | operation | define | aliased v2.0.x, removed v2.1.0 |
+| tool_step_pipeline_run | tool_step_pipeline | operation | run | aliased v2.0.x, removed v2.1.0 |
+| tool_step_pipeline_status | tool_step_pipeline | operation | status | aliased v2.0.x, removed v2.1.0 |
+| tool_step_pipeline_diagram | tool_step_pipeline | operation | diagram | aliased v2.0.x, removed v2.1.0 |
