@@ -329,11 +329,11 @@ def audit_step_literature(
         lines.append("_None_")
     log_path.write_text("\n".join(lines) + "\n")
 
-    # Phase-4 migration: also emit structured AuditFindings to the
-    # workspace/ companion JSON + the .audit_findings.jsonl ledger.
-    # The legacy markdown report above (workspace/logs/step_literature_audit.md)
-    # is preserved byte-for-byte so existing readers + the documented
-    # log_path return field keep working; the new artefacts are additive.
+    # Also emit structured AuditFindings to the workspace/ companion
+    # JSON + the .audit_findings.jsonl ledger. The markdown report
+    # above (workspace/logs/step_literature_audit.md) is preserved
+    # byte-for-byte so existing readers + the documented log_path
+    # return field keep working; the new artefacts are additive.
     findings = StepLiteratureAudit().run(root, step_id=step_id)
     try:
         write_audit_outputs(findings, "step_literature", root)
@@ -360,7 +360,7 @@ def audit_step_literature(
 
 
 # ---------------------------------------------------------------------------
-# Phase-4 AuditBase subclass
+# AuditBase subclass
 # ---------------------------------------------------------------------------
 
 
@@ -611,12 +611,12 @@ def _findings_for_step(
 class StepLiteratureAudit(AuditBase):
     """Per-step literature-loop gate as a structured ``AuditBase`` subclass.
 
-    Wraps the existing :func:`_audit_one_step` logic and re-projects its
-    blockers / warnings as ``AuditFinding`` objects. The original
+    Wraps the :func:`_audit_one_step` logic and re-projects its blockers
+    / warnings as ``AuditFinding`` objects. The
     :func:`audit_step_literature` function remains the public entrypoint
-    and continues to return the legacy dict shape; this class is what
-    composite gates and the Phase-4 ``write_audit_outputs`` writer use
-    when they want structured findings.
+    and continues to return the dict shape; this class is what composite
+    gates and the ``write_audit_outputs`` writer use when they want
+    structured findings.
     """
 
     name = "step_literature"

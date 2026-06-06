@@ -14,7 +14,7 @@ MAJOR-bump signal.
 v2.0.x patch line and v2.x minor series. Pin `~= 2.0` and the listed
 guarantees hold. The v2.0.0 release ships with a documented YELLOW
 caveat on absolute quality targets (see
-[V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md)); none of the
+`CHANGELOG.md [2.0.0]`); none of the
 deferred items affect the contract surface.
 
 Versioning rules (see also [RELEASING.md](RELEASING.md)):
@@ -58,7 +58,7 @@ required-field changes are MAJOR. Deprecated names live on as
 aliases for one MAJOR line: v2.0.x dispatches 78 deprecated names
 via `_DEPRECATED_ALIASES` + `_ALIAS_PARAM_INJECTION`; the v1.6.1
 first-wave aliases (21 names — see Phase 14a in
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md)) were hard-removed
+`CHANGELOG.md [2.0.0]`) were hard-removed
 in v2.0.0 after their 4-minor-version deprecation runway.
 
 Every tool definition carries two MAJOR-stable metadata fields:
@@ -171,6 +171,37 @@ intake | plan | execute | ground | synthesize | review | finalize
 the response envelope. Adding a new tier or reordering is MAJOR.
 The `current_tier` advance machinery in `tool_step_complete` reads
 this enum.
+
+### A.6.1 Tool response envelope (v2.1.0)
+
+Every tool handler returns a v2.1.0 envelope (the helper
+`research_os.server.envelopes._success` / `_error` produces it; every
+handler funnels through these). The shape is part of the stable
+surface — adding fields is MINOR; renaming or removing fields is MAJOR.
+
+| Field | Type | Stability | Notes |
+|---|---|---|---|
+| `status` | `"success" \| "warning" \| "error"` | MAJOR-stable enum | |
+| `payload` | dict (tool-specific) | MAJOR-stable name, MINOR-mutable content | new canonical key |
+| `data` | dict (alias of `payload`) | DEPRECATED — removed in v2.2.0 | back-compat for v2.0 callers |
+| `audit_findings` | list (default `[]`) | MAJOR-stable name | structured findings per A.2 schema |
+| `next_recommended_call` | string \| null | MAJOR-stable name | literal next-tool-call hint (saves a round-trip) |
+| `tier_transition` | string \| null | MAJOR-stable name | e.g. `"tier_execute -> tier_synthesize"` |
+| `tokens_estimate` | int (≥ 0) | MAJOR-stable name | heuristic for client routing |
+| `ro_version` | string (semver) | MAJOR-stable name | matches `research_os.__version__` |
+| `error` | string | error envelopes only | composed WHAT/WHY/NEXT sentence |
+
+Error envelopes additionally surface `payload.what`, `payload.why`,
+`payload.next_action` for clients that want the parts separately, and
+`payload.next_action` is promoted to envelope-level
+`next_recommended_call` unless the caller overrides.
+
+### A.6.2 RoError exception primitive (v2.1.0)
+
+Internal layers raise `research_os.server.errors.RoError(what, why=None,
+next_action=None)`. The server dispatcher catches it and renders the
+v2.1.0 error envelope above. The class + signature are MAJOR-stable
+for plugin authors.
 
 ### A.7 `tool_route` response envelope (v2.0.0)
 
@@ -324,8 +355,8 @@ MINOR.
 | Top-level `researcher_config.yaml` sections | 12 |
 
 The v2.0.0 release notes and migration table live at
-[V2_RELEASE_NOTES.md](V2_RELEASE_NOTES.md),
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md), and
-[V2_MIGRATION_TABLE.md](V2_MIGRATION_TABLE.md). The 20-agent
+`CHANGELOG.md [2.0.0]`,
+`CHANGELOG.md [2.0.0]`, and
+`CHANGELOG.md [2.0.0]`. The 20-agent
 validation report (Phase 15b) is
-[V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md).
+`CHANGELOG.md [2.0.0]`.

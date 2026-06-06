@@ -5,7 +5,7 @@
 `_ALIAS_PARAM_INJECTION` through the v2.0.x patch line. 78 deprecated
 aliases (dispatch-but-flag), 24 hard-removed names (return a friendly
 `_REMOVED_TOOLS` error naming the v2 entry point). See
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) for the full old → new
+`CHANGELOG.md [2.0.0]` for the full old → new
 table.
 
 For *when* to use a tool, see [PROTOCOLS.md](PROTOCOLS.md) — protocols
@@ -58,7 +58,7 @@ Every live tool is below, alphabetised within namespace. Aliases (old
 v1.x names that still dispatch) are listed as **cross-references**
 under the new canonical tool. Hard-removed names (return
 `_REMOVED_TOOLS` friendly errors) are noted in
-[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md), not here.
+`CHANGELOG.md [2.0.0]`, not here.
 
 ### `mem_*` — append-only ledgers
 

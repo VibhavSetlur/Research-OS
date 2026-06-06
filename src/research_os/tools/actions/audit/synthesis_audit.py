@@ -1,4 +1,4 @@
-"""Phase-4 :class:`AuditBase` wrapper around the legacy :func:`audit_synthesis`.
+""":class:`AuditBase` wrapper around :func:`audit_synthesis`.
 
 Calls the procedural auditor (so its existing markdown report at
 ``<step>/outputs/reports/synthesis_audit.md`` continues to be written
@@ -82,12 +82,12 @@ class SynthesisAudit(AuditBase):
 def findings_from_synthesis_result(
     result: dict[str, Any], paper_path: str
 ) -> list[AuditFinding]:
-    """Translate the legacy ``audit_synthesis`` result dict into findings.
+    """Translate the ``audit_synthesis`` result dict into findings.
 
     Pure function over the dict so callers can derive findings without
     re-running the audit. Used by both :class:`SynthesisAudit` and the
-    legacy function itself (after it has computed the result) to write
-    the Phase-4 companion .json + .jsonl artefacts via
+    procedural function itself (after it has computed the result) to
+    write the companion .json + .jsonl artefacts via
     :func:`write_audit_outputs`.
     """
     findings: list[AuditFinding] = []

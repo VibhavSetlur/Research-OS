@@ -97,7 +97,7 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "override_unresolved_blocks": {
                     "type": "boolean",
-                    "description": "Phase-4c: bypass the unresolved-BLOCK-findings gate (workspace/logs/.audit_findings.jsonl). ONLY set when the researcher has explicitly authorised compiling with active BLOCK findings on record. Logged to workspace/logs/override_log.md with the blocker ids.",
+                    "description": "Bypass the unresolved-BLOCK-findings gate (workspace/logs/.audit_findings.jsonl). ONLY set when the researcher has explicitly authorised compiling with active BLOCK findings on record. Logged to workspace/logs/override_log.md with the blocker ids.",
                 },
                 "override_rationale": {
                     "type": "string",
@@ -110,7 +110,7 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "auto_proceed": {
                     "type": "boolean",
-                    "description": "AUTOPILOT-ONLY short-circuit (AUDIT-063). When true AND interaction.autonomy_level == 'autopilot', tool_synthesize processes ALL sections (methods → results → discussion → introduction → abstract) AND runs the full assembly in ONE call. Each per-section file is still written exactly as the multi-turn flow would write it. Passing true in manual/supervised/coaching modes returns an error — the multi-turn cadence is the deliberation pace those modes exist to provide. Default false.",
+                    "description": "AUTOPILOT-ONLY short-circuit. When true AND interaction.autonomy_level == 'autopilot', tool_synthesize processes ALL sections (methods → results → discussion → introduction → abstract) AND runs the full assembly in ONE call. Each per-section file is still written exactly as the multi-turn flow would write it. Passing true in manual/supervised/coaching modes returns an error — the multi-turn cadence is the deliberation pace those modes exist to provide. Default false.",
                 },
             },
         },
@@ -121,7 +121,7 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_poster_create": {
-        "description": "Compile a conference poster from the curated synthesis spec via Typst (academic_36x48 portrait, light theme, US-letter handout by default). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). The legacy tikzposter LaTeX engine was removed in v2.0.0; the `engine` kwarg is accepted for back-compat but only `typst` is supported.",
+        "description": "Compile a conference poster from the curated synthesis spec via Typst (academic_36x48 portrait, light theme, US-letter handout by default). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). The `engine` kwarg is accepted for back-compat but only `typst` is supported.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -144,14 +144,14 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "engine": {
                     "type": "string",
-                    "description": "Back-compat only. Must be 'typst' (default). Any other value is rejected — the tikzposter LaTeX renderer was removed in v2.0.0.",
+                    "description": "Back-compat only. Must be 'typst' (default). Any other value is rejected — the tikzposter LaTeX renderer is no longer supported.",
                 },
             },
         },
     },
     "tool_dashboard": {
         "short": "Unified dashboard tool. operation=create|story_generate|story_edit|story_quality_bar|reviewer_sim|test_generate|test_run.",
-        "description": "Unified dashboard dispatcher. operation='create' (default) renders the standalone offline HTML dashboard at synthesis/dashboard.html (v2 single-page-app by default; pass dashboard_legacy=true for the v1 long-scroll renderer; dashboard_default_mode='story' for narrative-first reading; audience ∈ {academic, executive, technical, teaching}; override_completeness_gate=true + override_rationale='<why>' suppresses the soft completeness warning panel for the FINAL deliverable). operation='story_generate' builds synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state. operation='story_edit' reads (no args) or patches synthesis/dashboard_story.md via `edits` (default mode='patch' diff-style payload, or mode='overwrite' to replace whole file). operation='story_quality_bar' WARNs when reading time falls outside 5-20 min, no figure in first 1000 words, or no DISAGREES/EXTENDS callout (no BLOCKERs — story mode is optional). operation='reviewer_sim' walks synthesis/dashboard.html top-to-bottom and returns whether a 5-minute skimmer would extract the headline finding. operation='test_generate' scaffolds tests/dashboard/ with the baseline Playwright + axe-core suite (pass overwrite=true to replace). operation='test_run' subprocesses pytest under tests/dashboard/ and returns structured failures + trace.zip paths (kwargs: only, visual, update_snapshots, timeout).",
+        "description": "Unified dashboard dispatcher. operation='create' (default) renders the standalone offline HTML dashboard at synthesis/dashboard.html (single-page-app by default; pass dashboard_legacy=true for the v1 long-scroll renderer; dashboard_default_mode='story' for narrative-first reading; audience ∈ {academic, executive, technical, teaching}; override_completeness_gate=true + override_rationale='<why>' suppresses the soft completeness warning panel for the FINAL deliverable). operation='story_generate' builds synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state. operation='story_edit' reads (no args) or patches synthesis/dashboard_story.md via `edits` (default mode='patch' diff-style payload, or mode='overwrite' to replace whole file). operation='story_quality_bar' WARNs when reading time falls outside 5-20 min, no figure in first 1000 words, or no DISAGREES/EXTENDS callout (no BLOCKERs — story mode is optional). operation='reviewer_sim' walks synthesis/dashboard.html top-to-bottom and returns whether a 5-minute skimmer would extract the headline finding. operation='test_generate' scaffolds tests/dashboard/ with the baseline Playwright + axe-core suite (pass overwrite=true to replace). operation='test_run' subprocesses pytest under tests/dashboard/ and returns structured failures + trace.zip paths (kwargs: only, visual, update_snapshots, timeout).",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -177,7 +177,7 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "dashboard_legacy": {
                     "type": "boolean",
-                    "description": "operation='create' — use the v1 long-scroll renderer (back-compat). Default false (v2 single-page app).",
+                    "description": "operation='create' — use the v1 long-scroll renderer (back-compat). Default false (single-page app).",
                 },
                 "dashboard_default_mode": {
                     "type": "string",

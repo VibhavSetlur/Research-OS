@@ -826,7 +826,7 @@ def _write_log(
 
 
 # ---------------------------------------------------------------------------
-# Phase-4 AuditBase wrapper
+# AuditBase wrapper
 # ---------------------------------------------------------------------------
 
 
@@ -845,10 +845,10 @@ _DIM_SEVERITY: dict[str, str] = {
 
 
 class CrossDeliverableConsistencyAudit(AuditBase):
-    """Phase-4 :class:`AuditBase` wrapper around
+    """:class:`AuditBase` wrapper around
     :func:`audit_cross_deliverable_consistency`.
 
-    Calls the legacy procedural auditor (so
+    Calls the procedural auditor (so
     ``workspace/logs/cross_deliverable_audit.md`` continues to be written
     byte-identically and the response payload consumed by callers is
     preserved verbatim) and then translates each per-dimension result

@@ -302,9 +302,9 @@ def audit_claims(
 
 
 class ClaimGroundingAudit(AuditBase):
-    """Phase-4 :class:`AuditBase` wrapper around :func:`audit_claims`.
+    """:class:`AuditBase` wrapper around :func:`audit_claims`.
 
-    Calls the legacy procedural auditor (so the markdown report and
+    Calls the procedural auditor (so the markdown report and
     ``synthesis/claim_index.json`` continue to be written byte-identically)
     and then translates its ``ungrounded`` list into a list of
     :class:`AuditFinding` objects:

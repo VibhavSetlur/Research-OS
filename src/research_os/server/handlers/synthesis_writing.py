@@ -36,6 +36,36 @@ def _handle_tool_synthesize(name, arguments, root):
     from research_os.project_ops import log_override
     from research_os.tools.actions.state.config import get_interaction_policy
 
+    # Block synthesis on an empty workspace BEFORE running
+    # any expensive audits. step_completeness vacuously passes on zero
+    # steps, so a brand-new init that calls tool_synthesize(output_type=
+    # "paper") would otherwise produce a "successful" paper with
+    # hallucinated citations + ungrounded claims. Hard reject any
+    # full-document synthesis call that has < 1 step on disk.
+    workspace = Path(root) / "workspace"
+    step_dirs = []
+    if workspace.exists():
+        step_dirs = [
+            d for d in workspace.iterdir()
+            if d.is_dir() and not d.name.startswith(".") and d.name != "logs"
+        ]
+    full_doc = not arguments.get("section")
+    if full_doc and not step_dirs:
+        return _text(_error(
+            what="workspace has zero analysis steps",
+            why=(
+                "tool_synthesize(output_type='paper') needs at least one "
+                "completed step under workspace/<NN_slug>/ to synthesize "
+                "from; running on an empty workspace would produce a "
+                "fabricated paper with no grounded claims"
+            ),
+            next_action=(
+                "create a step via `tool_route` (e.g. 'run an exploratory "
+                "data analysis pass') or `tool_plan(operation='new')`, "
+                "finish at least one step, then re-run tool_synthesize"
+            ),
+        ))
+
     # Server-enforced quality gate. Single-section synthesis (e.g. just
     # the abstract) clears with a lightweight check; full-document
     # synthesis must pass the master quality auditor.
@@ -47,7 +77,6 @@ def _handle_tool_synthesize(name, arguments, root):
     # confuses the pre-submission audit.
     override_requested = bool(arguments.get("override_completeness_gate", False))
     rationale = arguments.get("override_rationale")
-    full_doc = not arguments.get("section")
     bypass_logged = False
     policy = get_interaction_policy(root)["quality_gate_policy"]
 
@@ -328,7 +357,7 @@ def _handle_tool_section_substantiveness(name, arguments, root):
 
 
 def _handle_tool_humanities_essay_scaffold(name, arguments, root):
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
     return _text(_success(scaffold_humanities_essay(root)))

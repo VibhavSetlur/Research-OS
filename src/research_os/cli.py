@@ -51,11 +51,21 @@ VALID_IDES = (
 def _ide_choice(args_ide: str | None) -> list[str]:
     if not args_ide or args_ide == "all":
         return list(VALID_IDES)
+    if args_ide.strip().lower() == "none":
+        # Explicit opt-out: skip all IDE wiring. Caller passes the empty
+        # list, which downstream code treats as "no MCP config, no .ide
+        # files, no IDE-specific docs".
+        return []
     parts = [p.strip() for p in args_ide.split(",") if p.strip()]
     invalid = [p for p in parts if p not in VALID_IDES]
     if invalid:
-        print(f"  ⚠  Unknown IDE(s): {', '.join(invalid)}. Falling back to 'claude'.")
-        return ["claude"]
+        valid_names = ", ".join(VALID_IDES)
+        print(
+            f"  ✗ Unknown IDE(s): {', '.join(invalid)}.\n"
+            f"    Valid choices: {valid_names}, all, none.\n"
+            f"    Use --ide none to skip IDE wiring entirely."
+        )
+        sys.exit(2)
     return parts
 
 
@@ -281,7 +291,7 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     )
     wizard.ok("Workspace scaffolded", str(target_dir))
 
-    # 2a. v1.3.0: opt-in cross-project profile save.
+    # 2a. Opt-in cross-project profile save.
     if getattr(r, "save_as_profile", False) and any(researcher_block.values()):
         try:
             from research_os.tools.actions.state.config import (
@@ -380,11 +390,10 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     if r.start_server:
         _try_start_server(target_dir)
 
-    # NOTE (v1.3.0): `CONTRIBUTORS.md` is no longer created automatically
-    # at init time. The previous default produced an opaque audit file in
-    # every fresh project that confused new users. It now only gets
-    # written when an action explicitly logs to it (e.g. `research-os ide
-    # add ...`, which is a deliberate change to project wiring).
+    # NOTE: `CONTRIBUTORS.md` is not created automatically at init time.
+    # It only gets written when an action explicitly logs to it (e.g.
+    # `research-os ide add ...`, which is a deliberate change to project
+    # wiring).
 
     # 11. Final report.
     stats = _count_scaffold(target_dir)

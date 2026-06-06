@@ -253,12 +253,11 @@ def _collect_all_verified_citations(
       2. workspace/<step>/literature/literature_index.yaml (per-step PDFs).
       3. Live retrieval via collect_for_section (provides DOI / URL).
 
-    Failure semantics: a previously silent ``list index out of range``
-    inside live retrieval used to make tool_synthesize return
-    ``citations_used: 0`` with no signal that the network path even
-    ran. Live retrieval now uses the with-failures variant; the failure
-    metadata flows out to the caller so the AI can see *why* citations
-    are missing.
+    Failure semantics: live retrieval uses the with-failures variant so
+    that retrieval errors (e.g., ``list index out of range`` inside a
+    provider call) propagate as failure metadata on the result rather
+    than being silently swallowed into ``citations_used: 0``. The AI
+    sees *why* citations are missing.
     """
     from research_os.tools.actions.synthesis.citations import (
         cap_for,
@@ -860,8 +859,8 @@ def synthesize_workspace(
 ) -> dict[str, Any]:
     """Build a section, OR — when section is None — assemble the full output.
 
-    ``auto_proceed`` (autopilot short-circuit, AUDIT-063)
-    ----------------------------------------------------
+    ``auto_proceed`` (autopilot short-circuit)
+    ------------------------------------------
     When ``True`` AND ``interaction.autonomy_level == "autopilot"``,
     iterate every section in ``_AUTO_PROCEED_SECTION_ORDER`` (writing each
     ``synthesis/<section>.md`` exactly as a per-section call would) and
@@ -881,7 +880,7 @@ def synthesize_workspace(
     try:
         from research_os.project_ops import ensure_lazy_dir
 
-        # ── auto_proceed short-circuit (AUDIT-063) ────────────────────
+        # ── auto_proceed short-circuit ────────────────────────────────
         if auto_proceed:
             level = _autonomy_level(root)
             if level != "autopilot":

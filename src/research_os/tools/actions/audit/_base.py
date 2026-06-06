@@ -1,7 +1,7 @@
 """Audit foundation: structured finding dataclass, base class, and writer.
 
-Every Phase-4 audit emits a list of :class:`AuditFinding` objects rather
-than a free-form string. The shape is fixed by
+Every audit emits a list of :class:`AuditFinding` objects rather than
+a free-form string. The shape is fixed by
 ``src/research_os/schemas/audit_finding.schema.json`` (JSON Schema
 draft-07) and validated on the way in via :func:`validate_finding`.
 
@@ -11,7 +11,7 @@ Writing helpers fan one ``list[AuditFinding]`` out to three artefacts:
 * ``workspace/<gate>_audit.json``   — schema-validated, machine-readable
   array of finding objects (overwritten on each run).
 * ``workspace/logs/.audit_findings.jsonl`` — append-only one-JSON-per-line
-  ledger across all audits, used by Phase-4 history queries.
+  ledger across all audits, used by history queries.
 
 The .md + .json files are idempotent (rewritten in place); the .jsonl
 ledger is APPEND-ONLY so the historical record across reruns survives.
@@ -122,7 +122,7 @@ class AuditFinding:
 
 
 class AuditBase(ABC):
-    """Abstract base for every Phase-4 audit.
+    """Abstract base for every audit.
 
     Subclasses implement :meth:`run`. Each audit is responsible for
     producing the list of findings; calling :func:`write_audit_outputs`
@@ -329,7 +329,7 @@ def write_audit_outputs(
     gate_name: str,
     root: Path,
 ) -> dict[str, Path]:
-    """Persist ``findings`` to the three Phase-4 audit artefacts.
+    """Persist ``findings`` to the three audit artefacts.
 
     Returns a dict of {"md": Path, "json": Path, "jsonl": Path} pointing
     at the written files (relative to ``root``).

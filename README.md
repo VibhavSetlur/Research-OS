@@ -9,7 +9,7 @@
   <a href="https://pypi.org/project/research-os/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT"></a>
   <a href="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml"><img src="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml/badge.svg" alt="tests"></a>
-  <a href="docs/V2_RELEASE_NOTES.md"><img src="https://img.shields.io/badge/release-v2.0.0-purple.svg" alt="v2.0.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v2.1.1-purple.svg" alt="v2.1.1"></a>
 </p>
 
 <p align="center">
@@ -22,7 +22,7 @@
   <a href="docs/USE_CASES.md">What you can ask for</a> ·
   <a href="docs/RESEARCHER_GUIDE.md">Full guide</a> ·
   <a href="docs/FAQ.md">FAQ</a> ·
-  <a href="docs/MIGRATION_v1_to_v2.md">v1 → v2 migration</a>
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 ---
@@ -165,9 +165,9 @@ That's the whole workflow.
   `list_tools` is filtered to `status=live` (146 core/pack tools);
   aliases + deprecated names are still callable but not advertised.
 
-→ **[V2_RELEASE_NOTES.md](docs/V2_RELEASE_NOTES.md)** for the full
-  changelog · **[MIGRATION_v1_to_v2.md](docs/MIGRATION_v1_to_v2.md)** for
-  the v1 → v2 migration guide.
+→ **[CHANGELOG.md](CHANGELOG.md)** for the full release history.
+  Upgrading from v1.x? See the [`[2.0.0]` section](CHANGELOG.md) for
+  the surface map.
 
 ---
 
@@ -203,7 +203,7 @@ system that won't let any of those things land in your final paper.
 | **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |
 | **Curious about a protocol** | [docs/PROTOCOLS.md](docs/PROTOCOLS.md) — every workflow with triggers + quality bars |
 | **Looking up a tool** | [docs/TOOLS.md](docs/TOOLS.md) — every MCP tool with examples |
-| **Upgrading from v1.x** | [docs/MIGRATION_v1_to_v2.md](docs/MIGRATION_v1_to_v2.md) — the v1 → v2 surface map |
+| **Upgrading from v1.x** | [CHANGELOG.md](CHANGELOG.md) — see the `[2.0.0]` section for the v1 → v2 surface map |
 | **Sharing a finished project** | [docs/SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths |
 | **Contributing a protocol** | [docs/PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle |
 | **Driving the AI side** | [docs/AI_GUIDE.md](docs/AI_GUIDE.md) — what the AI itself reads |

@@ -193,15 +193,15 @@ def _handle_tool_poster_create(name, arguments, root):
     cfg = get_research_config(root) or {}
     synth = cfg.get("synthesis") or {}
 
-    # The legacy tikzposter LaTeX path was removed in v2.0.0 (phase-14b).
-    # `engine` and `poster_engine` are still accepted for back-compat but
-    # anything other than typst is now a hard error directing the caller
-    # to the new entry point.
+    # The legacy tikzposter LaTeX path is gone. `engine` and
+    # `poster_engine` are still accepted for back-compat but anything
+    # other than typst is a hard error directing the caller to the
+    # supported Typst path.
     engine = (arguments.get("engine") or synth.get("poster_engine") or "typst").lower()
     if engine != "typst":
         return _text(_error(
             f"poster engine '{engine}' is no longer supported. "
-            "The tikzposter LaTeX path was removed in v2.0.0; "
+            "The tikzposter LaTeX path has been removed; "
             "tool_poster_create now renders via Typst only. "
             "Remove the engine= argument (or set "
             "researcher_config.synthesis.poster_engine='typst')."
@@ -313,8 +313,8 @@ def _handle_tool_dashboard_create(name, arguments, root):
             suppress_audit_panel=override_requested and bool(completeness_warnings),
         )
     else:
-        from research_os.tools.actions.synthesis.dashboard_v2 import render_dashboard_v2
-        res = render_dashboard_v2(
+        from research_os.tools.actions.synthesis.dashboard_app import render_dashboard_app
+        res = render_dashboard_app(
             root,
             title=arguments.get("title"),
             audience=arguments.get("audience", "academic"),

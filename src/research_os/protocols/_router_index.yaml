@@ -289,6 +289,11 @@ protocols:
       - "what do you think of this paper"
       - "peer review"
       - "brutal review"
+      - "reviewing a paper"
+      - "reviewing this paper"
+      - "journal review"
+      - "structured feedback"
+      - "walk me through structured feedback"
     shortcut_tool: tool_quick_review
     token_estimate: 700
     decomposition:
@@ -793,7 +798,7 @@ protocols:
   literature/literature_per_step:
     intent_class: literature
     sub_intent: per_step_grounding
-    summary: "After a step writes Findings, search → download → cite → write findings_vs_literature.md (AGREES|DISAGREES|EXTENDS|DEFERRED) → register grounding. Gated by tool_audit_step_literature. v1.4.0 literature loop."
+    summary: "After a step writes Findings, search → download → cite → write findings_vs_literature.md (AGREES|DISAGREES|EXTENDS|DEFERRED) → register grounding. Gated by tool_audit_step_literature."
     triggers: ["ground this step", "literature for this step", "validate findings",
                "compare to literature", "literature check", "is this novel",
                "does the literature support", "findings vs literature",
@@ -904,10 +909,9 @@ protocols:
                "compare distributions", "strip plot", "ecdf"]
 
   visualization/interactive_figure_design:
-    # v1.3.1 fix: `visualize` is NOT a top-level intent_class in the
-    # hierarchy block above; it was a typo in v1.3.0 that made this
-    # protocol unroutable. Mapped to `synthesize/interactive` (the
-    # closest valid hierarchy node) so semantic + trigger routing both
+    # `visualize` is NOT a top-level intent_class in the hierarchy
+    # block above. Mapped to `synthesize/interactive` (the closest
+    # valid hierarchy node) so semantic + trigger routing both
     # surface it.
     intent_class: synthesize
     sub_intent: interactive
@@ -1027,7 +1031,9 @@ protocols:
     intent_class: synthesize
     sub_intent: poster
     summary: "Typst poster (academic_36x48 default). Redirects to synthesis/printable(format=poster)."
-    triggers: ["make a poster", "conference poster", "academic poster"]
+    triggers: ["make a poster", "make me a poster", "build me a poster",
+               "create a poster", "build a poster", "conference poster",
+               "academic poster", "poster", "i need a poster"]
     shortcut_tool: tool_poster_create
 
   synthesis/synthesis_dashboard:
@@ -1139,7 +1145,9 @@ protocols:
     intent_class: audit_wrap
     sub_intent: audit
     summary: "Full audit pass on a synthesis output."
-    triggers: ["audit", "validate", "check the paper", "is this ready"]
+    triggers: ["audit", "validate", "check the paper", "is this ready",
+               "is this paper ready", "ready to submit", "ready for submission",
+               "is this paper ready to submit"]
     decomposition:
       - tool: tool_audit_synthesis
       - tool: tool_audit_citations
@@ -1177,8 +1185,8 @@ protocols:
     shortcut_tool: tool_audit_reproducibility
 
 # ─────────────────────────────────────────────────────────────────────
-# NEW (v2.2) — partial-workflow / role-specific protocols
-# Added for researchers entering mid-pipeline, doing viz-only work,
+# Partial-workflow / role-specific protocols
+# For researchers entering mid-pipeline, doing viz-only work,
 # teaching, comparing methods, or producing non-paper deliverables.
 # ─────────────────────────────────────────────────────────────────────
 
@@ -1620,6 +1628,16 @@ protocols:
       - "bringing this into ro"
       - "import this project"
       - "migrate this into ro"
+      - "fork"
+      - "fork a pipeline"
+      - "fork this pipeline"
+      - "fork an existing pipeline"
+      - "inherited"
+      - "took over"
+      - "took over from"
+      - "former student"
+      - "previous student"
+      - "predecessor"
       - "migrate this into research-os"
       - "starting from in-progress"
       - "i have the analysis i need the writing"
@@ -1632,8 +1650,8 @@ protocols:
       - tool: tool_context_intake
 
 # ─────────────────────────────────────────────────────────────────────
-# NEW (v2.3) — deliverable quality + per-section writing + workflow depth
-# Adds section-specific writing protocols (discussion, limitations,
+# Deliverable quality + per-section writing + workflow depth
+# Section-specific writing protocols (discussion, limitations,
 # results, end-matter), figure composition / arc / a11y, cover letter,
 # title workshop, handout, evaluation design, hyperparameter sweep
 # design, data ethics review, constructive disagreement,
