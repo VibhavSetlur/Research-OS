@@ -181,7 +181,7 @@ steps:
       For each transcript in `inputs/raw_data/`, run a presidio /
       spaCy NER + regex pipeline via `tool_python_exec` (a dedicated
       first-class MCP wrapper is planned but not yet shipped; see
-      docs/ROADMAP.md). Reference invocation:
+      the project board). Reference invocation:
 
         tool_python_exec script="scripts/qual_pii_redact.py"
             args="--transcript inputs/raw_data/<file>

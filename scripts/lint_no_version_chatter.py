@@ -37,7 +37,6 @@ SCAN_ROOTS = [
 ]
 WHITELIST_NAMES = {
     "CHANGELOG.md",
-    "ROADMAP.md",
     "RELEASING.md",
 }
 WHITELIST_PREFIXES = (

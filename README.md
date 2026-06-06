@@ -9,7 +9,6 @@
   <a href="https://pypi.org/project/research-os/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT"></a>
   <a href="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml"><img src="https://img.shields.io/github/actions/workflow/status/VibhavSetlur/Research-OS/test.yml?branch=main&label=tests" alt="tests"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v2.1.1-purple.svg" alt="v2.1.1"></a>
 </p>
 
 <p align="center">
@@ -21,9 +20,25 @@
   <a href="docs/START.md">Quick start</a> ·
   <a href="docs/USE_CASES.md">What you can ask for</a> ·
   <a href="docs/RESEARCHER_GUIDE.md">Full guide</a> ·
-  <a href="docs/FAQ.md">FAQ</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="docs/FAQ.md">FAQ</a>
 </p>
+
+---
+
+## Install
+
+```bash
+pip install "research-os[all]"
+```
+
+Then scaffold a project, open it in your AI IDE, and start talking:
+
+```bash
+mkdir my-project && cd my-project
+research-os init                  # 7-step arrow-key wizard
+```
+
+See **[Use it](#use-it)** below for the full 4-step flow.
 
 ---
 
@@ -122,55 +137,44 @@ The split has a single principle: **you own `inputs/`, the AI owns the rest, and
 
 ---
 
-## How to use it
+## Use it
 
-**1. Install once.** The server is global — one install serves every project.
+**1. Install** — one install serves every project.
 
 ```bash
 pip install "research-os[all]"
 ```
 
-Already installed?
+Upgrade:
 
 ```bash
 pip install --upgrade "research-os[all]"
 ```
 
-**2. Scaffold a project.** The 7-step arrow-key wizard asks where the project goes, which AI IDEs to wire (drops the right MCP config in each), and lets you paste PDFs, DOIs, or notes straight in.
+**2. Scaffold a project** — 7-step arrow-key wizard.
 
 ```bash
 mkdir my-project && cd my-project
 research-os init
 ```
 
-Non-interactive / CI / scripted use:
+**3. Check health** (optional).
 
 ```bash
-research-os init . --yes --name "my-project" --ide claude
-```
-
-`--ide` accepts `all`, `none`, or a comma-separated list of `cursor,claude,antigravity,opencode,vscode,windsurf,continue,aider`.
-
-**3. Check health** (optional but recommended).
-
-```bash
-research-os doctor                # python, conda env, IDE wiring, pack health
-research-os ide list              # which IDEs are wired in this workspace
+research-os doctor
 ```
 
 **4. Open the folder in your AI IDE and talk.** The MCP server auto-launches.
 
 ```
-> what's in my inputs folder?
 > fill out the intake
 > run a baseline analysis on the patient data
 > what should I do next?
+> draft the discussion
+> is this ready to submit?
 ```
 
-That's the whole workflow.
-
-→ Full first-hour walkthrough: **[START.md](docs/START.md)**
-→ Per-IDE wiring details: **[SETUP.md](docs/SETUP.md)**
+→ Full walkthrough: **[START.md](docs/START.md)** · Per-IDE wiring: **[SETUP.md](docs/SETUP.md)** · CLI reference: **[CLI.md](docs/CLI.md)**
 
 ---
 
@@ -251,7 +255,6 @@ system that won't let any of those things land in your final paper.
 | **Sharing a finished project** | [docs/SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths |
 | **Contributing a protocol** | [docs/PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle |
 | **Driving the AI side** | [docs/AI_GUIDE.md](docs/AI_GUIDE.md) — what the AI itself reads |
-| **Embedding RO** | [docs/INTEGRATION.md](docs/INTEGRATION.md) — programmatic API · [docs/CONTRACT.md](docs/CONTRACT.md) — what surfaces are stable |
 
 Doc index: **[docs/README.md](docs/README.md)**
 
