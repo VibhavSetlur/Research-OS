@@ -50,9 +50,9 @@ back-to-back before doing anything else:
    Call `tool_semantic_route` — it returns the top-k candidates with
    cosine scores. Need to find a tool by what it does? Call
    `sys_semantic_tool_search(query=…)`.
-3. `complexity="high"` → `tool_plan_turn` to batch by `model_profile`
+3. `complexity="high"` → `tool_plan(operation="turn")` to batch by `model_profile`
    (small=1 step/turn, medium=3, large=6), execute in order, call
-   `tool_plan_advance` after each. If `chat_split_recommended`, run
+   `tool_plan(operation="advance")` after each. If `chat_split_recommended`, run
    `sys_session_handoff`.
 4. `complexity="low"` → call `shortcut_tool` directly OR load the
    protocol via `sys_protocol_get format='summary'` (~300 tokens),
@@ -60,7 +60,7 @@ back-to-back before doing anything else:
 
 On **subsequent turns** of the same session, skip `sys_boot` (its
 payload is still in context) and go straight to `tool_route` — or
-continue an in-flight `active_plan` via `tool_plan_advance`.
+continue an in-flight `active_plan` via `tool_plan(operation="advance")`.
 
 Use `sys_protocol_get format='summary'` — never `format='full'` just to
 list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.
@@ -82,7 +82,7 @@ sequence with predicted args without executing. Useful for review
 before running a heavy pipeline.
 
 **End-of-step bundling.** Instead of calling `tool_path_finalize`,
-`tool_audit_step_completeness`, `tool_audit_step_literature`, and
+`tool_audit(scope="step", dimension="completeness")`, `tool_audit(scope="step", dimension="literature")`, and
 `tool_step_revision_options` separately, call
 `tool_step_complete(step_id=…)` — it bundles all four into one
 result. Reduces 4 tool calls to 1; matters most on small models.
@@ -131,7 +131,7 @@ flags it before synthesis.
 | Find a tool by what it does | `sys_semantic_tool_search(query=…)` (top-k by cosine) |
 | See ranked protocol candidates (not just `tool_route`'s primary) | `tool_semantic_route(prompt=…)` |
 | Which project is THIS request for? | `sys_active_project` |
-| Researcher pivoted mid-plan | `tool_plan_clear`, then re-`tool_route` |
+| Researcher pivoted mid-plan | `tool_plan(operation="clear")`, then re-`tool_route` |
 | Vague / cross-disciplinary ask | `guidance/scope_clarification` (narrow before routing) |
 | Step naming | `guidance/analysis_plan` |
 | Deliberate iteration (recolour fig, tighten cutoff) | `tool_step_iterate` (snapshot first), then re-run |
@@ -172,8 +172,8 @@ flags it before synthesis.
    prior work as "the initial analysis" unless `synthesis_spec.yaml`
    authorises a named credit. No first person.
 9. **Never one-shot complex prompts.** The router persists an
-   `active_plan`; walk it with `tool_plan_advance`. The server BLOCKS
-   advance into `tool_synthesize` / `tool_dashboard_create` /
+   `active_plan`; walk it with `tool_plan(operation="advance")`. The server BLOCKS
+   advance into `tool_synthesize` / `tool_dashboard(operation="create")` /
    `tool_poster_create` when `tool_audit_quality_full` finds blockers.
 10. **Every figure carries four sidecars** — `.caption.md` (technical),
     `.summary.md` (plain-English), `.prov.json` (provenance), and an
@@ -191,7 +191,7 @@ flags it before synthesis.
     The runner topologically orders + content-hash-caches; one
     monolithic script that produces outputs in MULTIPLE categories
     (figures + tables + reports) is BLOCKED by
-    `tool_audit_step_completeness` — split into atomic sub-tasks.
+    `tool_audit(scope="step", dimension="completeness")` — split into atomic sub-tasks.
 12. **Iterate vs. fix.** A bug fix bumps `_v<n>` on the affected
     script and re-runs. A deliberate design iteration (recolour a
     figure, tighten a cutoff, swap a model) must call
@@ -208,8 +208,8 @@ flags it before synthesis.
 The hard rules above describe defaults. When the researcher EXPLICITLY
 authorises a bypass — words like "skip the audit", "just draft it",
 "give me a partial preview" — the AI may pass `override_completeness_gate=true`
-(`tool_synthesize` / `tool_dashboard_create`) or `override_gate=true`
-(`tool_plan_advance`). REQUIREMENTS:
+(`tool_synthesize` / `tool_dashboard(operation="create")`) or `override_gate=true`
+(`tool_plan(operation="advance")`). REQUIREMENTS:
 
 * The authorisation must be in the researcher's CURRENT message, not
   inferred from past behaviour or assumed from silence.

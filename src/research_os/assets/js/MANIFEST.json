@@ -1,5 +1,5 @@
 {
-  "_doc": "Vendored offline-only JS bundles inlined by dashboard_v2. Filenames here drive the loader in src/research_os/tools/actions/synthesis/dashboard_v2.py — keep in sync.",
+  "_doc": "Vendored offline-only JS bundles inlined by dashboard_app. Filenames here drive the loader in src/research_os/tools/actions/synthesis/dashboard_app.py — keep in sync.",
   "bundles": {
     "minisearch.min.js":   {"version": "7.1.2",  "license": "MIT",          "purpose": "full-text search index"},
     "vega.min.js":         {"version": "5.30.0", "license": "BSD-3-Clause", "purpose": "Vega visualization runtime"},
@@ -9,5 +9,5 @@
     "mermaid.min.js":      {"version": "9.4.3",  "license": "MIT",          "purpose": "Mermaid diagrams (workflow + proof_dependencies)"},
     "vis-network.min.js":  {"version": "9.1.9",  "license": "Apache-2.0",   "purpose": "Network graph fallback for .graphml"}
   },
-  "loader": "dashboard_v2 inlines bundles conditionally: minisearch + vega/vega-lite/vega-embed always; plotly only when a *.plotly.json sidecar exists; mermaid only when a *.mermaid file exists; vis-network only when a *.graphml file exists."
+  "loader": "dashboard_app inlines bundles conditionally: minisearch + vega/vega-lite/vega-embed always; plotly only when a *.plotly.json sidecar exists; mermaid only when a *.mermaid file exists; vis-network only when a *.graphml file exists."
 }

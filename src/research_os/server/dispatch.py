@@ -22,6 +22,7 @@ from .aliases import (
     _REMOVED_TOOLS,
 )
 from .envelopes import TextContent, _error, _text
+from .errors import RoError, did_you_mean
 from .rate_limiter import _rate_limiter
 
 
@@ -99,14 +100,70 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
 
     handler = _HANDLERS.get(resolved)
     if handler is None:
+        suggestions = did_you_mean(resolved, list(_HANDLERS.keys()), n=3)
+        suggestion_clause = (
+            f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+        )
         return _text(
             _error(
-                f"Unknown tool '{name}'. Call sys_protocol_list to see the tool surface "
-                "or check tool_search_web for the right capability."
+                what=f"unknown tool '{name}'",
+                why=(
+                    "no handler is registered for that name — it may be "
+                    "deprecated, removed, or a typo"
+                ),
+                next_action=(
+                    f"call tool_tools_list to see live tools.{suggestion_clause}"
+                ),
             )
         )
     try:
         return handler(resolved, arguments, root)
+    except RoError as ro:
+        # Structured error from the handler: render its WHAT/WHY/NEXT
+        # directly into the envelope.
+        logger.info("RoError in %s: %s", name, ro.what)
+        return _text(_error(**ro.to_envelope_kwargs()))
+    except KeyError as ke:
+        # KeyError(name) bubbling up from a dispatch lookup or arg
+        # unpacking is almost always a missing-required-arg situation.
+        missing = ke.args[0] if ke.args else "?"
+        return _text(_error(
+            what=f"missing required argument '{missing}' for {name}",
+            why="the handler tried to read this key from arguments but it was absent",
+            next_action=(
+                f"call sys_tool_describe(name='{name}') to see the input schema"
+            ),
+        ))
+    except TypeError as te:
+        msg = str(te)
+        # Distinguish "unexpected keyword argument" / "missing required" / other
+        if "unexpected keyword argument" in msg or "missing" in msg and "required" in msg:
+            return _text(_error(
+                what=f"argument shape mismatch in {name}",
+                why=f"the handler rejected the arguments: {msg}",
+                next_action=(
+                    f"call sys_tool_describe(name='{name}') to confirm the input schema"
+                ),
+            ))
+        logger.exception(f"Tool {name} failed")
+        return _text(_error(
+            what=f"{name} raised a TypeError",
+            why=msg,
+            next_action="check tool inputs against sys_tool_describe; report the trace if shape looks right",
+        ))
+    except FileNotFoundError as fe:
+        return _text(_error(
+            what=f"{name} could not find a required file",
+            why=str(fe),
+            next_action=(
+                "verify the workspace path; for protocol-not-found errors, "
+                "call sys_protocol_list for the current names"
+            ),
+        ))
     except Exception as e:
         logger.exception(f"Tool {name} failed")
-        return _text(_error(str(e)))
+        return _text(_error(
+            what=f"{name} raised an unexpected exception",
+            why=f"{type(e).__name__}: {e}",
+            next_action="re-run with simpler arguments to isolate; report trace if reproducible",
+        ))

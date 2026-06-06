@@ -14,7 +14,7 @@ The dashboard now has two reading modes:
 This module owns the *content* of story mode — assembling
 ``synthesis/dashboard_story.md`` from workspace state — plus a
 quality bar audit (reading time, figure-in-first-1000-words, at-least-
-one adversarial callout). The dashboard renderer (``dashboard_v2``)
+one adversarial callout). The dashboard renderer (``dashboard_app``)
 owns rendering that markdown into HTML when ``#mode=story``.
 """
 
