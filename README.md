@@ -9,6 +9,7 @@
   <a href="https://pypi.org/project/research-os/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg" alt="Python"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT"></a>
   <a href="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml"><img src="https://github.com/VibhavSetlur/Research-OS/actions/workflows/test.yml/badge.svg" alt="tests"></a>
+  <a href="docs/V2_RELEASE_NOTES.md"><img src="https://img.shields.io/badge/release-v2.0.0-purple.svg" alt="v2.0.0"></a>
 </p>
 
 <p align="center">
@@ -20,7 +21,8 @@
   <a href="docs/START.md">Quick start</a> ·
   <a href="docs/USE_CASES.md">What you can ask for</a> ·
   <a href="docs/RESEARCHER_GUIDE.md">Full guide</a> ·
-  <a href="docs/FAQ.md">FAQ</a>
+  <a href="docs/FAQ.md">FAQ</a> ·
+  <a href="docs/MIGRATION_v1_to_v2.md">v1 → v2 migration</a>
 </p>
 
 ---
@@ -94,7 +96,7 @@ isn't cluttered with empty folders.
 
 ---
 
-## How to use it — 60 seconds
+## How to use it — 4 steps
 
 **1. Install once** (the server is global — it serves every project):
 
@@ -102,18 +104,25 @@ isn't cluttered with empty folders.
 pip install "research-os[all]"
 ```
 
-**2. Make a project**:
+**2. Scaffold a project**:
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                  # answer the arrow-key wizard
+research-os init                  # 6-step arrow-key wizard
 ```
 
 The wizard asks where the project goes, which AI IDEs you use (it drops
 the right MCP config in each), and lets you paste PDFs, DOIs, or notes
 straight in.
 
-**3. Open the folder in your AI IDE and just talk**:
+**3. Check health** (optional but recommended):
+
+```bash
+research-os doctor                # python, conda env, IDE wiring, pack health
+research-os ide list              # which IDEs are wired in this workspace
+```
+
+**4. Open the folder in your AI IDE and just talk**:
 
 ```
 > what's in my inputs folder?
@@ -126,6 +135,39 @@ That's the whole workflow.
 
 → Full first-hour walkthrough: **[START.md](docs/START.md)**
 → Per-IDE wiring details: **[SETUP.md](docs/SETUP.md)**
+
+---
+
+## What ships in v2.0.0
+
+* **146 MCP tools** across three namespaces — `sys_*` (system / workspace /
+  files / state), `tool_*` (research work), `mem_*` (append-only memory).
+  Down from 344 in v1.x — consolidated families (`tool_audit`,
+  `tool_dashboard`, `tool_search`, `tool_figure`, `tool_step`,
+  `tool_lessons`, `mem_log`, etc.) dispatch by `scope` / `operation` /
+  `dimension`. Every v1 tool name still works via 80 backward-compat
+  aliases for the v2.0.x patch line.
+* **117 protocols** the AI picks from via `tool_route`. Every protocol
+  ships with `scope_tags: {domain, audience, workflow_shape}` and a
+  `tier` annotation so the router can filter intelligently.
+* **MCP `instructions` field** shipped at handshake — compliant clients
+  (Claude Code, Cursor, Cline, etc.) see the canonical boot sequence
+  (`sys_boot → tool_route → sys_protocol_get → sys_active_tools`)
+  without the AI having to discover it.
+* **`sys_protocol_get` defaults to `format='summary'`** (~3K chars
+  vs ~12-25K for full YAML) — 5-10× cheaper per-turn load.
+* **`tool_route` returns `recommended_action` + `why_matched` + `tier`**
+  — a literal next-call string per candidate so the AI never burns a
+  turn deciding what to call next.
+* **`sys_active_tools(protocol_name)`** returns a 13–18-tool scoped
+  shortlist (down from 146 visible) per protocol.
+* **`status` + `pack` on every tool definition** — boot-visible
+  `list_tools` is filtered to `status=live` (146 core/pack tools);
+  aliases + deprecated names are still callable but not advertised.
+
+→ **[V2_RELEASE_NOTES.md](docs/V2_RELEASE_NOTES.md)** for the full
+  changelog · **[MIGRATION_v1_to_v2.md](docs/MIGRATION_v1_to_v2.md)** for
+  the v1 → v2 migration guide.
 
 ---
 
@@ -161,6 +203,7 @@ system that won't let any of those things land in your final paper.
 | **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |
 | **Curious about a protocol** | [docs/PROTOCOLS.md](docs/PROTOCOLS.md) — every workflow with triggers + quality bars |
 | **Looking up a tool** | [docs/TOOLS.md](docs/TOOLS.md) — every MCP tool with examples |
+| **Upgrading from v1.x** | [docs/MIGRATION_v1_to_v2.md](docs/MIGRATION_v1_to_v2.md) — the v1 → v2 surface map |
 | **Sharing a finished project** | [docs/SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths |
 | **Contributing a protocol** | [docs/PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle |
 | **Driving the AI side** | [docs/AI_GUIDE.md](docs/AI_GUIDE.md) — what the AI itself reads |
