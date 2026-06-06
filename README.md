@@ -122,33 +122,43 @@ The split has a single principle: **you own `inputs/`, the AI owns the rest, and
 
 ---
 
-## How to use it — 4 steps
+## How to use it
 
-**1. Install once** (the server is global — it serves every project):
+**1. Install once.** The server is global — one install serves every project.
 
 ```bash
 pip install "research-os[all]"
 ```
 
-**2. Scaffold a project**:
+Already installed?
+
+```bash
+pip install --upgrade "research-os[all]"
+```
+
+**2. Scaffold a project.** The 7-step arrow-key wizard asks where the project goes, which AI IDEs to wire (drops the right MCP config in each), and lets you paste PDFs, DOIs, or notes straight in.
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                  # 6-step arrow-key wizard
+research-os init
 ```
 
-The wizard asks where the project goes, which AI IDEs you use (it drops
-the right MCP config in each), and lets you paste PDFs, DOIs, or notes
-straight in.
+Non-interactive / CI / scripted use:
 
-**3. Check health** (optional but recommended):
+```bash
+research-os init . --yes --name "my-project" --ide claude
+```
+
+`--ide` accepts `all`, `none`, or a comma-separated list of `cursor,claude,antigravity,opencode,vscode,windsurf,continue,aider`.
+
+**3. Check health** (optional but recommended).
 
 ```bash
 research-os doctor                # python, conda env, IDE wiring, pack health
 research-os ide list              # which IDEs are wired in this workspace
 ```
 
-**4. Open the folder in your AI IDE and just talk**:
+**4. Open the folder in your AI IDE and talk.** The MCP server auto-launches.
 
 ```
 > what's in my inputs folder?
