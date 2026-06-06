@@ -8,11 +8,15 @@ Versioning: [SemVer](https://semver.org).
 
 ## [2.1.0] — consistency + organization (2026-06-06)
 
-**Tagline:** internal-consistency MINOR. v2.0.0 shipped the structural
-refactor; v2.1.0 standardizes the surfaces — return envelope shape,
-error message pattern, dashboard module naming, paper-pipeline doc.
-Field-validated by 10 perspective agents across 10 scenarios + 20
-random natural-language prompts.
+**Tagline:** internal-consistency MINOR with honest validation.
+v2.0.0 shipped the structural refactor; v2.1.0 standardizes the
+surfaces — return envelope shape, error message pattern, dashboard
+module naming, paper-pipeline doc — and field-validates the result
+with 10 perspective agents × scenarios + 20 random natural-language
+prompts. The initial Wave-D validation hit 5.54/10 avg and surfaced
+18 fixes; 11 land in this release (the GREEN-gate blockers + the
+quick HIGHs), 7 are tagged for v2.1.x patches with the gap honestly
+acknowledged below — NO RATING PADDING.
 
 ### Added
 
@@ -79,9 +83,42 @@ random natural-language prompts.
   experienced_ai, undergrad, grad_dissertation, postdoc_audit,
   pi_review, industry, methodology_auditor, reproducibility,
   maintainer) × scenarios in `/tmp/ro_v21_validation/` + 20 random
-  natural-language prompts. See `docs/V21_VALIDATION_REPORT.md` for the
-  full 10×6 grade matrix, friction-points-by-frequency table, and
-  per-perspective distillation.
+  natural-language prompts. **Initial Wave-D rating: 5.54/10 avg**
+  (lowest: pi_review 5.0; highest: experienced_ai 6.0). All 5 GREEN
+  targets failed in the initial pass. See `docs/V21_VALIDATION_REPORT.md`
+  for the full 10×6 grade matrix, friction-points-by-frequency,
+  worst-prompt analysis, and v2.1.0/v2.1.x/v2.2.0 deferral list.
+- **Phase 14 fix list** — 11 of 18 surfaced fixes landed (FIX-1, 2, 3,
+  4-partial, 5, 8, 9, 11, 13, 14, 18). The five blockers flagged by
+  ≥9/10 perspectives (envelope ro_version lie, envelope fields never
+  populated, ghost tool refs in error/help advice, --ide none silently
+  rejected, AGENTS.md teaches legacy names) are all closed.
+- **Phase 15 mini re-validation** — 9 targeted spot-checks of the
+  fixes hit, all PASS. See `docs/v21_handoff/PHASE_15_MINI_REVALIDATION.md`
+  for the matrix + honest expected-rating projection (~7.0-7.5/10).
+  A full 10-perspective re-run was deferred under release-ship time
+  pressure; tagged for v2.1.1.
+
+### Deferred to v2.1.x (acknowledged gap, NO PADDING)
+
+The Wave-D report surfaced 7 fixes not landed in v2.1.0. These are
+the gap between the 5.54 baseline + 9 fixes (~7.0-7.5 projected) and
+the 8.5 GREEN target. Each will land as a v2.1.x patch:
+
+- **FIX-6** — narrow handler-level `except Exception` so dispatcher's
+  typed RoError catches actually fire (7/10 perspectives).
+- **FIX-7** — migrate 13+ pack tools to the v2.1.0 envelope (5/10
+  perspectives) — they currently return v2.0 `{status, data}`.
+- **FIX-10** — extend AI_GUIDE.md / TOOLS.md / RESEARCHER_GUIDE.md
+  with v2.1.0 envelope-field docs (4/10 perspectives).
+- **FIX-12** — pack-context bias in router scoring (5/10 perspectives;
+  architectural — will likely land as v2.2.0).
+- **FIX-15** — flip causal-language detector default to observational
+  (2/10 perspectives, BLOCK for methodology-audit use cases) — needs
+  domain reviewer input on default thresholds.
+- **FIX-16** — namespace-aware did-you-mean ranking (5/10 perspectives).
+- **FIX-17** — re-tag `pre_submission_checklist` + `audit_and_validation`
+  + `data_management_plan` as `[any]` not pack-specific.
 
 ### Documentation
 
