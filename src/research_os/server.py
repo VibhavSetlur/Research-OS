@@ -1393,38 +1393,30 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_poster_create": {
-        "description": "Compile a conference poster from the curated synthesis spec. Default engine is Typst (academic_36x48 portrait, light theme, US-letter handout). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). Set engine='latex' (or researcher_config.synthesis.poster_engine='latex') to fall back to the legacy tikzposter renderer; the legacy `layout` + `audience` kwargs route to that path.",
+        "description": "Compile a conference poster from the curated synthesis spec via Typst (academic_36x48 portrait, light theme, US-letter handout by default). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). The legacy tikzposter LaTeX engine was removed in v2.0.0; the `engine` kwarg is accepted for back-compat but only `typst` is supported.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "engine": {
-                    "type": "string",
-                    "description": "typst (default) | latex (legacy tikzposter). Overrides researcher_config.synthesis.poster_engine.",
-                },
                 "template": {
                     "type": "string",
-                    "description": "Typst engine only. academic_36x48 (default) | academic_48x36 | academic_a0_portrait | academic_a1_landscape | public_24x36.",
+                    "description": "academic_36x48 (default) | academic_48x36 | academic_a0_portrait | academic_a1_landscape | public_24x36.",
                 },
                 "theme": {
                     "type": "string",
-                    "description": "Typst engine only. light (default) | dark | institution_branded.",
+                    "description": "light (default) | dark | institution_branded.",
                 },
                 "qr_url": {
                     "type": "string",
-                    "description": "Typst engine only. URL to encode in the footer QR code. Omitted gracefully if `qrcode` package is missing.",
+                    "description": "URL to encode in the footer QR code. Omitted gracefully if `qrcode` package is missing.",
                 },
                 "handout_pdf": {
                     "type": "boolean",
-                    "description": "Typst engine only. Also emit synthesis/poster.handout.pdf (US-letter text-only condensed). Default true.",
+                    "description": "Also emit synthesis/poster.handout.pdf (US-letter text-only condensed). Default true.",
                 },
-                "layout": {
+                "engine": {
                     "type": "string",
-                    "description": "Legacy LaTeX engine only. billboard (default — readable from across the hall) | classic (IMRAD two-column).",
-                },
-                "audience": {
-                    "type": "string",
-                    "description": "Legacy LaTeX engine only. academic_conference (default) | symposium | industry | teaching.",
+                    "description": "Back-compat only. Must be 'typst' (default). Any other value is rejected — the tikzposter LaTeX renderer was removed in v2.0.0.",
                 },
             },
         },
@@ -4507,29 +4499,28 @@ def _handle_tool_poster_create(name, arguments, root):
         draft_with_review_rewrite,
         persona_reviewer,
     )
-    from research_os.tools.actions.synthesis.latex import create_poster
     from research_os.tools.actions.synthesis.poster_typst import compile_poster
     from research_os.tools.actions.state.config import get_research_config
 
     cfg = get_research_config(root) or {}
     synth = cfg.get("synthesis") or {}
 
-    # Resolve engine: explicit argument > researcher_config > default 'typst'.
-    engine = arguments.get("engine")
-    if not engine:
-        engine = synth.get("poster_engine") or "typst"
+    # The legacy tikzposter LaTeX path was removed in v2.0.0 (phase-14b).
+    # `engine` and `poster_engine` are still accepted for back-compat but
+    # anything other than typst is now a hard error directing the caller
+    # to the new entry point.
+    engine = (arguments.get("engine") or synth.get("poster_engine") or "typst").lower()
+    if engine != "typst":
+        return _text(_error(
+            f"poster engine '{engine}' is no longer supported. "
+            "The tikzposter LaTeX path was removed in v2.0.0; "
+            "tool_poster_create now renders via Typst only. "
+            "Remove the engine= argument (or set "
+            "researcher_config.synthesis.poster_engine='typst')."
+        ))
 
-    if engine == "latex":
-        # Legacy tikzposter path. Honors layout (billboard|classic) +
-        # audience (academic_conference|symposium|industry|teaching).
-        return _text(_success(create_poster(
-            root,
-            layout=arguments.get("layout", "billboard"),
-            audience=arguments.get("audience", "academic_conference"),
-        )))
-
-    # Typst (default). Pull template/theme/qr/handout from config when the
-    # caller didn't override.
+    # Typst. Pull template/theme/qr/handout from config when the caller
+    # didn't override.
     template = arguments.get("template")
     theme = arguments.get("theme")
     qr_url = arguments.get("qr_url")
@@ -7591,6 +7582,23 @@ _REMOVED_TOOLS = {
     "mem_analysis_log": (
         "mem_analysis_log: renamed to mem_log in v1.6.1, removed in v2.0.0; "
         "call mem_log(kind='analysis', entry='...') instead."
+    ),
+    # ── Phase 14b: tikzposter LaTeX poster path hard-removed in v2.0.0.
+    # The tool name is unchanged (tool_poster_create) but the engine='latex'
+    # branch + the create_poster() function under synthesis/latex.py +
+    # the layout/audience kwargs are gone. Callers that referenced the old
+    # tool name nicknames get a clear migration message.
+    "tool_poster_create_latex": (
+        "tool_poster_create_latex was never a real tool name. The legacy "
+        "tikzposter LaTeX poster path was reachable through tool_poster_create "
+        "with engine='latex' (or researcher_config.synthesis.poster_engine='latex'); "
+        "it was removed in v2.0.0 (phase-14b). Call tool_poster_create with no "
+        "engine kwarg — the Typst renderer is the only supported path."
+    ),
+    "tool_poster_compile_latex": (
+        "tool_poster_compile_latex was never a real tool name. The legacy "
+        "tikzposter LaTeX poster path was removed in v2.0.0 (phase-14b). "
+        "Call tool_poster_create() — Typst is the only supported renderer."
     ),
 }
 

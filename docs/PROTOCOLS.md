@@ -182,9 +182,10 @@ Each is venue/audience-tailored and enforces quality minimums:
   bands, figure DPI ≥300, citation cap 40, verified online.
 * `synthesis/synthesis_abstract` — structured (journal/preprint) vs
   unstructured (conference) vs grant style. Cap 3 citations.
-* `synthesis/synthesis_poster` — tikzposter, billboard mode (Morrison
-  Better Poster) + classic IMRAD. Audience profiles (academic_conference
-  / symposium / industry / teaching). ≥2 figures ≥300 DPI, ≤6 citations.
+* `synthesis/synthesis_poster` — Typst poster (academic_36x48 default,
+  academic_48x36, academic_a0_portrait, academic_a1_landscape,
+  public_24x36). Audience profiles (academic_conference / symposium /
+  industry / teaching). ≥2 figures ≥300 DPI, ≤6 citations.
 * `synthesis/synthesis_dashboard` — single-file HTML, audience profiles
   (academic / executive / technical / teaching). Sortable tables,
   lightbox, light/dark, print stylesheet, evidence-traceability matrix,

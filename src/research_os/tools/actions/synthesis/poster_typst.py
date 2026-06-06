@@ -1,8 +1,7 @@
 """Typst-native poster compilation.
 
-Default poster engine for ``tool_poster_create``. The tikzposter LaTeX
-path lives in ``synthesis/latex.py:create_poster`` and stays reachable
-via researcher_config ``synthesis.poster_engine="latex"``.
+The only poster engine for ``tool_poster_create``. The ``synthesis.poster_engine``
+config field is pinned to ``"typst"`` and rejects any other value.
 
 Public surface:
   * compile_poster(root, template, theme, qr_url, handout_pdf) -> dict

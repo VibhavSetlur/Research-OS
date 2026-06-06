@@ -245,9 +245,10 @@ synthesis:
   # Also emit a 1-up print handout PDF alongside the deck.
   slide_print_handout: true
 
-  # Poster (tool_poster_compile_typst).
-  #   typst    → recommended (single-binary install, fast)
-  #   latex    → Beamer poster (legacy)
+  # Poster (tool_poster_create). Typst is the only supported engine in
+  # v2.0.0+ — the legacy tikzposter LaTeX renderer was removed in v2.0.0
+  # (phase-14b). The field is retained so existing configs keep
+  # validating; it is enforced to "typst".
   poster_engine: "typst"
   # Poster template (matches dimensions + density).
   #   academic_36x48 | academic_48x36 | academic_a0_portrait
@@ -632,7 +633,9 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     "synthesis.slide_template": (
         "conference_15min", "conference_30min", "lab_meeting", "thesis_defense",
     ),
-    "synthesis.poster_engine": ("typst", "latex"),
+    # tikzposter LaTeX renderer was removed; only "typst" is accepted.
+    # The field is retained so existing configs keep validating.
+    "synthesis.poster_engine": ("typst",),
     "synthesis.poster_template": (
         "academic_36x48", "academic_48x36",
         "academic_a0_portrait", "academic_a1_landscape",

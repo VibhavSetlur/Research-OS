@@ -76,6 +76,8 @@ LINE_EXEMPT_SUBSTRINGS = (
     "removed in v",
     "(phase-14a)",
     "phase-14a (v",
+    "(phase-14b)",
+    "phase-14b (v",
     "pre-dating v1.6.1",
     "across v2.0.0",
 )

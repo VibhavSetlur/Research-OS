@@ -89,11 +89,13 @@ def test_subpackage_imports():
     )
 
     # synthesis/
+    # NOTE: ``create_poster`` (the tikzposter LaTeX renderer) was
+    # removed in v2.0.0 (phase-14b). Poster compilation now lives
+    # exclusively in ``synthesis/poster_typst.py:compile_poster``.
     from research_os.tools.actions.synthesis import (  # noqa: F401
         cap_for,
         collect_for_section,
         create_dashboard,
-        create_poster,
         format_apa,
         format_bib,
         format_vancouver,

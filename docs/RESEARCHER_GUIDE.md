@@ -216,7 +216,7 @@ Also want a poster?
 
 > **You:** And make a poster for the academic conference.
 
-`synthesis/synthesis_poster` builds a tikzposter PDF with a QR code
+`synthesis/synthesis_poster` builds a Typst poster PDF with a QR code
 linking back to the paper and a single-headline test.
 
 ### 4.8 Hand off at end-of-day
@@ -379,7 +379,7 @@ verification).
 | `tool_data_sample` / `_profile` / `_convert` | Sample, profile, convert tabular data. |
 | `tool_audit_synthesis` / `_step_completeness` / `_code_quality` / `_prose` / `_claims` / `_figure_full` / `_citations` / `_assumptions` / `_reproducibility` / `_quality_full` | Real audits — citation lookups, statistical power, assumption tests, figure DPI, full re-runs, master quality audit. |
 | `tool_synthesize_plan` / `tool_synthesize` | Plan section order; build paper / abstract / poster / dashboard / grant / report / slides / lay / handout with verified citations. |
-| `tool_latex_compile` / `tool_poster_create` / `tool_dashboard_create` / `tool_dashboard_test_generate` / `tool_dashboard_test_run` | PDF + tikzposter + single-file HTML dashboard + Playwright suite. |
+| `tool_latex_compile` / `tool_poster_create` / `tool_dashboard_create` / `tool_dashboard_test_generate` / `tool_dashboard_test_run` | PDF + Typst poster + single-file HTML dashboard + Playwright suite. |
 | `tool_research_method` / `tool_research_tool` / `tool_external_tool_instructions` / `tool_plan_step` | Reasoning + grounding helpers. |
 | `tool_plan_next_step` / `tool_branch_recommendation` / `tool_alternative_path_propose` | Iterative planning. |
 | `tool_grounding_register` / `_verify` | Bind decisions to PROV-O sources. |

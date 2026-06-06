@@ -1025,8 +1025,8 @@ protocols:
   synthesis/synthesis_poster:
     intent_class: synthesize
     sub_intent: poster
-    summary: "Tikzposter LaTeX poster. Redirects to synthesis/printable(format=poster)."
-    triggers: ["make a poster", "conference poster", "tikzposter"]
+    summary: "Typst poster (academic_36x48 default). Redirects to synthesis/printable(format=poster)."
+    triggers: ["make a poster", "conference poster", "academic poster"]
     shortcut_tool: tool_poster_create
 
   synthesis/synthesis_dashboard:

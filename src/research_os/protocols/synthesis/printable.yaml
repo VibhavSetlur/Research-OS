@@ -1,7 +1,7 @@
 id: printable
 tier: 'synthesize'
 name: Synthesis — Printable Deliverable (poster | handout | one-pager)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]
@@ -14,7 +14,7 @@ description: |
 
     * format=poster   — wall-mounted large-format (24"x36" – 48"x36").
                         Aims for the across-the-room single-headline test.
-                        Compiles to LaTeX (tikzposter) → PDF.
+                        Compiles to PDF via Typst (academic_36x48 default).
     * format=handout  — single-page A4/Letter take-away. Reader takes
                         one, reads it on the train, decides whether to
                         chase the full artefact. Anchored by ONE
@@ -64,21 +64,21 @@ quality_bar:
 audience_profile:
   poster:
     academic_conference:
-      template: tikzposter
+      template: academic_36x48
       dimensions: "36x48"
       blocks: [Background, Methods, Results, Conclusions, References]
       headline_font_pt: 60
       notes: |
         Default. Standard academic poster. Lots of figures, dense data, methods block.
     symposium:
-      template: tikzposter
+      template: academic_36x48
       dimensions: "36x48"
       blocks: [Hypothesis, Approach, Results, Significance]
       headline_font_pt: 72
       notes: |
         Smaller venue, often student/lab symposia. Big "so-what" framing.
     industry:
-      template: tikzposter
+      template: academic_48x36
       dimensions: "48x36"
       blocks: [Problem, Solution, Impact, Validation, Contact]
       headline_font_pt: 80
@@ -86,7 +86,7 @@ audience_profile:
         For booths / trade shows. Larger headline, fewer technical details,
         explicit Impact section + Contact block at bottom right.
     teaching:
-      template: tikzposter
+      template: public_24x36
       dimensions: "36x48"
       blocks: [Question, Big_Idea, Activity, Takeaway]
       headline_font_pt: 84
@@ -180,9 +180,9 @@ steps:
     name: Build the deliverable
     description: |
       For format=poster:
-        tool_poster_create — generates synthesis/poster.tex
-        (tikzposter) and compiles to synthesis/poster.pdf (if
-        pdflatex is available).
+        tool_poster_create — generates synthesis/poster.typ via the
+        Typst engine and compiles to synthesis/poster.pdf (requires
+        the `typst` CLI on PATH).
       For format=handout / one_pager:
         Write synthesis/handout.tex (or synthesis/handout.md →
         latex_compile if the researcher prefers markdown
