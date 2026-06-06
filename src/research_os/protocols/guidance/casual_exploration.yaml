@@ -50,10 +50,10 @@ steps:
   - id: scratch_first
     name: Default to Scratch Sandbox
     description: |
-      Prefer tool_scratch_write + tool_scratch_run for one-off code instead
-      of versioned step scripts. Keep iteration cheap. Only graduate a
-      scratch file into the step's scripts/ when the researcher says "save
-      this" or "let's keep that".
+      Prefer tool_scratch(operation='write') + tool_scratch(operation='run')
+      for one-off code instead of versioned step scripts. Keep iteration
+      cheap. Only graduate a scratch file into the step's scripts/ when the
+      researcher says "save this" or "let's keep that".
 
   - id: minimal_logging
     name: Minimal Logging

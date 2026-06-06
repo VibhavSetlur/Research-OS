@@ -1901,46 +1901,49 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Real background tasks ─────────────────────────────────────────
-    "tool_task_run": {
-        "description": "Spawn a real background subprocess (Popen). Returns task_id immediately. Use for any command expected to run longer than runtime.long_running_threshold_seconds.",
+    # tool_task is the unified background-subprocess dispatcher. Legacy
+    # per-operation names (tool_task_run / tool_task_status /
+    # tool_task_list / tool_task_kill) alias here with operation injected.
+    "tool_task": {
+        "short": "Unified background task tool. operation=run|status|list|kill.",
+        "description": "Unified background-subprocess (Popen) dispatcher. operation='run' spawns a real background subprocess and returns task_id immediately (use for any command expected to run longer than runtime.long_running_threshold_seconds; REQUIRES command; accepts optional cwd + description). operation='status' checks a task's status + tail of its log (REQUIRES task_id; accepts optional tail_lines, default 50). operation='list' lists all known background tasks with live status. operation='kill' kills a task (SIGTERM by default; REQUIRES task_id; accepts optional signal_name ∈ TERM|KILL|INT). Every legacy tool_task_run / tool_task_status / tool_task_list / tool_task_kill name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "tasks",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "command": {"type": "string", "description": "Shell-tokenised command, or a list."},
-                "cwd": {"type": "string", "description": "Working directory relative to project root."},
-                "description": {"type": "string"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["run", "status", "list", "kill"],
+                    "description": "Which task sub-operation to invoke.",
+                },
+                # operation='run' kwargs
+                "command": {
+                    "type": "string",
+                    "description": "operation='run' — REQUIRED. Shell-tokenised command, or a list.",
+                },
+                "cwd": {
+                    "type": "string",
+                    "description": "operation='run' — Optional working directory relative to project root.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "operation='run' — Optional human-readable description.",
+                },
+                # operation='status'|'kill' kwargs
+                "task_id": {
+                    "type": "string",
+                    "description": "operation='status'|'kill' — REQUIRED. Identifier returned by operation='run'.",
+                },
+                "tail_lines": {
+                    "type": "number",
+                    "description": "operation='status' — Tail length to return (default 50).",
+                },
+                "signal_name": {
+                    "type": "string",
+                    "description": "operation='kill' — Signal to send: TERM | KILL | INT (default TERM).",
+                },
             },
-            "required": ["command"],
-        },
-    },
-    "tool_task_status": {
-        "description": "Check a background task's status + tail of log.",
-        "category": "tasks",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "task_id": {"type": "string"},
-                "tail_lines": {"type": "number"},
-            },
-            "required": ["task_id"],
-        },
-    },
-    "tool_task_list": {
-        "description": "List all known background tasks with live status.",
-        "category": "tasks",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_task_kill": {
-        "description": "Kill a background task (SIGTERM by default).",
-        "category": "tasks",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "task_id": {"type": "string"},
-                "signal_name": {"type": "string", "description": "TERM | KILL | INT"},
-            },
-            "required": ["task_id"],
+            "required": ["operation"],
         },
     },
 
@@ -2035,39 +2038,39 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Scratch sandbox ───────────────────────────────────────────────
-    "tool_scratch_write": {
-        "description": "Write a quick-test file to workspace/scratch/. Gitignored, no provenance — use for syntax checks, smoke tests, parameter sweeps. Anything important must be moved out into a proper experiment.",
+    # tool_scratch is the unified scratch-sandbox dispatcher. Legacy
+    # per-operation names (tool_scratch_write / tool_scratch_run /
+    # tool_scratch_list / tool_scratch_clear) alias here with operation
+    # injected.
+    "tool_scratch": {
+        "short": "Unified scratch sandbox. operation=write|run|list|clear.",
+        "description": "Unified scratch-sandbox dispatcher for workspace/scratch/ — gitignored, no provenance — use for syntax checks, smoke tests, parameter sweeps. operation='write' writes a quick-test file (REQUIRES filename + content). operation='run' executes a script there with language inferred from extension (.py | .R | .jl | .sh) (REQUIRES filename; accepts optional timeout). operation='list' returns the current files. operation='clear' wipes the directory (keeps .gitignore and README). Anything important must be moved out into a proper experiment (e.g. via tool_promote_to_step). Every legacy tool_scratch_write / tool_scratch_run / tool_scratch_list / tool_scratch_clear name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "scratch",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "filename": {"type": "string"},
-                "content": {"type": "string"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["write", "run", "list", "clear"],
+                    "description": "Which scratch sub-operation to invoke.",
+                },
+                # operation='write' kwargs
+                "filename": {
+                    "type": "string",
+                    "description": "operation='write'|'run' — REQUIRED. File name under workspace/scratch/.",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "operation='write' — REQUIRED. File contents to write.",
+                },
+                # operation='run' kwargs
+                "timeout": {
+                    "type": "number",
+                    "description": "operation='run' — Optional execution timeout in seconds (default 60).",
+                },
             },
-            "required": ["filename", "content"],
+            "required": ["operation"],
         },
-    },
-    "tool_scratch_run": {
-        "description": "Execute a script in workspace/scratch/. Language inferred from extension (.py | .R | .jl | .sh).",
-        "category": "scratch",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "filename": {"type": "string"},
-                "timeout": {"type": "number"},
-            },
-            "required": ["filename"],
-        },
-    },
-    "tool_scratch_list": {
-        "description": "List files currently in workspace/scratch/.",
-        "category": "scratch",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_scratch_clear": {
-        "description": "Wipe workspace/scratch/ contents (keeps .gitignore and README).",
-        "category": "scratch",
-        "inputSchema": {"type": "object", "properties": {}},
     },
 
     # ── Workspace repair (heal, never delete) ────────────────────────
@@ -5793,6 +5796,51 @@ def _handle_tool_intake_autofill(name, arguments, root):
 
 
 # ── Background tasks ──────────────────────────────────────────────────
+#
+# tool_task is the unified background-subprocess (Popen) dispatcher.
+# It collapses the four task-management tools into a single
+# tool_task(operation=run|status|list|kill) entry point. Legacy names
+# (tool_task_run / tool_task_status / tool_task_list / tool_task_kill)
+# continue to dispatch via _ALIASES + _ALIAS_PARAM_INJECTION (which
+# inject operation from the legacy name). The dispatcher reads
+# operation off ``arguments`` and forwards to the matching private
+# per-operation handler — no task-management logic is rewritten here;
+# this is purely a surface unification.
+
+
+def _handle_tool_task(name, arguments, root):
+    """Unified background-task dispatcher.
+
+    Operations:
+      run    → tool_task_run    (spawn a real background subprocess)
+      status → tool_task_status (check task status + tail of log)
+      list   → tool_task_list   (list all known background tasks)
+      kill   → tool_task_kill   (signal-terminate a running task)
+
+    Every legacy ``tool_task_run`` / ``tool_task_status`` /
+    ``tool_task_list`` / ``tool_task_kill`` name is aliased to this
+    entry point and has its operation injected via
+    ``_ALIAS_PARAM_INJECTION`` so callers (researchers, scripts,
+    protocols) using the older per-operation names keep working
+    unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_task requires operation='run'|'status'|'list'|'kill'."
+        ))
+    if op == "run":
+        return _handle_tool_task_run(name, arguments, root)
+    if op == "status":
+        return _handle_tool_task_status(name, arguments, root)
+    if op == "list":
+        return _handle_tool_task_list(name, arguments, root)
+    if op == "kill":
+        return _handle_tool_task_kill(name, arguments, root)
+    return _text(_error(
+        f"tool_task: unknown operation '{op}'. "
+        "Valid: run | status | list | kill."
+    ))
 
 
 def _handle_tool_task_run(name, arguments, root):
@@ -5942,6 +5990,54 @@ def _handle_tool_branch_recommendation(name, arguments, root):
 
 
 # ── Scratch ───────────────────────────────────────────────────────────
+
+
+# ── tool_scratch dispatcher ─────────────────────────────────────────
+#
+# The scratch family collapses the four scratch-sandbox tools into a
+# single tool_scratch(operation=write|run|list|clear) entry point.
+# Legacy names (tool_scratch_write / tool_scratch_run /
+# tool_scratch_list / tool_scratch_clear) continue to dispatch via
+# _ALIASES + _ALIAS_PARAM_INJECTION (which inject operation from the
+# legacy name). The dispatcher reads operation off ``arguments`` and
+# forwards to the matching private per-operation handler — no
+# scratch-sandbox logic is rewritten here; this is purely a surface
+# unification.
+
+
+def _handle_tool_scratch(name, arguments, root):
+    """Unified scratch-sandbox dispatcher.
+
+    Operations:
+      write → tool_scratch_write (write a file under workspace/scratch/)
+      run   → tool_scratch_run   (execute a script in workspace/scratch/)
+      list  → tool_scratch_list  (list current scratch files)
+      clear → tool_scratch_clear (wipe scratch contents)
+
+    Every legacy ``tool_scratch_write`` / ``tool_scratch_run`` /
+    ``tool_scratch_list`` / ``tool_scratch_clear`` name is aliased to
+    this entry point and has its operation injected via
+    ``_ALIAS_PARAM_INJECTION`` so callers (researchers, scripts,
+    protocols) using the older per-operation names keep working
+    unchanged.
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_scratch requires operation='write'|'run'|'list'|'clear'."
+        ))
+    if op == "write":
+        return _handle_tool_scratch_write(name, arguments, root)
+    if op == "run":
+        return _handle_tool_scratch_run(name, arguments, root)
+    if op == "list":
+        return _handle_tool_scratch_list(name, arguments, root)
+    if op == "clear":
+        return _handle_tool_scratch_clear(name, arguments, root)
+    return _text(_error(
+        f"tool_scratch: unknown operation '{op}'. "
+        "Valid: write | run | list | clear."
+    ))
 
 
 def _handle_tool_scratch_write(name, arguments, root):
@@ -7134,11 +7230,9 @@ _HANDLERS = {
     "tool_plan_step": _handle_tool_plan_step,
     # intake autofill
     "tool_intake_autofill": _handle_tool_intake_autofill,
-    # tasks
-    "tool_task_run": _handle_tool_task_run,
-    "tool_task_status": _handle_tool_task_status,
-    "tool_task_list": _handle_tool_task_list,
-    "tool_task_kill": _handle_tool_task_kill,
+    # tasks — consolidated (phase-9-c8). Legacy per-operation names
+    # alias to tool_task via _ALIASES + _ALIAS_PARAM_INJECTION.
+    "tool_task": _handle_tool_task,
     # multi-language scripts
     "tool_notebook_exec": _handle_tool_notebook_exec,
     "tool_rmarkdown_render": _handle_tool_rmarkdown_render,
@@ -7149,11 +7243,9 @@ _HANDLERS = {
     # iterative planning
     "tool_plan_next_step": _handle_tool_plan_next_step,
     "tool_branch_recommendation": _handle_tool_branch_recommendation,
-    # scratch
-    "tool_scratch_write": _handle_tool_scratch_write,
-    "tool_scratch_run": _handle_tool_scratch_run,
-    "tool_scratch_list": _handle_tool_scratch_list,
-    "tool_scratch_clear": _handle_tool_scratch_clear,
+    # scratch — consolidated (phase-9-c8). Legacy per-operation names
+    # alias to tool_scratch via _ALIASES + _ALIAS_PARAM_INJECTION.
+    "tool_scratch": _handle_tool_scratch,
     # workspace repair
     "tool_workspace_repair": _handle_tool_workspace_repair,
     # mid-flow context intake
@@ -7327,6 +7419,16 @@ _ALIASES = {
     # ── thought cluster (2 → 1) — phase-9-c7 ──────────
     "tool_thought_log":                "tool_thought",
     "tool_thought_trace":              "tool_thought",
+    # ── scratch cluster (4 → 1) — phase-9-c8 ──────────
+    "tool_scratch_write":              "tool_scratch",
+    "tool_scratch_run":                "tool_scratch",
+    "tool_scratch_list":               "tool_scratch",
+    "tool_scratch_clear":              "tool_scratch",
+    # ── task cluster (4 → 1) — phase-9-c8 ─────────────
+    "tool_task_run":                   "tool_task",
+    "tool_task_status":                "tool_task",
+    "tool_task_list":                  "tool_task",
+    "tool_task_kill":                  "tool_task",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7430,6 +7532,16 @@ _DEPRECATED_ALIASES = {
     # ── thought cluster (2 → 1) — phase-9-c7 ──────────
     "tool_thought_log",
     "tool_thought_trace",
+    # ── scratch cluster (4 → 1) — phase-9-c8 ──────────
+    "tool_scratch_write",
+    "tool_scratch_run",
+    "tool_scratch_list",
+    "tool_scratch_clear",
+    # ── task cluster (4 → 1) — phase-9-c8 ─────────────
+    "tool_task_run",
+    "tool_task_status",
+    "tool_task_list",
+    "tool_task_kill",
 }
 
 
@@ -7549,6 +7661,16 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     # ── thought cluster (2 → 1) — phase-9-c7 ──────────
     "tool_thought_log":                   ("operation", "log"),
     "tool_thought_trace":                 ("operation", "trace"),
+    # ── scratch cluster (4 → 1) — phase-9-c8 ──────────
+    "tool_scratch_write":                 ("operation", "write"),
+    "tool_scratch_run":                   ("operation", "run"),
+    "tool_scratch_list":                  ("operation", "list"),
+    "tool_scratch_clear":                 ("operation", "clear"),
+    # ── task cluster (4 → 1) — phase-9-c8 ─────────────
+    "tool_task_run":                      ("operation", "run"),
+    "tool_task_status":                   ("operation", "status"),
+    "tool_task_list":                     ("operation", "list"),
+    "tool_task_kill":                     ("operation", "kill"),
 }
 
 

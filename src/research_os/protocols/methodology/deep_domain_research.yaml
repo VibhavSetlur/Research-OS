@@ -157,7 +157,7 @@ steps:
       Runtime selection — reason from the tool, not the project:
         - The right runtime is wherever the canonical tool actually
           lives. Polyglot pipelines are fine and often necessary.
-        - Heavy stages → background via `tool_task_run` or HPC via
+        - Heavy stages → background via `tool_task(operation='run')` or HPC via
           `tool_slurm_submit`.
         - Tag any stage that needs a step-specific environment so
           `tool_step(operation='env_lock')` runs for that step alone.

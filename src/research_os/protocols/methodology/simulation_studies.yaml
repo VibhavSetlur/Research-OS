@@ -55,7 +55,7 @@ steps:
     description: |
       Run a tiny pilot (e.g. 10 reps per scenario) to confirm the pipeline,
       audit outputs, then scale to the planned N_reps. Background the full
-      run with tool_task_run if expected runtime > 5 min on shared infra.
+      run with tool_task(operation='run') if expected runtime > 5 min on shared infra.
 
   - id: tidy_results
     name: Tidy Results into Long Format

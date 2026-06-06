@@ -358,8 +358,9 @@ steps:
         Quarto (.qmd)       → tool_rmarkdown_render
 
       LONG-RUNNING (estimated > runtime.long_running_threshold_seconds, or
-      on shared_server=true): use tool_task_run instead of blocking exec, then
-      poll tool_task_status. Tell the researcher "task <id> backgrounded;
+      on shared_server=true): use tool_task(operation='run') instead of
+      blocking exec, then poll tool_task(operation='status'). Tell the
+      researcher "task <id> backgrounded;
       checking every <interval>".
 
       Every script MUST produce all three OUTPUT CATEGORIES — reports,

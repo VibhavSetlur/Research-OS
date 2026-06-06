@@ -156,8 +156,8 @@ steps:
       For FULL reproductions:
         - run the authors' entrypoint (README's `make all`, `bash
           run.sh`, `python main.py`, `snakemake`, `nextflow run …`)
-          via tool_task_run (background for anything > 60s);
-          tool_task_status to monitor
+          via tool_task(operation='run') (background for anything > 60s);
+          tool_task(operation='status') to monitor
         - capture stderr/stdout to
           workspace/<step>/outputs/logs/rerun_<timestamp>.log
         - record wall-time, peak memory, GPU usage (when applicable)

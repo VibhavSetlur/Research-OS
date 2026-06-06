@@ -203,3 +203,45 @@ researcher commands produce identical output.
 | tool_paper_figures_autoembed | tool_figure | operation | paper_autoembed | aliased v2.0.x, removed v2.1.0 |
 | tool_thought_log | tool_thought | operation | log | aliased v2.0.x, removed v2.1.0 |
 | tool_thought_trace | tool_thought | operation | trace | aliased v2.0.x, removed v2.1.0 |
+
+## Misc families: scratch + task (8 → 2) — phase-9-c8
+
+The audit of remaining `tool_<verb>_*` families found two natural
+sub-systems still expressed as per-operation surface:
+
+* **Scratch (4 → 1)** — the four scratch-sandbox tools (`write` stages
+  a quick-test file under `workspace/scratch/`; `run` executes one with
+  language inferred from extension; `list` reports the current files;
+  `clear` wipes the sandbox while preserving `.gitignore` and README)
+  collapse into a single `tool_scratch(operation=write|run|list|clear)`
+  entry point.
+* **Task (4 → 1)** — the four background-task tools (`run` spawns a
+  real background subprocess and returns a `task_id`; `status` checks
+  status + tail of log; `list` enumerates all known background tasks;
+  `kill` signal-terminates a running task) collapse into a single
+  `tool_task(operation=run|status|list|kill)` entry point.
+
+The two `tool_quick_*` tools (`tool_quick_review` stages a paper-review
+markdown; `tool_quick_route` is the throwaway-intent classifier used to
+short-circuit protocol load) share a *prefix* only — no functional
+overlap — and are NOT consolidated here. They are kept standalone for
+the same reason `tool_search_*` was already consolidated per-provider
+and a hypothetical `tool_search_anything_else` would not have been
+folded in: the rule is "natural family with a shared concept", not
+"shared name prefix".
+
+Every legacy name remains callable via `_ALIASES` +
+`_ALIAS_PARAM_INJECTION`; the dispatcher forwards to the matching
+private per-operation worker so existing scripts, protocols, and
+researcher commands produce identical output.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_scratch_write | tool_scratch | operation | write | aliased v2.0.x, removed v2.1.0 |
+| tool_scratch_run | tool_scratch | operation | run | aliased v2.0.x, removed v2.1.0 |
+| tool_scratch_list | tool_scratch | operation | list | aliased v2.0.x, removed v2.1.0 |
+| tool_scratch_clear | tool_scratch | operation | clear | aliased v2.0.x, removed v2.1.0 |
+| tool_task_run | tool_task | operation | run | aliased v2.0.x, removed v2.1.0 |
+| tool_task_status | tool_task | operation | status | aliased v2.0.x, removed v2.1.0 |
+| tool_task_list | tool_task | operation | list | aliased v2.0.x, removed v2.1.0 |
+| tool_task_kill | tool_task | operation | kill | aliased v2.0.x, removed v2.1.0 |

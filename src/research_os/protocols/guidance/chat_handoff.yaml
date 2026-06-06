@@ -24,7 +24,7 @@ steps:
         - sys_state_get format="markdown"
         - sys_protocol_history limit=20
         - mem_hypothesis_list
-        - tool_task_list
+        - tool_task(operation='list')
       The checkpoint is the rollback safety net. The state + history feed
       the handoff doc.
 
@@ -43,7 +43,7 @@ steps:
     description: |
       Enumerate:
         - Hypotheses currently in status=testing
-        - Background tasks not yet finished (tool_task_list, with PIDs)
+        - Background tasks not yet finished (tool_task(operation='list'), with PIDs)
         - Numbered steps without conclusions.md (in-flight work)
         - Decisions logged with "[pending]" / "[deferred]" tags
       Each entry includes a one-line "what to do with this" pointer.

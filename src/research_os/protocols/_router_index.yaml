@@ -1991,11 +1991,11 @@ shortcut_intents:
 
   background_task:
     triggers: ["background", "long running", "kick off", "fire and forget"]
-    tool: tool_task_run
+    tool: tool_task
 
   scratch_sandbox:
     triggers: ["quick test", "syntax check", "scratch", "throwaway"]
-    tool: tool_scratch_write
+    tool: tool_scratch
 
   step_iterate:
     triggers:

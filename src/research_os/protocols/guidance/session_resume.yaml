@@ -39,7 +39,7 @@ steps:
     name: Poll Live Background Tasks (only if any)
     description: |
       If tool_session_resume reported background_tasks.running > 0, call
-      tool_task_status for each task_id:
+      tool_task(operation='status') for each task_id:
         - finished → log result, surface a one-line summary
         - still running → report elapsed time + log tail
         - stuck (no log growth in 10+ min) → flag for researcher review

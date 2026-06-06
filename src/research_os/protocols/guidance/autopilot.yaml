@@ -45,7 +45,7 @@ steps:
         6. Any sys_file_write to synthesis/ with force=true.
         7. tool_package_install for a package not already in
            environment/requirements.txt.
-        8. Any tool_task_run with an estimated cost > 1 GPU-hour OR > 10 GB
+        8. Any tool_task(operation='run') with an estimated cost > 1 GPU-hour OR > 10 GB
            of memory OR > 50 GB of disk I/O.
       For each gate, sys_notify level="action_required" and wait one turn.
 
