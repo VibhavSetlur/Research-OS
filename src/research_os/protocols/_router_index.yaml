@@ -424,7 +424,8 @@ protocols:
     decomposition:
       - tool: sys_path
         purpose: "Mark folder as __DEAD_END with rationale."
-      - tool: tool_dead_end_lessons
+      - tool: tool_lessons
+        args: {operation: dead_end}
         purpose: "Capture the lesson for future steps."
       - tool: tool_plan_next_step
         purpose: "Propose alternative direction."
@@ -1964,7 +1965,8 @@ shortcut_intents:
   dead_end_lessons:
     triggers: ["lessons", "what did we learn", "past mistakes",
               "previous dead ends"]
-    tool: tool_dead_end_lessons
+    tool: tool_lessons
+    args: {operation: dead_end}
 
   list_protocols:
     triggers: ["list protocols", "what protocols", "available protocols"]

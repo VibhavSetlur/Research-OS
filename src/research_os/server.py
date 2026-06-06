@@ -2075,11 +2075,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "interaction",
         "inputSchema": {"type": "object", "properties": {}},
     },
-    "tool_dead_end_lessons": {
-        "description": "Pull lessons from every __DEAD_END folder so future steps don't repeat them. Writes workspace/logs/dead_end_lessons.md.",
-        "category": "research",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
+    # tool_dead_end_lessons consolidated into
+    # tool_lessons(operation='dead_end') — phase-9-c4.
     "tool_quick_review": {
         "description": "Stage a one-page critical-appraisal skeleton for a paper at workspace/reviews/<slug>.md. AI then populates it per the `guidance/quick_paper_review` protocol. Use for fast peer-review or 'what do you think of this paper?' requests.",
         "category": "research",
@@ -2140,66 +2137,15 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     # ------------------------------------------------------------------
     # Paywall + permanent-error memory.
+    # tool_failure_record / tool_failure_check / tool_failure_list
+    # consolidated into tool_lessons(operation='failure_{record,check,list}')
+    # — phase-9-c4.
     # ------------------------------------------------------------------
-    "tool_failure_record": {
-        "short": "Record a tool failure to workspace/.os_state/tool_failures.jsonl (paywall, 404, etc.).",
-        "description": "Persist a per-tool failure so subsequent calls skip known-bad URLs / DOIs. Reasons that auto-mark `permanent`: paywall, permanent_404, permanent_403, no_pdf_found, permanent_error. tool_literature_download + tool_literature_search_and_save check this before retrying.",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "tool": {"type": "string"},
-                "target": {"type": "string"},
-                "reason": {"type": "string"},
-                "error_text": {"type": "string"},
-                "permanent": {"type": "boolean"},
-            },
-            "required": ["tool", "target", "reason"],
-        },
-    },
-    "tool_failure_check": {
-        "short": "Is this URL/DOI known-bad (paywall, prior failure)?",
-        "description": "Pre-check before retrying a download. Returns known_bad=true if the target is in workspace/.os_state/tool_failures.jsonl with permanent=true OR has >=3 prior failed attempts.",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"target": {"type": "string"}},
-            "required": ["target"],
-        },
-    },
-    "tool_failure_list": {
-        "short": "List recent tool failures (audit / debugging).",
-        "description": "Return the most recent tool_failures.jsonl entries with summary statistics.",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"limit": {"type": "integer"}},
-        },
-    },
     # ------------------------------------------------------------------
     # Telemetry-free local reliability log.
+    # tool_reliability_log_event / tool_reliability_report consolidated
+    # into tool_reliability(operation='log_event'|'report') — phase-9-c4.
     # ------------------------------------------------------------------
-    "tool_reliability_log_event": {
-        "short": "Append a structural event (gate fire, tool error, recovery) to workspace/.os_state/reliability.jsonl.",
-        "description": "Append one line to workspace/.os_state/reliability.jsonl with event_type + protocol + model_profile + a small redacted payload. No project content, no PII — used by the maintainer (and the researcher when filing a bug) to spot regressions across releases without phoning home. Allowed event types: gate_fire, gate_recover, gate_abandon, tool_error, tool_success, protocol_start, protocol_complete, override_used, stale_state_detected, paywall_skipped.",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "event_type": {"type": "string"},
-                "protocol_name": {"type": "string"},
-                "model_profile": {"type": "string"},
-                "payload": {"type": "object", "additionalProperties": True},
-            },
-            "required": ["event_type"],
-        },
-    },
-    "tool_reliability_report": {
-        "short": "Produce redacted markdown summary of workspace/.os_state/reliability.jsonl.",
-        "description": "Aggregates the local reliability log into a markdown summary at workspace/logs/reliability_report.md. Counts events by type + protocol + model_profile; surfaces top gate-fire and tool-error patterns. Contains no project content — safe to paste into a GitHub issue when filing a regression report.",
-        "category": "state",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
     # ------------------------------------------------------------------
     # Stale-state detection + cross-step coherence.
     # ------------------------------------------------------------------
@@ -2353,16 +2299,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
-    "tool_mistake_replay": {
-        "short": "Surface recurring patterns from the reliability log + override log — coaching-mode learning artifact.",
-        "description": "Reads workspace/.os_state/reliability.jsonl (event log from tool_reliability_log_event) + workspace/logs/override_log.md (audit-gate bypass log) and groups events by protocol + event_type. Returns the top 5 recurring patterns (e.g. 'tool_audit_step_completeness gate fired 4x on steps 03/05/07/09 — stack_plan.md consistently absent'). Designed for autonomy_level='coaching'; helps the researcher spot patterns they keep tripping. Read-only; safe to call any time.",
-        "category": "state",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"limit": {"type": "integer"}},
-            "additionalProperties": False,
-        },
-    },
+    # tool_mistake_replay consolidated into
+    # tool_lessons(operation='mistake_replay') — phase-9-c4.
 
     # ─── consolidated tools ─────────────────────────
     "tool_search": {
@@ -2452,24 +2390,61 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_lessons": {
-        "short": "Unified lessons store. operation='record'|'consult'. Replaces tool_lessons_record + tool_lessons_consult.",
-        "description": "Unified lessons-learned tool. operation='record' appends a lesson (replaces tool_lessons_record). operation='consult' retrieves relevant prior lessons for a task (replaces tool_lessons_consult).",
+        "short": "Unified lessons + failure-memory store. operation=record|consult|failure_record|failure_check|failure_list|dead_end|mistake_replay.",
+        "description": "Single entry point for the 'what went wrong / what did we learn' family. operation='record' appends a Reflexion-style lesson (was tool_lessons_record). operation='consult' retrieves the top-K matching prior lessons for the next task (was tool_lessons_consult). operation='failure_record' persists a known-bad URL/DOI / paywall hit (was tool_failure_record). operation='failure_check' pre-checks before retrying a download (was tool_failure_check). operation='failure_list' returns the most recent failures (was tool_failure_list). operation='dead_end' pulls lessons from every __DEAD_END folder (was tool_dead_end_lessons). operation='mistake_replay' surfaces recurring patterns from reliability + override logs (was tool_mistake_replay). The legacy tool names continue to dispatch through this entry point via alias + param injection.",
         "category": "research",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "operation": {"type": "string", "enum": ["record", "consult"]},
+                "operation": {
+                    "type": "string",
+                    "enum": [
+                        "record",
+                        "consult",
+                        "failure_record",
+                        "failure_check",
+                        "failure_list",
+                        "dead_end",
+                        "mistake_replay",
+                    ],
+                },
+                # record args
                 "outcome": {"type": "string"},
                 "reflection": {"type": "string"},
                 "what_worked": {"type": "string"},
                 "what_didnt": {"type": "string"},
                 "recommendation": {"type": "string"},
-                "tags": {"type": "array"},
+                "tags": {"type": "array", "items": {"type": "string"}},
                 "step_id": {"type": "string"},
                 "scope": {"type": "string"},
+                # consult args
                 "task": {"type": "string"},
                 "top_k": {"type": "integer"},
-                "scope_filter": {"type": "string"},
+                "scope_filter": {"type": "array", "items": {"type": "string"}},
+                # failure_record / failure_check / failure_list args
+                "tool": {"type": "string", "description": "For failure_record: which tool errored."},
+                "target": {"type": "string", "description": "For failure_record/failure_check: URL or DOI being checked."},
+                "reason": {"type": "string", "description": "For failure_record: error reason (paywall, permanent_404, ...)."},
+                "error_text": {"type": "string"},
+                "permanent": {"type": "boolean"},
+                # failure_list / mistake_replay shared
+                "limit": {"type": "integer"},
+            },
+        },
+    },
+    "tool_reliability": {
+        "short": "Unified reliability log. operation='log_event'|'report'. Replaces tool_reliability_log_event + tool_reliability_report.",
+        "description": "Telemetry-free local reliability log. operation='log_event' appends one redacted structural event (gate fire, tool error, recovery, etc.) to workspace/.os_state/reliability.jsonl (was tool_reliability_log_event). operation='report' aggregates the log into a markdown summary at workspace/logs/reliability_report.md (was tool_reliability_report). The log contains no project content — safe to paste into a GitHub issue when filing a regression report. Allowed event types: gate_fire, gate_recover, gate_abandon, tool_error, tool_success, protocol_start, protocol_complete, override_used, stale_state_detected, paywall_skipped.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string", "enum": ["log_event", "report"]},
+                # log_event args
+                "event_type": {"type": "string"},
+                "protocol_name": {"type": "string"},
+                "model_profile": {"type": "string"},
+                "payload": {"type": "object", "additionalProperties": True},
             },
         },
     },
@@ -6040,7 +6015,7 @@ def _handle_sys_help(name, arguments, root):
         return _text(_success({
             "stuck_paths": {
                 "broken_workspace": "tool_workspace_repair — heals manifest + state-ledger drift, lazy-dir leftovers.",
-                "dead_end_in_step": "sys_path_abandon + tool_dead_end_lessons + tool_plan_next_step.",
+                "dead_end_in_step": "sys_path(operation='abandon') + tool_lessons(operation='dead_end') + tool_plan_next_step.",
                 "context_full": "sys_session_handoff + 'pick up where we left off' in fresh chat → guidance/session_resume.",
                 "lost_active_project": "sys_active_project — returns resolved root + how resolved.",
                 "lost_protocol": "sys_protocol_next (pipeline) or sys_protocol_list (browse).",
@@ -6651,19 +6626,67 @@ def _handle_tool_verify(name, arguments, root):
 
 
 def _handle_tool_lessons(name, arguments, root):
-    """Unified lessons dispatcher (record | consult)."""
+    """Unified lessons + failure-memory dispatcher.
+
+    Operations:
+      record         → tool_lessons_record (Reflexion-style lesson append)
+      consult        → tool_lessons_consult (retrieve top-K prior lessons)
+      failure_record → tool_failure_record (paywall / 404 / permanent-error memory)
+      failure_check  → tool_failure_check (is this URL/DOI known-bad?)
+      failure_list   → tool_failure_list (recent tool failures)
+      dead_end       → tool_dead_end_lessons (pull lessons from __DEAD_END folders)
+      mistake_replay → tool_mistake_replay (recurring patterns from reliability + override log)
+    """
     legacy = {
-        "tool_lessons_record": "record",
-        "tool_lessons_consult": "consult",
+        "tool_lessons_record":   "record",
+        "tool_lessons_consult":  "consult",
+        "tool_failure_record":   "failure_record",
+        "tool_failure_check":    "failure_check",
+        "tool_failure_list":     "failure_list",
+        "tool_dead_end_lessons": "dead_end",
+        "tool_mistake_replay":   "mistake_replay",
     }
     op = arguments.get("operation") or legacy.get(name)
     if not op:
+        # Heuristic fallback for the original tool_lessons surface.
         op = "consult" if "task" in arguments else "record"
     if op == "record":
         return _handle_tool_lessons_record(name, arguments, root)
     if op == "consult":
         return _handle_tool_lessons_consult(name, arguments, root)
+    if op == "failure_record":
+        return _handle_tool_failure_record(name, arguments, root)
+    if op == "failure_check":
+        return _handle_tool_failure_check(name, arguments, root)
+    if op == "failure_list":
+        return _handle_tool_failure_list(name, arguments, root)
+    if op == "dead_end":
+        return _handle_tool_dead_end_lessons(name, arguments, root)
+    if op == "mistake_replay":
+        return _handle_tool_mistake_replay(name, arguments, root)
     return _text(_error(f"Unknown lessons operation '{op}'"))
+
+
+def _handle_tool_reliability(name, arguments, root):
+    """Unified reliability-log dispatcher.
+
+    Operations:
+      log_event → tool_reliability_log_event (append structural event)
+      report    → tool_reliability_report   (redacted markdown summary)
+    """
+    legacy = {
+        "tool_reliability_log_event": "log_event",
+        "tool_reliability_report":    "report",
+    }
+    op = arguments.get("operation") or legacy.get(name)
+    if not op:
+        # Heuristic: presence of event_type implies log_event; otherwise report.
+        op = "log_event" if "event_type" in arguments else "report"
+    if op == "log_event":
+        return _handle_tool_reliability_log_event(name, arguments, root)
+    if op == "report":
+        return _handle_tool_reliability_report(name, arguments, root)
+    return _text(_error(f"Unknown reliability operation '{op}'"))
 
 
 def _handle_mem_log(name, arguments, root):
@@ -6918,19 +6941,16 @@ _HANDLERS = {
     "tool_context_intake": _handle_tool_context_intake,
     # verified citations
     "tool_citations_verify": _handle_tool_citations_verify,
-    # session resume + digest + dead-end lessons + quick review
+    # session resume + digest + quick review
+    # tool_dead_end_lessons consolidated into tool_lessons(operation='dead_end').
     "tool_session_resume": _handle_tool_session_resume,
     "tool_progress_digest": _handle_tool_progress_digest,
-    "tool_dead_end_lessons": _handle_tool_dead_end_lessons,
     "tool_quick_review": _handle_tool_quick_review,
     "sys_dep_inventory": _handle_sys_dep_inventory,
 
-    "tool_reliability_log_event": _handle_tool_reliability_log_event,
-    "tool_reliability_report": _handle_tool_reliability_report,
+    # tool_reliability_* consolidated into tool_reliability(operation='log_event'|'report').
+    # tool_failure_* consolidated into tool_lessons(operation='failure_{record,check,list}').
     "tool_state_freshness_check": _handle_tool_state_freshness_check,
-    "tool_failure_record": _handle_tool_failure_record,
-    "tool_failure_check": _handle_tool_failure_check,
-    "tool_failure_list": _handle_tool_failure_list,
     "tool_intake_freshness": _handle_tool_intake_freshness,
     "tool_writing_discussion_from_verdicts": _handle_tool_writing_discussion_from_verdicts,
     "tool_discussion_coverage_audit": _handle_tool_discussion_coverage_audit,
@@ -6944,9 +6964,9 @@ _HANDLERS = {
     "tool_project_tier_strictness": _handle_tool_project_tier_strictness,
 
     # Lean variants + dry-run + bundling + coaching (Themes 2/13/15/7).
+    # tool_mistake_replay consolidated into tool_lessons(operation='mistake_replay').
     "tool_dry_run": _handle_tool_dry_run,
     "tool_step_complete": _handle_tool_step_complete,
-    "tool_mistake_replay": _handle_tool_mistake_replay,
 
     # ── consolidated tools ───────────────────────────
     "tool_search": _handle_tool_search,
@@ -6955,6 +6975,7 @@ _HANDLERS = {
     "tool_ground": _handle_tool_ground,
     "tool_verify": _handle_tool_verify,
     "tool_lessons": _handle_tool_lessons,
+    "tool_reliability": _handle_tool_reliability,
     "mem_log": _handle_mem_log,
     "tool_deprecations_summary": _handle_tool_deprecations_summary,
 }
@@ -6989,9 +7010,17 @@ _ALIASES = {
     "tool_ground_from_context": "tool_ground",
     "tool_claim_verify": "tool_verify",
     "tool_grounding_verify": "tool_verify",
-    # Lessons (2 → 1).
-    "tool_lessons_record": "tool_lessons",
-    "tool_lessons_consult": "tool_lessons",
+    # Lessons + failure-memory + dead-end + mistake-replay (8 → 1) — phase-9-c4.
+    "tool_lessons_record":   "tool_lessons",
+    "tool_lessons_consult":  "tool_lessons",
+    "tool_failure_record":   "tool_lessons",
+    "tool_failure_check":    "tool_lessons",
+    "tool_failure_list":     "tool_lessons",
+    "tool_dead_end_lessons": "tool_lessons",
+    "tool_mistake_replay":   "tool_lessons",
+    # Reliability log (2 → 1) — phase-9-c4.
+    "tool_reliability_log_event": "tool_reliability",
+    "tool_reliability_report":    "tool_reliability",
     # Path cluster (3 → 1).
     "sys_path_create": "sys_path",
     "sys_path_abandon": "sys_path",
@@ -7074,6 +7103,14 @@ _DEPRECATED_ALIASES = {
     "tool_grounding_verify",
     "tool_lessons_record",
     "tool_lessons_consult",
+    # ── lessons + failure + reliability cluster (10 → 2) — phase-9-c4 ──
+    "tool_failure_record",
+    "tool_failure_check",
+    "tool_failure_list",
+    "tool_dead_end_lessons",
+    "tool_mistake_replay",
+    "tool_reliability_log_event",
+    "tool_reliability_report",
     "sys_path_create",
     "sys_path_abandon",
     "sys_path_list",
@@ -7160,6 +7197,14 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_grounding_verify":        ("scope", "project"),
     "tool_lessons_record":          ("operation", "record"),
     "tool_lessons_consult":         ("operation", "consult"),
+    # ── lessons + failure + reliability cluster — phase-9-c4 ──
+    "tool_failure_record":          ("operation", "failure_record"),
+    "tool_failure_check":           ("operation", "failure_check"),
+    "tool_failure_list":            ("operation", "failure_list"),
+    "tool_dead_end_lessons":        ("operation", "dead_end"),
+    "tool_mistake_replay":          ("operation", "mistake_replay"),
+    "tool_reliability_log_event":   ("operation", "log_event"),
+    "tool_reliability_report":      ("operation", "report"),
     "sys_path_create":              ("operation", "create"),
     "sys_path_abandon":             ("operation", "abandon"),
     "sys_path_list":                ("operation", "list"),

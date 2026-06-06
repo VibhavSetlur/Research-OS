@@ -64,8 +64,8 @@ steps:
       than to resume into a stale plan.
 
       Also call:
-        tool_reliability_log_event event_type="protocol_start"
-          protocol_name="session_resume"
+        tool_reliability(operation='log_event', event_type="protocol_start",
+          protocol_name="session_resume")
       so the reliability log captures the resume (helps the maintainer
       spot regressions across releases — no project content leaks).
 

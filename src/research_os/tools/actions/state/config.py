@@ -113,8 +113,9 @@ interaction:
   #            explains WHY each gate exists, asks the researcher to draft
   #            then critiques. Great for graduate students / new PIs
   #            learning how to use a methodology rigorously. Pair with
-  #            tool_mistake_replay each session for self-coaching across
-  #            recurring patterns the researcher keeps tripping.
+  #            tool_lessons(operation='mistake_replay') each session for
+  #            self-coaching across recurring patterns the researcher keeps
+  #            tripping.
 
   # Quality-gate posture (the AI NEVER bypasses on its own).
   #   enforce        → refuse bypass without an explicit researcher ask

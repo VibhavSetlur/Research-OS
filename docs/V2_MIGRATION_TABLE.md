@@ -87,3 +87,31 @@ lives with the literature/search family and is owned by that cluster
 | tool_step_pipeline_run | tool_step_pipeline | operation | run | aliased v2.0.x, removed v2.1.0 |
 | tool_step_pipeline_status | tool_step_pipeline | operation | status | aliased v2.0.x, removed v2.1.0 |
 | tool_step_pipeline_diagram | tool_step_pipeline | operation | diagram | aliased v2.0.x, removed v2.1.0 |
+
+## Lessons + reliability family (10 → 2) — phase-9-c4
+
+The pre-existing `tool_lessons` dispatcher (which already absorbed
+`tool_lessons_record` + `tool_lessons_consult` in v1.x) is extended to
+cover the entire "what went wrong / what did we learn" family. The
+three paywall/permanent-error tools (`tool_failure_record`,
+`tool_failure_check`, `tool_failure_list`), the dead-end summariser
+(`tool_dead_end_lessons`), and the coaching-mode pattern surface
+(`tool_mistake_replay`) all collapse into
+`tool_lessons(operation=…)`. The two reliability-log tools
+(`tool_reliability_log_event`, `tool_reliability_report`) collapse into
+a separate `tool_reliability(operation=log_event|report)` entry point
+(kept separate so log/report semantics stay sharply distinct from the
+lessons-store). Every legacy name remains callable via `_ALIASES` +
+`_ALIAS_PARAM_INJECTION`.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_lessons_record | tool_lessons | operation | record | aliased v2.0.x, removed v2.1.0 |
+| tool_lessons_consult | tool_lessons | operation | consult | aliased v2.0.x, removed v2.1.0 |
+| tool_failure_record | tool_lessons | operation | failure_record | aliased v2.0.x, removed v2.1.0 |
+| tool_failure_check | tool_lessons | operation | failure_check | aliased v2.0.x, removed v2.1.0 |
+| tool_failure_list | tool_lessons | operation | failure_list | aliased v2.0.x, removed v2.1.0 |
+| tool_dead_end_lessons | tool_lessons | operation | dead_end | aliased v2.0.x, removed v2.1.0 |
+| tool_mistake_replay | tool_lessons | operation | mistake_replay | aliased v2.0.x, removed v2.1.0 |
+| tool_reliability_log_event | tool_reliability | operation | log_event | aliased v2.0.x, removed v2.1.0 |
+| tool_reliability_report | tool_reliability | operation | report | aliased v2.0.x, removed v2.1.0 |

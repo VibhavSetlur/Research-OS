@@ -151,7 +151,7 @@ steps:
       from tool_audit(scope='step', dimension='completeness') at the top.
 
       Include the reliability summary at the bottom by calling
-        tool_reliability_report
+        tool_reliability(operation='report')
       so the report carries a redacted count of gate fires / tool errors
       this session. The researcher can paste this into a bug filing if
       a regression is suspected — it contains no project content.

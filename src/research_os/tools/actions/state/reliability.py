@@ -3,8 +3,8 @@
 Writes one JSONL event per significant occurrence (gate fire, tool error,
 recovery, abandon) to ``workspace/.os_state/reliability.jsonl``. Local
 file only — never phones home. The researcher voluntarily runs
-``tool_reliability_report`` to produce a redacted markdown summary they
-can paste into a bug report.
+``tool_reliability(operation='report')`` to produce a redacted markdown
+summary they can paste into a bug report.
 
 Constraints:
 - No project content (no claim text, no findings, no PII).

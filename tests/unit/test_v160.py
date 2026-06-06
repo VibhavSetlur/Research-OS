@@ -170,11 +170,28 @@ def test_tool_step_complete_schema_rejects_extras():
 
 
 def test_three_new_tools_wired():
-    from research_os.server import _HANDLERS, TOOL_DEFINITIONS
-    for name in ("tool_dry_run", "tool_step_complete", "tool_mistake_replay"):
+    """tool_dry_run + tool_step_complete remain top-level surface; the v1.6.0
+    `tool_mistake_replay` collapsed into tool_lessons(operation='mistake_replay')
+    in phase-9-c4 but must still resolve through _ALIASES + param injection."""
+    from research_os.server import (
+        _ALIAS_PARAM_INJECTION,
+        _ALIASES,
+        _DEPRECATED_ALIASES,
+        _HANDLERS,
+        TOOL_DEFINITIONS,
+    )
+    for name in ("tool_dry_run", "tool_step_complete"):
         assert name in TOOL_DEFINITIONS, f"{name} not in TOOL_DEFINITIONS"
         assert name in _HANDLERS, f"{name} not in _HANDLERS"
         assert callable(_HANDLERS[name]), f"{name} handler not callable"
+    # Legacy name preserved as an alias into the consolidated dispatcher.
+    assert _ALIASES.get("tool_mistake_replay") == "tool_lessons"
+    assert "tool_mistake_replay" in _DEPRECATED_ALIASES
+    assert _ALIAS_PARAM_INJECTION.get("tool_mistake_replay") == (
+        "operation",
+        "mistake_replay",
+    )
+    assert "tool_lessons" in _HANDLERS
 
 
 def test_template_researcher_config_documents_coaching():
