@@ -2026,8 +2026,8 @@ def audit_step_completeness(
     step fails. Used by:
 
       * ``tool_synthesize``  — refuses to assemble if blockers exist.
-      * ``tool_dashboard_create`` — refuses to render if blockers exist.
-      * ``tool_plan_advance`` — refuses to walk past a half-finished step
+      * ``tool_dashboard(operation='create')`` — refuses to render if blockers exist.
+      * ``tool_plan(operation='advance')`` — refuses to walk past a half-finished step
         (with an override flag so the AI can negotiate with the researcher).
       * ``audit_and_validation`` protocol — final pre-deliverable gate.
 

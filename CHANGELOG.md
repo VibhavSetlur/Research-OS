@@ -48,6 +48,14 @@ Versioning: [SemVer](https://semver.org).
 - Legacy sys_config + sys_env tool names — `sys_config_get`, `sys_config_set`, `sys_config_validate`, `sys_env_snapshot`, `sys_env_docker_generate`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
 
 ### Removed
+- **Phase 14a — first-wave consolidation aliases hard-removed.** The 21 legacy tool names introduced as consolidation aliases in v1.6.1 have expired their 4-minor-version deprecation runway and are now removed. Calling any of them returns a friendly `_REMOVED_TOOLS` error envelope naming the canonical v2 entry point. Old plans, scripts, or third-party callers that still name these will see a clear migration message instead of a generic "unknown tool" error.
+  - **Search cluster (5):** `tool_search_semantic_scholar`, `tool_search_pubmed`, `tool_search_crossref`, `tool_search_arxiv`, `tool_search_web` → call `tool_search(query=..., source='semantic_scholar'|'pubmed'|'crossref'|'arxiv'|'web')` instead.
+  - **Plan cluster (3):** `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` → call `tool_plan(operation='turn'|'advance'|'clear')` instead.
+  - **Grounding / verify cluster (4):** `tool_grounding_register`, `tool_ground_from_context` → call `tool_ground(mode='explicit'|'from_context', ...)`. `tool_claim_verify`, `tool_grounding_verify` → call `tool_verify(scope='claim'|'project', ...)`.
+  - **Lessons cluster (2):** `tool_lessons_record`, `tool_lessons_consult` → call `tool_lessons(operation='record'|'consult', ...)` instead. (Other lessons-family aliases remain deprecated for the v2.0.x runway.)
+  - **Path cluster (3):** `sys_path_create`, `sys_path_abandon`, `sys_path_list` → call `sys_path(operation='create'|'abandon'|'list', ...)` instead.
+  - **Memory cluster (4):** `mem_methods_append`, `mem_decision_log`, `mem_hypothesis_update`, `mem_analysis_log` → call `mem_log(kind='methods'|'decision'|'hypothesis'|'analysis', ...)` instead.
+- The corresponding `TOOL_DEFINITIONS` entries and `_HANDLERS` entries were dropped (handler functions like `_handle_sys_path_create` remain in the module — they're called internally by the consolidated dispatchers via the legacy fallback path). `tool_log_decision`, the silent pre-v1.6.1 nickname that previously chained through `mem_decision_log → mem_log`, now resolves directly to `mem_log` with `kind='decision'` injected so the nickname keeps working.
 
 ### Fixed
 

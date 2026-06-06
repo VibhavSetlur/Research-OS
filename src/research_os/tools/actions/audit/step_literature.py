@@ -226,7 +226,7 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
                 warnings.append(
                     f"{step_id}: {non_deferred} non-deferred claim(s) but "
                     "no grounding records in .grounding/grounding.jsonl. "
-                    "Call tool_grounding_register per claim."
+                    "Call tool_ground(mode='explicit') per claim."
                 )
         except Exception:
             # Best-effort grounding-record count: a malformed JSONL line or
@@ -600,7 +600,7 @@ def _findings_for_step(
                     dimension="grounding_records",
                     evidence_paths=evidence,
                     suggested_fix=(
-                        "Call tool_grounding_register per non-deferred claim "
+                        "Call tool_ground(mode='explicit') per non-deferred claim "
                         "so the .grounding/grounding.jsonl ledger captures it."
                     ),
                 )

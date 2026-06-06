@@ -42,24 +42,29 @@ def test_list_tools_flat_scope_filter_core():
 
 
 def test_list_tools_flat_include_deprecated_surfaces_aliases():
-    """tool_search_pubmed is a deprecated alias of tool_search."""
+    """tool_failure_check is a deprecated alias of tool_lessons.
+
+    (tool_search_pubmed used to be a v1.6.1 alias of tool_search, but was
+    hard-removed in phase-14a. The same coverage now uses a still-deprecated
+    Phase-9 alias.)
+    """
     plain = list_tools_flat(
         TOOL_DEFINITIONS, _ALIASES, _DEPRECATED_ALIASES,
         include_deprecated=False,
     )
     plain_names = {e["name"] for e in plain}
-    assert "tool_search_pubmed" not in plain_names
+    assert "tool_failure_check" not in plain_names
 
     with_deps = list_tools_flat(
         TOOL_DEFINITIONS, _ALIASES, _DEPRECATED_ALIASES,
         include_deprecated=True,
     )
     dep_entry = next(
-        (e for e in with_deps if e["name"] == "tool_search_pubmed"), None,
+        (e for e in with_deps if e["name"] == "tool_failure_check"), None,
     )
     assert dep_entry is not None
     assert dep_entry["deprecated"] is True
-    assert dep_entry["alias_of"] == "tool_search"
+    assert dep_entry["alias_of"] == "tool_lessons"
 
 
 def test_list_tools_flat_match_substring():

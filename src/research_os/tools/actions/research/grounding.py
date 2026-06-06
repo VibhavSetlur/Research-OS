@@ -27,7 +27,7 @@ context. They are intentionally NOT inlined into ``state_ledger.json``
 
 Integration with the existing audit chain
 -----------------------------------------
-`tool_grounding_verify` walks every `mem_decision_log` entry in
+`tool_verify(scope='project')` walks every `mem_log(kind='decision')` entry in
 `workspace/analysis.md` and confirms a matching grounding record
 exists. A decision without grounding is a BLOCKER for the master
 quality audit (alongside hallucinated claims, missing figures,
@@ -424,8 +424,8 @@ def grounding_verify(root: Path) -> dict[str, Any]:
             lines.append(f"- **{d['ts']}**: {d['selected'][:120]}")
             lines.append(f"  - Rationale: {d['rationale'][:160]}")
             lines.append(
-                "  - Fix: call tool_grounding_register decision_id=<id> "
-                "claim=\"...\" sources=[{type: paper|context_file|web, …}]"
+                "  - Fix: call tool_ground(mode='explicit', decision_id=<id>, "
+                "claim=\"...\", sources=[{type: paper|context_file|web, …}])"
             )
         if len(ungrounded) > 20:
             lines.append(f"…and {len(ungrounded) - 20} more.")
@@ -443,10 +443,10 @@ def grounding_verify(root: Path) -> dict[str, Any]:
         "report_path": str(out.relative_to(root)),
         "advice": (
             f"{len(ungrounded)} decision(s) carry no grounding record. "
-            "For each, call tool_grounding_register binding the decision "
+            "For each, call tool_ground(mode='explicit', ...) binding the decision "
             "to the inputs/context/literature that informed it. Or "
             "include a `linked_literature` key in the original "
-            "mem_decision_log call."
+            "mem_log(kind='decision') call."
             if ungrounded
             else "All decisions in analysis.md are grounded."
         ),

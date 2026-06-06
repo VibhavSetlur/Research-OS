@@ -297,3 +297,34 @@ researcher commands produce identical output.
 | sys_config_validate | sys_config | operation | validate | aliased v2.0.x, removed v2.1.0 |
 | sys_env_snapshot | sys_env | operation | snapshot | aliased v2.0.x, removed v2.1.0 |
 | sys_env_docker_generate | sys_env | operation | docker_generate | aliased v2.0.x, removed v2.1.0 |
+
+## Phase 14a — first-wave consolidation aliases hard-removed in v2.0.0
+
+The 21 legacy tool names introduced as consolidation aliases in v1.6.1
+have expired their 4-minor-version deprecation runway and are now removed.
+Calling any of them returns a friendly `_REMOVED_TOOLS` error envelope
+naming the canonical v2 entry point.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_search_semantic_scholar | tool_search | source | semantic_scholar | removed v2.0.0 |
+| tool_search_pubmed | tool_search | source | pubmed | removed v2.0.0 |
+| tool_search_crossref | tool_search | source | crossref | removed v2.0.0 |
+| tool_search_arxiv | tool_search | source | arxiv | removed v2.0.0 |
+| tool_search_web | tool_search | source | web | removed v2.0.0 |
+| tool_plan_turn | tool_plan | operation | turn | removed v2.0.0 |
+| tool_plan_advance | tool_plan | operation | advance | removed v2.0.0 |
+| tool_plan_clear | tool_plan | operation | clear | removed v2.0.0 |
+| tool_grounding_register | tool_ground | mode | explicit | removed v2.0.0 |
+| tool_ground_from_context | tool_ground | mode | from_context | removed v2.0.0 |
+| tool_claim_verify | tool_verify | scope | claim | removed v2.0.0 |
+| tool_grounding_verify | tool_verify | scope | project | removed v2.0.0 |
+| tool_lessons_record | tool_lessons | operation | record | removed v2.0.0 |
+| tool_lessons_consult | tool_lessons | operation | consult | removed v2.0.0 |
+| sys_path_create | sys_path | operation | create | removed v2.0.0 |
+| sys_path_abandon | sys_path | operation | abandon | removed v2.0.0 |
+| sys_path_list | sys_path | operation | list | removed v2.0.0 |
+| mem_methods_append | mem_log | kind | methods | removed v2.0.0 |
+| mem_decision_log | mem_log | kind | decision | removed v2.0.0 |
+| mem_hypothesis_update | mem_log | kind | hypothesis | removed v2.0.0 |
+| mem_analysis_log | mem_log | kind | analysis | removed v2.0.0 |

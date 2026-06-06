@@ -543,7 +543,7 @@ def step_env_lock(
                     "status": "error",
                     "message": (
                         f"Step `{step_id}` not found under workspace/. "
-                        "Check the numbered slug or call sys_path_list first."
+                        "Check the numbered slug or call sys_path(operation='list') first."
                     ),
                 }
             warning = None

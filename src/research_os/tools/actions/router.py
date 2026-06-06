@@ -535,9 +535,7 @@ def _dep_inventory() -> dict:
 _ESSENTIAL_TOOLS = (
     "sys_boot",
     "tool_route",
-    "tool_plan_turn",
-    "tool_plan_advance",
-    "tool_plan_clear",
+    "tool_plan",
     "sys_protocol_get",
     "sys_protocol_list",
     "sys_protocol_log",
@@ -547,7 +545,7 @@ _ESSENTIAL_TOOLS = (
     "sys_notify",
     "sys_tool_describe",
     "sys_active_tools",
-    "mem_decision_log",
+    "mem_log",
 )
 
 
@@ -1044,10 +1042,10 @@ def _route_advice_hier(
     if is_complex and resolved_level == 3:
         return (
             "Prompt is complex — decomposition persisted to "
-            ".os_state/active_plan.json. Call tool_plan_turn to size the "
-            "batch to your model_profile, then walk via tool_plan_advance "
-            "after each step. Never one-shot. If chat_split_recommended, "
-            "sys_session_handoff + open a fresh chat."
+            ".os_state/active_plan.json. Call tool_plan(operation='turn') to "
+            "size the batch to your model_profile, then walk via "
+            "tool_plan(operation='advance') after each step. Never one-shot. "
+            "If chat_split_recommended, sys_session_handoff + open a fresh chat."
         )
     if shortcut_tool and not primary:
         return (
@@ -1411,7 +1409,7 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
                             from research_os.project_ops import log_override
                             log_override(
                                 root,
-                                tool="tool_plan_advance",
+                                tool="tool_plan(operation='advance')",
                                 gate="deliverable_completeness",
                                 rationale="<plan-persisted override>",
                                 extra={
@@ -1526,7 +1524,7 @@ def plan_turn(root: Path) -> dict[str, Any]:
         if not remaining:
             return {
                 "status": "success",
-                "message": "Active plan exhausted — call tool_plan_advance to archive.",
+                "message": "Active plan exhausted — call tool_plan(operation='advance') to archive.",
                 "this_turn": [],
                 "next_turn": [],
             }
@@ -1602,9 +1600,9 @@ def plan_turn(root: Path) -> dict[str, Any]:
             "chat_split_reason": chat_split_reason or None,
             "advice": (
                 "Execute every entry in `this_turn` IN ORDER. After each "
-                "one call tool_plan_advance. Once `this_turn` is done, "
-                "either continue with tool_plan_turn (next batch) OR — "
-                "if chat_split_recommended is true — call "
+                "one call tool_plan(operation='advance'). Once `this_turn` is "
+                "done, either continue with tool_plan(operation='turn') (next "
+                "batch) OR — if chat_split_recommended is true — call "
                 "sys_session_handoff and tell the researcher to open a "
                 "fresh chat with 'pick up where we left off'."
             ),

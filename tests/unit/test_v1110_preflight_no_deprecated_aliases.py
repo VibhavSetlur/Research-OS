@@ -3,10 +3,10 @@
 v1.11.0 adds a 22nd preflight check that scans every shipped protocol
 YAML for references to deprecated alias names (the legacy pre-consolidation
 tool names declared in ``server._DEPRECATED_ALIASES``). Shipping a
-protocol scaffold that still calls ``tool_search_pubmed`` instead of
-``tool_search(source="pubmed")`` would cause the very first invocation
-of that protocol to emit deprecation telemetry — bad first impression
-and a maintenance trap.
+protocol scaffold that still calls ``tool_failure_check`` instead of
+``tool_lessons(operation='failure_check')`` would cause the very first
+invocation of that protocol to emit deprecation telemetry — bad first
+impression and a maintenance trap.
 
 These tests cover both directions:
 
@@ -49,7 +49,11 @@ def test_live_catalogue_clean():
 
 
 def test_planted_deprecated_ref_is_caught(tmp_path, monkeypatch):
-    """A protocol YAML referencing ``tool_search_pubmed`` must fail."""
+    """A protocol YAML referencing a currently-deprecated alias must fail.
+
+    Note: tool_search_pubmed was hard-removed in phase-14a (v2.0.0), so we
+    plant a Phase-9-era alias that is still in _DEPRECATED_ALIASES.
+    """
     mod = _load_preflight()
     cat = tmp_path / "literature"
     cat.mkdir()
@@ -58,11 +62,11 @@ def test_planted_deprecated_ref_is_caught(tmp_path, monkeypatch):
             {
                 "id": "literature/bad",
                 "name": "bad",
-                "version": "1.11.0",
+                "version": "2.0.0",
                 "steps": [
                     {
                         "id": "search",
-                        "description": "Call tool_search_pubmed for citations.",
+                        "description": "Call tool_failure_check before retry.",
                     }
                 ],
             }
@@ -71,7 +75,7 @@ def test_planted_deprecated_ref_is_caught(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "PROTOCOLS_DIR", tmp_path)
     ok, msg = mod.check_no_deprecated_aliases_in_protocols()
     assert not ok
-    assert "tool_search_pubmed" in msg
+    assert "tool_failure_check" in msg
     assert "literature/bad" in msg
 
 
@@ -80,7 +84,7 @@ def test_underscore_prefixed_files_are_skipped(tmp_path, monkeypatch):
     are allowed to mention deprecated names for routing context."""
     mod = _load_preflight()
     (tmp_path / "_router_index.yaml").write_text(
-        "# mentions tool_search_pubmed for trigger context only\n"
+        "# mentions tool_failure_check for trigger context only\n"
         "protocols: {}\n"
     )
     monkeypatch.setattr(mod, "PROTOCOLS_DIR", tmp_path)

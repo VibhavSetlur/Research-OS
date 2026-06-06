@@ -109,15 +109,15 @@ def test_new_consolidated_tools_registered(tool_name):
 # ── end-to-end: legacy aliases ────────────────────────────────────
 
 
-def test_legacy_mem_methods_append_writes_methods_md(project_root):
-    r = _handle_tool_call(
-        "mem_methods_append", {"method": "OLS regression"}, project_root
-    )
-    env = _parse_envelope(r)
-    assert env["status"] == "success"
-    methods_md = project_root / "workspace" / "methods.md"
-    assert methods_md.exists()
-    assert "OLS regression" in methods_md.read_text()
+# NOTE — Phase 14a (v2.0.0): the 21 v1.6.1-era aliases (mem_methods_append,
+# mem_decision_log, mem_hypothesis_update, mem_analysis_log, sys_path_create/
+# abandon/list, tool_plan_turn/advance/clear, tool_lessons_record/consult,
+# tool_search_*, tool_grounding_register, tool_ground_from_context,
+# tool_claim_verify, tool_grounding_verify) were hard-removed after their
+# deprecation runway expired. The tests below confirm the consolidated tools
+# work; the legacy-name back-compat tests were dropped — see
+# test_v14a_removed_aliases for the negative coverage that confirms each
+# removed name now returns a _REMOVED_TOOLS error pointing at the new path.
 
 
 def test_new_mem_log_methods_writes_methods_md(project_root):
@@ -129,36 +129,11 @@ def test_new_mem_log_methods_writes_methods_md(project_root):
     assert "GLM" in (project_root / "workspace" / "methods.md").read_text()
 
 
-def test_legacy_mem_decision_log_routes_through_consolidation(project_root):
-    r = _handle_tool_call(
-        "mem_decision_log",
-        {"context": "pick X", "selected": "X", "rationale": "cheaper"},
-        project_root,
-    )
-    env = _parse_envelope(r)
-    assert env["status"] == "success"
-    # mem_decision_log writes to analysis.md (pre-existing log_decision behaviour).
-    assert (project_root / "workspace" / "analysis.md").exists()
-
-
-def test_legacy_sys_path_list_works(project_root):
-    r = _handle_tool_call("sys_path_list", {}, project_root)
-    env = _parse_envelope(r)
-    assert env["status"] == "success"
-    assert "paths" in env["data"]
-
-
 def test_new_sys_path_list_works(project_root):
     r = _handle_tool_call("sys_path", {"operation": "list"}, project_root)
     env = _parse_envelope(r)
     assert env["status"] == "success"
     assert "paths" in env["data"]
-
-
-def test_legacy_tool_plan_clear_works(project_root):
-    r = _handle_tool_call("tool_plan_clear", {}, project_root)
-    env = _parse_envelope(r)
-    assert env["status"] == "success"
 
 
 def test_new_tool_plan_clear_works(project_root):
@@ -167,19 +142,6 @@ def test_new_tool_plan_clear_works(project_root):
     )
     env = _parse_envelope(r)
     assert env["status"] == "success"
-
-
-def test_legacy_tool_lessons_record_then_consult(project_root):
-    rec = _handle_tool_call(
-        "tool_lessons_record",
-        {"outcome": "success", "reflection": "use X", "tags": ["x"]},
-        project_root,
-    )
-    assert _parse_envelope(rec)["status"] == "success"
-    con = _handle_tool_call(
-        "tool_lessons_consult", {"task": "plan an x"}, project_root
-    )
-    assert _parse_envelope(con)["status"] == "success"
 
 
 def test_new_tool_lessons_unified(project_root):
@@ -195,19 +157,6 @@ def test_new_tool_lessons_unified(project_root):
         project_root,
     )
     assert _parse_envelope(con)["status"] == "success"
-
-
-def test_legacy_mem_hypothesis_update_routes(project_root):
-    add = _handle_tool_call(
-        "mem_hypothesis_add", {"statement": "X causes Y"}, project_root
-    )
-    assert _parse_envelope(add)["status"] == "success"
-    upd = _handle_tool_call(
-        "mem_hypothesis_update",
-        {"hypothesis_id": "H1", "status": "supported"},
-        project_root,
-    )
-    assert _parse_envelope(upd)["status"] == "success"
 
 
 def test_new_mem_log_hypothesis_routes(project_root):
@@ -253,14 +202,20 @@ def test_new_tool_plan_rejects_unknown_operation(project_root):
 
 
 def test_deprecation_log_written_for_alias_invocation(project_root):
-    _handle_tool_call("mem_methods_append", {"method": "X"}, project_root)
-    _handle_tool_call("sys_path_list", {}, project_root)
+    # Use Phase-9-era aliases that are still in _DEPRECATED_ALIASES — the
+    # v1.6.1 aliases (mem_methods_append, sys_path_list, ...) were
+    # hard-removed in phase-14a and now route to _REMOVED_TOOLS instead of
+    # the deprecation-log path.
+    _handle_tool_call(
+        "tool_failure_check", {"target": "https://paywalled.example/x"}, project_root
+    )
+    _handle_tool_call("tool_reliability_report", {}, project_root)
     log = project_root / ".os_state" / "deprecations.log"
     assert log.exists()
     lines = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
     sources = {e["source"] for e in lines}
-    assert "mem_methods_append" in sources
-    assert "sys_path_list" in sources
+    assert "tool_failure_check" in sources
+    assert "tool_reliability_report" in sources
 
 
 def test_non_deprecated_alias_does_not_log(project_root):
@@ -290,16 +245,21 @@ def test_tool_deprecations_summary_empty_when_no_log(project_root):
 
 
 def test_tool_deprecations_summary_aggregates(project_root):
-    _handle_tool_call("mem_methods_append", {"method": "X"}, project_root)
-    _handle_tool_call("mem_methods_append", {"method": "Y"}, project_root)
-    _handle_tool_call("sys_path_list", {}, project_root)
+    # Phase-9-era aliases (v1.6.1 ones were removed in phase-14a).
+    _handle_tool_call(
+        "tool_failure_check", {"target": "https://x.example/a"}, project_root
+    )
+    _handle_tool_call(
+        "tool_failure_check", {"target": "https://x.example/b"}, project_root
+    )
+    _handle_tool_call("tool_reliability_report", {}, project_root)
     r = _handle_tool_call("tool_deprecations_summary", {}, project_root)
     env = _parse_envelope(r)
     assert env["data"]["total"] == 3
-    assert env["data"]["by_source"]["mem_methods_append"] == 2
-    assert env["data"]["by_source"]["sys_path_list"] == 1
-    assert env["data"]["by_target"]["mem_log"] == 2
-    assert env["data"]["by_target"]["sys_path"] == 1
+    assert env["data"]["by_source"]["tool_failure_check"] == 2
+    assert env["data"]["by_source"]["tool_reliability_report"] == 1
+    assert env["data"]["by_target"]["tool_lessons"] == 2
+    assert env["data"]["by_target"]["tool_reliability"] == 1
 
 
 # ── tool_search consolidation ─────────────────────────────────────
@@ -345,7 +305,8 @@ def test_tool_search_auto_picks_biomedical_providers_for_rna(
     assert called_providers == {"s2", "pm"}
 
 
-def test_legacy_tool_search_pubmed_routes_to_pubmed(project_root, monkeypatch):
+def test_new_tool_search_pubmed_routes_to_pubmed(project_root, monkeypatch):
+    """tool_search(source='pubmed') is the v2 replacement for tool_search_pubmed."""
     called = []
 
     def fake_pm(q, limit):
@@ -354,7 +315,9 @@ def test_legacy_tool_search_pubmed_routes_to_pubmed(project_root, monkeypatch):
 
     monkeypatch.setattr("research_os.server.search_pubmed", fake_pm)
     _handle_tool_call(
-        "tool_search_pubmed", {"query": "foo", "limit": 3}, project_root
+        "tool_search",
+        {"query": "foo", "limit": 3, "source": "pubmed"},
+        project_root,
     )
     assert called == [("foo", 3)]
 
@@ -517,3 +480,85 @@ def test_preflight_catches_unresolved_redirect(tmp_path, monkeypatch):
     ok, msg = mod.check_redirect_targets()
     assert not ok
     assert "nowhere" in msg
+
+
+# ── phase-14a (v2.0.0): v1.6.1 aliases hard-removed ──────────────
+
+
+# The 21 names introduced as consolidation aliases in v1.6.1 should now
+# return a _REMOVED_TOOLS error envelope naming the canonical entry point.
+_V14A_REMOVED_TO_NEW = {
+    "tool_search_semantic_scholar": "tool_search",
+    "tool_search_pubmed": "tool_search",
+    "tool_search_crossref": "tool_search",
+    "tool_search_arxiv": "tool_search",
+    "tool_search_web": "tool_search",
+    "tool_plan_turn": "tool_plan",
+    "tool_plan_advance": "tool_plan",
+    "tool_plan_clear": "tool_plan",
+    "tool_grounding_register": "tool_ground",
+    "tool_ground_from_context": "tool_ground",
+    "tool_claim_verify": "tool_verify",
+    "tool_grounding_verify": "tool_verify",
+    "tool_lessons_record": "tool_lessons",
+    "tool_lessons_consult": "tool_lessons",
+    "sys_path_create": "sys_path",
+    "sys_path_abandon": "sys_path",
+    "sys_path_list": "sys_path",
+    "mem_methods_append": "mem_log",
+    "mem_decision_log": "mem_log",
+    "mem_hypothesis_update": "mem_log",
+    "mem_analysis_log": "mem_log",
+}
+
+
+@pytest.mark.parametrize("removed_name,new_name", sorted(_V14A_REMOVED_TO_NEW.items()))
+def test_v14a_removed_alias_returns_friendly_error(
+    project_root, removed_name, new_name
+):
+    """Every first-wave alias hard-removed in phase-14a now returns an
+    error envelope whose message names the canonical v2 entry point."""
+    r = _handle_tool_call(removed_name, {}, project_root)
+    env = _parse_envelope(r)
+    assert env["status"] == "error", removed_name
+    msg = env.get("error", "")
+    assert removed_name in msg, f"{removed_name}: error should name the removed tool"
+    assert new_name in msg, f"{removed_name}: error should name the replacement {new_name}"
+    assert "v1.6.1" in msg, f"{removed_name}: error should cite when alias was introduced"
+    assert "v2.0.0" in msg, f"{removed_name}: error should cite the v2.0.0 removal"
+
+
+def test_v14a_removed_aliases_dropped_from_tool_definitions():
+    """Hard-removed aliases must not advertise themselves in TOOL_DEFINITIONS."""
+    from research_os.server import TOOL_DEFINITIONS
+    for removed in _V14A_REMOVED_TO_NEW:
+        assert removed not in TOOL_DEFINITIONS, (
+            f"{removed} is in _REMOVED_TOOLS but still has a TOOL_DEFINITIONS "
+            f"entry — that triggers the _annotate_core_tool_metadata warning."
+        )
+
+
+def test_v14a_removed_aliases_dropped_from_alias_table():
+    """Hard-removed aliases must not survive in _ALIASES / _DEPRECATED_ALIASES /
+    _ALIAS_PARAM_INJECTION."""
+    from research_os.server import (
+        _ALIAS_PARAM_INJECTION,
+        _ALIASES,
+        _DEPRECATED_ALIASES,
+    )
+    for removed in _V14A_REMOVED_TO_NEW:
+        assert removed not in _ALIASES, f"{removed} still in _ALIASES"
+        assert removed not in _DEPRECATED_ALIASES, (
+            f"{removed} still in _DEPRECATED_ALIASES"
+        )
+        assert removed not in _ALIAS_PARAM_INJECTION, (
+            f"{removed} still in _ALIAS_PARAM_INJECTION"
+        )
+
+
+def test_v14a_tool_log_decision_chains_to_mem_log():
+    """tool_log_decision is a silent nickname pre-dating v1.6.1; it used to
+    chain through mem_decision_log → mem_log. With mem_decision_log removed,
+    it now resolves directly to mem_log with kind=decision injected."""
+    from research_os.server import _resolve_tool_name
+    assert _resolve_tool_name("tool_log_decision") == "mem_log"

@@ -195,7 +195,11 @@ def check_dispatcher_aliases():
         "tool_audit_figure_quality": "tool_audit",
         "tool_audit_statistical_power": "tool_audit",
         "sys_state_summary": "sys_state_get",
-        "tool_log_decision": "mem_decision_log",
+        # tool_log_decision used to chain through mem_decision_log → mem_log;
+        # mem_decision_log was hard-removed in phase-14a (v2.0.0), so the
+        # nickname now resolves directly to mem_log with kind='decision'
+        # injected.
+        "tool_log_decision": "mem_log",
         "view_workspace_tree": "sys_workspace_tree",
         # Passthrough — name already canonical.
         "sys_state_get": "sys_state_get",

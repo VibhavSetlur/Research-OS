@@ -19,9 +19,7 @@ the router picks one for you.
 |---|---|
 | `sys_boot` | **One call** returns state + config + history + dep inventory + recommended next protocol + pause classification + any active plan. Replaces 4-5 separate calls per session boot. |
 | `tool_route` | Hierarchical L1 → L2 → L3 picker. Takes the researcher's raw prompt, returns `primary_protocol`, `shortcut_tool`, `decomposition`, `complexity`, `ask_user`. ~250 tokens out. |
-| `tool_plan_turn` | Slices the active plan into a `this_turn` batch + `next_turn` queue sized to the researcher's `model_profile`. Returns `chat_split_recommended` when the plan won't fit in one chat. |
-| `tool_plan_advance` | Mark current step done; get next step. Called after every executed step. |
-| `tool_plan_clear` | Discard the active plan (researcher pivoted away). |
+| `tool_plan` | Unified plan dispatcher. `operation='turn'` slices the active plan into a `this_turn` batch + `next_turn` queue sized to the researcher's `model_profile`. `operation='advance'` marks the current step done + returns the next. `operation='clear'` discards the active plan (researcher pivoted away). |
 | `sys_tool_describe` | Return the full description for one tool (cheaper than re-listing every tool). |
 | `sys_dep_inventory` | Report which optional dependencies failed to import this session. |
 
@@ -46,9 +44,7 @@ the router picks one for you.
 | `sys_workspace_scaffold` | Re-create the directory tree. |
 | `sys_workspace_tree` | Structured workspace listing. |
 | `sys_file_read` / `_write` / `_list` / `_delete` / `_validate_md` | File I/O. Writes to `inputs/raw_data` + `inputs/literature` blocked. |
-| `sys_path_create` | Create the next numbered experiment folder. |
-| `sys_path_abandon` | Mark a path as `__DEAD_END` (preserved, never deleted). |
-| `sys_path_list` | List numbered experiment paths + status. |
+| `sys_path` | Unified path-lifecycle dispatcher. `operation='create'` creates the next numbered experiment folder; `operation='abandon'` marks a path as `__DEAD_END` (preserved, never deleted); `operation='list'` lists numbered experiment paths + status. |
 | `sys_checkpoint_create` / `_rollback` / `_list` | Workspace snapshots. |
 | `sys_config_get` / `_set` / `_validate` | researcher_config.yaml. (Prefer `sys_boot` at session start.) |
 | `sys_notify` | Append to workspace/logs/notifications.log. |
@@ -64,9 +60,7 @@ the router picks one for you.
 | Tool | Purpose |
 |---|---|
 | `tool_route` | Hierarchical L1→L2→L3 protocol picker. |
-| `tool_plan_turn` | Per-turn batching sized to model_profile. |
-| `tool_plan_advance` | Walk the active plan. |
-| `tool_plan_clear` | Discard the active plan. |
+| `tool_plan` | Unified plan dispatcher (`operation='turn'|'advance'|'clear'`). |
 
 ### Session continuity
 
@@ -81,11 +75,7 @@ the router picks one for you.
 
 | Tool | Purpose |
 |---|---|
-| `tool_search_semantic_scholar` | Semantic Scholar Graph API. |
-| `tool_search_pubmed` | PubMed (NCBI eutils). |
-| `tool_search_crossref` | Crossref. |
-| `tool_search_arxiv` | arXiv (no key needed). |
-| `tool_search_web` | Firecrawl → SerpAPI fallback. |
+| `tool_search` | Unified search dispatcher. `source='semantic_scholar'` (Semantic Scholar Graph API), `'pubmed'` (NCBI eutils), `'crossref'`, `'arxiv'` (no key needed), `'web'` (Firecrawl → SerpAPI fallback), or `'auto'` to let the heuristic pick. |
 | `tool_web_scrape` | Scrape a URL to markdown. |
 | `tool_literature_download` | Save a paper PDF. Pass `step_id='NN_<slug>'` to scope to a step. |
 | `tool_literature_search_and_save` | Search + download top-N PDFs in one shot. |

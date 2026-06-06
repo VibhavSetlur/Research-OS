@@ -41,7 +41,7 @@ def _scratch_dir(root: Path) -> Path:
             "# Scratch\n\n"
             "AI sandbox for quick tests. Contents are gitignored.\n"
             "Anything important MUST be moved to a proper experiment folder "
-            "(`sys_path_create`) before it counts as research.\n"
+            "(`sys_path(operation='create')`) before it counts as research.\n"
         )
     return d
 

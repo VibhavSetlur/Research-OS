@@ -69,6 +69,15 @@ LINE_EXEMPT_SUBSTRINGS = (
     "scripts/NN_<slug>_v",
     "VERSION the dashboard (semver:",  # user example, not internal commentary
     "demo, v1.1 fixed filters",
+    # _REMOVED_TOOLS redirect messages and the docstrings naming the
+    # removal phase. These are user-facing migration data — the version
+    # context is the load-bearing detail callers need to find the new path.
+    "renamed to",
+    "removed in v",
+    "(phase-14a)",
+    "phase-14a (v",
+    "pre-dating v1.6.1",
+    "across v2.0.0",
 )
 
 

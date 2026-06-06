@@ -248,36 +248,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["query"],
         },
     },
-    "tool_plan_advance": {
-        "short": "Mark current step done; get next step. Returns status='blocked' when a deliverable gate fails.",
-        "description": "Walk the active_plan. Returns next_step + remaining. Returns status='blocked' when the next step is a deliverable tool (tool_synthesize / tool_dashboard / tool_poster_create / tool_latex_compile) and the quality gate finds blockers. Pass override_gate=true ONLY on explicit researcher approval of a partial deliverable; supply override_rationale so workspace/logs/override_log.md records WHY the bypass happened.",
-        "category": "routing",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "override_gate": {
-                    "type": "boolean",
-                    "description": "Bypass the deliverable quality gate. Set only when the researcher explicitly authorised the bypass.",
-                },
-                "override_rationale": {
-                    "type": "string",
-                    "description": "One-line researcher-supplied reason for the bypass. Logged.",
-                },
-            },
-        },
-    },
-    "tool_plan_turn": {
-        "short": "Slice the active plan into this_turn (do now) + next_turn (queued) per model_profile.",
-        "description": "Reads the active plan + the researcher's model_profile (small/medium/large) and returns the batch of steps the AI should execute THIS turn versus what to queue for the next turn. Also returns `chat_split_recommended` (true when the remaining plan is too long for one chat — the AI should hand off + open a fresh chat). Small models get 1 step/turn; medium 3; large 6. Heavyweight tools (tool_synthesize, tool_audit_reproducibility) count for more.",
-        "category": "routing",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_plan_clear": {
-        "short": "Discard the active plan (researcher pivoted away).",
-        "description": "Use when the researcher abandons the previously-routed task mid-flow. Subsequent tool_route calls start fresh.",
-        "category": "routing",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
+    # tool_plan_advance / tool_plan_turn / tool_plan_clear — removed (phase-14a)
+    # (phase-14a). Use tool_plan(operation='advance'|'turn'|'clear') instead.
     "sys_tool_describe": {
         "short": "Return the full description + schema + status + pack for one tool.",
         "description": "list_tools ships only short descriptions to keep context lean. When you genuinely need the full detail (parameter semantics, longer rationale, examples) for one tool, call this. Returns name, category, short, description, inputSchema, plus the Phase-9 introspection fields: status ('live' = canonical | 'alias' = legacy name dispatched to a consolidated tool | 'deprecated' = removed but still tagged) and pack ('core' = built-in | '<pack_name>' = contributed by an installed protocol pack or adapter). Cheaper than re-listing every tool.",
@@ -533,105 +505,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Experiment paths ──────────────────────────────────────────────
-    "sys_path_create": {
-        "description": (
-            "Create the next numbered experiment folder (workspace/NN_<slug>/). "
-            "Populates README, conclusions, scripts/, data/, outputs/, environment/ "
-            "subdirs. Updates state. Pass `branch_of=<existing path_id>` to fork an "
-            "alternative analytical path — the new folder is named "
-            "NN_<slug>_path_<k>, the path lineage carries through every subsequent "
-            "step created with branch_of pointing back into the same lineage, and "
-            "the new step's data/input symlinks to the PARENT step's output rather "
-            "than to the previous numbered step (so branches are genuine forks)."
-        ),
-        "category": "path",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": (
-                        "Short descriptive slug DERIVED FROM THE STEP'S GOAL "
-                        "(lowercase, words joined by underscores, ≤40 chars). "
-                        "The AI picks this based on what the step actually does "
-                        "for THIS project — there are no fixed canonical names. "
-                        "Examples by domain (not requirements): "
-                        "EDA → 'baseline_eda' / 'distribution_scan'; "
-                        "cleaning → 'imputation' / 'outlier_handling'; "
-                        "modelling → 'cox_ph' / 'random_forest' / 'cnn_baseline'; "
-                        "audit → 'sensitivity' / 'calibration_check'."
-                    ),
-                },
-                "hypothesis": {"type": "string"},
-                "branch_of": {
-                    "type": "string",
-                    "description": (
-                        "Optional parent step id (e.g. '04_logistic_regression'). "
-                        "When set, the new folder gets a `_path_<k>` suffix and "
-                        "the data/input is wired to the parent's output. Use when "
-                        "the researcher wants to test an alternative pipeline "
-                        "alongside the current one rather than replacing it."
-                    ),
-                },
-                "from_step": {
-                    "type": "string",
-                    "description": (
-                        "Optional upstream step id to source data/input from "
-                        "(e.g. '03_normalization'). When omitted, the new step's "
-                        "data/input symlinks to the previous numbered step's "
-                        "data/output (or to inputs/raw_data/ for step 01). Use "
-                        "when the linear-predecessor inheritance is wrong — "
-                        "e.g. step 07 should read step 05's output, not step 06's."
-                    ),
-                },
-                "allow_unfinalized_predecessor": {
-                    "type": "boolean",
-                    "description": (
-                        "By default, create_numbered_experiment REFUSES "
-                        "to scaffold step N+1 while step N's README + conclusions.md "
-                        "are still placeholder text — preventing the 'forgot to "
-                        "finalize step 01 before starting step 02' pattern. Set this "
-                        "to true ONLY when the researcher explicitly authorises the "
-                        "bypass (e.g. step N is pure data plumbing with nothing to "
-                        "conclude). Pair with `override_rationale` so the bypass is "
-                        "logged to workspace/logs/override_log.md."
-                    ),
-                },
-                "override_rationale": {
-                    "type": "string",
-                    "description": (
-                        "Required when allow_unfinalized_predecessor=true. The "
-                        "researcher's reason for bypassing the finalize gate. "
-                        "Surfaced verbatim in the override log + the pre-submission "
-                        "audit so the bypass is never hidden."
-                    ),
-                },
-            },
-            "required": ["name"],
-        },
-    },
-    "sys_path_abandon": {
-        "description": (
-            "Mark an experiment as a dead end. Renames the folder to "
-            "NN_<slug>__DEAD_END (lineage tags such as `_path_2` are preserved, "
-            "so a dead-ended branch becomes NN_<slug>_path_2__DEAD_END) and "
-            "writes the rationale to analysis.md."
-        ),
-        "category": "path",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "path_name": {"type": "string"},
-                "rationale": {"type": "string"},
-            },
-            "required": ["path_name", "rationale"],
-        },
-    },
-    "sys_path_list": {
-        "description": "List all numbered experiment folders with their status (active|completed|dead_end).",
-        "category": "path",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
+    # sys_path_create / sys_path_abandon / sys_path_list — removed (phase-14a)
+    # (phase-14a). Use sys_path(operation='create'|'abandon'|'list') instead.
     "sys_export_share_archive": {
         "description": (
             "Build a share-safe zip of this project (default: "
@@ -805,34 +680,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
 
     # ── Memory / append-only logs ─────────────────────────────────────
-    "mem_analysis_log": {
-        "description": "Append an entry to workspace/analysis.md (chronological narrative log).",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {"entry": {"type": "string"}},
-            "required": ["entry"],
-        },
-    },
-    "mem_methods_append": {
-        "description": "Append a structured method entry (step, dataset, implementation, parameters, justification, assumptions) to workspace/methods.md.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "method": {"type": "string"},
-                "step_number": {"type": "string"},
-                "step_name": {"type": "string"},
-                "dataset_name": {"type": "string"},
-                "dataset_hash": {"type": "string"},
-                "implementation": {"type": "string"},
-                "parameters": {"type": "string"},
-                "justification": {"type": "string"},
-                "assumptions": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["method"],
-        },
-    },
+    # mem_methods_append / mem_decision_log / mem_analysis_log — removed (phase-14a)
+    # (phase-14a). Use mem_log(kind='methods'|'decision'|'analysis', ...) instead.
     "mem_citations_generate": {
         "description": "Refresh workspace/citations.md from inputs/literature_index.yaml.",
         "category": "memory",
@@ -843,81 +692,12 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "memory",
         "inputSchema": {"type": "object", "properties": {}},
     },
-    "mem_decision_log": {
-        "description": "Append a structured decision (context, selected, rationale) to workspace/analysis.md.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "context": {"type": "string"},
-                "selected": {"type": "string"},
-                "rationale": {"type": "string"},
-            },
-            "required": ["context", "selected", "rationale"],
-        },
-    },
 
     # ── Search & literature ───────────────────────────────────────────
-    "tool_search_semantic_scholar": {
-        "description": "Search Semantic Scholar for relevant academic papers.",
-        "category": "search",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "limit": {"type": "number"},
-            },
-            "required": ["query"],
-        },
-    },
-    "tool_search_pubmed": {
-        "description": "Search PubMed (biomedical literature).",
-        "category": "search",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "limit": {"type": "number"},
-            },
-            "required": ["query"],
-        },
-    },
-    "tool_search_crossref": {
-        "description": "Search Crossref for DOI-linked academic literature.",
-        "category": "search",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "limit": {"type": "number"},
-            },
-            "required": ["query"],
-        },
-    },
-    "tool_search_arxiv": {
-        "description": "Search arXiv for preprints (physics, math, CS, statistics, quantitative biology, etc.).",
-        "category": "search",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "limit": {"type": "number"},
-            },
-            "required": ["query"],
-        },
-    },
-    "tool_search_web": {
-        "description": "Search the web (Firecrawl primary, SerpAPI fallback). Use to ground methodology, find tools, or check current best practices.",
-        "category": "search",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "limit": {"type": "number"},
-            },
-            "required": ["query"],
-        },
-    },
+    # tool_search_semantic_scholar / tool_search_pubmed / tool_search_crossref /
+    # tool_search_arxiv / tool_search_web — removed phase-14a.
+    # Use tool_search(query=..., source='semantic_scholar'|'pubmed'|'crossref'|
+    # 'arxiv'|'web') instead.
     "tool_web_scrape": {
         "description": "Scrape a webpage and return markdown content.",
         "category": "search",
@@ -1388,94 +1168,12 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["operation"],
         },
     },
-    "tool_grounding_register": {
-        "short": "Bind a decision/claim to PROV-O sources (papers, context files, datasets, web, prior decisions).",
-        "description": "Every methodological decision should cite the evidence that informed it. Sources are typed: paper | preprint | dataset | context_file | web | workspace_artefact | tool_research | prior_decision. Cited_text spans recommended where available. tool_grounding_verify gates synthesis on coverage.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "decision_id": {"type": "string"},
-                "claim": {"type": "string"},
-                "sources": {"type": "array"},
-                "step_id": {"type": "string"},
-                "confidence": {"type": "string", "description": "low | medium | high"},
-                "notes": {"type": "string"},
-            },
-            "required": ["claim", "sources"],
-        },
-    },
-    "tool_ground_from_context": {
-        "short": "Shortcut: build a grounding record from inputs/context/ files in one call.",
-        "description": "For decisions grounded in the researcher's narrative notes (not formal papers). Hashes each context file + records the cited excerpt.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "decision_id": {"type": "string"},
-                "claim": {"type": "string"},
-                "context_paths": {"type": "array", "items": {"type": "string"}},
-                "cited_excerpts": {"type": "array", "items": {"type": "string"}},
-                "confidence": {"type": "string"},
-            },
-            "required": ["claim", "context_paths"],
-        },
-    },
-    "tool_claim_verify": {
-        "short": "Chain-of-Verification (CoVe): record verification Q&A for a claim.",
-        "description": "Each claim heading into the paper should be paired with N verification questions, independently answered. Claim is `verified` only when all `supports==true`. Surfaces in the master audit + dashboard.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "claim": {"type": "string"},
-                "verifications": {"type": "array"},
-                "decision_id": {"type": "string"},
-                "step_id": {"type": "string"},
-            },
-            "required": ["claim", "verifications"],
-        },
-    },
-    "tool_grounding_verify": {
-        "short": "Audit gate — every decision in analysis.md must carry a grounding record.",
-        "description": "Walks workspace/analysis.md decisions; flags any whose evidence chain is missing. Writes workspace/logs/grounding_audit.md; the master quality auditor uses it as a blocker for synthesis.",
-        "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_lessons_record": {
-        "short": "Reflexion: record a what-worked / what-didn't lesson for future runs.",
-        "description": "After each step or plan, capture a textual lesson. tool_lessons_consult retrieves the top-K matching lessons for the next task and produces a prompt block to prepend to the next system prompt.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "outcome": {"type": "string", "description": "success | failure | partial | abandoned"},
-                "reflection": {"type": "string"},
-                "what_worked": {"type": "string"},
-                "what_didnt": {"type": "string"},
-                "recommendation": {"type": "string"},
-                "tags": {"type": "array", "items": {"type": "string"}},
-                "step_id": {"type": "string"},
-                "scope": {"type": "string"},
-            },
-            "required": ["outcome", "reflection"],
-        },
-    },
-    "tool_lessons_consult": {
-        "short": "Retrieve top-K prior lessons relevant to the current task.",
-        "description": "Returns lessons ranked by recency + tag overlap + keyword overlap. Failure-outcome lessons get a small boost (more actionable). Use the returned `prompt_block` to prepend a 'Prior lessons' section to the next AI turn.",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "task": {"type": "string"},
-                "tags": {"type": "array", "items": {"type": "string"}},
-                "top_k": {"type": "number"},
-                "scope_filter": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["task"],
-        },
-    },
+    # tool_grounding_register / tool_ground_from_context — removed (phase-14a)
+    # (phase-14a). Use tool_ground(mode='explicit'|'from_context', ...) instead.
+    # tool_claim_verify / tool_grounding_verify — removed phase-14a.
+    # Use tool_verify(scope='claim'|'project', ...) instead.
+    # tool_lessons_record / tool_lessons_consult — removed phase-14a.
+    # Use tool_lessons(operation='record'|'consult', ...) instead.
     "tool_plan_step_grounded": {
         "short": "Plan a step with explicit Thought / Required-grounding / Action / Verification per sub-task.",
         "description": "Stronger than tool_plan_step. Auto-inventories the project's available evidence (inputs, context notes, literature, prior conclusions). Each sub-task has filled slots for thought, required grounding (which evidence will be consulted), action, expected outputs, verification question, and prior lessons consulted. Use for substantive analyses where every action should be traceable to evidence.",
@@ -1855,8 +1553,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "specific data shape, counts comparative-evidence signals, and "
             "returns a recommendation: `commit_user_method` (stay quiet — "
             "default) OR `branch_to_alternative` (surface the alternative to "
-            "the researcher ONCE and, on confirmation, call `sys_path_create "
-            "branch_of=<current>` to create an `NN_<slug>_alt_path_<k>` fork "
+            "the researcher ONCE and, on confirmation, call `sys_path("
+            "operation='create', branch_of=<current>)` to create an `NN_<slug>_alt_path_<k>` fork "
             "alongside the primary). Writes "
             "`outputs/reports/alternative_path_<slug>.md` with the cited "
             "evidence. Use BEFORE committing a methodology when you suspect a "
@@ -2007,20 +1705,8 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["statement"],
         },
     },
-    "mem_hypothesis_update": {
-        "description": "Update a hypothesis (status + add evidence note).",
-        "category": "memory",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "hypothesis_id": {"type": "string"},
-                "status": {"type": "string"},
-                "evidence": {"type": "string"},
-                "step": {"type": "string"},
-            },
-            "required": ["hypothesis_id"],
-        },
-    },
+    # mem_hypothesis_update — removed phase-14a.
+    # Use mem_log(kind='hypothesis', hypothesis_id=..., status=..., ...) instead.
     "mem_hypothesis_list": {
         "description": "List every tracked hypothesis.",
         "category": "memory",
@@ -2175,7 +1861,7 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_workflow_dag": {
         "short": "Build a DAG of numbered steps + their data dependencies; write docs/workflow_dag.mermaid.",
-        "description": "Walks each numbered step's data/input symlinks to derive cross-step dependencies, then writes docs/workflow_dag.mermaid with colour-coded nodes (active / completed / dead_end). Pass render_png=true to also emit a PNG (requires mmdc — npm install -g @mermaid-js/mermaid-cli). Auto-refreshed by sys_path_create and sys_path_abandon so the DAG stays in sync without manual calls.",
+        "description": "Walks each numbered step's data/input symlinks to derive cross-step dependencies, then writes docs/workflow_dag.mermaid with colour-coded nodes (active / completed / dead_end). Pass render_png=true to also emit a PNG (requires mmdc — npm install -g @mermaid-js/mermaid-cli). Auto-refreshed by sys_path(operation='create') and sys_path(operation='abandon') so the DAG stays in sync without manual calls.",
         "category": "state",
         "inputSchema": {
             "type": "object",
@@ -6275,9 +5961,9 @@ def _handle_sys_help(name, arguments, root):
             "Every turn starts with a researcher message. On the FIRST "
             "turn of the session, sys_boot is your 1st MCP call and "
             "tool_route(prompt=their message) is your 2nd — fire them "
-            "back-to-back. Then: tool_plan_turn if complexity=high; else "
-            "shortcut_tool. On subsequent turns, skip sys_boot and go "
-            "straight to tool_route."
+            "back-to-back. Then: tool_plan(operation='turn') if "
+            "complexity=high; else shortcut_tool. On subsequent turns, "
+            "skip sys_boot and go straight to tool_route."
         ),
         "when_uncertain": (
             "If tool_route returns ask_user, ask THAT question and re-route. "
@@ -6314,7 +6000,7 @@ def _handle_sys_help(name, arguments, root):
             "Don't pick a method or library from training memory — tool_research_method / tool_research_tool first.",
             "Don't write under inputs/raw_data or inputs/literature (immutable; server blocks it).",
             "Don't skip the ask_user from tool_route — asking once costs less than picking wrong.",
-            "Don't re-route after the researcher already picked one — use tool_plan_clear if they pivoted.",
+            "Don't re-route after the researcher already picked one — use tool_plan(operation='clear') if they pivoted.",
             "Don't bypass a quality gate without override_rationale — the pre-submission audit will surface every silent bypass.",
             "Don't reuse a stale _v<n> filename — bump or call tool_step_iterate before editing scripts.",
             "Don't submit without audit/pre_submission_checklist — it catches what reviewers will catch.",
@@ -6325,11 +6011,11 @@ def _handle_sys_help(name, arguments, root):
             "decision_tree": [
                 "0. Every turn is triggered by a researcher message — you don't act before one arrives.",
                 "1. First turn of the session: sys_boot is your 1st MCP call. Returns pause + active_plan + next_protocol.",
-                "2. active_plan in progress (from a previous turn) → tool_plan_turn → walk it.",
+                "2. active_plan in progress (from a previous turn) → tool_plan(operation='turn') → walk it.",
                 "3. pause_classification = ctx_exhaustion / mid_step → guidance/session_resume.",
                 "4. Otherwise: tool_route(prompt=their verbatim message) is your 2nd MCP call.",
                 "5. resolved_level=3 + complexity=low → call shortcut_tool OR load protocol summary.",
-                "6. resolved_level=3 + complexity=high → tool_plan_turn then advance per step.",
+                "6. resolved_level=3 + complexity=high → tool_plan(operation='turn') then operation='advance' per step.",
                 "7. resolved_level<3 OR ask_user non-null → ASK the question, re-route.",
                 "8. resolved_level=0 → use the fallback ask_user; never guess a protocol.",
                 "9. Subsequent turns: skip sys_boot — its payload is still in context — go straight to tool_route or continue the active plan.",
@@ -6342,7 +6028,7 @@ def _handle_sys_help(name, arguments, root):
             "complexity_signals": [
                 ">18 words OR multiple verbs OR conjunctions ('and then', 'also', 'plus')",
                 "deliverable phrases: 'full project', 'end to end', 'from scratch', 'wake me when', 'ship it'",
-                "→ persisted active_plan; walk via tool_plan_turn + tool_plan_advance",
+                "→ persisted active_plan; walk via tool_plan(operation='turn') + tool_plan(operation='advance')",
             ],
             "after_routing": "sys_active_tools(protocol_name) → ~10-15 tool shortlist for that protocol.",
         }))
@@ -6383,7 +6069,7 @@ def _handle_sys_help(name, arguments, root):
             "how_to_bypass": [
                 "tool_synthesize(override_completeness_gate=true, override_rationale='<why>')",
                 "tool_dashboard(operation='create', override_completeness_gate=true, override_rationale='<why>')",
-                "tool_plan_advance(override_gate=true, override_rationale='<why>')",
+                "tool_plan(operation='advance', override_gate=true, override_rationale='<why>')",
             ],
             "rules": [
                 "Authorisation must be in the researcher's CURRENT message ('skip the audit', 'just draft it', 'preview only').",
@@ -6401,7 +6087,7 @@ def _handle_sys_help(name, arguments, root):
                 "context_full": "sys_session_handoff + 'pick up where we left off' in fresh chat → guidance/session_resume.",
                 "lost_active_project": "sys_active_project — returns resolved root + how resolved.",
                 "lost_protocol": "sys_protocol_next (pipeline) or sys_protocol_list (browse).",
-                "mid_plan_pivot": "tool_plan_clear — discard plan; re-tool_route on the new ask.",
+                "mid_plan_pivot": "tool_plan(operation='clear') — discard plan; re-tool_route on the new ask.",
             },
             "checkpoint_safety": (
                 "sys_checkpoint_create BEFORE risky moves; sys_checkpoint_rollback restores. "
@@ -6484,11 +6170,11 @@ def _handle_sys_help(name, arguments, root):
                 "comparative_paper_review": "compare-and-contrast 2-N papers (journal club / related work / foundational).",
             },
             "search_tools": [
-                "tool_search_semantic_scholar",
-                "tool_search_pubmed",
-                "tool_search_crossref",
-                "tool_search_arxiv",
-                "tool_search_web",
+                "tool_search(query=..., source='semantic_scholar')",
+                "tool_search(query=..., source='pubmed')",
+                "tool_search(query=..., source='crossref')",
+                "tool_search(query=..., source='arxiv')",
+                "tool_search(query=..., source='web')",
                 "tool_literature_search_and_save  (combined search + download)",
             ],
             "after_search": "mem_citations_generate → workspace/citations.md. tool_citations_verify → online resolve every cite.",
@@ -7196,9 +6882,9 @@ _HANDLERS = {
     "tool_route": _handle_tool_route,
     "tool_semantic_route": _handle_tool_semantic_route,
     "sys_semantic_tool_search": _handle_sys_semantic_tool_search,
-    "tool_plan_advance": _handle_tool_plan_advance,
-    "tool_plan_turn": _handle_tool_plan_turn,
-    "tool_plan_clear": _handle_tool_plan_clear,
+    # tool_plan_advance / turn / clear removed phase-14a — use
+    # tool_plan(operation=...) instead. Inner _handle_tool_plan_advance/
+    # turn/clear functions are still defined and called by _handle_tool_plan.
     "sys_tool_describe": _handle_sys_tool_describe,
     "sys_active_tools": _handle_sys_active_tools,
     "sys_active_project": _handle_sys_active_project,
@@ -7224,10 +6910,9 @@ _HANDLERS = {
     "sys_file_list": _handle_sys_file_list,
     "sys_file_delete": _handle_sys_file_delete,
     "sys_file_validate_md": _handle_sys_file_validate_md,
-    # paths
-    "sys_path_create": _handle_sys_path_create,
-    "sys_path_abandon": _handle_sys_path_abandon,
-    "sys_path_list": _handle_sys_path_list,
+    # paths — sys_path_create/abandon/list removed phase-14a; use
+    # sys_path(operation=...) instead. Inner handlers still exist for the
+    # _handle_sys_path dispatcher.
     "tool_path_finalize": _handle_tool_path_finalize,
     "tool_synthesis_curate_figures": _handle_tool_synthesis_curate_figures,
     "sys_export_share_archive": _handle_sys_export_share_archive,
@@ -7244,18 +6929,13 @@ _HANDLERS = {
     # environment — consolidated into sys_env(operation=snapshot|docker_generate)
     # via phase-9-c9. Legacy per-operation names alias here.
     "sys_env": _handle_sys_env,
-    # memory
-    "mem_analysis_log": _handle_mem_analysis_log,
-    "mem_methods_append": _handle_mem_methods_append,
+    # memory — mem_methods_append / mem_decision_log / mem_analysis_log
+    # removed phase-14a; use mem_log(kind=...) instead. Inner
+    # _handle_mem_* helpers still exist for _handle_mem_log dispatch.
     "mem_citations_generate": _handle_mem_citations_generate,
     "mem_intake_regenerate": _handle_mem_intake_regenerate,
-    "mem_decision_log": _handle_mem_decision_log,
-    # search
-    "tool_search_semantic_scholar": _handle_tool_search,
-    "tool_search_pubmed": _handle_tool_search,
-    "tool_search_crossref": _handle_tool_search,
-    "tool_search_arxiv": _handle_tool_search,
-    "tool_search_web": _handle_tool_search,
+    # search — tool_search_semantic_scholar / pubmed / crossref / arxiv /
+    # web removed phase-14a; use tool_search(source=...) instead.
     "tool_web_scrape": _handle_tool_web_scrape,
     "tool_literature_download": _handle_tool_literature_download,
     "tool_literature_search_and_save": _handle_tool_literature_search_and_save,
@@ -7289,12 +6969,12 @@ _HANDLERS = {
     # tool_thought_log / tool_thought_trace consolidated into
     # tool_thought(operation=log|trace) — phase-9-c7.
     "tool_thought": _handle_tool_thought,
-    "tool_grounding_register": _handle_tool_grounding_register,
-    "tool_ground_from_context": _handle_tool_ground_from_context,
-    "tool_claim_verify": _handle_tool_claim_verify,
-    "tool_grounding_verify": _handle_tool_grounding_verify,
-    "tool_lessons_record": _handle_tool_lessons_record,
-    "tool_lessons_consult": _handle_tool_lessons_consult,
+    # tool_grounding_register / tool_ground_from_context removed (phase-14a)
+    # (phase-14a); use tool_ground(mode=...) instead.
+    # tool_claim_verify / tool_grounding_verify removed phase-14a;
+    # use tool_verify(scope=...) instead.
+    # tool_lessons_record / tool_lessons_consult removed phase-14a;
+    # use tool_lessons(operation=...) instead.
     "tool_plan_step_grounded": _handle_tool_plan_step_grounded,
     # New audit suite (audit handlers now folded into tool_audit dispatcher).
     "tool_preregister": _handle_tool_preregister,
@@ -7343,9 +7023,9 @@ _HANDLERS = {
     # multi-language scripts
     "tool_notebook_exec": _handle_tool_notebook_exec,
     "tool_rmarkdown_render": _handle_tool_rmarkdown_render,
-    # hypothesis tracking
+    # hypothesis tracking — mem_hypothesis_update removed phase-14a;
+    # use mem_log(kind='hypothesis', ...) instead. add + list remain standalone.
     "mem_hypothesis_add": _handle_mem_hypothesis_add,
-    "mem_hypothesis_update": _handle_mem_hypothesis_update,
     "mem_hypothesis_list": _handle_mem_hypothesis_list,
     # iterative planning
     "tool_plan_next_step": _handle_tool_plan_next_step,
@@ -7409,28 +7089,22 @@ _ALIASES = {
     # Dot notation is handled generically by the dispatcher's dot→underscore
     # rewrite, no need to list here.
     "sys_state_summary": "sys_state_get",
-    "tool_log_decision": "mem_decision_log",
+    # tool_log_decision was historically a nickname chaining through
+    # mem_decision_log → mem_log. mem_decision_log was hard-removed in
+    # phase-14a, so tool_log_decision now maps directly to mem_log
+    # with kind=decision injection so the nickname keeps working.
+    "tool_log_decision": "mem_log",
     "view_workspace_tree": "sys_workspace_tree",
 
     # ── consolidation aliases ─────────────────────────
-    # Search cluster (5 → 1).
-    "tool_search_semantic_scholar": "tool_search",
-    "tool_search_pubmed": "tool_search",
-    "tool_search_crossref": "tool_search",
-    "tool_search_arxiv": "tool_search",
-    "tool_search_web": "tool_search",
-    # Plan cluster (3 → 1, plan_step_grounded stays separate).
-    "tool_plan_turn": "tool_plan",
-    "tool_plan_advance": "tool_plan",
-    "tool_plan_clear": "tool_plan",
-    # Grounding cluster (4 → 2).
-    "tool_grounding_register": "tool_ground",
-    "tool_ground_from_context": "tool_ground",
-    "tool_claim_verify": "tool_verify",
-    "tool_grounding_verify": "tool_verify",
+    # NOTE — Phase 14a: the 21 first-wave consolidation aliases
+    # (tool_search_*, tool_plan_*, tool_ground[ing]_*, tool_claim_verify,
+    # tool_grounding_verify, tool_lessons_record/consult, sys_path_*,
+    # mem_methods_append, mem_decision_log, mem_hypothesis_update,
+    # mem_analysis_log) were hard-removed after a 4+ minor-version
+    # deprecation runway. Callers using those names now get a friendly
+    # _REMOVED_TOOLS message naming the canonical entry point.
     # Lessons + failure-memory + dead-end + mistake-replay (8 → 1) — phase-9-c4.
-    "tool_lessons_record":   "tool_lessons",
-    "tool_lessons_consult":  "tool_lessons",
     "tool_failure_record":   "tool_lessons",
     "tool_failure_check":    "tool_lessons",
     "tool_failure_list":     "tool_lessons",
@@ -7439,15 +7113,6 @@ _ALIASES = {
     # Reliability log (2 → 1) — phase-9-c4.
     "tool_reliability_log_event": "tool_reliability",
     "tool_reliability_report":    "tool_reliability",
-    # Path cluster (3 → 1).
-    "sys_path_create": "sys_path",
-    "sys_path_abandon": "sys_path",
-    "sys_path_list": "sys_path",
-    # Memory cluster (4 → 1).
-    "mem_methods_append": "mem_log",
-    "mem_decision_log": "mem_log",
-    "mem_hypothesis_update": "mem_log",
-    "mem_analysis_log": "mem_log",
 
     # ── audit cluster ───────────────────────────────────
     # Per-step audits.
@@ -7547,21 +7212,19 @@ _ALIASES = {
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
 # here MUST resolve through _ALIASES to a real handler — preflight enforces.
+#
+# NOTE — Phase 14a: the 21 first-wave consolidation aliases
+# (tool_search_*, tool_plan_*, tool_ground[ing]_*, tool_claim_verify,
+# tool_grounding_verify, tool_lessons_record/consult, sys_path_*,
+# mem_methods_append, mem_decision_log, mem_hypothesis_update,
+# mem_analysis_log) were hard-removed after a 4+ minor-version
+# deprecation runway and now live in _REMOVED_TOOLS, not here.
 _DEPRECATED_ALIASES = {
-    "tool_search_semantic_scholar",
-    "tool_search_pubmed",
-    "tool_search_crossref",
-    "tool_search_arxiv",
-    "tool_search_web",
-    "tool_plan_turn",
-    "tool_plan_advance",
-    "tool_plan_clear",
-    "tool_grounding_register",
-    "tool_ground_from_context",
-    "tool_claim_verify",
-    "tool_grounding_verify",
-    "tool_lessons_record",
-    "tool_lessons_consult",
+    # tool_log_decision is a silent nickname pre-dating v1.6.1, but with
+    # mem_decision_log removed in v2.0.0 it now needs param injection to
+    # reach the canonical mem_log handler. Listed here so the dispatcher
+    # invokes _inject_consolidation_param on every call.
+    "tool_log_decision",
     # ── lessons + failure + reliability cluster (10 → 2) — phase-9-c4 ──
     "tool_failure_record",
     "tool_failure_check",
@@ -7570,13 +7233,6 @@ _DEPRECATED_ALIASES = {
     "tool_mistake_replay",
     "tool_reliability_log_event",
     "tool_reliability_report",
-    "sys_path_create",
-    "sys_path_abandon",
-    "sys_path_list",
-    "mem_methods_append",
-    "mem_decision_log",
-    "mem_hypothesis_update",
-    "mem_analysis_log",
     # ── audit cluster ───────────────────────────────────
     "tool_audit_assumptions",
     "tool_audit_code_quality",
@@ -7682,20 +7338,9 @@ def _resolve_tool_name(name: str) -> str:
 #   * tuple of (key, value) tuples — multi-kwarg injection (audit cluster
 #     needs both scope and dimension).
 _ALIAS_PARAM_INJECTION: dict[str, Any] = {
-    "tool_search_semantic_scholar": ("source", "semantic_scholar"),
-    "tool_search_pubmed":           ("source", "pubmed"),
-    "tool_search_crossref":         ("source", "crossref"),
-    "tool_search_arxiv":            ("source", "arxiv"),
-    "tool_search_web":              ("source", "web"),
-    "tool_plan_turn":               ("operation", "turn"),
-    "tool_plan_advance":            ("operation", "advance"),
-    "tool_plan_clear":              ("operation", "clear"),
-    "tool_grounding_register":      ("mode", "explicit"),
-    "tool_ground_from_context":     ("mode", "from_context"),
-    "tool_claim_verify":            ("scope", "claim"),
-    "tool_grounding_verify":        ("scope", "project"),
-    "tool_lessons_record":          ("operation", "record"),
-    "tool_lessons_consult":         ("operation", "consult"),
+    # Silent nickname kept alive across v2.0.0 — chains to mem_log
+    # (mem_decision_log itself was hard-removed in phase-14a).
+    "tool_log_decision":            ("kind", "decision"),
     # ── lessons + failure + reliability cluster — phase-9-c4 ──
     "tool_failure_record":          ("operation", "failure_record"),
     "tool_failure_check":           ("operation", "failure_check"),
@@ -7704,13 +7349,6 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_mistake_replay":          ("operation", "mistake_replay"),
     "tool_reliability_log_event":   ("operation", "log_event"),
     "tool_reliability_report":      ("operation", "report"),
-    "sys_path_create":              ("operation", "create"),
-    "sys_path_abandon":             ("operation", "abandon"),
-    "sys_path_list":                ("operation", "list"),
-    "mem_methods_append":           ("kind", "methods"),
-    "mem_decision_log":             ("kind", "decision"),
-    "mem_hypothesis_update":        ("kind", "hypothesis"),
-    "mem_analysis_log":             ("kind", "analysis"),
     # ── audit cluster ──
     # Per-step audits.
     "tool_audit_assumptions":             (("scope", "step"), ("dimension", "assumptions")),
@@ -7858,7 +7496,101 @@ _REMOVED_TOOLS = {
         "guidance with sys_protocol_get(protocol_name='visualization/figure_guidelines', "
         "format='summary'); call tool_research_method or tool_search_web first if "
         "you're unsure which plotting library is canonical for this data type. "
-        "tool_figure_palette + tool_audit_figure_full are unchanged."
+        "tool_figure(operation='palette') + tool_audit(scope='step', dimension='figure_full') are unchanged."
+    ),
+    # ── Phase 14a: first-wave consolidation aliases hard-removed
+    # after their deprecation runway expired (see CHANGELOG for the
+    # introduction → removal version pair).
+    # Search cluster (5 → 1).
+    "tool_search_semantic_scholar": (
+        "tool_search_semantic_scholar: renamed to tool_search in v1.6.1, removed in v2.0.0; "
+        "call tool_search(query='...', source='semantic_scholar') instead."
+    ),
+    "tool_search_pubmed": (
+        "tool_search_pubmed: renamed to tool_search in v1.6.1, removed in v2.0.0; "
+        "call tool_search(query='...', source='pubmed') instead."
+    ),
+    "tool_search_crossref": (
+        "tool_search_crossref: renamed to tool_search in v1.6.1, removed in v2.0.0; "
+        "call tool_search(query='...', source='crossref') instead."
+    ),
+    "tool_search_arxiv": (
+        "tool_search_arxiv: renamed to tool_search in v1.6.1, removed in v2.0.0; "
+        "call tool_search(query='...', source='arxiv') instead."
+    ),
+    "tool_search_web": (
+        "tool_search_web: renamed to tool_search in v1.6.1, removed in v2.0.0; "
+        "call tool_search(query='...', source='web') instead."
+    ),
+    # Plan cluster (3 → 1).
+    "tool_plan_turn": (
+        "tool_plan_turn: renamed to tool_plan in v1.6.1, removed in v2.0.0; "
+        "call tool_plan(operation='turn') instead."
+    ),
+    "tool_plan_advance": (
+        "tool_plan_advance: renamed to tool_plan in v1.6.1, removed in v2.0.0; "
+        "call tool_plan(operation='advance') instead."
+    ),
+    "tool_plan_clear": (
+        "tool_plan_clear: renamed to tool_plan in v1.6.1, removed in v2.0.0; "
+        "call tool_plan(operation='clear') instead."
+    ),
+    # Grounding cluster (4 → 2).
+    "tool_grounding_register": (
+        "tool_grounding_register: renamed to tool_ground in v1.6.1, removed in v2.0.0; "
+        "call tool_ground(mode='explicit', ...) instead."
+    ),
+    "tool_ground_from_context": (
+        "tool_ground_from_context: renamed to tool_ground in v1.6.1, removed in v2.0.0; "
+        "call tool_ground(mode='from_context', ...) instead."
+    ),
+    "tool_claim_verify": (
+        "tool_claim_verify: renamed to tool_verify in v1.6.1, removed in v2.0.0; "
+        "call tool_verify(scope='claim', ...) instead."
+    ),
+    "tool_grounding_verify": (
+        "tool_grounding_verify: renamed to tool_verify in v1.6.1, removed in v2.0.0; "
+        "call tool_verify(scope='project', ...) instead."
+    ),
+    # Lessons cluster (record/consult slice was the first-wave introduction;
+    # the rest of the lessons family is still aliased — see CHANGELOG).
+    "tool_lessons_record": (
+        "tool_lessons_record: renamed to tool_lessons in v1.6.1, removed in v2.0.0; "
+        "call tool_lessons(operation='record', ...) instead."
+    ),
+    "tool_lessons_consult": (
+        "tool_lessons_consult: renamed to tool_lessons in v1.6.1, removed in v2.0.0; "
+        "call tool_lessons(operation='consult', ...) instead."
+    ),
+    # Path cluster (3 → 1).
+    "sys_path_create": (
+        "sys_path_create: renamed to sys_path in v1.6.1, removed in v2.0.0; "
+        "call sys_path(operation='create', ...) instead."
+    ),
+    "sys_path_abandon": (
+        "sys_path_abandon: renamed to sys_path in v1.6.1, removed in v2.0.0; "
+        "call sys_path(operation='abandon', ...) instead."
+    ),
+    "sys_path_list": (
+        "sys_path_list: renamed to sys_path in v1.6.1, removed in v2.0.0; "
+        "call sys_path(operation='list') instead."
+    ),
+    # Memory cluster (4 → 1).
+    "mem_methods_append": (
+        "mem_methods_append: renamed to mem_log in v1.6.1, removed in v2.0.0; "
+        "call mem_log(kind='methods', method='...') instead."
+    ),
+    "mem_decision_log": (
+        "mem_decision_log: renamed to mem_log in v1.6.1, removed in v2.0.0; "
+        "call mem_log(kind='decision', context='...', selected='...', rationale='...') instead."
+    ),
+    "mem_hypothesis_update": (
+        "mem_hypothesis_update: renamed to mem_log in v1.6.1, removed in v2.0.0; "
+        "call mem_log(kind='hypothesis', hypothesis_id='...', status='...') instead."
+    ),
+    "mem_analysis_log": (
+        "mem_analysis_log: renamed to mem_log in v1.6.1, removed in v2.0.0; "
+        "call mem_log(kind='analysis', entry='...') instead."
     ),
 }
 

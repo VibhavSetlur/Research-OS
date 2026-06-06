@@ -477,7 +477,7 @@ def _build_methods(
 ) -> str:
     body = _read(root / "workspace" / "methods.md")
     if not body.strip():
-        return "## Methods\n\n*No methods recorded — run `mem_methods_append` first.*\n"
+        return "## Methods\n\n*No methods recorded — run `mem_log(kind='methods', ...)` first.*\n"
     body = _replace_citation_keys(body, key_to_num)
     return "## Methods\n\n" + body + "\n"
 
@@ -653,7 +653,7 @@ def _build_abstract(root: Path, experiments: list[dict[str, Any]], output_type: 
     methods_line = (
         methods_summary
         if methods_summary
-        else "*(No methods recorded yet — add via `mem_methods_append` "
+        else "*(No methods recorded yet — add via `mem_log(kind='methods', ...)` "
         "or set `synthesis_spec.yaml > methods_summary`.)*"
     )
     results_line = (
