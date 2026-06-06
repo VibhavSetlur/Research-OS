@@ -357,7 +357,7 @@ def _handle_tool_section_substantiveness(name, arguments, root):
 
 
 def _handle_tool_humanities_essay_scaffold(name, arguments, root):
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
     return _text(_success(scaffold_humanities_essay(root)))

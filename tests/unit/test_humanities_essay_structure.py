@@ -86,7 +86,7 @@ def test_humanities_essay_structure_steps_cover_the_six_sections():
 
 
 def test_scaffold_writes_paper_md_with_all_sections(tmp_path: Path):
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
 
@@ -117,7 +117,7 @@ def test_scaffold_omits_imrad_headings(tmp_path: Path):
     """A humanities essay is non-IMRAD by design. The scaffold must NOT
     seed Methods / Results / Discussion headings (those belong to
     synthesis_paper)."""
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
 
@@ -131,7 +131,7 @@ def test_scaffold_omits_imrad_headings(tmp_path: Path):
 def test_scaffold_is_idempotent_when_unedited(tmp_path: Path):
     """Re-running the scaffold on its own un-edited output is a no-op
     in terms of section count."""
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
 
@@ -159,7 +159,7 @@ def test_scaffold_is_idempotent_when_unedited(tmp_path: Path):
 def test_scaffold_preserves_substantive_researcher_content(tmp_path: Path):
     """If the researcher has written real prose under a section,
     re-running the scaffold MUST NOT clobber it."""
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
 
@@ -202,7 +202,7 @@ def test_scaffold_preserves_substantive_researcher_content(tmp_path: Path):
 
 def test_scaffold_creates_synthesis_dir_when_missing(tmp_path: Path):
     """The handler must create synthesis/ if it doesn't already exist."""
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
 
@@ -214,7 +214,7 @@ def test_scaffold_creates_synthesis_dir_when_missing(tmp_path: Path):
 
 def test_scaffold_accepts_str_root(tmp_path: Path):
     """Handler dispatch may pass root as a str — the scaffold must coerce."""
-    from research_os.tools.actions.synthesis.humanities_essay_scaffold import (
+    from research_os.tools.actions.synthesis.humanities_essay import (
         scaffold_humanities_essay,
     )
 
