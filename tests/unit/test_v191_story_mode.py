@@ -13,7 +13,7 @@ from research_os.tools.actions.synthesis.dashboard_story import (
     dashboard_story_generate,
     dashboard_story_quality_bar,
 )
-from research_os.tools.actions.synthesis.dashboard_v2 import render_dashboard_v2
+from research_os.tools.actions.synthesis.dashboard_app import render_dashboard_app
 
 
 def _scaffold_full_story_fixture(root: Path, n_steps: int = 3,
@@ -244,7 +244,7 @@ def test_renderer_pulls_existing_story_md(tmp_path: Path):
     (tmp_path / "synthesis" / "dashboard_story.md").write_text(
         "# Hand-polished\n\nThis prose came from the researcher.\n"
     )
-    render_dashboard_v2(tmp_path)
+    render_dashboard_app(tmp_path)
     html = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert "Hand-polished" in html
     assert "This prose came from the researcher" in html
@@ -252,9 +252,9 @@ def test_renderer_pulls_existing_story_md(tmp_path: Path):
 
 def test_renderer_default_mode_explore_vs_story(tmp_path: Path):
     _scaffold_full_story_fixture(tmp_path)
-    render_dashboard_v2(tmp_path, default_mode="story")
+    render_dashboard_app(tmp_path, default_mode="story")
     html_story = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert 'content="story"' in html_story
-    render_dashboard_v2(tmp_path, default_mode="explore")
+    render_dashboard_app(tmp_path, default_mode="explore")
     html_expl = (tmp_path / "synthesis" / "dashboard.html").read_text()
     assert 'content="explore"' in html_expl

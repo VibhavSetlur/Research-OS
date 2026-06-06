@@ -6,6 +6,144 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.1.0] — consistency + organization (2026-06-06)
+
+**Tagline:** internal-consistency MINOR with honest validation.
+v2.0.0 shipped the structural refactor; v2.1.0 standardizes the
+surfaces — return envelope shape, error message pattern, dashboard
+module naming, paper-pipeline doc — and field-validates the result
+with 10 perspective agents × scenarios + 20 random natural-language
+prompts. The initial Wave-D validation hit 5.54/10 avg and surfaced
+18 fixes; 11 land in this release (the GREEN-gate blockers + the
+quick HIGHs), 7 are tagged for v2.1.x patches with the gap honestly
+acknowledged below — NO RATING PADDING.
+
+### Added
+
+- **v2.1.0 response envelope shape** (`status` / `payload` / `data`
+  alias / `audit_findings` / `next_recommended_call` / `tier_transition` /
+  `tokens_estimate` / `ro_version`). Backwards-compatible: handlers
+  keep using `_success(data)` and the new fields auto-populate with
+  sensible defaults. `payload` and `data` reference the same object
+  for one minor cycle; `data` removed in v2.2.0.
+- **`RoError(what, why=None, next_action=None)`** structured-error
+  primitive at `research_os.server.errors`. The dispatcher catches it
+  and renders the v2.1.0 error envelope with the parts on
+  `payload.{what, why, next_action}`. The `next_action` clause is also
+  promoted to envelope-level `next_recommended_call` so the AI has a
+  literal next-call hint on every failure.
+- **Did-you-mean suggestions** on unknown-tool dispatcher errors and
+  on protocol-loader `FileNotFoundError`. Builds the nearest-3 list
+  via `difflib`. Closes the top "typo dies silently" friction point
+  from v2.0.0 validation.
+- **`docs/PAPER_PIPELINE.md`** canonical model: `synthesis/paper.md`
+  (AI-edited intermediate) → `paper.typ` (default, fast) or
+  `paper.tex` (when `pdf_compile_engine: latex`) → `synthesis/paper.pdf`
+  (researcher-facing). Per-pack section overrides documented. File-
+  format invariants locked.
+- **`docs/CONTRACT.md` §A.6.1 + §A.6.2** — formalizes the v2.1.0
+  envelope shape stability promise + the `RoError` exception
+  signature stability.
+
+### Changed
+
+- **Dispatcher exception handling** in `research_os.server.dispatch`
+  now catches `RoError`, `KeyError`, `TypeError`, `FileNotFoundError`,
+  and bare `Exception` in order — each emits a structured WHAT/WHY/NEXT
+  envelope instead of bare stringified errors. Closes the documented
+  v2.0.1 "wrap dispatcher KeyError" item.
+- **Dashboard module names normalized** — `dashboard_v2.py` →
+  `dashboard_app.py`; `dashboard_v2_humanities.py` →
+  `dashboard_humanities.py`; `dashboard_v2_qualitative.py` →
+  `dashboard_qualitative.py`. `render_dashboard_v2()` →
+  `render_dashboard_app()`. `DASHBOARD_V2_CSS` → `DASHBOARD_APP_CSS`.
+  Legacy `dashboard.py` (still alive as the `dashboard_legacy=true`
+  fallback) keeps its name. Migration aliases left at the old paths
+  for one minor cycle (removed v2.2.0).
+
+### Deprecated
+
+- `envelope["data"]` key — now an alias for `envelope["payload"]`;
+  removed in v2.2.0. Migration table in
+  `docs/MIGRATION_v2_0_to_v2_1.md`.
+- `from research_os.tools.actions.synthesis.dashboard_v2 import ...` —
+  migration shim re-exports from `dashboard_app.py`; removed in
+  v2.2.0.
+
+### Fixed
+
+- (CodeQL) Three release-gate blockers fixed during the v2.0.0 ship
+  ceremony: `cli.py:520` extraneous f-string; `test_v161_consolidation.py`
+  monkeypatch path post-Phase-10 server split; `test_v160.py` lean
+  variant test pollution under `_fresh_import()` test order.
+
+### Validation
+
+- **Phase 13 multi-perspective matrix.** 10 perspective agents (naive_ai,
+  experienced_ai, undergrad, grad_dissertation, postdoc_audit,
+  pi_review, industry, methodology_auditor, reproducibility,
+  maintainer) × scenarios in `/tmp/ro_v21_validation/` + 20 random
+  natural-language prompts. **Initial Wave-D rating: 5.54/10 avg**
+  (lowest: pi_review 5.0; highest: experienced_ai 6.0). All 5 GREEN
+  targets failed in the initial pass. See `docs/V21_VALIDATION_REPORT.md`
+  for the full 10×6 grade matrix, friction-points-by-frequency,
+  worst-prompt analysis, and v2.1.0/v2.1.x/v2.2.0 deferral list.
+- **Phase 14 fix list** — 11 of 18 surfaced fixes landed (FIX-1, 2, 3,
+  4-partial, 5, 8, 9, 11, 13, 14, 18). The five blockers flagged by
+  ≥9/10 perspectives (envelope ro_version lie, envelope fields never
+  populated, ghost tool refs in error/help advice, --ide none silently
+  rejected, AGENTS.md teaches legacy names) are all closed.
+- **Phase 15 mini re-validation** — 9 targeted spot-checks of the
+  fixes hit, all PASS. See `docs/v21_handoff/PHASE_15_MINI_REVALIDATION.md`
+  for the matrix + honest expected-rating projection (~7.0-7.5/10).
+  A full 10-perspective re-run was deferred under release-ship time
+  pressure; tagged for v2.1.1.
+
+### Deferred to v2.1.x (acknowledged gap, NO PADDING)
+
+The Wave-D report surfaced 7 fixes not landed in v2.1.0. These are
+the gap between the 5.54 baseline + 9 fixes (~7.0-7.5 projected) and
+the 8.5 GREEN target. Each will land as a v2.1.x patch:
+
+- **FIX-6** — narrow handler-level `except Exception` so dispatcher's
+  typed RoError catches actually fire (7/10 perspectives).
+- **FIX-7** — migrate 13+ pack tools to the v2.1.0 envelope (5/10
+  perspectives) — they currently return v2.0 `{status, data}`.
+- **FIX-10** — extend AI_GUIDE.md / TOOLS.md / RESEARCHER_GUIDE.md
+  with v2.1.0 envelope-field docs (4/10 perspectives).
+- **FIX-12** — pack-context bias in router scoring (5/10 perspectives;
+  architectural — will likely land as v2.2.0).
+- **FIX-15** — flip causal-language detector default to observational
+  (2/10 perspectives, BLOCK for methodology-audit use cases) — needs
+  domain reviewer input on default thresholds.
+- **FIX-16** — namespace-aware did-you-mean ranking (5/10 perspectives).
+- **FIX-17** — re-tag `pre_submission_checklist` + `audit_and_validation`
+  + `data_management_plan` as `[any]` not pack-specific.
+
+### Documentation
+
+- `docs/v21_handoff/V21_MASTER_PLAN.md` — wave layout + per-phase exit
+  criteria.
+- `docs/v21_handoff/PHASE_1_RENAMES.md`, `PHASE_2_ENVELOPE_AUDIT.md`,
+  `PHASE_3_ERROR_AUDIT.md`, `PHASE_8_GATE_FIRING_MATRIX.md`,
+  `PHASE_13_SCHEMA.md` — per-phase audit + planning artifacts.
+
+### Deferred to v2.1.x / v2.2.0
+
+- Phase 5 protocol taxonomy reorganization (117 protocols into a deeper
+  navigable hierarchy) — needs a dedicated session; tracked for v2.2.0.
+- Phase 6 router consolidation (slim `_router_index.yaml` 2027 → ≤500
+  lines, semantic-primary + hierarchical-fallback) — needs Phase 5
+  first; tracked for v2.2.0.
+- Wire orphan audit gates `evalue` + `figure_coverage` (per
+  `docs/v21_handoff/PHASE_8_GATE_FIRING_MATRIX.md`) — needs domain
+  reviewer sign-off on thresholds; tracked for v2.1.x.
+- 97 `except: pass` site sweep + 360 WHAT_ONLY raise sweep
+  (per `docs/v21_handoff/PHASE_3_ERROR_AUDIT.md`) — RoError + dispatcher
+  primitives are in place; per-site rewrites land as v2.1.x patches.
+
+---
+
 ## [2.0.0] — release-prep (2026-06-06)
 
 **Tagline:** comprehensive release — end-to-end coherent system, field-validated

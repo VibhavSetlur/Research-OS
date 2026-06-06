@@ -1,0 +1,55 @@
+=== PHASE 0 GROUND TRUTH ===
+timestamp=2026-06-06T09:26:11-05:00
+pwd=/scratch/vsetlur/Research-OS
+
+=== Version + Branch ===
+pyproject_version=version = "2.0.0"
+init_version=__version__ = "2.0.0"
+branch=feat/v2.0.0
+
+=== Tags (last 10) ===
+v1.11.0
+v1.9.4
+v1.9.3
+v1.9.2
+v1.9.1
+v1.9.0
+v1.8.0
+v1.7.1
+v1.7.0
+v1.6.1
+
+=== Remote branches ===
+  origin/HEAD -> origin/main
+  origin/dev
+  origin/feat/v1.5.1
+  origin/fix/v1.5.0-stress-audit
+  origin/main
+
+=== Recent commits (last 15) ===
+bc3d608 feat(v2): release 2.0.0 — version bump + CHANGELOG + protocol-version bumps [phase-16e]
+f3dd37f docs(v2): refresh RESEARCHER_GUIDE + FAQ + PROTOCOLS + TOOLS + CONTRACT for v2.0.0 [phase-16d]
+7951fdb docs(v2): V2_RELEASE_NOTES.md final [phase-16c]
+9d8de6c docs(v2): MIGRATION_v1_to_v2.md final [phase-16b]
+4532749 docs(v2): refresh README + START + AI_GUIDE for v2.0.0 [phase-16a]
+37d901c docs(v2): phase 16 release prep workflow [phase-16-prep]
+0c45b79 fix(v2): two v2.0.1 BLOCKER regressions surfaced by phase-15b re-validation
+b3b24a0 fix(v2): MCP Server() reports canonical __version__ (phase-13-followup-#1)
+7940bc8 refactor(v2): split server.py into modular server/ package [phase-10]
+5617022 chore(v2): remove dead config fields + dead vars [phase-14d]
+7ccd8bc chore(v2): remove orphan tools audit + tikzposter LaTeX path [phase-14b]
+d37dd2d chore(v2): remove first-wave consolidation aliases [phase-14a]
+8c98976 feat(v2): status+pack+scope_tags annotations + MCP instructions + summary default [phase-9-cross-cutting]
+e841fe9 feat(v2): consolidate sys_config + sys_env [phase-9-c9]
+7dad25d feat(v2): consolidate scratch + task [phase-9-c8]
+
+=== Working tree status ===
+?? docs/v21_handoff/
+?? docs/v2_handoff/PHASE_16_FINAL_REPORT.md
+
+=== File counts ===
+protocols_yaml=118
+server_modules=32
+docs_md=53
+tests=114
+router_lines=2027

@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from research_os.tools.actions.synthesis.dashboard_v2_humanities import (
+from research_os.tools.actions.synthesis.dashboard_humanities import (
     _build_apparatus_section,
     _build_close_reading_section,
     _build_critical_conversation_section,
@@ -21,7 +21,7 @@ from research_os.tools.actions.synthesis.dashboard_v2_humanities import (
     _parse_apparatus_md,
     render_humanities_section,
 )
-from research_os.tools.actions.synthesis.dashboard_v2 import detect_active_pack
+from research_os.tools.actions.synthesis.dashboard_app import detect_active_pack
 
 
 # ── helpers ───────────────────────────────────────────────────────────
