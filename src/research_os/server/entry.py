@@ -169,7 +169,8 @@ if HAS_MCP:
     # Read profile lazily inside list_tools so per-request resolution stays cheap.
     from ._helpers import _read_profile
 
-    server = Server("research-os", instructions=_MCP_INSTRUCTIONS)
+    from research_os import __version__ as _RO_VERSION
+    server = Server("research-os", version=_RO_VERSION, instructions=_MCP_INSTRUCTIONS)
 
     @server.list_tools()
     async def list_tools() -> list[Tool]:
