@@ -517,7 +517,7 @@ def cmd_ide(args: argparse.Namespace) -> None:
         names = args.names or []
         if not names:
             wizard.fail("`research-os ide config-path` needs at least one IDE name",
-                        f"e.g. `research-os ide config-path cursor`")
+                        "e.g. `research-os ide config-path cursor`")
             sys.exit(1)
         unknown = [n for n in names if n not in collab.IDE_FILES]
         if unknown:

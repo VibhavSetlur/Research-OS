@@ -287,10 +287,16 @@ def test_tool_search_auto_picks_biomedical_providers_for_rna(
         called.append(("pm", q, limit))
         return [{"title": "rna paper pm", "_source": "pubmed"}]
 
+    # Post-server-refactor: handler resolves provider via its module-level
+    # binding pulled in by `from .._handlers_runtime import *`. Patch the
+    # binding the handler actually reads (not just the public re-export).
     monkeypatch.setattr(
-        "research_os.server.search_semantic_scholar", fake_s2
+        "research_os.server.handlers.research_search.search_semantic_scholar",
+        fake_s2,
     )
-    monkeypatch.setattr("research_os.server.search_pubmed", fake_pm)
+    monkeypatch.setattr(
+        "research_os.server.handlers.research_search.search_pubmed", fake_pm
+    )
     r = _handle_tool_call(
         "tool_search",
         {"query": "snRNA-seq dorsal raphe", "source": "auto", "limit": 4},
@@ -313,7 +319,9 @@ def test_new_tool_search_pubmed_routes_to_pubmed(project_root, monkeypatch):
         called.append((q, limit))
         return [{"title": "hit"}]
 
-    monkeypatch.setattr("research_os.server.search_pubmed", fake_pm)
+    monkeypatch.setattr(
+        "research_os.server.handlers.research_search.search_pubmed", fake_pm
+    )
     _handle_tool_call(
         "tool_search",
         {"query": "foo", "limit": 3, "source": "pubmed"},

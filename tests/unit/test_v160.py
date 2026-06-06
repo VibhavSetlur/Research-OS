@@ -37,9 +37,13 @@ def test_lean_format_trims_step_descriptions():
 
 
 def test_lean_format_uses_explicit_lean_variant_when_present(tmp_path, monkeypatch):
-    # Build a minimal protocol with an explicit lean_variant block.
-    import tempfile
+    # Import inside the test so `load_protocol` and `protocol_mod` come from
+    # the same current `research_os.tools.actions.protocol` module — a prior
+    # `_fresh_import()` in the suite (test_v170) can otherwise clear
+    # sys.modules and rebind the top-level import to a different module than
+    # `protocol_mod`, leaving the monkeypatch on the wrong module.
     from research_os.tools.actions import protocol as protocol_mod
+    from research_os.tools.actions.protocol import load_protocol as _load
     src = tmp_path / "tmp" / "lean_test.yaml"
     src.parent.mkdir(parents=True)
     src.write_text(
@@ -51,7 +55,7 @@ def test_lean_format_uses_explicit_lean_variant_when_present(tmp_path, monkeypat
     )
     monkeypatch.setattr(protocol_mod, "PROTOCOLS_DIR", tmp_path)
 
-    lean = load_protocol("tmp/lean_test", format="lean")
+    lean = _load("tmp/lean_test", format="lean")
     assert lean.get("_lean_source") == "explicit"
     steps = lean.get("steps") or []
     assert len(steps) == 1
