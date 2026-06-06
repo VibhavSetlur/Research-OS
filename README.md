@@ -138,36 +138,44 @@ That's the whole workflow.
 
 ---
 
-## What ships in v2.0.0
+## What's inside
 
-* **146 MCP tools** across three namespaces — `sys_*` (system / workspace /
+* **146 MCP tools** in three namespaces — `sys_*` (system / workspace /
   files / state), `tool_*` (research work), `mem_*` (append-only memory).
-  Down from 344 in v1.x — consolidated families (`tool_audit`,
-  `tool_dashboard`, `tool_search`, `tool_figure`, `tool_step`,
-  `tool_lessons`, `mem_log`, etc.) dispatch by `scope` / `operation` /
-  `dimension`. Every v1 tool name still works via 80 backward-compat
-  aliases for the v2.0.x patch line.
-* **117 protocols** the AI picks from via `tool_route`. Every protocol
-  ships with `scope_tags: {domain, audience, workflow_shape}` and a
-  `tier` annotation so the router can filter intelligently.
-* **MCP `instructions` field** shipped at handshake — compliant clients
-  (Claude Code, Cursor, Cline, etc.) see the canonical boot sequence
-  (`sys_boot → tool_route → sys_protocol_get → sys_active_tools`)
-  without the AI having to discover it.
-* **`sys_protocol_get` defaults to `format='summary'`** (~3K chars
-  vs ~12-25K for full YAML) — 5-10× cheaper per-turn load.
-* **`tool_route` returns `recommended_action` + `why_matched` + `tier`**
-  — a literal next-call string per candidate so the AI never burns a
-  turn deciding what to call next.
-* **`sys_active_tools(protocol_name)`** returns a 13–18-tool scoped
-  shortlist (down from 146 visible) per protocol.
-* **`status` + `pack` on every tool definition** — boot-visible
-  `list_tools` is filtered to `status=live` (146 core/pack tools);
-  aliases + deprecated names are still callable but not advertised.
+  Family-level consolidation (`tool_audit`, `tool_dashboard`,
+  `tool_search`, `tool_figure`, `tool_step`, `tool_lessons`, `mem_log`,
+  etc.) dispatches by `scope` / `operation` / `dimension`. Every
+  alias still works via backward-compat dispatch.
+* **117 core protocols** + 36 in 5 bundled packs (humanities,
+  qualitative, theory_math, wet_lab, engineering) the AI picks from
+  via `tool_route`. Every protocol carries
+  `scope_tags: {domain, audience, workflow_shape}` and a `tier`
+  annotation so the router can filter by context.
+* **6 in-tree adapter packs** — `slurm`, `nextflow`, `snakemake`,
+  `cytoscape`, `redcap`, `synapse` — bridge Research OS to common
+  external systems via plugin hooks.
+* **MCP `instructions` field** shipped at handshake — compliant
+  clients (Claude Code, Cursor, Cline, etc.) see the canonical boot
+  sequence (`sys_boot → tool_route → sys_protocol_get →
+  sys_active_tools`) without the AI having to discover it.
+* **Cheap-by-default token costs.** `sys_protocol_get` returns
+  `format='summary'` (~3K chars vs ~12-25K for full YAML) — 5-10×
+  cheaper per-turn load. `sys_active_tools(protocol_name)` returns a
+  scoped 13-18-tool shortlist instead of the full 146.
+* **Structured tool responses.** Every handler returns an envelope
+  with `status` / `payload` / `audit_findings` /
+  `next_recommended_call` / `tier_transition` / `tokens_estimate` /
+  `ro_version` — a literal next-call hint on every reply.
+* **WHAT / WHY / NEXT errors.** Dispatcher catches typed exceptions
+  and renders a structured error envelope with did-you-mean
+  suggestions on unknown tool + protocol typos.
+* **Audit-as-data.** Every audit emits a JSON companion alongside
+  its Markdown report. Findings live in a cross-audit append-only
+  ledger (`workspace/logs/.audit_findings.jsonl`) with stable UUIDv5
+  ids, queryable via `tool_audit_findings(operation='query'|'diff')`.
+  Synthesis BLOCK-gates on unresolved BLOCK findings.
 
 → **[CHANGELOG.md](CHANGELOG.md)** for the full release history.
-  Upgrading from v1.x? See the [`[2.0.0]` section](CHANGELOG.md) for
-  the surface map.
 
 ---
 
@@ -207,6 +215,7 @@ system that won't let any of those things land in your final paper.
 | **Sharing a finished project** | [docs/SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths |
 | **Contributing a protocol** | [docs/PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle |
 | **Driving the AI side** | [docs/AI_GUIDE.md](docs/AI_GUIDE.md) — what the AI itself reads |
+| **Embedding RO** | [docs/INTEGRATION.md](docs/INTEGRATION.md) — programmatic API · [docs/CONTRACT.md](docs/CONTRACT.md) — what surfaces are stable |
 
 Doc index: **[docs/README.md](docs/README.md)**
 
