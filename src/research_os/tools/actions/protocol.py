@@ -355,7 +355,7 @@ def load_protocol(
         )
         raise FileNotFoundError(
             f"Protocol '{name}' not found in {PROTOCOLS_DIR}.{suffix} "
-            "Call sys_protocols_list to see the live catalog."
+            "Call sys_protocol_list to see the live catalog."
         )
     with open(file) as f:
         data = yaml.safe_load(f) or {}
@@ -627,7 +627,7 @@ def list_protocols_flat(
           "category": "guidance",
           "pack_or_core": "core",
           "intent_class": "session",
-          "tier": None,        # Phase 8 will populate
+          "tier": "intake",    # from the protocol YAML's `tier:` field
           "version": "1.11.0",
           "description_short": "First protocol of every session ..."
         }
@@ -677,6 +677,7 @@ def list_protocols_flat(
         intent_class = None
         version = None
         description = ""
+        tier_val: str | None = None
         router_entry = router_protocols.get(name) if isinstance(router_protocols, dict) else None
         if isinstance(router_entry, dict):
             intent_class = router_entry.get("intent_class")
@@ -685,6 +686,7 @@ def list_protocols_flat(
                 data = yaml.safe_load(f) or {}
             description = data.get("description") or router_entry.get("summary", "") if router_entry else (data.get("description") or "")
             version = data.get("version")
+            tier_val = data.get("tier")
             if intent_class is None:
                 intent_class = data.get("intent_class")
         except Exception:
@@ -695,7 +697,7 @@ def list_protocols_flat(
             "category": cat,
             "pack_or_core": source,
             "intent_class": intent_class,
-            "tier": None,            # Phase 8 will populate
+            "tier": tier_val,
             "version": str(version) if version is not None else None,
             "description_short": _shorten(description),
         })

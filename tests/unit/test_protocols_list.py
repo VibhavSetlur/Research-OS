@@ -14,15 +14,28 @@ def test_list_protocols_flat_returns_structured_entries():
         "name", "category", "pack_or_core", "intent_class",
         "tier", "version", "description_short",
     }
+    valid_tiers = {None, "intake", "plan", "execute", "ground",
+                   "synthesize", "review", "finalize"}
+    tier_populated_count = 0
     for entry in out:
         missing = required - set(entry.keys())
         assert not missing, f"entry {entry.get('name')} missing keys {missing}"
-        # tier is null until Phase 8.
-        assert entry["tier"] is None
+        # tier is now sourced from the YAML's `tier:` field (v2.1.0). May be
+        # None for protocols that don't declare one, but most should.
+        assert entry["tier"] in valid_tiers, (
+            f"entry {entry.get('name')} tier={entry['tier']!r} not in enum"
+        )
+        if entry["tier"] is not None:
+            tier_populated_count += 1
         # pack_or_core never blank.
         assert entry["pack_or_core"]
         # description_short is short (we cap at ~160 chars).
         assert len(entry["description_short"]) <= 200
+    # v2.1.0: tier:null was Phase 8 placeholder; should now be populated on
+    # the majority of protocols (the YAMLs carry `tier:` since v2.0.0).
+    assert tier_populated_count > 100, (
+        f"expected tier populated on >100 protocols, got {tier_populated_count}"
+    )
 
 
 def test_list_protocols_flat_filter_by_category():

@@ -49,8 +49,13 @@ def test_envelope_helpers():
     assert s["audit_findings"] == []
     assert s["next_recommended_call"] is None
     assert s["tier_transition"] is None
-    assert s["tokens_estimate"] == 0
+    # tokens_estimate is now a heuristic (`len(json.dumps(payload))//4`)
+    # rather than a hardcoded 0. For a tiny payload like {"x": 1} it's
+    # > 0 but bounded.
+    assert isinstance(s["tokens_estimate"], int)
+    assert s["tokens_estimate"] >= 0
     assert "ro_version" in s
+    assert s["ro_version"].count(".") >= 2
 
     s_empty = _success()
     assert s_empty["status"] == "success"
@@ -66,13 +71,13 @@ def test_envelope_helpers():
     err2 = _error(
         what="path missing",
         why="protocol was renamed",
-        next_action="run sys_protocols_list",
+        next_action="run sys_protocol_list",
     )
     assert err2["status"] == "error"
     assert "path missing" in err2["error"]
     assert "renamed" in err2["error"]
-    assert err2["payload"]["next_action"] == "run sys_protocols_list"
-    assert err2["next_recommended_call"] == "run sys_protocols_list"
+    assert err2["payload"]["next_action"] == "run sys_protocol_list"
+    assert err2["next_recommended_call"] == "run sys_protocol_list"
 
 
 def test_text_helper():

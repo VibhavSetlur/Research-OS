@@ -112,7 +112,7 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
                     "deprecated, removed, or a typo"
                 ),
                 next_action=(
-                    f"call sys_tools_list to see live tools.{suggestion_clause}"
+                    f"call tool_tools_list to see live tools.{suggestion_clause}"
                 ),
             )
         )
@@ -157,7 +157,7 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             why=str(fe),
             next_action=(
                 "verify the workspace path; for protocol-not-found errors, "
-                "call sys_protocols_list for the current names"
+                "call sys_protocol_list for the current names"
             ),
         ))
     except Exception as e:

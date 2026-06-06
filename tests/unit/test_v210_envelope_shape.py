@@ -49,7 +49,7 @@ REPRESENTATIVE_CALLS = [
     ("sys_path",        {"operation": "list"}),
     ("sys_packs_installed", {}),
     # meta_workspace
-    ("sys_protocols_list", {}),
+    ("sys_protocol_list", {}),
     # meta_help
     ("sys_help",        {"topic": "boot"}),
     # research_search consolidated (we don't network out — `source=auto`

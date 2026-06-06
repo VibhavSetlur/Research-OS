@@ -71,6 +71,52 @@ def _envelope_base(
     }
 
 
+def _stringify_tier_transition(value: Any) -> str | None:
+    """Normalize tier_transition to the contract's `"tier_a -> tier_b"` form.
+
+    Accepts None (returns None), a string (passes through), or a
+    `{"from": ..., "to": ...}` dict (serializes). Other shapes return None
+    rather than leaking a non-stringified blob into the envelope.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        f = value.get("from")
+        t = value.get("to")
+        if f and t:
+            return f"{f} -> {t}"
+        if t and not f:
+            return f"-> {t}"
+        if f and not t:
+            return f"{f} ->"
+    return None
+
+
+def _payload_lift(payload: Any) -> dict[str, Any]:
+    """Lift v2.1.0 envelope-level fields from a payload dict.
+
+    Bridges the v2.0 handler convention (handlers tuck `recommended_action`,
+    `tier_transition`, `audit_findings` into the success payload) with the
+    v2.1.0 envelope contract that surfaces those fields at envelope level.
+    Handlers don't need to be rewritten — `_success` reads the payload and
+    promotes whatever's there. Explicit kwargs to `_success` still win.
+    """
+    out: dict[str, Any] = {}
+    if not isinstance(payload, dict):
+        return out
+    if "recommended_action" in payload and payload["recommended_action"]:
+        out["next_recommended_call"] = payload["recommended_action"]
+    if "tier_transition" in payload:
+        s = _stringify_tier_transition(payload["tier_transition"])
+        if s is not None:
+            out["tier_transition"] = s
+    if "audit_findings" in payload and isinstance(payload["audit_findings"], list):
+        out["audit_findings"] = list(payload["audit_findings"])
+    return out
+
+
 def _success(
     data: Any = None,
     *,
@@ -84,20 +130,43 @@ def _success(
     ``data`` becomes ``envelope["payload"]`` AND ``envelope["data"]`` —
     both names reference the same object for one minor cycle.  Callers
     that don't pass ``data`` get an empty dict (matches v2.0 behaviour).
+
+    v2.1.0 envelope fields auto-populate from common payload keys when
+    not passed explicitly:
+      * `payload["recommended_action"]` → envelope `next_recommended_call`
+      * `payload["tier_transition"]`    → envelope `tier_transition` (serialized to string)
+      * `payload["audit_findings"]`     → envelope `audit_findings`
+    Explicit kwargs always win.
     """
     payload = data if data is not None else {}
+    lifted = _payload_lift(payload)
+    # Normalize tier_transition passed explicitly to the canonical string shape.
+    if tier_transition is not None and not isinstance(tier_transition, str):
+        tier_transition = _stringify_tier_transition(tier_transition)
     env = {
         "status": "success",
         "payload": payload,
         "data": payload,
     }
     env.update(_envelope_base(
-        audit_findings=audit_findings,
-        next_recommended_call=next_recommended_call,
-        tier_transition=tier_transition,
-        tokens_estimate=tokens_estimate,
+        audit_findings=audit_findings if audit_findings is not None else lifted.get("audit_findings"),
+        next_recommended_call=next_recommended_call if next_recommended_call is not None else lifted.get("next_recommended_call"),
+        tier_transition=tier_transition if tier_transition is not None else lifted.get("tier_transition"),
+        tokens_estimate=tokens_estimate if tokens_estimate is not None else _tokens_heuristic(payload),
     ))
     return env
+
+
+def _tokens_heuristic(payload: Any) -> int:
+    """Cheap len(json.dumps(payload))//4 heuristic for envelope `tokens_estimate`.
+
+    Replaces the v2.0 placeholder default of 0 so a v2.1-aware client can
+    cost-route on every response without per-handler instrumentation.
+    """
+    try:
+        return max(0, len(json.dumps(payload, default=str)) // 4)
+    except Exception:
+        return 0
 
 
 def _error(
@@ -124,7 +193,7 @@ def _error(
           return _error(
               what="path not found",
               why="the protocol was renamed during v2.1.0",
-              next_action="try `sys_protocols_list` to find the new name",
+              next_action="try `sys_protocol_list` to find the new name",
           )
 
     With kwargs, ``message`` becomes a composed sentence and the original
