@@ -115,3 +115,32 @@ lessons-store). Every legacy name remains callable via `_ALIASES` +
 | tool_mistake_replay | tool_lessons | operation | mistake_replay | aliased v2.0.x, removed v2.1.0 |
 | tool_reliability_log_event | tool_reliability | operation | log_event | aliased v2.0.x, removed v2.1.0 |
 | tool_reliability_report | tool_reliability | operation | report | aliased v2.0.x, removed v2.1.0 |
+
+## Sensitivity family (2 → 1) — phase-9-c5
+
+The two per-operation `tool_sensitivity_*` tools (`define` authors the
+multiverse / specification-curve grid; `run` executes the Cartesian
+product and renders the Steegen-style spec curve) collapse into a single
+`tool_sensitivity(operation=define|run)` entry point. Every legacy name
+remains callable via `_ALIASES` + `_ALIAS_PARAM_INJECTION`; the
+dispatcher forwards to the matching private per-operation worker.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_sensitivity_define | tool_sensitivity | operation | define | aliased v2.0.x, removed v2.1.0 |
+| tool_sensitivity_run | tool_sensitivity | operation | run | aliased v2.0.x, removed v2.1.0 |
+
+## Preregister family (2 → 1) — phase-9-c5
+
+The two per-operation `tool_preregister_*` tools (`freeze` snapshots the
+SAP + hypotheses BEFORE data analysis, content-hashed; `diff` compares
+the frozen SAP against the current state at synthesis time) collapse
+into a single `tool_preregister(operation=freeze|diff)` entry point.
+Every legacy name remains callable via `_ALIASES` +
+`_ALIAS_PARAM_INJECTION`; the dispatcher forwards to the matching
+private per-operation worker.
+
+| old_name | new_name | dispatch_kwarg | value | status |
+|---|---|---|---|---|
+| tool_preregister_freeze | tool_preregister | operation | freeze | aliased v2.0.x, removed v2.1.0 |
+| tool_preregister_diff | tool_preregister | operation | diff | aliased v2.0.x, removed v2.1.0 |

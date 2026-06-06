@@ -555,7 +555,7 @@ protocols:
     triggers: ["preregister", "pre-register", "prereg", "freeze the plan",
                "lock the analysis plan", "registered report", "sap",
                "freeze the methods", "lock the methods"]
-    shortcut_tool: tool_preregister_freeze
+    shortcut_tool: tool_preregister
 
   methodology/data_management_plan:
     intent_class: methodology
@@ -1503,10 +1503,8 @@ protocols:
         purpose: "Profile missingness per column / row / stratum."
       - tool: tool_python_exec
         purpose: "Run MICE / IPW / pattern-mixture scripts."
-      - tool: tool_sensitivity_define
-        purpose: "Register the sensitivity spec under a different missingness mechanism."
-      - tool: tool_sensitivity_run
-        purpose: "Execute the sensitivity analysis and pool against the primary."
+      - tool: tool_sensitivity
+        purpose: "Register the sensitivity spec under a different missingness mechanism (operation='define') then execute (operation='run')."
 
   methodology/qualitative_quality_audit:
     intent_class: methodology

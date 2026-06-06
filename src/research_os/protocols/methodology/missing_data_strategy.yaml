@@ -248,8 +248,8 @@ steps:
           for binary outcomes (all missing = event vs all missing =
           no event); only for sanity-bound, not as a primary.
 
-      Use `tool_sensitivity_define` to register the sensitivity
-      spec and `tool_sensitivity_run` to execute. Write the
+      Use `tool_sensitivity(operation='define')` to register the sensitivity
+      spec and `tool_sensitivity(operation='run')` to execute. Write the
       sensitivity report to
       `outputs/reports/missing_data_sensitivity.md` — primary +
       each sensitivity estimate side-by-side, with the verdict

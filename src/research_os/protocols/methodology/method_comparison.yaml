@@ -122,7 +122,7 @@ steps:
           - compute budget per method (wall-clock, gpu-hours)
           - hyperparameter trial budget per method (same for all)
 
-      Freeze via tool_preregister_freeze if the comparison is high
+      Freeze via tool_preregister(operation='freeze') if the comparison is high
       stakes; otherwise the plan still serves as the SAP for the
       diff that synthesis will surface.
 

@@ -1431,66 +1431,65 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     # ── audit tools (code/prose/claims/evalue collapsed into tool_audit) ──
-    "tool_preregister_freeze": {
-        "short": "Freeze SAP + hypotheses BEFORE data analysis (content-hashed, immutable).",
-        "description": "Snapshots methods.md + active hypotheses to workspace/.preregistration/prereg_<iso>.{md,yaml}. Diffed at synthesis time via tool_preregister_diff. See methodology/preregistration for the full SAP field list and the OSF submission flow.",
+    "tool_preregister": {
+        "short": "Unified preregistration tool. operation=freeze|diff.",
+        "description": "Unified preregistration dispatcher for the SAP freeze/diff cycle. operation='freeze' (call BEFORE data analysis) snapshots methods.md + active hypotheses to workspace/.preregistration/prereg_<iso>.{md,yaml} — content-hashed, immutable. Accepts full SAP fields (primary_outcomes, secondary_outcomes, target_n, power_assumption, stopping_rule, subgroups, sensitivity, multiplicity, inclusion, exclusion, missing_data, additional_analyses, contingencies, anticipated_deviations, data_status). operation='diff' (call at synthesis time) loads the most recent .preregistration/prereg_*.yaml; compares hypotheses (added / removed / re-worded), methods.md (lines added / removed since freeze), and the paper's primary-outcome mention. Surfaces deviations the discussion section must acknowledge. Writes workspace/logs/preregistration_diff.md. See methodology/preregistration for the full SAP field list and the OSF submission flow.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "primary_outcomes": {"type": "string"},
-                "secondary_outcomes": {"type": "string"},
-                "target_n": {"type": "number"},
-                "power_assumption": {"type": "string"},
-                "stopping_rule": {"type": "string"},
-                "subgroups": {"type": "array", "items": {"type": "string"}},
-                "sensitivity": {"type": "array", "items": {"type": "string"}},
-                "multiplicity": {"type": "string"},
-                "inclusion": {"type": "array", "items": {"type": "string"}},
-                "exclusion": {"type": "array", "items": {"type": "string"}},
-                "missing_data": {"type": "string"},
-                "additional_analyses": {"type": "array", "items": {"type": "string"}},
-                "contingencies": {"type": "array", "items": {"type": "string"}},
-                "anticipated_deviations": {"type": "array", "items": {"type": "string"}},
-                "data_status": {"type": "string"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["freeze", "diff"],
+                    "description": "Which preregistration sub-operation to invoke.",
+                },
+                # operation='freeze' kwargs
+                "primary_outcomes": {"type": "string", "description": "operation='freeze' — primary outcome measure(s)."},
+                "secondary_outcomes": {"type": "string", "description": "operation='freeze' — secondary outcome measure(s)."},
+                "target_n": {"type": "number", "description": "operation='freeze' — planned sample size."},
+                "power_assumption": {"type": "string", "description": "operation='freeze' — effect-size + alpha + power assumption (e.g. 'd=0.5, alpha=0.05, power=0.80')."},
+                "stopping_rule": {"type": "string", "description": "operation='freeze' — stopping rule for data collection."},
+                "subgroups": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — pre-specified subgroup analyses."},
+                "sensitivity": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — planned sensitivity analyses."},
+                "multiplicity": {"type": "string", "description": "operation='freeze' — multiple-comparison correction (e.g. 'BH FDR @ q=0.05')."},
+                "inclusion": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — inclusion criteria."},
+                "exclusion": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — exclusion criteria."},
+                "missing_data": {"type": "string", "description": "operation='freeze' — missing-data handling strategy."},
+                "additional_analyses": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — pre-specified additional analyses."},
+                "contingencies": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — planned contingencies if assumptions break."},
+                "anticipated_deviations": {"type": "array", "items": {"type": "string"}, "description": "operation='freeze' — known deviations from registered plan."},
+                "data_status": {"type": "string", "description": "operation='freeze' — 'not yet collected' (default) | 'collected, not analysed' | 'analysed'."},
             },
+            "required": ["operation"],
         },
     },
-    "tool_preregister_diff": {
-        "short": "Diff the frozen SAP against the current state — lists every deviation.",
-        "description": "Loads the most recent .preregistration/prereg_*.yaml; compares hypotheses (added / removed / re-worded), methods.md (lines added / removed since freeze), and the paper's primary-outcome mention. Surfaces deviations the discussion section must acknowledge. Writes workspace/logs/preregistration_diff.md.",
-        "category": "audit",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_sensitivity_define": {
-        "short": "Author a multiverse / specification-curve sensitivity grid.",
-        "description": "Creates workspace/<step>/sensitivity.yaml — base_script + a grid of analytic choices (covariate sets, exclusion rules, transformations, model families). The runner will fan out the Cartesian product; the base script reads each spec via env vars (RESEARCH_OS_SPEC_<KEY>) and writes a one-row {estimate, ci_lo, ci_hi, <spec_columns>} record per run.",
+    "tool_sensitivity": {
+        "short": "Unified sensitivity tool. operation=define|run.",
+        "description": "Unified sensitivity dispatcher for multiverse / specification-curve analyses. operation='define' creates workspace/<step>/sensitivity.yaml — base_script + a grid of analytic choices (covariate sets, exclusion rules, transformations, model families). The runner will fan out the Cartesian product; the base script reads each spec via env vars (RESEARCH_OS_SPEC_<KEY>) and writes a one-row {estimate, ci_lo, ci_hi, <spec_columns>} record per run. operation='run' executes base_script once per combination; collects {estimate, ci_lo, ci_hi, spec_columns} into the output CSV; renders a Steegen-style specification curve (ordered effect dots + CIs over a choice matrix) into outputs/figures/<NN>_specification_curve.png. Drops a provenance sidecar.",
         "category": "exec",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "step_id": {"type": "string"},
-                "base_script": {"type": "string"},
-                "estimate_column": {"type": "string"},
-                "ci_columns": {"type": "array", "items": {"type": "string"}},
-                "grid": {"type": "object"},
-                "output_csv": {"type": "string"},
+                "operation": {
+                    "type": "string",
+                    "enum": ["define", "run"],
+                    "description": "Which sensitivity sub-operation to invoke.",
+                },
+                "step_id": {
+                    "type": "string",
+                    "description": "Numbered step folder (e.g. '03_logistic_baseline'). Required for both define and run.",
+                },
+                # operation='define' kwargs
+                "base_script": {"type": "string", "description": "operation='define' — REQUIRED. Path to the analysis script that reads RESEARCH_OS_SPEC_<KEY> env vars and emits a one-row CSV."},
+                "estimate_column": {"type": "string", "description": "operation='define' — name of the estimate column emitted by base_script (default 'estimate')."},
+                "ci_columns": {"type": "array", "items": {"type": "string"}, "description": "operation='define' — names of the two CI columns emitted by base_script (default ['ci_lo', 'ci_hi'])."},
+                "grid": {"type": "object", "description": "operation='define' — dict mapping spec key → list of values; the runner fans out the Cartesian product."},
+                "output_csv": {"type": "string", "description": "operation='define' — path for the collected one-row-per-spec CSV (default 'data/output/grid_results.csv')."},
+                # operation='run' kwargs
+                "max_specs": {"type": "number", "description": "operation='run' — cap for testing; default = all combos."},
+                "render_figure": {"type": "boolean", "description": "operation='run' — render the specification-curve PNG (default true)."},
             },
-            "required": ["step_id", "base_script"],
-        },
-    },
-    "tool_sensitivity_run": {
-        "short": "Execute the sensitivity grid + render the specification curve.",
-        "description": "Runs base_script once per combination; collects {estimate, ci_lo, ci_hi, spec_columns} into the output CSV; renders a Steegen-style specification curve (ordered effect dots + CIs over a choice matrix) into outputs/figures/<NN>_specification_curve.png. Drops a provenance sidecar.",
-        "category": "exec",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "step_id": {"type": "string"},
-                "max_specs": {"type": "number", "description": "Cap for testing — default = all combos."},
-                "render_figure": {"type": "boolean"},
-            },
-            "required": ["step_id"],
+            "required": ["operation", "step_id"],
         },
     },
     "tool_redteam_review": {
@@ -5295,6 +5294,28 @@ def _handle_tool_preregister_diff(name, arguments, root):
     return _text(_success(diff_preregistration(root)))
 
 
+def _handle_tool_preregister(name, arguments, root):
+    """Unified preregistration dispatcher.
+
+    Operations:
+      freeze → tool_preregister_freeze (snapshot SAP + hypotheses, content-hashed)
+      diff   → tool_preregister_diff   (compare frozen SAP against current state)
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_preregister requires operation='freeze' or operation='diff'."
+        ))
+    if op == "freeze":
+        return _handle_tool_preregister_freeze(name, arguments, root)
+    if op == "diff":
+        return _handle_tool_preregister_diff(name, arguments, root)
+    return _text(_error(
+        f"tool_preregister: unknown operation '{op}'. "
+        "Valid operations: freeze, diff."
+    ))
+
+
 def _handle_tool_sensitivity_define(name, arguments, root):
     from research_os.tools.actions.exec.sensitivity import define_sensitivity
 
@@ -5320,6 +5341,28 @@ def _handle_tool_sensitivity_run(name, arguments, root):
         render_figure=bool(arguments.get("render_figure", True)),
     )
     return _text(_success(res))
+
+
+def _handle_tool_sensitivity(name, arguments, root):
+    """Unified sensitivity dispatcher.
+
+    Operations:
+      define → tool_sensitivity_define (author the multiverse grid)
+      run    → tool_sensitivity_run    (execute the grid + render the spec curve)
+    """
+    op = arguments.get("operation")
+    if not op:
+        return _text(_error(
+            "tool_sensitivity requires operation='define' or operation='run'."
+        ))
+    if op == "define":
+        return _handle_tool_sensitivity_define(name, arguments, root)
+    if op == "run":
+        return _handle_tool_sensitivity_run(name, arguments, root)
+    return _text(_error(
+        f"tool_sensitivity: unknown operation '{op}'. "
+        "Valid operations: define, run."
+    ))
 
 
 def _handle_tool_redteam_review(name, arguments, root):
@@ -6875,10 +6918,8 @@ _HANDLERS = {
     "tool_lessons_consult": _handle_tool_lessons_consult,
     "tool_plan_step_grounded": _handle_tool_plan_step_grounded,
     # New audit suite (audit handlers now folded into tool_audit dispatcher).
-    "tool_preregister_freeze": _handle_tool_preregister_freeze,
-    "tool_preregister_diff": _handle_tool_preregister_diff,
-    "tool_sensitivity_define": _handle_tool_sensitivity_define,
-    "tool_sensitivity_run": _handle_tool_sensitivity_run,
+    "tool_preregister": _handle_tool_preregister,
+    "tool_sensitivity": _handle_tool_sensitivity,
     "tool_redteam_review": _handle_tool_redteam_review,
     "tool_response_to_reviewers": _handle_tool_response_to_reviewers,
     "tool_null_findings_report": _handle_tool_null_findings_report,
@@ -7084,6 +7125,13 @@ _ALIASES = {
     "tool_step_pipeline_run":      "tool_step_pipeline",
     "tool_step_pipeline_status":   "tool_step_pipeline",
     "tool_step_pipeline_diagram":  "tool_step_pipeline",
+
+    # ── sensitivity cluster (2 → 1) — phase-9-c5 ──────
+    "tool_sensitivity_define":     "tool_sensitivity",
+    "tool_sensitivity_run":        "tool_sensitivity",
+    # ── preregister cluster (2 → 1) — phase-9-c5 ──────
+    "tool_preregister_freeze":     "tool_preregister",
+    "tool_preregister_diff":       "tool_preregister",
 }
 
 # Aliases that should fire deprecation telemetry when invoked. Every name
@@ -7164,6 +7212,12 @@ _DEPRECATED_ALIASES = {
     "tool_step_pipeline_run",
     "tool_step_pipeline_status",
     "tool_step_pipeline_diagram",
+    # ── sensitivity cluster (2 → 1) — phase-9-c5 ──────
+    "tool_sensitivity_define",
+    "tool_sensitivity_run",
+    # ── preregister cluster (2 → 1) — phase-9-c5 ──────
+    "tool_preregister_freeze",
+    "tool_preregister_diff",
 }
 
 
@@ -7260,6 +7314,12 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_step_pipeline_run":             ("operation", "run"),
     "tool_step_pipeline_status":          ("operation", "status"),
     "tool_step_pipeline_diagram":         ("operation", "diagram"),
+    # ── sensitivity cluster (2 → 1) — phase-9-c5 ──────
+    "tool_sensitivity_define":            ("operation", "define"),
+    "tool_sensitivity_run":               ("operation", "run"),
+    # ── preregister cluster (2 → 1) — phase-9-c5 ──────
+    "tool_preregister_freeze":            ("operation", "freeze"),
+    "tool_preregister_diff":              ("operation", "diff"),
 }
 
 

@@ -28,7 +28,7 @@ description: |
   which is invoked AUTOMATICALLY by several tools:
     - `an AI-authored plotting script`   — writes the sidecar for the figure,
     - `tool_notebook_exec`   — writes per-notebook provenance,
-    - `tool_sensitivity_run` — writes the spec-curve sidecar.
+    - `tool_sensitivity(operation='run')` — writes the spec-curve sidecar.
 
   Scripts run via `tool_python_exec` / `tool_r_exec` MUST call
   `write_output_provenance` themselves at the end of every artefact

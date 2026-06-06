@@ -37,7 +37,7 @@ steps:
 
       For per-step debugging, the components are also exposed
       individually: tool_audit(scope='step', dimension='completeness'), tool_audit(scope='step', dimension='code_quality'),
-      tool_audit(scope='project', dimension='prose'), tool_audit(scope='project', dimension='claims'), tool_preregister_diff,
+      tool_audit(scope='project', dimension='prose'), tool_audit(scope='project', dimension='claims'), tool_preregister(operation='diff'),
       tool_ground (grounding verification surface).
 
   - id: audit_citations
