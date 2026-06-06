@@ -56,32 +56,37 @@ def test_text_helper():
 
 
 def test_log_search_creates_jsonl(tmp_path):
-    _log_search(tmp_path, "tool_search_web", "q1", 3)
-    _log_search(tmp_path, "tool_search_web", "q2", 5)
+    # tool_search is the consolidated entry point; tool_search_web was the
+    # v1.6.1 alias and was hard-removed in phase-14a.
+    _log_search(tmp_path, "tool_search", "q1", 3)
+    _log_search(tmp_path, "tool_search", "q2", 5)
     log = tmp_path / "workspace" / "logs" / "searches.log"
     assert log.exists()
     lines = log.read_text().strip().splitlines()
     assert len(lines) == 2
     first = json.loads(lines[0])
-    assert first["tool"] == "tool_search_web"
+    assert first["tool"] == "tool_search"
     assert first["results_count"] == 3
 
 
 def test_dispatcher_resolves_dots_to_underscores():
     assert _resolve_tool_name("sys.state.get") == "sys_state_get"
-    # tool.search.web → underscore → tool_search_web → resolves through the
-    # consolidation alias to tool_search (the unified search dispatcher).
-    assert _resolve_tool_name("tool.search.web") == "tool_search"
+    # tool.search → underscore → tool_search (the unified search dispatcher).
+    # tool.search.web no longer exists — its alias was removed in phase-14a.
+    assert _resolve_tool_name("tool.search") == "tool_search"
 
 
 def test_dispatcher_resolves_legacy_aliases():
-    assert _resolve_tool_name("tool_audit_statistical_power") == "tool_audit_power"
+    # v2.0.0: tool_audit_statistical_power resolves to the consolidated
+    # tool_audit entry point (was tool_audit_power before the audit-family
+    # collapse). Param injection sets scope=step / dimension=power so the
+    # legacy behaviour is preserved end-to-end.
+    assert _resolve_tool_name("tool_audit_statistical_power") == "tool_audit"
     assert _resolve_tool_name("sys_state_summary") == "sys_state_get"
-    # _resolve_tool_name does a single-step lookup; tool_log_decision
-    # resolves to mem_decision_log, which itself remains a handler (kept
-    # for back-compat) and only the dispatcher's consolidation alias map
-    # rewrites to mem_log on call.
-    assert _resolve_tool_name("tool_log_decision") == "mem_decision_log"
+    # tool_log_decision used to chain through mem_decision_log → mem_log;
+    # mem_decision_log was hard-removed in phase-14a so tool_log_decision now
+    # resolves directly to mem_log (with kind='decision' injected).
+    assert _resolve_tool_name("tool_log_decision") == "mem_log"
     assert _resolve_tool_name("view_workspace_tree") == "sys_workspace_tree"
 
 
@@ -90,12 +95,15 @@ def test_dispatcher_passes_underscore_names_through():
 
 
 def test_routing_tools_registered():
-    """sys_boot + tool_route + sys_tool_describe + plan tools must be wired."""
+    """sys_boot + tool_route + sys_tool_describe + plan tool must be wired.
+
+    tool_plan_advance / tool_plan_clear were hard-removed in phase-14a;
+    callers now use tool_plan(operation='advance'|'clear').
+    """
     for name in (
         "sys_boot",
         "tool_route",
-        "tool_plan_advance",
-        "tool_plan_clear",
+        "tool_plan",
         "sys_tool_describe",
     ):
         assert name in TOOL_DEFINITIONS, f"{name} missing from TOOL_DEFINITIONS"

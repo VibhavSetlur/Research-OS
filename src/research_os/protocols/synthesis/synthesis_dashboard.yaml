@@ -1,7 +1,12 @@
 id: synthesis_dashboard
+tier: 'synthesize'
 name: Synthesis — Dashboard (paper-as-interactive)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-05'
 description: |
   Generate a polished single-file HTML dashboard that reads as
@@ -35,7 +40,7 @@ description: |
     9. Reproducibility         ← code + environment + provenance
    10. Glossary + References   ← paper's bibliography
 
-  Reframing:
+  Behaviour notes:
     - The dashboard is THE PAPER IN INTERACTIVE FORM, not a status
       overview. Every figure ships with BOTH its `.caption.md` AND
       its `.summary.md` inline (paper has only the caption; dashboard
@@ -92,8 +97,8 @@ quality_bar:
 
 prerequisite_gate:
   rule: |
-    tool_dashboard_create soft-fails (renders with a warning ribbon)
-    when tool_audit_step_completeness has blockers. For the FINAL
+    tool_dashboard(operation='create') soft-fails (renders with a warning ribbon)
+    when tool_audit(scope='step', dimension='completeness') has blockers. For the FINAL
     deliverable, resolve all blockers first.
 
 steps:
@@ -125,7 +130,7 @@ steps:
   - id: run_completeness_audit
     name: Run Step Completeness Audit
     description: |
-      tool_audit_step_completeness
+      tool_audit(scope='step', dimension='completeness')
       Reports per-step BLOCKERS for: missing focal figures, missing
       caption sidecars, stub conclusions, missing summary sidecars.
       Writes workspace/logs/step_completeness.md which the dashboard's
@@ -159,9 +164,9 @@ steps:
   - id: author_synthesis_spec
     name: Author synthesis/synthesis_spec.yaml (optional but recommended)
     description: |
-      For deliverable-quality dashboards, author synthesis/synthesis_spec.yaml
-      (legacy name dashboard_spec.yaml still recognised). This file is the
-      SINGLE EDITORIAL SOURCE — paper, dashboard, and poster all read it.
+      For deliverable-quality dashboards, author synthesis/synthesis_spec.yaml.
+      This file is the SINGLE EDITORIAL SOURCE — paper, dashboard, and poster
+      all read it.
 
       Sections:
 
@@ -214,7 +219,7 @@ steps:
   - id: ensure_interactive_companions
     name: Ensure Per-Figure Interactive Companions
     description: |
-      tool_audit_figure_interactivity
+      tool_audit(scope='step', dimension='figure_interactivity')
       Walks workspace/<step>/outputs/figures/ and reports any figure
       that should have an HTML companion next to its PNG but doesn't:
         - >200-mark scatter / volcano / UMAP
@@ -231,25 +236,25 @@ steps:
   - id: build_story_mode_source
     name: Build dashboard_story.md (Story Mode source)
     description: |
-      tool_dashboard_story_generate
+      tool_dashboard(operation='story_generate')
       Assembles synthesis/dashboard_story.md from the spec abstract +
       per-step plain summaries + per-step focal figure + adversarial
       verdicts from each step's findings_vs_literature.md. This is the
       source the dashboard renders when the reader picks Story mode.
 
-      Optional AI rewrite: tool_dashboard_story_edit (read or patch)
-      to polish in the researcher's voice.
+      Optional AI rewrite: tool_dashboard(operation='story_edit')
+      (read or patch) to polish in the researcher's voice.
 
-      Optional quality bar: tool_dashboard_story_quality_bar checks
-      reading-time (5-20 min), figure-in-first-1000-words, at least
-      one adversarial-grounding callout. Warnings only — story mode
-      is optional.
+      Optional quality bar: tool_dashboard(operation='story_quality_bar')
+      checks reading-time (5-20 min), figure-in-first-1000-words, at
+      least one adversarial-grounding callout. Warnings only — story
+      mode is optional.
 
   - id: build_dashboard
     name: Build Dashboard
     description: |
-      tool_dashboard_create title="<headline>" audience="<profile>"
-                            dashboard_default_mode="explore"
+      tool_dashboard(operation='create', title="<headline>", audience="<profile>",
+                     dashboard_default_mode="explore")
       Produces:
         synthesis/dashboard.html — single self-contained file with
         figures base64-embedded. Opens directly in any browser; no
@@ -305,7 +310,7 @@ steps:
         - No <script src="http..."> (must be fully offline)
         - No proper-noun call-outs unless the spec authorises them
       tool_citations_verify (references must all resolve).
-      tool_audit_step_completeness (resolve blockers before sharing).
+      tool_audit(scope='step', dimension='completeness') (resolve blockers before sharing).
 
   - id: share
     name: Tell the Researcher Where to Open It

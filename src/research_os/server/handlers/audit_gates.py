@@ -1,0 +1,197 @@
+"""Handlers — audit_gates sub-domain.
+
+Carved out of handlers/audit.py to stay under the 600-line ceiling.
+"""
+from __future__ import annotations
+
+from .._handlers_runtime import *  # noqa: F401,F403
+
+__all__ = [
+    "_handle_tool_state_freshness_check",
+    "_handle_tool_intake_freshness",
+    "_handle_tool_rigor_signals_scan",
+    "_handle_tool_resolve_gate_strictness",
+    "_handle_tool_self_certify",
+    "_handle_tool_list_certifications",
+    "_handle_tool_quick_route",
+    "_handle_tool_promote_to_step",
+    "_handle_tool_project_tier_strictness",
+    "_handle_tool_dry_run",
+    "_handle_tool_step_complete",
+]
+
+def _handle_tool_state_freshness_check(name, arguments, root):
+    from research_os.tools.actions.state.freshness import state_freshness_check
+    days = arguments.get("stale_after_days")
+    kwargs = {}
+    if isinstance(days, (int, float)) and days > 0:
+        kwargs["stale_after_days"] = int(days)
+    return _text(state_freshness_check(root, **kwargs))
+
+
+def _handle_tool_intake_freshness(name, arguments, root):
+    from research_os.tools.actions.data.intake_freshness import intake_freshness
+    days = arguments.get("fresh_window_days")
+    kwargs = {}
+    if isinstance(days, (int, float)) and days > 0:
+        kwargs["fresh_window_days"] = int(days)
+    return _text(intake_freshness(root, **kwargs))
+
+
+def _handle_tool_rigor_signals_scan(name, arguments, root):
+    from research_os.tools.actions.state.rigor_signals import rigor_signals_scan
+    return _text(rigor_signals_scan(root))
+
+
+def _handle_tool_resolve_gate_strictness(name, arguments, root):
+    from research_os.tools.actions.state.rigor_signals import resolve_gate_strictness
+    return _text(resolve_gate_strictness(root))
+
+
+def _handle_tool_self_certify(name, arguments, root):
+    from research_os.tools.actions.state.certifications import self_certify
+    return _text(self_certify(
+        root,
+        domain=str(arguments.get("domain", "")),
+        scope=str(arguments.get("scope", "")),
+        rationale=str(arguments.get("rationale", "")),
+    ))
+
+
+def _handle_tool_list_certifications(name, arguments, root):
+    from research_os.tools.actions.state.certifications import list_certifications
+    return _text(list_certifications(root))
+
+
+def _handle_tool_quick_route(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import quick_route
+    return _text(quick_route(root, str(arguments.get("prompt", ""))))
+
+
+def _handle_tool_promote_to_step(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import promote_to_step
+    return _text(promote_to_step(
+        root,
+        scratch_path=str(arguments.get("scratch_path", "")),
+        step_slug=str(arguments.get("step_slug", "")),
+        rationale=str(arguments.get("rationale", "")),
+    ))
+
+
+def _handle_tool_project_tier_strictness(name, arguments, root):
+    from research_os.tools.actions.state.quick_mode import project_tier_strictness
+    return _text(project_tier_strictness(root))
+
+
+# Lean variants / dry-run / bundling / coaching handlers (Themes 2/13/15/7).
+
+
+def _handle_tool_dry_run(name, arguments, root):
+    from research_os.tools.actions.protocol import load_protocol
+    pname = arguments.get("protocol_name") or ""
+    if not pname:
+        return _text({"status": "error", "message": "protocol_name is required"})
+    try:
+        out = load_protocol(pname, format="dryrun")
+        out["simulated_args"] = arguments.get("simulated_args") or {}
+        return _text(out)
+    except (FileNotFoundError, ValueError) as e:
+        return _text({"status": "error", "message": str(e)})
+
+
+def _handle_tool_step_complete(name, arguments, root):
+    step_id = arguments.get("step_id") or ""
+    if not step_id:
+        return _text({"status": "error", "message": "step_id is required"})
+    override_lit = bool(arguments.get("override_literature_gate"))
+    rationale = arguments.get("override_rationale") or ""
+
+    from research_os.tools.actions.audit.audit import audit_step_completeness
+    from research_os.tools.actions.audit.step_literature import audit_step_literature
+    from research_os.tools.actions.state.path import finalize_path
+    from research_os.tools.actions.state.revision import step_revision_options
+
+    merged = {"step_id": step_id, "stages": {}}
+    statuses: list[str] = []
+    try:
+        merged["stages"]["finalize"] = finalize_path(step_id, root)
+        statuses.append(merged["stages"]["finalize"].get("status", "success"))
+    except Exception as e:
+        merged["stages"]["finalize"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+    try:
+        merged["stages"]["completeness"] = audit_step_completeness(root, step_id=step_id)
+        statuses.append(merged["stages"]["completeness"].get("status", "success"))
+    except Exception as e:
+        merged["stages"]["completeness"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+    try:
+        lit = audit_step_literature(root, step_id=step_id)
+        if override_lit and rationale:
+            lit["overridden"] = True
+            lit["override_rationale"] = rationale
+            if lit.get("status") == "error":
+                lit["status"] = "warning"
+        merged["stages"]["literature"] = lit
+        statuses.append(lit.get("status", "success"))
+    except Exception as e:
+        merged["stages"]["literature"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+    try:
+        merged["stages"]["revision"] = step_revision_options(step_id, root)
+        statuses.append(merged["stages"]["revision"].get("status", "success"))
+    except Exception as e:
+        merged["stages"]["revision"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+
+    if "error" in statuses:
+        merged["overall_status"] = "error"
+    elif "warning" in statuses:
+        merged["overall_status"] = "warning"
+    else:
+        merged["overall_status"] = "success"
+
+    # Phase 8 — advance current_tier when the just-finished step's
+    # protocol moves the project across a tier boundary. Best-effort;
+    # never fails the bundle. tier_transition is null when no protocol
+    # is associated with the step, or when the new tier matches the
+    # current one.
+    try:
+        from research_os.tools.actions.router import _resolve_tier
+        from research_os.tools.actions.state.tier_state import set_current_tier
+        next_proto = _latest_protocol_for_step(root, step_id)
+        if next_proto:
+            new_tier = _resolve_tier(next_proto)
+            if new_tier:
+                trans = set_current_tier(
+                    root,
+                    new_tier,
+                    source_protocol=next_proto,
+                    via="tool_step_complete",
+                )
+                merged["tier_transition"] = trans
+                merged["tier"] = new_tier
+    except Exception as exc:
+        logger.debug("tier advance on step_complete failed: %s", exc)
+
+    merged["_note"] = (
+        "Bundle result. Surface revision_options verbatim per the "
+        "anti-one-shot doctrine; do not auto-scaffold the next step "
+        "unless autonomy_level='autopilot'."
+    )
+    return _text(merged)
+
+
+HANDLERS = {
+    "tool_state_freshness_check": _handle_tool_state_freshness_check,
+    "tool_intake_freshness": _handle_tool_intake_freshness,
+    "tool_rigor_signals_scan": _handle_tool_rigor_signals_scan,
+    "tool_resolve_gate_strictness": _handle_tool_resolve_gate_strictness,
+    "tool_self_certify": _handle_tool_self_certify,
+    "tool_list_certifications": _handle_tool_list_certifications,
+    "tool_quick_route": _handle_tool_quick_route,
+    "tool_promote_to_step": _handle_tool_promote_to_step,
+    "tool_project_tier_strictness": _handle_tool_project_tier_strictness,
+    "tool_dry_run": _handle_tool_dry_run,
+    "tool_step_complete": _handle_tool_step_complete,
+}

@@ -1,7 +1,12 @@
 id: systematic_review
+tier: 'ground'
 name: Systematic Review (PRISMA)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [researcher]
+  workflow_shape: [any]
 description: Full PRISMA workflow for a primary systematic review or meta-analysis project.
 trigger: Use when the project IS a systematic review (not just a background lit search for a primary study).
 prerequisites:

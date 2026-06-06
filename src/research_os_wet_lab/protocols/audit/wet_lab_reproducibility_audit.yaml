@@ -1,7 +1,11 @@
 id: wet_lab_reproducibility_audit
 name: Wet-Lab Reproducibility Audit
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [wet_lab, biology]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Pre-submission gate that asks one question: could another lab repeat

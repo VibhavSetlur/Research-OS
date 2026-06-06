@@ -1,0 +1,114 @@
+{
+  "scenario": "biology_rnaseq",
+  "perspective": "researcher",
+  "final_rating": 7.6,
+  "high_friction_count": 3,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": false,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "domain_coverage_gap",
+      "description": "Same baseline gap survives Phase 9/10/14: zero RNA-seq / bioinformatics protocols. Scope_tags exist on all 117 protocols now and tool_route resolves common phrases ('scanpy preprocessing single cell' → methodology/deep_domain_research, 'mixed-language R and Python' → methodology/mixed_language_orchestration), but bare-name queries 'limma voom RNA-seq', 'Seurat clustering', 'I have fastq files I need to align' return primary_protocol=null with why_matched='No trigger or semantic match.' A researcher whose first natural-language ask is one of these gets no protocol — has to keep typing until the embedding hits. The wet_lab pack still only ships bench protocols (instrument_run_log, plate_map_provenance, reagent_lot_tracking, sample_lineage, sop_versioning, wet_lab_experiment_design, methods_section_wet_lab, wet_lab_reproducibility_audit) — none of which scaffold a counts-matrix DE workflow."
+    },
+    {
+      "severity": "HIGH",
+      "category": "deliverable_gap_synthesis_methods",
+      "description": "Scenario asks for end-to-end DE → synthesized paper/poster. Workspace tool_synthesize is now unified and accepts output_type ∈ {paper, abstract, poster, dashboard, report, grant} (good), but a dry-lab DE researcher arriving at the methods-section synthesis step still has no methods_section_bioinformatics.yaml mirror of the wet_lab one. The shipped methods_section_wet_lab.yaml is the only domain methods scaffold. Predicted exit: completeness_gate blocker on 'figure produced' fires (verified in this run — tool_audit step/completeness returned 'No figure produced — every step MUST emit at least one focal figure'), AND prereg/grounding blockers will fire for off-the-shelf DESeq2/scanpy/Seurat choices because no pre-seeded grounding records exist for canonical bioinformatics method citations."
+    },
+    {
+      "severity": "HIGH",
+      "category": "schema_param_naming_drift",
+      "description": "tool_research_method (kept exact same name as baseline) takes `query`, not `method_name`. The short field is empty string. A researcher's AI calling it with the obvious-from-context arg 'method_name=DESeq2 differential expression' gets back a 45-byte error: `{\"status\":\"error\",\"error\":\"'query'\"}` — a raw KeyError repr with no field-list and no remediation. Same shape would land on any other primary tool where the AI guesses arg names from the description. (Phase 9 consolidated tool surface aggressively but the error-envelope template was not updated to surface schema-mismatch as 'unknown_param' with allowed list.)"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "mcp_instructions_implicit_required_arg",
+      "description": "_MCP_INSTRUCTIONS field tells every fresh session: '(4) call sys_active_tools to scope your working tool set.' But sys_active_tools requires protocol_name. A first-turn AI that does literally what the instructions say will get `{\"status\":\"error\",\"error\":\"protocol_name is required\"}`. Either the instructions should say 'sys_active_tools(protocol_name=<from-step-3>)' or sys_active_tools should default to the most recently fetched protocol (cached in state). Same shape as friction #3 — the affordance is correct but the contract is one step removed from the docs."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "stale_count_in_tool_descriptions",
+      "description": "sys_active_tools description literally says '~10-15 tools = essentials + everything the protocol's decomposition actually calls. Use after sys_protocol_get to scope your working set instead of triaging all 212 tools per turn.' Actual tool count is now 146 live (down from 344). The 212 figure is from a mid-consolidation snapshot. Researcher-facing copy lags behind the consolidation work. Quick grep across TOOL_DEFINITIONS for hardcoded counts (212, 344, 80, etc.) needed before v2.0.0 release."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "scope_tags_not_surfaced_in_protocol_get",
+      "description": "All 117 protocols have scope_tags ({domain, audience, workflow_shape}) per Phase 9 cross-cutting work, but sys_protocol_get (default summary OR full format) does NOT include scope_tags in the JSON response. Verified: json.loads(sys_protocol_get(...)).get('data', {}).get('scope_tags') is None. This means the audience-routing intent — give an AI a way to filter 'this protocol is for dry-lab audience' — exists in the YAML but isn't exposed to the consumer. Easy fix; surface gap right now."
+    },
+    {
+      "severity": "LOW",
+      "category": "literature_gate_still_split",
+      "description": "Baseline flagged this. tool_audit_quality_full was consolidated into tool_audit(scope='project', dimension='quality_full') but the consolidation kept the same skip-literature-gate semantics in the underlying handler. A researcher running tool_audit(scope='project', dimension='quality_full') and then hitting tool_synthesize gets the same 'fresh batch of literature-gate blockers at synth time' surprise as v1. Description of the consolidated tool still doesn't surface lit_gate_pending=true. Less severe than baseline only because the master audit is now one tool with clear scope/dimension axes rather than 6 split tools."
+    },
+    {
+      "severity": "LOW",
+      "category": "remaining_orphan_tools",
+      "description": "Of the 60 baseline never_called tools, 38 (63%) were consolidated via alias to tool_audit / tool_lessons / tool_step / tool_reliability, 2 fully removed, 20 still live as standalone tools. Notable still-live: tool_humanities_essay_scaffold (humanities pack), tool_poster_create, tool_slides_create, tool_paper_compile_typst, tool_latex_compile, tool_rmarkdown_render, tool_redteam_review, tool_synthesis_curate_figures, tool_synthesis_preview, tool_branch_recommendation, tool_alternative_path_propose, tool_null_findings_report, tool_self_certify, tool_list_certifications, tool_resolve_gate_strictness, tool_project_tier_strictness, tool_promote_to_step. Some are pack-scoped (humanities, dashboard) and won't be exercised by a bio researcher; others (poster/slides/latex compile) are workflow-niche; the gate-strictness pair could plausibly fold into tool_audit but doesn't. Net: real consolidation, with a long tail."
+    },
+    {
+      "severity": "LOW",
+      "category": "intake_freshness_data_blind",
+      "description": "Baseline #intake_freshness_ux unaddressed. project_startup.check_intake_freshness still returns recommended_depth purely on timestamp age. A researcher dropping a fresh GSE accession into an existing project with substantive 60-day-old intake.md will be told 'refresh-only' and the AI is instructed not to regenerate. No hash-of-inputs check added."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit (one tool, but accepts ~20 params spanning every audit dimension — discoverability of which scope+dimension combinations are valid is opaque; needs an examples block in description)",
+    "tool_synthesize (accepts 9 params including 3 override_* flags + skip_gates + auto_proceed; researcher will not know which overrides chain together)",
+    "tool_step (operation=iterate|iterations_list|revision_options|pipeline_define|pipeline_diagram|pipeline_run|pipeline_status — 7-way operation arg with no operation-specific examples in the schema)"
+  ],
+  "confusing_protocols": [
+    "methodology/external_tool_setup (still the catch-all for any non-stdlib dependency; no bioinformatics-specific guidance)",
+    "methodology/methodology_selection / methodology/methodological_consultation / methodology/pick_tool_stack / methodology/tool_discovery (four meta-protocols overlap on 'pick how to pick' — baseline naming-clarity friction unaddressed)",
+    "methodology/mixed_language_orchestration (now reachable by semantic match on 'R and Python pipeline for bioinformatics' — improved — but bare 'reticulate' or 'rpy2' wouldn't trigger it; trigger list still thin)",
+    "wet_lab/method/wet_lab_experiment_design (still bench-only voice; routes a dry-lab researcher to a textbook on randomization across plate position)"
+  ],
+  "never_called_tools": [
+    "tool_humanities_essay_scaffold",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_paper_compile_typst",
+    "tool_latex_compile",
+    "tool_rmarkdown_render",
+    "tool_redteam_review",
+    "tool_section_substantiveness",
+    "tool_writing_discussion_from_verdicts",
+    "tool_synthesis_curate_figures",
+    "tool_synthesis_preview",
+    "tool_progress_digest",
+    "tool_branch_recommendation",
+    "tool_alternative_path_propose",
+    "tool_null_findings_report",
+    "tool_self_certify",
+    "tool_list_certifications",
+    "tool_resolve_gate_strictness",
+    "tool_project_tier_strictness",
+    "tool_promote_to_step"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface count: 344 → 146 live (58% reduction). 80 backward-compat aliases preserve all baseline calls; 24 explicit _REMOVED_TOOLS list documents the deletions. tool_audit, tool_synthesize, tool_lessons, tool_reliability, tool_step, sys_path consolidate the audit / lessons / failure / step-lifecycle / path families that baseline flagged as bloat.",
+    "Every tool now carries status='live' and a pack annotation (123 core + 23 pack-scoped across humanities/qualitative/theory_math/wet_lab/engineering + 7 adapters). Baseline complaint about flat unranked tool listing partially addressed: the pack dimension is now machine-readable.",
+    "All 117 protocols carry scope_tags ({domain, audience, workflow_shape}) — gives routing a third axis beyond intent_class/sub_intent. (Surfacing this in sys_protocol_get response is still pending — see friction #6.)",
+    "sys_protocol_get default format is now 'summary' (verified: 2935 bytes vs 44369 bytes for 'full' = 93% reduction). A researcher's first protocol load no longer blows the context window with the full body. Step-by-step inflation is opt-in via format='full'.",
+    "_MCP_INSTRUCTIONS now ships a four-step boot sequence in the MCP-server-level instructions field: sys_boot → tool_route → sys_protocol_get(format=summary) → sys_active_tools. Baseline's 'first 5 turns of pure scaffolding' problem reduced from 5 turns to 4 (still high, but boot sequence is documented and discoverable).",
+    "tool_route output now carries recommended_action (verified: 'sys_protocol_get(protocol_name=guidance/analysis_plan, format=summary)') so the AI knows the literal next call. Researcher-friction friction#5 from baseline ('5 turns of scaffolding') partially mitigated — the AI no longer has to guess what to do after tool_route.",
+    "tool_route output also carries why_matched on every alternative (verified: 'Semantic similarity 0.708 on intent_class=methodology'), letting the AI rank alternatives instead of treating them as opaque.",
+    "sys_active_tools now returns a 18-tool shortlist for guidance/analysis_plan (verified) instead of the full 146 — addresses baseline's 'enormous tool listing surface punishes AI client' complaint.",
+    "Server.py refactored from monolithic 7499-line file into modular server/ package with handlers/{audit_core,audit_gates,grounding,meta_help,meta_routing,meta_sys,meta_workspace,methodology,research_exec,research_search,synthesis_reviewer,synthesis_visual,synthesis_writing}.py and tool_definitions/{audit,grounding,meta,methodology,research,synthesis}.py. Easier to bisect blame on which tool is failing.",
+    "Aliased baseline tool_audit_step_completeness still works (verified — returns identical structured response). Backward compatibility for AI clients that learned baseline tool names is preserved.",
+    "tool_audit returns structured blockers/warnings with file paths and clear remediation strings (verified: 'No figure produced — every step MUST emit at least one focal figure to outputs/figures/01_<descriptor>.png'). Baseline audit_message_density complaint addressed — error messages now actionable."
+  ],
+  "remaining_recommendations": [
+    "Add bio_omics pack: at minimum protocols methodology/rnaseq_de.yaml, methodology/scrnaseq_qc.yaml, methodology/geo_sra_ingest.yaml, synthesis/methods_section_bioinformatics.yaml. Mirror the structure of the existing wet_lab pack (8 protocols) and engineering pack (7 protocols). Without this the answer to a bio researcher is still 'we don't have a protocol for what you asked'.",
+    "Add explicit trigger lists for bare bioinformatics terms: 'GEO', 'GSE', 'SRA', 'fastq', 'DESeq2', 'edgeR', 'limma', 'voom', 'scanpy', 'Seurat', 'Bioconductor', 'reticulate', 'rpy2', 'salmon', 'kallisto', 'STAR', 'HISAT2', 'cellranger'. Embeddings alone fail on short tool-name queries (verified: 'limma voom RNA-seq' returns primary_protocol=null).",
+    "Pre-seed grounding records for canonical bioinformatics method citations (DESeq2/Love2014, edgeR/Robinson2010, limma-voom/Law2014, scanpy/Wolf2018, Seurat/Hao2023, STAR/Dobin2013, salmon/Patro2017) so a researcher picking from the canonical menu doesn't get a grounding-verify blocker per method line.",
+    "Wrap KeyError / unknown-param failures in the dispatcher (server/dispatch.py) to return _error(message='Unknown or missing parameter X. Expected one of: [a,b,c]. See sys_tool_describe for full schema.') instead of bare KeyError repr. Reproduced in tool_research_method (expects 'query', got 'method_name'); same pattern would surface on any other tool a fresh AI guesses arg names for.",
+    "Update _MCP_INSTRUCTIONS step 4 to spell out the required arg: 'call sys_active_tools(protocol_name=<from-step-3>)'. Or auto-default protocol_name to the most recent sys_protocol_get target by caching it in .os_state.",
+    "Surface scope_tags in sys_protocol_get response payload (currently in YAML, not in JSON output). Same for the new status / pack annotations on tools — sys_tool_describe should return them so the AI can filter by pack ∈ {core, wet_lab, engineering, ...}.",
+    "Grep TOOL_DEFINITIONS for hardcoded tool counts ('212 tools', '344 tools', '~120 tools') and replace with dynamic len(TOOL_DEFINITIONS) or remove the count from the description entirely. Found stale '212' in sys_active_tools description; likely others.",
+    "Add a hash-of-inputs check to project_startup.check_intake_freshness so a fresh GSE accession dropped into an old project triggers 'full' regardless of timestamp age. Carry-over from baseline.",
+    "Examples block in the description of tool_audit (showing 2-3 valid scope/dimension combos), tool_synthesize (showing paper vs poster vs section workflows), and tool_step (showing the 7 operations). Consolidation widened the surface of each tool; without examples in the description, schema discoverability got worse per-tool even as it got better in aggregate.",
+    "Either fold the remaining 20 standalone never-called tools into the consolidated handlers OR mark them status='deprecated' / pack='legacy' so they don't dilute the default tool list. Specifically: tool_self_certify + tool_list_certifications + tool_resolve_gate_strictness + tool_project_tier_strictness could be one tool_certification with operation=...; tool_branch_recommendation + tool_alternative_path_propose could fold into sys_path with operation='recommend' / 'alternatives'.",
+    "Include per-step literature gate in tool_audit(scope='project', dimension='quality_full') by default with skip=['literature'] for power users — OR surface 'lit_gate_pending=true' on the master audit output so the researcher isn't ambushed at tool_synthesize time. Carry-over from baseline."
+  ]
+}

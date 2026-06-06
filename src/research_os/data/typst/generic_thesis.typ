@@ -16,7 +16,11 @@
     numbering: "1",
   )
   set par(justify: true, leading: 0.7em, first-line-indent: 1em)
-  set text(font: ("Linux Libertine", "Times New Roman", "Times"), size: 11pt, lang: "en")
+  // Body font: bundled NCM serif. Fallbacks (Linux Libertine, Times) are
+  // omitted to avoid Typst font-cascade warnings on systems where those
+  // families are not installed; the bundled NCM is always present via
+  // the --font-path injected by compile_typst().
+  set text(font: "New Computer Modern", size: 11pt, lang: "en")
 
   align(center)[
     #v(2in)

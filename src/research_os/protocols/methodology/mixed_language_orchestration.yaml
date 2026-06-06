@@ -1,7 +1,12 @@
 id: mixed_language_orchestration
+tier: 'plan'
 name: Mixed-Language Orchestration (Python ↔ R ↔ Bash within a step)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   When `pick_tool_stack` lands on "mixed" — i.e. one analysis step
@@ -107,7 +112,7 @@ steps:
   - id: capture_versions_per_language
     name: Capture env versions per language used
     description: |
-      sys_env_snapshot scope="step" step_id="<NN_slug>"
+      sys_env(operation='snapshot', scope='step', step_id='<NN_slug>')
       Snapshot must include:
         - environment/requirements.txt (Python: scanpy 1.10.x, …)
         - environment/DESCRIPTION       (R: DESeq2 1.40.x, …)

@@ -89,11 +89,13 @@ def test_subpackage_imports():
     )
 
     # synthesis/
+    # NOTE: ``create_poster`` (the tikzposter LaTeX renderer) was
+    # removed in v2.0.0 (phase-14b). Poster compilation now lives
+    # exclusively in ``synthesis/poster_typst.py:compile_poster``.
     from research_os.tools.actions.synthesis import (  # noqa: F401
         cap_for,
         collect_for_section,
         create_dashboard,
-        create_poster,
         format_apa,
         format_bib,
         format_vancouver,
@@ -131,6 +133,8 @@ def test_top_level_actions_namespace_is_minimal():
       - protocol.py — YAML loader + protocol-completion injector
       - router.py   — sys_boot + tool_route + trigger-based hierarchy
       - semantic.py — embedding-based semantic router (sibling of router)
+      - listers.py  — flat protocol + tool catalog listers (re-exports
+                       from protocol.py + reads server.TOOL_DEFINITIONS)
 
     Anything else MUST be moved into the appropriate subpackage (state/,
     data/, exec/, search/, research/, audit/, synthesis/, memory/)."""
@@ -145,7 +149,7 @@ def test_top_level_actions_namespace_is_minimal():
         if f.is_file() and f.suffix == ".py"
     )
     assert flat_py_files == [
-        "__init__.py", "protocol.py", "router.py", "semantic.py",
+        "__init__.py", "listers.py", "protocol.py", "router.py", "semantic.py",
     ], (
         f"Unexpected flat .py files in tools/actions/: {flat_py_files}. "
         "Move them into the right subpackage."

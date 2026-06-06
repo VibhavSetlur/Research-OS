@@ -1,0 +1,160 @@
+{
+  "scenario": "biology_rnaseq",
+  "perspective": "naive_ai",
+  "final_rating": 7.7,
+  "high_friction_count": 4,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "no_bioinformatics_methodology_protocol",
+      "description": "A naive AI handed a GEO accession + DESeq2 + scanpy still lacks a dedicated methodology/bioinformatics_de.yaml or methodology/scrnaseq_qc.yaml. The DESeq2 / scRNA-seq / DEGs triggers now correctly route to guidance/analysis_plan (collision with iterative_planning is fixed — big improvement), but analysis_plan is a generic per-step loop. The naive AI doesn't get the DESeq2-vs-edgeR-vs-limma decision tree, the GEO/SRA ingest checksum pattern, ComBat-seq / RUVseq batch-effect recipe, or the R counts → AnnData handoff template. It has to find these inside methodology/pick_tool_stack + methodology/mixed_language_orchestration manually. Surface friction dropped (router goes to the right top-level protocol now); body friction remains because the bio-specific content lives buried two protocols deep.",
+      "suggested_fix": "v2.1.0: author methodology/bioinformatics_de.yaml with embedded DE tool decision tree, GEO ingest pattern, batch-effect recipes, and explicit cross-link to mixed_language_orchestration. Then move DESeq2 / scRNA-seq triggers off analysis_plan onto bioinformatics_de.yaml. analysis_plan becomes domain-agnostic."
+    },
+    {
+      "severity": "HIGH",
+      "category": "no_pre_seeded_grounding_records_for_canonical_method_papers",
+      "description": "Still no shipped pre-seeded grounding for DESeq2/Love2014, edgeR/Robinson2010, limma-voom/Law2014, scanpy/Wolf2018, Seurat/Hao2023. analysis_plan.ground_methods is still a HARD GATE that blocks tool_synthesize when tool_search/research_method wasn't logged. A naive AI on a fresh project picking DESeq2 has to make a literature call to cite the obvious DESeq2 paper before it can synthesize. The friction lives at the BACK of the pipeline (synthesis blocks) rather than upfront, same as baseline.",
+      "suggested_fix": "Ship src/research_os/data/canonical_grounding/bioinformatics.yaml with ~15 method→DOI seed records that auto-import on sys_boot or on first tool_research_method call mentioning a canonical name. Same trick for ML (sklearn / lightgbm / xgboost / transformers / scikit-survival) and stats (lme4 / brms / survival)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "synthesize_family_still_4_tools_not_1",
+      "description": "tool_synthesize / tool_synthesize_plan / tool_synthesis_preview / tool_synthesis_curate_figures are all still in the surface. Phase 9 collapsed audit (26→4), dashboard (~5→1), step (7→4), reviewer (~5→1) — but synthesis stayed at 4 tools. A naive AI asked 'synthesize the paper' faces ambiguity: which one starts? (Answer: tool_synthesize_plan then tool_synthesize then tool_synthesis_preview is the canonical order, but the AI has to figure this out.) Baseline flagged this; Phase 9 missed the synthesis family.",
+      "suggested_fix": "Consolidate to tool_synthesize with operation={plan, preview, curate_figures, draft}. Single entry point, same body code. Or at minimum collapse synthesize_plan and synthesize into one tool with mode={plan, draft}. Document the canonical order in the unified tool's description (operation enum order = call order)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "step_pipeline_complexity_still_present",
+      "description": "tool_step_pipeline still ships and the step.write_atomic_scripts step in analysis_plan still mandates the sub-task DAG. For a naive AI just running DESeq2 on a counts matrix, the 7-node pipeline scaffold + pipeline.yaml + .pipeline_run audit trail is still wildly disproportionate to the work. The protocol body still doesn't have an explicit size threshold like 'use DAG only if step has ≥3 sub-tasks or main script will exceed ~150 LOC.' Naive AI either over-complies (over-engineers) or skips (and the audit complains later).",
+      "suggested_fix": "Add explicit LOC/sub-task threshold to analysis_plan.write_atomic_scripts AND make tool_step_pipeline auto-emit a friendly 'this step looks small, single script is fine' message when defining a 1-2-node pipeline. Don't fail; downgrade silently."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_keyword_dominates_intent_shift",
+      "description": "When a naive AI sends 'I finished the DESeq2 analysis on GSE12345 — audit my step then synthesize the findings into a paper section', tool_route still matches the DESeq2 trigger and returns analysis_plan (an EXECUTE protocol) instead of switching to an audit/synthesis tier. method='trigger' beat semantic in this case. The AI gets a recommended_action pointing back to analysis_plan, which is wrong for the actual intent. The intent_class is 'execute' even though 'audit' and 'synthesize' are explicit verbs in the prompt.",
+      "suggested_fix": "Weight intent_class verbs ('synthesize', 'audit', 'finalize', 'paper', 'done with') as tier_overrides that beat domain-keyword triggers. Currently triggers list is flat — needs a priority field or a separate verb_triggers list that runs first."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "synthesize_family_member_shorts_missing",
+      "description": "tool_synthesize, tool_synthesize_plan, tool_synthesis_curate_figures, tool_research_method, tool_paper, mem_log (and several others) have empty 'short' fields in TOOL_DEFINITIONS. Only the description is populated. A naive AI scanning list_tools sees blank entries for ~20+ tools and has to call sys_tool_describe to learn what they do. Token waste during discovery.",
+      "suggested_fix": "Audit all 146 tool defs and ensure every one has a non-empty 'short' field (≤120 chars). This was supposed to be the Phase 9 contract."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "intake_gate_still_blocks_quick_starts",
+      "description": "Same as baseline: project_startup.check_intake_freshness gates quick-start workflows. Naive AI handed a GEO accession + an empty inputs/ folder still gets routed through intake_autofill + scope_clarification before touching any analysis. No mode='quick_start' shortcut shipped in this phase.",
+      "suggested_fix": "Add mode='quick_start' arg to tool_route. When set: skip intake_freshness gate, stub intake from prompt, route to methodology/pick_tool_stack or bioinformatics_de directly."
+    },
+    {
+      "severity": "LOW",
+      "category": "long_running_tool_progress_signal_still_missing",
+      "description": "Same as baseline: tool_search / tool_literature_search_and_save / tool_research_method make 10-30s network calls with no streaming progress, no expected-latency note in descriptions. Lower priority for naive AI specifically because the AI client's own orchestrator usually owns timeouts.",
+      "suggested_fix": "Add expected_latency_seconds field to tool definitions and document in description: 'Latency: typically 15-30s on first call (network); 100ms cached.'"
+    },
+    {
+      "severity": "LOW",
+      "category": "mixed_language_protocol_missing_triggers",
+      "description": "methodology/mixed_language_orchestration.yaml still has no explicit triggers (only semantic match). It surfaces as alternative #1 (score 0.767) when the naive AI says 'R + Python', but primary still goes to analysis_plan via the DESeq2 trigger. The protocol body is rich and right for the scenario — it just isn't reached deterministically.",
+      "suggested_fix": "Add explicit triggers ['R and Python', 'cross-language', 'rpy2', 'reticulate', 'R DESeq2 with Python scanpy', 'R counts to Python AnnData', 'mixed language', 'bilingual analysis'] to mixed_language_orchestration. Then have analysis_plan.decomposition advertise mixed_language as a shortcut when both languages detected in prompt."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_synthesize",
+    "tool_synthesize_plan",
+    "tool_synthesis_preview",
+    "tool_synthesis_curate_figures",
+    "tool_path_finalize",
+    "tool_step_pipeline",
+    "tool_plan",
+    "tool_audit",
+    "tool_audit_quality_full",
+    "tool_audit_findings",
+    "sys_semantic_tool_search",
+    "tool_semantic_route"
+  ],
+  "confusing_protocols": [
+    "methodology/mixed_language_orchestration (right content, no triggers, only reachable via semantic alternative slot)",
+    "methodology/pick_tool_stack (good DESeq2/scanpy decision matter but only reachable via methodology_selection)",
+    "guidance/analysis_plan (catches all execute prompts including post-execute 'I'm done' intent — needs tier override)",
+    "guidance/scope_clarification",
+    "guidance/mid_pipeline_entry",
+    "guidance/dead_end_routing",
+    "audit/pre_submission_checklist"
+  ],
+  "never_called_tools": [
+    "tool_humanities_essay_scaffold",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_paper_compile_typst",
+    "tool_latex_compile",
+    "tool_rmarkdown_render",
+    "tool_redteam_review",
+    "tool_progress_digest",
+    "tool_branch_recommendation",
+    "tool_alternative_path_propose",
+    "tool_promote_to_step",
+    "tool_humanities_archive_lookup",
+    "tool_humanities_citation_chain",
+    "tool_humanities_transcribe",
+    "tool_qualitative_codebook_diff",
+    "tool_qualitative_quote_provenance",
+    "tool_qualitative_select_standard",
+    "tool_wet_lab_plate_map_render",
+    "tool_wet_lab_reagent_query",
+    "tool_wet_lab_sample_lineage_export",
+    "tool_theory_math_proof_check",
+    "tool_theory_math_lemma_extract",
+    "tool_theory_math_axiom_register",
+    "tool_engineering_bom_compile",
+    "tool_engineering_fmea_log",
+    "tool_engineering_load_test",
+    "tool_adapter_extract",
+    "tool_adapters_run_all",
+    "sys_export_share_archive",
+    "sys_checkpoint_rollback",
+    "sys_session_handoff",
+    "tool_synthesis_curate_figures",
+    "tool_synthesis_preview",
+    "tool_synthesize_plan",
+    "mem_intake_regenerate",
+    "mem_citations_generate"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface trimmed from 203 → 146 unique tool defs (28% reduction). Phase 9 consolidation effective.",
+    "Audit family collapsed from 26 → 4 tools (tool_audit + tool_audit_findings + tool_audit_quality_full + tool_discussion_coverage_audit). Naive AI now picks tool_audit and uses (scope, dimension) args instead of facing 26-way ambiguity. THE BIGGEST UX WIN OF THE PHASE.",
+    "Dashboard family collapsed from 5 → 1 (tool_dashboard with operation={create, story_generate, story_edit, story_quality_bar, reviewer_sim, test_generate, test_run}).",
+    "Step family collapsed from 7 → 4 (tool_step / tool_step_complete / tool_step_pipeline / tool_step_literature_list).",
+    "Reviewer family collapsed from 5 → 1 (tool_reviewer).",
+    "Paper / poster / slides / rmarkdown / latex still 5 tools but at least live=true and discoverable.",
+    "Sensitivity / preregister / failure-reliability-lessons consolidated to 4 dispatchers (tool_sensitivity, tool_preregister, tool_lessons, tool_reliability).",
+    "mem_log is now well-described: kind=methods|decision|hypothesis|analysis on a single tool. Replaces 4 separate tools cleanly.",
+    "MCP `instructions` field shipped: server returns 'On every turn: (1) call sys_boot, (2) call tool_route, (3) sys_protocol_get format=summary, (4) sys_active_tools' to every client at handshake. NAIVE AI NO LONGER MISROUTES THE FIRST TURN. This kills the baseline's #2 'no_first_call_signal' friction entirely.",
+    "sys_protocol_get default format='summary' shipped (was 'full'). analysis_plan summary returns ~590 tokens instead of ~2000 tokens. 4-6 fewer KB per protocol load. Naive AI no longer hemorrhages tokens on protocol prose.",
+    "tool_route now returns `recommended_action` field with a single-string hint naming the exact next call. Naive AI no longer has to infer the next step from (method, confidence) — encoded server-side. Kills baseline friction #10 'tool_route_method_confusion'.",
+    "tool_route now returns `why_matched` rationale on every match (Phase 11a, surfaces here as 'Semantic similarity 0.829 (confidence=high) on intent_class=execute' or 'triggers: DESeq2, deseq2 · intent_class=execute'). Naive AI can sanity-check the route.",
+    "tool_route returns scoped `active_tools` (18 for analysis_plan). Naive AI doesn't have to scan all 146 tools per turn — gets a working set.",
+    "Every tool def now has `status: live|alias|deprecated` and `pack: core|<pack>`. Naive AI can filter to core+live tools.",
+    "Every protocol now has `scope_tags: {domain, audience, workflow_shape}`. Wet_lab protocols are tagged domain=['wet_lab','biology'], so the naive AI on a dry-lab RNA-seq prompt can in principle filter them out. (Not yet wired into router default filtering — still a remaining recommendation.)",
+    "DESeq2 / DEGs / scRNA-seq triggers MOVED from guidance/iterative_planning to guidance/analysis_plan. The baseline #3 'router_misroute_for_domain_query' friction is fixed — the naive AI now lands on analysis_plan (correct execute-tier loop) instead of iterative_planning (generic 'what's next' planner).",
+    "Naive AI in this re-validation produced all 4 turn deliverables (path created, protocol loaded, audit blocker surfaced clearly with actionable advice, synthesis route resolved). Baseline could not finish synthesis without backfilling literature; this run hit the audit blocker upfront with a clear list of what to fix.",
+    "tool_search / tool_step_pipeline / tool_research_method are now actually surfaced in active_tools when applicable — naive AI doesn't have to guess.",
+    "Synthesize-side prompt ('synthesize the paper from my analyses') routes cleanly to synthesis/synthesis_from_inputs via semantic match with high confidence + a recommended_action. Synthesis discovery works."
+  ],
+  "remaining_recommendations": [
+    "Author methodology/bioinformatics_de.yaml (and methodology/scrnaseq_qc.yaml). Move DESeq2 / scRNA-seq / DEGs triggers off analysis_plan onto bioinformatics_de. Largest remaining naive-AI friction.",
+    "Pre-seed grounding records for canonical method papers: ship src/research_os/data/canonical_grounding/{bioinformatics, ml, stats}.yaml so naive AI doesn't hit grounding-blocker on obvious citations (DESeq2/Love2014, etc.).",
+    "Collapse tool_synthesize / tool_synthesize_plan / tool_synthesis_preview / tool_synthesis_curate_figures into one tool_synthesize with operation={plan, preview, curate_figures, draft}. Phase 9 missed synthesis family.",
+    "Add explicit triggers to methodology/mixed_language_orchestration (R + Python, rpy2, reticulate, R DESeq2 with Python scanpy, etc.). Currently only reachable via semantic alternative slot.",
+    "Add LOC/sub-task threshold to analysis_plan.write_atomic_scripts and have tool_step_pipeline auto-degrade for trivial steps. Naive AI on a 100-line DESeq2 script shouldn't be forced to build a 7-node DAG.",
+    "Add tier_override / verb_priority to router: 'synthesize', 'audit', 'paper', 'done with', 'finalize' should beat domain-keyword triggers. Currently 'I finished the DESeq2 analysis ... synthesize' still routes to analysis_plan via DESeq2 trigger.",
+    "Audit and populate every tool def's `short` field (≤120 chars). ~20+ tools currently show empty shorts in list_tools — naive AI has to call sys_tool_describe to learn what they do.",
+    "Wire scope_tags into tool_route default filtering: dry-lab prompts (no wet-lab vocabulary) should exclude pack='wet_lab' protocols from candidate set. Tags exist; router doesn't use them yet.",
+    "Add mode='quick_start' arg to tool_route for the naive-AI-handed-an-accession path: skip intake_freshness gate, stub intake from prompt, route to methodology/pick_tool_stack or bioinformatics_de directly.",
+    "Document expected_latency in tool descriptions for long-running tools (tool_search, tool_research_method, tool_literature_search_and_save).",
+    "Consider removing or pack-isolating the 11 surviving baseline-never-called core tools: tool_humanities_essay_scaffold (already humanities pack but core duplicate), tool_poster_create, tool_slides_create, tool_paper_compile_typst, tool_latex_compile, tool_rmarkdown_render, tool_redteam_review, tool_progress_digest, tool_branch_recommendation, tool_alternative_path_propose, tool_promote_to_step. They survived consolidation but a naive AI never reaches for them. Either consolidate into tool_paper(format=poster|slides|latex|typst) or move out of core.",
+    "On second turn (post-execute 'audit + synthesize'), router should detect that the workspace has an active step and shift tier to synthesize/. Currently still treats every prompt as a fresh execute."
+  ]
+}

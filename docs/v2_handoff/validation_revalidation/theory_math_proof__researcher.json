@@ -1,0 +1,101 @@
+{
+  "scenario": "theory_math_proof",
+  "perspective": "researcher",
+  "final_rating": 8.1,
+  "high_friction_count": 2,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "envelope_inversion_silent_failure",
+      "description": "Outer envelope status='success' while inner data.status='warning' or 'error' is STILL present in v2.0.0-dev. Reproduced on two tools: (a) tool_theory_math_lean_check returns {status:'success', data:{status:'warning', message:'Lean 4 not installed; wrote install hint.'}} when Lean is absent; (b) tool_audit({dimension:'literature', step_id:'<missing>'}) returns {status:'success', data:{status:'error', message:\"step 'X' not found\"}}. A researcher who reads only the top-level envelope (the natural thing to do) will think the proof verified or the audit passed. This is the same HIGH-severity baseline bug #3 — Phase 9 consolidated the audit family but did not fix the envelope contract. The bundle handler tool_audit_quality_full IS honest (outer=inner=success when truly ok), so the fix exists, just not applied to leaf handlers.",
+      "suggested_fix": "Mechanical pass over all _handle_* return sites: if the inner result has status in {'error','warning','unavailable'}, propagate it to the outer envelope (use _err or a new _unavailable wrapper). Lean/coq check should specifically return status='unavailable' (not nested 'success/warning') when the binary is missing."
+    },
+    {
+      "severity": "HIGH",
+      "category": "protocol_text_references_unregistered_tool_names",
+      "description": "proof_verification_workflow.yaml line 137 STILL says 'Run tool_theory_lean_check / tool_theory_coq_check.' (no _math_ in the middle), but the registered tool names are tool_theory_math_lean_check / tool_theory_math_coq_check. Verified: 'tool_theory_lean_check' is NOT in _ALIASES and NOT in TOOL_DEFINITIONS. An AI client running this protocol verbatim will get tool-not-found. Same exact baseline HIGH bug #5 — not fixed. The new tool_route's recommended_action partially routes around it (it suggests the real name), but the protocol body still lies.",
+      "suggested_fix": "Edit src/research_os_theory_math/protocols/proof/proof_verification_workflow.yaml line 137 to use tool_theory_math_lean_check / tool_theory_math_coq_check, OR add tool_theory_lean_check → tool_theory_math_lean_check to _ALIASES (same for coq). Either fix is a 2-line change."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "bureaucratic_step_for_pack_classification",
+      "description": "proof_verification_workflow step 1 (declare_step_contract) STILL forces the researcher to author workspace/<step>/step_summary.yaml with step_intent:proof, figure_required:false, literature_required:true BEFORE drafting the claim. The protocol now correctly mentions IMPORTED_AS_CITED in the contract (good — this WAS the baseline HIGH #4 about literature verdicts and is now resolved), but the contract itself is still an empirical-framework artifact that a mathematician shouldn't need to author. Since the theory_math pack is already activated, the pack registration should imply these defaults — the researcher should write claim + witness, not a YAML contract.",
+      "suggested_fix": "Auto-emit step_summary.yaml defaults from pack metadata when pack='theory_math' AND step_intent='proof'. Move declare_step_contract into protocol metadata, not a researcher-authored step. The protocol's step 1 should be 'state the claim', not 'classify the step'."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "scope_tags_not_surfaced_in_summary",
+      "description": "scope_tags (domain, audience, workflow_shape) ARE now present in the YAML files (verified on 3 theory_math protocols + 5 core protocols), but sys_protocol_get(format='summary') drops them from the returned payload — the keys returned are ['id','name','description','trigger','prerequisites','step_summary','expected_outputs','quality_bar','next_protocol','on_failure','_path','_load_hint','_loaded_as'], no scope_tags. A researcher trying to filter or audience-match by scope can't, because the lean summary loader hides the field. Either expose scope_tags in summary or document that it's full-format only.",
+      "suggested_fix": "Include scope_tags in the SUMMARY_KEYS allow-list inside the protocol loader so the field round-trips. It's small (3 lists, ~20 bytes) and is exactly the kind of metadata callers use to decide whether to load further."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "dep_graph_lexical_undersold",
+      "description": "tool_theory_math_dep_graph description STILL says 'approximate (lexical, not type-checked) but accurate enough to spot which lemmas a result transitively depends on.' Same MEDIUM #10 baseline issue. The runtime returns no caveat field — just {json_path, mermaid_path, n_files, n_theorems, n_imports}. A researcher who runs it on a proof using `exact?` tactic-search will get a graph that misses tactic-mediated dependencies and may publish a wrong dependency claim.",
+      "suggested_fix": "Either invest in `lean --print-dependencies` integration when Lean is present, or add a 'caveats: [\"misses tactic-mediated dependencies; explicit imports + named lemmas only\"]' field to every dep_graph response so the AI client surfaces the limitation."
+    },
+    {
+      "severity": "LOW",
+      "category": "pack_version_drift",
+      "description": "research_os_theory_math protocols still declare version: '1.9.3' while core is at 2.0.0-dev (verified in __init__.py and pyproject). Pack-local YAMLs aren't bumped on core release. A researcher inspecting protocol metadata sees mismatched versions and may suspect a compat issue. Same baseline LOW #12 — not fixed; should be a quick sed pass during release prep.",
+      "suggested_fix": "In docs/RELEASING.md release script, add the protocol-yaml bump for pack YAMLs as a non-optional step on every MINOR/MAJOR. Or move the pack version to a single source-of-truth import."
+    },
+    {
+      "severity": "LOW",
+      "category": "graph_theory_specific_scaffolding_still_absent",
+      "description": "Same MEDIUM #8 baseline issue, downgraded to LOW given the rest of the consolidation worked: theory_math pack still has zero graph-theory specific protocols (no extremal_setup, no probabilistic_method, no forbidden_subgraph). The 8 protocols are domain-agnostic. A graph theorist sees nothing that maps to their daily verbs. This isn't strictly a friction blocker (the proof_verification_workflow still works for graph theorems), but the pack branding promises more than it ships. Downgraded because the surrounding workflow now works smoothly.",
+      "suggested_fix": "Add a graph_theory subdirectory under theory_math/ with 2-3 representative protocols (extremal_setup, probabilistic_method, forbidden_subgraph), OR rename the pack 'formal_proofs' to set correct expectations."
+    }
+  ],
+  "convoluted_tools": [],
+  "confusing_protocols": [
+    "proof_verification_workflow — declare_step_contract step 1 is still empirical-framework leakage; researcher writes step_summary.yaml just to say 'this is a proof, not an experiment' (was HIGH in baseline, now MEDIUM)",
+    "proof_strategy_selection — 7 steps to produce a strategy name + 3-sentence justification, still feels assignment-grading-heavy (carried over unchanged from baseline MEDIUM #9)"
+  ],
+  "never_called_tools": [
+    "tool_slurm_fetch",
+    "tool_slurm_list",
+    "tool_slurm_status",
+    "tool_slurm_submit",
+    "tool_adapters_run_all",
+    "tool_adapter_extract",
+    "tool_humanities_essay_scaffold",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_rmarkdown_render",
+    "tool_notebook_exec",
+    "tool_r_exec",
+    "tool_julia_exec"
+  ],
+  "improvements_vs_baseline": [
+    "Top-level tool surface dropped from 211 LIVE → 146 LIVE (-31%). For the theory_math researcher, core+pack visible = 126; other-pack tools are hidden until intent signals them.",
+    "tool_route now scopes active_tools to 14 names per intent (verified on lean-check route: ['sys_boot','tool_route','tool_plan','sys_protocol_get','sys_protocol_list','sys_protocol_log','sys_state_get','sys_file_read','sys_file_list','sys_notify','sys_tool_describe','sys_active_tools','mem_log','tool_theory_math_lean_check']). Massive friction reduction on Turn 1 — the researcher sees only what's relevant.",
+    "Search-family collapsed: 6 baseline tools (tool_search_arxiv/crossref/pubmed/semantic_scholar/web + sys_semantic_tool_search) → 1 LIVE tool_search with source enum ['auto','semantic_scholar','pubmed','crossref','arxiv','web']. Baseline HIGH #6 fully resolved.",
+    "Audit-family collapsed: 24 tool_audit_* tools → 1 LIVE tool_audit with dimension enum (completeness|literature|code_quality|prose|claims|figure|citations|assumptions|power|reproducibility|evalue|cliches|coherence|version|...). Baseline HIGH #1 partially resolved (the surface friction half).",
+    "Plan-family / step-family / grounding-family / lessons-family all collapsed to unified entry points (tool_plan, tool_step, tool_lessons, etc.). Baseline 'convoluted_tools' list (7 families) is now 0 in the new convoluted_tools array — verified: 80 active aliases map onto just 20 consolidation targets.",
+    "tool_route returns recommended_action ('sys_protocol_get(protocol_name=X, format=summary)' or 'tool_theory_math_dep_graph(...)') AND why_matched ('Semantic similarity 0.708 (confidence=high)'). The AI doesn't burn a turn deciding what to call next. Both new in v2.",
+    "MCP-level instructions field surfaces the boot sequence at handshake: 'On every turn: (1) call sys_boot once per session, (2) call tool_route ... (3) load returned protocol with sys_protocol_get format=summary, (4) call sys_active_tools'. Removes the discovery friction baseline raised.",
+    "sys_protocol_get default format changed from 'full' → 'summary' (~3KB instead of bulk YAML dump). Verified: proof_verification_workflow summary returns 3024 bytes vs ~12KB full dump.",
+    "Every TOOL_DEFINITIONS entry now carries status: 'live' and pack: '<name>' fields. Verified on all 146 tools. Enables clients to filter by pack and avoid deprecated paths.",
+    "scope_tags (domain, audience, workflow_shape) added to protocol YAMLs (verified on 3 theory_math + 5 core protocols). The metadata exists even if the summary loader doesn't yet surface it.",
+    "IMPORTED_AS_CITED is NOW a first-class literature verdict in literature_per_step.yaml (lines 29, 65, 186, 195, 202, 326, 328). Baseline HIGH #4 (literature loop misfits theory) RESOLVED at the verdict-enum level. proof_verification_workflow's contract step also explicitly mentions IMPORTED_AS_CITED, so the audit will no longer wrongly block a proof step on missing AGREES/DISAGREES verdicts.",
+    "lean_integration.yaml description rewritten: now opens with a plain-English paragraph ('Workflow for bridging an informal proof draft to a Lean 4 + Mathlib formalisation. Covers scaffolding a .lean file from a draft, configuring lakefile.lean...'), with the cost-checkpoint rationale upfront. The whnf/metavariable/typeclass jargon is now in paragraph 3 as 'common error patterns this protocol addresses', AFTER the reader has decided to engage. Baseline MEDIUM #7 substantially improved.",
+    "43 of 56 baseline never-called tools removed entirely from the registry. The remaining 13 are pack-scoped (slurm pack, adapters, humanities, slides) — not exposed to a theory_math researcher unless the corresponding pack is active.",
+    "server.py refactored into a modular package (server/handlers/{audit_core,audit_gates,grounding,meta_help,meta_routing,meta_sys,meta_workspace,methodology,research_exec,research_search,synthesis_*}.py + server/tool_definitions/{meta,research,audit,synthesis,methodology,grounding}.py). The single 7499-line file is gone; each handler module is reviewable in isolation. Doesn't directly affect researcher experience but improves long-term reliability.",
+    "tool_audit_quality_full bundle correctly returns honest envelope (outer success == inner success, with components/tier_progress/audit_master_v2 wired up). The 'happy-path' synthesis tool now works end-to-end."
+  ],
+  "remaining_recommendations": [
+    "Fix the envelope-inversion silent-failure pattern repo-wide: a mechanical pass over leaf handlers that propagates inner status in {'error','warning','unavailable'} to the outer envelope. Reproduced on tool_theory_math_lean_check and tool_audit (literature dimension) — fix at the _ok/_err helpers, not per-call.",
+    "Fix the protocol naming-drift bug: edit proof_verification_workflow.yaml line 137 to use the registered tool names (tool_theory_math_lean_check / tool_theory_math_coq_check) OR add the short-form names to _ALIASES. This is the same exact baseline HIGH #5 — 2-line fix.",
+    "Auto-emit step_summary.yaml defaults from pack metadata when pack=theory_math AND step_intent=proof. The researcher should not need to author the contract YAML; the pack registration already encodes the empirical-gate exemption.",
+    "Include scope_tags in the SUMMARY_KEYS allow-list inside the protocol loader so the field is visible in summary format. Currently the YAMLs have it but sys_protocol_get(format='summary') strips it.",
+    "Add caveats:['lexical extraction misses tactic-mediated dependencies'] to every tool_theory_math_dep_graph response, OR replace the regex parser with `lean --print-dependencies` integration when Lean is on PATH.",
+    "Sync pack YAML version fields to core on release. The release script in docs/RELEASING.md should bump src/research_os_theory_math/protocols/**/*.yaml version: '...' alongside the core bump.",
+    "Add a graph_theory subdirectory to theory_math pack with 2-3 specialized protocols (extremal_setup, probabilistic_method, forbidden_subgraph) OR rename pack to set correct expectations. Branding currently overshoots content.",
+    "Trim proof_strategy_selection from 7 steps to 3-4 — collapse the candidate-enumeration / scaffold-outline / mistake-flag steps into one paragraph. Working theorists pick a strategy in seconds; the protocol still feels like assignment-grading.",
+    "Consider removing the 13 still-LIVE never-called tools (slurm, adapters, humanities, slides, rmarkdown, notebook/r/julia exec) from core and into their respective packs, so a theory_math researcher's surface drops further from 146 LIVE → ~115 LIVE.",
+    "Add a 'tool_unavailable' status to the canonical envelope contract distinct from 'error' (Lean/Coq missing is different from 'your input was bad'). Then make lean_check, coq_check, and any other binary-dependent tool return that status when the binary isn't on PATH."
+  ]
+}

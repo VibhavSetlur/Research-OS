@@ -166,8 +166,8 @@ def step_revision_options(
         alternative_paths.append(
             "Stratified analysis: re-run within each subgroup separately to "
             "check whether the headline holds, then branch via "
-            f"`sys_path_create name='{step_id.split('_', 1)[1]}_stratified' "
-            f"branch_of='{step_id}'`."
+            f"`sys_path(operation='create', name='{step_id.split('_', 1)[1]}_stratified', "
+            f"branch_of='{step_id}')`."
         )
     # Sensitivity analysis if any cutoff was named.
     if any(c in conc_text.lower() for c in ("fdr", "p < ", "p<0.", "log2fc")):

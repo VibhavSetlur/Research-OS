@@ -145,7 +145,7 @@ def log_override(
     """Append a researcher-authorised gate bypass to the override log.
 
     Every time the AI calls a tool with ``override_completeness_gate=true``
-    (or ``override_gate=true`` on ``tool_plan_advance``), we record:
+    (or ``override_gate=true`` on ``tool_plan(operation='advance')``), we record:
 
     * which tool was bypassed
     * which gate it was
@@ -533,7 +533,7 @@ def scaffold_minimal_workspace(
     #    Researcher-facing wording. These files are read by humans
     #    (you, your PI, a collaborator on a fresh chat). They should
     #    not name internal tools by their MCP function name — you
-    #    don't care that `mem_analysis_log` is what writes here; you
+    #    don't care that `mem_log(kind='analysis')` is what writes here; you
     #    care what the file IS and how to read it.
     for fname, header in [
         ("methods.md",
@@ -668,9 +668,9 @@ def scaffold_minimal_workspace(
             "AI sandbox for one-off tests (syntax checks, smoke runs, parameter\n"
             "sweeps, throw-away queries). Contents are gitignored.\n\n"
             "Anything that produces **research** must be moved into a proper\n"
-            "numbered experiment folder via `sys_path_create` before it counts.\n\n"
-            "Tools: `tool_scratch_write`, `tool_scratch_run`,\n"
-            "`tool_scratch_list`, `tool_scratch_clear`.\n"
+            "numbered experiment folder via `sys_path(operation='create')` before it counts.\n\n"
+            "Tools: `tool_scratch(operation='write')`, `tool_scratch(operation='run')`,\n"
+            "`tool_scratch(operation='list')`, `tool_scratch(operation='clear')`.\n"
         )
 
     # 6. researcher_config.yaml — source of truth for AI behaviour.
@@ -1360,7 +1360,9 @@ def _setup_gitignore(root: Path) -> None:
         "__pycache__/\n*.pyc\n*.pyo\n*.egg-info/\n"
         ".venv/\nvenv/\nenv/\n"
         ".DS_Store\n\n"
-        ".os_state/cache/\n.os_state/checkpoints/\n.os_state/handoffs/\n\n"
+        ".os_state/cache/\n.os_state/checkpoints/\n.os_state/handoffs/\n"
+        "workspace/cache/\n"
+        "workspace/scratch/\n\n"
         "# Secrets / machine-specific\n"
         "inputs/researcher_config.yaml\n"
         "inputs/literature_index.yaml\n"
@@ -1643,7 +1645,7 @@ def _seed_step_subfolder_readmes(
         f"Default wiring: {upstream_hint}\n\n"
         "Replace the symlink with a directory only if this step has bespoke "
         "inputs that aren't a clean function of the previous step's outputs. "
-        "Document any divergence in `analysis.md` (`mem_decision_log`).\n",
+        "Document any divergence in `analysis.md` (`mem_log(kind='decision')`).\n",
     )
     _write_if_missing(
         exp_dir / "data" / "output" / "README.md",
@@ -1682,7 +1684,7 @@ def _seed_step_subfolder_readmes(
         "Put a PDF / DOI / sidecar `.notes.md` here ONLY if the citation is "
         "specific to a methodological choice made in *this* step (and not "
         "broadly relevant to the project). For decisions that hang on "
-        "literature, also call `mem_decision_log` with the citation key + a "
+        "literature, also call `mem_log(kind='decision', ...)` with the citation key + a "
         "one-line rationale so the reasoning is captured in `analysis.md`.\n\n"
         "For statistical / methodological choices (e.g. 'use Welch ANOVA "
         "because variances unequal'), include a short *Why this method?* "
@@ -1740,7 +1742,7 @@ def _seed_step_subfolder_readmes(
         "_If you had to explain this step's purpose to a non-statistician in "
         "two sentences, what would you say? This is what the dashboard will "
         "surface for executive / teaching audiences._\n\n"
-        "## Decisions made informally (not yet in mem_decision_log)\n\n"
+        "## Decisions made informally (not yet in mem_log(kind='decision'))\n\n"
         "_Capture the reasoning as it happens so it doesn't get lost between "
         "the script and the formal log._\n",
     )
@@ -1843,7 +1845,7 @@ def create_numbered_experiment(
     # README. The caller can override via
     # ``enforce_predecessor_finalized=False`` — used by tests that
     # exercise multi-step scaffolding without going through the full
-    # finalize workflow, and by ``sys_path_create`` when the researcher
+    # finalize workflow, and by ``sys_path(operation='create')`` when the researcher
     # explicitly authorises bypass (logged to workspace/logs/override_log.md).
     existing_main_steps = sorted(
         p for p in workspace.iterdir()

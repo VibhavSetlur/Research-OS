@@ -42,5 +42,14 @@ from research_os.tools.actions.audit.coherence import (  # noqa: F401
     audit_coherence,
 )
 from research_os.tools.actions.audit.step_literature import (  # noqa: F401
+    StepLiteratureAudit,
     audit_step_literature,
+)
+from research_os.tools.actions.audit.synthesis_audit import (  # noqa: F401
+    SynthesisAudit,
+)
+from research_os.tools.actions.audit.findings_query import (  # noqa: F401
+    audit_findings_diff,
+    audit_findings_query,
+    unresolved_block_findings,
 )

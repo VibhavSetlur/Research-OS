@@ -99,15 +99,14 @@ cross_deliverable:
 reviewer_simulation:
   enabled: true
   personas:
-    - skeptical_methodologist
-    - statistics_referee
-    - domain_expert_neuroscience
-    - bioinformatician_reviewer
-    - ethics_irb_reviewer
+    - methodology_skeptic
+    - statistician
+    - domain_expert
     - reproducibility_advocate
-    - editor_in_chief
+    - scope_creep_critic
+    - presentation_critic
   min_total_comments: 30
-  min_personas_responding: 7
+  min_personas_responding: 6
   output: synthesis/reviewer_simulation.md
 
 # Canned mock-model responses keyed by step_id. The mock_model_call

@@ -1,0 +1,105 @@
+{
+  "scenario": "humanities_close_reading",
+  "perspective": "auditor",
+  "final_rating": 6.8,
+  "high_friction_count": 4,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "missing_tool_referenced_in_protocol",
+      "description": "humanities/textual/close_reading.yaml step `declare_step_contract` advertises `tool_humanities_apparatus_audit` as the close-reading-aware gate (presence of line/folio anchors, tradition header, counter-instance section, secondary-criticism ledger), then footnotes 'planned; see docs/ROADMAP.md'. From an auditor's seat, the protocol promises an enforced rigor check that does not exist in `TOOL_DEFINITIONS` or `_HANDLERS`. Manual review against `quality_bar` is the only path — that is invisible to the master audit and bypasses the BLOCKER rollup in `audit_and_validation`. An auditor reading the apparatus has no machine-checkable signal that anchor_density / tradition_declared / counter_instance / edition_pinned / secondary_ledger held. Reproducibility footers are STEM-shaped (RNG seed, software.packages, output.sha256) and do not exist for an apparatus.md.",
+      "suggested_fix": "Either ship `tool_humanities_apparatus_audit` in the humanities pack (parser over apparatus.md that grep-checks for ≥1 line/folio anchor per claim, a Tradition: header, a Counter-instance: section, a Secondary criticism: ledger with ≥1 cite), wire it into _router_index.yaml + audit/audit_and_validation, AND remove the 'planned' hedge from close_reading.yaml; or remove the forward reference entirely and tighten the prose to say 'manual review against quality_bar — no machine gate today'."
+    },
+    {
+      "severity": "HIGH",
+      "category": "stem_centric_audit_chain_misfires_on_humanities",
+      "description": "`audit/audit_and_validation` runs `audit_assumptions` (Cox PH, missing-data, statistical residuals), `audit_figures` (DPI, .caption.md + .summary.md sidecars, SVG companion), `audit_power`, `audit_evalue`, `preregister_diff`. None of these apply to a humanities essay. The apparatus contract (figure_required: false, table_required: false) auto-waives some, but the protocol still LISTS them as steps the auditor must walk — the auditor either reads ~6 inapplicable sections of audit_report.md OR has to know which to skip. `provenance_completeness` is the worst offender: it demands `.prov.json` sidecars with rng_seed / software.packages / output.sha256 for every output, but `synthesis/paper.md` and `workspace/close_readings/<slug>_apparatus.md` are prose. The auditor opens provenance_audit.md and finds either 0% coverage (BLOCKER barring synthesis) or has to manually carve out humanities outputs from the inventory.",
+      "suggested_fix": "Make audit_and_validation domain-aware: read `researcher_config.domain` (humanities|qualitative|engineering|...) and a `step_intent: apparatus` from step_summary.yaml, then skip or replace the inapplicable steps with humanities equivalents (citation_chain_recoverability_audit, edition_pinned_check, dangling_link_count). For provenance, define a humanities sidecar schema: edition / translator / source_archive / shelfmark / accessed_at / archive_url, and have provenance_completeness consume that schema for apparatus / archival outputs."
+    },
+    {
+      "severity": "HIGH",
+      "category": "tool_surface_bloat",
+      "description": "TOOL_DEFINITIONS holds 344 tools; audit category alone covers tool_audit_synthesis, tool_audit_power, tool_audit_assumptions, tool_audit_figure, tool_audit_figure_full, tool_audit_figure_interactivity, tool_audit_figure_coverage, tool_audit_citations, tool_audit_reproducibility, tool_audit_step_completeness, tool_audit_step_literature, tool_audit_findings_query, tool_audit_findings_diff, tool_audit_version_coherence, tool_audit_code_quality, tool_audit_prose, tool_audit_claims, tool_audit_evalue, tool_audit_quality_full, tool_audit_coherence, tool_audit_cliches, tool_audit_cross_deliverable_consistency, tool_audit_reviewer_responses, tool_audit_dashboard_content, plus tool_ground / tool_grounding_verify / tool_grounding_register / tool_ground_from_context / tool_thought_trace / tool_discussion_coverage_audit / tool_claim_verify / tool_preregister_diff / tool_reliability_report. That is ~30 audit-flavored tools. For the humanities scenario the auditor needs maybe 5 (tool_audit_claims, tool_audit_citations, tool_grounding_verify, tool_audit_coherence, tool_audit_quality_full). server.py is 7499 lines. The shortlist must come from sys_active_tools, but that requires already knowing the protocol — chicken-and-egg.",
+      "suggested_fix": "Phase 9 consolidation: collapse the figure trio (tool_audit_figure / tool_audit_figure_full / tool_audit_figure_coverage) into a single tool with a mode= param; collapse grounding (tool_grounding_register + tool_ground_from_context + tool_grounding_verify) into tool_ground with op=register|verify|from_context; promote tool_audit_quality_full as the SINGLE auditor entry point and demote the per-dimension tools to advanced surface (don't ship in list_tools by default; surface via sys_tool_describe on request)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "opaque_blocker_error_messages",
+      "description": "tool_audit_step_completeness returns status='error' when any step has BLOCKERS, and tool_synthesize refuses to assemble. The auditor needs to know WHICH gate fired WHY. The description says it writes workspace/logs/step_completeness.md but the JSON envelope returned to the AI is `{status: error, error: '...'}` — the AI then has to sys_file_read the log to surface the actionable list. Same shape for tool_audit_synthesis ('default-denies when zero PDFs are present') — the override (override_no_pdfs=true + override_rationale) is documented in the description but the error message itself does not name the override. From the auditor's perspective, the gate output is a black box without an extra read-tool call.",
+      "suggested_fix": "Have every default-deny / blocker tool return a structured `blockers: [{code, message, fix_hint, override_param}]` array in the JSON envelope alongside the human-readable error. The AI surfaces those inline without needing a follow-up sys_file_read. Pin override flag names + rationale templates in the structured block."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "literature_gate_mismatch",
+      "description": "tool_audit_step_literature is built for STEM steps (workspace/<step>/literature/findings_vs_literature.md with `## Claim:` blocks + Verdict lines AGREES|DISAGREES|EXTENDS|DEFERRED + matching Discussion). Humanities close-reading 'literature' is the secondary-criticism ledger inside apparatus.md, not a per-step PDF folder with verdicts. The literature_required: true field in step_summary.yaml flags the gate as required, but the ledger format does not match what the gate parses. Auditor either sees false BLOCKERS or has to override the gate per step.",
+      "suggested_fix": "Add a humanities branch to tool_audit_step_literature: when step_intent: apparatus + secondary_ledger_path is set in step_summary.yaml, parse the ledger format from close_reading.yaml (named critic + agreement/departure) instead of the AGREES/DISAGREES verdict schema. OR introduce tool_humanities_secondary_ledger_audit as the humanities-side gate, wired into audit_and_validation."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "override_log_visibility",
+      "description": "pre_submission_checklist.yaml step `override_audit_review` reads workspace/logs/override_log.md and flags UNRESOLVED bypasses with rationale not mirrored in cover_letter.md. For a humanities essay the cover_letter format differs from the STEM cover letter; the auditor needs to know whether the cross-check actually applies to humanities outputs. Also: every bypass with `<no rationale provided>` is RED, but the close_reading apparatus contract IS effectively a structured bypass of figure/table gates — there is no concept of 'gate auto-waived by step_intent: apparatus' in the override log, so the apparatus waivers are invisible.",
+      "suggested_fix": "Distinguish AUTO-WAIVED (apparatus intent waives figure_gate) from MANUAL-OVERRIDE (researcher passed override_completeness_gate=true). Auto-waivers go in step_summary.yaml under `gates_waived: [figure_gate: 'apparatus intent']` not in override_log.md; pre_submission_checklist reads both surfaces and rolls them up with different severity bands."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "protocol_prose_density",
+      "description": "close_reading.yaml + citation_chains.yaml + humanities_essay_structure.yaml are dense — each protocol's description block is 15-25 lines of literary-critical doctrine before the steps start. Beautiful for a humanities scholar; intimidating for an auditor whose job is to verify rigor, not to interpret de Manian deconstruction. The auditor wants a one-line 'what this protocol promises + what artefacts it produces' header.",
+      "suggested_fix": "Add a `summary` field (already used in _router_index.yaml entries) to each protocol's top matter that distills the description to ~3 sentences for the auditor. Render `summary` first in sys_protocol_get; collapse the doctrine into a `rationale` block the auditor can skip."
+    },
+    {
+      "severity": "LOW",
+      "category": "audit_protocol_count",
+      "description": "Three audit protocols in protocols/audit/ (audit_and_validation, pre_submission_checklist, provenance_completeness) plus the master tool tool_audit_quality_full plus discussion_coverage_audit. From the auditor's seat the question is which to run when — the cross-references in audit_and_validation point at synthesis, provenance, reproducibility; the cross-references in provenance_completeness point at audit_and_validation; pre_submission_checklist runs LAST. The chain is correct but undocumented as a single visual flow.",
+      "suggested_fix": "Add `audit_flow.md` to docs/ showing the audit DAG (provenance → audit_and_validation → discussion_coverage → pre_submission_checklist) with which artefacts each consumes/produces. Or generate it from the next_protocol chains."
+    },
+    {
+      "severity": "LOW",
+      "category": "humanities_pack_tool_count",
+      "description": "Humanities pack only ships 3 tools (archive_lookup, transcribe, citation_chain) and they are scaffold writers, not actionable artefacts the auditor can verify. Critical-criticism ledger / dangling-link audit / edition-pinning audit are absent. The 7 humanities protocols (close_reading, distant_reading, archival_research, source_provenance, citation_chains, hermeneutic_method, digital_humanities_workflow, scholarly_edition) outnumber the tools 2:1 — the audit gates lean entirely on the generic STEM-flavored tools.",
+      "suggested_fix": "Ship 2-3 humanities-side audit tools as part of Phase 6/7: tool_humanities_apparatus_audit (already promised), tool_humanities_dangling_link_audit (parses citation chain documents for `as quoted in` links + verifies recoverability), tool_humanities_edition_pinning_audit (every primary-text quote has an edition cite)."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_figure / tool_audit_figure_full / tool_audit_figure_coverage / tool_audit_figure_interactivity — four near-identical figure auditors; an auditor cannot tell at a glance which is the full one",
+    "tool_grounding_register / tool_ground / tool_ground_from_context / tool_grounding_verify — three register-flavored tools + one verify; the noun-overload (ground / grounding) is confusing",
+    "tool_audit_quality_full vs tool_audit_step_completeness vs tool_audit_step_literature — overlapping scopes; tool_audit_quality_full ALREADY chains the others but they are still listed as standalone in the protocol descriptions, so the auditor sees them twice",
+    "tool_thought_trace lives in `memory` category but is described as an auditor surface in pre_submission_checklist — category mismatch hurts discoverability",
+    "tool_claim_verify (CoVe) vs tool_audit_claims vs tool_grounding_verify — three claim-checking surfaces with different semantics; the relationship is not stated anywhere"
+  ],
+  "confusing_protocols": [
+    "humanities/textual/close_reading — references tool_humanities_apparatus_audit which does not exist; auditor cannot tell whether the rigor gate is enforced",
+    "audit/audit_and_validation — steps 1 (audit_master) and steps 2-8 (individual audits) overlap; the protocol says step 1 is PREFERRED but still walks the AI through 7 more component steps",
+    "audit/provenance_completeness — STEM-centric sidecar schema (rng_seed / sha256 / software.packages) applied uniformly to humanities prose outputs; the protocol does not call out humanities exemptions",
+    "audit/pre_submission_checklist — long (10 steps, ~340 lines); the auditor reads it as a checklist but it reads more like a doctrine essay",
+    "humanities/synthesis/humanities_essay_structure — the no_imrad_headings quality bar collides with synthesis_paper's IMRAD enforcement; the protocol notes the conflict but the resolution chain (this → synthesis_paper for final audit) is fragile"
+  ],
+  "never_called_tools": [
+    "tool_audit_assumptions",
+    "tool_audit_power",
+    "tool_audit_evalue",
+    "tool_audit_figure_interactivity",
+    "tool_audit_figure_coverage",
+    "tool_audit_dashboard_content",
+    "tool_audit_reviewer_responses",
+    "tool_preregister_freeze",
+    "tool_preregister_diff",
+    "tool_audit_reproducibility",
+    "tool_audit_code_quality",
+    "tool_audit_findings_diff",
+    "tool_audit_version_coherence",
+    "tool_audit_cross_deliverable_consistency",
+    "tool_audit_cliches"
+  ],
+  "recommendations": [
+    "Phase 6 humanities pack: ship tool_humanities_apparatus_audit, tool_humanities_dangling_link_audit, tool_humanities_edition_pinning_audit; remove the 'planned' hedge in close_reading.yaml.",
+    "Phase 7 audit consolidation: make audit_and_validation domain-aware by reading researcher_config.domain + step_intent; auto-skip STEM-only steps for humanities; surface a humanities-equivalent set.",
+    "Phase 9 tool collapse: merge tool_audit_figure_* into one tool with mode=basic|full|coverage|interactivity; merge tool_grounding_* into tool_ground with op=...; promote tool_audit_quality_full as the auditor entry tool.",
+    "Phase 8 envelope upgrade: every default-deny tool returns structured blockers: [{code, message, fix_hint, override_param}] so the AI surfaces actionable failures without sys_file_read.",
+    "Phase 5 protocol polish: add a `summary` (3-sentence) field to every protocol top matter; render it FIRST in sys_protocol_get so the auditor sees the verdict-shape before the doctrine.",
+    "Define a humanities provenance sidecar schema (edition / translator / source_archive / shelfmark / archive_url / accessed_at) and route provenance_completeness through it for apparatus + archival outputs.",
+    "Distinguish auto-waived (step_intent: apparatus → gates_waived in step_summary.yaml) from manual-override (override_log.md). pre_submission_checklist consumes both with different severity bands.",
+    "Generate docs/audit_flow.md from next_protocol chains so the auditor can see the audit DAG at a glance."
+  ]
+}

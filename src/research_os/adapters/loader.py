@@ -212,6 +212,11 @@ def _merge(
                 "short": short,
                 "category": sch.get("category", f"adapter:{reg.name}"),
                 "inputSchema": input_schema,
+                # Phase-9 cross-cutting: adapter tools advertise their origin
+                # (pack=<adapter_name>) so the router and sys_tool_describe
+                # can scope them just like protocol-pack tools.
+                "pack": reg.name,
+                "status": "live",
             }
             handlers[t.name] = t.handler
     return AdapterLoadResult(

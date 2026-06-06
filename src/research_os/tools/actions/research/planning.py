@@ -139,7 +139,7 @@ def plan_next_step(root: Path, *, goal: str | None = None,
             )
         if state.get("pipeline_stage") in {"execution", "analysis"} and not active:
             recommendations.append(
-                "No active experiment path. Create one via `sys_path_create` "
+                "No active experiment path. Create one via `sys_path(operation='create')` "
                 "before writing scripts."
             )
 
@@ -196,8 +196,8 @@ def plan_next_step(root: Path, *, goal: str | None = None,
                 "## How to act",
                 "1. Read the recommendations above + the fresh literature.",
                 "2. Pick ONE next step. Tell the researcher what you chose and why.",
-                "3. Log the decision: `mem_decision_log context='next-step plan' "
-                "selected=<your-pick> rationale=<short>`",
+                "3. Log the decision: `mem_log(kind='decision', context='next-step plan', "
+                "selected=<your-pick>, rationale=<short>)`",
                 "4. Load the matching protocol (analysis_plan, dead_end_routing,",
                 "   reproducibility, synthesis_paper, …) and proceed.",
             ]
@@ -689,7 +689,7 @@ def branch_recommendation(root: Path, *, reason: str) -> dict[str, Any]:
         )
         guidance = {
             "branch": (
-                "Create a parallel experiment via `sys_path_create` with a NEW "
+                "Create a parallel experiment via `sys_path(operation='create')` with a NEW "
                 "slug describing the alternative approach. The branched path "
                 "becomes current_path; you can switch back later by referencing "
                 "the old folder."

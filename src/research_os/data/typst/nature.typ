@@ -16,7 +16,7 @@
     columns: 1,
   )
   set par(justify: true, leading: 0.55em, first-line-indent: 0pt)
-  set text(font: ("Helvetica", "Arial"), size: 9.5pt, lang: "en")
+  set text(font: "New Computer Modern Sans", size: 9.5pt, lang: "en")
 
   // Title block (single column).
   align(center)[

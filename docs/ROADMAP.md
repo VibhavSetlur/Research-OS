@@ -333,7 +333,7 @@ Today `synthesis_slides` outputs markdown. Researchers want actual slides. Poste
 - **Per-audience density profiles:** lab meeting (12 slides, dense), 12-min conf (8 slides, headline per slide), defense (30 slides, every result), invited seminar (20 slides, narrative arc). Loads template + word/figure budget per slide accordingly.
 - **Auto-embed interactive figures** in Reveal.js path (per Theme 20 + 21).
 - **Speaker notes auto-drafted** from each step's `.summary.md`.
-- **Poster:** `tool_poster_compile_typst` → PDF via Typst poster templates (replaces today's tikzposter LaTeX path; tikzposter remains as fallback). Templates per size (36×48, A0, A1, ePoster 16:9). Print-ready bleeds, embedded fonts, RGB→CMYK conversion option. QR code with project DOI/URL auto-embedded.
+- **Poster:** `tool_poster_create` → PDF via Typst poster templates (v2.0.0: tikzposter LaTeX path removed; Typst is the only supported engine). Templates per size (36×48, 48×36, A0 portrait, A1 landscape, public 24×36). Print-ready bleeds, embedded fonts, RGB→CMYK conversion option. QR code with project DOI/URL auto-embedded.
 - **One-headline test enforced** (poster body must have exactly one headline conclusion; gate BLOCKS if multiple compete).
 
 **Effort:** ~3 weeks. **Lands v1.10.0.**

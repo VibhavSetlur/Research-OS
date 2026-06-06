@@ -1,7 +1,12 @@
 id: pre_submission_checklist
+tier: 'finalize'
 name: Pre-Submission Checklist (final ready-to-submit gate)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities]
+  audience: [auditor, maintainer]
+  workflow_shape: [any]
 last_reviewed: '2026-06-04'
 description: |
   Final ready-to-submit gate. Walks the project through every
@@ -149,7 +154,7 @@ steps:
         - export to the journal's preferred format (XLSX / CSV /
           embedded markdown)
 
-      Run tool_audit_figure_full on every figure in
+      Run tool_audit(scope='step', dimension='figure_full') on every figure in
       synthesis/figures/. Aggregate fails to the punch list.
 
   - id: end_matter_checks
@@ -208,14 +213,14 @@ steps:
         - code deposited at a public URL with a release tag +
           Zenodo DOI (when journal requires)
 
-      Run tool_audit_reproducibility for high-stakes
+      Run tool_audit(scope='step', dimension='reproducibility') for high-stakes
       submissions; skip for time-pressed submissions where
       the standard reproducibility audit already passed.
 
   - id: claim_grounding_audit
     name: Claim grounding audit
     description: |
-      Run tool_audit_claims on synthesis/paper.md.
+      Run tool_audit(scope='project', dimension='claims') on synthesis/paper.md.
       Every numeric claim must trace to a workspace artefact
       OR a verified citation. Hallucinated numbers are RED.
 
@@ -227,12 +232,12 @@ steps:
 
       Also surface the ReAct trace + per-step literature audit in the
       bundle:
-        tool_thought_trace decision_id=<any flagged decision>
+        tool_thought(operation='trace', decision_id=<any flagged decision>)
           — replays the Thought/Plan/Action/Observation/Reflection
             chain for a specific decision. Useful when claim_grounding
             flags an unsupported claim and the reviewer asks "what
             was the AI thinking?". Read-only.
-        tool_audit_step_literature   # project-wide
+        tool_audit(scope='step', dimension='literature')   # project-wide
           — aggregates per-step findings_vs_literature.md verdicts
             into workspace/logs/step_literature_audit.md. Surfaces
             steps where DISAGREES verdicts lack discussion or all
@@ -244,7 +249,7 @@ steps:
       Read workspace/logs/override_log.md (call sys_file_read).
       Each entry is one moment the researcher authorised the AI
       to bypass a quality gate (override_completeness_gate=true
-      on tool_synthesize / tool_dashboard_create, or
+      on tool_synthesize / tool_dashboard(operation='create'), or
       override_gate=true on tool_plan). Per entry,
       confirm with the researcher:
 

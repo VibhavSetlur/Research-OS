@@ -13,8 +13,34 @@ passes an explicit override.
 from __future__ import annotations
 
 import re
+import uuid
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._base import (
+    AuditBase,
+    AuditFinding,
+    write_audit_outputs,
+)
+
+# Stable namespace for deterministic uuid5 derivation of finding ids.
+# Using uuid.NAMESPACE_DNS keeps the audit name stable across re-runs:
+# two runs over the same workspace state produce the same finding ids,
+# so consumers (dashboards, dedupe) can spot churn vs. genuine new
+# blockers. Schema only enforces the uuid wire format, not the version.
+_FINDING_ID_NAMESPACE = uuid.NAMESPACE_DNS
+
+
+def _finding_id(audit_name: str, dimension: str, evidence_paths: list[str]) -> str:
+    """Derive a deterministic uuid5 for a finding.
+
+    The key encodes (audit, dimension, evidence-paths) so re-running
+    the audit against unchanged inputs yields the same id — important
+    for the `.audit_findings.jsonl` ledger, which is append-only and
+    would otherwise grow a fresh id per run for the same condition.
+    """
+    key = f"{audit_name}|{dimension}|{'|'.join(sorted(evidence_paths))}"
+    return str(uuid.uuid5(_FINDING_ID_NAMESPACE, key))
 
 
 _VERDICT_PATTERN = re.compile(
@@ -200,7 +226,7 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
                 warnings.append(
                     f"{step_id}: {non_deferred} non-deferred claim(s) but "
                     "no grounding records in .grounding/grounding.jsonl. "
-                    "Call tool_grounding_register per claim."
+                    "Call tool_ground(mode='explicit') per claim."
                 )
         except Exception:
             # Best-effort grounding-record count: a malformed JSONL line or
@@ -303,6 +329,22 @@ def audit_step_literature(
         lines.append("_None_")
     log_path.write_text("\n".join(lines) + "\n")
 
+    # Phase-4 migration: also emit structured AuditFindings to the
+    # workspace/ companion JSON + the .audit_findings.jsonl ledger.
+    # The legacy markdown report above (workspace/logs/step_literature_audit.md)
+    # is preserved byte-for-byte so existing readers + the documented
+    # log_path return field keep working; the new artefacts are additive.
+    findings = StepLiteratureAudit().run(root, step_id=step_id)
+    try:
+        write_audit_outputs(findings, "step_literature", root)
+    except Exception:
+        # Persistence is best-effort: if writing the JSON ledger fails
+        # (e.g. read-only workspace, schema drift caught at runtime),
+        # the original blockers/warnings list above is still returned
+        # so the gate caller can act on it. The legacy markdown report
+        # is the canonical record either way.
+        pass
+
     return {
         "status": status,
         "steps_audited": audited,
@@ -313,4 +355,284 @@ def audit_step_literature(
         "warnings": all_warnings,
         "per_step": per_step,
         "log_path": str(log_path.relative_to(root)),
+        "findings": [f.to_dict() for f in findings],
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase-4 AuditBase subclass
+# ---------------------------------------------------------------------------
+
+
+# Map the legacy free-form blocker / warning strings produced by
+# ``_audit_one_step`` onto structured AuditFinding objects. The
+# (audit_name, severity, dimension, evidence_paths, suggested_fix) tuple
+# is everything ``AuditFinding.new`` needs; the id is derived
+# deterministically inside :class:`StepLiteratureAudit.run`.
+#
+# Dimensions are stable strings that downstream dashboards group by.
+# They map to the conditions ``_audit_one_step`` checks:
+#   findings_stub        — conclusions.md exists but ## Findings is empty
+#   findings_vs_lit_md   — workspace/<step>/literature/findings_vs_literature.md missing/unreadable
+#   claim_blocks         — findings_vs_literature.md has zero ## Claim: blocks
+#   verdicts             — claim block missing **Verdict:** line
+#   discussion           — DISAGREES verdict without **Discussion implication:**
+#   pdfs                 — all DEFERRED with no PDFs downloaded
+#   literature_summary   — step_summary.yaml.literature block missing / empty
+#   grounding_records    — claim count > 0 but no grounding.jsonl records
+
+
+def _evidence_for_step(step_dir: Path, *, files: list[str] | None = None) -> list[str]:
+    """Workspace-relative evidence paths for a step finding."""
+    rel = f"workspace/{step_dir.name}"
+    out = [rel]
+    if files:
+        out.extend(f"{rel}/{f}" for f in files)
+    return out
+
+
+def _findings_for_step(
+    step_dir: Path, report: dict[str, Any], audit_name: str = "step_literature"
+) -> list[AuditFinding]:
+    """Translate one ``_audit_one_step`` report into structured findings.
+
+    The legacy blockers/warnings stay the source of truth for what is
+    flagged; here we re-derive the structured equivalent by inspecting
+    the same ``info`` dict + the recorded blocker/warning strings, so
+    the two views never disagree.
+    """
+    out: list[AuditFinding] = []
+    info = report.get("info", {}) or {}
+    blockers = report.get("blockers", []) or []
+    warnings = report.get("warnings", []) or []
+
+    # Skipped steps emit nothing — they're a deliberate no-op.
+    if info.get("skipped"):
+        return out
+
+    # findings_stub: conclusions.md exists but ## Findings is empty.
+    if info.get("findings_section_stub"):
+        evidence = _evidence_for_step(step_dir, files=["conclusions.md"])
+        out.append(
+            AuditFinding(
+                id=_finding_id(audit_name, "findings_stub", evidence),
+                audit_name=audit_name,
+                severity="block",
+                dimension="findings_stub",
+                evidence_paths=evidence,
+                suggested_fix=(
+                    "Repopulate the ## Findings section in conclusions.md "
+                    "from the step's analysis, OR tag the step "
+                    "literature_required: false in step_summary.yaml if it "
+                    "is pure data engineering with no claims to ground."
+                ),
+                override_kwarg="override_literature_gate",
+                override_log_format=(
+                    "OVERRIDE literature gate for {step_id} — rationale: {rationale}"
+                ),
+            )
+        )
+        # No further findings possible — the function bailed early.
+        return out
+
+    # findings_vs_literature.md missing or unreadable.
+    if any("findings_vs_literature.md" in b for b in blockers):
+        evidence = _evidence_for_step(
+            step_dir, files=["literature/findings_vs_literature.md"]
+        )
+        out.append(
+            AuditFinding(
+                id=_finding_id(audit_name, "findings_vs_lit_md", evidence),
+                audit_name=audit_name,
+                severity="block",
+                dimension="findings_vs_lit_md",
+                evidence_paths=evidence,
+                suggested_fix=(
+                    "Run research/literature_per_step to produce "
+                    "findings_vs_literature.md before path_finalize, OR pass "
+                    "override_literature_gate=true with override_rationale."
+                ),
+                override_kwarg="override_literature_gate",
+                override_log_format=(
+                    "OVERRIDE literature gate for {step_id} — rationale: {rationale}"
+                ),
+            )
+        )
+        return out
+
+    verdicts = info.get("verdicts", {}) or {}
+    claim_count = int(info.get("claim_count", 0) or 0)
+
+    # zero ## Claim: blocks in findings_vs_literature.md
+    if claim_count == 0 and info.get("findings_vs_literature_exists"):
+        evidence = _evidence_for_step(
+            step_dir, files=["literature/findings_vs_literature.md"]
+        )
+        out.append(
+            AuditFinding(
+                id=_finding_id(audit_name, "claim_blocks", evidence),
+                audit_name=audit_name,
+                severity="block",
+                dimension="claim_blocks",
+                evidence_paths=evidence,
+                suggested_fix=(
+                    "Add per-claim grounding sections (## Claim: ...) to "
+                    "findings_vs_literature.md."
+                ),
+                override_kwarg="override_literature_gate",
+                override_log_format=(
+                    "OVERRIDE literature gate for {step_id} — rationale: {rationale}"
+                ),
+            )
+        )
+
+    # claim block missing **Verdict:** line — warn, not block.
+    verdict_total = sum(verdicts.get(k, 0) for k in ("AGREES", "DISAGREES", "EXTENDS", "DEFERRED"))
+    if claim_count > 0 and verdict_total < claim_count:
+        evidence = _evidence_for_step(
+            step_dir, files=["literature/findings_vs_literature.md"]
+        )
+        out.append(
+            AuditFinding(
+                id=_finding_id(audit_name, "verdicts", evidence),
+                audit_name=audit_name,
+                severity="warn",
+                dimension="verdicts",
+                evidence_paths=evidence,
+                suggested_fix=(
+                    "Each ## Claim: block needs a **Verdict:** line — one of "
+                    "AGREES | DISAGREES | EXTENDS | DEFERRED."
+                ),
+            )
+        )
+
+    # DISAGREES verdict without matching **Discussion implication:** block.
+    if any("DISAGREES" in b and "Discussion implication" in b for b in blockers):
+        evidence = _evidence_for_step(
+            step_dir, files=["literature/findings_vs_literature.md"]
+        )
+        out.append(
+            AuditFinding(
+                id=_finding_id(audit_name, "discussion", evidence),
+                audit_name=audit_name,
+                severity="block",
+                dimension="discussion",
+                evidence_paths=evidence,
+                suggested_fix=(
+                    "Every DISAGREES verdict must have a matching "
+                    "**Discussion implication:** block explaining what to "
+                    "do about the disagreement."
+                ),
+                override_kwarg="override_literature_gate",
+                override_log_format=(
+                    "OVERRIDE literature gate for {step_id} — rationale: {rationale}"
+                ),
+            )
+        )
+
+    # all DEFERRED with no PDFs downloaded.
+    if any("DEFERRED" in b and "PDFs" in b for b in blockers):
+        evidence = _evidence_for_step(step_dir, files=["literature/"])
+        out.append(
+            AuditFinding(
+                id=_finding_id(audit_name, "pdfs", evidence),
+                audit_name=audit_name,
+                severity="block",
+                dimension="pdfs",
+                evidence_paths=evidence,
+                suggested_fix=(
+                    "Either download evidence PDFs into workspace/<step>/"
+                    "literature/, or document why no literature is reachable "
+                    "via step_summary.yaml.literature_deferred + override the gate."
+                ),
+                override_kwarg="override_literature_gate",
+                override_log_format=(
+                    "OVERRIDE literature gate for {step_id} — rationale: {rationale}"
+                ),
+            )
+        )
+
+    # step_summary.yaml.literature block missing / empty.
+    for w in warnings:
+        if "literature:" in w and "no `literature:` block" in w:
+            evidence = _evidence_for_step(step_dir, files=["step_summary.yaml"])
+            out.append(
+                AuditFinding(
+                    id=_finding_id(audit_name, "literature_summary", evidence),
+                    audit_name=audit_name,
+                    severity="warn",
+                    dimension="literature_summary",
+                    evidence_paths=evidence,
+                    suggested_fix=(
+                        "research/literature_per_step writes the "
+                        "step_summary.yaml.literature roll-up; missing block "
+                        "means synthesis cannot aggregate grounding stats."
+                    ),
+                )
+            )
+        elif "claims_grounded == 0" in w:
+            evidence = _evidence_for_step(step_dir, files=["step_summary.yaml"])
+            out.append(
+                AuditFinding(
+                    id=_finding_id(
+                        audit_name, "literature_summary_zero_grounding", evidence
+                    ),
+                    audit_name=audit_name,
+                    severity="warn",
+                    dimension="literature_summary",
+                    evidence_paths=evidence,
+                    suggested_fix=(
+                        "claims_grounded is 0 and no literature_deferred "
+                        "reasons are recorded — document why no claim could "
+                        "be grounded."
+                    ),
+                )
+            )
+        elif "no grounding records" in w:
+            evidence = _evidence_for_step(
+                step_dir, files=["../.grounding/grounding.jsonl"]
+            )
+            out.append(
+                AuditFinding(
+                    id=_finding_id(audit_name, "grounding_records", evidence),
+                    audit_name=audit_name,
+                    severity="warn",
+                    dimension="grounding_records",
+                    evidence_paths=evidence,
+                    suggested_fix=(
+                        "Call tool_ground(mode='explicit') per non-deferred claim "
+                        "so the .grounding/grounding.jsonl ledger captures it."
+                    ),
+                )
+            )
+    return out
+
+
+class StepLiteratureAudit(AuditBase):
+    """Per-step literature-loop gate as a structured ``AuditBase`` subclass.
+
+    Wraps the existing :func:`_audit_one_step` logic and re-projects its
+    blockers / warnings as ``AuditFinding`` objects. The original
+    :func:`audit_step_literature` function remains the public entrypoint
+    and continues to return the legacy dict shape; this class is what
+    composite gates and the Phase-4 ``write_audit_outputs`` writer use
+    when they want structured findings.
+    """
+
+    name = "step_literature"
+
+    def run(self, root: Path, **kwargs: Any) -> list[AuditFinding]:
+        step_id = kwargs.get("step_id")
+        if step_id:
+            step_dir = root / "workspace" / step_id
+            if not step_dir.exists():
+                return []
+            targets = [step_dir]
+        else:
+            targets = _step_dirs(root)
+
+        findings: list[AuditFinding] = []
+        for step_dir in targets:
+            report = _audit_one_step(step_dir)
+            findings.extend(_findings_for_step(step_dir, report, self.name))
+        return findings

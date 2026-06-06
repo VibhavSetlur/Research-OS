@@ -1,12 +1,17 @@
 id: literature_search
+tier: 'ground'
 name: Literature Search
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [systems_benchmark]
 last_reviewed: '2026-06-04'
 description: |
   Systematic search across 2-4 academic databases. Produces a
-  deduplicated citation list and a PRISMA-style accounting. Now also:
-  flags suspected predatory / problematic venues and walks the
+  deduplicated citation list and a PRISMA-style accounting. Flags
+  suspected predatory / problematic venues and walks the
   forward-citation graph for the seminal hits so the literature pass
   doesn't miss the recent extensions.
 trigger: After methodology_selection — provides the body of literature that grounds the eventual paper.
@@ -78,15 +83,15 @@ steps:
       Paywall memory: tool_literature_download
       auto-skips URLs / DOIs that have already failed permanently
       (paywall, 404, 403). On retries from a fresh chat:
-         tool_failure_check target=<url-or-doi>
+         tool_lessons(operation='failure_check', target=<url-or-doi>)
       returns known_bad=true if the target is in the local file
       `workspace/.os_state/failures-jsonl`. The download tool calls
       this internally; surface
-         tool_failure_list  limit=20
+         tool_lessons(operation='failure_list', limit=20)
       to the researcher when several downloads keep skipping — they
       may need to add the PDF manually to inputs/literature/ or skip
       that citation. The internal recorder
-         tool_failure_record  tool=... target=... reason=...
+         tool_lessons(operation='failure_record', tool=..., target=..., reason=...)
       is also called automatically by the download tool when an
       attempt fails (paywall / 404 / 403 mark permanent=true).
 

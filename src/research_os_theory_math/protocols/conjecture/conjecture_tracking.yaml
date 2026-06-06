@@ -1,7 +1,11 @@
 id: conjecture_tracking
 name: Conjecture Tracking — open-problem register
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   Registry of open conjectures for the project (or for a research

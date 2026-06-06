@@ -1,7 +1,12 @@
 id: session_boot
+tier: 'intake'
 name: Session Boot
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [naive_ai]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: |
   Mandatory boot sequence on the FIRST TURN of every session. Every
@@ -42,7 +47,7 @@ steps:
                      when freshness.is_stale is true)
         - advice — one-line guidance for what to do next
 
-      Do NOT call sys_state_get / sys_config_get / sys_protocol_history /
+      Do NOT call sys_state_get / sys_config(operation='get') / sys_protocol_history /
       sys_dep_inventory / sys_protocol_next / tool_state_freshness_check
       separately. They are all in sys_boot's payload. Sequential or
       parallel — doesn't matter — they cost ~5× more tokens than

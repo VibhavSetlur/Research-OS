@@ -60,6 +60,15 @@ class PackRegistration:
         Called by `tool_intake_autofill` when domain is ambiguous.
     description : str
         One-line human-readable summary, shown in `sys_packs_installed`.
+    paper_sections : tuple[str, ...]
+        Optional ordered tuple of section IDs declaring the pack's
+        preferred paper schema. When empty (the default), the synthesis
+        pipeline falls back to the IMRAD section order
+        (abstract → introduction → methods → results → discussion →
+        references). A pack like `theory_math` whose deliverable is a
+        proof-shaped paper can declare e.g. ``("introduction",
+        "preliminaries", "main_theorems", "proofs", "discussion")`` so
+        `tool_synthesize` stops forcing IMRAD on it.
     """
     name: str
     version: str
@@ -68,6 +77,7 @@ class PackRegistration:
     router_entries: dict = field(default_factory=dict)
     domain_detector: Callable[[Path], dict] | None = None
     description: str = ""
+    paper_sections: tuple[str, ...] = ()
 
 
 # ── @register_tool decorator + module-level capture ───────────────────

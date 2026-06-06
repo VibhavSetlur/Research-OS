@@ -1,7 +1,11 @@
 id: source_provenance
 name: Source Provenance — chain-of-custody for quotations
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities, theory_math]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: |
   Chain-of-custody for every cited quotation: original manuscript /

@@ -1,7 +1,12 @@
 id: interactive_dashboard_design
+tier: 'synthesize'
 name: Interactive Dashboard Design (showcase-tier, beyond static HTML)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities, engineering]
+  audience: [maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   `synthesis_dashboard` produces a single-file offline HTML — the

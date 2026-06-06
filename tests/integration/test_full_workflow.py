@@ -16,9 +16,11 @@ def test_full_workflow(tmp_path):
     )
     assert "success" in res[0].text
 
-    # 3. Create a path
+    # 3. Create a path — sys_path(operation='create') in v2.0.0
     res = _handle_tool_call(
-        "sys_path_create", {"name": "baseline", "hypothesis": "Test H"}, tmp_path
+        "sys_path",
+        {"operation": "create", "name": "baseline", "hypothesis": "Test H"},
+        tmp_path,
     )
     assert "success" in res[0].text
 

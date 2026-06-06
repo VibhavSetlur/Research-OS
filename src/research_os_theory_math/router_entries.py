@@ -113,6 +113,8 @@ THEORY_MATH_ROUTER_ENTRIES = {
         "triggers": [
             "proof strategy", "how should I prove", "induction or contradiction",
             "direct proof", "pick a proof method",
+            "maximum degree", "minimum degree", "graph coloring",
+            "planar graph", "sub-cubic", "subcubic",
         ],
         "token_estimate": 1400,
         "decomposition": [

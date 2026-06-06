@@ -1,7 +1,12 @@
 id: casual_exploration
+tier: 'plan'
 name: Casual Exploration
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: |
   Lightweight mode for "I just want to poke at this." Skips reproducibility
   formalisation, hypothesis registration, and publication-grade synthesis.
@@ -49,10 +54,10 @@ steps:
   - id: scratch_first
     name: Default to Scratch Sandbox
     description: |
-      Prefer tool_scratch_write + tool_scratch_run for one-off code instead
-      of versioned step scripts. Keep iteration cheap. Only graduate a
-      scratch file into the step's scripts/ when the researcher says "save
-      this" or "let's keep that".
+      Prefer tool_scratch(operation='write') + tool_scratch(operation='run')
+      for one-off code instead of versioned step scripts. Keep iteration
+      cheap. Only graduate a scratch file into the step's scripts/ when the
+      researcher says "save this" or "let's keep that".
 
   - id: minimal_logging
     name: Minimal Logging

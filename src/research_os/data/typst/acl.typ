@@ -14,7 +14,7 @@
     margin: (top: 2.0cm, bottom: 2.0cm, left: 1.7cm, right: 1.7cm),
   )
   set par(justify: true, leading: 0.55em)
-  set text(font: ("Times New Roman", "Times"), size: 10pt, lang: "en")
+  set text(font: "New Computer Modern", size: 10pt, lang: "en")
 
   align(center)[
     #text(size: 16pt, weight: "bold")[#title]

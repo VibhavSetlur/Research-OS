@@ -7,8 +7,9 @@ makes copy-paste guidance silently route through the deprecation telemetry
 path and confuses readers grepping the source for tool usage.
 
 This test grep-walks every protocol YAML under src/research_os/protocols and
-src/research_os_<pack>/protocols and fails if any of the 21 names listed in
-server._DEPRECATED_ALIASES appears as a whole word.
+src/research_os_<pack>/protocols and fails if any *currently deprecated* alias
+(server._DEPRECATED_ALIASES) OR *previously removed* alias (the v1.6.1 names
+in server._REMOVED_TOOLS) appears as a whole word.
 
 Scope:
 - Includes core protocols + every domain pack (humanities, qualitative,
@@ -16,6 +17,10 @@ Scope:
 - Excludes the router index (handled by the integration agent in lockstep
   with this sweep; it is the only file that may keep a transition entry).
 - Excludes tests and server.py themselves — the aliases are defined there.
+
+Why include the removed names: a shipped protocol that still calls
+``sys_path_create`` would surface a friendly _REMOVED_TOOLS error to the AI
+the first time it tried to run that step. Catch it here, not at runtime.
 """
 
 from __future__ import annotations
@@ -25,10 +30,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Mirror of server._DEPRECATED_ALIASES; kept inline so this test doesn't
-# import the server module (cheap + decoupled).
+# Mirror of server._DEPRECATED_ALIASES ∪ the v1.6.1 hard-removals in
+# server._REMOVED_TOOLS; kept inline so this test doesn't import the server
+# module (cheap + decoupled).
 DEPRECATED_ALIASES: frozenset[str] = frozenset(
     {
+        # Phase-14a (v2.0.0) hard-removals — must not reappear.
         "tool_search_semantic_scholar",
         "tool_search_pubmed",
         "tool_search_crossref",

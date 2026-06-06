@@ -1,7 +1,12 @@
 id: synthesis_lay_summary
+tier: 'synthesize'
 name: Synthesis — Lay Summary (public / press / outreach)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor, maintainer]
+  workflow_shape: [systems_benchmark]
 description: |
   Compile a plain-language summary of the project for a NON-EXPERT
   audience — funder lay-summary section, press release, university
@@ -217,8 +222,8 @@ steps:
         - no untrue precision ("50.2%" reads as more precise than the
           study supports; round to the precision the data warrant)
 
-      tool_audit_synthesis paper_path="synthesis/lay_summary.md"
-      and tool_audit_claims if the source numbers came from the
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/lay_summary.md"
+      and tool_audit(scope='project', dimension='claims') if the source numbers came from the
       workspace.
 
   - id: handback

@@ -1,0 +1,109 @@
+{
+  "scenario": "qualitative_interviews",
+  "perspective": "auditor",
+  "final_rating": 8.1,
+  "high_friction_count": 3,
+  "first_5_turns_high_friction": 1,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "qualitative_side_auditor_tool_still_missing",
+      "description": "The single most-acute baseline gap — tool_qualitative_quality_audit as a first-class machine-checkable auditor surface — has NOT been shipped. methodology/qualitative_quality_audit is still a protocol-prose-only gate. The auditor still has to read the protocol's 8 steps (saturation_evidence_check / reflexivity_statement_check / intercoder_agreement_check / member_checking_attempted / quote_anonymisation_audit / audit_trail_check / write_audit_summary / append_to_methods_and_conclusions) and hand-execute each via tool_python_exec + sys_file_read. tool_audit_quality_full does not chain it. tool_audit(scope=, dimension=) has no `dimension='qualitative'` value. The audit_and_validation YAML now mentions `domain: [qualitative]` in scope_tags and the audit_master step description was modernised, but neither wires a qualitative gate into the master chain. The qualitative pack still ships only 3 tools (codebook_diff, quote_provenance, select_standard) — all scaffold writers, none returning structured pass/fail to the master audit. Net for an 8-participant interview study from the auditor's seat: the rigor verdict on saturation / reflexivity / κ / member-checking / quote-anon / audit-trail is still split across protocol-prose .md outputs and never rolled up into a structured envelope.",
+      "suggested_fix": "v2.1.0 must ship tool_qualitative_quality_audit (or extend tool_audit with dimension='qualitative_quality'). It should read codebook.md + themes.md + reflexivity.md + member-checking artefacts + redaction ledger + COREQ/SRQR coverage and emit a structured `blockers:[{code, dimension, severity, override_kwarg, fix_hint, evidence_paths}]` array shaped exactly like tool_audit_findings does today. Wire it into tool_audit_quality_full so it runs whenever the project domain is qualitative. Add the same pattern for tool_qualitative_redaction_audit + tool_qualitative_provenance_verify."
+    },
+    {
+      "severity": "HIGH",
+      "category": "provenance_completeness_still_stem_only",
+      "description": "audit/provenance_completeness is unchanged from baseline: STEM-shaped sidecar schema (script + git SHA + RNG seed + numpy/pandas/scipy/sklearn versions + input file hashes + wall-time) applied uniformly to every workspace output. There is no qualitative branch, no qualitative sidecar schema (pseudonym_map_sha256 / policy_sha256 / presidio_version / spacy_model_version / coder_id / coding_session_id), and no machine verification of the deterministic-re-run claim for redaction ledgers. For an 8-participant interview study, the auditor still faces 0% coverage on the qualitative outputs (codebook.md, themes.md, reflexivity.md, member-check responses, redaction ledgers) OR has to hand-carve them out of the inventory before the master gate runs cleanly. Phase 9's consolidation reduced tool surface but did not reach into the provenance schema itself.",
+      "suggested_fix": "v2.1.0: define a qualitative-provenance sidecar schema documented in docs/AUDIT_SURFACE.md. Have provenance_completeness branch on step_intent / domain — when qualitative, look for the qualitative sidecar fields instead of rng_seed / package versions. Ship tool_qualitative_provenance_verify that re-runs detect_and_redact against the same raw transcripts + map and confirms byte-identical ledger sha256."
+    },
+    {
+      "severity": "HIGH",
+      "category": "promised_pii_redact_wrapper_still_unshipped",
+      "description": "methodology/qualitative_pii_redaction's detect_and_redact step still punts to researcher-authored scripts/qual_pii_redact.py via tool_python_exec. There is no tool_qualitative_pii_redact / tool_pii_redact / tool_redact wrapper in the TOOL_DEFINITIONS surface (verified by name probe — zero matches). From the auditor's seat the de-identification trail is researcher-authored prose-script-plus-LLM-prompt: there is no machine-verifiable guarantee that today's redacted transcripts come from the same Presidio + spaCy + regex passes that produced last week's. The pseudonym map is gitignored (rightly), so a year-from-now auditor cannot confirm reproducibility. The roadmap mentions a 'dedicated first-class MCP wrapper is planned but not yet shipped' but v2.0.0 ships without it.",
+      "suggested_fix": "v2.1.0: ship tool_pii_redact(operation='detect'|'apply'|'audit'). Bundle a frozen Presidio version + spaCy model + regex policy; emit ledger entries with the policy_sha256 field referenced above. Wire the audit operation into tool_audit_quality_full so a non-zero false_negative count surfaces as a structured BLOCK."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "53_tools_still_missing_short_field",
+      "description": "Down from 89 → 53 tools missing the `short` field. list_tools still falls back to the first sentence of `description` for these, which for several sys_* tools (sys_checkpoint_create / sys_checkpoint_list / sys_dep_inventory / sys_export_share_archive / sys_file_*) leaks raw description prose into the auditor's startup payload. Phase 9 / 11 closed about 40% of the gap, but not all of it. The remaining 53 are concentrated in sys_* + mem_* — exactly the tools an auditor encounters first when scanning the surface.",
+      "suggested_fix": "Backfill `short` on the remaining 53. Five-minute job per tool. Prioritise sys_file_* and sys_checkpoint_* — the ones an auditor needs in turn 1."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "override_log_still_single_band",
+      "description": "audit/pre_submission_checklist's override_audit_review step is unchanged from baseline: it reads workspace/logs/override_log.md as a single stream of UNRESOLVED bypasses. AUTO-WAIVED (gate auto-waived by step_intent: analyse + figure_required: false + qualitative method) vs MANUAL-OVERRIDE (researcher passed override_completeness_gate=true) vs UNRESOLVED (genuine bypass with no rationale) are not distinguished. step_summary.yaml now does carry a `gates_waived:` block in some places, but pre_submission_checklist does not consume it. From the auditor's seat the master audit_report.md still says 'figure_gate not run' instead of 'figure_gate WAIVED by step_intent'.",
+      "suggested_fix": "v2.1.0: read both step_summary.yaml.gates_waived AND override_log.md in override_audit_review; classify each into AUTO-WAIVED | MANUAL-OVERRIDE | UNRESOLVED with different severity bands and surface the source-of-waiver in audit_report.md."
+    },
+    {
+      "severity": "LOW",
+      "category": "tool_route_message_param_naming",
+      "description": "tool_route takes `prompt:` (verified at runtime) but the natural AI-client tendency is to pass `message:` — the parameter the MCP instructions effectively describe ('after every researcher message'). Calling with `message:` raises a KeyError without a hint that the right name is `prompt:`. A 5-line schema validation message would catch this in one turn instead of two.",
+      "suggested_fix": "v2.1.0: alias the `message` arg to `prompt` in tool_route's handler (one-line setdefault) AND ship a JSON-schema with both as named optional + required-one-of, OR rename the param to `message` to match the verb in MCP instructions."
+    },
+    {
+      "severity": "LOW",
+      "category": "claims_audit_path_resolution_workspace_prefix",
+      "description": "tool_audit_quality_full's claims gate looks for the synthesis target at `root/synthesis/paper.md` not `root/workspace/synthesis/paper.md`. The convention elsewhere in the codebase is that everything writeable lives under workspace/. This is a paper-cut: the auditor places paper.md where every other artefact lives, and the claims component silently reports 'no synthesis target found'. The fix is a 2-line additional fallback in claim_grounding.py.",
+      "suggested_fix": "Add `workspace/synthesis/paper.md` (and the parallel report/abstract/null_findings) to the candidate list in claim_grounding._audit_claim_grounding()."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full vs tool_audit(scope='project', dimension='*') — overlapping scopes still both surfaced; the auditor cannot tell at a glance whether tool_audit_quality_full chains tool_audit internally or whether they're independent. Documenting the chain in one short sentence on the tool_audit_quality_full description would close it.",
+    "tool_ground vs tool_verify vs tool_audit_findings (operation='query') — three claim/evidence-flavored surfaces. tool_ground writes; tool_verify reads-and-checks; tool_audit_findings reads-and-replays. The relationship is clearer than baseline (consolidation cut grounding from 3 tools to 1), but still benefits from a one-paragraph docs/AUDIT_SURFACE.md note."
+  ],
+  "confusing_protocols": [
+    "audit/provenance_completeness — still STEM-shaped sidecar schema (rng_seed / sha256 / software.packages) applied uniformly; no qualitative branch or qualitative sidecar schema documented. From the auditor's seat the protocol promises blanket coverage but produces a false-negative wall when run against qualitative artefacts.",
+    "methodology/qualitative_quality_audit — improved (scope_tags now present, summary mode is clean) but still has NO enforcing tool. The 6 rigor dimensions (saturation / reflexivity / κ / member-checking / quote-anon / audit-trail) are protocol-prose gates only; tool_audit_quality_full does not chain them. The auditor reads the protocol body to know what to enforce, hand-runs tool_python_exec for κ, then writes the verdict to a .md the master audit does not consume.",
+    "methodology/qualitative_pii_redaction — protocol now mentions the planned tool_pii_redact wrapper but it is still not in the TOOL_DEFINITIONS surface. The detect_and_redact step continues to tell the AI to write its own qual_pii_redact.py script. From the auditor's seat the de-identification trail is researcher-authored and not machine-verifiable."
+  ],
+  "never_called_tools": [
+    "tool_audit_findings_diff (operation on tool_audit_findings still exists but the legacy name is now an alias that an auditor probably never types)",
+    "tool_humanities_citation_chain (humanities pack; not used for qualitative interviews)",
+    "tool_engineering_benchmark",
+    "tool_wet_lab_protocol_compose",
+    "tool_theory_math_proof_outline",
+    "tool_slurm_submit / tool_slurm_status (slurm pack)",
+    "tool_snakemake_run / tool_snakemake_dag",
+    "tool_nextflow_run",
+    "tool_cytoscape_load",
+    "tool_redcap_pull",
+    "tool_synapse_pull",
+    "tool_julia_exec / tool_r_exec / tool_rmarkdown_render (not invoked in a typical qualitative pass)",
+    "tool_paper_compile_typst / tool_paper_figures_autoembed",
+    "tool_humanities_essay_scaffold",
+    "tool_search_arxiv / tool_search_pubmed / tool_search_crossref (auditor reads, doesn't search)",
+    "sys_export_share_archive"
+  ],
+  "improvements_vs_baseline": [
+    "Tool count down from 226 → 146 (Phase 9 consolidation): a single auditor's audit-relevant surface dropped from ~42 tools to ~15 (tool_audit / tool_audit_quality_full / tool_audit_findings / tool_ground / tool_verify / tool_reviewer / tool_preregister / tool_citations_verify / tool_discussion_coverage_audit / tool_writing_discussion_from_verdicts / tool_redteam_review / tool_reliability / tool_plan_step_grounded / mem_citations_generate / tool_humanities_citation_chain).",
+    "tool_audit_figure_full / _coverage / _interactivity → collapsed into tool_audit(scope=, dimension='figures'). The auditor no longer has to choose among 4 figure auditors.",
+    "tool_grounding_register / tool_grounding_verify / tool_ground_from_context → collapsed into tool_ground(mode=) plus tool_verify. Two clean nouns where there were five.",
+    "tool_redteam_review / tool_reviewer_simulate / tool_dashboard_reviewer_sim / tool_reviewer_response_compile / tool_response_to_reviewers / tool_rebuttal_draft → collapsed into tool_reviewer(operation=simulate|response|rebuttal|compile). Six tools → one.",
+    "Every tool in TOOL_DEFINITIONS now has `status` populated (146/146) and `pack` populated (146/146). The previously-promised Phase 9 fields shipped completely.",
+    "MCP `instructions` field is set at the Server() level, naming the boot sequence (sys_boot → tool_route → sys_protocol_get → sys_active_tools). The auditor (and any compliant MCP client) sees the canonical ritual at handshake instead of discovering it via sys_help.",
+    "sys_protocol_get default format is now 'summary' instead of 'full'. A summary load for audit_and_validation now returns the 11-step list with names only — about 75% smaller than the baseline-era default 'full' payload. The auditor can choose to expand a step with format='step', step_id='audit_master' instead of swallowing the entire YAML.",
+    "tool_route output now includes `recommended_action` (literal next-call hint, e.g. \"sys_protocol_get(protocol_name='methodology/qualitative_research', format='summary')\") AND `why_matched` (triggers + intent class). The auditor's first turn lands a useful next call without a second route.",
+    "sys_boot exists as a single-call session bootstrap (project name + pipeline stage + history tail + dep inventory + next protocol + freshness). The baseline-era 4-5 separate startup calls collapsed.",
+    "tool_audit_quality_full now returns structured `components: {step_completeness, code_quality, prose_quality, claims, preregistration_diff, grounding}` with per-component {status, blockers, advice}. The auditor sees per-dimension verdicts in the envelope — no follow-up sys_file_read for the master verdict. Directly addresses baseline friction #4 (opaque_blocker_messages).",
+    "tool_audit_findings(operation='query') returns each finding as a structured record with {dimension, severity, override_kwarg, override_log_format, suggested_fix, evidence_paths}. The override flag name is in the envelope; no more guess-the-flag.",
+    "tool_synthesize's BLOCKED error message names the exact override flag (override_unresolved_blocks) AND the required rationale parameter (override_rationale='<one-line why>'). Baseline #4's 'override flag name is not in the error' is fixed.",
+    "Every protocol now carries `scope_tags: {domain, audience, workflow_shape}`. audit_and_validation tags audience=[auditor], domain=[qualitative], workflow_shape=[experiment_pipeline]. methodology/qualitative_quality_audit tags audience=[auditor, maintainer], domain=[qualitative], workflow_shape=[interview_study]. The router and discovery surface can now filter by perspective in principle.",
+    "audit_and_validation's audit_master step body has been modernised: 'For per-step debugging, the components are also exposed individually: tool_audit(scope='step', dimension='completeness'), ...'. The unified tool_audit syntax is documented inline. The 6 baseline-era per-component tool names that the auditor saw twice are no longer duplicated in step bodies.",
+    "audit/pre_submission_checklist's summary view now lists 13 named steps cleanly (scope_submission → produce_the_verdict) — the 353-line doctrine essay is hidden behind format='full'. The auditor can quickly scan what's gated without reading the rationale.",
+    "Total deprecated aliases = 78 (in _DEPRECATED_ALIASES), confirming Phase 9 collapsed a large legacy surface that now routes through param injection rather than living as separate tools."
+  ],
+  "remaining_recommendations": [
+    "v2.1.0 must ship tool_qualitative_quality_audit (or extend tool_audit with dimension='qualitative_quality'). Wire it into tool_audit_quality_full so the master gate auto-runs it when domain is qualitative. Make the qualitative pack's 3 scaffold-writer tools (codebook_diff, quote_provenance, select_standard) feed into its blocker analysis.",
+    "Ship tool_pii_redact(operation='detect'|'apply'|'audit') — the qualitative_pii_redaction protocol promises this MCP wrapper, but v2.0.0 still punts to a researcher-authored script. The detect_and_redact step's reproducibility claim has no enforcement without it.",
+    "Add a qualitative-provenance sidecar schema (pseudonym_map_sha256 / policy_sha256 / presidio_version / spacy_model_version / coder_id / coding_session_id). Have provenance_completeness branch on step_intent / domain — when qualitative, look for the qualitative sidecar fields instead of rng_seed / package versions. Ship tool_qualitative_provenance_verify to confirm deterministic-re-run.",
+    "Backfill the remaining 53 tools missing the `short` field. Prioritise the sys_file_* / sys_checkpoint_* / sys_export_* tools the auditor hits in turn 1.",
+    "Add audit_flow.md to docs/ showing the audit DAG (provenance_completeness → audit_and_validation → discussion_coverage → synthesis → pre_submission_checklist) with which artefacts each consumes/produces. Phase 9's consolidation closed the tool-count problem but the order-of-operations problem is still 'read 4 protocol summaries and infer'.",
+    "Distinguish AUTO-WAIVED (gate auto-waived by step_intent: analyse + figure_required: false + qualitative method) from MANUAL-OVERRIDE (researcher passed override flag) from UNRESOLVED (genuine bypass) in pre_submission_checklist's override_audit_review step. Surface the source-of-waiver in audit_report.md.",
+    "Add a `coding_paradigm:` field to study_design.yaml (codebook_TA | reflexive_TA | grounded_theory | framework) and have tool_qualitative_quality_audit branch on it: codebook → require κ ≥ 0.7; reflexive → require trustworthiness criteria; grounded → require theoretical saturation. Encode the epistemological branch in YAML, not in protocol prose.",
+    "Add `workspace/` prefix to claim_grounding.py's synthesis target candidate list. One-line fix that closes a confusing paper-cut for any auditor placing paper.md under workspace/synthesis/.",
+    "Document tool_audit_quality_full vs tool_audit(scope='project', dimension='*') chain semantics in one sentence on the tool_audit_quality_full description. Same for tool_ground vs tool_verify vs tool_audit_findings: a 3-paragraph docs/AUDIT_SURFACE.md note would put the relationships in one place.",
+    "Add an alias `message` → `prompt` on tool_route's handler. AI clients consistently reach for `message:` because the MCP instructions and the prose ('after every researcher message') name that noun."
+  ]
+}

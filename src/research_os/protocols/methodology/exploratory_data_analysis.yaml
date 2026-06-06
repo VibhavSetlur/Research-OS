@@ -1,7 +1,12 @@
 id: exploratory_data_analysis
+tier: 'plan'
 name: Exploratory Data Analysis (EDA + hypothesis generation)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Real EDA workflow — open-ended, hypothesis-GENERATING, NOT a
   hypothesis-confirming step inside `analysis_plan`. The point is to
@@ -96,7 +101,7 @@ steps:
     name: Data-quality profile (sampled)
     description: |
       For each in-scope tabular file:
-        tool_data_profile filepath=<path>
+        tool_data(operation='profile', filepath=<path>)
 
       Read the profile report. Note:
         - missingness pattern (random vs systematic)

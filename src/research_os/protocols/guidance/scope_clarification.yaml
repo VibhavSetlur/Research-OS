@@ -1,7 +1,12 @@
 id: scope_clarification
+tier: 'intake'
 name: Scope Clarification (vague intent → workable scope)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: |
   Convert a vague, broad, or cross-disciplinary research ask into a
   workable scope BEFORE picking a protocol. Use this when:

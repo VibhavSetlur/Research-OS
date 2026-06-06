@@ -1,7 +1,12 @@
 id: project_startup
+tier: 'intake'
 name: Project Startup
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
 trigger: Second protocol every new project — and any time inputs/ changes substantially.
@@ -81,7 +86,7 @@ steps:
     name: Profile Each Data File (sampled)
     description: |
       For every tabular file (csv|tsv|parquet|feather|xlsx|json|jsonl) in
-      inputs/raw_data/, call tool_data_profile filepath=<that file>.
+      inputs/raw_data/, call tool_data(operation='profile', filepath=<that file>).
       Read the resulting reports — note any high-missingness columns or tiny
       sample sizes. These constraints feed methodology_selection later.
       For non-tabular files (.fasta, .nii, .dcm, …) just note their presence
@@ -90,7 +95,7 @@ steps:
   - id: snapshot_global_environment
     name: Initialise Global Environment
     description: |
-      sys_env_snapshot — writes the current interpreter's packages to
+      sys_env(operation='snapshot') — writes the current interpreter's packages to
       environment/requirements.txt. Per-experiment environments inherit from
       this baseline. R / Julia / conda lockfiles are picked up automatically
       if they exist at the project root.

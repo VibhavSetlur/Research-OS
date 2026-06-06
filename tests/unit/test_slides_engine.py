@@ -162,7 +162,7 @@ def test_touying_engine_compiles_to_pdf(project: Path) -> None:
 def test_touying_handout_pdf_emitted_when_requested(project: Path) -> None:
     res = compile_slides(project, engine="touying", print_handout=True)
     assert res["status"] == "success"
-    handout_pdfs = [f for f in res["files"] if f.endswith("slides_handout.pdf")]
+    handout_pdfs = [f for f in res["files"] if f.endswith("slides.handout.pdf")]
     assert handout_pdfs, f"handout missing; files={res['files']}"
     p = Path(handout_pdfs[0])
     assert p.exists()

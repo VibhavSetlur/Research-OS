@@ -1,8 +1,7 @@
 """Typst-native poster compilation.
 
-Default poster engine for ``tool_poster_create``. The tikzposter LaTeX
-path lives in ``synthesis/latex.py:create_poster`` and stays reachable
-via researcher_config ``synthesis.poster_engine="latex"``.
+The only poster engine for ``tool_poster_create``. The ``synthesis.poster_engine``
+config field is pinned to ``"typst"`` and rejects any other value.
 
 Public surface:
   * compile_poster(root, template, theme, qr_url, handout_pdf) -> dict
@@ -448,8 +447,9 @@ def _typst_compile(src: Path, out: Path) -> dict[str, Any]:
                 "or your package manager."
             ),
         }
+    from research_os.tools.actions.synthesis.typst import _typst_compile_argv
     proc = subprocess.run(
-        [typst_bin, "compile", src.name, out.name],
+        _typst_compile_argv(typst_bin, src.name, out.name),
         cwd=str(src.parent),
         capture_output=True,
         text=True,
@@ -498,7 +498,7 @@ def compile_poster(
     qr_url : str | None
         If set, render a QR PNG and place it in the footer.
     handout_pdf : bool
-        If True (default), also emit ``synthesis/poster_handout.pdf`` —
+        If True (default), also emit ``synthesis/poster.handout.pdf`` —
         a US-letter text-only condensed companion.
 
     Returns
@@ -653,8 +653,8 @@ def compile_poster(
     handout_path: Path | None = None
     handout_warnings: list[str] = []
     if handout_pdf:
-        handout_typ = synthesis_dir / "poster_handout.typ"
-        handout_pdf_path = synthesis_dir / "poster_handout.pdf"
+        handout_typ = synthesis_dir / "poster.handout.typ"
+        handout_pdf_path = synthesis_dir / "poster.handout.pdf"
         handout_typ.write_text(_emit_handout_typst(
             title=title,
             subtitle=subtitle,

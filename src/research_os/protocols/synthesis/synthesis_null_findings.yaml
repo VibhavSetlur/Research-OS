@@ -1,7 +1,12 @@
 id: synthesis_null_findings
+tier: 'synthesize'
 name: Synthesis — Null findings & inconclusive results
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [researcher]
+  workflow_shape: [any]
 description: |
   Assemble a publishable companion document for findings that DIDN'T
   pan out: refuted hypotheses, underpowered tests, abandoned
@@ -13,7 +18,7 @@ description: |
 
   This protocol is opt-in but strongly recommended whenever the
   project's hypothesis tracker carries any `refuted` or
-  `inconclusive` entries, or when `tool_audit_power` flagged tests
+  `inconclusive` entries, or when `tool_audit(scope='step', dimension='power')` flagged tests
   as underpowered.
 
 trigger: |
@@ -71,7 +76,7 @@ steps:
           effect / a small effect."
         - **Specification-fragile null** — the result depends on the
           analytic choices made. Consider running a sensitivity grid
-          (`tool_sensitivity_run`) before concluding; specification
+          (`tool_sensitivity(operation='run')`) before concluding; specification
           curves are the standard companion plot here.
         - **Dead-end** — methodological / data quality reason the
           test couldn't run as planned. Document the reason
@@ -107,7 +112,7 @@ steps:
     description: |
       For each "specification-fragile" classification, the
       strongest companion figure is a specification curve
-      (`tool_sensitivity_run`'s output). It shows reviewers exactly
+      (`tool_sensitivity(operation='run')`'s output). It shows reviewers exactly
       how robust (or not) the null is to the analytic choices.
 
       For adequately powered nulls, an equivalence-test forest plot

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "1.11.0"
+version = "2.0.0"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -152,6 +152,12 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "src/research_os/server.py" = ["E402"]
 "src/research_os/state/state_ledger.py" = ["E402"]
+# Phase-10 modular split: handler modules use `from .._handlers_runtime
+# import *` so each carved-out file inherits the runtime surface (envelopes,
+# logger, lazy-imported tool actions, helper funcs) without re-declaring it.
+# F403/F405 are the intended pattern here.
+"src/research_os/server/handlers/*.py" = ["F403", "F405"]
+"src/research_os/server/__init__.py" = ["F403", "F405"]
 # __init__.py re-exports legitimately import-and-export without using
 # the symbol inline. Limit F401 ignore to __init__.py so the rest of
 # the source tree can flag genuinely unused imports.
@@ -180,5 +186,28 @@ packages = [
     "src/research_os_adapter_cytoscape",
     "src/research_os_adapter_redcap",
     "src/research_os_adapter_synapse",
+]
+# Force-include vendored binary assets that hatchling's default ignore
+# rules would otherwise skip. Bundled fonts (New Computer Modern, OFL
+# / GUST-licensed) eliminate Typst font-cascade warnings on systems
+# without Linux Libertine / Times installed.
+artifacts = [
+    "src/research_os/assets/fonts/*.otf",
+    "src/research_os/assets/fonts/LICENSE.txt",
+    "src/research_os/assets/fonts/README.txt",
+]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "tests/",
+    "scripts/",
+    "docs/",
+    "templates/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CITATION.cff",
+    "pyproject.toml",
 ]
 

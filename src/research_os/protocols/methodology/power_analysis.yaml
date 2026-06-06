@@ -1,7 +1,12 @@
 id: power_analysis
+tier: 'plan'
 name: Power Analysis / Sample Size Justification (standalone)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Standalone power / sample-size justification — for the case where the
   researcher needs the calculation as a deliverable in its own right

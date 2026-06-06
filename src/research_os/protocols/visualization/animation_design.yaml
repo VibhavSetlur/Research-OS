@@ -1,7 +1,12 @@
 id: animation_design
+tier: 'synthesize'
 name: Animation Design (time-series, model behaviour, talks)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-02'
 description: |
   Animation earns its place when CHANGE OVER TIME (or another

@@ -1,7 +1,12 @@
 id: writing_analysis_log
+tier: 'plan'
 name: Writing — Analysis Log
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [naive_ai]
+  workflow_shape: [any]
 description: |
   Format for structured entries appended to `workspace/analysis.md` —
   the project-wide narrative log a fresh AI session reads top-to-bottom

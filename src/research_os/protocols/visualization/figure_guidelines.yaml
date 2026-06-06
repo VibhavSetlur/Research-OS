@@ -1,7 +1,12 @@
 id: figure_guidelines
+tier: 'synthesize'
 name: Figure Guidelines
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-04'
 description: |
   The reasoning scaffold for producing publication-grade figures.
@@ -25,7 +30,7 @@ description: |
        briefly research the right tool, not default to matplotlib.
     2. A chart-chooser table (which kind for which question).
     3. The Okabe-Ito / viridis / PuOr CVD-safe palettes (call
-       `tool_figure_palette` or copy the hex codes from
+       `tool_figure(operation='palette')` or copy the hex codes from
        `visualization/color_accessibility_audit`).
     4. A `common_pitfalls_to_avoid` catalog drawn from real
        reviewer-blocking mistakes — label overlap, clipped y-axes,
@@ -168,8 +173,8 @@ common_pitfalls_to_avoid:
       threshold, then later tries to annotate a named list. Points
       that got filtered out are labelled at the origin (y=0) and look
       like negative findings when they were actually never tested.
-      Surfaced in genomics e2e: IL6 + CCL2 below the low-count filter
-      appeared at y=0 in the volcano with full bold labels.
+      Common in volcano plots: a gene below the low-count filter
+      appears at y=0 with full bold labels.
     fix: |
       After filtering, check `set(label_list) - set(tested_genes)` and
       either (a) explicitly footnote the omitted names in the caption,
@@ -200,9 +205,9 @@ common_pitfalls_to_avoid:
 
   dejavu_sans_default:
     rule: |
-      matplotlib's bundled DejaVu Sans renders fine but looks dated in
-      2026 — every other figure uses it. Real papers use Inter,
-      Helvetica Neue, Source Sans, or (open-source) Liberation Sans.
+      matplotlib's bundled DejaVu Sans renders fine but looks dated —
+      every other figure uses it. Real papers use Inter, Helvetica
+      Neue, Source Sans, or (open-source) Liberation Sans.
     fix: |
       Set a font stack with fallbacks:
         plt.rcParams['font.sans-serif'] = ['Inter', 'Helvetica Neue',
@@ -334,7 +339,7 @@ mandatory_per_step_figure:
     saved to workspace/<step>/outputs/figures/<step_number>_<descriptor>.png
     even if the step's role is data plumbing or methodology selection.
     A step with no visual representation is hard to follow, hard to
-    review, and gets skipped in dashboards. tool_audit_step_completeness
+    review, and gets skipped in dashboards. tool_audit(scope='step', dimension='completeness')
     flags this as a BLOCKER that gates tool_synthesize.
   rationale: |
     Researchers follow analysis visually before they follow it
@@ -347,7 +352,7 @@ mandatory_per_step_figure:
     formats: PNG (raster) + SVG (vector when possible — enables deeper audit)
     caption_sidecar: required — <name>.caption.md (technical)
     summary_sidecar: required — <name>.summary.md (plain-English;
-                     tool_figure_caption_synthesise drafts a starter
+                     tool_figure(operation='caption_synthesise') drafts a starter
                      from the step's Findings)
 
 figure_family_when_step_has_a_model:
@@ -420,8 +425,8 @@ formatting:
   palettes:
     sequential: viridis
     diverging: PuOr / RdBu_r
-    qualitative: Okabe-Ito (CVD-safe; call tool_figure_palette
-                 kind=qualitative for hex codes)
+    qualitative: Okabe-Ito (CVD-safe; call tool_figure(operation='palette',
+                 kind='qualitative') for hex codes)
   typography:
     axis_label_size: ≥10pt
     tick_label_size: ≥9pt
@@ -532,7 +537,7 @@ caption_rules:
         finding.
     generation: |
       Either write it yourself in your voice, OR run
-      tool_figure_caption_synthesise figure_path=<rel> to produce a
+      tool_figure(operation='caption_synthesise', figure_path=<rel>) to produce a
       competent draft from the existing caption + the step's
       conclusions.md Findings section, OR run tool_path_finalize
       which auto-synthesises missing summaries for every figure in
@@ -572,8 +577,8 @@ steps:
         workspace/<step>/outputs/figures/<NN>_<short_descriptor>.png
         workspace/<step>/outputs/figures/<NN>_<short_descriptor>.svg
             (highly recommended — enables the SVG label-overlap audit)
-      DPI ≥ 300. Palette CVD-safe (call tool_figure_palette
-      kind=qualitative|sequential|diverging|accent).
+      DPI ≥ 300. Palette CVD-safe (call tool_figure(operation='palette',
+      kind='qualitative'|'sequential'|'diverging'|'accent')).
 
   - id: write_caption
     name: Write the Technical Caption
@@ -593,14 +598,14 @@ steps:
         **How to read it.** [axes / colour / trend cue in plain language]
         **Why it matters.** [link to the step's headline finding]
 
-      Quickest path: tool_figure_caption_synthesise
-      figure_path=<rel> drafts from the existing caption + the step's
+      Quickest path: tool_figure(operation='caption_synthesise',
+      figure_path=<rel>) drafts from the existing caption + the step's
       conclusions.md Findings. Polish in your voice.
 
   - id: pre_publish_self_review
     name: Pre-publish self-review (run before audit + finalize)
     description: |
-      Before calling `tool_audit_figure_full` or `tool_path_finalize`,
+      Before calling `tool_audit(scope='step', dimension='figure_full')` or `tool_path_finalize`,
       walk this checklist for EVERY figure you wrote. Each item
       catches a real reviewer-blocking mistake.
 
@@ -643,12 +648,12 @@ steps:
   - id: audit
     name: Audit the Figure (server-enforced gate)
     description: |
-      tool_audit_figure_full filepath="workspace/<step>/outputs/figures/<name>.png"
+      tool_audit(scope='step', dimension='figure_full') filepath="workspace/<step>/outputs/figures/<name>.png"
       Checks DPI, dimensions, caption + summary presence, SVG companion,
       aspect-ratio sanity for time series, AND (when SVG is present)
       a text-overlap heuristic that catches the "stacked labels"
       pitfall above. Emits BLOCKERs and warnings that
-      tool_audit_step_completeness aggregates.
+      tool_audit(scope='step', dimension='completeness') aggregates.
 
       `tool_path_finalize` ALSO runs this audit on every figure in
       the step automatically, and surfaces blockers / warnings in

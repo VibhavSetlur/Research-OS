@@ -1,5 +1,53 @@
 # FAQ
 
+## v2.0.0 (the short answer)
+
+### What changed in v2.0.0?
+
+The headline shape change is a **tool surface consolidation
+(344 → 146 live)** plus a flip of `sys_protocol_get` to default
+`format='summary'`. Both are breaking on paper but **every legacy
+tool name still dispatches via alias for the v2.0.x runway** — most
+projects upgrade with zero call-site edits. After
+`pip install --upgrade research-os`, run **`research-os doctor`** for
+an 18-check install + workspace health report (exit 0 = all pass,
+1 = warn-only, 2 = fail). See
+[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) for the full upgrade
+recipe.
+
+Other v2.0.0 highlights:
+
+* **MCP `instructions` field on the initialize handshake** — names
+  the canonical boot ritual (`sys_boot → tool_route →
+  sys_protocol_get(format=summary) → sys_active_tools`) so a fresh
+  MCP client sees it instead of discovering it.
+* **`tool_route.recommended_action` + `why_matched`** — the router
+  returns a literal next-call string and a short rationale on every
+  match, so the AI doesn't burn a turn deciding what to call next.
+* **Audit-as-data** — every audit emits a JSON companion + appends
+  to the cross-audit ledger at
+  `workspace/logs/.audit_findings.jsonl`. Query with
+  `tool_audit_findings(operation='query', severity='block')`.
+* **Drafter review-rewrite loops** — `tool_paper_compile_typst` and
+  `tool_poster_create` iterate draft → adversarial review → rewrite,
+  with per-iteration outputs at
+  `workspace/logs/drafter_loops/<deliverable>_iter_<N>.{md,json}`.
+* **`research-os doctor`** — 18+ install + workspace health checks.
+* **`tier:` + `scope_tags`** on every protocol (117/117) — wires the
+  router to filter candidates by project lifecycle and applicability.
+* **New discovery tools** — `tool_protocols_list` + `tool_tools_list`
+  return flat filterable catalogues.
+
+The Phase 15b 20-agent validation moved the mean rating
+**6.35 → 7.70 (+21%)** with **HIGH-friction items 124 → 63 (-49%)**;
+v2.0.0 ships with a documented YELLOW caveat that the absolute
+release-gate targets (calibrated against a v3-grade product) were
+not met. See
+[V2_VALIDATION_REPORT.md](V2_VALIDATION_REPORT.md) for the full
+analysis.
+
+---
+
 ## Setup
 
 ### Do I need a Claude / OpenAI / Anthropic API key?
@@ -33,8 +81,9 @@ project at all.
 ### Does it work on a shared server / HPC cluster?
 
 Yes. Set `runtime.shared_server: true` in `inputs/researcher_config.yaml`.
-The protocols will automatically background long jobs via `tool_task_run`
-(real `subprocess.Popen`) and warn before allocating heavy resources.
+The protocols will automatically background long jobs via
+`tool_task(operation='run')` (real `subprocess.Popen`) and warn before
+allocating heavy resources.
 
 ---
 
@@ -115,7 +164,7 @@ can override at any time:
 * "Write the paper" / "Make a poster" → jumps straight to synthesis.
 * "This experiment isn't working" → `guidance/dead_end_routing`.
 * "Run a custom analysis I'm designing" → `guidance/analysis_plan` with
-  `mem_methods_append implementation="custom"`.
+  `mem_log(kind='methods', implementation='custom', ...)`.
 
 ### My AI keeps writing 400-line mega-scripts. How do I stop that?
 
@@ -147,18 +196,25 @@ the dropped outputs once the researcher signals completion.
 
 ### Can I run multiple parallel experiments?
 
-Yes. `sys_path_create` adds the next numbered folder. Multiple active
-paths coexist (e.g. `02_logistic_baseline` AND `03_random_forest`). Use
-`tool_branch_recommendation` if you're not sure whether to branch or
-extend the current path.
+Yes. `sys_path(operation='create')` adds the next numbered folder.
+Multiple active paths coexist (e.g. `02_logistic_baseline` AND
+`03_random_forest`). Use `tool_branch_recommendation` if you're not
+sure whether to branch or extend the current path.
+
+(The legacy `sys_path_create` / `sys_path_abandon` / `sys_path_list`
+names were hard-removed in v2.0.0 — call `sys_path(operation=...)`
+with the matching `operation`. The `_REMOVED_TOOLS` error envelope
+names the canonical entry point if a stale caller hits the old name.)
 
 ### How do I track multiple hypotheses?
 
-`mem_hypothesis_add` to register one (auto-assigned H1, H2, … or you pick
-the ID), `mem_hypothesis_update` to log evidence + change status
-(testing / supported / refuted / inconclusive), `mem_hypothesis_list` to
-see the ledger. Every experiment step is asked which hypothesis IDs it
-touches.
+`mem_hypothesis_add` to register one (auto-assigned H1, H2, … or you
+pick the ID), `mem_log(kind='hypothesis', hypothesis_id='H01',
+status='supported', evidence='...')` to log evidence + change status
+(testing / supported / refuted / inconclusive), `mem_hypothesis_list`
+to see the ledger. Every experiment step is asked which hypothesis IDs
+it touches. (The legacy `mem_hypothesis_update` name was hard-removed
+in v2.0.0 — call `mem_log(kind='hypothesis', ...)`.)
 
 ### I have a text corpus / interview transcripts / a theorem to prove. Where do my files go?
 
@@ -351,6 +407,154 @@ Two patterns:
 * **Separate Research OS workspaces per paper**: each gets its own
   `inputs/`, `workspace/`, `synthesis/`. Use `inputs/context/` to drop
   pointers to the sibling project.
+
+---
+
+## v2.0.0 — new features (in depth)
+
+### What is `research-os doctor`?
+
+A CLI sub-command introduced in v2.0.0 that runs 18+ install +
+workspace health checks. Exit policy: 0 = all-pass, 1 = warn-only,
+2 = fail. The first thing the v2 migration guide tells you to run
+after `pip install --upgrade research-os`.
+
+```bash
+research-os doctor                    # full human-readable report
+research-os doctor --json             # machine-readable
+research-os doctor --verbose          # show fix hints for passing checks
+research-os doctor --workspace-only   # skip install checks
+research-os doctor --workspace .      # explicit workspace path
+```
+
+Checks include python version, conda env consistency, package version
+coherence (`pyproject.toml` vs `__init__.py` vs `CITATION.cff`), pack
+registration, embeddings freshness, IDE wiring, disk usage, git
+cleanliness, etc.
+
+### Why did `sys_protocol_get` get cheaper?
+
+The schema default flipped from `format='full'` to `format='summary'`
+in v2.0.0 — the single biggest token-cost win identified in the
+Phase 15a baseline. Summary view is ~3K chars (~300 tokens) vs
+~12-25K chars (1.5-3K tokens) for the full body. The response
+payload now carries a `_load_hint` field guiding the AI to drill
+into `format='step' | 'full' | 'lean' | 'dryrun'` only when needed.
+Per-turn token cost is 5-10× cheaper.
+
+Old callers that explicitly passed `format='full'` continue to work
+unchanged. If your AI client honours MCP `inputSchema` defaults, it
+sees the new default automatically.
+
+### What is the audit findings ledger?
+
+A new v2.0.0 surface that turns audit output into structured data.
+Every audit emits a JSON companion alongside the Markdown report
+and appends rows to the project-level append-only ledger at
+`workspace/logs/.audit_findings.jsonl`. Each row carries `id` (stable
+UUIDv5), `audit_name`, `severity` (`block | warn | info`),
+`dimension`, `evidence_paths`, `suggested_fix`, `ro_version`,
+`generated_at`.
+
+Query with `tool_audit_findings`:
+
+```python
+# List current active blockers (latest snapshot per stable id)
+tool_audit_findings(operation='query', severity='block')
+
+# Filter by dimension + step
+tool_audit_findings(
+    operation='query',
+    dimension='claims',
+    step='03_de_analysis',
+)
+
+# Confirm a fix actually resolved a BLOCK finding between two runs
+tool_audit_findings(
+    operation='diff',
+    timestamp_a='2026-06-05T10:00:00Z',
+    timestamp_b='2026-06-06T15:30:00Z',
+)
+```
+
+`tool_synthesize` BLOCK-gates on unresolved BLOCKs in the ledger and
+names the exact override flag in the error envelope
+(`override_unresolved_blocks=true` + `override_rationale='...'`).
+
+### What are drafter loops?
+
+A v2.0.0 addition where `tool_paper_compile_typst` and
+`tool_poster_create` iterate **draft → adversarial review → rewrite**
+instead of one-shot rendering. Per-iteration outputs land in
+`workspace/logs/drafter_loops/<deliverable>_iter_<N>.{md,json}` plus
+a cumulative `quality_progression.md` table. The reviewer personas
+are deliverable-aware: `presentation_critic`, `scope_creep_critic`,
+`methodology_skeptic` for papers; `presentation_critic` +
+`novelty_critic` for posters (max 2 iterations).
+
+Disable per call with `drafter_loop=false`; tune defaults via
+`synthesis.drafter_loop_iterations` and
+`synthesis.drafter_loop_personas` in `researcher_config.yaml`.
+
+### What is `tool_route.recommended_action`?
+
+A new v2.0.0 field on the `tool_route` return envelope: a literal
+next-call string the AI executes verbatim, e.g.
+`sys_protocol_get(protocol_name='methodology/qualitative_research',
+format='summary')`. Removes the "what do I call next" guess that
+burned a turn in the v1 baseline. The router also returns
+`why_matched` (semantic similarity score + matched triggers + tier)
+and `tier` (one of `intake | plan | execute | ground | synthesize |
+review | finalize`) so the AI can rank alternatives without
+re-routing.
+
+### My AI keeps calling the old `tool_audit_step_completeness`. Should I fix it?
+
+Not urgent. The legacy name still dispatches via `_ALIASES` +
+`_ALIAS_PARAM_INJECTION` through the v2.0.x runway — you'll see a
+deprecation warning logged to `.os_state/deprecations.log` but
+behaviour is identical. Sweep your call sites before v2.1.0 (the
+hard-removal target). `tool_deprecations_summary` aggregates the log
+for a quick view of which deprecated aliases your project still hits.
+
+The canonical v2 name is `tool_audit(scope='step',
+dimension='completeness')`. The full old → new mapping is at
+[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md).
+
+### What if my AI invents a tool name that doesn't exist?
+
+If the AI calls a name that's in `_REMOVED_TOOLS` (24 names
+hard-removed in v2.0.0 — see Phase 14a in
+[MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md)), Research-OS returns
+a friendly error naming the canonical v2 entry point. Example:
+
+> `tool_search_pubmed` was renamed to `tool_search` in v1.6.1 and
+> removed in v2.0.0; call `tool_search(query='...', source='pubmed')`
+> instead.
+
+For genuinely unknown names, the dispatcher returns "Unknown tool".
+The AI's self-recovery path is: `sys_tool_describe(name)` first; if
+that fails, `tool_tools_list(scope='all')` (or
+`sys_semantic_tool_search`) to browse the catalogue, or `sys_help`
+for orientation.
+
+### How do I discover what protocols + tools my project has?
+
+Two new v2.0.0 discovery tools:
+
+* `tool_protocols_list` — flat protocol catalogue with structured
+  metadata (name, category, pack, intent_class, tier, version, short
+  description). Filter by `category`, `pack`, `intent_class`,
+  `tier`.
+* `tool_tools_list` — flat MCP tool catalogue with `scope` (core or
+  pack name), summary, required input fields, deprecation status,
+  alias target. Filter by `scope`, `include_deprecated`.
+
+Both are cheaper than re-reading the docs and reflect what's actually
+loaded in the current session (which depends on which packs are
+installed). `sys_packs_installed` lists active packs;
+`sys_adapters_installed` lists infrastructure adapters
+(SLURM / Snakemake / Nextflow / Cytoscape / REDCap / Synapse).
 
 ---
 

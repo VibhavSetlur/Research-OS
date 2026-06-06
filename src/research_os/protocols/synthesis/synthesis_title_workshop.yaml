@@ -1,7 +1,12 @@
 id: synthesis_title_workshop
+tier: 'synthesize'
 name: Synthesis — Title Workshop (the single most-read sentence)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative, humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Generate, iterate, and pick a title for a paper / abstract /
   preprint / poster / grant / dissertation. The title is the

@@ -1,0 +1,125 @@
+{
+  "scenario": "theory_math_proof",
+  "perspective": "auditor",
+  "final_rating": 6.4,
+  "high_friction_count": 5,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "audit_surface_mismatch",
+      "description": "audit_master (tool_audit_quality_full) runs 6 sub-checks unconditionally: step_completeness, code_quality, prose_quality, claims, preregister_diff, grounding_verify. For a graph-theory proof step (step_intent: proof) three of these are nonsensical: code_quality (no scripts), claims (proofs are theorem statements, not numbers), preregister_diff (no SAP). The auditor sees noisy false-positive blockers in workspace/logs/audit_master.md and cannot tell genuine issues from category errors.",
+      "suggested_fix": "Make audit_master step_intent-aware: when step_intent: proof, skip code_quality / preregister_diff and replace claims with a theorem-statement coverage check (every theorem in synthesis/paper.md must resolve to a workspace/proofs/<slug>.md with a non-stub Proof section)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "provenance_for_proofs_undefined",
+      "description": "provenance_completeness.yaml is hardcoded for figures/CSVs/PKLs and demands rng_seed + software.packages + inputs. For a proof artifact (workspace/proofs/<slug>.md) those fields are meaningless. The protocol gives no answer to 'what does a sidecar for a proof look like?' Auditor reviewing the prov audit either gets a flood of WARNING/BLOCKER rows on every .md proof, or learns to ignore the audit (worse). A .lean file has a more natural sidecar shape (Mathlib SHA, toolchain, lake-manifest hash) but the protocol does not address it.",
+      "suggested_fix": "Add a proof_artifact provenance schema variant: replace rng_seed/software.packages with mathlib_revision + lean_toolchain + reviewer_slug + review_date + formal_check_status (pass/sorry_count/abandoned). Make provenance_completeness pick the schema from step_intent."
+    },
+    {
+      "severity": "HIGH",
+      "category": "no_proof_specific_audit_protocol",
+      "description": "audit_and_validation, provenance_completeness, pre_submission_checklist — none have rigor checks an auditor needs for theory work: 'every theorem in the paper cites a proof file', 'no sorry remains in any published .lean', 'every status transition in the conjecture register has a citation in the same commit', 'no axiom was added without a justification block'. proof_verification_workflow has those rules in editorial_voice but it is an authoring protocol, not an audit gate. There is nothing the auditor can run that says 'this proof artifact passes/fails on these N criteria'.",
+      "suggested_fix": "Add audit/theory_math_proof_audit (or extend pre_submission_checklist with a theory section) that programmatically: greps for residual sorry/admit, walks the lemma library for orphan dependents, checks every conjecture status change has a same-commit citation, checks every theorem-statement in the paper has a workspace/proofs/<slug>.md sibling."
+    },
+    {
+      "severity": "HIGH",
+      "category": "lexical_dep_graph_no_trust_floor",
+      "description": "tool_theory_math_dep_graph is explicitly lexical (not type-checked), and theorem_dependency_graph.yaml acknowledges it 'misses dependencies routed through open/Require Import wildcards, through tactic libraries, and through any informal step that cites a result by reference rather than by import'. The quality_bar sets manual_annotation_floor_pct: 20 as a 'sanity check, not a hard gate'. An auditor reviewing dep_graph_query.md cannot tell whether the AI did any reconciliation or just shipped the lexical edges. There is no audit tool that compares the parsed graph to the citations actually present in workspace/proofs/*.md prose.",
+      "suggested_fix": "Add tool_audit_dep_graph_completeness that diffs the parsed graph against citation tokens (Lemma N.M, Theorem X, @author_year) found in proof prose and flags every prose-citation missing from the graph. Promote manual_annotation_floor_pct to a real gate when the project has any .md proofs."
+    },
+    {
+      "severity": "HIGH",
+      "category": "audit_figures_blocker_misfires_on_proof_papers",
+      "description": "audit_figures step in audit_and_validation: 'Any figure WITHOUT a sibling .caption.md AND .summary.md is a blocker — the deliverables embed both.' A theory paper may have a single illustrative diagram of a graph; the editorial voice in proof_verification_workflow says 'Diagrams (when present) are illustrative, not required'. There is a tension: figure_required: false in step_summary.yaml waives the requirement, but the audit_figures step iterates every PNG in outputs/figures/ regardless of step_intent. An illustrative diagram added by the researcher would BLOCK synthesis until caption + summary sidecars exist.",
+      "suggested_fix": "Make audit_figures honour figure_required: false at step level — illustrative figures in proof steps should warn (not block) when sidecars are missing, or auto-generate stub caption/summary from the figure filename + a one-line 'illustrative' note."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "verdict_enum_buried",
+      "description": "literature_per_step verdict enum is AGREES | DISAGREES | EXTENDS | IMPORTED_AS_CITED | SPECIALIZES | DEFERRED. IMPORTED_AS_CITED is the right verdict for a cited lemma in a proof, but it is verdict #4 in a long protocol description and the protocol's examples lean empirical. The auditor reading findings_vs_literature.md for a proof step has to know to expect IMPORTED_AS_CITED and recognize that AGREES/DISAGREES/EXTENDS are inapplicable. Likely failure mode: the AI defaults to DEFERRED for theory steps, the audit blocks, the researcher overrides, no one learns.",
+      "suggested_fix": "When step_intent: proof, have tool_audit_step_literature default-expect IMPORTED_AS_CITED or SPECIALIZES and emit a warning if AGREES/DISAGREES/EXTENDS shows up (probably a category error). Add a worked theory_math example in the literature_per_step description."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "conjecture_audit_cadence_unenforced",
+      "description": "conjecture_tracking.yaml sets audit_cadence_days: 90 and step audit_register describes a 90-day re-audit. There is no scheduler, no due-date surfaced anywhere, no tool that lists overdue conjectures. The cadence is a recommendation in YAML and a 90-day-old open conjecture will silently sit. From the auditor view 'is the register being audited?' has no programmatic answer.",
+      "suggested_fix": "Add tool_conjecture_audit_status that walks workspace/conjectures/_index.md, computes days_since_last_audit per entry from the audit-pass file timestamps, and lists overdue entries. Surface as a soft warning in audit_master when any entry exceeds the cadence."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "lean_check_timeout_too_short",
+      "description": "tool_theory_math_lean_check default timeout_seconds is 120. Real Mathlib proofs (and even small lakefile builds with cold oleans) regularly exceed 5 minutes. The tool returns the opaque 'lean --make timed out after 120s' which cannot be distinguished from a wrong proof. The auditor reviewing the error envelope cannot tell whether the proof is incorrect, the lakefile is misconfigured, or the run just needed more time.",
+      "suggested_fix": "Raise default timeout_seconds to 600. When the timeout fires, also report wall-time, last 50 lines of stdout, and a hint 'set timeout_seconds=1800 for Mathlib elaboration; consider lake build --keep-toolchain'."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_intent_class_inconsistency",
+      "description": "theorem_dependency_graph router entry uses intent_class: audit_wrap, sub_intent: provenance. Most other audits use intent_class: review. An auditor triaging which protocols are audits via the router index sees audit_wrap as an outlier and may miss it.",
+      "suggested_fix": "Standardize on intent_class: review for anything that emits an audit artifact; reserve audit_wrap for the master audit aggregator. Update theorem_dependency_graph router entry."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "audit_master_format_unstructured",
+      "description": "audit_master.md is a markdown roll-up. Auditor wanting to grep 'all open BLOCKERs across steps' or 'which BLOCKER bars synthesis' has to text-parse. Sibling artifacts (provenance_audit.md, step_completeness.md) are also markdown. No machine-readable summary.",
+      "suggested_fix": "Have tool_audit_quality_full also emit workspace/logs/audit_master.json with {gates: [{name, status, blockers: [{step, output, reason, severity}], warnings: [...]}], synthesis_blocked: bool, blockers_by_step: {step_id: [...]}}. Keep the markdown for human reading."
+    },
+    {
+      "severity": "LOW",
+      "category": "tool_surface_breadth",
+      "description": "344 tools at the 2.0 baseline. Even with sys_active_tools shortlisting to ~10-15 per protocol, the auditor browsing sys_tool_describe to verify a chain of gates has to read multiple overloaded tool descriptions (tool_audit_quality_full vs tool_audit_step_completeness vs tool_audit_master_aggregate). The surface is wider than necessary and consolidation candidates exist (audit, prose, citation variants).",
+      "suggested_fix": "Phase 9 consolidation: collapse tool_audit_figure + tool_audit_figure_full into one with a depth flag; collapse tool_audit_claims + tool_audit_prose into tool_audit_text with a kind flag; drop tool_redteam_review aliases. Target a 15-20% surface reduction without losing capability."
+    },
+    {
+      "severity": "LOW",
+      "category": "no_proof_paper_synthesis_template",
+      "description": "theory_math/output/theory_paper_structure exists but synthesis/synthesis_paper is the default synthesis target after audit. A proof paper's section order (Preliminaries, Main Theorem, Proof, Discussion, Conclusion) is different from an empirical paper (Intro, Methods, Results, Discussion). The auditor reviewing the final paper draft sees a structure mismatch and has to manually re-route synthesis through theory_paper_structure.",
+      "suggested_fix": "audit_and_validation should detect step_intent: proof in any active step and route next_protocol to theory_math/output/theory_paper_structure instead of synthesis/synthesis_paper. Or: have synthesis_paper detect proof steps and switch its outline."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full",
+    "tool_audit_master_aggregate",
+    "tool_audit_step_completeness",
+    "tool_audit_figure vs tool_audit_figure_full",
+    "tool_route vs tool_semantic_route vs sys_semantic_tool_search"
+  ],
+  "confusing_protocols": [
+    "audit_and_validation (8 steps, none gated on step_intent: proof — runs nonsensical gates for theory work)",
+    "provenance_completeness (no schema for proof artifacts; demands rng_seed/software.packages on .md proofs)",
+    "literature_per_step (IMPORTED_AS_CITED verdict buried at #4 in a 6-verdict enum; theory_math examples missing)",
+    "theorem_dependency_graph (lexical-only with no audit tool to verify the graph against prose citations)"
+  ],
+  "never_called_tools": [
+    "tool_audit_assumptions",
+    "tool_audit_code_quality",
+    "tool_audit_claims",
+    "tool_preregister_diff",
+    "tool_audit_figure",
+    "tool_audit_figure_full",
+    "tool_audit_coherence",
+    "tool_discussion_coverage_audit",
+    "tool_writing_discussion_from_verdicts",
+    "tool_sensitivity_run",
+    "tool_python_exec",
+    "tool_r_exec",
+    "tool_notebook_exec",
+    "tool_dashboard_create",
+    "tool_poster_create",
+    "tool_latex_compile (only if proof paper is not LaTeX)",
+    "all 6 adapter packs (slurm, synapse, cytoscape, nextflow, redcap, snakemake — none apply to theory work)",
+    "tool_audit_step_literature variants that presume empirical verdicts"
+  ],
+  "recommendations": [
+    "Add a step_intent: proof switch to audit_master that disables code_quality / preregister_diff / claims (numeric) and substitutes proof-specific gates (residual sorry, theorem-statement coverage, conjecture-citation freshness).",
+    "Extend provenance_completeness with a proof-artifact schema: mathlib_revision + lean_toolchain + reviewer_slug + review_date + formal_check_status. Apply it when the artifact is workspace/proofs/<slug>.md or workspace/formal/<slug>/*.lean.",
+    "Create audit/theory_math_proof_audit (or extend pre_submission_checklist) so the auditor has a single runnable gate that covers: residual sorry, theorem-paper coverage, conjecture-status citations, axiom justification, dep-graph cycle check, lemma-library orphan check.",
+    "Add tool_audit_dep_graph_completeness that compares parsed lexical edges against prose-cited results in workspace/proofs/*.md and flags missing edges.",
+    "Make audit_figures honour figure_required: false at step level so an illustrative diagram in a proof step does not block synthesis on missing caption/summary sidecars.",
+    "Have tool_audit_quality_full emit workspace/logs/audit_master.json alongside the .md so auditors can grep blockers programmatically.",
+    "Raise tool_theory_math_lean_check default timeout_seconds from 120 to 600 and add a hint on timeout to distinguish from-wrong-proof.",
+    "Phase 9 consolidation: collapse tool_audit_figure + tool_audit_figure_full into one with a depth flag; merge prose/claims audit tools where overlap is high; drop never-called adapter tools from theory-only project active sets."
+  ]
+}

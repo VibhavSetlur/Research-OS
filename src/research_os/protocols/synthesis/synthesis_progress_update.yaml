@@ -1,7 +1,12 @@
 id: synthesis_progress_update
+tier: 'synthesize'
 name: Synthesis — Progress Update (PI / advisor / lab / weekly)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [naive_ai, auditor]
+  workflow_shape: [experiment_pipeline, linear_essay]
 description: |
   Compile a short progress update — the kind a researcher sends their
   PI / advisor on a Friday afternoon, posts to the lab Slack before a
@@ -149,7 +154,7 @@ steps:
         - workspace/logs/audit_report.md  (any BLOCKER: lines)
         - dead-end paths recorded since the last update
           (sys_path status=__DEAD_END mtime>last_update)
-        - tool_dead_end_lessons          (the recurring blockers
+        - tool_lessons(operation='dead_end')  (the recurring blockers
                                           showing up across attempts)
         - mem_log entries with rationale containing "blocked"
           or "waiting on"

@@ -24,7 +24,11 @@ Four tools work together as a self-review pass BEFORE the paper goes out:
       Walks every rebuttal and WARNs on hand-waving language ("we
       believe", "future work will address"), unaddressed comments
       (rebuttals with no evidence reference), and any rebuttal whose
-      cited evidence paths do not exist on disk.
+      cited evidence paths do not exist on disk. Under the hood this
+      uses :class:`ReviewerResponsesAudit` (an ``AuditBase`` subclass)
+      so findings are also persisted via :func:`write_audit_outputs` to
+      the v2 audit artefacts (workspace/<gate>_audit.{md,json}) and
+      appended to the workspace/logs/.audit_findings.jsonl ledger.
 
 The server never calls an LLM. These tools write READING INSTRUCTIONS
 that the AI in the host IDE drives.
@@ -35,11 +39,18 @@ from __future__ import annotations
 import logging
 import re
 import shutil
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from research_os.tools.actions.audit._base import (
+    AuditBase,
+    AuditFinding,
+    write_audit_outputs,
+)
 
 logger = logging.getLogger("research_os.tools.synthesis.reviewer")
 
@@ -554,17 +565,159 @@ def reviewer_response_compile(root: Path | str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+# Stable UUID namespace for deterministic finding IDs across re-runs.
+# Using uuid.NAMESPACE_DNS scoped by the audit name keeps IDs stable for
+# the same (audit, dimension, evidence_paths) triple — a re-run on the
+# same workspace won't churn IDs.
+_REVIEWER_AUDIT_NS = uuid.uuid5(uuid.NAMESPACE_DNS, "research-os/audit_reviewer_responses")
+
+
+# Issue dimensions emitted per-rebuttal. Each maps to a closed
+# severity per the schema (block/warn/info). The current logic
+# emits everything as WARN-level (status="warning"), so we keep
+# warn as the default and map the historical "BLOCK/PASS/WARN"
+# labels to schema severities:
+#   * hand-waving / unaddressed / missing-evidence-warning-block  -> warn
+#   * no-evidence-cited                                          -> warn
+# (Nothing currently surfaces as block or info in the v1 logic, so the
+# mapping is intentionally simple.)
+_DIM_HANDWAVING = "rebuttal_handwaving"
+_DIM_UNADDRESSED = "rebuttal_unaddressed"
+_DIM_NO_EVIDENCE = "rebuttal_evidence_missing"
+_DIM_STALE_WARN_BLOCK = "rebuttal_stale_warning"
+
+
+def _scan_rebuttal(text: str) -> list[tuple[str, str, str]]:
+    """Run the four checks against one rebuttal's text.
+
+    Returns a list of (dimension, severity, issue_message) tuples in the
+    same order they're written into the v1 ``warnings`` payload. Pure
+    function — no I/O — so it can be reused from both the legacy wrapper
+    and the AuditBase subclass.
+    """
+    issues: list[tuple[str, str, str]] = []
+
+    # 1. Hand-waving — case-insensitive substring search.
+    lower = text.lower()
+    for phrase in HAND_WAVING_PHRASES:
+        if phrase in lower:
+            issues.append((
+                _DIM_HANDWAVING,
+                "warn",
+                f"hand-waving language detected: '{phrase}'",
+            ))
+
+    # 2. Unaddressed: the Response section is empty or only contains the comment-stub.
+    m = re.search(r"^##\s+Response\s*$(.*?)(?=^##\s+|\Z)", text, re.M | re.S)
+    resp_body = (m.group(1).strip() if m else "").strip()
+    stripped = re.sub(r"<!--.*?-->", "", resp_body, flags=re.S).strip()
+    if not stripped:
+        issues.append((
+            _DIM_UNADDRESSED,
+            "warn",
+            "unaddressed: Response section is empty (only scaffold "
+            "comment present)",
+        ))
+
+    # 3. Evidence: must reference at least one backtick path.
+    path_hits = re.findall(
+        r"`([^`]+\.(?:md|csv|tsv|png|svg|pdf|yaml|yml|py|R|ipynb))`", text
+    )
+    if not path_hits:
+        issues.append((
+            _DIM_NO_EVIDENCE,
+            "warn",
+            "no evidence path cited in the rebuttal (response should "
+            "name a script / figure / table / report)",
+        ))
+
+    # 4. Researcher-supplied missing paths get warned by the scaffold;
+    # re-flag here so the audit catches stale rebuttals that were edited
+    # without removing the warning block.
+    if "WARNING" in text and "do not exist on disk" in text:
+        issues.append((
+            _DIM_STALE_WARN_BLOCK,
+            "warn",
+            "rebuttal still contains 'supplied evidence path missing' "
+            "warning from the scaffold",
+        ))
+
+    return issues
+
+
+def _stable_finding_id(audit_name: str, dimension: str, evidence_paths: list[str], issue: str) -> str:
+    """Deterministic UUIDv5 — re-runs on the same rebuttal yield the same id.
+
+    The schema requires UUID shape (8-4-4-4-12 hex); uuid5 satisfies it.
+    Including the issue text in the key distinguishes multiple findings
+    of the same dimension on the same file (e.g. several hand-waving
+    phrases in one rebuttal would otherwise collide).
+    """
+    key = f"{audit_name}|{dimension}|{'|'.join(evidence_paths)}|{issue}"
+    return str(uuid.uuid5(_REVIEWER_AUDIT_NS, key))
+
+
+class ReviewerResponsesAudit(AuditBase):
+    """AuditBase implementation for the reviewer-response audit.
+
+    Walks every rebuttal under workspace/reviewer/rebuttals/ and emits
+    one ``AuditFinding`` per (rebuttal, issue) pair. IDs are
+    deterministic (uuid5) so re-runs on unchanged rebuttals produce the
+    same set of finding IDs — the .audit_findings.jsonl ledger therefore
+    only grows for new or changed issues across runs.
+    """
+
+    name = "audit_reviewer_responses"
+
+    def run(self, root: Path, **kwargs: Any) -> list[AuditFinding]:
+        root = Path(root)
+        _, rebuttals_dir = _ensure_reviewer_dirs(root)
+        rebuttals = sorted(p for p in rebuttals_dir.glob("*.md") if p.is_file())
+
+        findings: list[AuditFinding] = []
+        for r in rebuttals:
+            text = r.read_text(encoding="utf-8")
+            rel = str(r.relative_to(root))
+            for dim, sev, msg in _scan_rebuttal(text):
+                evidence = [rel]
+                finding = AuditFinding.new(
+                    audit_name=self.name,
+                    severity=sev,
+                    dimension=dim,
+                    evidence_paths=evidence,
+                    suggested_fix=msg,
+                )
+                # Override the random uuid4 with our deterministic uuid5
+                # so re-runs on identical inputs are stable.
+                finding.id = _stable_finding_id(self.name, dim, evidence, msg)
+                findings.append(finding)
+        return findings
+
+
 def audit_reviewer_responses(root: Path | str) -> dict[str, Any]:
     """Walk every rebuttal under workspace/reviewer/rebuttals/ and WARN on:
 
       * hand-waving language ('we believe', 'future work will address', ...)
       * unaddressed comments (rebuttals with no evidence reference)
       * supplied evidence paths that do not exist on disk
+
+    Backwards-compatible wrapper around :class:`ReviewerResponsesAudit`.
+    Preserves the legacy return shape and the human-readable report at
+    ``workspace/reviewer/audit_report.md``. ALSO writes the v2 audit
+    artefacts via :func:`write_audit_outputs`:
+
+      * ``workspace/audit_reviewer_responses_audit.md``
+      * ``workspace/audit_reviewer_responses_audit.json``
+      * appended lines on ``workspace/logs/.audit_findings.jsonl``
     """
     root = Path(root)
     _, rebuttals_dir = _ensure_reviewer_dirs(root)
     rebuttals = sorted(p for p in rebuttals_dir.glob("*.md") if p.is_file())
     if not rebuttals:
+        # Still emit empty v2 outputs so the audit is greppable in the
+        # findings ledger / json store. write_audit_outputs handles the
+        # empty-list case correctly.
+        write_audit_outputs([], ReviewerResponsesAudit.name, root)
         return {
             "status": "warning",
             "message": "No rebuttals found to audit.",
@@ -574,57 +727,33 @@ def audit_reviewer_responses(root: Path | str) -> dict[str, Any]:
             "failed": 0,
         }
 
+    # Run the AuditBase subclass and bucket findings back into the
+    # per-file ``warnings`` payload the legacy callers expect.
+    findings = ReviewerResponsesAudit().run(root)
+    write_audit_outputs(findings, ReviewerResponsesAudit.name, root)
+
+    per_file_issues: dict[str, list[str]] = {}
+    for f in findings:
+        # Every reviewer finding carries the rebuttal path as the sole
+        # evidence entry (set in ReviewerResponsesAudit.run).
+        rel = f.evidence_paths[0] if f.evidence_paths else ""
+        per_file_issues.setdefault(rel, []).append(f.suggested_fix)
+
     warnings: list[dict[str, Any]] = []
     passed = 0
     for r in rebuttals:
-        text = r.read_text(encoding="utf-8")
         rel = str(r.relative_to(root))
-        per_file: list[str] = []
-
-        # 1. Hand-waving — case-insensitive substring search.
-        lower = text.lower()
-        for phrase in HAND_WAVING_PHRASES:
-            if phrase in lower:
-                per_file.append(f"hand-waving language detected: '{phrase}'")
-
-        # 2. Unaddressed: the Response section is empty or only contains the comment-stub.
-        # Look for the body between "## Response" and the next H2.
-        m = re.search(r"^##\s+Response\s*$(.*?)(?=^##\s+|\Z)", text, re.M | re.S)
-        resp_body = (m.group(1).strip() if m else "").strip()
-        # Strip comment markers.
-        stripped = re.sub(r"<!--.*?-->", "", resp_body, flags=re.S).strip()
-        if not stripped:
-            per_file.append(
-                "unaddressed: Response section is empty (only scaffold "
-                "comment present)"
-            )
-
-        # 3. Evidence: must reference at least one backtick path or workspace/synthesis path
-        # Count backticked paths that look like real workspace artefacts in the *response* too.
-        path_hits = re.findall(r"`([^`]+\.(?:md|csv|tsv|png|svg|pdf|yaml|yml|py|R|ipynb))`", text)
-        if not path_hits:
-            per_file.append(
-                "no evidence path cited in the rebuttal (response should "
-                "name a script / figure / table / report)"
-            )
-
-        # 4. Researcher-supplied missing paths get warned by the scaffold;
-        # re-flag here so the audit catches stale rebuttals that were edited
-        # without removing the warning block.
-        if "WARNING" in text and "do not exist on disk" in text:
-            per_file.append(
-                "rebuttal still contains 'supplied evidence path missing' "
-                "warning from the scaffold"
-            )
-
-        if per_file:
-            warnings.append({"file": rel, "issues": per_file})
+        issues = per_file_issues.get(rel, [])
+        if issues:
+            warnings.append({"file": rel, "issues": issues})
         else:
             passed += 1
 
     failed = len(rebuttals) - passed
 
-    # Persist a human-readable audit report next to the rebuttals.
+    # Persist the legacy human-readable audit report. Format unchanged
+    # so the v1 snapshot test + the test_audit_writes_report assertion
+    # both keep passing.
     report_path = root / "workspace" / "reviewer" / "audit_report.md"
     report_lines = [
         "# Reviewer-response audit\n",

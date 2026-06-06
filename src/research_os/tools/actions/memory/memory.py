@@ -1,6 +1,9 @@
 """Multi-hypothesis tracking helpers that mutate state.active_hypotheses.
 
-Used by mem_hypothesis_add / mem_hypothesis_update / mem_hypothesis_list.
+Used by mem_hypothesis_add / mem_hypothesis_list (and the consolidated
+mem_log(kind='hypothesis') dispatcher, which calls _handle_mem_hypothesis_update
+internally; the legacy mem_hypothesis_update tool name was hard-removed in
+phase-14a — see CHANGELOG).
 """
 
 from __future__ import annotations

@@ -450,6 +450,39 @@ def _yaml_escape(s: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def bundled_font_path() -> Path | None:
+    """Locate the directory holding the bundled font OTF files.
+
+    Search order: in-package ``src/research_os/assets/fonts`` (always
+    present in the wheel), then walk up from the module file to find
+    a repo-root copy (editable install / source checkout).
+
+    Returns None when no bundled-font directory can be found — callers
+    skip the ``--font-path`` flag in that case so Typst still works
+    with whatever system fonts are installed.
+    """
+    here = Path(__file__).resolve()
+    # In-package: src/research_os/assets/fonts (shipped in the wheel).
+    pkg_root = here.parents[3]
+    candidate = pkg_root / "assets" / "fonts"
+    if candidate.exists() and any(candidate.glob("*.otf")):
+        return candidate
+    return None
+
+
+def _typst_compile_argv(typst_bin: str, src: str, dst: str) -> list[str]:
+    """Assemble the ``typst compile`` argv, injecting --font-path when
+    the bundled NCM fonts are present. Centralised here so paper,
+    poster, and slide compile paths all benefit.
+    """
+    argv = [typst_bin, "compile"]
+    font_dir = bundled_font_path()
+    if font_dir is not None:
+        argv += ["--font-path", str(font_dir)]
+    argv += [src, dst]
+    return argv
+
+
 def compile_typst(typst_source_path: Path, output_pdf_path: Path) -> dict[str, Any]:
     """Run ``typst compile <src> <pdf>``.
 
@@ -474,7 +507,7 @@ def compile_typst(typst_source_path: Path, output_pdf_path: Path) -> dict[str, A
         }
 
     proc = subprocess.run(
-        [typst_bin, "compile", str(typst_source_path), str(output_pdf_path)],
+        _typst_compile_argv(typst_bin, str(typst_source_path), str(output_pdf_path)),
         capture_output=True,
         text=True,
         timeout=120,

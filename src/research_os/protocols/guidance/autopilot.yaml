@@ -1,7 +1,12 @@
 id: autopilot
+tier: 'plan'
 name: Autopilot Mode
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Hands-off "drive the project to its next deliverable without checking in
   on every step" mode. Defines the exact gates where the AI MUST stop and
@@ -32,19 +37,19 @@ steps:
     description: |
       Autopilot DOES stop and ask before:
         1. tool_synthesize for the final deliverable (paper / grant / report).
-           If tool_audit_step_completeness has BLOCKERS, autopilot HALTS
+           If tool_audit(scope='step', dimension='completeness') has BLOCKERS, autopilot HALTS
            before even asking — the gate is server-enforced and refuses
            the call until fixed.
-        2. tool_dashboard_create / tool_poster_create for the FINAL
-           deliverable (mid-flight progress dashboards bypass the ask,
-           but flag any open completeness blockers).
-        3. tool_audit_reproducibility (slow + expensive).
+        2. tool_dashboard(operation='create') / tool_poster_create for
+           the FINAL deliverable (mid-flight progress dashboards bypass
+           the ask, but flag any open completeness blockers).
+        3. tool_audit(scope='step', dimension='reproducibility') (slow + expensive).
         4. Any tool_research_tool candidate tagged paid_or_licensed.
         5. sys_path (dead-end declarations are reversible but loud).
         6. Any sys_file_write to synthesis/ with force=true.
         7. tool_package_install for a package not already in
            environment/requirements.txt.
-        8. Any tool_task_run with an estimated cost > 1 GPU-hour OR > 10 GB
+        8. Any tool_task(operation='run') with an estimated cost > 1 GPU-hour OR > 10 GB
            of memory OR > 50 GB of disk I/O.
       For each gate, sys_notify level="action_required" and wait one turn.
 
@@ -90,8 +95,8 @@ steps:
     name: Final Deliverable Gate
     description: |
       Before tool_synthesize for the named deliverable:
-        - tool_audit_synthesis (dry-run on what's queued)
-        - tool_audit_citations
+        - tool_audit(scope='synthesis', dimension='all') (dry-run on what's queued)
+        - tool_audit(scope='project', dimension='citations')
         - Present the proposed section order + figure count + citation
           count to the researcher
       Wait for approval. Only after explicit "go" does the synthesis run.

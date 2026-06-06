@@ -1,7 +1,12 @@
 id: manuscript_outline
+tier: 'synthesize'
 name: Manuscript Outline + Narrative Arc (before drafting)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, humanities, engineering]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, systems_benchmark]
 last_reviewed: '2026-06-02'
 description: |
   Drafting a paper before outlining is the most common source of
@@ -171,7 +176,7 @@ steps:
         - whether the claim is fully supported by the data or whether
           it needs caveating
 
-      This is also the input to tool_audit_claims at synthesis time.
+      This is also the input to tool_audit(scope='project', dimension='claims') at synthesis time.
       Surface unsupported beats NOW so the analysis can fill the gap
       before drafting.
 

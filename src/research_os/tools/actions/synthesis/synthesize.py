@@ -39,6 +39,14 @@ SECTION_BUILDERS_KEYS = (
 )
 
 
+# Default IMRAD section order — used when the active pack does not
+# declare a `paper_sections` schema.
+_DEFAULT_PAPER_SECTIONS = (
+    "abstract", "introduction", "methods", "results", "discussion",
+    "references",
+)
+
+
 # ---------------------------------------------------------------------------
 # Plan
 # ---------------------------------------------------------------------------
@@ -227,20 +235,43 @@ def _make_key(entry: dict[str, Any]) -> str:
 
 def _collect_all_verified_citations(
     root: Path, *, output_type: str, query: str,
-) -> dict[str, dict[str, Any]]:
-    """Gather verified citations from every source. Returns {citation_key: entry}.
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Gather verified citations from every source.
+
+    Returns ``(pool, failures)``::
+
+        pool     = {citation_key: entry}
+        failures = {
+            "total": int,                        # all citation-related failures
+            "by_provider": {prov: int, ...},     # live retrieval providers
+            "samples": [...],                    # at most 3, for the API surface
+            "live_retrieval_attempted": bool,
+        }
 
     Sources:
       1. inputs/literature_index.yaml (project-level PDFs).
       2. workspace/<step>/literature/literature_index.yaml (per-step PDFs).
       3. Live retrieval via collect_for_section (provides DOI / URL).
+
+    Failure semantics: a previously silent ``list index out of range``
+    inside live retrieval used to make tool_synthesize return
+    ``citations_used: 0`` with no signal that the network path even
+    ran. Live retrieval now uses the with-failures variant; the failure
+    metadata flows out to the caller so the AI can see *why* citations
+    are missing.
     """
     from research_os.tools.actions.synthesis.citations import (
         cap_for,
-        collect_for_section,
+        collect_for_section_with_failures,
     )
 
     pool: dict[str, dict[str, Any]] = {}
+    failures: dict[str, Any] = {
+        "total": 0,
+        "by_provider": {},
+        "samples": [],
+        "live_retrieval_attempted": False,
+    }
 
     # 1. Project-level literature index.
     proj_index = root / "inputs" / "literature_index.yaml"
@@ -268,17 +299,52 @@ def _collect_all_verified_citations(
                 pool[key] = meta
 
     # 3. Live retrieval per section query.
+    failures["live_retrieval_attempted"] = True
     try:
-        live = collect_for_section(query, k=cap_for(output_type))
+        live, live_failures = collect_for_section_with_failures(
+            query, k=cap_for(output_type), root=root,
+        )
         for entry in live:
             key = entry.get("citation_key") or _make_key(entry)
             entry.setdefault("citation_key", key)
             if entry.get("doi") or entry.get("url"):
                 pool.setdefault(key, entry)
+        failures["total"] += int(live_failures.get("total") or 0)
+        for prov, cnt in (live_failures.get("by_provider") or {}).items():
+            failures["by_provider"][prov] = (
+                failures["by_provider"].get(prov, 0) + cnt
+            )
+        for s in (live_failures.get("samples") or []):
+            if len(failures["samples"]) < 3:
+                failures["samples"].append(s)
     except Exception as e:
-        logger.warning(f"live citation retrieval failed: {e}")
+        # Even the wrapper itself can fail (e.g. import error). Treat the
+        # whole live path as one failure rather than crashing synthesis.
+        from research_os.tools.actions.synthesis.citations import (
+            _log_citation_failure,
+        )
 
-    return pool
+        logger.warning(f"live citation retrieval failed: {e}")
+        _log_citation_failure(
+            provider="live_retrieval",
+            query=query,
+            exc=e,
+            root=root,
+        )
+        failures["total"] += 1
+        failures["by_provider"]["live_retrieval"] = (
+            failures["by_provider"].get("live_retrieval", 0) + 1
+        )
+        if len(failures["samples"]) < 3:
+            failures["samples"].append(
+                {
+                    "provider": "live_retrieval",
+                    "exception_type": type(e).__name__,
+                    "message": str(e)[:240],
+                }
+            )
+
+    return pool, failures
 
 
 def _bound_to_cap(
@@ -411,7 +477,7 @@ def _build_methods(
 ) -> str:
     body = _read(root / "workspace" / "methods.md")
     if not body.strip():
-        return "## Methods\n\n*No methods recorded — run `mem_methods_append` first.*\n"
+        return "## Methods\n\n*No methods recorded — run `mem_log(kind='methods', ...)` first.*\n"
     body = _replace_citation_keys(body, key_to_num)
     return "## Methods\n\n" + body + "\n"
 
@@ -587,7 +653,7 @@ def _build_abstract(root: Path, experiments: list[dict[str, Any]], output_type: 
     methods_line = (
         methods_summary
         if methods_summary
-        else "*(No methods recorded yet — add via `mem_methods_append` "
+        else "*(No methods recorded yet — add via `mem_log(kind='methods', ...)` "
         "or set `synthesis_spec.yaml > methods_summary`.)*"
     )
     results_line = (
@@ -702,6 +768,87 @@ _AUTO_PROCEED_SECTION_ORDER = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Pack-aware section schema (theory_math is not IMRAD)
+# ---------------------------------------------------------------------------
+
+
+def _active_pack_name(root: Path) -> str | None:
+    """Resolve the active pack for a project.
+
+    Reads ``inputs/researcher_config.yaml`` (or top-level
+    ``researcher_config.yaml``) looking for ``pack:`` / ``domain:`` /
+    ``packs: [...]`` — same resolution rules as the dashboard's
+    detector. Returns the lowercased pack name or ``None``.
+    """
+    for rel in ("inputs/researcher_config.yaml", "researcher_config.yaml"):
+        cfg_path = root / rel
+        if not cfg_path.exists():
+            continue
+        try:
+            import yaml  # type: ignore
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8",
+                                                    errors="ignore")) or {}
+        except Exception:
+            continue
+        if not isinstance(cfg, dict):
+            continue
+        for key in ("pack", "domain"):
+            val = cfg.get(key)
+            if isinstance(val, str) and val.strip():
+                return val.strip().lower()
+        packs = cfg.get("packs")
+        if isinstance(packs, list) and packs:
+            for entry in packs:
+                if isinstance(entry, str) and entry.strip():
+                    return entry.strip().lower()
+    return None
+
+
+def _resolve_paper_sections(root: Path) -> tuple[tuple[str, ...], str | None]:
+    """Return ``(sections, source_pack)`` for the paper-section schema.
+
+    ``source_pack`` is the pack name when the schema came from a pack
+    declaration, ``None`` when we fell back to the IMRAD default. Used
+    for diagnostics in the response payload and by tests asserting that
+    a non-IMRAD pack drove the ordering.
+    """
+    pack = _active_pack_name(root)
+    if pack:
+        try:
+            from research_os.plugins import pack_paper_sections
+
+            declared = pack_paper_sections(pack)
+            if declared:
+                return tuple(declared), pack
+        except Exception:
+            logger.warning(
+                "pack_paper_sections lookup failed for '%s'; "
+                "falling back to IMRAD.", pack, exc_info=True,
+            )
+    return _DEFAULT_PAPER_SECTIONS, None
+
+
+def _build_generic_section(root: Path, section_id: str,
+                           key_to_num: dict[str, int]) -> str:
+    """Build a pack-declared section that has no hardcoded builder.
+
+    Pulls ``workspace/<section_id>.md`` when present (mirroring the way
+    ``_build_methods`` pulls ``workspace/methods.md``). Heading text is
+    a humanised version of the section id (``main_theorems`` → "Main
+    Theorems"). Missing file → an explicit *No <section> recorded* stub
+    so the absence is visible in the paper, not silent.
+    """
+    heading = section_id.replace("_", " ").title()
+    body = _read(root / "workspace" / f"{section_id}.md")
+    if not body.strip():
+        return (
+            f"## {heading}\n\n*No {heading.lower()} recorded — "
+            f"write `workspace/{section_id}.md` to populate this section.*\n"
+        )
+    return f"## {heading}\n\n" + _replace_citation_keys(body, key_to_num) + "\n"
+
+
 def synthesize_workspace(
     root: Path,
     *,
@@ -804,31 +951,52 @@ def synthesize_workspace(
         tables = _copy_tables(root, experiments)
 
         question = _research_question(root)
-        pool = _collect_all_verified_citations(
+        pool, citation_failures = _collect_all_verified_citations(
             root, output_type=output_type, query=question
         )
         capped = _bound_to_cap(pool, output_type)
         references, key_to_num = _number_citations(capped)
 
+        # Resolve the paper-section schema. Packs may declare a custom
+        # ordering (e.g. theory_math wants intro → preliminaries →
+        # theorems → proofs → discussion, NOT IMRAD). Fallback is the
+        # canonical IMRAD order.
+        section_schema, pack_source = _resolve_paper_sections(root)
+
+        # Map of hardcoded section builders. Anything the pack declares
+        # that ISN'T in this map gets routed through _build_generic_section
+        # which reads workspace/<section_id>.md.
+        hardcoded_builders = {
+            "methods": lambda: _build_methods(root, key_to_num, experiments),
+            "results": lambda: _build_results(
+                root, key_to_num, experiments, figures, tables
+            ),
+            "discussion": lambda: _build_discussion(root, key_to_num, experiments),
+            "introduction": lambda: _build_introduction(root, key_to_num),
+            "abstract": lambda: _build_abstract(root, experiments, output_type),
+            "references": lambda: _build_references_section(references, citation_style),
+        }
+
+        def _build_one(sec_id: str) -> str:
+            builder = hardcoded_builders.get(sec_id)
+            if builder is not None:
+                return builder()
+            return _build_generic_section(root, sec_id, key_to_num)
+
         # ── Single-section mode ────────────────────────────────────────
         if section:
             section = section.lower()
-            builder_map = {
-                "methods": lambda: _build_methods(root, key_to_num, experiments),
-                "results": lambda: _build_results(
-                    root, key_to_num, experiments, figures, tables
-                ),
-                "discussion": lambda: _build_discussion(root, key_to_num, experiments),
-                "introduction": lambda: _build_introduction(root, key_to_num),
-                "abstract": lambda: _build_abstract(root, experiments, output_type),
-                "references": lambda: _build_references_section(references, citation_style),
-            }
-            if section not in builder_map:
+            # Allowed = hardcoded builders ∪ anything the pack declares.
+            allowed = set(hardcoded_builders) | set(section_schema)
+            if section not in allowed:
                 return {
                     "status": "error",
-                    "error": f"Unknown section '{section}'. Allowed: {sorted(builder_map)}",
+                    "error": (
+                        f"Unknown section '{section}'. Allowed: "
+                        f"{sorted(allowed)}"
+                    ),
                 }
-            body = builder_map[section]()
+            body = _build_one(section)
             dest = synthesis_dir / f"{section}.md"
             dest.write_text(body)
             return {
@@ -836,9 +1004,25 @@ def synthesize_workspace(
                 "section": section,
                 "path": str(dest.relative_to(root)),
                 "citations_used": len(references),
+                "citation_retrieval_failures": int(
+                    citation_failures.get("total") or 0
+                ),
+                "citation_failure_detail": {
+                    "by_provider": citation_failures.get("by_provider") or {},
+                    "samples": citation_failures.get("samples") or [],
+                    "live_retrieval_attempted": bool(
+                        citation_failures.get("live_retrieval_attempted")
+                    ),
+                    "log_path": (
+                        "workspace/logs/citation_failures.jsonl"
+                        if citation_failures.get("total")
+                        else None
+                    ),
+                },
                 "figures_numbered": len(figures),
                 "tables_numbered": len(tables),
                 "message": f"Wrote synthesis/{section}.md.",
+                "pack_section_schema_source": pack_source,
             }
 
         # ── Full assembly ──────────────────────────────────────────────
@@ -847,12 +1031,16 @@ def synthesize_workspace(
             f"# {title}\n",
             f"*Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}*\n",
         ]
-        chunks.append(_build_abstract(root, experiments, output_type))
-        chunks.append(_build_introduction(root, key_to_num))
-        chunks.append(_build_methods(root, key_to_num, experiments))
-        chunks.append(_build_results(root, key_to_num, experiments, figures, tables))
-        chunks.append(_build_discussion(root, key_to_num, experiments))
-        chunks.append(_build_references_section(references, citation_style))
+        # Iterate the resolved schema (pack-declared OR IMRAD default).
+        # We always append a references section at the end if it isn't
+        # already part of the schema so the bibliography is never lost.
+        seen_refs = False
+        for sec_id in section_schema:
+            chunks.append(_build_one(sec_id))
+            if sec_id == "references":
+                seen_refs = True
+        if not seen_refs:
+            chunks.append(_build_references_section(references, citation_style))
 
         paper_md = synthesis_dir / "paper.md"
         paper_md.write_text("\n".join(chunks))
@@ -866,13 +1054,35 @@ def synthesize_workspace(
         # Track which keys WEREN'T usable for transparency.
         unverified = sorted(set(pool.keys()) - {r["citation_key"] for r in references})
 
+        # Report the sections we actually emitted (schema + auto-appended
+        # references if it wasn't declared).
+        emitted_sections = list(section_schema) + (
+            [] if seen_refs else ["references"]
+        )
+
         result: dict[str, Any] = {
             "status": "success",
             "output_type": output_type,
             "paper_path": str(paper_md.relative_to(root)),
             "bib_path": str(bib_path.relative_to(root)),
-            "sections": ["abstract", "introduction", "methods", "results", "discussion", "references"],
+            "sections": emitted_sections,
+            "pack_section_schema_source": pack_source,
             "citations_used": len(references),
+            "citation_retrieval_failures": int(
+                citation_failures.get("total") or 0
+            ),
+            "citation_failure_detail": {
+                "by_provider": citation_failures.get("by_provider") or {},
+                "samples": citation_failures.get("samples") or [],
+                "live_retrieval_attempted": bool(
+                    citation_failures.get("live_retrieval_attempted")
+                ),
+                "log_path": (
+                    "workspace/logs/citation_failures.jsonl"
+                    if citation_failures.get("total")
+                    else None
+                ),
+            },
             "citation_keys": [r["citation_key"] for r in references],
             "figures_numbered": len(figures),
             "tables_numbered": len(tables),

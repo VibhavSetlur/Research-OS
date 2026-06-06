@@ -1,7 +1,12 @@
 id: method_comparison
+tier: 'plan'
 name: Method Comparison (head-to-head benchmark)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering]
+  audience: [maintainer]
+  workflow_shape: [systems_benchmark]
 description: |
   Compare N candidate methods on the SAME prediction / estimation
   task with the SAME data, the SAME evaluation, and the SAME
@@ -121,7 +126,7 @@ steps:
           - compute budget per method (wall-clock, gpu-hours)
           - hyperparameter trial budget per method (same for all)
 
-      Freeze via tool_preregister_freeze if the comparison is high
+      Freeze via tool_preregister(operation='freeze') if the comparison is high
       stakes; otherwise the plan still serves as the SAP for the
       diff that synthesis will surface.
 

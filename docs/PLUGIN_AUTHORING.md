@@ -17,12 +17,18 @@ A pack contributes some combination of:
   and returns a confidence score that the project belongs to your
   pack's domain (`tool_intake_autofill` consults this).
 
-Two packs ship in-tree with the core wheel as worked examples:
+Five packs ship in-tree with the core wheel as worked examples:
 
-* `src/research_os_humanities/` — 8 protocols + 3 tools.
-* `src/research_os_qualitative/` — 5 protocols + 2 tools.
+* `src/research_os_humanities/` — close-reading, archival, theory pack.
+* `src/research_os_qualitative/` — interview coding + thematic analysis.
+* `src/research_os_theory_math/` — proof-shaped paper schema + lemma tracking.
+* `src/research_os_wet_lab/` — bench protocols + sample tracking + assay QC.
+* `src/research_os_engineering/` — benchmark runs + ablation matrices.
 
-You can read either as a complete template.
+Six adapter packs ship in-tree too (`slurm`, `nextflow`, `snakemake`,
+`cytoscape`, `redcap`, `synapse`) — read those to see how a pack
+bridges Research OS to an external system. You can use any of the
+above as a complete template.
 
 ## 1. Project layout
 

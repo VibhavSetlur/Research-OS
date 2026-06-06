@@ -1,7 +1,11 @@
 id: distant_reading
 name: Distant Reading — corpus analysis with interpretation gate
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities, qualitative]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Text-as-data corpus analysis paired with an explicit humanistic-

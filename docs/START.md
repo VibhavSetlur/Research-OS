@@ -9,6 +9,30 @@ the [Setup Prompt](#setup-prompt-paste-into-any-ai) into any AI chat.
 
 ---
 
+## Quickstart — 4 steps
+
+```bash
+# 1. Install (once, globally — one server serves every project)
+pip install "research-os[all]"
+
+# 2. Scaffold a project
+mkdir my-project && cd my-project
+research-os init                 # 6-step arrow-key wizard
+
+# 3. Confirm it's healthy (optional but recommended)
+research-os doctor               # python + conda env + IDE wiring + pack health
+research-os ide list             # which IDEs are wired in this workspace
+
+# 4. Open the folder in your AI IDE and talk
+#    > fill out the intake
+#    > what should I do next?
+```
+
+That's everything. The rest of this guide unpacks each step and shows
+you the full prompt catalogue.
+
+---
+
 ## Install (60 s)
 
 ```bash
@@ -26,6 +50,7 @@ Verify:
 
 ```bash
 research-os --help
+# Four commands: init / ide / start / doctor
 ```
 
 If `research-os: command not found`, add `~/.local/bin` (or your
@@ -40,7 +65,7 @@ Need help with Python / pip / virtualenvs / conda? See
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                 # 7-step interactive wizard (default)
+research-os init                 # 6-step interactive wizard (default)
 # research-os init --yes         # non-interactive (CI / scripts)
 ```
 
@@ -57,6 +82,46 @@ wizard will skip that step. It drops:
   Claude Desktop, VS Code, Windsurf, Continue, Aider**
 
 You typically need to **restart your IDE** so it picks up the new MCP config.
+
+---
+
+## Inspect + manage IDE wiring
+
+The `ide` subcommand lets you add, remove, or list IDE MCP configs
+without re-running `research-os init`:
+
+```bash
+research-os ide list                       # show every supported IDE
+                                           # marks which are already wired
+
+research-os ide add cursor                 # wire Cursor only
+research-os ide add windsurf aider         # wire several at once
+research-os ide remove opencode            # un-wire OpenCode
+
+research-os ide config-path cursor         # print where Cursor's MCP config lands
+                                           # (useful for `cat` / `jq` / debugging)
+```
+
+`research-os ide` walks up from CWD for `.os_state/`, so it works from
+any subdirectory of the project — no need to `cd` to the root first.
+
+---
+
+## Confirm install + workspace health
+
+```bash
+research-os doctor                # full report (install + workspace)
+research-os doctor --verbose      # show fix hints for passing checks too
+research-os doctor --json         # machine-readable
+research-os doctor --workspace-only   # skip install checks (CI use)
+```
+
+The doctor checks: python version, conda env, version consistency
+across `pyproject.toml` / `__init__.py` / `CITATION.cff`, pack
+registration, embeddings freshness, typst / chromium on PATH, IDE MCP
+wiring, orphan figures, stale `step_summary.yaml`, unresolved BLOCK
+gates, disk usage, git cleanliness, and `.gitignore` coverage. Exits
+`0` (all pass), `1` (warnings only), or `2` (failures present).
 
 ---
 
@@ -156,17 +221,24 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
 * **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
   declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
   → fit → diagnose → visualize → report). Content-hash cached.
-* **114 protocols** the AI picks from via `tool_route`. Covers the
-  canonical data → publication pipeline plus partial / off-axis
-  workflows (visualization-only, talks, lay summaries, EDA + hypothesis
+* **117 protocols** the AI picks from via `tool_route`. Each protocol
+  carries `scope_tags: {domain, audience, workflow_shape}` and a
+  `tier` so the router filters intelligently. Covers the canonical data
+  → publication pipeline plus partial / off-axis workflows
+  (visualization-only, talks, lay summaries, EDA + hypothesis
   generation, method comparison, reproduction, methodological
   consultation, multi-paper review, mid-pipeline entry, plus pre-data
   qualitative + survey design, IRR, fairness, calibrated UQ,
   manuscript outline, venue selection, defense prep, and Data
   Management Plans).
-* **212 MCP tools** across three namespaces — `sys_*` (system /
+* **146 live MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
-  (append-only memory).
+  (append-only memory). Down from 344 in v1.x — consolidated families
+  (`tool_audit`, `tool_dashboard`, `tool_search`, `tool_figure`,
+  `tool_step`, `tool_lessons`, etc.) dispatch by `scope` / `operation`
+  / `dimension`. Every v1 tool name still works via 80 backward-compat
+  aliases for the v2.0.x patch line — see
+  [MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) for the surface map.
 
 ---
 
@@ -226,17 +298,27 @@ After install + scaffold, your first prompt should be one of:
 
 ## Cheatsheet — every command worth knowing
 
-### CLI (two commands)
+### CLI (four commands)
 
 ```bash
 research-os init                          # scaffold THIS folder
 research-os init my-project --name "X"    # scaffold ./my-project
 research-os init . --force                # re-scaffold (preserves data + config)
 research-os init --ide cursor,claude      # only those two IDEs
-research-os start                         # run the MCP server (global)
-```
 
-You rarely run `research-os start` by hand — your IDE auto-launches it.
+research-os ide list                      # what IDEs are wired here?
+research-os ide add cursor                # wire Cursor (without re-init)
+research-os ide remove opencode           # un-wire OpenCode
+research-os ide config-path cursor        # print where Cursor's MCP config lives
+
+research-os doctor                        # diagnose install + workspace health
+research-os doctor --json                 # machine-readable
+research-os doctor --workspace-only       # skip install-side checks
+
+research-os start                         # run the MCP server (global)
+                                          # you rarely run this by hand —
+                                          # your IDE auto-launches it
+```
 
 ### Where files go
 
@@ -350,10 +432,16 @@ push back if you disagree with my plan
 
 ### Routing primitives (the AI calls these — you don't)
 
-* `sys_boot` — one-call session start
-* `tool_route(prompt)` — picks the right protocol from your message
-* `sys_protocol_get format='summary'` — load step headings (~300 tokens)
-* `sys_active_tools(protocol)` — tool shortlist per protocol
+* `sys_boot` — one-call session start (state + config + history + dep
+  inventory + next protocol + freshness + pause classification +
+  active plan)
+* `tool_route(prompt)` — picks the right protocol from your message;
+  returns `recommended_action` (literal next-call string), `tier`,
+  and `why_matched` for the AI to rank options
+* `sys_protocol_get` — defaults to `format='summary'` (~3K chars);
+  pass `format='full' | 'step' | 'lean' | 'dryrun'` only when needed
+* `sys_active_tools(protocol)` — 13-18-tool scoped shortlist per
+  protocol (down from 146 visible)
 * `sys_help` — AI orientation (which protocol does what)
 * `sys_active_project` — which project did the global server resolve
 
@@ -367,6 +455,7 @@ push back if you disagree with my plan
 | Workspace looks broken | *"fix the workspace"* — `tool_workspace_repair`, never deletes |
 | Chat is too long | *"hand off the session"* — open fresh chat, *"pick up where we left off"* |
 | Deleted by mistake | *"list checkpoints"* → *"rollback to <id>"* |
+| Install / wiring uncertain | `research-os doctor` — full health check |
 
 ---
 
@@ -388,17 +477,21 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.
-> 3. **Verify**: run `research-os --help` and show me the output.
+> 3. **Verify**: run `research-os --help` and show me the output. There
+>    should be four subcommands: `init`, `ide`, `start`, `doctor`.
 > 4. **Detect my AI IDE.** Ask which I'm using (Claude Code / OpenCode /
 >    Antigravity / Cursor / Claude Desktop / VS Code with MCP / Windsurf
 >    / Continue / Aider / other). For the chosen IDE, tell me what file
->    Research OS will drop on `init`. If it needs a global config
+>    Research OS will drop on `init`. You can preview the path with
+>    `research-os ide config-path <ide>`. If it needs a global config
 >    snippet, show it to me — DO NOT modify global configs without my
 >    approval.
-> 5. **Show me the two-command workflow**:
+> 5. **Show me the workflow**:
 >    ```
 >    mkdir my-project && cd my-project
 >    research-os init     # scaffolds + drops IDE config
+>    research-os doctor   # confirm install + workspace are healthy
+>    research-os ide list # confirm the right IDE was wired
 >    ```
 >    Then open the IDE on the folder and chat. Mention that
 >    `research-os start` is auto-launched by the IDE; I rarely run it
@@ -418,6 +511,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    - `docs/RESEARCHER_GUIDE.md` — full workflow walkthrough
 >    - `docs/USE_CASES.md` — role × goal × output map
 >    - `docs/FAQ.md` — common questions
+>    - `docs/MIGRATION_v1_to_v2.md` — if upgrading from v1.x
 
 ---
 
@@ -433,5 +527,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 * [FAQ.md](FAQ.md) — common questions.
 * [PROTOCOLS.md](PROTOCOLS.md) — catalogue of every protocol.
 * [TOOLS.md](TOOLS.md) — catalogue of every MCP tool.
+* [MIGRATION_v1_to_v2.md](MIGRATION_v1_to_v2.md) — if you're coming
+  from v1.x: the consolidated tool surface + alias map.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving
   Research OS (useful for debugging "why did the AI do that?").

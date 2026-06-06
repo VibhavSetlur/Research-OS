@@ -103,20 +103,28 @@ class TestProtocolLoading:
 
 class TestProtocolList:
     def test_list_all_protocols(self, full_protocol_dir):
-        names = {p["name"] for p in list_protocols()}
+        # `list_protocols()` now also walks pack-registered dirs (v1.11.1).
+        # Restrict to core entries for this fixture's strict-equality check.
+        names = {
+            p["name"] for p in list_protocols() if p.get("pack_or_core") == "core"
+        }
         assert names == {"guidance/alpha", "guidance/beta", "guidance/gamma"}
 
     def test_list_protocols_have_required_metadata(self, full_protocol_dir):
         for p in list_protocols():
             assert "name" in p
             assert "summary" in p
+            assert "pack_or_core" in p
 
 
 class TestProtocolFields:
     REQUIRED_FIELDS = {"id", "name", "version", "description", "steps"}
 
     def test_each_protocol_has_required_fields(self, full_protocol_dir):
+        # Skip pack-contributed entries; their files live outside the fixture.
         for entry in list_protocols():
+            if entry.get("pack_or_core") != "core":
+                continue
             loaded = yaml.safe_load(
                 (full_protocol_dir / f"{entry['name']}.yaml").read_text()
             )
@@ -125,6 +133,8 @@ class TestProtocolFields:
 
     def test_summary_non_empty(self, full_protocol_dir):
         for entry in list_protocols():
+            if entry.get("pack_or_core") != "core":
+                continue
             assert entry["summary"], f"{entry['name']} has empty summary"
 
 

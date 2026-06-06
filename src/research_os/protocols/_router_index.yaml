@@ -36,7 +36,8 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 17
+version: 20
+generated_at: '2026-06-06'
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -250,8 +251,8 @@ protocols:
       - "hands off"
     token_estimate: 1100
     decomposition:
-      - tool: sys_config_set
-        args: {key: "interaction.autonomy_level", value: "autopilot"}
+      - tool: sys_config
+        args: {operation: "set", key: "interaction.autonomy_level", value: "autopilot"}
       - protocol: guidance/autopilot
         purpose: "Load gates + heartbeat policy."
       - protocol: guidance/analysis_plan
@@ -362,7 +363,10 @@ protocols:
       - "DESeq2"
       - "deseq2"
       - "differential expression"
-      - "DEG"
+      - "DEG analysis"
+      - "DEG list"
+      - "DEGs"
+      - "differentially expressed genes"
       - "DE analysis"
       - "single-cell DE"
       - "scRNA-seq QC"
@@ -421,7 +425,8 @@ protocols:
     decomposition:
       - tool: sys_path
         purpose: "Mark folder as __DEAD_END with rationale."
-      - tool: tool_dead_end_lessons
+      - tool: tool_lessons
+        args: {operation: dead_end}
         purpose: "Capture the lesson for future steps."
       - tool: tool_plan_next_step
         purpose: "Propose alternative direction."
@@ -551,7 +556,7 @@ protocols:
     triggers: ["preregister", "pre-register", "prereg", "freeze the plan",
                "lock the analysis plan", "registered report", "sap",
                "freeze the methods", "lock the methods"]
-    shortcut_tool: tool_preregister_freeze
+    shortcut_tool: tool_preregister
 
   methodology/data_management_plan:
     intent_class: methodology
@@ -1021,8 +1026,8 @@ protocols:
   synthesis/synthesis_poster:
     intent_class: synthesize
     sub_intent: poster
-    summary: "Tikzposter LaTeX poster. Redirects to synthesis/printable(format=poster)."
-    triggers: ["make a poster", "conference poster", "tikzposter"]
+    summary: "Typst poster (academic_36x48 default). Redirects to synthesis/printable(format=poster)."
+    triggers: ["make a poster", "conference poster", "academic poster"]
     shortcut_tool: tool_poster_create
 
   synthesis/synthesis_dashboard:
@@ -1030,7 +1035,7 @@ protocols:
     sub_intent: dashboard
     summary: "Standalone offline HTML dashboard."
     triggers: ["dashboard", "executive summary", "html report", "lab meeting"]
-    shortcut_tool: tool_dashboard_create
+    shortcut_tool: tool_dashboard
 
   synthesis/synthesis_grant:
     intent_class: synthesize
@@ -1062,12 +1067,16 @@ protocols:
                "red team the paper", "what will reviewers say", "stress-test the paper",
                "internal review pass", "rebuttal practice", "dry-run review",
                "adversarial review of the paper"]
-    shortcut_tool: tool_reviewer_simulate
+    shortcut_tool: tool_reviewer
     decomposition:
-      - tool: tool_reviewer_simulate
-      - tool: tool_rebuttal_draft
-      - tool: tool_reviewer_response_compile
-      - tool: tool_audit_reviewer_responses
+      - tool: tool_reviewer
+        purpose: "Build the 7-persona pre-submission simulation brief (operation='simulate')."
+      - tool: tool_reviewer
+        purpose: "Scaffold one rebuttal markdown per substantive comment (operation='rebuttal', comment=..., persona=...)."
+      - tool: tool_reviewer
+        purpose: "Assemble rebuttals into response_to_reviewers.md + Typst PDF (operation='compile')."
+      - tool: tool_audit
+        purpose: "Audit rebuttals for hand-waving + missing evidence (scope='synthesis', dimension='reviewer_responses')."
 
   guidance/code_review:
     intent_class: review
@@ -1105,8 +1114,8 @@ protocols:
     decomposition:
       - protocol: guidance/revise_and_resubmit
         purpose: "Ingest reviews, parse to grid, classify + route per comment, execute routes, re-audit, fill response, assemble letter."
-      - tool: tool_response_to_reviewers
-        purpose: "Generate the formal point-by-point letter skeleton."
+      - tool: tool_reviewer
+        purpose: "Generate the formal point-by-point letter skeleton (operation='response')."
       - tool: tool_audit_claims
         purpose: "Re-audit every number in the revised manuscript."
       - tool: tool_audit_prose
@@ -1362,7 +1371,7 @@ protocols:
     decomposition:
       - protocol: methodology/exploratory_data_analysis
         purpose: "Pre-register scope, profile, build univariate + bivariate views."
-      - tool: tool_data_profile
+      - tool: tool_data
   methodology/method_comparison:
     intent_class: methodology
     sub_intent: comparison
@@ -1409,7 +1418,7 @@ protocols:
     decomposition:
       - protocol: methodology/data_quality_audit
         purpose: "Schema + completeness + distribution + duplicate + leakage + bias checks."
-      - tool: tool_data_profile
+      - tool: tool_data
 
   methodology/power_analysis:
     intent_class: methodology
@@ -1495,14 +1504,12 @@ protocols:
     decomposition:
       - protocol: methodology/missing_data_strategy
         purpose: "Quantify missingness, justify mechanism, pick handling, run primary + sensitivity, pre-register if confirmatory."
-      - tool: tool_data_profile
+      - tool: tool_data
         purpose: "Profile missingness per column / row / stratum."
       - tool: tool_python_exec
         purpose: "Run MICE / IPW / pattern-mixture scripts."
-      - tool: tool_sensitivity_define
-        purpose: "Register the sensitivity spec under a different missingness mechanism."
-      - tool: tool_sensitivity_run
-        purpose: "Execute the sensitivity analysis and pool against the primary."
+      - tool: tool_sensitivity
+        purpose: "Register the sensitivity spec under a different missingness mechanism (operation='define') then execute (operation='run')."
 
   methodology/qualitative_quality_audit:
     intent_class: methodology
@@ -1961,7 +1968,8 @@ shortcut_intents:
   dead_end_lessons:
     triggers: ["lessons", "what did we learn", "past mistakes",
               "previous dead ends"]
-    tool: tool_dead_end_lessons
+    tool: tool_lessons
+    args: {operation: dead_end}
 
   list_protocols:
     triggers: ["list protocols", "what protocols", "available protocols"]
@@ -1984,11 +1992,11 @@ shortcut_intents:
 
   background_task:
     triggers: ["background", "long running", "kick off", "fire and forget"]
-    tool: tool_task_run
+    tool: tool_task
 
   scratch_sandbox:
     triggers: ["quick test", "syntax check", "scratch", "throwaway"]
-    tool: tool_scratch_write
+    tool: tool_scratch
 
   step_iterate:
     triggers:
@@ -2007,7 +2015,7 @@ shortcut_intents:
       - "version this iteration"
       - "design iteration"
       - "v2 of this step"
-    tool: tool_step_iterate
+    tool: tool_step
 
   version_coherence:
     triggers:

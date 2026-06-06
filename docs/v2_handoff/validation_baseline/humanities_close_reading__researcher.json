@@ -1,0 +1,128 @@
+{
+  "scenario": "humanities_close_reading",
+  "perspective": "researcher",
+  "final_rating": 6.4,
+  "high_friction_count": 6,
+  "first_5_turns_high_friction": 4,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "tool_surface_bloat",
+      "description": "344 tools in scope at session start (204 core + pack + adapter). For a humanities close-reading scenario the researcher needs roughly 12: tool_route, sys_protocol_get, sys_path_create, sys_file_write, tool_humanities_archive_lookup, tool_humanities_transcribe, tool_humanities_citation_chain, tool_humanities_essay_scaffold, tool_paper_compile_typst, tool_audit_citations, mem_log, tool_path_finalize. The remaining ~330 (every tool_slurm_*, every tool_dashboard_*, tool_julia_exec, tool_r_exec, tool_rmarkdown, every adapter tool, every figure-coverage auditor) are noise the AI triages past every turn — and the researcher sees the latency / token cost.",
+      "suggested_fix": "Ship a researcher_config.domain == 'humanities' tool-allowlist that hides any tool not in the active pack's surface + the synthesis_paper hand-off. Pair with sys_active_tools auto-call after sys_boot so the per-turn working set is ~15 tools, not 344."
+    },
+    {
+      "severity": "HIGH",
+      "category": "protocol_leakage_of_internal_contract",
+      "description": "close_reading.yaml step 1 (`declare_step_contract`) asks the researcher to author a `step_summary.yaml` declaring `step_intent: apparatus`, `figure_required: false`, `table_required: false`, `literature_required: true`. This is RO-internal vocabulary that exists ONLY to placate the STEM-oriented audit gates. A humanist hears 'declare your step contract' and bounces — close reading does not have 'steps' or 'contracts'. The protocol also references a planned-but-not-shipped `tool_humanities_apparatus_audit` (see docs/ROADMAP.md), which the researcher cannot call.",
+      "suggested_fix": "Either ship tool_humanities_apparatus_audit (and remove the empirical gates from humanities packs entirely), OR auto-write the step_summary.yaml as a side-effect when the humanities pack is active so the researcher never has to author it. Remove the forward reference until the audit ships."
+    },
+    {
+      "severity": "HIGH",
+      "category": "discovery_tool_redundancy",
+      "description": "Six overlapping discovery tools: tool_route, tool_semantic_route, sys_semantic_tool_search, tool_protocols_list, sys_protocol_list, tool_tools_list. The descriptions overlap (each says 'prefer the others') and the differences between them (hybrid vs pure semantic vs catalog dump vs flat listing) are RO-engineering decisions, not researcher concerns. A researcher will not understand why their AI sometimes calls one and sometimes another.",
+      "suggested_fix": "Collapse to two: tool_route (the only one a researcher conversation triggers) and sys_protocol_list (debug/maintainer). Mark the other four as @internal — keep the handlers but drop them from list_tools output for non-maintainer sessions."
+    },
+    {
+      "severity": "HIGH",
+      "category": "audit_message_opacity",
+      "description": "Audit blockers surface as raw strings like `[grounding] N decision(s) without grounding records`, `audit_step_completeness gate fired — stack_plan.md consistently absent`, `[literature] DEFERRED claim without secondary-source PDF`. These are intelligible to an MCP-fluent AI maintainer; a humanities researcher who just wrote an essay reads 'gate fired' and 'stack_plan' as gibberish. No actionable fix surfaced, no plain-English next step.",
+      "suggested_fix": "Wrap every blocker string with a researcher-facing translation: `gate=step_completeness  reason='Your step is missing a results write-up'  fix='Open workspace/<step>/conclusions.md and write a 2-paragraph summary'`. Make `[apparatus]` an explicit dimension instead of 'figure_required=false leaks past'."
+    },
+    {
+      "severity": "HIGH",
+      "category": "quality_bar_dict_vs_prose",
+      "description": "humanities_essay_structure.yaml uses a flat boolean dict for quality_bar (close_readings_minimum: 3, counter_argument_steelmanned: true, etc.). 11 booleans, no rationale. close_reading.yaml uses a prose quality_bar with named bars + explanations. The boolean form is unreadable to a researcher and unenforceable to the AI (how does the AI prove `counter_argument_steelmanned`?). The two forms in the same chain are inconsistent.",
+      "suggested_fix": "Standardize quality_bar across all 118 protocols to the prose form (name + explanation + how-to-check). Convert humanities_essay_structure's 11 booleans to ~5 prose bars with measurable signals (e.g. 'thesis sentence parses as a falsifiable claim by the section-substantiveness auditor')."
+    },
+    {
+      "severity": "HIGH",
+      "category": "stem_inherited_ontology",
+      "description": "The path / step / experiment / branch / hypothesis ontology is STEM-inherited (RNAseq pipelines, ML experiments). For a literary essay there is one workspace, one passage set, one apparatus, one essay. tool_path_finalize, tool_step_iterate, branch_of, allow_unfinalized_predecessor all force the humanist to map their work into the wrong shape. The `allow_unfinalized_predecessor` override exists but is invisible until the AI hits the refusal.",
+      "suggested_fix": "Add `researcher_config.workflow_shape: 'linear_essay' | 'experiment_pipeline'`. When 'linear_essay', skip the predecessor-finalization gate, hide path/branch/hypothesis tools from sys_active_tools, and present a single workspace/draft/ instead of workspace/01_..., workspace/02_...."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "jargon_density",
+      "description": "close_reading.yaml description namedrops I.A. Richards, Brooks, Wimsatt, Beardsley, Empson, de Man, Jakobson's 'set toward the message', Auerbach, Curtius, Greenblatt, McGann, Sedgwick, Spivak, Said, Iser, Fish in the first two screens. citation_chains.yaml does the same with Aristotle's energeia, Aquinas's actus, Brentano, Heidegger, Cambridge School. For a literary scholar this is plausibly motivating; for a historian, philosopher, or DH practitioner reading the same protocol it's intimidating noise.",
+      "suggested_fix": "Trim editorial_voice + description prose to the bare claim. Move the canonical-thinkers paragraph to an optional `provenance:` block the researcher can request with sys_protocol_get(format='lore'). Keep the protocol body tradition-agnostic."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "format_default_mismatch",
+      "description": "sys_protocol_get default format is 'full' (~1.5-3K tokens) 'for back-compat', but the description itself says 'summary or lean is recommended'. The AI either burns tokens on full every turn or hand-codes a format='summary' override the researcher cannot see.",
+      "suggested_fix": "Change default to 'summary' in v2.0 (this is a major bump — back-compat is the right thing to break). Keep `full` available; auto-escalate to step on demand when the AI needs implementation detail."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "shortcut_tool_misnomer",
+      "description": "tool_humanities_essay_scaffold is labeled the 'shortcut' for humanities_essay_structure, suggesting the researcher can skip the 7-step protocol. In practice it writes a stub paper.md with section headings — the 7 steps still need to be done by hand or by AI. A researcher reading 'shortcut' expects the essay drafted, not the headings scaffolded.",
+      "suggested_fix": "Rename to tool_humanities_essay_outline (it produces an outline, not the essay) OR upgrade the shortcut to also fill in the close-reading sections from the apparatus files. Don't call something a shortcut if it isn't."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "literature_index_schema_unknown",
+      "description": "humanities_essay_structure prerequisites: 'inputs/literature_index.yaml has at least 5 secondary-critic entries'. The schema for that YAML is never surfaced in the protocol — the researcher has to grep the codebase or write it wrong and trip the gate. tool_literature_search_and_save populates it but the researcher does not know that without reading sys_active_tools output carefully.",
+      "suggested_fix": "Add a template/literature_index.yaml.example with 2 worked entries + a comment per field. Have tool_humanities_essay_scaffold auto-write the empty literature_index.yaml with a clear schema comment if missing."
+    },
+    {
+      "severity": "LOW",
+      "category": "venue_template_coupling",
+      "description": "humanities_essay_structure describes the venue layer (1.25in margins, 12pt serif, MLA-style unnumbered headings, footnote apparatus, 0.5in block-quote indent) in three different places: the description, the editorial_voice rules, and the compile_to_pdf step. A researcher who wants Chicago notes-bib (history, classics, theology) has to find the citation_style override in researcher_config — never mentioned where they'd look first.",
+      "suggested_fix": "Surface citation_style + venue in the tool_humanities_essay_scaffold call arguments (default MLA, override via arg). Drop the venue prose from the protocol body — it belongs in the template README, not the workflow scaffold."
+    },
+    {
+      "severity": "LOW",
+      "category": "router_decomposition_returns_two_protocols",
+      "description": "tool_route on 'I want to close-read Heart of Darkness and write an essay' surfaces humanities/textual/close_reading AND synthesis/humanities_essay_structure as candidates. The router does not say 'first one, then the other' — the researcher sees a tie and has to pick.",
+      "suggested_fix": "Add a `workflow_chain` field to router entries: humanities/textual/close_reading.next_in_chain = synthesis/humanities_essay_structure. tool_route returns a sequenced plan, not a tie."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_route + tool_semantic_route + sys_semantic_tool_search + tool_protocols_list + sys_protocol_list + tool_tools_list (six discovery tools, overlapping)",
+    "sys_protocol_get (5 formats: summary / step / full / lean / dryrun, default full but description says prefer summary)",
+    "tool_plan_advance + tool_plan_turn + tool_plan_clear + tool_plan (four planning verbs for one active_plan object)",
+    "tool_humanities_essay_scaffold (called 'shortcut' but only writes section stubs; not a shortcut)",
+    "tool_path_finalize + tool_step_complete + tool_step_iterate + tool_step_revision_options (four step-lifecycle verbs)",
+    "tool_audit_synthesis vs tool_audit_step_completeness vs tool_audit_citations vs tool_audit_figure_coverage vs tool_audit_step_literature vs tool_audit_findings_query vs tool_audit_findings_diff (7 of the 26 audit tools; relationships unclear)",
+    "sys_path_create with branch_of + from_step + allow_unfinalized_predecessor + override_rationale + hypothesis (five arguments for what a humanist would call 'make a folder')"
+  ],
+  "confusing_protocols": [
+    "humanities/textual/close_reading — step 1 declare_step_contract leaks RO-internal apparatus/empirical contract vocabulary; forward references a planned-but-not-shipped tool_humanities_apparatus_audit",
+    "synthesis/humanities_essay_structure — quality_bar as flat boolean dict is unreadable and unverifiable; prerequisites require inputs/literature_index.yaml with undisclosed schema",
+    "humanities/archival/archival_research — calls multiple tools by name (tool_humanities_archive_lookup, tool_humanities_transcribe, tool_humanities_citation_chain) but does not surface that they are scaffold-generators not API callers; researcher expects actual archive query, gets a markdown template",
+    "humanities/citation/citation_chains — heavy on canonical-thinker namedropping (Skinner, Pocock, Gadamer, Brentano) in the description; the actionable steps are buried under the lore",
+    "guidance/dead_end_routing (on_failure target) — what 'dead end' means in a humanities context is unclear; the synthesis_paper hand-off can route there silently"
+  ],
+  "never_called_tools": [
+    "tool_slurm_submit", "tool_slurm_status", "tool_slurm_log", "tool_slurm_array_plan",
+    "tool_dashboard_create", "tool_dashboard_story_generate", "tool_dashboard_story_edit", "tool_dashboard_story_quality_bar", "tool_dashboard_reviewer_sim", "tool_audit_dashboard_content", "tool_audit_figure_interactivity", "tool_figure_interactive_autogen",
+    "tool_julia_exec", "tool_r_exec", "tool_rmarkdown_render",
+    "tool_data_sample", "tool_data_profile", "tool_data_convert",
+    "tool_notebook_render",
+    "tool_audit_figure", "tool_audit_figure_coverage", "tool_audit_power", "tool_audit_assumptions", "tool_audit_reproducibility",
+    "tool_poster_create", "tool_slides_create",
+    "tool_reviewer_simulate", "tool_rebuttal_draft", "tool_reviewer_response_compile", "tool_audit_reviewer_responses",
+    "tool_external_tool_setup", "tool_branch_compare", "tool_branch_promote",
+    "tool_sensitivity_analysis", "tool_sensitivity_check",
+    "tool_redteam", "tool_failure_analysis", "tool_failure_modes",
+    "tool_synthesis_curate_figures", "tool_paper_figures_autoembed",
+    "tool_adapter_extract", "tool_adapters_list", "tool_adapters_run_all", "sys_adapters_installed",
+    "mem_intake_regenerate", "mem_decision_log", "mem_hypothesis_*",
+    "tool_step_env_lock", "sys_env_snapshot", "sys_env_docker_generate",
+    "tool_workflow_dag", "tool_package_install", "tool_script_exec", "tool_python_exec",
+    "tool_dry_run", "tool_alternatives_consider", "tool_state_promote"
+  ],
+  "recommendations": [
+    "Phase 9 (consolidation): hide tools from list_tools when researcher_config.domain == 'humanities' is set — easy ~100-tool reduction with no functional loss. Add `tool.applies_to_domains` metadata field.",
+    "Phase 9: collapse the six discovery tools to two (tool_route + sys_protocol_list). The other four become @internal handlers — kept for tests, removed from list_tools.",
+    "v2.0 breaking change: change sys_protocol_get default format from 'full' to 'summary'. This is the right MAJOR bump moment to break back-compat.",
+    "Ship tool_humanities_apparatus_audit before v2.0 — the close_reading protocol already references it. Without it the protocol leaks the empirical audit gate vocabulary.",
+    "Add researcher_config.workflow_shape: 'linear_essay' | 'experiment_pipeline'. When linear_essay: hide path/branch/hypothesis tools, skip predecessor-finalization gate, present a flat workspace/draft/.",
+    "Standardize quality_bar to prose form across all 118 protocols. Boolean dicts are unreadable to researchers and unverifiable by audit code.",
+    "Wrap every audit blocker with a researcher-facing translation: `reason` + `fix` fields. The current opaque strings ('gate fired', 'stack_plan absent') are unusable.",
+    "Trim humanities protocol descriptions: move the canonical-thinker lore to an optional sys_protocol_get(format='lore') block. Keep the action body tradition-agnostic.",
+    "Add `next_in_chain` field to router entries so tool_route can return a sequenced multi-protocol plan instead of presenting a candidate tie."
+  ]
+}

@@ -1,7 +1,12 @@
 id: writing_citations
+tier: 'synthesize'
 name: Writing — Citations
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 description: Maintain workspace/citations.md so every claim is grounded and every citation is verified online.
 
 steps:
@@ -16,7 +21,7 @@ steps:
   - id: verify_each_citation
     name: Verify Each Citation Online
     description: |
-      tool_audit_citations — queries Crossref / Semantic Scholar for each
+      tool_audit(scope='project', dimension='citations') — queries Crossref / Semantic Scholar for each
       citation_key, marks entries verified/unverified. Update
       inputs/literature_index.yaml entries.verified=true accordingly (sys_file_write
       with the relevant edit).

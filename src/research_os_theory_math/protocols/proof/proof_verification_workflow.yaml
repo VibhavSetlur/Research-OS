@@ -1,7 +1,11 @@
 id: proof_verification_workflow
 name: Proof Verification Workflow — claim → strategy → draft → review → check → publish
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   End-to-end workflow for turning a claim into a verified proof.

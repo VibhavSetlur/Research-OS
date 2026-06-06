@@ -1,13 +1,18 @@
 id: color_accessibility_audit
+tier: 'synthesize'
 name: Color + Accessibility Audit (figures + dashboards)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Audit one or more figures (or a dashboard's CSS palette) for
   color-blindness safety, contrast adequacy, and WCAG-aligned
-  accessibility. The existing `tool_audit_figure_full` checks DPI,
-  dimensions, and sidecars; this protocol goes deeper on the COLOUR +
-  ACCESSIBILITY layer that's usually missed.
+  accessibility. `tool_audit(scope='step', dimension='figure_full')` checks DPI, dimensions, and
+  sidecars; this protocol goes deeper on the COLOUR + ACCESSIBILITY
+  layer that's usually missed.
 
   Distinct from `visualization/figure_guidelines` (which prescribes
   Okabe-Ito / viridis as defaults but doesn't audit existing figures

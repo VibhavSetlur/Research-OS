@@ -1,7 +1,12 @@
 id: quick_paper_review
+tier: 'review'
 name: Quick Paper Review
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
 description: |
   Fast (20-40 minute) critical appraisal of someone else's paper. NOT a full
   systematic review. Outputs a one-page review brief: TLDR, three strengths,

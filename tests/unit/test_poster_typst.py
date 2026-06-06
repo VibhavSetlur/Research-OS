@@ -21,7 +21,8 @@ from research_os.tools.actions.synthesis.poster_typst import (
 )
 
 HAS_TYPST = shutil.which("typst") is not None
-HAS_PDFLATEX = shutil.which("pdflatex") is not None
+# Phase-14b (v2.0.0): pdflatex no longer needed for posters — the
+# tikzposter LaTeX renderer was removed and Typst is the only engine.
 
 # Tiny 1x1 PNG fixture — no PIL dep, no real-image overhead.
 _PNG_1x1 = base64.b64decode(
@@ -249,23 +250,17 @@ def test_unknown_theme_returns_structured_error(tmp_path):
     assert "unknown poster theme" in res["message"]
 
 
-# ── Legacy LaTeX path still reachable ────────────────────────────────
+# ── Legacy LaTeX path removed in v2.0.0 (phase-14b) ──────────────────
 
 
-@pytest.mark.skipif(not HAS_PDFLATEX, reason="pdflatex not installed")
-def test_legacy_tikzposter_path_still_works(tmp_path):
-    """The legacy create_poster (latex.py) must still produce a poster
-    when researcher_config.synthesis.poster_engine='latex' is set —
-    the integration agent dispatches on that field."""
-    from research_os.tools.actions.synthesis.latex import create_poster
+def test_legacy_tikzposter_create_poster_is_gone():
+    """The create_poster() function under synthesis/latex.py was removed
+    in v2.0.0 along with the rest of the tikzposter LaTeX path. Import
+    must fail; the only supported poster path is poster_typst.compile_poster."""
+    from research_os.tools.actions.synthesis import latex as _latex_module
 
-    root = _make_project(tmp_path)
-    res = create_poster(root, layout="billboard")
-    # Path returns; tikzposter may or may not be installed in the test
-    # env. We don't assert success; we assert the call returns the
-    # expected structured shape rather than raising.
-    assert isinstance(res, dict)
-    assert "status" in res
+    assert not hasattr(_latex_module, "create_poster")
+    assert not hasattr(_latex_module, "_poster_tex_escape")
 
 
 # ── Backwards-compat with older callers ──────────────────────────────
@@ -290,12 +285,16 @@ def test_poster_engine_config_switch_keys_present():
     """The integration agent dispatches on
     researcher_config.synthesis.poster_engine. Lock that the validator
     has the expected enumeration in place so a typo (`'tipst'`) is
-    rejected before we even reach the renderer."""
+    rejected before we even reach the renderer.
+
+    Phase-14b (v2.0.0): the legacy tikzposter LaTeX renderer was
+    removed. `latex` must no longer be in the accepted set; only
+    `typst` is supported."""
     from research_os.tools.actions.state.config import _ENUM_FIELDS
 
     assert "synthesis.poster_engine" in _ENUM_FIELDS
     assert "typst" in _ENUM_FIELDS["synthesis.poster_engine"]
-    assert "latex" in _ENUM_FIELDS["synthesis.poster_engine"]
+    assert "latex" not in _ENUM_FIELDS["synthesis.poster_engine"]
 
 
 def test_poster_template_choices_match_supported():

@@ -1,7 +1,12 @@
 id: interactive_figure_design
+tier: 'synthesize'
 name: Interactive Figure Design (per-figure, NOT dashboard-scale)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-05'
 description: |
   When a SINGLE figure is best served by interactivity — hover-to-
@@ -171,11 +176,11 @@ steps:
   - id: audit
     name: Audit the static (gate) + flag missing interactive companions
     description: |
-      `tool_audit_figure_full filepath="<NN>_<descriptor>.png"` —
+      `tool_audit(scope='step', dimension='figure_full') filepath="<NN>_<descriptor>.png"` —
       the static is what the figure-quality gate checks. The HTML is
       a companion artefact; it doesn't pass through that gate.
 
-      `tool_audit_figure_interactivity` — separately enforces that
+      `tool_audit(scope='step', dimension='figure_interactivity')` — separately enforces that
       figures which NEED an interactive companion actually have one.
       In normal strictness it auto-generates a Vega-Lite or vis-network
       fallback HTML next to the static (tagged
@@ -185,11 +190,11 @@ steps:
       in the figure's .caption.md sidecar.
 
       If a single auto-generated companion is needed in isolation,
-      call `tool_figure_interactive_autogen
-      figure_path=<workspace/.../figures/<stem>.png>`.
+      call `tool_figure(operation='interactive_autogen',
+      figure_path=<workspace/.../figures/<stem>.png>)`.
 
-      Optionally `tool_dashboard_test_generate` if the HTML is
-      complex enough to need its own smoke test.
+      Optionally `tool_dashboard(operation='test_generate')` if the
+      HTML is complex enough to need its own smoke test.
 
 expected_outputs:
   - workspace/*/outputs/figures/<NN>_<descriptor>.png

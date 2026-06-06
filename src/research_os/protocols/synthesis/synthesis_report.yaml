@@ -1,7 +1,12 @@
 id: synthesis_report
+tier: 'synthesize'
 name: Synthesis — Internal / Technical Report
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: Compile a non-journal report for internal stakeholders, clients, or a technical audience.
 trigger: Researcher asks "write a report" / "write up findings for my PI / client / team"; OR `research_goal.output_types` includes "report".
 
@@ -83,7 +88,7 @@ steps:
       tool_synthesize output_type="report" output_format=markdown
       Writes synthesis/report.md + synthesis/report_references.bib.
 
-      tool_audit_synthesis paper_path="synthesis/report.md"
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/report.md"
       Check banned phrases, missing sections, ungrounded claims.
       tool_citations_verify
 

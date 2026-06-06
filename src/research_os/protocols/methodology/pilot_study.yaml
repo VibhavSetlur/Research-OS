@@ -1,7 +1,12 @@
 id: pilot_study
+tier: 'plan'
 name: Pilot Study
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 description: |
   Small-N preliminary run to de-risk a full study: feasibility, instrument
   reliability, recruitment rate, refining inclusion/exclusion criteria,

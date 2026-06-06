@@ -1,7 +1,11 @@
 id: fmea_protocol
 name: FMEA — Failure Mode and Effects Analysis
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Per-component / per-function enumeration of failure modes,

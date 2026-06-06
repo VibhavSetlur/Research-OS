@@ -1,7 +1,12 @@
 id: survey_design
+tier: 'plan'
 name: Survey / Questionnaire Design (instrument development)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline, interview_study]
 last_reviewed: '2026-06-02'
 description: |
   survey_psychometrics analyses a survey that already exists. THIS

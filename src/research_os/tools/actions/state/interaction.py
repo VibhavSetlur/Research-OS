@@ -213,7 +213,7 @@ def session_handoff(root: Path) -> dict[str, Any]:
             "- Critical assumptions still untested are listed under "
             "`active_hypotheses` (status=testing).",
             "- Dead-end folders are kept on disk — do NOT re-try those "
-            "methods without a justification logged via `mem_decision_log`.",
+            "methods without a justification logged via `mem_log(kind='decision')`.",
             f"- The rollback checkpoint above (`{cp_id}`) is your safety net.",
         ])
         content = "\n".join(content_lines) + "\n"

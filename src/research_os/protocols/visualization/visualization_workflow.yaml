@@ -1,7 +1,12 @@
 id: visualization_workflow
+tier: 'synthesize'
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, engineering]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: |
   Workflow protocol for when a researcher wants FIGURES — one, a few, or a
   full deck — without committing to the full analysis_plan loop. Handles
@@ -153,7 +158,7 @@ steps:
         workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.png
         workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.svg
             (recommended — enables the SVG label-overlap audit)
-      DPI ≥ 300. Palette CVD-safe (call tool_figure_palette for hex codes).
+      DPI ≥ 300. Palette CVD-safe (call tool_figure(operation='palette') for hex codes).
 
       Record per-figure outputs in figure_plan.md under each entry's
       `outputs:` field so the next step + the synthesis stage can find
@@ -193,14 +198,14 @@ steps:
 
       Write both sidecars in the AI-authored script alongside the
       figure save call. If the .summary.md is missing,
-        tool_figure_caption_synthesise figure_path=<rel>
+        tool_figure(operation='caption_synthesise', figure_path=<rel>)
       generates a competent draft from the existing caption + the
       step's conclusions; polish the draft in your voice.
 
   - id: audit_figures
     name: Audit each figure (DPI + sidecars + aspect ratio)
     description: |
-      tool_audit_figure_full filepath="<png>"
+      tool_audit(scope='step', dimension='figure_full') filepath="<png>"
       Checks DPI, dimensions, caption + summary presence, SVG companion,
       aspect-ratio sanity for time series. For decks with many figures,
       aggregate the warnings into workspace/logs/figure_audit_summary.md.

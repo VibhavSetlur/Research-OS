@@ -1,7 +1,12 @@
 id: network_visualization
+tier: 'synthesize'
 name: Network / Graph Visualization (DAGs, citation networks, knowledge graphs)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-02'
 description: |
   When relationships matter more than aggregates — co-authorship,
@@ -169,11 +174,11 @@ steps:
       Reference: Munzner Ch. 9 on networks; ColorBrewer for palettes.
 
   - id: implement_and_render
-    name: Implement + render in an AI-authored plotting script or tool_python_exec
+    name: Implement + render
     description: |
       For a static publication figure: follow visualization/figure_guidelines
-      with kind=network if supported, OR tool_python_exec with the
-      chosen library. The script must:
+      and write the plotting script with the chosen library. The script
+      must:
         - load the graph (edge list / adjacency / pickle)
         - compute the chosen layout with a FIXED random seed (force-
           directed layouts are stochastic; non-reproducible figures

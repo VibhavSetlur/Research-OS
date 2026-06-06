@@ -85,7 +85,7 @@ def _step_literature_dir(root: Path, step_id: str) -> Path:
     if not candidate.exists() or not candidate.is_dir():
         raise FileNotFoundError(
             f"Step '{step_id}' not found under workspace/. "
-            f"Use sys_path_list to see valid step IDs."
+            f"Use sys_path(operation='list') to see valid step IDs."
         )
     if not re.match(r"^\d{2,3}_", step_id):
         raise ValueError(

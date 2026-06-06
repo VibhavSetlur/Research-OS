@@ -39,8 +39,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+import uuid
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._base import AuditBase, AuditFinding
 
 logger = logging.getLogger("research_os.audit.claim_grounding")
 
@@ -298,4 +301,138 @@ def audit_claims(
     }
 
 
-__all__ = ["audit_claims", "extract_claims"]
+class ClaimGroundingAudit(AuditBase):
+    """Phase-4 :class:`AuditBase` wrapper around :func:`audit_claims`.
+
+    Calls the legacy procedural auditor (so the markdown report and
+    ``synthesis/claim_index.json`` continue to be written byte-identically)
+    and then translates its ``ungrounded`` list into a list of
+    :class:`AuditFinding` objects:
+
+    * one ``severity="block"`` finding per ungrounded claim — these are
+      hallucination candidates that should block the synthesis gate;
+    * one ``severity="info"`` summary finding per run, recording the
+      coverage percentage even when the gate passes cleanly. This gives
+      the append-only ``.audit_findings.jsonl`` ledger a heartbeat entry
+      so reviewers can see the audit actually ran.
+
+    Each finding's UUID is derived deterministically with ``uuid5`` over
+    ``(audit_name, dimension, evidence_paths, sorted suggested_fix)`` so
+    that re-running the audit against the same workspace + paper does
+    NOT churn finding IDs — important for downstream diffing of the
+    jsonl ledger across runs.
+    """
+
+    name = "claim_grounding"
+
+    def run(  # type: ignore[override]
+        self,
+        root: Path,
+        target_path: str | None = None,
+        *,
+        tolerance: float = 0.01,
+        **_: Any,
+    ) -> list[AuditFinding]:
+        result = audit_claims(root, target_path=target_path, tolerance=tolerance)
+
+        findings: list[AuditFinding] = []
+
+        # Error / warning paths short-circuit: audit ran but had nothing
+        # to do (no workspace, no target). Emit a single warn finding so
+        # the gate has a record of the no-op rather than silently passing.
+        if result.get("status") in {"error", "warning"} and not result.get("target"):
+            findings.append(
+                _make_finding(
+                    severity="warn",
+                    dimension="grounding",
+                    evidence_paths=[],
+                    suggested_fix=(
+                        result.get("message")
+                        or "claim_grounding could not run — see workspace state."
+                    ),
+                )
+            )
+            return findings
+
+        target = result.get("target") or (target_path or "synthesis/paper.md")
+        report_path = result.get("report_path") or (
+            "workspace/logs/claim_grounding.md"
+        )
+        idx_path = result.get("claim_index_path") or (
+            "synthesis/claim_index.json"
+        )
+
+        for c in result.get("ungrounded_claims") or []:
+            ctx = (c.get("context") or "").strip()
+            findings.append(
+                _make_finding(
+                    severity="block",
+                    dimension="grounding",
+                    evidence_paths=[target, report_path],
+                    suggested_fix=(
+                        f"Claim `{c.get('token')}` on L{c.get('line')} of "
+                        f"{target} does not appear in any workspace output. "
+                        "Verify the number against a workspace report, or "
+                        "remove it from the paper."
+                        + (f' Context: "...{ctx}..."' if ctx else "")
+                    ),
+                )
+            )
+
+        # Always emit an info summary so the ledger gets a heartbeat
+        # even when no ungrounded claims exist.
+        findings.append(
+            _make_finding(
+                severity="info",
+                dimension="grounding",
+                evidence_paths=[target, report_path, idx_path],
+                suggested_fix=(
+                    f"{result.get('grounded', 0)} of {result.get('total_claims', 0)} "
+                    f"numeric claims grounded "
+                    f"({result.get('coverage_pct', 0)}% coverage) "
+                    f"at tolerance ±{int(tolerance * 100)}%."
+                ),
+            )
+        )
+
+        return findings
+
+
+def _make_finding(
+    *,
+    severity: str,
+    dimension: str,
+    evidence_paths: list[str],
+    suggested_fix: str,
+) -> AuditFinding:
+    """Build an :class:`AuditFinding` with a deterministic uuid5 id.
+
+    Keying off ``(audit_name, dimension, sorted evidence_paths,
+    suggested_fix)`` keeps the id stable across reruns where the audit
+    finds the same problem in the same place, so the append-only
+    ``.audit_findings.jsonl`` ledger can be diffed cleanly.
+    """
+    audit_name = "claim_grounding"
+    key = "|".join([
+        audit_name,
+        dimension,
+        severity,
+        ",".join(sorted(evidence_paths)),
+        suggested_fix,
+    ])
+    stable_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, key))
+    return AuditFinding(
+        audit_name=audit_name,
+        severity=severity,
+        dimension=dimension,
+        id=stable_id,
+        evidence_paths=list(evidence_paths),
+        suggested_fix=suggested_fix,
+    )
+
+
+__all__ = [
+    "audit_claims",
+    "extract_claims",
+    "ClaimGroundingAudit",
+]

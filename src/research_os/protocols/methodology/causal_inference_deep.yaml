@@ -1,7 +1,12 @@
 id: causal_inference_deep
+tier: 'plan'
 name: Causal Inference (observational)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Reasoning scaffold for causal inference from observational data.
   Names the decisions a defensible causal analysis must reason through

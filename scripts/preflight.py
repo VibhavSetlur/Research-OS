@@ -106,13 +106,16 @@ def check_flat_namespace_is_minimal():
       - protocol.py — loader + cross-protocol injection
       - router.py   — trigger-based hierarchical router
       - semantic.py — embedding-based semantic router (sibling of router)
+      - listers.py  — flat protocol + tool catalog listers
     """
     actions_dir = REPO_ROOT / "src" / "research_os" / "tools" / "actions"
     flat = sorted(
         f.name for f in actions_dir.iterdir()
         if f.is_file() and f.suffix == ".py"
     )
-    expected = {"__init__.py", "protocol.py", "router.py", "semantic.py"}
+    expected = {
+        "__init__.py", "listers.py", "protocol.py", "router.py", "semantic.py",
+    }
     return set(flat) == expected, f"{flat}"
 
 
@@ -186,11 +189,17 @@ def check_dispatcher_aliases():
     cases = {
         # Dot-notation rewrite is generic.
         "sys.state.get": "sys_state_get",
-        # Surviving nickname aliases.
-        "tool_audit_figure_quality": "tool_audit_figure_full",
-        "tool_audit_statistical_power": "tool_audit_power",
+        # Audit-family legacy nicknames now flow through the consolidated
+        # tool_audit entry point (param injection sets scope+dimension so
+        # the original behaviour is preserved end-to-end).
+        "tool_audit_figure_quality": "tool_audit",
+        "tool_audit_statistical_power": "tool_audit",
         "sys_state_summary": "sys_state_get",
-        "tool_log_decision": "mem_decision_log",
+        # tool_log_decision used to chain through mem_decision_log → mem_log;
+        # mem_decision_log was hard-removed in phase-14a (v2.0.0), so the
+        # nickname now resolves directly to mem_log with kind='decision'
+        # injected.
+        "tool_log_decision": "mem_log",
         "view_workspace_tree": "sys_workspace_tree",
         # Passthrough — name already canonical.
         "sys_state_get": "sys_state_get",
