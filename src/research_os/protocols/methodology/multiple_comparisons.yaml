@@ -1,7 +1,12 @@
 id: multiple_comparisons
+tier: 'plan'
 name: Multiple Comparisons / Multiplicity Strategy
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [auditor]
+  workflow_shape: [systems_benchmark]
 last_reviewed: '2026-06-02'
 description: |
   When a study tests more than one hypothesis on the same data, the

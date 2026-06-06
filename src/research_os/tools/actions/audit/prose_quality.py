@@ -21,18 +21,65 @@ Targets the writing the AI puts into ``synthesis/*.md``, per-step
   checks based on the standard the project's `domain_analysis` step
   surfaced from the literature.
 
-Output: ``workspace/logs/prose_audit.md`` + a structured dict the
-master quality auditor can consume.
+Output: ``workspace/logs/prose_audit.md`` (legacy markdown report,
+preserved verbatim for backward compatibility) + a structured dict the
+master quality auditor can consume. In Phase 4 the
+:class:`ProseQualityAudit` class also emits a list of
+:class:`AuditFinding` objects, which the server-side handler fans out
+to ``workspace/prose_quality_audit.{md,json}`` and appends to
+``workspace/logs/.audit_findings.jsonl`` via
+:func:`write_audit_outputs`.
 """
 
 from __future__ import annotations
 
 import logging
 import re
+import uuid
 from pathlib import Path
 from typing import Any
 
+from research_os.tools.actions.audit._base import (
+    AuditBase,
+    AuditFinding,
+)
+
 logger = logging.getLogger("research_os.audit.prose")
+
+
+# Stable UUIDv5 namespace for prose-quality findings. Using NAMESPACE_DNS
+# with a deterministic key (audit_name + dimension + evidence paths +
+# severity + suggested fix) means re-running the same audit against the
+# same workspace produces the same id — the jsonl ledger doesn't churn
+# IDs across reruns, which makes diffing two runs trivial.
+_FINDING_NAMESPACE = uuid.NAMESPACE_DNS
+
+
+def _finding_uuid(
+    *,
+    audit_name: str,
+    dimension: str,
+    evidence_paths: list[str],
+    severity: str,
+    suggested_fix: str,
+) -> str:
+    """Derive a stable UUIDv5 from the finding's salient fields.
+
+    Two runs over an unchanged workspace yield identical IDs, which is
+    the point — Phase-4 dashboards diff findings by id, so churning UUIDs
+    on every run would make every finding look "new". We include
+    severity + suggested_fix in the key so a recategorisation (warn →
+    block) registers as a different finding rather than silently
+    overwriting the old one in any downstream id-keyed store.
+    """
+    key = "|".join([
+        audit_name,
+        dimension,
+        severity,
+        suggested_fix,
+        ",".join(sorted(evidence_paths)),
+    ])
+    return str(uuid.uuid5(_FINDING_NAMESPACE, key))
 
 
 # ---------------------------------------------------------------------------
@@ -507,4 +554,130 @@ def audit_prose(
     }
 
 
-__all__ = ["audit_prose", "audit_prose_document"]
+# ---------------------------------------------------------------------------
+# Phase-4 AuditBase subclass
+# ---------------------------------------------------------------------------
+
+
+# Map free-text blocker/warning strings (or causal-language flags) onto the
+# stable ``dimension`` vocabulary the AuditFinding schema requires. We keep
+# the dimension labels short + lowercase so dashboards can group on them.
+def _dimension_for_blocker(blocker: str) -> str:
+    """Classify a per-document blocker string into a dimension label."""
+    lower = blocker.lower()
+    if "causal-language" in lower or "causal language" in lower:
+        return "causal_language"
+    if "reporting-standard" in lower or "reporting standard" in lower:
+        return "reporting_standard"
+    return "prose"
+
+
+def _dimension_for_warning(warning: str) -> str:
+    """Classify a per-document warning string into a dimension label."""
+    lower = warning.lower()
+    if "hedge" in lower:
+        return "hedging"
+    if "weasel" in lower:
+        return "weasel"
+    if "vague-quantifier" in lower or "vague quantifier" in lower:
+        return "vague_quantifier"
+    if "cliché" in lower or "cliche" in lower:
+        return "cliche"
+    if "passive-voice" in lower or "passive voice" in lower:
+        return "passive_voice"
+    if "flesch-kincaid" in lower or "flesch kincaid" in lower:
+        return "reading_level"
+    return "prose"
+
+
+def _findings_from_doc_report(rep: dict[str, Any]) -> list[AuditFinding]:
+    """Convert one document's audit_prose_document() dict into AuditFindings.
+
+    Mirrors the existing BLOCK/WARN split: anything in ``blockers`` becomes
+    ``severity="block"``; anything in ``warnings`` becomes
+    ``severity="warn"``. The evidence_paths list always contains the
+    document's path so reviewers can jump straight to it.
+    """
+    findings: list[AuditFinding] = []
+    path = rep.get("path", "")
+    evidence = [path] if path else []
+    audit_name = "prose_quality"
+
+    for b in rep.get("blockers") or []:
+        dim = _dimension_for_blocker(b)
+        fix = b  # The blocker string IS the fix instruction in this module.
+        fid = _finding_uuid(
+            audit_name=audit_name,
+            dimension=dim,
+            evidence_paths=evidence,
+            severity="block",
+            suggested_fix=fix,
+        )
+        findings.append(AuditFinding(
+            audit_name=audit_name,
+            severity="block",
+            dimension=dim,
+            id=fid,
+            evidence_paths=list(evidence),
+            suggested_fix=fix,
+        ))
+
+    for w in rep.get("warnings") or []:
+        dim = _dimension_for_warning(w)
+        fix = w
+        fid = _finding_uuid(
+            audit_name=audit_name,
+            dimension=dim,
+            evidence_paths=evidence,
+            severity="warn",
+            suggested_fix=fix,
+        )
+        findings.append(AuditFinding(
+            audit_name=audit_name,
+            severity="warn",
+            dimension=dim,
+            id=fid,
+            evidence_paths=list(evidence),
+            suggested_fix=fix,
+        ))
+
+    return findings
+
+
+class ProseQualityAudit(AuditBase):
+    """Phase-4 wrapper around the prose-quality audit.
+
+    Delegates the heavy lifting to :func:`audit_prose` (which preserves
+    the legacy markdown report verbatim) and then folds the resulting
+    per-document blockers + warnings into a flat ``list[AuditFinding]``
+    that the orchestrator can persist via :func:`write_audit_outputs`.
+    """
+
+    name = "prose_quality"
+
+    def run(self, root: Path, **kwargs: Any) -> list[AuditFinding]:
+        """Run the prose audit and return structured findings.
+
+        Accepts the same kwargs the legacy ``audit_prose`` accepts:
+        ``targets`` and ``is_observational``. Returns an empty list when
+        the workspace is missing (rather than raising) so the caller can
+        treat "no workspace" as "no findings" — matching the behaviour
+        of the legacy function that returns ``{"status": "error"}``
+        without writing any artefacts.
+        """
+        report = audit_prose(
+            root,
+            targets=kwargs.get("targets"),
+            is_observational=kwargs.get("is_observational"),
+        )
+        findings: list[AuditFinding] = []
+        for doc in report.get("documents") or []:
+            findings.extend(_findings_from_doc_report(doc))
+        return findings
+
+
+__all__ = [
+    "audit_prose",
+    "audit_prose_document",
+    "ProseQualityAudit",
+]

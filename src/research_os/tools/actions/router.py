@@ -28,12 +28,76 @@ from typing import Any
 
 import yaml
 
+from research_os.protocols._tiers import infer_tier, is_valid_tier
+
 logger = logging.getLogger("research_os.tools.router")
 
 # router.py lives at src/research_os/tools/actions/router.py
 # protocols/ live at src/research_os/protocols/
 _INDEX_PATH = Path(__file__).parent.parent.parent / "protocols" / "_router_index.yaml"
+_PROTOCOLS_DIR = Path(__file__).parent.parent.parent / "protocols"
 _ACTIVE_PLAN_FILE = "active_plan.json"
+
+# Cache: protocol_id → tier (read lazily from the YAML).
+_TIER_CACHE: dict[str, str] = {}
+
+
+def _resolve_tier(
+    protocol_id: str | None,
+    primary_data: dict | None = None,
+) -> str | None:
+    """Look up the tier for a protocol.
+
+    Order of precedence:
+      1. Cached value.
+      2. Top-level ``tier:`` field on the protocol YAML (the backfill
+         script writes this on every protocol).
+      3. ``infer_tier`` over the router-index metadata as a fallback —
+         covers pack protocols that haven't been backfilled.
+
+    Returns None when no tier can be inferred (e.g. an unknown protocol
+    id with no metadata).
+    """
+    if not protocol_id:
+        return None
+    cached = _TIER_CACHE.get(protocol_id)
+    if cached:
+        return cached
+    # Try the YAML first.
+    try:
+        rel = protocol_id if protocol_id.endswith(".yaml") else f"{protocol_id}.yaml"
+        candidate = _PROTOCOLS_DIR / rel
+        if candidate.exists():
+            data = yaml.safe_load(candidate.read_text()) or {}
+            tier = data.get("tier")
+            if is_valid_tier(tier):
+                _TIER_CACHE[protocol_id] = tier
+                return tier
+    except Exception as exc:
+        logger.debug("tier read for %s failed: %s", protocol_id, exc)
+    # Fallback: infer from router-index metadata.
+    meta = primary_data or {}
+    if not meta:
+        try:
+            meta = (_load_index().get("protocols", {}) or {}).get(protocol_id, {}) or {}
+        except Exception:
+            meta = {}
+    category = protocol_id.split("/")[0] if "/" in protocol_id else None
+    tier = infer_tier(
+        intent_class=meta.get("intent_class"),
+        sub_intent=meta.get("sub_intent"),
+        category=category,
+        protocol_id=protocol_id,
+    )
+    if is_valid_tier(tier):
+        _TIER_CACHE[protocol_id] = tier
+        return tier
+    return None
+
+
+def _clear_tier_cache() -> None:
+    """Test hook — drop the tier cache so re-annotating a YAML takes effect."""
+    _TIER_CACHE.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +219,37 @@ def _try_semantic_route(
     # doesn't look for an active_plan that was never persisted.
     effective_complexity = "high" if (is_complex and decomposition) else "low"
 
-    alternatives = [
-        c["id"] for c in (sem.get("candidates") or [])
-        if c.get("id") != primary_id and c.get("id") in protocols
-    ][:4]
+    # Top-3 alternatives with their semantic scores so callers can see
+    # the runner-ups and re-route deliberately.
+    alternatives_full = []
+    for c in (sem.get("candidates") or []):
+        cid = c.get("id")
+        if cid == primary_id or cid not in protocols:
+            continue
+        cand_data = protocols.get(cid) or {}
+        try:
+            score_val = float(c.get("score", 0.0))
+        except (TypeError, ValueError):
+            score_val = 0.0
+        alternatives_full.append({
+            "name": cid,
+            "score": round(score_val, 4),
+            "intent_class": cand_data.get("intent_class"),
+            "why_matched": (
+                f"Semantic similarity {round(score_val, 3)} on "
+                f"intent_class={cand_data.get('intent_class') or '?'}"
+            ),
+        })
+        if len(alternatives_full) >= 3:
+            break
 
+    why_matched_primary = (
+        f"Semantic similarity {round(float(sem['candidates'][0]['score']), 3)} "
+        f"(confidence={confidence}) on intent_class={intent_class or '?'}"
+    )
+
+    tier = _resolve_tier(primary_id, primary_data)
+    tier_transition = _compute_route_transition(root, tier)
     response: dict[str, Any] = {
         "status": "success",
         "resolved_level": 3,
@@ -168,9 +258,12 @@ def _try_semantic_route(
         "primary_protocol": primary_id,
         "shortcut_tool": shortcut_tool,
         "decomposition": decomposition,
-        "alternatives": alternatives,
+        "alternatives": alternatives_full,
         "ambiguous_alternatives": [],
         "matched_triggers": [],         # semantic path doesn't surface raw triggers
+        "why_matched": why_matched_primary,
+        "tier": tier,
+        "tier_transition": tier_transition,
         "complexity": effective_complexity,
         "ask_user": None,
         "why": (
@@ -442,9 +535,7 @@ def _dep_inventory() -> dict:
 _ESSENTIAL_TOOLS = (
     "sys_boot",
     "tool_route",
-    "tool_plan_turn",
-    "tool_plan_advance",
-    "tool_plan_clear",
+    "tool_plan",
     "sys_protocol_get",
     "sys_protocol_list",
     "sys_protocol_log",
@@ -454,7 +545,7 @@ _ESSENTIAL_TOOLS = (
     "sys_notify",
     "sys_tool_describe",
     "sys_active_tools",
-    "mem_decision_log",
+    "mem_log",
 )
 
 
@@ -583,6 +674,7 @@ def route_request(
             from research_os.tools.actions.state.quick_mode import quick_route
             qr = quick_route(root, prompt)
             if qr.get("is_quick"):
+                quick_trigger = qr.get("matched_trigger")
                 return {
                     "status": "success",
                     "resolved_level": 0,
@@ -593,7 +685,13 @@ def route_request(
                     "decomposition": [],
                     "alternatives": [],
                     "ambiguous_alternatives": [],
-                    "matched_triggers": [qr.get("matched_trigger")],
+                    "matched_triggers": [quick_trigger] if quick_trigger else [],
+                    "why_matched": (
+                        f"quick-mode trigger: {quick_trigger}"
+                        if quick_trigger else "quick-mode (no explicit trigger)"
+                    ),
+                    "tier": None,
+                    "tier_transition": _compute_route_transition(root, None),
                     "complexity": "quick",
                     "ask_user": None,
                     "why": qr.get("advice"),
@@ -643,7 +741,7 @@ def route_request(
 
         # No matches at all and no shortcut.
         if not scored and not shortcut_hit:
-            return _fallback_response(prompt_norm, hierarchy, is_complex)
+            return _fallback_response(prompt_norm, hierarchy, is_complex, root)
 
         # ── Step 2: pick L1 winner (sum of scores per intent_class) ──
         # Threshold 1 at L1: multi-goal prompts often span classes, so
@@ -715,6 +813,30 @@ def route_request(
             candidates_l3 if l3_ambiguous else [],
         )
 
+        # Build per-result `why_matched` for the primary + alternatives.
+        primary_matched = (
+            shortcut_hit["matched"] if shortcut_hit
+            else (l3_winner["matched"] if l3_winner else [])
+        )
+        primary_why_matched = _format_why_matched(
+            primary_matched, l1_winner, l3_winner["data"] if l3_winner else None,
+        )
+        alternatives_full = [
+            {
+                "name": c["name"],
+                "score": int(c.get("score", 0)),
+                "intent_class": (c.get("data") or {}).get("intent_class"),
+                "why_matched": _format_why_matched(
+                    c.get("matched", []),
+                    (c.get("data") or {}).get("intent_class"),
+                    c.get("data"),
+                ),
+            }
+            for c in l3_alternatives[:3]
+        ]
+
+        tier = _resolve_tier(primary_name, primary_data) if primary_name else None
+        tier_transition = _compute_route_transition(root, tier)
         response: dict[str, Any] = {
             "status": "success",
             "resolved_level": resolved_level,
@@ -723,14 +845,14 @@ def route_request(
             "primary_protocol": primary_name,
             "shortcut_tool": shortcut_tool,
             "decomposition": decomposition if resolved_level == 3 else [],
-            "alternatives": [c["name"] for c in l3_alternatives],
+            "alternatives": alternatives_full,
             "ambiguous_alternatives": (
                 [c["name"] for c in candidates_l3[:3]] if l3_ambiguous else []
             ),
-            "matched_triggers": (
-                shortcut_hit["matched"] if shortcut_hit
-                else (l3_winner["matched"] if l3_winner else [])
-            ),
+            "matched_triggers": primary_matched,
+            "why_matched": primary_why_matched,
+            "tier": tier,
+            "tier_transition": tier_transition,
             "complexity": "high" if is_complex else "low",
             "ask_user": ask_user,
             "why": _why_hier(l1_winner, l2_winner, l3_winner, shortcut_hit),
@@ -855,6 +977,30 @@ def _ask_user_for_level(
     return None
 
 
+def _format_why_matched(
+    matched: list,
+    intent_class: str | None,
+    protocol_data: dict | None = None,
+) -> str:
+    """One-line "why this matched" — trigger phrase + intent_class.
+
+    Surfaces the *actual* trigger string that fired plus the intent class
+    the protocol belongs to so the caller can decide whether to accept
+    the route, ask the user, or override.
+    """
+    triggers = [str(t) for t in (matched or [])][:3]
+    cls = intent_class or (
+        (protocol_data or {}).get("intent_class") if protocol_data else None
+    )
+    if triggers and cls:
+        return f"triggers: {', '.join(triggers)} · intent_class={cls}"
+    if triggers:
+        return f"triggers: {', '.join(triggers)}"
+    if cls:
+        return f"intent_class={cls} (no literal trigger; semantic-only)"
+    return "no triggers; no intent_class"
+
+
 def _why_hier(
     l1: str | None,
     l2: str | None,
@@ -896,10 +1042,10 @@ def _route_advice_hier(
     if is_complex and resolved_level == 3:
         return (
             "Prompt is complex — decomposition persisted to "
-            ".os_state/active_plan.json. Call tool_plan_turn to size the "
-            "batch to your model_profile, then walk via tool_plan_advance "
-            "after each step. Never one-shot. If chat_split_recommended, "
-            "sys_session_handoff + open a fresh chat."
+            ".os_state/active_plan.json. Call tool_plan(operation='turn') to "
+            "size the batch to your model_profile, then walk via "
+            "tool_plan(operation='advance') after each step. Never one-shot. "
+            "If chat_split_recommended, sys_session_handoff + open a fresh chat."
         )
     if shortcut_tool and not primary:
         return (
@@ -921,8 +1067,18 @@ def _route_advice_hier(
     )
 
 
+def _compute_route_transition(root: Path, new_tier: str | None) -> dict | None:
+    """Best-effort tier-transition lookup; never raises out of the router."""
+    try:
+        from research_os.tools.actions.state.tier_state import compute_transition
+        return compute_transition(root, new_tier)
+    except Exception as exc:
+        logger.debug("tier transition computation failed: %s", exc)
+        return None
+
+
 def _fallback_response(
-    prompt_norm: str, hierarchy: dict, is_complex: bool
+    prompt_norm: str, hierarchy: dict, is_complex: bool, root: Path | None = None,
 ) -> dict:
     """When NOTHING matched, suggest the L1 classes as a menu + light heuristics.
 
@@ -959,6 +1115,11 @@ def _fallback_response(
         "alternatives": [],
         "ambiguous_alternatives": [],
         "matched_triggers": [],
+        "why_matched": "No trigger or semantic match.",
+        "tier": None,
+        "tier_transition": (
+            _compute_route_transition(root, None) if root is not None else None
+        ),
         "complexity": "high" if is_complex else "low",
         "ask_user": (
             "I couldn't match your prompt to a protocol. Which best fits "
@@ -1006,6 +1167,12 @@ def _shortcut_response(
         "alternatives": [],
         "ambiguous_alternatives": [],
         "matched_triggers": shortcut_hit["matched"],
+        "why_matched": (
+            "Cross-intent shortcut on triggers: "
+            f"{', '.join(str(t) for t in shortcut_hit['matched'][:3])}"
+        ),
+        "tier": None,
+        "tier_transition": _compute_route_transition(root, None),
         "complexity": "high" if is_complex else "low",
         "ask_user": None,
         "why": (
@@ -1242,7 +1409,7 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
                             from research_os.project_ops import log_override
                             log_override(
                                 root,
-                                tool="tool_plan_advance",
+                                tool="tool_plan(operation='advance')",
                                 gate="deliverable_completeness",
                                 rationale="<plan-persisted override>",
                                 extra={
@@ -1357,7 +1524,7 @@ def plan_turn(root: Path) -> dict[str, Any]:
         if not remaining:
             return {
                 "status": "success",
-                "message": "Active plan exhausted — call tool_plan_advance to archive.",
+                "message": "Active plan exhausted — call tool_plan(operation='advance') to archive.",
                 "this_turn": [],
                 "next_turn": [],
             }
@@ -1433,9 +1600,9 @@ def plan_turn(root: Path) -> dict[str, Any]:
             "chat_split_reason": chat_split_reason or None,
             "advice": (
                 "Execute every entry in `this_turn` IN ORDER. After each "
-                "one call tool_plan_advance. Once `this_turn` is done, "
-                "either continue with tool_plan_turn (next batch) OR — "
-                "if chat_split_recommended is true — call "
+                "one call tool_plan(operation='advance'). Once `this_turn` is "
+                "done, either continue with tool_plan(operation='turn') (next "
+                "batch) OR — if chat_split_recommended is true — call "
                 "sys_session_handoff and tell the researcher to open a "
                 "fresh chat with 'pick up where we left off'."
             ),

@@ -1,7 +1,11 @@
 id: lean_integration
 name: Lean 4 + Mathlib Integration
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [naive_ai]
+  workflow_shape: [experiment_pipeline, proof]
 last_reviewed: '2026-06-04'
 description: |
   Workflow for bridging an informal proof draft to a Lean 4 + Mathlib

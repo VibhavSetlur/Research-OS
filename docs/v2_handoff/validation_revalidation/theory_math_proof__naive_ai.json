@@ -1,0 +1,117 @@
+{
+  "scenario": "theory_math_proof",
+  "perspective": "naive_ai",
+  "final_rating": 7.4,
+  "high_friction_count": 3,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "lean_coq_tool_install_silent_warning_persists",
+      "description": "tool_theory_math_lean_check / tool_theory_math_coq_check STILL return the nested success/warning shape: {status: success, data: {status: warning, hint_path, message}} when Lean/Coq is missing. Verified live in this re-validation run — sent a stub .lean file, got `outer status=success, inner status=warning`. A naive AI parsing `result['status'] == 'success'` will treat this as a successful proof check and publish a 'verified' proof that was never actually verified. The double-status nesting is unchanged from the Phase 15a baseline. This is the single most dangerous remaining footgun — every theory project shipped without Lean/Coq installed risks unverified-but-claimed-verified output.",
+      "suggested_fix": "Make the install-missing case return status='warning' or 'error' at the OUTER envelope (`{status: warning, data: {hint_path, message}}`). Or rename the inner field to `data.verification_status` so it cannot be confused with the protocol-call envelope status."
+    },
+    {
+      "severity": "HIGH",
+      "category": "theory_math_pack_tools_not_in_active_tools_for_their_own_workflow",
+      "description": "sys_active_tools('theory_math/proof/proof_verification_workflow') returns 13 tools — none of them theory-pack-specific. tool_theory_math_lean_check, tool_theory_math_coq_check, and tool_redteam_review are MISSING from the shortlist for the very protocol that prescribes them. Only theorem_dependency_graph's active set includes tool_theory_math_dep_graph. The naive AI scopes its working set to the 13 active tools (per the advice text), then cannot find lean_check / coq_check / redteam_review without falling back to sys_tool_describe — at which point it has to triage all 146 tools again, defeating the purpose of the shortlist.",
+      "suggested_fix": "Auto-include pack tools in sys_active_tools when (a) the protocol lives under research_os_<pack>/protocols/ OR (b) the protocol's decomposition explicitly names a pack tool. For proof_verification_workflow specifically, active_tools should include tool_theory_math_lean_check, tool_theory_math_coq_check, tool_redteam_review, tool_search, plus the core lifecycle tools."
+    },
+    {
+      "severity": "HIGH",
+      "category": "audit_step_completeness_figure_gate_still_opaque_for_proof_steps",
+      "description": "Verified in this re-validation: tool_step_complete on workspace/01_proof_chordal/ with conclusions.md + README.md but no figure returns blocker 'No figure produced — every step MUST emit at least one focal figure to outputs/figures/01_<descriptor>.png.' The blocker text does NOT mention step_intent: proof or how to waive. A naive AI on a proof step now either (a) fakes a placeholder figure, (b) gives up, or (c) finds the waiver only by reading the full proof_verification_workflow YAML. The waiver mechanism (step_intent: proof in step_summary.yaml) still exists in the protocol, but the blocker emitted by the runtime audit does not advertise it.",
+      "suggested_fix": "When the figure-gate blocker fires AND step lives under workspace/proofs/ OR step_summary.yaml is missing entirely, append a contextual hint: 'This may be a proof step. Add step_intent: proof to step_summary.yaml (or step_intent: plan/ground/apparatus for other non-empirical steps) to auto-waive figure + table requirements. See templates/step_summary.yaml.template.'"
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "theory_intake_protocol_still_missing",
+      "description": "Verified: sys_protocol_get('theory_math/intake/theory_project_intake') returns status=error. There is still NO intake protocol for theory projects. The directory tree shows theory_math/{conjecture, formal, method, output, proof} — no intake/. A naive AI starting a fresh theory project still has nowhere to bootstrap: project_startup assumes empirical data, conjecture_tracking starts from 'claim already stated', proof_strategy_selection assumes preliminaries.md already exists. The AI must either guess wrong or skip intake.",
+      "suggested_fix": "Add src/research_os_theory_math/protocols/intake/theory_project_intake.yaml that (a) asks conjecture statement / venue / formal-tool intent / required prior results, (b) seeds inputs/preliminaries.md instead of inputs/raw_data/, (c) chains next_protocol → conjecture_tracking → proof_strategy_selection → proof_verification_workflow."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_misroutes_proof_prompt_to_audit_wrap",
+      "description": "Verified live: tool_route('I want to prove a theorem about treewidth and chromatic number on chordal graphs') returns primary=theory_math/proof/theorem_dependency_graph (semantic match score 0.668, tier=audit_wrap). The dependency-graph protocol is the WRAP-UP step — running it first scaffolds an empty graph and gives no guidance on how to start the proof. tool_route('Prove that for every chordal graph G, chromatic = clique number') returns NO match at all (ask_user fallback). The new semantic router helps but mis-tier-orders for theory: it likes the dep_graph protocol because of the cosine-similarity overlap on graph-theory vocabulary, missing that proof_verification_workflow should come first.",
+      "suggested_fix": "Add a tier-ordering check to tool_route's semantic path: when multiple protocols match with similar scores, prefer the earlier tier (intake → method → execute → audit_wrap) for fresh sessions (pause_classification=='fresh_session'). Or boost proof_verification_workflow above theorem_dependency_graph in the semantic index by ensuring its description mentions the conjecture vocabulary explicitly (chordal/treewidth/chromatic/etc)."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "verdict_enum_rollup_still_shows_4_not_6",
+      "description": "literature_per_step.yaml correctly lists 6 verdicts (AGREES | DISAGREES | EXTENDS | IMPORTED_AS_CITED | SPECIALIZES | DEFERRED) with full glosses. But the runtime verdict_roll_up returned by tool_step_complete's literature stage shows only 4 buckets: {'AGREES': 0, 'DISAGREES': 0, 'EXTENDS': 0, 'DEFERRED': 0}. A naive AI reading the rollup will not learn that IMPORTED_AS_CITED (the correct verdict for citing Fulkerson-Gross 1965 as a lemma in a theory paper) or SPECIALIZES exist. tool_audit's description string also collapses the rollup to 4 verdicts in places.",
+      "suggested_fix": "Add IMPORTED_AS_CITED and SPECIALIZES buckets to the verdict_roll_up dict (initialize to 0). Update tool_audit and tool_audit_quality_full descriptions to enumerate all 6 verdicts with one-line glosses."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "conjecture_tracking_next_protocol_still_null",
+      "description": "conjecture_tracking.yaml still has next_protocol: null. Verified live. A naive AI registering a conjecture has no chained path to proof_strategy_selection → proof_verification_workflow → theorem_dependency_graph — the canonical theory pipeline is undiscoverable from inside the workflow.",
+      "suggested_fix": "Set next_protocol: theory_math/method/proof_strategy_selection on conjecture_tracking when status in (open, partial_progress). Keep null only when status in (proven, disproven). Or surface the pipeline order in the pack registration's description text."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "mem_hypothesis_vs_conjecture_tracking_still_unmerged",
+      "description": "Both mem_hypothesis_add ('Register a new hypothesis tracked in state.active_hypotheses + analysis.md') and conjecture_tracking ('Registry of open conjectures... status: open|partial_progress|proven|disproven|counter_example_found') still exist with overlapping intent. The descriptions still do NOT cross-reference each other. A naive AI sees both and either maintains two registries (drift) or picks the empirical one (mem_hypothesis 'supported' is semantically wrong for a math proof — proofs are binary).",
+      "suggested_fix": "Add cross-reference lines: in mem_hypothesis_add description, 'For theory_math projects, prefer conjecture_tracking — math conjectures are binary (proven|disproven), not graded (supported|refuted).' In conjecture_tracking description, 'For empirical hypotheses, use mem_hypothesis_add instead.'"
+    },
+    {
+      "severity": "LOW",
+      "category": "synthesis_tool_does_not_advertise_pack_aware_section_order",
+      "description": "research_os_theory_math.__init__ defines paper_sections=(introduction, preliminaries, main_theorems, proofs, discussion) — the correct non-IMRAD theory order. But tool_synthesize's description still names IMRAD sections (abstract | introduction | methods | results | discussion | conclusion | references) without mentioning pack-aware overrides. A naive AI cannot verify ahead of time that the right structure will emerge for a theory paper.",
+      "suggested_fix": "Add to tool_synthesize description: 'Paper section order auto-adapts to detected pack: theory_math → introduction|preliminaries|main_theorems|proofs|discussion; humanities → claim|evidence|interpretation; empirical packs → IMRAD.' Or add a dry-run mode that returns the planned section list."
+    },
+    {
+      "severity": "LOW",
+      "category": "no_math_citation_styles",
+      "description": "Citation style enum (verified by grep across protocols + schemas) still has no amsplain / alpha / siam. A theory paper destined for Annals of Mathematics or JAMS will get APA author-year citations instead of the conventional [alpha] or [1] numeric/alpha style.",
+      "suggested_fix": "Add amsplain | alpha | siam to citation_style enum; conditionally surface them when detected_pack=='theory_math'."
+    },
+    {
+      "severity": "LOW",
+      "category": "scope_tags_present_in_yaml_but_not_surfaced_in_protocol_summary",
+      "description": "Verified: every theory_math protocol yaml has scope_tags: {domain, audience, workflow_shape}. But sys_protocol_get returns these as part of the raw content blob — scope_tags is NOT a top-level returned field in the JSON envelope. data keys are ['id', 'name', 'description', 'trigger', 'prerequisites', 'step_summary', 'expected_outputs', 'quality_bar', 'next_protocol', 'on_failure', '_path', '_load_hint', '_loaded_as']. A naive AI cannot filter or sort protocols by scope_tags without re-parsing the raw YAML.",
+      "suggested_fix": "Promote scope_tags to a top-level field in sys_protocol_get's data output. Or expose a sys_protocol_list(filter={'domain': 'theory_math', 'workflow_shape': 'proof'}) to query by scope_tags."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_theory_math_lean_check",
+    "tool_theory_math_coq_check",
+    "tool_audit",
+    "tool_step_complete"
+  ],
+  "confusing_protocols": [
+    "theory_math/conjecture/conjecture_tracking",
+    "theory_math/proof/proof_verification_workflow"
+  ],
+  "never_called_tools": [
+    "tool_synthesis_curate_figures",
+    "tool_slurm_submit",
+    "mem_hypothesis_add",
+    "mem_hypothesis_list"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface cut from ~344 tools to 146 (57% reduction). The audit_* family went from 100+ tools to 2 (tool_audit + tool_audit_quality_full + tool_audit_findings); the dashboard_* family was removed entirely; tool_search unifies the literature search families; mem_log unifies the memory append family. 23 of 27 baseline never-called tools were removed.",
+    "MCP-level instructions field now ships at handshake naming the canonical boot sequence (sys_boot → tool_route → sys_protocol_get format=summary → sys_active_tools). Verified in src/research_os/server/entry.py:93. A naive AI no longer has to discover the ritual by calling sys_help first.",
+    "sys_boot replaces 4-5 separate calls in one shot (state + config + history + dep inventory + next protocol + pause_classification + active_plan) — ~5K → ~800 tokens claimed and the response shape confirms.",
+    "sys_protocol_get now defaults to summary format (~3K chars for proof_verification_workflow vs the prior ~25K full body) — directly addresses the 'protocol loading is expensive' friction.",
+    "tool_route now exposes recommended_action (e.g. 'sys_boot(...)' or 'tool_theory_math_dep_graph(...)') and why_matched, giving the AI an immediate next-tool string without parsing the decomposition array.",
+    "sys_active_tools (called from inside tool_route output too) scopes the working set to ~13 tools per protocol — a 90%+ surface reduction once the AI has routed.",
+    "Theory routing improved on ambiguous prompts: 'Conjecture: every planar graph is 4-colorable' now ask_user-disambiguates between proof_verification_workflow and proof_strategy_selection instead of silently mis-routing. Semantic fallback catches 'I want to prove a theorem about treewidth' (semantic confidence 0.668) where the baseline trigger-only matcher whiffed.",
+    "scope_tags field is populated on every theory_math protocol YAML (domain/audience/workflow_shape), so the infrastructure exists to gate empirical-statistical tooling per pack in v2.1.0 — even if it is not yet surfaced via sys_protocol_get.",
+    "tool_step_complete bundles tool_path_finalize + tool_audit_step_completeness + tool_audit_step_literature + tool_step_revision_options into ONE call — addresses the small-model-drift-between-4-tool-calls friction that the baseline implicitly suffered.",
+    "literature_per_step.yaml itself now documents all 6 verdicts (AGREES | DISAGREES | EXTENDS | IMPORTED_AS_CITED | SPECIALIZES | DEFERRED) with one-line glosses + worked examples. The protocol body fix is in even if the runtime rollup still shows only 4."
+  ],
+  "remaining_recommendations": [
+    "FIX OUTER ENVELOPE for tool_theory_math_lean_check / tool_theory_math_coq_check: when the binary is missing, return status='warning' at the outer envelope, not nested. This is the single most dangerous remaining footgun — a naive AI parses outer=success and ships an 'unverified' proof labelled 'verified.'",
+    "Add pack tools to sys_active_tools for their own workflows: tool_theory_math_lean_check + tool_theory_math_coq_check + tool_redteam_review + tool_search should be in active_tools for proof_verification_workflow. Right now the AI is told 'prefer these 13 tools' but the workflow's own tool dependencies are not in the 13.",
+    "Make figure-gate blocker self-describing for proof steps: when the blocker fires AND the step lives under workspace/proofs/ (or step_summary.yaml is missing), append 'add step_intent: proof to step_summary.yaml to auto-waive' to the blocker message. Right now the AI sees 'no figure' and writes a fake plot.",
+    "Add theory_math/intake/theory_project_intake.yaml — the pack directory has conjecture/formal/method/output/proof but no intake/, so fresh theory projects still fall through to empirical project_startup.",
+    "Fix tier-ordering in tool_route's semantic path: prefer earlier tier (intake → method → execute → audit_wrap) on fresh sessions. Right now 'I want to prove X' semantically matches theorem_dependency_graph (the wrap-up step) instead of proof_verification_workflow.",
+    "Add IMPORTED_AS_CITED + SPECIALIZES buckets to the runtime verdict_roll_up dict; update tool_audit description to enumerate all 6 verdicts.",
+    "Set conjecture_tracking.next_protocol → theory_math/method/proof_strategy_selection when status in (open, partial_progress) so the canonical theory pipeline (intake → conjecture_tracking → strategy_selection → proof_verification → dep_graph → theory_paper_structure) is chainable without external knowledge.",
+    "Cross-reference mem_hypothesis_* and conjecture_tracking in each other's descriptions ('use conjecture_tracking for theory, mem_hypothesis for empirical') so a naive AI does not maintain both registries.",
+    "Add amsplain | alpha | siam to citation_style enum, conditionally on detected_pack=='theory_math'.",
+    "Promote scope_tags to a top-level field in sys_protocol_get's data envelope so the AI can filter/sort by domain/audience/workflow_shape without re-parsing the YAML.",
+    "Add tool_synthesize description copy explaining pack-aware paper section ordering (theory_math → preliminaries/main_theorems/proofs)."
+  ]
+}

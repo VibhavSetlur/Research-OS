@@ -1,7 +1,12 @@
 id: comparative_paper_review
+tier: 'ground'
 name: Comparative Paper Review (compare / contrast 2-N papers)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, humanities]
+  audience: [researcher]
+  workflow_shape: [systems_benchmark]
 description: |
   Compare-and-contrast review of TWO OR MORE papers. Distinct from:
     - `guidance/quick_paper_review` — that does a single-paper

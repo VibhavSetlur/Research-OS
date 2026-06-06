@@ -33,8 +33,7 @@
   // Body type: 12pt serif, 1.5 leading. Slight first-line indent for
   // paragraphs (the humanities-essay default, distinct from the
   // block-paragraph style scientific journals use).
-  set text(font: ("Linux Libertine", "EB Garamond", "Times New Roman", "Times"),
-           size: 12pt, lang: "en")
+  set text(font: "New Computer Modern", size: 12pt, lang: "en")
   set par(justify: true, leading: 0.85em, first-line-indent: 1.5em)
 
   // Footnotes — 10pt, marker as Arabic numerals, thin separator rule.

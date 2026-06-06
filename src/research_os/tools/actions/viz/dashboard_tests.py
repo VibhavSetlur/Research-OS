@@ -411,9 +411,9 @@ def generate_dashboard_test_suite(
         "advice": (
             "Test suite scaffolded. Install prerequisites: "
             "`pip install pytest-playwright && playwright install chromium`. "
-            "Then call tool_dashboard_test_run."
+            "Then call tool_dashboard(operation='test_run')."
             if not prereq["all_installed"]
-            else "Ready to run: tool_dashboard_test_run."
+            else "Ready to run: tool_dashboard(operation='test_run')."
         ),
     }
 
@@ -474,7 +474,7 @@ def run_dashboard_tests(
             "status": "error",
             "message": (
                 "tests/dashboard/ not found — call "
-                "tool_dashboard_test_generate first."
+                "tool_dashboard(operation='test_generate') first."
             ),
         }
     dashboard = root / "synthesis" / "dashboard.html"

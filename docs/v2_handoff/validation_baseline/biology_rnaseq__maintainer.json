@@ -1,0 +1,121 @@
+{
+  "scenario": "biology_rnaseq",
+  "perspective": "maintainer",
+  "final_rating": 6.4,
+  "high_friction_count": 6,
+  "first_5_turns_high_friction": 3,
+  "every_deliverable_produced": false,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "tool_surface_bloat",
+      "description": "163 tool names exposed (197 _handle_ functions in server.py, 21 _ALIASES). For an AI client deciding the next call after `tool_route`, the active surface is far above the ~50-tool sweet spot. server.py is 7,499 lines with TOOL_DEFINITIONS inline — maintainer cost of touching this file is HIGH and the diff-review burden discourages cleanups. Even the in-tree consolidation (`tool_plan` dispatches to 3 ops) still leaves `tool_plan`, `tool_plan_step`, `tool_plan_step_grounded`, `tool_plan_next_step`, `tool_plan_turn` (legacy), `tool_plan_advance` (legacy) all advertised. A new maintainer cannot tell which `tool_plan_*` to remove.",
+      "suggested_fix": "Phase 9 should aggressively collapse plan_* into one dispatcher, route_* into one dispatcher, dashboard_* into one, search_* into one (already partially done via `tool_search`). Hide legacy aliases from the listed surface; resolve them only inside _HANDLERS via _ALIASES. Target: drop visible tools below 100."
+    },
+    {
+      "severity": "HIGH",
+      "category": "domain_coverage_gap",
+      "description": "Zero hits for `GEO`, `GSE`, `SRA`, `ncbi`, `fastq`, `salmon`, `STAR`, `kallisto`, `hisat`, `nf-core/rnaseq` across `_router_index.yaml` and protocols. A biologist saying `analyze GSE123456` will not match any trigger and falls back to `domain_analysis` or `execute/new_experiment` — both generic. The wet_lab pack covers sample lineage / plate maps / SOPs (bench-side) but not the upstream sequencing-data acquisition pipeline that is the dominant RNA-seq entry point. From a maintainer perspective this is the loudest scenario gap to close before pitching the tool to bio labs.",
+      "suggested_fix": "Add `wet_lab/protocol/sequencing_data_acquisition` (GEO/SRA/ENA accession lookup, fastq download via sra-tools / pysradb, checksum validation, sample sheet generation) and route triggers for `GEO`, `GSE`, `SRA`, `fastq`, `download accession`. Cross-reference from `pick_tool_stack` (already mentions DESeq2/scanpy)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "audit_telemetry",
+      "description": "No real telemetry surface for a maintainer running RO in production. `tool_reliability_log_event` + `tool_reliability_report` produce a markdown summary in the project workspace — that is per-project narrative, not maintainer observability. Zero grep hits for `prometheus`, `opentelemetry`, `otel`, structured metrics. When a router miss happens on a real user prompt, the maintainer has no aggregated signal — they only see it if the user reports it.",
+      "suggested_fix": "Add an opt-in anonymized telemetry channel (router miss rate, top unmatched trigger n-grams, average tool calls per protocol, audit gate fire rates) — gated by `researcher_config.telemetry_opt_in: true`. Even a local-only `~/.research-os/telemetry.jsonl` aggregator + a `research-os telemetry summarize` CLI would let maintainers spot bug patterns across projects."
+    },
+    {
+      "severity": "HIGH",
+      "category": "protocol_routing_clarity",
+      "description": "Router index is 2,022 lines, version 18, with 249 intent_class/sub_intent edges and a hierarchy section the maintainer has to keep in their head. Editing one trigger means scanning a wall of YAML to verify uniqueness vs collision with `domain_analysis`, `execute/new_experiment`, `pick_tool_stack` etc. Today the file says `differential expression` and `DESeq2` both belong to `execute/new_experiment` AND get mentioned in `pick_tool_stack` — and there is no doc that says which one routes wins. The maintainer-only header comment is helpful but does not solve the duplicate-trigger problem.",
+      "suggested_fix": "Add a `scripts/router_lint.py` that fails CI on (a) duplicate triggers across protocols without a stated tie-break, (b) protocols listed in `_router_index.yaml` that point at a non-existent YAML, (c) protocols with no trigger appearing in semantic top-5 for their canonical example prompt. Surface a `tool_route_explain` debug tool that returns *why* a prompt routed where it did (matched triggers, semantic score, tie-break) — maintainer-only."
+    },
+    {
+      "severity": "HIGH",
+      "category": "synthesis_tool_overload",
+      "description": "19 synthesis/* protocols + at minimum 13 synthesis-related tools (tool_synthesize, tool_synthesize_plan, tool_synthesis_preview, tool_synthesis_curate_figures, tool_dashboard_*, tool_paper_compile_typst, tool_poster_create, tool_slides_create, etc.). For a biology RNA-seq scenario the AI has 19 ways to render the final figure/paper/dashboard and the names don't make the distinction obvious (`synthesize` vs `synthesis_preview` vs `synthesize_plan`). Maintainer pain: adding a 20th synthesis kind means another giant TOOL_DEFINITIONS entry; this is where the next regression will land.",
+      "suggested_fix": "Collapse synthesis to ONE `tool_synthesize` dispatcher with `output_kind` enum (paper/poster/slides/dashboard/abstract/lay_summary/grant/cover_letter/...). Per-kind protocols stay, but the tool surface shrinks 12 → 1. Same pattern as the v1.11 `tool_plan` consolidation."
+    },
+    {
+      "severity": "HIGH",
+      "category": "missing_pipeline_executor",
+      "description": "RNA-seq is the canonical case where the pipeline orchestrator matters more than any single tool — yet the in-tree `tool_step_pipeline_define/diagram/run/status` tools sit beside the standalone `nextflow` and `snakemake` adapter packs without a clear handoff story. A maintainer asked 'should I run nf-core/rnaseq via tool_step_pipeline_run or via the snakemake adapter?' cannot answer from the descriptions. The wet_lab pack does not link to the snakemake/nextflow adapters at all.",
+      "suggested_fix": "Wire `wet_lab/protocol/sequencing_data_acquisition` to call into the snakemake/nextflow adapter for the alignment + quantification stages. Add a `tool_step_pipeline_run` description note about when to delegate to an adapter. Add a 'pipeline executor selection' section to `pick_tool_stack.yaml`."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "intake_freshness_unclear",
+      "description": "`tool_context_intake`, `tool_intake_autofill`, `tool_intake_freshness` — three intake tools whose docs do not state the call order for a fresh project. A maintainer (or AI) starting a GSE-driven RNA-seq project has to guess. The default `sys_boot` then `tool_route` flow does not mention intake_freshness at all.",
+      "suggested_fix": "State explicit precedence in `sys_help` orientation block: intake_autofill (cold start) → context_intake (after researcher answers) → intake_freshness (every Nth turn). Consolidate to `tool_intake` with mode={autofill,refine,check_freshness}."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "audit_error_messaging",
+      "description": "`_handle_tool_audit_step_completeness` runs the legacy auditor first then wraps any AuditBase failure in `except Exception: pass`. From a maintainer's perspective: when the new Phase-4 fan-out silently fails, there is NO signal in the response. The audit findings JSONL won't get written and the user sees a successful audit. Same `# pragma: no cover - defensive guard` pattern exists elsewhere.",
+      "suggested_fix": "Replace the silent `except Exception: pass` with a structured warning surfaced into the response: `result['phase4_fanout'] = {'status': 'failed', 'reason': str(e)}`. Log via `tool_reliability_log_event` automatically so maintainers see fan-out failures in `workspace/logs/reliability_report.md`."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "server_file_size",
+      "description": "server.py is 7,499 lines, growing from 6,813 in v1.11.0 (10% in one release). 1,400+ lines of TOOL_DEFINITIONS dicts + 197 handler shims that mostly just import + dispatch. Maintainer review of any change touching tools is slow; grep-driven navigation is the only option. This is the file where v2 bugs are most likely to ship.",
+      "suggested_fix": "Split TOOL_DEFINITIONS into per-namespace modules (research_os/_tools/sys.py, .../tool_audit.py, .../tool_synth.py) and assemble at import time. Same for _HANDLERS. This is mechanical and zero-behaviour-change; can ship in v2.0.0 as a maintainer-only refactor with a CHANGELOG `Internal` note."
+    },
+    {
+      "severity": "LOW",
+      "category": "naming_collisions",
+      "description": "`tool_search`, `tool_search_pubmed`, `tool_search_arxiv`, `tool_search_crossref`, `tool_search_semantic_scholar`, `tool_search_web`, `tool_web_scrape` — clearly grew organically. For an RNA-seq scenario the AI needs PubMed + maybe CrossRef; surface still advertises six search tools.",
+      "suggested_fix": "Keep specialist tools but make `tool_search` the single advertised entry with a `source` enum; specialist tools become aliases via _ALIASES."
+    },
+    {
+      "severity": "LOW",
+      "category": "protocol_jargon",
+      "description": "`pick_tool_stack` description uses 'sister protocol to figure_guidelines.pick_library at the analysis level' — meaningful to maintainers, but the trigger surface a routing-AI sees is jargon-dense. The 'rnaseq' canonical scenario depends on this protocol picking R for DESeq2 vs Python for scanpy; if the AI doesn't actually load the protocol body, the doctrine is invisible.",
+      "suggested_fix": "Hoist the field-practice matrix (DESeq2/Seurat/scanpy/survival) into the `summary` field so the routing trace surfaces the actual decision without loading the full protocol."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_plan vs tool_plan_step vs tool_plan_step_grounded vs tool_plan_next_step vs tool_plan_turn vs tool_plan_advance vs tool_plan_clear (five user-visible variants after partial consolidation)",
+    "tool_route vs tool_quick_route vs tool_semantic_route (three router entries with overlapping triggers)",
+    "tool_synthesize vs tool_synthesize_plan vs tool_synthesis_preview vs tool_synthesis_curate_figures",
+    "tool_audit_step_completeness vs tool_audit_step_literature vs tool_audit_quality_full vs tool_audit_findings_query vs tool_audit_findings_diff (audit family has 18+ entries; unclear which to call when)",
+    "tool_search vs tool_search_pubmed vs tool_search_arxiv vs tool_search_crossref vs tool_search_semantic_scholar vs tool_search_web vs tool_web_scrape",
+    "tool_dashboard_create vs tool_dashboard_test_generate vs tool_dashboard_test_run vs tool_dashboard_story_generate vs tool_dashboard_story_edit vs tool_dashboard_story_quality_bar vs tool_dashboard_reviewer_sim vs tool_audit_dashboard_content (8 dashboard-prefixed tools)",
+    "tool_figure_create vs tool_figure_caption_synthesise vs tool_figure_interactive_autogen vs tool_figure_palette vs tool_paper_figures_autoembed vs tool_audit_figure vs tool_audit_figure_coverage vs tool_audit_figure_full vs tool_audit_figure_quality vs tool_audit_figure_interactivity",
+    "tool_python_exec vs tool_r_exec vs tool_julia_exec vs tool_bash_exec vs tool_notebook_exec vs tool_rmarkdown_render vs tool_latex_compile vs tool_paper_compile_typst (executor proliferation — could be one tool_exec with language enum)"
+  ],
+  "confusing_protocols": [
+    "methodology/pick_tool_stack — duplicates figure_guidelines/pick_library; relationship explained only in maintainer-facing description prose",
+    "methodology/mixed_language_orchestration — only loaded if pick_tool_stack returns 'mixed'; routing dependency invisible to AI clients",
+    "guidance/iterative_planning vs methodology/methodology_selection — both surface at the planning step; trigger overlap not arbitrated",
+    "synthesis/synthesis_from_inputs vs synthesis/synthesis_paper vs synthesis/synthesis_report — three near-synonyms",
+    "audit/audit_and_validation vs audit/pre_submission_checklist vs audit/provenance_completeness — overlap unclear without reading bodies",
+    "domain/domain_analysis triggers on 'snRNA-seq, metagenomics, protein' but is a single 1-protocol catch-all for whole subfields",
+    "literature/literature_per_step vs literature/literature_search vs literature/evidence_synthesis vs literature/systematic_review vs literature/comparative_paper_review — five literature protocols with unclear routing precedence"
+  ],
+  "never_called_tools": [
+    "tool_humanities_essay_scaffold",
+    "tool_search_arxiv (arXiv has limited bio coverage)",
+    "tool_julia_exec (no canonical Julia RNA-seq lib)",
+    "tool_dashboard_story_quality_bar",
+    "tool_dashboard_reviewer_sim",
+    "tool_synthesis_curate_figures (subsumed by tool_paper_figures_autoembed)",
+    "tool_audit_cliches (style-audit; not RNA-seq critical path)",
+    "tool_figure_palette (only matters at final-render time)",
+    "tool_synthesis_grant / synthesis_lay_summary / synthesis_handout / synthesis_progress_update / synthesis_null_findings / synthesis_title_workshop (deliverable variants; only one fires per project)",
+    "tool_redteam_review (high-effort gate; skipped on first pass)",
+    "tool_preregister_diff / tool_preregister_freeze (most exploratory RNA-seq projects don't preregister)",
+    "tool_dead_end_lessons / tool_mistake_replay (only fire on iteration N)",
+    "tool_alternative_path_propose / tool_branch_recommendation (only fire on dead-end)",
+    "tool_data_ethics_review-related (not RNA-seq critical unless human samples)",
+    "tool_sensitivity_define / tool_sensitivity_run (statistical sensitivity; rarely called in DE pipeline)"
+  ],
+  "recommendations": [
+    "Phase 9 priority: collapse the synthesis_* tools into one dispatcher and the search_* tools into one dispatcher. These are the two largest reducible blocks after the v1.11 plan consolidation.",
+    "Add a `wet_lab/protocol/sequencing_data_acquisition` protocol covering GEO/SRA accession download, sample sheet generation, checksum validation. Wire triggers for `GSE`, `SRA`, `download fastq`, `nf-core/rnaseq`. This is the loudest scenario gap for the wet_lab pack pitch.",
+    "Introduce `scripts/router_lint.py` and `tool_route_explain` so router-index drift is caught in CI and routing decisions are debuggable.",
+    "Split server.py — TOOL_DEFINITIONS and _HANDLERS into per-namespace modules. Pure refactor; ships clean in 2.0.0 as 'Internal'.",
+    "Stop swallowing exceptions in the Phase-4 audit fan-out — surface failures into the response and into the reliability log.",
+    "Document the call order intake_autofill → context_intake → intake_freshness in sys_help and consolidate to `tool_intake(mode=...)`.",
+    "Add anonymized opt-in telemetry (router miss rate, unmatched trigger n-grams, top fired audit gates) so v2.x cleanups are data-driven, not vibes-driven."
+  ]
+}

@@ -208,7 +208,7 @@
     fill: palette.paper,
   )
   set text(
-    font: ("Linux Libertine", "New Computer Modern", "Times New Roman", "Times"),
+    font: "New Computer Modern",
     fill: palette.ink,
     size: 16pt,
   )

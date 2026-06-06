@@ -804,7 +804,7 @@ def finalize_path(
             body += (
                 "\nNo methodological decisions captured for this step. "
                 "If a non-trivial choice was made, log it with "
-                "`mem_decision_log` so the reasoning is preserved.\n"
+                "`mem_log(kind='decision', ...)` so the reasoning is preserved.\n"
             )
         (lit_dir / "README.md").parent.mkdir(parents=True, exist_ok=True)
         (lit_dir / "README.md").write_text(body)
@@ -1025,7 +1025,7 @@ def finalize_path(
                     f"{len(inv['tables'])} table(s), "
                     f"{len(inv['reports'])} report(s).\n"
                     f"- **Decisions linked:** {len(decisions)} entries in "
-                    f"`mem_decision_log` (see `literature/README.md`).\n"
+                    f"`mem_log(kind='decision')` (see `literature/README.md`).\n"
                 )
                 analysis_md.write_text(existing.rstrip() + "\n" + entry)
                 project_updates.append("workspace/analysis.md ← step entry")
@@ -1090,11 +1090,11 @@ def finalize_path(
                     )
                 if search_count == 0:
                     warnings.append(
-                        "conclusions.md cites references but NO `tool_search_*` "
+                        "conclusions.md cites references but NO `tool_search` "
                         "calls have been logged in workspace/logs/searches.log. "
                         "The citations may be from training memory, not verified "
-                        "literature. Run `tool_search_semantic_scholar` / "
-                        "`tool_search_pubmed` / `tool_literature_search_and_save` "
+                        "literature. Run `tool_search(source='semantic_scholar')` / "
+                        "`tool_search(source='pubmed')` / `tool_literature_search_and_save` "
                         "to ground the cited references — required before any "
                         "synthesis deliverable."
                     )
@@ -1104,8 +1104,8 @@ def finalize_path(
     # 7c-i. Mirror conclusions.md's `## Decision` block into
     #       workspace/analysis.md as a formal decision-log entry via
     #       `log_decision`. Otherwise the AI has to call
-    #       mem_decision_log manually and rarely does; the decision
-    #       text is in conclusions.md regardless.
+    #       mem_log(kind='decision') manually and rarely does; the
+    #       decision text is in conclusions.md regardless.
     DECISION_VERBS = {"PROCEED", "BRANCH", "DEAD-END", "DEAD_END", "HOLD", "ABANDON"}
     if conc_path.exists():
         try:
@@ -1136,7 +1136,7 @@ def finalize_path(
                                 root=root,
                             )
                             project_updates.append(
-                                f"mem_decision_log ← {verb} from {path_name}"
+                                f"mem_log(kind='decision') ← {verb} from {path_name}"
                             )
         except Exception as e:
             logger.debug("decision mirror skipped: %s", e)
@@ -1315,7 +1315,7 @@ def finalize_path(
     # 7d-ii. Flip this step's state-ledger status to "completed" +
     #        regenerate STATE.md so the project front page shows ✓
     #        instead of → after finalize. Otherwise a fully-finalized
-    #        step keeps status="active" until next sys_path_create
+    #        step keeps status="active" until next sys_path(operation='create')
     #        flips it as a side effect, leaving STATE.md misleading
     #        between steps.
     try:

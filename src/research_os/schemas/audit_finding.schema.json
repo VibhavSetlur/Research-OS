@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://research-os.dev/schemas/audit_finding.schema.json",
+  "title": "AuditFinding",
+  "description": "A single structured finding emitted by a Research-OS audit. One JSON object per atomic check result. Audits write a list of these per run; the writer fans the list out to a human-readable .md, a schema-validated .json, and a one-line-per-finding append-only .jsonl.",
+  "type": "object",
+  "required": [
+    "id",
+    "audit_name",
+    "severity",
+    "dimension",
+    "generated_at",
+    "ro_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique identifier for this finding (UUIDv4 hex string).",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "audit_name": {
+      "type": "string",
+      "description": "Stable identifier for the audit that produced this finding (e.g. 'step_completeness', 'claim_grounding', 'prose_quality').",
+      "minLength": 1
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["block", "warn", "info"],
+      "description": "block = halts the gate; warn = surfaces but does not halt; info = informational only."
+    },
+    "dimension": {
+      "type": "string",
+      "description": "The substantive axis being checked (e.g. 'completeness', 'grounding', 'reproducibility', 'prose', 'figures'). Used for grouping in reports.",
+      "minLength": 1
+    },
+    "evidence_paths": {
+      "type": "array",
+      "description": "Workspace-relative paths to the artefacts the finding refers to (e.g. 'workspace/01_eda/conclusions.md').",
+      "items": {"type": "string"},
+      "default": []
+    },
+    "suggested_fix": {
+      "type": "string",
+      "description": "Actionable one-to-three sentence remediation the AI or user can apply.",
+      "default": ""
+    },
+    "override_kwarg": {
+      "type": ["string", "null"],
+      "description": "Name of the kwarg on the originating tool that, when set true with a rationale, bypasses this finding. null if the finding has no override path.",
+      "default": null
+    },
+    "override_log_format": {
+      "type": ["string", "null"],
+      "description": "Template (Python str.format-style) for the line written to the override audit trail when the override is used. null if no override exists.",
+      "default": null
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp the finding was produced."
+    },
+    "ro_version": {
+      "type": "string",
+      "description": "research_os.__version__ at the time the finding was produced; used to attribute findings to a specific release.",
+      "minLength": 1
+    }
+  }
+}

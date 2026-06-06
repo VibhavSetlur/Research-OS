@@ -1,0 +1,145 @@
+{
+  "scenario": "engineering_benchmark",
+  "perspective": "auditor",
+  "final_rating": 6.4,
+  "high_friction_count": 6,
+  "first_5_turns_high_friction": 3,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "protocol_coverage_gap",
+      "description": "No dedicated benchmark/perf-sweep protocol exists. The scenario (3 algos x 5 sizes x 10 runs = 150 runs) must be hand-assembled from methodology/method_comparison + engineering pack's build_test_fix_loop + reproducibility + audit_and_validation. An auditor verifying the trail cannot point to one canonical protocol — the answer is 'five interleaved ones', which makes the audit log fragmented and the reviewer's question 'which protocol did you follow?' un-answerable in one line.",
+      "suggested_fix": "Add engineering/perf_benchmark protocol: declares the (algo, size, seed) factorial design, the per-cell harness contract, the per-cell provenance sidecar, and the aggregate report. Should explicitly defer SRS/V-model traceability and not invoke requirements_traceability."
+    },
+    {
+      "severity": "HIGH",
+      "category": "audit_surface_inconsistency",
+      "description": "tool_audit_quality_full's own description admits 'this master audit does NOT run the per-step literature gate'. The auditor reading the master audit report (workspace/logs/audit_master.md) sees 6 gates and naturally assumes literature coverage was checked — but it wasn't. Synthesis-time tool_audit_synthesis catches it, but by then the researcher has assumed they were green. This is the kind of silent-pass gap that an external reviewer will find and flag publicly.",
+      "suggested_fix": "Either (a) fold tool_audit_step_literature into tool_audit_quality_full so the master truly is the master, or (b) rename master to tool_audit_quality_core and add a clear note in audit_master.md saying 'literature gate runs separately at synthesis time'. Right now the name overpromises."
+    },
+    {
+      "severity": "HIGH",
+      "category": "tool_surface_bloat",
+      "description": "Counted 197 unique _handle_* handlers + 21 deprecation aliases + several consolidation wrappers that overlap with their own targets (tool_verify wraps both tool_claim_verify and tool_grounding_verify, but all three are still in TOOL_DEFINITIONS and the alias table). CHANGELOG/spec says 344 tools at v1.11.0; the real surface is even larger when aliases are counted. Auditor scanning sys_help / tools_list sees the full menu and cannot tell which names are 'live' vs 'soft-deprecated' without reading server.py source.",
+      "suggested_fix": "Add a `status: live|deprecated|alias` field to TOOL_DEFINITIONS and surface it in tool_tools_list. tool_tools_list should default to status=live and require explicit include_deprecated=true. This is the Phase-9 consolidation input."
+    },
+    {
+      "severity": "HIGH",
+      "category": "protocol_misfit",
+      "description": "engineering/test/build_test_fix_loop and engineering/design/requirements_traceability are written for safety-critical V-model engineering (SRS, SDD, REQ-IDs, FMEA, FTA). For a perf benchmark — even an 'engineering' one — the V-model framing is hostile. quality_bar lists 8 numeric thresholds (diagnose_dominance_threshold_pct=40, fix_dominance_threshold_pct=50, consecutive_same_failure_limit=3) with no citation and reads as fake-precise to an auditor.",
+      "suggested_fix": "Move build_test_fix_loop + requirements_traceability + FMEA + FTA into an `engineering_safety` sub-pack. Add an `engineering_performance` sub-pack with perf_benchmark + scaling_analysis + statistical_significance_for_benchmarks (DM test, Bayesian sign test, NB rank test). Don't force a perf-bench user through V-model."
+    },
+    {
+      "severity": "HIGH",
+      "category": "provenance_audit_scaling",
+      "description": "provenance_completeness walks every output via sys_file_list recursive per step and writes a single coverage_pct to provenance_audit.md. For a 150-run sweep producing 150 CSVs + 150 figures + 150 logs = 450+ artefacts, the report flattens into one coverage number. Auditor cannot tell at a glance 'algo_A_size_5_seed_3 is missing its sidecar' from the report without grepping the BLOCKERS table. Also, the rng_seed null-justification path requires a mem_log entry per null seed — for 150 runs with deterministic algorithms, that's 150 mem_logs of the same justification.",
+      "suggested_fix": "(1) provenance_audit.md should group BLOCKERS by step + by output-stem prefix so 150 missing sidecars from the same sweep cluster together. (2) Add a batch_justification field to provenance: one mem_log covers all 150 outputs that share the same null_seed rationale. (3) Provide tool_provenance_sweep_audit that reports per-cell coverage for factorial sweeps."
+    },
+    {
+      "severity": "HIGH",
+      "category": "literature_gate_misfit",
+      "description": "tool_audit_step_literature requires findings_vs_literature.md with `## Claim:` blocks and one of {AGREES, DISAGREES, EXTENDS, DEFERRED} verdicts per claim. For a perf benchmark, most 'claims' are 'Algorithm X has empirical complexity O(n log n) on this dataset' — the AGREES/DISAGREES vocabulary was designed for empirical/clinical/observational studies, not algorithm performance claims. Auditor sees the verdict labels in the report and the mismatch reads as 'protocol mis-applied'.",
+      "suggested_fix": "Add `verdict_set` to the per-step literature audit config: domain packs declare their own verdict vocabulary. Engineering perf would use {MATCHES_LITERATURE, FASTER_THAN, SLOWER_THAN, ORTHOGONAL}. Literature gate still fires; the labels match the domain."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "duplicated_audit_aggregator",
+      "description": "audit_and_validation.yaml step `audit_master` documents calling tool_audit_quality_full plus 7 follow-on steps (citations, assumptions, figures, step_readmes, causal_language, code_style, coherence, discussion_coverage, write_audit_summary). Both `tool_audit_quality_full` and the protocol's `audit_master` step claim to be the master. Auditor: which is canonical? The tool is the master if you're scripting; the protocol is the master if you're following the YAML. Same blockers can be reported by either path with slightly different framing.",
+      "suggested_fix": "Rename audit_and_validation's `audit_master` step to `run_master_audit` and have its description literally say `Call tool_audit_quality_full; this protocol then layers protocol-only checks (causal_language, discussion_coverage) on top.` Make the master-of-masters relationship explicit."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "step_completeness_hidden_requirement",
+      "description": "tool_audit_step_completeness's description ends with '...when outputs span multiple categories (figures + tables + reports) a pipeline.yaml MUST declare the sub-task DAG — mega-scripts are blocked.' This is a non-obvious side requirement: the first time it fires on a benchmark step (which naturally produces figures + tables + reports), the auditor sees a BLOCKER for an undocumented concept. pipeline.yaml is mentioned but its schema lives elsewhere.",
+      "suggested_fix": "Hoist the pipeline.yaml requirement out of the description and into its own short protocol (engineering/pipeline_dag_for_multi_output_steps) with the schema + 3 examples. Make the BLOCKER message link to that protocol id."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "deprecation_alias_telemetry_opaque",
+      "description": "_DEPRECATED_ALIASES is a set of 21 names that fire telemetry when called, but the auditor reading workspace/logs/audit_master.md sees no surfacing of 'this run still used 4 deprecated tool names'. Reliability report (tool_reliability_report) carries some of this but it's not in the standard audit bundle.",
+      "suggested_fix": "Master audit should include a `deprecation_usage` section: count of deprecated alias invocations this session, with the recommended replacement. Helps the project drift forward through migrations."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "pre_submission_checklist_domain_bias",
+      "description": "pre_submission_checklist is comprehensive but heavily biased toward clinical/observational journal submission (CRediT, CONSORT/STROBE/PRISMA/ARRIVE, IRB approval, layperson summary, graphical abstract). For an internal benchmark report or an arXiv preprint, ~50% of the checklist is N/A and the verdict mechanism (GREEN/YELLOW/RED) has no domain-aware skip. Auditor sees YELLOW from the missing IRB number on a perf-comparison paper and has to mentally rule it out.",
+      "suggested_fix": "Add `submission_type: journal_clinical | journal_engineering | preprint | internal_report | conference_short` to pre_submission_checklist's scope_submission step; gate checks on type. Engineering submission_type would skip CONSORT/CRediT/IRB and add benchmark-specific checks (reproducibility envelope, hyperparameter budget disclosure, hardware spec disclosure)."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_silence",
+      "description": "_router_index.yaml has no entries matching 'benchmark', 'shootout', 'perf', or 'compare algorithms'. method_comparison protocol covers ML-method head-to-head but its triggers ('compare X vs Y', 'horse race') are statistical-method-flavoured. An auditor asking 'which protocol does the AI route to on `benchmark these 3 algorithms`?' finds the answer is `methodology/method_comparison` — surprising given the scenario is engineering-framed, not statistical-method-framed.",
+      "suggested_fix": "Add engineering_perf_benchmark to _router_index.yaml with triggers: ['benchmark these', 'perf comparison', 'algorithm shootout', 'scaling study', 'big-O comparison', 'wall-clock comparison']. Route to the new perf_benchmark protocol once it exists."
+    },
+    {
+      "severity": "LOW",
+      "category": "version_drift_in_protocols",
+      "description": "Engineering pack protocols carry version '1.9.3'. In-tree audit protocols carry version '1.11.0'. Auditor checking provenance asks 'which package version was this run on?' — the protocol header says 1.9.3 but the actual ship was 1.11.0. The maintainer guide (CLAUDE.md) says MINOR/MAJOR bumps should sync all protocol versions; this didn't happen for the engineering pack.",
+      "suggested_fix": "Add a preflight check: every protocol YAML's `version:` must match the current pyproject.toml version, OR the protocol must declare `version_locked: true` with a one-line rationale. Catches the drift before release."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full (claims to be master but skips literature gate; surprising to discover at synthesis time)",
+    "tool_verify + tool_claim_verify + tool_grounding_verify (3 names, 2 handlers, 1 scope param; live alongside aliases)",
+    "tool_ground + tool_grounding_register + tool_ground_from_context (same: 3 names, 1 unified, 2 deprecated, all still in TOOL_DEFINITIONS)",
+    "tool_plan + tool_plan_turn + tool_plan_advance + tool_plan_clear (4 names, 1 unified)",
+    "tool_audit_step_completeness (hides a critical 'pipeline.yaml DAG required when outputs span categories' requirement at the end of a 6-line description)",
+    "tool_audit_findings_query/diff (good tools, but ledger semantics 'latest-snapshot per stable id' is non-obvious without reading source)",
+    "sys_path + sys_path_create + sys_path_abandon + sys_path_list (4 names, 1 unified)",
+    "mem_log + mem_methods_append + mem_decision_log + mem_hypothesis_update + mem_analysis_log (5 names, 1 unified)"
+  ],
+  "confusing_protocols": [
+    "engineering/test/build_test_fix_loop (fake-precise quality_bar thresholds without citations; engineer-iteration-flavoured, ill-fitting a benchmark sweep)",
+    "engineering/design/requirements_traceability (SRS/SDD/V-model framing; misfit for perf benchmark; auditor reads forward+backward coverage on REQ-IDs that don't exist)",
+    "audit/audit_and_validation step `audit_master` (overlaps with tool_audit_quality_full; unclear which is canonical)",
+    "audit/provenance_completeness (correct content, but report format flattens 150-cell sweeps into one coverage_pct; no per-cell grouping)",
+    "audit/pre_submission_checklist (heavily clinical-journal-biased; no submission_type knob to skip CONSORT/IRB for benchmark/preprint paths)",
+    "methodology/method_comparison (statistical-method-flavoured triggers; routes here for 'algorithm benchmark' which feels off)"
+  ],
+  "never_called_tools": [
+    "tool_humanities_essay_scaffold",
+    "tool_audit_cliches",
+    "tool_section_substantiveness",
+    "tool_qualitative_pii_redaction (lives in qualitative pack)",
+    "tool_audit_evalue (risk-ratio specific; benchmarks don't have RRs)",
+    "tool_reviewer_simulate",
+    "tool_rebuttal_draft",
+    "tool_reviewer_response_compile",
+    "tool_audit_reviewer_responses",
+    "tool_response_to_reviewers",
+    "tool_null_findings_report (null-effect framing; benchmark reports raw numbers)",
+    "tool_audit_synthesis (replaced by tool_audit_quality_full at the entry point)",
+    "tool_paper_compile_typst (benchmark report is usually markdown / arXiv tex, not typst)",
+    "tool_poster_create",
+    "tool_slides_create (some benchmark teams skip slides)",
+    "tool_dashboard_create (overkill for a 3-page benchmark report)",
+    "tool_dashboard_test_generate",
+    "tool_dashboard_test_run",
+    "tool_dashboard_reviewer_sim",
+    "tool_dashboard_story_generate / edit / quality_bar",
+    "tool_audit_dashboard_content",
+    "tool_audit_figure_interactivity",
+    "tool_figure_interactive_autogen",
+    "tool_humanities_essay_scaffold",
+    "tool_rmarkdown_render (R-specific; engineering benchmark usually python/c++/rust)",
+    "tool_notebook_exec (nice-to-have; benchmark is typically scripts not notebooks)",
+    "tool_sensitivity_define / tool_sensitivity_run (spec-curve; benchmarks vary inputs not specs)",
+    "tool_audit_cross_deliverable_consistency (one deliverable, no cross-check needed)",
+    "tool_audit_version_coherence",
+    "tool_redteam_review (overkill for internal benchmark)"
+  ],
+  "recommendations": [
+    "Phase 9 consolidation: enforce single canonical name per capability. Either keep tool_verify + remove tool_claim_verify/tool_grounding_verify from TOOL_DEFINITIONS (leave only in _ALIASES), or vice versa. Same for tool_ground, tool_plan, sys_path, mem_log, tool_lessons. Currently both forms live in the surface.",
+    "Add status: live|alias|deprecated field to TOOL_DEFINITIONS; sys_help and tool_tools_list filter to live by default.",
+    "Add engineering_performance sub-pack (perf_benchmark + scaling_analysis + benchmark_statistical_significance). Move requirements_traceability, build_test_fix_loop, fmea, fta to engineering_safety sub-pack.",
+    "Fold tool_audit_step_literature INTO tool_audit_quality_full (or rename master to make the limit explicit). Right now the name overpromises and the limit is buried at the end of a 6-line description.",
+    "Add benchmark-shaped verdict vocabulary to literature gate (verdict_set declared per domain pack). AGREES/DISAGREES/EXTENDS/DEFERRED is clinical/empirical-flavoured.",
+    "Add per-cell grouping + factorial-aware reporting to provenance audit. 150-cell sweeps should not flatten to one coverage_pct.",
+    "Add submission_type to pre_submission_checklist with engineering / preprint / internal_report paths that skip irrelevant checks (CONSORT/CRediT/IRB) and add relevant ones (hyperparameter budget, hardware spec, reproducibility envelope).",
+    "Surface deprecation_usage in the master audit so projects drift forward through migrations.",
+    "Add a preflight check: protocol YAML version: must match pyproject.toml version or declare version_locked: true. The engineering pack protocols still say 1.9.3 while the baseline shipped 1.11.0.",
+    "Surface the pipeline.yaml DAG requirement as its own short protocol (engineering/pipeline_dag_for_multi_output_steps) with schema + examples, and have the step_completeness BLOCKER message link to it by id.",
+    "Add engineering_perf_benchmark triggers to _router_index.yaml so 'benchmark these 3 algorithms' routes to a benchmark protocol, not to methodology/method_comparison."
+  ]
+}

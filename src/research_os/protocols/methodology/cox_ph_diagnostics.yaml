@@ -1,7 +1,12 @@
 id: cox_ph_diagnostics
+tier: 'plan'
 name: Cox PH Diagnostics (Proportional Hazards check + fallback routing)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-02'
 description: |
   Whenever a Cox proportional-hazards model is fit (lifelines `CoxPHFitter`,
@@ -119,7 +124,7 @@ steps:
       the project's environment. lifelines (Python), survival
       (R), statsmodels, sksurv, SAS PROC PHREG, and Stata stcox
       all implement the test; pick what the team uses + log the
-      version via sys_env_snapshot.
+      version via sys_env(operation='snapshot').
 
       Use a deterministic RNG seed even though Cox is not
       stochastic — many downstream bootstrap CI calculations are.

@@ -1,4 +1,4 @@
-"""Tests for branch-aware path creation (sys_path_create branch_of=...)."""
+"""Tests for branch-aware path creation (sys_path(operation='create', branch_of=...))."""
 
 from pathlib import Path
 

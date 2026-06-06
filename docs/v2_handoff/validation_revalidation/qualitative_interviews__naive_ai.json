@@ -1,0 +1,129 @@
+{
+  "scenario": "qualitative_interviews",
+  "perspective": "naive_ai",
+  "final_rating": 7.4,
+  "high_friction_count": 4,
+  "first_5_turns_high_friction": 2,
+  "every_deliverable_produced": false,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "pii_redaction_implementation_gap",
+      "description": "UNRESOLVED FROM BASELINE. qualitative_pii_redaction still has no first-class MCP tool. The protocol still instructs the AI to author a presidio + spaCy + regex script via tool_python_exec. No tool_qualitative_pii_redact / tool_qualitative_redact_transcripts entry exists in TOOL_DEFINITIONS (grepped, zero matches). A naive AI without Presidio knowledge will still burn 3-5 turns drafting a brittle script and hit `en_core_web_lg not installed`. This was flagged as the single highest friction in Phase 15a and is still open in v2.0.0.",
+      "suggested_fix": "Land tool_qualitative_pii_redact(transcript_path, policy_path, output_dir) in src/research_os/plugins/qualitative/tools.py that wraps presidio_analyzer + presidio_anonymizer + spaCy en_core_web_lg + a regex backstop and writes (a) the redacted transcript, (b) the per-file ledger CSV, (c) the audit summary. Make the protocol step one tool call."
+    },
+    {
+      "severity": "HIGH",
+      "category": "hidden_prerequisite_gate",
+      "description": "UNRESOLVED FROM BASELINE. The qualitative_research.ingest_transcripts step still buries the HARD GATE ('STOP and route to methodology/qualitative_pii_redaction first') in the step description prose. sys_protocol_get format='summary' now correctly lists the prerequisite text under `prerequisites`, which is a partial fix, but the gate is still not surfaced as a structured field like `prerequisite_status: {satisfied: false, missing: ['inputs/raw_data_redacted/'], blocking_protocol: 'methodology/qualitative_pii_redaction'}`. A naive AI summary-loading qualitative_research will see prose like 'If transcripts contain participant PII...' and may decide its corpus doesn't need it. Walking step-by-step still hits the gate halfway through ingest_transcripts.",
+      "suggested_fix": "sys_protocol_get format='summary' should run the prerequisite checks against the live workspace AT FETCH TIME and surface a structured `prerequisite_status` object with `satisfied`, `missing_paths`, `next_protocol`. tool_route should also auto-prepend qualitative_pii_redaction to the decomposition when it sees transcripts in inputs/raw_data/ at routing time."
+    },
+    {
+      "severity": "HIGH",
+      "category": "manual_quote_provenance_per_call",
+      "description": "UNRESOLVED FROM BASELINE. tool_qualitative_quote_provenance still registers ONE quote per call. Its inputSchema has `quote`, `participant_id`, `transcript_path`, `line_range`, `timestamp` as flat fields, no `entries` array, no `mode='bulk'`, no file-path ingestion. An 8-participant study with 5 themes x 3 quotes still requires ~15 sequential calls. A naive AI will either skip the registry and fail the qualitative_report_format audit, or thrash through 15 sequential calls and burn budget.",
+      "suggested_fix": "Add `entries: [{quote, participant_id, transcript_path, line_range, timestamp}, ...]` as an optional input alongside the singular fields. Or accept `entries_path: str` pointing at a JSONL/CSV. Better: have tool_audit scope='synthesis' dimension='quotes' auto-extract [P##:L##-L##]-style markers from the manuscript and populate the registry on the AI's behalf."
+    },
+    {
+      "severity": "HIGH",
+      "category": "tool_audit_synthesis_keyerror",
+      "description": "NEW FRICTION (not in baseline). Calling tool_audit(scope='synthesis', dimension='all') with no other arguments throws `KeyError: 'paper_path'` from src/research_os/server/handlers/audit_core.py:99 instead of a friendly missing-required-arg error. The schema marks paper_path as having a default ('synthesis/paper.md') in the description but the handler does `arguments['paper_path']` instead of `arguments.get('paper_path', 'synthesis/paper.md')`. A naive AI calling the audit at synthesis time, exactly as the protocols teach, hits a raw Python KeyError. This is regression risk from the Phase 9 audit consolidation.",
+      "suggested_fix": "In src/research_os/server/handlers/audit_core.py around line 99 change `arguments['paper_path']` to `arguments.get('paper_path', 'synthesis/paper.md')`. Add a unit test in tests/test_phase9_audit_dispatch.py that calls tool_audit(scope='synthesis', dimension='all') with no kwargs and asserts status='success' (or a structured 'missing_input' error, not a KeyError)."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_picks_umbrella_over_specific",
+      "description": "For the prompt 'I need to format the qualitative paper for journal submission', tool_route picks methodology/qualitative_research (umbrella, score 0.835) instead of the more specific qualitative/output/qualitative_report_format (score 0.732). The alternative IS visible in the alternatives list (now surfaced thanks to Phase 11a/9 improvements), but a naive AI following the recommended_action will load the wrong protocol first. The qualitative_research umbrella has 9 steps the AI doesn't need at format-time; loading it costs ~3-4KB of unnecessary context.",
+      "suggested_fix": "When the second-place alternative is within 0.15 of the primary AND has a different intent_class (synthesize vs methodology here), tool_route should set ambiguous=true and return both as ambiguous_alternatives so the AI escalates to the researcher instead of guessing. Or weight intent_class match in the prompt ('format'/'submission' → synthesize) over surface keyword overlap."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "active_tools_missing_pack_qualitative_tools",
+      "description": "sys_active_tools(protocol_name='methodology/qualitative_research') returns a 13-tool shortlist (great compared to baseline's 344 visible). BUT the three qualitative pack tools (tool_qualitative_codebook_diff, tool_qualitative_quote_provenance, tool_qualitative_select_standard) are NOT in that shortlist, even though the protocol's downstream steps (theme_synthesis, trustworthiness, report) require them. The pack-aware scoping does not propagate pack tools into the active shortlist for protocols of matching domain. The AI either misses them entirely or has to re-route to discover them.",
+      "suggested_fix": "Have sys_active_tools(protocol_name=X) union the core shortlist with all tools whose pack matches a tag in the protocol's scope_tags.domain. For methodology/qualitative_research (scope_tags.domain = ['qualitative']) that auto-includes the three pack:qualitative tools. Same for engineering, slurm, etc."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "coreq_srqr_auto_silent_fallback",
+      "description": "UNRESOLVED FROM BASELINE. tool_qualitative_select_standard with standard='auto' still returns SRQR by default with a reason string ('study_design.yaml not found; defaulting to SRQR') instead of escalating ask_user. No protocol emits study_design.yaml as a deliverable. A naive AI accepts the SRQR pick and burns turns later when the COREQ-specific 32 items don't match the interview design.",
+      "suggested_fix": "Add `status: 'ask_user'` + `ask_user_question: 'I see no study_design.yaml. Are you running structured interviews/focus groups (COREQ) or a broader qualitative design (SRQR)?'` when standard='auto' and the design file is missing. OR have methodology/qualitative_research.design_protocol step emit a minimal study_design.yaml as part of expected_outputs."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "step_summary_yaml_invisible_contract",
+      "description": "UNRESOLVED FROM BASELINE. sys_path operation='create' still creates the workspace dirs but does NOT auto-generate step_summary.yaml. I verified: workspace/01_pii_redaction/ has data, scripts, literature, context, outputs, README.md, conclusions.md — but NO step_summary.yaml. The audit downstream (tool_audit scope='step' dimension='completeness') still expects this file, and the protocol prose still tells the AI to hand-author it. The naive AI either skips it and hits a 'missing required field' BLOCK or burns turns reverse-engineering the schema.",
+      "suggested_fix": "Have sys_path operation='create' accept `protocol_name` (or read it from the active route context) and pre-populate workspace/<step>/step_summary.yaml from the routed protocol's expected_outputs + quality_bar. The AI overrides only when it wants to deviate."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "long_descriptions_still_burn_context",
+      "description": "PARTIALLY IMPROVED FROM BASELINE. Total description bytes shipped on list_tools is now ~53KB across 146 tools (down from baseline's ~85KB across 344). However only 49/146 tools (33%) have descriptions <= 200 chars. The 'short' field exists on 93/146 tools but MCP wire format still ships `description`, not `short`. tool_figure (1632 chars), tool_reviewer (1451), tool_dashboard (1390), tool_step (1214), tool_slides_create (1104), tool_synthesize (1020), tool_step_pipeline (986), tool_preregister (923), tool_audit (850), tool_lessons (835) each individually exceed 800 chars.",
+      "suggested_fix": "Have entry.py's list_tools handler ship `short` when present and `description` only when `short` is empty. Adds one map-and-fallback line. Saves ~30KB on boot for a naive AI."
+    },
+    {
+      "severity": "LOW",
+      "category": "small_n_saturation_block",
+      "description": "UNRESOLVED FROM BASELINE. qualitative_quality_audit still expects a saturation-curve check with no UNDERPOWERED_TO_JUDGE three-valued verdict. With N=8 the test is methodologically dubious and forces override_gate use. Did not reach this in this re-validation flow because Turn 4 hit the tool_audit KeyError first; this rating reflects the unresolved baseline finding.",
+      "suggested_fix": "Add a UNDERPOWERED_TO_JUDGE verdict when N < 12 AND inputs/policy/small_n_limitations.md exists. Treat that as 'documented limitation' rather than blocker."
+    },
+    {
+      "severity": "LOW",
+      "category": "codebook_diff_filename_collision",
+      "description": "UNRESOLVED FROM BASELINE. tool_qualitative_codebook_diff still hardcodes the output filename to 'diff_v1_to_v2.md' regardless of input version numbers. Diffing v3 → v4 overwrites the v1 → v2 diff silently.",
+      "suggested_fix": "Parse `_v(\\d+)` from each input filename and name the output diff_v{N}_to_v{M}.md. Or accept v1_label/v2_label arguments."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit (one tool, two-axis (scope, dimension) matrix is well-consolidated but the inputSchema mixes 18+ args from all dimensions in a flat shape — naive AI has to read the description to know which args apply to which scope/dimension)",
+    "tool_synthesize (10+ kwargs incl. override_completeness_gate, override_unresolved_blocks, override_rationale, skip_gates, section, output_type, output_format, citation_style — overrides clearly named is good, but flat schema for what is really a state machine)",
+    "tool_qualitative_quote_provenance (still single-quote per call; N+1 pattern for any non-trivial study)"
+  ],
+  "confusing_protocols": [
+    "methodology/qualitative_research vs qualitative/output/qualitative_report_format (umbrella picks 0.835, report-format picks 0.732 — naive AI loads umbrella when prompt is clearly report-specific)",
+    "methodology/qualitative_pii_redaction prerequisite is described in prose under qualitative_research.prerequisites + buried in ingest_transcripts step body, not as a structured prerequisite_status field on the summary"
+  ],
+  "never_called_tools": [
+    "tool_slurm_submit",
+    "tool_slurm_status",
+    "tool_latex_compile",
+    "tool_poster_create",
+    "tool_notebook_exec",
+    "tool_julia_exec",
+    "tool_r_exec",
+    "tool_synthesis_curate_figures",
+    "tool_paper_compile_typst",
+    "tool_slides_create",
+    "tool_workflow_dag",
+    "tool_literature_download",
+    "tool_literature_search_and_save",
+    "tool_adapter_extract",
+    "tool_adapters_run_all",
+    "sys_adapters_installed"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface cut from 344 to 146 live (-58%). 80 v1 aliases + 78 deprecated aliases + 24 removed tools are now hidden from list_tools but still resolve via dispatch.py for backward compat. Phase 9 consolidation worked.",
+    "Every tool now carries `status: live|alias|deprecated` and `pack: core|<pack_name>` annotations. Boot-visible TOOL_DEFINITIONS is filtered to status=live only (0 aliases / 0 deprecated leak into list_tools).",
+    "MCP server `instructions` field is now set and explicitly names the boot sequence: 'On every turn: (1) sys_boot once per session, (2) tool_route(prompt=user), (3) sys_protocol_get format=summary, (4) sys_active_tools'. A naive AI now knows the canonical entry path on connect — biggest single win over baseline.",
+    "tool_route now returns: alternatives (top 3 with scores + why_matched), semantic_candidates (top 5), confidence (high/medium/low), recommended_action (literal next call), active_tools shortlist (scoped to ~13 tools for qualitative). The baseline complaint about hidden alternatives and missing rationale is addressed.",
+    "sys_protocol_get default format is now 'summary' (was 'full'). Returns id, name, description, trigger, prerequisites, step_summary (list of {id, name}), expected_outputs, quality_bar, next_protocol, on_failure — compact ~1.5KB instead of full ~10KB YAML. Comes with _load_hint telling the AI how to drill in.",
+    "Protocols carry `scope_tags: {domain, audience, workflow_shape}` (verified on methodology/qualitative_*.yaml). Enables future filtering / pack-aware shortlisting.",
+    "sys_active_tools returns a 13-tool scoped shortlist for methodology/qualitative_research (down from baseline's 344 visible). Huge context-token savings on every turn.",
+    "Tool consolidation: tool_audit (scope/dimension) replaces tool_audit_synthesis + tool_audit_step_completeness + tool_audit_figure + tool_audit_figure_full and ~10 others. tool_search (engine) replaces 5 split tools. mem_log (kind) replaces 5 mem_* tools. tool_plan (operation) replaces 4 split tools. sys_path (operation) replaces 4 split tools. Net effect: roughly 25-40 fewer top-level names a naive AI has to triage.",
+    "15 of 31 baseline never-called tools (tool_figure_palette, tool_audit_figure_full, tool_step_pipeline_*, tool_data_sample, tool_search_arxiv/pubmed/crossref, tool_audit_synthesis, tool_audit_step_completeness, etc.) have been removed or consolidated under unified dispatchers. Aliases keep external integrations working.",
+    "server.py refactored into modular package (research_os.server.{aliases,envelopes,dispatch,registry,entry,handlers/,tool_definitions/}) — easier to audit and contribute to, though that's a developer ergonomics win, not directly an AI-client win.",
+    "tool_route includes `why_matched` per candidate (Phase 11a), surfacing the semantic score reasoning so the AI can judge confidence."
+  ],
+  "remaining_recommendations": [
+    "v2.1.0 P0: Land tool_qualitative_pii_redact as a first-class MCP tool wrapping presidio + spaCy + regex. Single biggest unaddressed friction; was P0 in baseline, still P0 here.",
+    "v2.1.0 P0: Fix tool_audit scope='synthesis' dimension='all' KeyError on paper_path. Change `arguments['paper_path']` to `arguments.get('paper_path', 'synthesis/paper.md')` in src/research_os/server/handlers/audit_core.py:99. Add a unit test. This is a regression from Phase 9 consolidation and a naive AI hits it on Turn 4.",
+    "v2.1.0 P0: Add bulk mode to tool_qualitative_quote_provenance — accept `entries: [{...}, ...]` array OR `entries_path` to a JSONL/CSV. Today's per-quote API is an N+1 anti-pattern.",
+    "v2.1.0 P1: Make sys_protocol_get format='summary' return a live `prerequisite_status: {satisfied, missing_paths, blocking_protocol, next_call}` object computed against the workspace at fetch time, not just prose. Same for qualitative_research's PII gate.",
+    "v2.1.0 P1: Have sys_path operation='create' accept (or auto-detect from active route) a protocol_name and pre-generate workspace/<step>/step_summary.yaml from the protocol's expected_outputs + quality_bar. Removes the invisible-contract pitfall.",
+    "v2.1.0 P1: Have sys_active_tools(protocol_name=X) union core shortlist with pack tools whose pack matches a domain in the protocol's scope_tags. Today's 13-tool qualitative shortlist excludes the three tool_qualitative_* pack tools the AI needs at theme/report time.",
+    "v2.1.0 P1: tool_route should set ambiguous=true when the second-place alternative is within 0.15 of the primary AND has a different intent_class (so 'format the qualitative paper' doesn't silently pick umbrella over the specific report-format protocol).",
+    "v2.1.0 P2: list_tools should ship `short` when present, `description` only when `short` is empty. Saves ~30KB on boot. The `short` field exists on 93/146 tools already; just unused on the wire.",
+    "v2.1.0 P2: tool_qualitative_select_standard with standard='auto' should return status='ask_user' when study_design.yaml is missing, not silently default to SRQR.",
+    "v2.1.0 P2: Add UNDERPOWERED_TO_JUDGE verdict to qualitative_quality_audit's saturation check for N < 12 + small_n_limitations.md.",
+    "v2.1.0 P3: Fix tool_qualitative_codebook_diff to parse v(\\d+) from input filenames and name output diff_v{N}_to_v{M}.md (currently always overwrites diff_v1_to_v2.md)."
+  ]
+}

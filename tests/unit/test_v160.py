@@ -37,9 +37,13 @@ def test_lean_format_trims_step_descriptions():
 
 
 def test_lean_format_uses_explicit_lean_variant_when_present(tmp_path, monkeypatch):
-    # Build a minimal protocol with an explicit lean_variant block.
-    import tempfile
+    # Import inside the test so `load_protocol` and `protocol_mod` come from
+    # the same current `research_os.tools.actions.protocol` module — a prior
+    # `_fresh_import()` in the suite (test_v170) can otherwise clear
+    # sys.modules and rebind the top-level import to a different module than
+    # `protocol_mod`, leaving the monkeypatch on the wrong module.
     from research_os.tools.actions import protocol as protocol_mod
+    from research_os.tools.actions.protocol import load_protocol as _load
     src = tmp_path / "tmp" / "lean_test.yaml"
     src.parent.mkdir(parents=True)
     src.write_text(
@@ -51,7 +55,7 @@ def test_lean_format_uses_explicit_lean_variant_when_present(tmp_path, monkeypat
     )
     monkeypatch.setattr(protocol_mod, "PROTOCOLS_DIR", tmp_path)
 
-    lean = load_protocol("tmp/lean_test", format="lean")
+    lean = _load("tmp/lean_test", format="lean")
     assert lean.get("_lean_source") == "explicit"
     steps = lean.get("steps") or []
     assert len(steps) == 1
@@ -170,11 +174,28 @@ def test_tool_step_complete_schema_rejects_extras():
 
 
 def test_three_new_tools_wired():
-    from research_os.server import _HANDLERS, TOOL_DEFINITIONS
-    for name in ("tool_dry_run", "tool_step_complete", "tool_mistake_replay"):
+    """tool_dry_run + tool_step_complete remain top-level surface; the v1.6.0
+    `tool_mistake_replay` collapsed into tool_lessons(operation='mistake_replay')
+    in phase-9-c4 but must still resolve through _ALIASES + param injection."""
+    from research_os.server import (
+        _ALIAS_PARAM_INJECTION,
+        _ALIASES,
+        _DEPRECATED_ALIASES,
+        _HANDLERS,
+        TOOL_DEFINITIONS,
+    )
+    for name in ("tool_dry_run", "tool_step_complete"):
         assert name in TOOL_DEFINITIONS, f"{name} not in TOOL_DEFINITIONS"
         assert name in _HANDLERS, f"{name} not in _HANDLERS"
         assert callable(_HANDLERS[name]), f"{name} handler not callable"
+    # Legacy name preserved as an alias into the consolidated dispatcher.
+    assert _ALIASES.get("tool_mistake_replay") == "tool_lessons"
+    assert "tool_mistake_replay" in _DEPRECATED_ALIASES
+    assert _ALIAS_PARAM_INJECTION.get("tool_mistake_replay") == (
+        "operation",
+        "mistake_replay",
+    )
+    assert "tool_lessons" in _HANDLERS
 
 
 def test_template_researcher_config_documents_coaching():

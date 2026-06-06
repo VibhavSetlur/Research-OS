@@ -1,0 +1,115 @@
+{
+  "scenario": "engineering_benchmark",
+  "perspective": "auditor",
+  "final_rating": 7.6,
+  "high_friction_count": 3,
+  "first_5_turns_high_friction": 3,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "protocol_coverage_gap_unchanged",
+      "description": "Same gap as Phase 15a: no dedicated engineering/perf_benchmark protocol exists. There is no engineering/ or domain/ subpack on disk; the 'engineering' scope_tag is sprinkled across 12 protocols (analysis_plan, code_review, ablation_study, method_comparison, evaluation_design, etc.) but none of them is the canonical 3-algo x 5-size x 10-run sweep harness. An auditor verifying 'which protocol did this benchmark follow?' still gets the answer 'several interleaved ones', and the closest single-protocol match (methodology/method_comparison) is statistical-methods-flavoured, not perf-flavoured. Phase 9 consolidation moved tools but did not add this protocol, and the engineering_safety vs engineering_performance split proposed in baseline still isn't there."
+    },
+    {
+      "severity": "HIGH",
+      "category": "router_silence_on_benchmark_vocab",
+      "description": "Router-index still under-indexes benchmark vocab: 4 'benchmark' mentions, 0 'shootout', 0 'perf', 0 'wall-clock', 2 'scaling'. Probed routing: 'benchmark these 3 algorithms across 5 input sizes with 10 runs each' semantically routes to methodology/missing_data_strategy (confidence=high) — actively wrong for an algorithm benchmark. 'algorithm shootout 3 algos 5 sizes' and 'wall-clock comparison of sorting algorithms' both produce ask_user with no candidate match. 'engineering perf benchmark sweep' routes to methodology/hyperparameter_search_design. The new recommended_action field DOES surface the ask_user path explicitly (improvement), but the underlying L3 trigger gap from baseline is unaddressed."
+    },
+    {
+      "severity": "HIGH",
+      "category": "literature_gate_silent_pass_unchanged",
+      "description": "tool_audit_quality_full still skips the per-step literature gate and writes workspace/logs/audit_master.md without surfacing this; the description does call it out ('this master audit does NOT run the per-step literature gate'), but only at the end of a multi-line description. The master report (audit_master.md, 1651 chars in the synthetic run) does not mention literature at all. tool_audit(scope='synthesis', dimension='all') raised KeyError('paper_path') on call without a paper — so the synthesis-time literature gate isn't reachable until the researcher has compiled a paper, by which time the gap has already silently passed. Exact same friction as baseline #2."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "blocker_recommends_deprecated_tool_name",
+      "description": "Phase 9 consolidated tool_figure_caption_synthesise into tool_figure (or similar — only tool_figure + tool_synthesis_curate_figures live now), but the step_completeness blocker message still says 'Call tool_figure_caption_synthesise or rerun tool_path_finalize.' The recommended name is in _DEPRECATED_ALIASES, not TOOL_DEFINITIONS. An auditor following the blocker advice tries to find tool_figure_caption_synthesise, doesn't see it in sys_help / tool_tools_list, and has to discover the alias-routing themselves. The friendly thing is for the audit subsystem's recommended-fix strings to be migrated alongside the tool registry — Phase 9 missed this."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "synthesis_audit_raw_keyerror",
+      "description": "tool_audit(scope='synthesis', dimension='all') crashes with raw KeyError('paper_path') instead of a friendly validation message. The traceback comes from handlers/audit_core.py line 99 — the consolidated dispatcher accepts the scope/dimension pair but the inner handler hard-indexes a kwarg that wasn't given. An auditor following the consolidation pattern (one tool_audit call shape for everything) hits this immediately when probing synthesis-side gates without a paper.md in place. This is a Phase-9 consolidation gap: the dispatcher should validate per-(scope, dimension) required args before forwarding."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "scope_tag_misclassification",
+      "description": "scope_tags is now universal (117/117 protocols carry it — big improvement), but several core audit protocols are mis-tagged. audit/audit_and_validation has domain=['qualitative'] only. audit/pre_submission_checklist has domain=['humanities'] only. An auditor on an engineering project who filters by their domain tag would not see the master audit protocol surface, because it has no engineering tag. Domain ['any'] would be honest for cross-cutting audit protocols (audit/provenance_completeness already uses ['any'])."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "provenance_audit_still_flattens_factorial_sweeps",
+      "description": "The 150-cell sweep test (3 algos x 5 sizes x 10 runs, written to outputs/figures/ and outputs/data/ with 75/150 sidecars present) produces a step_completeness report with a SINGLE blocker line ('150 figure(s) missing caption sidecar') plus a flat 301-item provenance_missing array. There is no per-(algo, size) grouping, no batch_justification field for shared null_seed rationales, and no dedicated tool_provenance_sweep_audit. PARTIAL IMPROVEMENT vs baseline: the blocker is intelligently consolidated to ONE line ('150 figure(s) missing...') instead of 150 separate lines, which is meaningfully better. But the JSON detail is still flat, so an auditor querying 'which algo x size cell is mis-provenanced' has to re-bucket the 301 paths themselves."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "pre_submission_checklist_domain_bias_unchanged",
+      "description": "pre_submission_checklist still mentions CONSORT/CRediT/PRISMA/IRB, still has no submission_type knob, and still gates GREEN/YELLOW/RED without a domain-aware skip. An engineering benchmark project will get YELLOWs on N/A checklist items. Exact same friction as baseline #10."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "version_drift_worsened",
+      "description": "Protocol-version drift is actually worse than baseline: 76 protocols at 1.11.0, 40 at 1.9.3, 1 at 2.0.0 (synthesis/printable.yaml), while pyproject.toml says 2.0.0-dev. Auditor reading protocol headers gets THREE different answers about which package version this run was on. CLAUDE.md says MINOR/MAJOR bumps should sync all protocol versions; the v1.10/1.11 bumps did not include the engineering subpack, and the v2.0 bump has only touched one file."
+    },
+    {
+      "severity": "LOW",
+      "category": "deprecation_telemetry_not_surfaced_in_master_audit",
+      "description": "tool_reliability exists and is a unified replacement for the v1.x reliability tools, but it doesn't auto-accumulate session-level deprecation-alias usage and isn't called from the standard master audit. An auditor reading audit_master.md still cannot tell 'this run called 4 deprecated aliases — recommended replacements are X, Y, Z'. The deprecation_usage section proposed in baseline still isn't part of the master."
+    },
+    {
+      "severity": "LOW",
+      "category": "alias_table_still_carries_78_entries",
+      "description": "_DEPRECATED_ALIASES still contains 78 entries. The list is large enough that an AI client doing tools/list (which only returns live names, 146 entries) is fine, but anyone reading the source or grepping for handler names still sees the full alias surface. Counted from server.aliases. For a 2.0.0 cut this is reasonable migration headroom; for 2.1.0 it should shrink."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full (still claims to be master but skips literature gate; NB note is buried at end of description; audit_master.md silently omits literature coverage; SAME ISSUE as baseline)",
+    "tool_audit(scope='synthesis', dimension='all') (raw KeyError on missing paper_path; dispatcher should validate per-(scope, dimension) required kwargs)",
+    "tool_audit (consolidated dispatcher: large improvement vs baseline's 30+ tool_audit_* handlers, but the (scope, dimension) matrix is sparse — only some pairs are implemented, no introspection tool tells the caller which pairs work)"
+  ],
+  "confusing_protocols": [
+    "audit/audit_and_validation (scope_tag domain=['qualitative'] only; engineering-domain auditor doesn't see it on filter)",
+    "audit/pre_submission_checklist (scope_tag domain=['humanities'] only; still no submission_type knob; CONSORT/CRediT/IRB present)",
+    "methodology/method_comparison (router still routes here for 'perf comparison'; statistical-methods-flavoured, not engineering-perf-flavoured)",
+    "methodology/missing_data_strategy (router routes here for 'benchmark these 3 algorithms across 5 sizes' — actively wrong)",
+    "audit/provenance_completeness (good content, still no per-cell grouping for factorial sweeps)"
+  ],
+  "never_called_tools": [
+    "tool_humanities_essay_scaffold",
+    "tool_section_substantiveness",
+    "tool_null_findings_report",
+    "tool_paper_compile_typst (benchmark report is usually markdown/arXiv tex)",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_rmarkdown_render (R-specific)",
+    "tool_notebook_exec",
+    "tool_redteam_review (overkill for internal benchmark)",
+    "tool_discussion_coverage_audit (separate tool but only reachable from one protocol step)",
+    "tool_qualitative_quote_provenance (qualitative-only)"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface dropped from 197+ handlers + 21 deprecation aliases (218+ total names) to 146 live TOOL_DEFINITIONS — ~33% reduction. 12 of 21 baseline never-called tools are gone (tool_audit_cliches, tool_audit_evalue, tool_reviewer_simulate, tool_rebuttal_draft, tool_response_to_reviewers, tool_audit_synthesis, tool_dashboard_create + 5 dashboard satellites, tool_audit_cross_deliverable_consistency, tool_audit_version_coherence, tool_audit_figure_interactivity, tool_figure_interactive_autogen).",
+    "Every TOOL_DEFINITIONS entry now carries status='live' + pack=<core|engineering|humanities|...> fields. status='live' for all 146 (no live entries are silent aliases). pack distribution shows 123 core + 23 pack-tools.",
+    "Every protocol (117/117) now carries scope_tags: {domain, audience, workflow_shape} — universal coverage. Auditor can filter for audience='auditor' protocols cleanly.",
+    "tool_audit consolidation is genuine: 30+ tool_audit_* handlers in baseline collapsed to 4 live names (tool_audit, tool_audit_findings, tool_audit_quality_full, tool_discussion_coverage_audit). tool_audit(scope=, dimension=) is the canonical dispatcher.",
+    "tool_route now returns recommended_action — a single-string hint like 'sys_protocol_get(protocol_name=..., format=summary)' or 'ask_user: ...'. Auditor knows the exact next call without inferring. ask_user paths are explicit when nothing matches, instead of silently picking a bad semantic match.",
+    "tool_route now returns why_matched on every alternative — auditor can see why a protocol scored what it did. Big improvement on explainability.",
+    "MCP server instructions field tells the client the boot sequence ('call sys_boot once per session, call tool_route after each researcher message, load with format=summary, scope with sys_active_tools'). Removes need to discover the canonical ritual.",
+    "sys_protocol_get now defaults to format='summary' (baseline default was 'full'). Summary returns ~1600 chars with step_summary + _load_hint pointing to format='step'/'full' for deeper reads. Massive context-window saving.",
+    "step_completeness blocker for 150 missing caption sidecars is now intelligently consolidated to ONE blocker line ('150 figure(s) missing caption sidecar: A_size100_seed0.png, A_size100_seed1.png, ...') instead of 150 separate blocker lines. Partial fix for the baseline 'flattens to one coverage_pct' issue.",
+    "audit_and_validation protocol step_summary now labels audit_master '(PREFERRED)' — addresses baseline's confusion about whether the protocol step or the tool was canonical. audit_master step body explicitly says 'tool_audit_quality_full' and lists the consolidated tool_audit(scope, dimension) per-component invocations.",
+    "server.py is now a package: src/research_os/server/{dispatch.py, entry.py, registry.py, aliases.py, tool_definitions/, handlers/}. tool_definitions/ split into audit.py + grounding.py + meta.py + methodology.py + research.py + synthesis.py. Phase 10 refactor is genuine — registry is no longer one 7K-line monolith."
+  ],
+  "remaining_recommendations": [
+    "Add engineering/perf_benchmark.yaml protocol (factorial design declaration, per-cell harness contract, per-cell provenance sidecar, aggregate report). Add it to _router_index.yaml with triggers ['benchmark these', 'perf comparison', 'algorithm shootout', 'scaling study', 'big-O comparison', 'wall-clock comparison']. Without this, the auditor's 'which protocol did you follow?' question still has no clean answer for benchmark-shaped work.",
+    "Fix the literature-gate silent-pass on tool_audit_quality_full: either fold tool_audit(scope='step', dimension='literature') into the master, or rename master to tool_audit_quality_core and have it write a 'Literature gate runs separately at synthesis time' banner into audit_master.md. The NB note in the tool description is read once; the master report is the artefact an external reviewer holds.",
+    "Add validation in handlers/audit_core.py so tool_audit(scope='synthesis', dimension=...) returns a friendly 'paper_path required for synthesis-scope audits' message instead of a raw KeyError. Apply the same per-(scope, dimension) required-args validation across the consolidated dispatcher.",
+    "Sweep audit recommendation strings for deprecated tool names. The step_completeness blocker currently says 'Call tool_figure_caption_synthesise' which is in _DEPRECATED_ALIASES, not TOOL_DEFINITIONS. Add a preflight that scans handler-emitted strings for deprecated names and fails CI.",
+    "Re-tag audit/audit_and_validation and audit/pre_submission_checklist with domain=['any'] (or at minimum include 'engineering'). Cross-cutting audit protocols should not be scope-tagged to a single domain.",
+    "Synchronise all protocol version: fields with pyproject.toml on every MINOR/MAJOR bump (CLAUDE.md says this should already happen). Currently 40 protocols sit at 1.9.3, 76 at 1.11.0, 1 at 2.0.0 while pyproject is 2.0.0-dev. Add a preflight check.",
+    "Add submission_type to pre_submission_checklist (journal_clinical | journal_engineering | preprint | internal_report | conference_short) and gate CONSORT/CRediT/IRB on submission_type=journal_clinical.",
+    "Add per-cell grouping + factorial-aware reporting to step_completeness provenance output. 150-cell sweeps should expose a per-(algo, size, seed) sidecar coverage map alongside the flat provenance_missing list, plus a batch_justification field on the provenance schema so a single mem_log can cover all 150 outputs sharing a null_seed rationale.",
+    "Add a deprecation_usage section to tool_audit_quality_full output so the master audit surfaces 'this run called N deprecated aliases — recommended replacements are X, Y, Z'. tool_reliability is the right backing store; just don't make the auditor call a separate tool to see it.",
+    "Add the 'pipeline.yaml DAG required when outputs span categories' rule as its own short protocol (engineering/pipeline_dag_for_multi_output_steps) with the schema + 3 examples, and have the step_completeness BLOCKER message link to that protocol id. Baseline friction #8 is unchanged."
+  ]
+}

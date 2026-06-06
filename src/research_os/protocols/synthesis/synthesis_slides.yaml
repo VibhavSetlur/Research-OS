@@ -1,7 +1,12 @@
 id: synthesis_slides
+tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative, theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 description: |
   Compile a presentation deck — lab meeting, conference talk, defense,
   invited seminar, or job talk — from the project's existing artefacts.
@@ -186,7 +191,7 @@ steps:
       as `type: figure` in slides_spec.yaml (or each step's focal
       figure when no spec exists). For each:
         - confirm the source figure is ≥300 DPI and has both sidecars
-          (tool_audit_figure_full)
+          (tool_audit(scope='step', dimension='figure_full'))
         - if the figure has a busy axis or tiny labels, rebuild a
           TALK VERSION in an AI-authored plotting script with a larger style
           (style="notebook" or a config-level talk-style override) —
@@ -274,7 +279,7 @@ steps:
         - citations capped at the quality_bar
         - q_and_a section drafted with ≥5 anticipated questions
 
-      tool_audit_synthesis paper_path="synthesis/slides.tex"
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/slides.tex"
         (or the equivalent for the chosen format)
       Any BLOCKER must be addressed before sharing.
 

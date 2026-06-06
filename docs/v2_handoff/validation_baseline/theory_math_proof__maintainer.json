@@ -1,0 +1,179 @@
+{
+  "scenario": "theory_math_proof",
+  "perspective": "maintainer",
+  "final_rating": 5.8,
+  "high_friction_count": 7,
+  "first_5_turns_high_friction": 4,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "audit_gate_pack_blindness",
+      "description": "_step_completeness() in src/research_os/tools/actions/audit/audit.py (line ~1708-1781) hard-codes ONE pack-aware branch: humanities_mode. There is no theory_math_mode / no step_intent reader. The 'figure_required: false' / 'step_intent: proof' contract that proof_verification_workflow asks the researcher to author in workspace/<step>/step_summary.yaml is ignored by the gate that actually enforces completeness. Result: any proof step BLOCKS with 'No figure produced — every step MUST emit at least one focal figure'. The protocol promises a contract; the gate breaks it. As a maintainer this is a silent integration bug — protocols + gate diverged. grep 'step_intent' src/research_os/tools/ returns zero matches outside a comment.",
+      "suggested_fix": "Add _load_step_summary(step_dir) in audit.py and read step_summary['step_intent']. If intent in {'proof', 'apparatus', 'plan', 'ground', 'synth'} OR step_summary['figure_required'] is False, skip the focal-figure blocker (downgrade to warning). Better: detect active pack via plugins.pack_for_active_project() and dispatch pack-specific gate logic via a registry (PackRegistration.completeness_overrides callable), so adding a new pack does not require editing audit.py."
+    },
+    {
+      "severity": "HIGH",
+      "category": "doc_code_drift_in_protocol",
+      "description": "proof_verification_workflow.yaml step formal_check (line 133) references 'tool_theory_lean_check' / 'tool_theory_coq_check'. The actual registered tools in research_os_theory_math/tools.py are 'tool_theory_math_lean_check' / 'tool_theory_math_coq_check'. There is NO alias in server.py _ALIASES (lines 6968-7005) for these. Any AI literally following the protocol will hit 'tool not found'. Preflight does not catch protocol-body references to tool names — only router_index decomposition entries. As a maintainer this is a silent class of bug that will keep recurring whenever a tool is renamed but its prose mentions in protocols are missed.",
+      "suggested_fix": "Either (a) add aliases tool_theory_lean_check → tool_theory_math_lean_check + coq variant, or (b) edit the protocol to use the correct names. ALSO: extend scripts/preflight.py with a check that scans every protocol's description/steps body for substrings matching r'tool_[a-z_]+' and verifies each is a registered tool name. This drift class needs static enforcement, not careful authoring."
+    },
+    {
+      "severity": "HIGH",
+      "category": "version_drift_packs_vs_core",
+      "description": "research_os_theory_math/__init__.py declares __version__ = '1.9.3'. Every protocol YAML in src/research_os_theory_math/protocols/ carries version: '1.9.3'. Core is at 1.11.0 going to 2.0.0. There is no mechanism in scripts/preflight.py or in release tooling to either sync pack versions or assert intentional pack-version pinning. A maintainer doing the v2.0.0 release will either (a) ship pack version 1.9.3 alongside core 2.0.0 (confusing in sys_packs_installed output) or (b) bump 88+ YAML files by hand and forget some. Same applies to all 5 in-tree packs.",
+      "suggested_fix": "Add a scripts/sync_pack_versions.py invoked by docs/RELEASING.md that walks src/research_os_*/protocols/**/*.yaml + src/research_os_*/__init__.py and rewrites version: / __version__ = to the core version. Add a preflight check 'all in-tree pack versions match core OR the pack carries an explicit __version_pin__ marker'."
+    },
+    {
+      "severity": "HIGH",
+      "category": "literature_gate_misfit_for_theory",
+      "description": "proof_verification_workflow asks for verdict=IMPORTED_AS_CITED in literature_per_step, but the verdict enum implemented in tool_audit_step_literature (src/research_os/tools/actions/audit/step_literature.py) supports AGREES/DISAGREES/EXTENDS. The literature_required: true contract therefore creates an unresolvable gate when followed literally. A maintainer debugging 'why does the theory_math fixture never reach finalize' would have to read four protocols to discover the verdict enum mismatch — there is no test asserting that every verdict referenced in any protocol exists in the audit's enum.",
+      "suggested_fix": "(1) Add IMPORTED_AS_CITED to the verdict enum in step_literature.py and exempt it from downstream discussion-coverage requirements. (2) Add a unit test that greps every protocol YAML for r'verdict\\s+[A-Z_]+' and asserts membership in the audit's enum. (3) For step_intent=proof, auto-skip step-literature audit entirely until IMPORTED_AS_CITED ships."
+    },
+    {
+      "severity": "HIGH",
+      "category": "tool_surface_bloat_burden_on_maintainer",
+      "description": "344 tools (per baseline_state.txt) — every one needs an entry in TOOL_DEFINITIONS, a _handle_*, registration in _HANDLERS, at least one protocol decomposition citation (else flagged as orphan), and any rename needs an _ALIASES entry. server.py is 7499 lines. For the theory_math proof scenario, only ~12 tools are touched (sys_boot, tool_route, sys_protocol_get, sys_active_tools, mem_log, tool_search, tool_theory_math_lean_check, tool_theory_math_coq_check, tool_theory_math_dep_graph, tool_path_finalize, tool_synthesize, tool_audit_quality_full). The rest is dead weight on every grep, every refactor, every new pack author who has to understand the surface before adding a tool. The aliases block (line 6968-7005) already shows that consolidation has started (5 search tools → 1) but the consolidation is partial and the deprecated_aliases set is the same length as the consolidated set — i.e. the OLD names still ship.",
+      "suggested_fix": "Phase 9 consolidation must (a) remove _DEPRECATED_ALIASES entries that have shipped through one full minor, (b) consolidate the audit_* family (24 tools) into one tool_audit({kinds:[...]}) the same way search was consolidated, (c) hide pack-only tools (slurm, cytoscape, lean, coq) behind active-pack detection so they do not appear in list_tools when the active project has no SLURM/Lean/etc. Target server.py < 4000 lines and tool surface < 100 names for the default empirical project."
+    },
+    {
+      "severity": "HIGH",
+      "category": "telemetry_missing_for_pack_failures",
+      "description": "When the proof workflow's formal_check step fails because Lean isn't installed, lean_check writes workspace/proof/lean_install_hint.md and returns status='warning' inside an _ok() envelope (status='success' at the top level). There is no tool_reliability_log_event emission, no protocol_completion failure record, no entry in any audit ledger. As a maintainer reviewing 'why are proof workflows getting stuck' across many sessions, there is no telemetry trail. Compare to how the empirical pipeline emits .audit_findings.jsonl with UUIDv5-stable finding ids. The theory pack tools never write to the audit ledger at all.",
+      "suggested_fix": "(1) Theory tools' missing-binary path should call tool_reliability_log_event(kind='external_dep_missing', tool=..., binary=...) before returning. (2) Distinguish tool-level success ('we ran') from semantic success ('verification succeeded') in the envelope: return {status:'unavailable', reason:'lean_missing'} not {status:'success', data:{status:'warning'}}. (3) Add the theory pack's tools to the .audit_findings.jsonl writer so the dashboard's reliability tile sees pack-tool failures the same way it sees core-tool failures."
+    },
+    {
+      "severity": "HIGH",
+      "category": "router_trigger_overfit",
+      "description": "router_entries.py for theory_math/method/proof_strategy_selection includes triggers: ['maximum degree', 'minimum degree', 'graph coloring', 'planar graph', 'sub-cubic', 'subcubic']. These are graph-theory specific strings injected into a strategy-selection protocol because the v1.11.0 graph_proof fixture's prompt 'prove that every planar graph with maximum degree 3 is 4-colorable' was misrouting to guidance/analysis_plan via the false-positive 'DEG' biology trigger. Pasting prompt-specific keywords into a generic protocol's triggers as a regression band-aid is technical debt — every new fixture will tempt the maintainer to do the same thing, eroding semantic routing's coherence. The router_index.yaml carries the canonical biology DEG trigger (line 364-367 in server.py shows it) which is the actual root cause.",
+      "suggested_fix": "(1) Scope the DEG trigger to require a co-occurring biology context word ('expression', 'RNA-seq', 'transcriptomics'). (2) Move graph-theory triggers OUT of proof_strategy_selection and into a new dedicated graph_theory/* sub-pack. (3) Add a preflight check 'no protocol's triggers list contains a phrase that overlaps with another pack's domain vocabulary' — flag overlap during authoring."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "router_index_lacks_theory_math_entries",
+      "description": "src/research_os/protocols/_router_index.yaml is the single source of triggers + decompositions per CLAUDE.md, yet grep shows ZERO entries for theory_math/* in that file (all theory_math router entries live in src/research_os_theory_math/router_entries.py, registered via pack registration). The CLAUDE.md maintainer guide instructs 'Every new protocol needs an entry in src/research_os/protocols/_router_index.yaml with intent_class, sub_intent, summary, triggers. Preflight fails without it.' but packs bypass that channel via a parallel Python data structure. A maintainer touching the router today must remember to check both places. The two paths also diverge in fidelity: _router_index.yaml has the rich sub_intent taxonomy, pack router_entries.py is a Python dict with fewer guardrails.",
+      "suggested_fix": "Either (a) update CLAUDE.md + PROTOCOL_DOCTRINE.md to explicitly document that packs use *_router_entries.py instead of _router_index.yaml and explain the merge order, or (b) load pack router entries into the SAME _router_index.yaml at pack-registration time (in memory) and add a debug tool tool_router_dump that prints the merged map. The current split is a maintainer footgun."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "lemma_library_versus_lemma_library_file",
+      "description": "theorem_dependency_graph.yaml step reconcile_informal references lemma_library.md as a seed file. theory_math/proof/lemma_library is a separate protocol that maintains versioned lemmas. There is no specification of where the protocol's output lands (is it lemma_library.md? workspace/lemmas/<slug>.md?), no schema validation, and no cross-link from theorem_dependency_graph's expected_outputs. A maintainer trying to test 'does the dep graph see lemmas from lemma_library' has nothing to assert against.",
+      "suggested_fix": "Pin lemma_library protocol's output to a canonical path (workspace/lemmas/lemma_library.yaml with a schema). Have theorem_dependency_graph.yaml's reconcile_informal step explicitly read from that path. Add a fixture test asserting 'after running lemma_library, theorem_dependency_graph sees the lemma'."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "dep_graph_lexical_undersold_in_description",
+      "description": "tool_theory_math_dep_graph's description (research_os_theory_math/tools.py line 200-207) says 'approximate (lexical, not type-checked) but accurate enough to spot which lemmas a result transitively depends on'. The implementation regex-extracts theorems/lemmas/imports via _LEAN_THM_PAT and _LEAN_IMPORT_PAT. It misses every dependency that flows through Mathlib's `open`, through tactic search (`exact?`, `apply?`), through `simp` lemma sets, and through anonymous `have` proofs. A maintainer auditing a published 'theorem dependency graph' would expose the gap as a citation under-count. The description oversells.",
+      "suggested_fix": "Rewrite the description to: 'Lexical extractor for top-level imports + theorem/lemma names. Does NOT see tactic-mediated dependencies (exact?, apply?, simp sets, open Foo, anonymous have-lemmas). Treat the output as a lower bound; for ground truth call `lean --print-deps` (not yet integrated).' Or: integrate lean --print-deps behind a feature flag."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "fragmented_documentation_for_pack_authoring",
+      "description": "A maintainer wanting to add a new theory protocol must consult: CLAUDE.md (pack workflow not covered), docs/PROTOCOL_DOCTRINE.md, src/research_os/plugins/pack_api.py (PackRegistration fields), and src/research_os_theory_math/__init__.py as a worked example. There is no single 'how to author a pack' guide. New external pack authors (the v2.0.0 PyPI plugin story) have to reverse-engineer the registration surface.",
+      "suggested_fix": "Add docs/PACK_AUTHORING.md walking through: (1) directory layout, (2) PackRegistration fields with examples, (3) router_entries.py shape, (4) detector heuristics, (5) paper_sections override, (6) where to put tools, (7) test fixtures expected. Link from CLAUDE.md + PROTOCOL_DOCTRINE.md."
+    },
+    {
+      "severity": "LOW",
+      "category": "no_smoke_test_for_install_hint_path",
+      "description": "lean_check / coq_check write workspace/proof/lean_install_hint.md / coq_install_hint.md when the binary is missing. There is no test asserting the hint path is correct, no test asserting the directory is created with parents=True (it is, but it would silently regress). A future refactor of the workspace tree (e.g. moving proof artefacts to workspace/proofs/) would silently break the hint location.",
+      "suggested_fix": "Add a unit test tests/unit/test_theory_math_pack_unavailable_paths.py that monkeypatches shutil.which to return None, runs lean_check, and asserts the hint file exists at the documented path and the envelope status is 'unavailable' (after the envelope fix from the HIGH item above)."
+    },
+    {
+      "severity": "LOW",
+      "category": "protocol_description_bloat_pattern",
+      "description": "Theory_math protocol descriptions (especially proof_verification_workflow, theorem_dependency_graph, conjecture_tracking) include 2-3 paragraph 'editorial voice' sections + 'rationale' nested under quality_bar. The total YAML for proof_verification_workflow is ~155 lines for what is functionally a 6-step list. Across 88 protocols this is a maintenance load when style guidelines change (re-edit every YAML). The pattern is consistent across packs, not unique to theory_math.",
+      "suggested_fix": "Phase-X (post-v2) consideration: split editorial_voice + quality_bar.rationale into a separate '_voice.md' sidecar per protocol category, loaded on demand by sys_protocol_get(format='full'). Keep the YAML focused on machine-readable contract; move the prose to a sibling file."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_audit_quality_full vs tool_audit_step_completeness vs tool_audit_step_literature vs tool_audit_coherence vs tool_audit_synthesis vs tool_audit_assumptions vs tool_audit_citations vs tool_audit_claims vs tool_audit_figures vs tool_audit_findings_diff vs tool_audit_findings_query vs tool_audit_reproducibility — 12+ tool_audit_* names; the master audit dispatches to a subset internally but the individual tools still ship",
+    "tool_search (consolidated entry) vs tool_search_arxiv/crossref/pubmed/semantic_scholar/web (deprecated aliases STILL registered and STILL counted in the 344 tool surface) — consolidation is incomplete",
+    "tool_plan vs tool_plan_advance vs tool_plan_clear vs tool_plan_turn — same situation, aliases shipped, originals still there",
+    "tool_theory_math_lean_check name itself: 'theory_math_lean' is redundant — Lean IS theory_math. tool_lean_check would be 4 chars shorter and clearer in tool_route output",
+    "sys_protocol_get vs sys_protocol_list vs sys_protocol_history vs sys_protocol_next vs sys_protocol_log vs sys_protocol_validate AND tool_protocols_list (note plural) — 7 protocol-introspection tools with overlapping verbs"
+  ],
+  "confusing_protocols": [
+    "proof_verification_workflow.declare_step_contract — step 1 asks the researcher to author workspace/<step>/step_summary.yaml with step_intent: proof, figure_required: false, but the audit gate in audit.py does NOT read step_summary.yaml's step_intent. The protocol promises a contract the code does not honor; from the maintainer angle this is a doctrinally wrong protocol that papers over a missing audit-side feature",
+    "literature_per_step (referenced by proof_verification_workflow) — verdict enum IMPORTED_AS_CITED is referenced but not implemented in tool_audit_step_literature",
+    "theory_math/conjecture/conjecture_tracking — depends on workspace/conjectures/ directory, lemma_library.md cross-references, and mem_log entries; the cross-protocol coupling is not asserted by any preflight or test",
+    "theory_math/proof/lemma_library — applies semver to lemmas. Conceptually useful, but the protocol does not define WHERE lemmas live (workspace/lemmas/?), what the file format is (markdown? YAML?), or how the versioning is enforced (commit hash? frontmatter version: field?). A maintainer can't test it because it doesn't specify what it produces"
+  ],
+  "never_called_tools": [
+    "tool_dashboard_create",
+    "tool_dashboard_reviewer_sim",
+    "tool_dashboard_story_edit",
+    "tool_dashboard_story_generate",
+    "tool_dashboard_story_quality_bar",
+    "tool_dashboard_test_generate",
+    "tool_dashboard_test_run",
+    "tool_audit_dashboard_content",
+    "tool_audit_figure",
+    "tool_audit_figure_coverage",
+    "tool_audit_figure_full",
+    "tool_audit_figure_interactivity",
+    "tool_audit_figure_quality",
+    "tool_figure_caption_synthesise",
+    "tool_figure_create",
+    "tool_figure_interactive_autogen",
+    "tool_figure_palette",
+    "tool_audit_power",
+    "tool_audit_statistical_power",
+    "tool_audit_evalue",
+    "tool_audit_assumptions",
+    "tool_audit_reproducibility",
+    "tool_data_convert",
+    "tool_data_profile",
+    "tool_data_sample",
+    "tool_sensitivity_define",
+    "tool_sensitivity_run",
+    "tool_search_pubmed",
+    "tool_slurm_fetch",
+    "tool_slurm_list",
+    "tool_slurm_status",
+    "tool_slurm_submit",
+    "tool_adapters_run_all",
+    "tool_adapter_extract",
+    "tool_humanities_essay_scaffold",
+    "tool_paper_figures_autoembed",
+    "tool_poster_create",
+    "tool_slides_create",
+    "tool_rmarkdown_render",
+    "tool_notebook_exec",
+    "tool_r_exec",
+    "tool_julia_exec",
+    "tool_step_pipeline_define",
+    "tool_step_pipeline_diagram",
+    "tool_step_pipeline_run",
+    "tool_step_pipeline_status",
+    "tool_step_env_lock",
+    "sys_env_docker_generate",
+    "sys_env_snapshot",
+    "tool_preregister_diff",
+    "tool_preregister_freeze",
+    "tool_rebuttal_draft",
+    "tool_reviewer_response_compile",
+    "tool_response_to_reviewers",
+    "tool_audit_reviewer_responses",
+    "tool_redcap_export",
+    "tool_redcap_import",
+    "tool_synapse_pull",
+    "tool_synapse_push",
+    "tool_cytoscape_session",
+    "tool_nextflow_run",
+    "tool_snakemake_run"
+  ],
+  "recommendations": [
+    "Phase 9 must add step_intent reading to _step_completeness in audit.py — register a per-pack overrides hook (PackRegistration.completeness_overrides) so adding a new pack does NOT require editing core audit code. This is the single highest-leverage fix from the maintainer perspective.",
+    "Fix the doc/code drift: proof_verification_workflow.yaml step formal_check uses tool_theory_lean_check / tool_theory_coq_check while the registered names carry _math_ infix. Either rename the tools (drop redundant _math_) or fix the protocol prose. Add a preflight check that scans every protocol body for tool_* substrings and asserts each is registered.",
+    "Complete the consolidation: _DEPRECATED_ALIASES has shipped for at least one minor cycle (1.10 → 1.11) — remove the old names in v2.0.0, that's what MAJOR is for. Currently the consolidated tools AND the originals both count in the 344 surface, so consolidation has net-added complexity.",
+    "Add scripts/sync_pack_versions.py to release-prep — packs at 1.9.3 while core moves to 2.0.0 is a sysadmin smell that will keep recurring on every release without automation.",
+    "Implement IMPORTED_AS_CITED verdict in tool_audit_step_literature, OR auto-waive step-literature audit when step_intent=proof. The current state — protocol references a verdict the audit cannot accept — is broken-as-shipped.",
+    "Add a unit test that monkeypatches Lean/Coq missing, runs lean_check, asserts hint path and envelope shape. Currently zero tests exercise the missing-binary code paths in the theory pack.",
+    "Wire theory_math tool failures into tool_reliability_log_event so 'why is the proof workflow stuck' is debuggable from the dashboard without grepping individual session logs.",
+    "Add docs/PACK_AUTHORING.md — v2.0.0's external pack story needs a real authoring guide, not just CLAUDE.md prose and reverse-engineering from research_os_theory_math.",
+    "Move pack router entries into the canonical _router_index.yaml at registration time (merge into a single in-memory map) and expose a debug tool_router_dump so maintainers can see the unified routing surface.",
+    "Scope the biology DEG trigger so it requires co-occurring biology context — remove the band-aid graph-theory triggers from proof_strategy_selection.router_entries.",
+    "Rewrite tool_theory_math_dep_graph's description to honestly describe lexical-only coverage; downsell or add lean --print-deps integration behind a feature flag.",
+    "Add a preflight check that every `verdict` enum value referenced in any protocol body is a member of the audit enum that consumes it — this is the second-most-common cross-protocol bug class after tool-name drift."
+  ]
+}

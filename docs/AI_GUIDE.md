@@ -15,6 +15,24 @@ entry). One install, one **global** server, per-project init.
 
 ---
 
+## Read the MCP `instructions` field first
+
+The MCP server ships an `instructions` field at handshake time. Any
+compliant client (Claude Code, Cursor, Cline, Continue, etc.) surfaces
+it to the model on session start. The text is:
+
+> On every turn: (1) call `sys_boot` once per session, (2) call
+> `tool_route(prompt=<user_message>)` to identify the right protocol,
+> (3) load returned protocol with `sys_protocol_get format=summary`,
+> (4) call `sys_active_tools` to scope your working tool set. Pack
+> tools are loaded on-demand via `tool_route` routing.
+
+If your client surfaced that string, you already know the boot ritual.
+If not (some MCP clients ignore `instructions`), the section below
+re-states it.
+
+---
+
 ## The session pattern (every session, in order)
 
 Every turn is triggered by a researcher message — you don't act before
@@ -31,24 +49,57 @@ back-to-back before doing anything else:
      `sys_dep_inventory` separately while `sys_boot`'s payload is
      fresh.
 2. **`tool_route(prompt=<their verbatim message>)`** — your SECOND
-   MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns
-   `resolved_level`, `intent_class`, `sub_intent`, `primary_protocol`,
-   `shortcut_tool`, `decomposition`, `complexity`, `ask_user`.
+   MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns:
+   - `primary_protocol` — name of the best-matching protocol
+   - `recommended_action` — literal next-call string, e.g.
+     `sys_protocol_get(protocol_name='X', format='summary')`. Use it
+     verbatim — no decoding required.
+   - `why_matched` — short rationale (semantic similarity score,
+     matched triggers, tier).
+   - `tier` — protocol tier (`core`, `domain`, `pack`, etc.) for
+     filtering candidates.
+   - `alternatives` — ranked alternates each with their own
+     `recommended_action` and `why_matched`.
+   - `decomposition` — ordered sub-task list (for `complexity: high`).
+   - `complexity` — `low` (one shortcut tool or one protocol load) vs
+     `high` (multi-step plan written to `.os_state/active_plan.json`).
+   - `ask_user` — one-sentence clarifier when the prompt is genuinely
+     ambiguous.
+   - `shortcut_tool` — when a single tool handles the intent (e.g.
+     `tool_intake_autofill`), skip the protocol load entirely.
+
+   Rules:
    - If `ask_user` is non-null, ask THAT one-sentence question and
      re-route. Never guess.
    - If `complexity == "high"`, the router persisted an `active_plan`
      to `.os_state/active_plan.json`.
-3. **For `complexity: high`**: `tool_plan_turn` → execute every entry
-   in `this_turn` in order; `tool_plan_advance` after each. If
+
+3. **For `complexity: high`**: `tool_plan(operation='turn')` →
+   execute every entry in `this_turn` in order;
+   `tool_plan(operation='advance')` after each. If
    `chat_split_recommended` is true, hand off + tell the researcher
    to open a fresh chat.
 4. **For `complexity: low`**: call the `shortcut_tool` directly OR
-   load the protocol with `sys_protocol_get format='summary'`
-   (~300 tokens) and execute.
+   load the protocol with `sys_protocol_get` (default
+   `format='summary'`) and execute.
 
 On **subsequent turns** of the same session, skip `sys_boot` — its
 payload is already in context — and go straight to `tool_route` (or
-continue an in-flight `active_plan` via `tool_plan_advance`).
+continue an in-flight `active_plan` via `tool_plan(operation='advance')`).
+
+### `sys_protocol_get` format default — `summary` (v2.0 change)
+
+`sys_protocol_get` now defaults to `format='summary'`. The summary view
+is ~3K characters / ~300 tokens vs. ~12-25K characters for the full
+YAML — 5-10× cheaper per-turn load on the same protocol. The response
+includes a `_load_hint` guiding you to drill in via `format='step' |
+'full' | 'lean' | 'dryrun'` only when you actually need the richer view.
+
+> **v2.0 breaking change.** Pre-v2 the default was `format='full'`. If
+> the protocol summary names the step you need to execute, do NOT
+> escalate to `full` — the summary is the right shape for routing and
+> overview. Use `format='step'` when you need one specific step's body;
+> `format='full'` only when you genuinely need the entire YAML.
 
 ---
 
@@ -69,15 +120,54 @@ resolved. If `has_os_state` is False, tell the researcher to run
 
 ---
 
-## Tool namespaces
+## Tool namespaces + the consolidated v2 surface
 
 - `sys_*` — system / workspace / state / files / paths / checkpoints
 - `tool_*` — research work: search, exec, audit, synthesis, intake, plan
 - `mem_*` — append-only memory: methods, citations, decisions, hypotheses
 
-When you need a tool you haven't seen recently, call
-`sys_tool_describe(tool_name)` — returns the full schema. To narrow
-the working set for a protocol, call `sys_active_tools(protocol_name)`.
+v2.0 ships **146 live tools** (down from 344 in v1.x), each annotated
+with:
+
+* `status` — `live` (default and visible), `alias` (back-compat
+  pointer to a consolidated tool), or `deprecated` (callable but
+  flagged in `.os_state/deprecations.log`).
+* `pack` — `core` (123 tools) or one of `humanities`, `qualitative`,
+  `theory_math`, `wet_lab`, `engineering`, `slurm`, `snakemake`,
+  `nextflow`, `cytoscape`, `redcap`, `synapse` (23 tools across 11
+  packs).
+
+`list_tools` returns only `status='live'`. Aliases + deprecated names
+are still callable but never advertised. When you need a tool you
+haven't seen recently, call `sys_tool_describe(tool_name)` — returns
+the full schema, status, and pack. To narrow the working set for a
+protocol, call `sys_active_tools(protocol_name)` — returns a 13-18
+tool scoped shortlist for that protocol.
+
+### Consolidated v2 entry points (the names to learn)
+
+| Family | v2 tool | Dispatch by | Replaces |
+|---|---|---|---|
+| Audit | `tool_audit` | `scope` + `dimension` | 23 per-dimension `tool_audit_*` |
+| Audit ledger | `tool_audit_findings` | `operation` | `tool_audit_findings_query` + `tool_audit_findings_diff` |
+| Audit master | `tool_audit_quality_full` | — | (standalone aggregator) |
+| Dashboard | `tool_dashboard` | `operation` | 7 `tool_dashboard_*` |
+| Figure | `tool_figure` | `operation` | 10 `tool_figure_*` |
+| Search | `tool_search` | `operation` | 7 `tool_search_*` |
+| Reviewer | `tool_reviewer` | `operation` | 6 `tool_reviewer_*` |
+| Step lifecycle | `tool_step` | `operation` | `tool_step_iterate`, `tool_step_iterations_list`, `tool_step_revision_options`, `tool_step_env_lock` |
+| Step pipeline | `tool_step_pipeline` | `operation` | 4 `tool_step_pipeline_*` |
+| Lessons + reliability | `tool_lessons` | `operation` | 5 lesson/dead-end/failure tools |
+| Memory append | `mem_log` | `kind` | `mem_methods_log`, `mem_decision_log`, `mem_hypothesis_log`, `mem_analysis_log` |
+| Plan | `tool_plan` | `operation` | `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` |
+| Config | `sys_config` | `operation` | `sys_config_get`, `sys_config_set`, `sys_config_validate` |
+| Checkpoint | `sys_checkpoint_*` | (3 tools, lifecycle-distinct) | (unchanged) |
+
+Every legacy name still works via `_ALIASES` + `_ALIAS_PARAM_INJECTION`
+through the v2.0.x patch line. Phase 14 hard-removed 24 explicit
+`_REMOVED_TOOLS` entries; calling those returns a structured error
+naming the canonical entry point. Full surface map:
+[`docs/MIGRATION_v1_to_v2.md`](MIGRATION_v1_to_v2.md).
 
 ---
 
@@ -105,19 +195,24 @@ benefits from the right files being in the right place.
 
 ---
 
-## Protocol categories (114 protocols, organised in 9)
+## Protocol categories (117 protocols, organised in 9)
+
+Every protocol carries `scope_tags: {domain, audience, workflow_shape}`
++ a `tier` annotation. `tool_route` surfaces both in
+`why_matched`, so when the router returns alternatives you can rank
+them by tier compatibility.
 
 | Category | What it covers |
 |---|---|
 | guidance | session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree / scope_clarification / revise) |
 | discover | intake routing — `tool_intake_autofill` (a shortcut tool, not a YAML protocol) plus `guidance/scope_clarification`. There is no `protocols/discover/` directory; the category exists as a router intent_class, and `tool_route` returns `shortcut_tool=tool_intake_autofill` for it. |
 | domain | domain classification + study design |
-| methodology | method picking + per-method protocols (42 protocols, incl. **v1.4.0** `pick_tool_stack` + `mixed_language_orchestration`) |
-| literature | search + systematic review + evidence synthesis + comparative review + **v1.4.0** `literature_per_step` (per-step findings_vs_literature.md loop) |
+| methodology | method picking + per-method protocols (42 protocols, incl. `pick_tool_stack` + `mixed_language_orchestration`) |
+| literature | search + systematic review + evidence synthesis + comparative review + `literature_per_step` (per-step findings_vs_literature.md loop) |
 | writing | per-section drafting (methods / results / discussion / limitations / end_matter) |
 | visualization | figures (rules / workflow / critique / multi-panel / arc / a11y / interactive) |
 | synthesis | final deliverables (18 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable) |
-| audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + **v1.4.0** `tool_audit_step_literature` gate |
+| audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + `tool_audit(scope='step', dimension='literature')` gate |
 
 If a category looks like it should have a folder but you can't find one
 (`discover/` is the canonical example), it's because the category
@@ -163,34 +258,53 @@ prior knowledge.
 | Don't | Why |
 |---|---|
 | Call `sys_state_get + sys_config_get + sys_protocol_history` separately | `sys_boot` returns all of them in one call |
-| Load full protocols with `sys_protocol_get format='full'` when summary suffices | Summary is ~300 tokens; full is 1.5-3K |
+| Pass `format='full'` to `sys_protocol_get` when summary suffices | Summary is ~300 tokens; full is 1.5-3K. In v2.0, `summary` is the default — only pass `format='full'` when you actually need the entire YAML |
+| Ignore `tool_route`'s `recommended_action` and synthesize your own call | `recommended_action` is a literal next-call string — use it verbatim |
+| Call legacy `tool_audit_completeness` / `tool_dashboard_create` etc. | Aliases work, but the canonical `tool_audit(scope='step', dimension='completeness')` / `tool_dashboard(operation='create')` are what `sys_help` + `sys_active_tools` recommend |
 | One-shot 400-line scripts | `tool_plan_step` forces atomic sub-tasks; `pipeline.yaml` for >2-script steps |
 | Invent citations | Synthesis tools VERIFY every citation against Crossref / Semantic Scholar / PubMed / arXiv |
 | Pick a method from training memory | `tool_research_method` is mandatory before any method commit |
 | Write under `inputs/raw_data` or `inputs/literature` | Server blocks it; these are immutable |
 | Skip the `ask_user` from `tool_route` | Asking once costs less than picking wrong |
-| Re-route after the researcher already picked one | Use `tool_plan_clear` if they pivoted |
+| Re-route after the researcher already picked one | Use `tool_plan(operation='clear')` if they pivoted |
 | Submit without `audit/pre_submission_checklist` | The pre-submission gate catches what reviewers will catch |
 
 ---
 
 ## Quality gates that BLOCK synthesis
 
-- `tool_audit_step_completeness` — every active step needs a focal
-  figure + caption sidecars + non-stub conclusions
-- `tool_audit_claims` — every number in synthesis traces to a
-  workspace artefact (catches hallucination)
-- `tool_audit_code_quality` — no bare-except / import-* / eval /
-  exec / hardcoded paths / functions > 150 lines
-- `tool_audit_prose` — flags hedging / vague quantifiers / causal
-  language on observational designs
+- `tool_audit(scope='step', dimension='completeness')` — every active
+  step needs a focal figure + caption sidecars + non-stub conclusions
+- `tool_audit(scope='project', dimension='claims')` — every number in
+  synthesis traces to a workspace artefact (catches hallucination)
+- `tool_audit(scope='step', dimension='code_quality')` — no
+  bare-except / import-* / eval / exec / hardcoded paths / functions
+  > 150 lines
+- `tool_audit(scope='project', dimension='prose')` — flags hedging /
+  vague quantifiers / causal language on observational designs
 - `tool_citations_verify` — every citation must resolve online
 - `tool_preregister_diff` — surfaces SAP drift if a preregistration
   exists
 
-`tool_synthesize` calls `tool_audit_quality_full` as its FIRST gate.
-Don't override the gate unless the researcher explicitly authorises
-a partial deliverable.
+`tool_synthesize` calls `tool_audit_quality_full` as its FIRST gate,
+which returns structured per-component verdicts:
+
+```json
+{
+  "components": {
+    "step_completeness": {"status": "pass|block|warn", "blockers": [...], "advice": [...]},
+    "code_quality": {...},
+    "prose_quality": {...},
+    "claims": {...},
+    "preregistration_diff": {...},
+    "grounding": {...}
+  }
+}
+```
+
+Read the per-component verdicts directly from the response envelope —
+no follow-up `sys_file_read` needed. Don't override the gate unless
+the researcher explicitly authorises a partial deliverable.
 
 ## When the researcher EXPLICITLY overrides a gate
 
@@ -199,13 +313,18 @@ authorisation in their CURRENT message ("just draft it", "give me a
 preview", "skip the audit"). The override path:
 
 * `tool_synthesize(override_completeness_gate=true, override_rationale="<why>")`
-* `tool_dashboard_create(override_completeness_gate=true, override_rationale="<why>")`
-* `tool_plan_advance(override_gate=true, override_rationale="<why>")`
+* `tool_dashboard(operation='create', override_completeness_gate=true, override_rationale="<why>")`
+* `tool_plan(operation='advance', override_gate=true, override_rationale="<why>")`
 
 The rationale is mandatory; the override appends to
 `workspace/logs/override_log.md`. `audit/pre_submission_checklist`
 surfaces every bypass at publish time so the researcher confirms
 each one was intentional.
+
+When `tool_synthesize` BLOCKs on the audit ledger
+(`.audit_findings.jsonl`), the error message names the exact override
+flag and required rationale arg, e.g. `override_unresolved_blocks=true`
++ `override_rationale='<one-line why>'`. Use those names verbatim.
 
 The project-level posture lives at `interaction.quality_gate_policy`
 in `inputs/researcher_config.yaml`:
@@ -225,7 +344,7 @@ quality gate is the ONLY authorised escape hatch.
 The override path is a researcher tool, not an AI tool. The AI never
 bypasses a gate on its own — it requires an EXPLICIT authorisation in
 the researcher's current message ("just draft it", "give me a
-preview", "skip the lit check", "ship it now"). Five recurring shapes
+preview", "skip the lit check", "ship it now"). Eight recurring shapes
 this takes in practice:
 
 ### 1. Data-engineering step (no figure required)
@@ -237,7 +356,8 @@ For a pure ETL / data-engineering step that's noise. Bypass the plan
 gate with a one-line rationale:
 
 ```python
-tool_plan_advance(
+tool_plan(
+    operation="advance",
     override_gate=True,
     override_rationale="step 02 is a data merge — no figure expected",
 )
@@ -245,16 +365,15 @@ tool_plan_advance(
 
 The override surfaces at `audit/pre_submission_checklist`; if the
 final paper actually does need a Fig 2 the researcher catches it
-there. Better long-term fix: declare `figure_required: false` in
-`step_summary.yaml` so the gate skips this step natively (deferred
-to v2 — see the smoke-gap list).
+there.
 
 If the dashboard content gate (placeholder text, stub captions) is
 the blocker rather than the warnings-panel gate, the dashboard takes
 a separate kwarg:
 
 ```python
-tool_dashboard_create(
+tool_dashboard(
+    operation="create",
     audience="executive",
     override_dashboard_content_gate=True,
     override_rationale="board update at 16:00; placeholder captions on Fig 4-5 acknowledged",
@@ -319,7 +438,7 @@ researcher asks for the publish-ready PDF:
 
 ```python
 tool_synthesize(output_type="paper")  # NO override
-tool_audit_synthesis(paper_path="synthesis/paper.md")  # NO override
+tool_audit(scope="synthesis", dimension="all", paper_path="synthesis/paper.md")  # NO override
 tool_paper_compile_typst()
 ```
 
@@ -335,12 +454,15 @@ shortcut.
 Researcher: "this is a planar-graph-colouring proof — there are no
 empirical PDFs to download; audit and finalise."
 
-`tool_audit_synthesis` default-denies when zero PDFs are present
-across literature-required steps. Theory papers cite earlier
-theorems, not empirical results, so the deny is a false positive:
+`tool_audit(scope='synthesis', dimension='all')` default-denies when
+zero PDFs are present across literature-required steps. Theory papers
+cite earlier theorems, not empirical results, so the deny is a false
+positive:
 
 ```python
-tool_audit_synthesis(
+tool_audit(
+    scope="synthesis",
+    dimension="all",
     paper_path="synthesis/paper.md",
     override_no_pdfs=True,
     override_rationale="theory_math project — proof cites earlier theorems, no empirical PDFs",
@@ -357,10 +479,6 @@ tool_discussion_coverage_audit(
     override_rationale="theory_math project — no empirical verdicts to cover",
 )
 ```
-
-The pre-submission checklist still surfaces both bypasses, which is
-correct — a human should confirm "yes, this is a theory paper, the
-no-PDF and no-verdict assumptions hold" before publishing.
 
 ### 6. Figure cross-references the AI must not rewrite
 
@@ -381,17 +499,47 @@ The flip is local (no `override_rationale` required) because no
 quality gate is bypassed — the rewrite is a convenience pass, not a
 deny. The auto-embed log still records that the rewrite was skipped.
 
-### 7. Cross-deliverable divergence the supervisor approved
+### 7. Unresolved BLOCK findings in the audit ledger
 
-`tool_audit_cross_deliverable_consistency` BLOCKs when the poster,
-slides, dashboard, or paper disagree along the 5 dimensions (numeric
-claims, figures, citations, top-line findings, reproducibility
-footer). Sometimes the divergence is intentional — e.g. the
-supervisor approved a simplified poster headline that drops the
-exact effect size. Bypass with rationale:
+`tool_synthesize` also gates on
+`workspace/logs/.audit_findings.jsonl` — the append-only ledger every
+Phase-4 audit writes to via `write_audit_outputs`. The gate uses
+latest-snapshot semantics: a BLOCK finding emitted on an earlier audit
+run but absent from the most recent rerun for the same audit is treated
+as resolved. Only currently-active BLOCKs stop synthesis.
+
+If the researcher has explicitly authorised compiling with active BLOCK
+findings on record (e.g. they accept a known prose-quality blocker for
+a WIP review pass), bypass with rationale:
 
 ```python
-tool_audit_cross_deliverable_consistency(
+tool_synthesize(
+    output_type="paper",
+    override_unresolved_blocks=True,
+    override_rationale="reviewer wants the draft tonight; prose blockers known + queued for tomorrow",
+)
+```
+
+The bypass appends to `workspace/logs/override_log.md` with the active
+blocker ids so the pre-submission audit can re-surface them. Use
+`tool_audit_findings(operation='query', severity='block')` to list the
+current active blockers and
+`tool_audit_findings(operation='diff', timestamp_a=..., timestamp_b=...)`
+to confirm a fix actually resolved a finding between two audit runs.
+
+### 8. Cross-deliverable divergence the supervisor approved
+
+`tool_audit(scope='project', dimension='cross_deliverable')` BLOCKs
+when the poster, slides, dashboard, or paper disagree along the 5
+dimensions (numeric claims, figures, citations, top-line findings,
+reproducibility footer). Sometimes the divergence is intentional —
+e.g. the supervisor approved a simplified poster headline that drops
+the exact effect size. Bypass with rationale:
+
+```python
+tool_audit(
+    scope="project",
+    dimension="cross_deliverable",
     override_cross_deliverable=True,
     override_rationale="supervisor-approved poster simplification: headline drops the CI to fit the 40-char title rule",
 )
@@ -442,20 +590,20 @@ for the full kwarg-by-tool table.
 Two distinct modes for re-running a step:
 
 * **Bug fix** — script has a defect. Bump `_v<n>`, re-run via
-  `tool_step_pipeline_run`. The fingerprint cache invalidates the
-  affected node automatically.
+  `tool_step_pipeline(operation='run')`. The fingerprint cache
+  invalidates the affected node automatically.
 * **Deliberate iteration** — researcher wants a coordinated change
   (recolour Fig 2, tighten a cutoff, swap a model spec). FIRST call
-  `tool_step_iterate(step_id, rationale=…)` to snapshot scripts +
-  outputs + caption / summary / prov sidecars + conclusion into
-  `.versions/v<n>/`. Live filenames stay stable so cross-step
-  references don't rot. Then rename the live scripts per
+  `tool_step(operation='iterate', step_id=..., rationale=…)` to
+  snapshot scripts + outputs + caption / summary / prov sidecars +
+  conclusion into `.versions/v<n>/`. Live filenames stay stable so
+  cross-step references don't rot. Then rename the live scripts per
   `next_script_paths` and re-run.
 
-After iteration, run `tool_audit_version_coherence` to confirm every
-output traces to the highest-version script on disk. Drift (a v2
-figure produced by a v1 script) is flagged in
-`workspace/logs/version_coherence.md`.
+After iteration, run `tool_audit(scope='project',
+dimension='version_coherence')` to confirm every output traces to the
+highest-version script on disk. Drift (a v2 figure produced by a v1
+script) is flagged in `workspace/logs/version_coherence.md`.
 
 ---
 
@@ -533,8 +681,8 @@ vocabulary and packages a share-safe zip.
 
 ### When to proactively hand off
 
-`tool_plan_turn` returns `chat_split_recommended: true` when the
-remaining plan won't fit comfortably in the current chat. The
+`tool_plan(operation='turn')` returns `chat_split_recommended: true`
+when the remaining plan won't fit comfortably in the current chat. The
 heuristic is approximately:
 
 * `model_profile=small` — hand off after every 3 steps, or any single
@@ -544,11 +692,12 @@ heuristic is approximately:
 * `model_profile=large` — hand off after ~8 steps finalized this
   conversation, or when context utilisation crosses ~70%.
 
-`tool_step_revision_options.handoff_recommended` returns `true` on the
-same logic at the per-step level. When EITHER signal fires, write the
-handoff doc and tell the researcher to open a fresh chat — don't try
-to push through. Continuing past `chat_split_recommended` is the most
-common cause of mid-session context exhaustion that loses state.
+`tool_step(operation='revision_options').handoff_recommended` returns
+`true` on the same logic at the per-step level. When EITHER signal
+fires, write the handoff doc and tell the researcher to open a fresh
+chat — don't try to push through. Continuing past
+`chat_split_recommended` is the most common cause of mid-session
+context exhaustion that loses state.
 
 ---
 
@@ -598,8 +747,8 @@ The visualization category has 14 protocols for distinct needs:
 Research-OS does NOT ship a parametric chart-builder. You (the AI) write
 the plotting script in the appropriate language — matplotlib / ggplot2 /
 plotnine / Altair / d3 / plotly — guided by `figure_guidelines`. The
-server enforces DPI, sidecars, palette via `tool_audit_figure_full` and
-`tool_path_finalize`.
+server enforces DPI, sidecars, palette via `tool_audit(scope='step',
+dimension='figure_full')` and `tool_path_finalize`.
 
 ---
 
@@ -608,7 +757,8 @@ server enforces DPI, sidecars, palette via `tool_audit_figure_full` and
 Five domain packs ship in the default wheel. They activate
 automatically when their detectors fire (filename heuristics, intake
 keywords, researcher_config domain tags) — you don't load them
-explicitly.
+explicitly. Pack tools carry `pack='<pack_name>'` in their definitions
+so `sys_active_tools` can scope a shortlist per pack.
 
 ### `theory_math` — proofs, formal verification, theorems
 
@@ -657,5 +807,6 @@ catalogue.
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 114 protocols indexed
-- `sys_tool_describe(tool_name)` → full schema for a tool
+- `sys_protocol_list` → all 117 protocols indexed
+- `sys_tool_describe(tool_name)` → full schema + status + pack for a tool
+- `sys_active_tools(protocol_name)` → 13-18-tool shortlist for one protocol

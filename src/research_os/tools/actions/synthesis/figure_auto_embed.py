@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -561,51 +562,186 @@ def audit_figure_coverage(root: Path | str) -> dict[str, Any]:
     """Block when a discovered figure (figures_for_paper != false) is
     NOT embedded in synthesis/paper.md.
 
+    Back-compat shim: delegates to :class:`FigureCoverageAudit` (the
+    Phase-4 AuditBase subclass) and reshapes the structured findings
+    back into the original dict surface. The Phase-4 audit artefacts
+    (workspace/figure_coverage_audit.{md,json} +
+    workspace/logs/.audit_findings.jsonl) are NOT written by this
+    function — that happens in the server handler so the workspace
+    write only fires when a tool actually invoked the audit. Direct
+    callers (tests, scripts) still get the same dict shape as v1.
+
     Returns ``status='error'`` plus a list of blockers when at least
     one orphan exists. The intent is to fail loudly when a researcher
     forgets to enable auto-embed or hand-writes a paper without
     pulling in their own figures.
     """
     root = Path(root)
-    paper = root / "synthesis" / "paper.md"
-    if not paper.exists():
-        return {
-            "status": "error",
-            "message": "synthesis/paper.md not found",
-            "blockers": ["synthesis/paper.md does not exist"],
-        }
-    figures = discover_figures(root)
-    if not figures:
-        return {
-            "status": "success",
-            "blockers": [],
-            "warnings": [],
-            "checked": 0,
-            "embedded": 0,
-            "message": "no figures with figures_for_paper=true to audit",
-        }
-    text = paper.read_text(encoding="utf-8", errors="replace")
-    blockers: list[str] = []
-    embedded = 0
-    for fig in figures:
-        if _figure_in_paper(text, fig["stem"]):
-            embedded += 1
-        else:
-            blockers.append(
-                f"figure '{fig['stem']}' (step {fig['step_id']}) "
-                f"exists on disk but is not embedded in synthesis/paper.md"
-            )
-    status = "error" if blockers else "success"
-    return {
-        "status": status,
-        "blockers": blockers,
-        "checked": len(figures),
-        "embedded": embedded,
-        "advice": (
-            "Run tool_paper_figures_autoembed (or enable "
-            "synthesis.figures_auto_embed=true in researcher_config.yaml) "
-            "to embed every step's figures before compiling."
+    audit = FigureCoverageAudit()
+    findings = audit.run(root)
+    return audit.to_legacy_dict(root, findings)
+
+
+# ---------------------------------------------------------------------------
+# AuditBase migration — Phase 4b
+# ---------------------------------------------------------------------------
+
+
+from research_os.tools.actions.audit._base import (  # noqa: E402
+    AuditBase,
+    AuditFinding,
+    _now_iso,
+    _ro_version,
+    validate_finding,
+)
+
+
+class FigureCoverageAudit(AuditBase):
+    """Phase-4 audit: every discovered figure must appear in synthesis/paper.md.
+
+    Maps the legacy BLOCK/PASS/WARN logic into the structured
+    :class:`AuditFinding` schema:
+
+    * Missing ``synthesis/paper.md``      → one ``severity='block'``
+      finding under dimension ``figures``.
+    * Each orphan figure                  → one ``severity='block'``
+      finding under dimension ``figures``, evidence_paths pointing at
+      both ``synthesis/paper.md`` and the figure's on-disk path.
+    * Zero findings                       → the gate passed; the
+      writer emits an empty .json + a "no findings" .md, so dashboards
+      always see a fresh artefact.
+
+    Each finding's ``id`` is derived deterministically from
+    ``audit_name + dimension + evidence_paths`` via :func:`uuid.uuid5`
+    so reruns against an unchanged workspace produce stable IDs
+    (avoids dashboard / jsonl churn from cosmetic re-audits).
+    """
+
+    name = "audit_figure_coverage"
+
+    _NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")  # NAMESPACE_DNS
+
+    def _make_finding(
+        self,
+        *,
+        severity: str,
+        dimension: str,
+        evidence_paths: list[str],
+        suggested_fix: str,
+        override_kwarg: str | None = None,
+        override_log_format: str | None = None,
+    ) -> AuditFinding:
+        key = "|".join([self.name, dimension] + sorted(evidence_paths))
+        stable_id = str(uuid.uuid5(self._NAMESPACE, key))
+        finding = AuditFinding(
+            audit_name=self.name,
+            severity=severity,
+            dimension=dimension,
+            id=stable_id,
+            evidence_paths=list(evidence_paths),
+            suggested_fix=suggested_fix,
+            override_kwarg=override_kwarg,
+            override_log_format=override_log_format,
+            generated_at=_now_iso(),
+            ro_version=_ro_version(),
         )
-        if blockers
-        else None,
-    }
+        validate_finding(finding.to_dict())
+        return finding
+
+    def run(self, root: Path, **kwargs: Any) -> list[AuditFinding]:
+        root = Path(root)
+        paper = root / "synthesis" / "paper.md"
+        if not paper.exists():
+            return [
+                self._make_finding(
+                    severity="block",
+                    dimension="figures",
+                    evidence_paths=["synthesis/paper.md"],
+                    suggested_fix=(
+                        "Create synthesis/paper.md before running the "
+                        "figure-coverage gate (e.g. via tool_synthesize "
+                        "or tool_paper_create)."
+                    ),
+                )
+            ]
+
+        figures = discover_figures(root)
+        if not figures:
+            return []
+
+        text = paper.read_text(encoding="utf-8", errors="replace")
+        findings: list[AuditFinding] = []
+        for fig in figures:
+            if _figure_in_paper(text, fig["stem"]):
+                continue
+            findings.append(
+                self._make_finding(
+                    severity="block",
+                    dimension="figures",
+                    evidence_paths=[
+                        "synthesis/paper.md",
+                        fig.get("path") or f"workspace/{fig['step_id']}/outputs/figures/{fig['stem']}",
+                    ],
+                    suggested_fix=(
+                        f"Embed figure '{fig['stem']}' (step "
+                        f"{fig['step_id']}) into synthesis/paper.md, or "
+                        "enable synthesis.figures_auto_embed=true in "
+                        "researcher_config.yaml and rerun "
+                        "tool_paper_figures_autoembed."
+                    ),
+                )
+            )
+        return findings
+
+    def to_legacy_dict(
+        self,
+        root: Path,
+        findings: list[AuditFinding],
+    ) -> dict[str, Any]:
+        """Reshape findings into the v1 return dict (status/blockers/...)."""
+        root = Path(root)
+        paper = root / "synthesis" / "paper.md"
+        if not paper.exists():
+            return {
+                "status": "error",
+                "message": "synthesis/paper.md not found",
+                "blockers": ["synthesis/paper.md does not exist"],
+            }
+        figures = discover_figures(root)
+        if not figures:
+            return {
+                "status": "success",
+                "blockers": [],
+                "warnings": [],
+                "checked": 0,
+                "embedded": 0,
+                "message": "no figures with figures_for_paper=true to audit",
+            }
+
+        # Reconstruct legacy blocker strings from the figure list so the
+        # ordering and wording match the pre-migration surface byte-for-byte.
+        text = paper.read_text(encoding="utf-8", errors="replace")
+        blockers: list[str] = []
+        embedded = 0
+        for fig in figures:
+            if _figure_in_paper(text, fig["stem"]):
+                embedded += 1
+            else:
+                blockers.append(
+                    f"figure '{fig['stem']}' (step {fig['step_id']}) "
+                    f"exists on disk but is not embedded in synthesis/paper.md"
+                )
+        status = "error" if blockers else "success"
+        return {
+            "status": status,
+            "blockers": blockers,
+            "checked": len(figures),
+            "embedded": embedded,
+            "advice": (
+                "Run tool_paper_figures_autoembed (or enable "
+                "synthesis.figures_auto_embed=true in researcher_config.yaml) "
+                "to embed every step's figures before compiling."
+            )
+            if blockers
+            else None,
+        }

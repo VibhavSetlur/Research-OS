@@ -1,0 +1,109 @@
+{
+  "scenario": "engineering_benchmark",
+  "perspective": "researcher",
+  "final_rating": 6.4,
+  "high_friction_count": 5,
+  "first_5_turns_high_friction": 3,
+  "every_deliverable_produced": false,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "missing_protocol",
+      "description": "Engineering pack has 7 protocols (design_iteration, requirements_traceability, fmea_protocol, fault_tree_analysis, test_failure_causation, build_test_fix_loop, engineering_report_structure) — NONE of them targets a simple algorithmic / systems benchmark. The natural match for 'compare 3 algorithms across 5 sizes x 10 runs' is core/methodology/method_comparison, which is heavily framed around ML/statistical benchmarks (McNemar, DeLong, ROC AUC, hyperparameter budgets). A researcher saying 'benchmark these three sort algorithms' gets vocabulary about leakage and calibration that does not map onto algorithmic perf.",
+      "suggested_fix": "Add an engineering/test/algorithm_benchmark protocol (or systems_benchmark) covering: warm-up runs, JIT/CPU-freq controls, replications + variance, parameter sweep, scaling-law fitting (O(n log n) etc.), and report. Distinct from method_comparison's ML framing."
+    },
+    {
+      "severity": "HIGH",
+      "category": "missing_tool",
+      "description": "No tool to drive a parameter sweep (algorithms x sizes x runs) and capture runtime statistics. Researcher must hand-roll a sweep via tool_python_exec / tool_script_exec, then manually parse outputs. Engineering pack tools (fmea_render, fault_tree_render, requirements_matrix) are all safety/regulatory artifacts — none execute a benchmark.",
+      "suggested_fix": "Add tool_engineering_benchmark_sweep(algorithms[], sizes[], n_runs, command_template, warmup_runs) → CSV of (algo, size, run_id, wall_s, cpu_s, mem_kb) + summary stats + scaling-fit. Even a thin wrapper over python-timeit/hyperfine would remove the hand-rolling step."
+    },
+    {
+      "severity": "HIGH",
+      "category": "naming_confusion",
+      "description": "build_test_fix_loop sounds like the right protocol for a benchmark loop. It is NOT — it tracks dev cycle time (build_s, test_s, diagnose_s, fix_s, rebuild_s) for TDD iteration, not benchmark replications. A researcher who reads only the name will pick it, fight the protocol's quality_bar (diagnose_dominance_threshold_pct=40, consecutive_same_failure_limit=3), and either abandon or produce a confused log.",
+      "suggested_fix": "Rename to dev_cycle_time_loop OR tdd_cycle_tracking. Free up 'benchmark loop' / 'iteration loop' triggers for the new algorithm_benchmark protocol."
+    },
+    {
+      "severity": "HIGH",
+      "category": "tool_surface_bloat",
+      "description": "709 tool-name hits in server.py, 197 _handle_ functions, 344 advertised tools per baseline. For a benchmark scenario the researcher only needs ~12 (route, protocol_get, python_exec, data_profile, audit_power, synthesize, path_finalize, plus 3-4 viz/audit). The catalog dump cost dominates the first turn. tool_semantic_route + sys_active_tools mitigate but a small-model researcher will struggle.",
+      "suggested_fix": "Phase 9 consolidation should target tools that overlap heavily: latex_compile vs paper_compile_typst; audit_synthesis vs audit_assumptions vs audit_power (one tool with mode= would do); fmea_render + fault_tree_render + requirements_matrix could share one tool_engineering_artifact_render(kind=)."
+    },
+    {
+      "severity": "HIGH",
+      "category": "wrong_default_report_structure",
+      "description": "engineering_report_structure mandates Background → Requirements → Design → Verification → Validation → Conclusions with REQ-NNN traceability and regulatory citations (FDA, IEC, ISO, DO-178C). For a 3-algorithm runtime benchmark this is overkill — IMRAD-with-perf-tables fits better. The pack registers paper_sections=(background, requirements, design, verification, validation, conclusions) so the synthesis pipeline will force this structure on every engineering project, including benchmarks where it doesn't fit.",
+      "suggested_fix": "Either (a) make engineering_report_structure opt-in for V&V projects only and let benchmark projects fall through to IMRAD, or (b) add an engineering/output/benchmark_report_structure with the right sections (Introduction → Setup → Methodology → Results → Analysis → Conclusions) and let the detector pick."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "jargon_overload",
+      "description": "engineering_report_structure description cites 'FDA 21 CFR 820.30, ISO 13485, IEC 62304, DO-178C, IEC 61508' upfront, and design_iteration uses 'CAD / PLM / EDA / ECO' vocabulary. A researcher benchmarking algorithms in Python will bounce off this. The pack reads as written for medical-device / aerospace engineers, not for CS / systems researchers.",
+      "suggested_fix": "Move regulatory standards into a 'when_required' note. Lead description with the artifact-centric framing (artifact + requirements + V&V) in plain language; reserve the standards list for the regulated-context subsection."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "opaque_quality_bar",
+      "description": "build_test_fix_loop's quality_bar hardcodes diagnose_dominance_threshold_pct=40, fix_dominance_threshold_pct=50, consecutive_same_failure_limit=3, cycle_time_drift_alert_factor=2.0 with rationale strings. PROTOCOL_DOCTRINE explicitly forbids prescriptive thresholds — these read as 'reviewers reject on sight' material per CLAUDE.md. They are also irrelevant to a benchmark.",
+      "suggested_fix": "Soften to 'common heuristic, adjust to your project'. Move the numbers into the description as examples, not into quality_bar as gates."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "no_benchmark_audit",
+      "description": "Existing audit tools (audit_synthesis, audit_power, audit_assumptions, audit_figure, audit_citations, audit_reproducibility) do not check benchmark-specific concerns: warm-up vs steady-state, JIT compilation, CPU frequency governor, thermal throttling, system load during runs, fair comparison harness (same compiler flags, same input). Researcher will not know to check these and will publish a benchmark with confounded measurements.",
+      "suggested_fix": "Add tool_audit_benchmark or extend audit_reproducibility to flag missing benchmark-controls fields (warmup_count, governor_setting, isolation, replicate_count, variance_reported)."
+    },
+    {
+      "severity": "LOW",
+      "category": "router_pack_collision",
+      "description": "method_comparison (core) and the engineering pack's protocols both have plausible matches for 'benchmark' triggers. Pack triggers include 'fmea', 'fault tree', 'design iteration', 'engineering report' — none match 'benchmark', so the router will correctly land on method_comparison. But the engineering pack's detector (detect_engineering) may still flag the project as engineering and force the V&V report structure downstream.",
+      "suggested_fix": "Make detect_engineering distinguish a perf-benchmark project from a V&V-engineering project; emit a sub-classification (benchmark | hardware | safety_critical | embedded) that downstream synthesis tools can read."
+    },
+    {
+      "severity": "LOW",
+      "category": "missing_visualization",
+      "description": "No built-in viz tool for the canonical benchmark plot (mean runtime + error bars / violin per algorithm across sizes, or log-log scaling plot). Researcher must hand-roll matplotlib via tool_python_exec.",
+      "suggested_fix": "Add tool_viz_benchmark_curves(csv_path, x=size, y=runtime, group=algorithm, scale=loglog) emitting a publication-ready PNG + caption skeleton."
+    }
+  ],
+  "convoluted_tools": [
+    "tool_engineering_requirements_matrix (heavy SRS/SDD YAML schema for what could be a 2-column CSV)",
+    "tool_engineering_fmea_render (good for safety, irrelevant for benchmark — should be opt-in)",
+    "tool_synthesize (one tool, many implicit modes — researcher cannot tell what it will produce)",
+    "sys_boot (claims to replace 4-5 calls but its return shape is large and undocumented to the AI)",
+    "tool_route vs tool_semantic_route vs sys_semantic_tool_search — three near-identical entrypoints, hard to know which to call"
+  ],
+  "confusing_protocols": [
+    "build_test_fix_loop (name suggests benchmark loop; actually a TDD cycle-time tracker)",
+    "engineering_report_structure (V&V framing assumes regulated context; bounces back generic engineering projects)",
+    "method_comparison (ML-statistics framing — McNemar, DeLong, ROC AUC — alien to algorithmic perf benchmarks)",
+    "requirements_traceability (SRS/SDD YAML schema is overkill outside regulated/safety contexts)"
+  ],
+  "never_called_tools": [
+    "tool_engineering_fmea_render",
+    "tool_engineering_fault_tree_render",
+    "tool_engineering_requirements_matrix",
+    "tool_audit_citations (no citations in a pure benchmark)",
+    "tool_audit_figure (researcher hand-rolls the plot, no audit hook)",
+    "mem_citations_generate",
+    "tool_literature_download",
+    "tool_dashboard_story_generate",
+    "tool_dashboard_story_edit",
+    "sys_export_share_archive",
+    "sys_env_docker_generate (unless researcher asks)",
+    "tool_paper_compile_typst (most benchmark writeups land in markdown/HTML, not typst)",
+    "tool_path_finalize is invoked once at the end but the 6 fmea/fta/reqs tools are unused for this scenario"
+  ],
+  "recommendations": [
+    "Add engineering/test/algorithm_benchmark protocol + tool_engineering_benchmark_sweep — this is the load-bearing gap for the scenario.",
+    "Rename build_test_fix_loop → dev_cycle_time_loop to free up 'benchmark loop' triggers and reduce researcher confusion.",
+    "Split engineering_report_structure into V&V-report (regulated) vs benchmark-report vs systems-report; let detector pick rather than forcing V&V on every engineering project.",
+    "Phase 9 consolidation: merge audit_synthesis/audit_assumptions/audit_power into one tool_audit(mode=) and similarly for fmea/fta/reqs renderers.",
+    "Soften prescriptive quality_bar thresholds in build_test_fix_loop per PROTOCOL_DOCTRINE — the diagnose_dominance_threshold_pct=40 type gates read as scripts not scaffolds.",
+    "Strip regulatory standard citations from the top of engineering_report_structure description; move to a 'when_required' subsection so the protocol reads accessibly to non-regulated engineering researchers.",
+    "Add tool_audit_benchmark covering warm-up, governor, replications, variance reporting — the existing audit suite has no hook for benchmark-specific confounds.",
+    "Add tool_viz_benchmark_curves for the canonical mean+CI-per-algorithm-across-sizes plot — currently researcher hand-rolls matplotlib.",
+    "Document the routing decision-tree (tool_route vs tool_semantic_route vs sys_semantic_tool_search) somewhere AI-readable — sys_help currently does not disambiguate them clearly."
+  ]
+}

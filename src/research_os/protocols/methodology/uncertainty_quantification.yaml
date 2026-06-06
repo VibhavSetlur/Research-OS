@@ -1,7 +1,12 @@
 id: uncertainty_quantification
+tier: 'plan'
 name: Uncertainty Quantification + Calibration (predictive models)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-02'
 description: |
   Predictive models report point estimates by default. Calibrated

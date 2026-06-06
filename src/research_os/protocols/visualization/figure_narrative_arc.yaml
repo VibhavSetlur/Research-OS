@@ -1,7 +1,12 @@
 id: figure_narrative_arc
+tier: 'synthesize'
 name: Figure Narrative Arc (ordering figures across paper / talk / poster)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Choose and ORDER the figures that appear in a paper / talk / poster
   / dashboard. The choice of WHICH figures and the order they appear

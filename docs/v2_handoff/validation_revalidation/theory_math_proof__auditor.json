@@ -1,0 +1,119 @@
+{
+  "scenario": "theory_math_proof",
+  "perspective": "auditor",
+  "final_rating": 7.1,
+  "high_friction_count": 5,
+  "first_5_turns_high_friction": 3,
+  "every_deliverable_produced": true,
+  "friction_items": [
+    {
+      "severity": "HIGH",
+      "category": "regression_sys_tool_describe_broken",
+      "description": "sys_tool_describe is broken in v2: meta_routing._handle_sys_tool_describe calls _resolve_tool_name(tool_name) which is referenced but never defined or imported in the module. Any invocation (even with a valid canonical name like 'tool_audit') raises NameError. The auditor's primary help-discovery tool for inspecting a tool's status/pack/inputSchema is unusable. This is a regression vs the 15a baseline where sys_tool_describe functioned."
+    },
+    {
+      "severity": "HIGH",
+      "category": "audit_surface_still_step_intent_blind",
+      "description": "tool_audit_quality_full (audit_master) is unchanged from baseline: it still runs claims + code_quality + prose_quality + preregister_diff unconditionally. Running on a synthetic graph-theory proof, claims flagged the theorem-number '3.1', the index '5' (Chapter 5 of Diestel), and the integer '3' (chi(G_n) >= 3) as 5 ungrounded numeric claims. preregister_diff warned 'no pre-registration found' for a proof paper that cannot have a SAP. None of the gates are step_intent: proof aware. Baseline HIGH #1 is unaddressed."
+    },
+    {
+      "severity": "HIGH",
+      "category": "no_proof_artefact_provenance_schema",
+      "description": "provenance_completeness still has no proof-artifact variant. workspace/proofs/<slug>.md and workspace/formal/<slug>/*.lean have no schema (no mathlib_revision, lean_toolchain, formal_check_status, reviewer_slug). The auditor running provenance audit on a proof paper still gets noise. Baseline HIGH #2 is unaddressed."
+    },
+    {
+      "severity": "HIGH",
+      "category": "no_theory_specific_audit_protocol",
+      "description": "There is still no audit/theory_math_proof_audit protocol (or theory section in pre_submission_checklist). The proof_verification_workflow protocol exists in the theory_math pack but is authoring-side. The auditor has no runnable gate that checks: residual sorry/admit in .lean files, theorem-statement-in-paper coverage against workspace/proofs/ files, conjecture-status transitions with same-commit citations, axiom-addition justification, dep-graph cycle check, lemma-library orphan check. Baseline HIGH #3 unaddressed."
+    },
+    {
+      "severity": "HIGH",
+      "category": "lexical_dep_graph_still_unverified",
+      "description": "tool_theory_math_dep_graph is still purely lexical with no audit tool to reconcile parsed import edges against prose citations (Lemma N.M, Theorem X) inside workspace/proofs/*.md. The manual_annotation_floor_pct: 20 in quality_bar remains a soft sanity check. Baseline HIGH #4 unaddressed."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "scope_tags_not_surfaced_in_summary",
+      "description": "Phase 9 cross-cutting added scope_tags: {domain, audience, workflow_shape} to every core protocol YAML, but sys_protocol_get(format='summary') does NOT include the scope_tags field in the response payload. Confirmed via direct dispatch: audit/audit_and_validation has 'domain: [qualitative], audience: [auditor], workflow_shape: [experiment_pipeline]' in its YAML, yet d['scope_tags'] is None in the returned summary. The auditor cannot filter protocols by audience='auditor' or domain='theory_math' via the route the AI actually calls."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "audit_and_validation_excludes_theory_math",
+      "description": "audit/audit_and_validation has scope_tags.domain = [qualitative] in YAML — explicitly EXCLUDES theory_math. tool_route still routes a 'pre-submission rigor audit of a graph-theory proof paper' prompt to it (semantic match on 'audit'), but there is no theory_math-domain audit protocol to take its place. The auditor follows a protocol whose scope_tags say it doesn't apply to their domain — confusing if scope_tags ever get surfaced; today they aren't surfaced, but the inconsistency is silently waiting."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "audit_figures_still_unconditional",
+      "description": "audit_figures step still iterates every PNG in outputs/figures/ regardless of step_intent. Illustrative diagrams in a proof step (figure_required: false) would still block synthesis on missing caption + summary sidecars. Baseline HIGH #5 unaddressed."
+    },
+    {
+      "severity": "MEDIUM",
+      "category": "lean_check_timeout_unchanged",
+      "description": "tool_theory_math_lean_check default timeout_seconds is still 120 (confirmed: src/research_os_theory_math/tools.py L68, L131). Real Mathlib elaborations regularly exceed 5 minutes; the auditor still cannot distinguish a wrong proof from an under-budgeted run. Baseline MEDIUM #8 unaddressed."
+    },
+    {
+      "severity": "LOW",
+      "category": "pack_protocol_path_inconsistency",
+      "description": "sys_protocol_get resolves pack protocols by multiple paths inconsistently: 'proof_verification_workflow' (bare) and 'theory_math/proof/proof_verification_workflow' (full pack-prefixed) both work, but 'proof/proof_verification_workflow' (subdir without pack) fails. Same pattern for conjecture_tracking. The auditor browsing for a known protocol must try several path forms before finding the right one — no error message hints at the alternates."
+    },
+    {
+      "severity": "LOW",
+      "category": "active_tools_advertises_aliases",
+      "description": "sys_active_tools for audit/audit_and_validation returns ['tool_audit_synthesis', 'tool_audit_citations', 'tool_audit_figure'] — three names that are deprecated aliases (in _DEPRECATED_ALIASES, not in TOOL_DEFINITIONS). They dispatch correctly via the alias map, but the active-tool list teaches the AI the deprecated surface, not the canonical 'tool_audit(scope=..., dimension=...)' unified call. Over time this perpetuates the old surface rather than retiring it."
+    },
+    {
+      "severity": "LOW",
+      "category": "semantic_router_misses_proof_specific_language",
+      "description": "tool_route with semantic search returned NO match for 'review the proof artifacts and check no sorry remains' and 'check that every theorem in the paper is backed by a workspace proof file' (both fell through to ask_user). The protocol embeddings appear to cover empirical-audit language well but not proof-specific terms (sorry, admit, theorem-coverage, Lean, Coq). The auditor is forced to use generic words like 'audit' or 'review' to hit semantic matches."
+    }
+  ],
+  "convoluted_tools": [
+    "sys_tool_describe (BROKEN — NameError on _resolve_tool_name)",
+    "tool_audit_quality_full (six unconditional gates, half nonsensical for proofs)",
+    "tool_audit (good unified dispatcher, but dimension matrix is undocumented in the schema — has to be read from the description prose)"
+  ],
+  "confusing_protocols": [
+    "audit/audit_and_validation (still no step_intent: proof branch; scope_tags.domain=[qualitative] explicitly excludes theory_math yet remains the routed audit)",
+    "audit/provenance_completeness (still no proof-artifact schema; no answer for what a workspace/proofs/<slug>.md sidecar looks like)",
+    "audit/pre_submission_checklist (14 steps, several irrelevant to proof papers; no theory section)",
+    "proof_verification_workflow (authoring-side only, no rigor-gate auditor-side counterpart)"
+  ],
+  "never_called_tools": [
+    "tool_audit (auditor goes straight for tool_audit_quality_full because the master is advertised in the protocol body; the granular per-dimension dispatcher gets bypassed)",
+    "tool_theory_math_lean_check (auditor has no Lean toolchain assumed; the tool exists but the protocols don't gate on it)",
+    "tool_theory_math_coq_check (same)",
+    "tool_theory_math_dep_graph (would be the auditor's first stop for dep verification, but no audit tool reconciles its output)",
+    "tool_audit_findings.operation=diff (the snapshot-comparison feature is powerful but no protocol step references it; only the query operation gets used)",
+    "sys_packs_installed (auditor never needs to know which packs are installed for the audit task)",
+    "sys_adapters_installed (same)",
+    "all 6 adapter pack tools (slurm/snakemake/nextflow/cytoscape/redcap/synapse — N-A for theory work, but they still show up in the global 146-tool list)"
+  ],
+  "improvements_vs_baseline": [
+    "Tool surface dropped 344 -> 146 (~58% reduction). AI client list_tools is dramatically leaner.",
+    "tool_audit unified dispatcher with (scope, dimension) matrix replaces ~10 separate per-dimension audit tools (tool_audit_step_completeness, tool_audit_code_quality, tool_audit_prose, etc.).",
+    "tool_audit_findings + workspace/logs/.audit_findings.jsonl ledger gives the auditor a queryable machine-readable findings stream with stable ids, severity filter (block|warn|info), dimension filter, step filter, since cutoff, and diff between two snapshots. Closes baseline MEDIUM #10 (audit_master format unstructured) cleanly.",
+    "sys_protocol_get default is now format='summary' (~300 tokens) instead of full (~1.5-3K tokens). Big context-budget win on every protocol load.",
+    "sys_protocol_get exposes step/lean/dryrun/full formats explicitly; _load_hint in the response teaches the AI how to drill into a step without loading the whole YAML.",
+    "tool_route returns recommended_action as a single literal next-tool-call string (e.g. \"sys_protocol_get(protocol_name='audit/audit_and_validation', format='summary')\") — auditor has zero guesswork on next call.",
+    "tool_route.why_matched reports semantic similarity score (e.g. 'Semantic similarity 0.742') or trigger tokens. Auditor can sanity-check whether the routing was confident or marginal.",
+    "MCP instructions field declares the boot ritual at handshake (sys_boot -> tool_route -> sys_protocol_get -> sys_active_tools) so the auditor's first turn is unambiguous.",
+    "Every tool def now carries status: live and pack: core|<pack> metadata at the registry level (3 theory_math tools clearly tagged; 6 adapter packs clearly tagged).",
+    "78 deprecated aliases are still routable via the alias map, so the auditor's muscle memory from v1 doesn't break.",
+    "proof_verification_workflow's next_protocol correctly points at theory_math/output/theory_paper_structure (closes baseline LOW #2 on proof paper synthesis routing).",
+    "audit_master.md output is unchanged in shape but the parallel .audit_findings.jsonl makes 'grep all open blockers across steps' trivial — the baseline complaint about text-parsing markdown is resolved."
+  ],
+  "remaining_recommendations": [
+    "FIX REGRESSION: meta_routing._handle_sys_tool_describe imports/defines _resolve_tool_name (or call aliases.resolve_alias directly). Add a regression test that exercises sys_tool_describe on (a) a canonical name, (b) an alias name, (c) an unknown name.",
+    "Add step_intent: proof switch to tool_audit_quality_full: when step_intent: proof is present on any active step, skip code_quality + preregister_diff entirely, and replace the claims-gate with a theorem-statement coverage check (every Theorem/Lemma in synthesis/paper.md resolves to a non-stub workspace/proofs/<slug>.md sibling).",
+    "Add a proof_artifact variant to provenance_completeness: required fields {mathlib_revision, lean_toolchain, reviewer_slug, review_date, formal_check_status: pass|sorry_count|abandoned}. Schema pick keys on filepath glob workspace/proofs/*.md or workspace/formal/**/*.lean.",
+    "Ship audit/theory_math_proof_audit (or extend pre_submission_checklist with a theory-section) as a single runnable gate that programmatically checks: residual sorry/admit in .lean, theorem-paper coverage, conjecture-status transitions with same-commit citations, axiom-addition justification blocks, dep-graph cycle check, orphan lemma-library entries. Wire it into the audit/audit_and_validation pipeline when scope_tags.domain includes theory_math.",
+    "Add tool_audit_dep_graph_completeness that diffs parsed lexical edges (from tool_theory_math_dep_graph) against citation tokens (Lemma N.M, Theorem X, Diestel 2017 Thm 5.1) found in workspace/proofs/*.md prose, and flags every prose-citation missing from the graph.",
+    "Make audit_figures step honor figure_required: false at the step level so illustrative graph diagrams in proof steps warn instead of block.",
+    "Raise tool_theory_math_lean_check default timeout_seconds from 120 to 600; on timeout, emit wall-time + last 50 lines of stdout + a 'try 1800s for Mathlib elaboration' hint.",
+    "Surface scope_tags in sys_protocol_get(format='summary') response payload — the field is in every core YAML but the handler strips it. Auditors should be able to filter for protocols where audience includes 'auditor'.",
+    "Backfill scope_tags into pack protocols (proof_verification_workflow, conjecture_tracking, theorem_dependency_graph all currently have scope_tags: None even when loaded). Domain: theory_math; audience: [researcher, auditor]; workflow_shape: proof_pipeline.",
+    "Normalize pack-protocol path resolution: either always accept <subdir>/<name> (so conjecture/conjecture_tracking works), or have the error message list the alternates that DO resolve to the same protocol.",
+    "Have sys_active_tools return canonical names (tool_audit) not deprecated aliases (tool_audit_synthesis, tool_audit_citations, tool_audit_figure). The AI client should see the surface as it currently is, not as it was.",
+    "Add proof-specific seed phrases to the protocol embeddings index so semantic routing catches 'no sorry remains', 'theorem-coverage', 'Lean check', 'axiom justification', 'lemma library orphan'."
+  ]
+}

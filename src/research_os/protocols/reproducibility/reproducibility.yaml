@@ -1,7 +1,12 @@
 id: reproducibility
+tier: 'finalize'
 name: Reproducibility
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability.
 trigger: After all planned experiments are complete. Before audit_and_validation.
 
@@ -11,7 +16,7 @@ steps:
     description: |
       For EACH active (non-dead-end) experiment in workspace/, ensure
       workspace/<step>/environment/requirements.txt exists. If missing, switch
-      to that step (or just call) sys_env_snapshot. R packages → renv.lock,
+      to that step (or just call) sys_env(operation='snapshot'). R packages → renv.lock,
       Julia → Project.toml + Manifest.toml.
 
   - id: verify_seeds
@@ -42,7 +47,7 @@ steps:
   - id: dockerise
     name: Generate Dockerfile
     description: |
-      sys_env_docker_generate — produces environment/Dockerfile from the
+      sys_env(operation='docker_generate') — produces environment/Dockerfile from the
       session snapshot. Verify it would build (read it, sanity check the
       package list).
 
@@ -55,7 +60,7 @@ steps:
       compares output hashes against `workspace/logs/output_hashes.json`.
 
       Call:
-        tool_audit_reproducibility
+        tool_audit(scope='step', dimension='reproducibility')
 
       Report goes to `workspace/logs/reproducibility_report.md`.
 
@@ -70,7 +75,7 @@ steps:
       OPT-OUT — the researcher MAY skip this audit only via an
       EXPLICIT opt-out, by either:
         (a) invoking the audit with `--skip-rerun-audit`
-            (`tool_audit_reproducibility skip=true` documents the
+            (`tool_audit(scope='step', dimension='reproducibility') skip=true` documents the
              opt-out in the report), OR
         (b) telling the AI "skip the re-run audit; I'll accept the
             unverified state" — the AI then `mem_log`s the
@@ -78,8 +83,7 @@ steps:
             warning that the resulting synthesis is NOT
             reproducibility-verified.
 
-      Autopilot mode does NOT auto-opt-out. The previous "skip in
-      autopilot" behaviour was a footgun — autopilot is precisely
+      Autopilot mode does NOT auto-opt-out. Autopilot is precisely
       when re-run verification matters most because the human is
       not watching. Autopilot runs the audit by default and pauses
       on BLOCKERs as a configured gate.

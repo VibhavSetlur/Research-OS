@@ -1,7 +1,11 @@
 id: qualitative_report_format
 name: Qualitative Report Format (COREQ for interviews | SRQR general)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative, humanities]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, interview_study]
 last_reviewed: '2026-06-05'
 description: |
   Picks a reporting standard based on study type. COREQ (32 items,

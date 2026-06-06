@@ -25,7 +25,7 @@ Both engines source from:
   ``.summary.md`` / ``.caption.md``
 * the chosen template under ``research_os/assets/slide_templates/``
 
-When ``print_handout=True``, a condensed PDF (``synthesis/slides_
+When ``print_handout=True``, a condensed PDF (``synthesis/slides.
 handout.pdf``) is written:
 
 * ``engine="reveal"`` — opens the HTML in a headless engine if Playwright
@@ -179,7 +179,7 @@ def compile_slides(
         warnings.extend(result.get("warnings", []))
 
         if print_handout:
-            handout_path = synthesis_dir / "slides_handout.pdf"
+            handout_path = synthesis_dir / "slides.handout.pdf"
             handout_info = _render_handout_via_touying(
                 synthesis_dir, slides_data, deck_meta, theme=theme or "white",
             )
@@ -212,8 +212,8 @@ def compile_slides(
         warnings.extend(compile_result.get("warnings", []))
 
         if print_handout:
-            handout_typ = synthesis_dir / "slides_handout.typ"
-            handout_pdf = synthesis_dir / "slides_handout.pdf"
+            handout_typ = synthesis_dir / "slides.handout.typ"
+            handout_pdf = synthesis_dir / "slides.handout.pdf"
             hw = _write_touying_source(
                 handout_typ,
                 slides_data,
@@ -891,8 +891,9 @@ def _compile_typst(typ_path: Path, pdf_path: Path) -> dict[str, Any]:
     if not typ_path.exists():
         return _error(f"typst source missing: {typ_path}")
     try:
+        from research_os.tools.actions.synthesis.typst import _typst_compile_argv
         proc = subprocess.run(
-            [typst_bin, "compile", str(typ_path), str(pdf_path)],
+            _typst_compile_argv(typst_bin, str(typ_path), str(pdf_path)),
             capture_output=True,
             text=True,
             timeout=120,
@@ -925,8 +926,8 @@ def _render_handout_via_touying(
 ) -> dict[str, Any]:
     """Used by engine='reveal' so the handout still ships even when the
     presenter wanted HTML."""
-    typ = synthesis_dir / "slides_handout.typ"
-    pdf = synthesis_dir / "slides_handout.pdf"
+    typ = synthesis_dir / "slides.handout.typ"
+    pdf = synthesis_dir / "slides.handout.pdf"
     w = _write_touying_source(
         typ, slides, meta,
         theme=theme, handout=True, speaker_notes_enabled=True,

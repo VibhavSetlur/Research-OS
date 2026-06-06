@@ -1,7 +1,12 @@
 id: preregistration
+tier: 'plan'
 name: Pre-registration & Statistical Analysis Plan
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab]
+  audience: [researcher]
+  workflow_shape: [any]
 description: |
   Freeze the Statistical Analysis Plan (SAP) BEFORE data analysis so
   the project has a clean confirmatory-vs-exploratory split when the
@@ -40,7 +45,7 @@ steps:
   - id: freeze_sap
     name: Freeze the Statistical Analysis Plan
     description: |
-      tool_preregister_freeze
+      tool_preregister(operation='freeze')
         primary_outcomes="..."
         secondary_outcomes="..."
         target_n=<int>
@@ -95,7 +100,7 @@ steps:
   - id: diff_at_synthesis
     name: Diff Pre-Registration at Synthesis Time
     description: |
-      tool_preregister_diff
+      tool_preregister(operation='diff')
       Loads the most recent frozen SAP; compares to the current state +
       methods + paper. Lists every deviation:
         - hypotheses added since freeze (must be marked exploratory)
@@ -115,7 +120,7 @@ steps:
       own section for Registered Reports) covering:
         - Pre-registration ID + URL.
         - Confirmatory vs exploratory split.
-        - Every deviation logged by tool_preregister_diff with a
+        - Every deviation logged by tool_preregister(operation='diff') with a
           one-paragraph rationale.
 
       tool_audit_quality_full will surface the deviation count as

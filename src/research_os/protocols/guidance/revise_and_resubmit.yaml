@@ -1,7 +1,12 @@
 id: revise_and_resubmit
+tier: 'review'
 name: Revise & Resubmit (full R&R orchestration)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   End-to-end orchestration for a Revise & Resubmit decision from a
   journal. Distinct from `guidance/peer_review_response`, which
@@ -19,7 +24,7 @@ description: |
     - `synthesis/response_to_reviewers.md` — the formal point-by-
       point reply letter.
     - re-audited `synthesis/paper.md` — every claim re-passes
-      `tool_audit_claims` and the prose re-passes `tool_audit_prose`.
+      `tool_audit(scope='project', dimension='claims')` and the prose re-passes `tool_audit(scope='project', dimension='prose')`.
 
 trigger: |
   Researcher pastes a reviewer report and says any of:
@@ -150,18 +155,18 @@ steps:
       The revision is not done until the audit chain re-passes.
       Run, in order:
 
-        tool_audit_claims target="synthesis/paper.md"
+        tool_audit(scope='project', dimension='claims') target="synthesis/paper.md"
           — every number traces to a workspace artefact;
             NEW numbers from new experiments must be groundable.
 
-        tool_audit_prose target="synthesis/paper.md"
+        tool_audit(scope='project', dimension='prose') target="synthesis/paper.md"
           — hedging, vague quantifiers, causal-language drift,
             reading level, section-coverage per reporting standard.
 
-        tool_audit_citations
+        tool_audit(scope='project', dimension='citations')
           — every new citation resolves on Crossref / Semantic Scholar.
 
-        tool_audit_figure_full per any figure that changed.
+        tool_audit(scope='step', dimension='figure_full') per any figure that changed.
 
         tool_audit_quality_full (or the per-component audits)
           — master audit; the grid's `audit` column gets the
@@ -220,8 +225,9 @@ steps:
         ## Reviewer 2
         ...
 
-      Run `tool_response_to_reviewers` to generate the skeleton, then
-      paste each row's response paragraph into the appropriate slot.
+      Run `tool_reviewer(operation='response')` to generate the
+      skeleton, then paste each row's response paragraph into the
+      appropriate slot.
 
       Also emit `synthesis/cover_letter_r1.md` (or _r2, _r3) — the
       brief note to the editor summarising the major revisions and

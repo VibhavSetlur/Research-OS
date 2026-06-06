@@ -1,7 +1,12 @@
 id: qualitative_quality_audit
+tier: 'plan'
 name: Qualitative Quality Audit (COREQ + SRQR enforcement)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor, maintainer]
+  workflow_shape: [interview_study]
 description: |
   Companion to `methodology/qualitative_research`. The research protocol
   DESIGNS the qualitative work; this audit ENFORCES the COREQ

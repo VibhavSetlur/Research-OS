@@ -40,8 +40,9 @@ interaction:
   #            explains WHY each gate exists, asks the researcher to draft
   #            then critiques. Great for graduate students / new PIs
   #            learning how to use a methodology rigorously. Pair with
-  #            tool_mistake_replay each session for self-coaching across
-  #            recurring patterns the researcher keeps tripping.
+  #            tool_lessons(operation='mistake_replay') each session for
+  #            self-coaching across recurring patterns the researcher keeps
+  #            tripping.
 
   # Quality-gate posture (the AI NEVER bypasses on its own).
   #   enforce        → refuse bypass without an explicit researcher ask
@@ -125,16 +126,6 @@ writing_preferences:
 runtime:
   shared_server: false           # set true on HPC / shared boxes
   long_running_threshold_seconds: 60
-  default_n_for_sampling: 1000
-
-# ── Language + tool-stack preferences ──────────────────────────────────
-# Read by `methodology/pick_tool_stack`. AI uses these as hints (NOT
-# hard constraints); field-practice for a given method still wins.
-tool_stack:
-  preferred_languages: ["python", "R"]   # order = tie-breaker; empty = no preference
-  allow_mixed_language_steps: true        # false → split mixed work into separate steps
-  field_practice_overrides_preference: true   # true → R Bioconductor wins for DE even if Python listed first
-  cite_field_practice_when_choosing: true     # require literature citation per language choice
 
 # ── Synthesis pipeline ─────────────────────────────────────────────────
 # Controls how tool_synthesize / tool_slides_compile_reveal /
@@ -171,9 +162,10 @@ synthesis:
   # Also emit a 1-up print handout PDF alongside the deck.
   slide_print_handout: true
 
-  # Poster (tool_poster_compile_typst).
-  #   typst    → recommended (single-binary install, fast)
-  #   latex    → Beamer poster (legacy)
+  # Poster (tool_poster_create). Typst is the only supported engine in
+  # v2.0.0+ — the legacy tikzposter LaTeX renderer was removed in v2.0.0
+  # (phase-14b). The field is retained so existing configs keep
+  # validating; it is enforced to "typst".
   poster_engine: "typst"
   # Poster template (matches dimensions + density).
   #   academic_36x48 | academic_48x36 | academic_a0_portrait
@@ -185,6 +177,23 @@ synthesis:
   poster_qr_url: ""
   # Emit a US-letter handout PDF alongside the poster.
   poster_handout_pdf: true
+
+  # ── Phase-5 review-rewrite drafter loop ───────────────────────────
+  # tool_paper_compile_typst / tool_slides_create / tool_poster_create
+  # run a closed-loop "draft → adversarial review → rewrite" pass when
+  # this is enabled. The reviewer is a fixed subset of the bundled
+  # reviewer personas (no LLM is called from inside RO). Findings are
+  # persisted under workspace/logs/drafter_loops/ with one
+  # <drafter>_iter_<N>.md + .json per iteration AND a cumulative
+  # workspace/logs/drafter_loops/quality_progression.md table.
+  drafter_loop_enabled: true
+  # Hard ceiling on iterations. project_tier=throwaway clamps to 1
+  # regardless of this value. Paper uses the full ceiling; slides /
+  # poster default to min(2, this value) unless overridden below.
+  drafter_loop_max_iterations: 3
+  # Composite-quality-score delta required to keep iterating once no
+  # block-severity findings remain. Below this, the loop converges.
+  drafter_loop_quality_threshold: 0.10
 
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.

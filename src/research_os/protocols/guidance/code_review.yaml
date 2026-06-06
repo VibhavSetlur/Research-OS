@@ -1,7 +1,12 @@
 id: code_review
+tier: 'review'
 name: Code Review (analysis scripts)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 description: |
   Critically review the analysis scripts in a numbered step (or
   scripts a collaborator just dropped into `inputs/`) for correctness,
@@ -50,7 +55,7 @@ steps:
       Begin with the automated audit so the obvious smells are
       already triaged: bare-except clauses, `import *`, eval/exec,
       hardcoded absolute paths, oversized functions, missing
-      docstrings. `tool_audit_code_quality` returns these as
+      docstrings. `tool_audit(scope='step', dimension='code_quality')` returns these as
       structured blockers + warnings — fold its output into the
       review report's "automated findings" section.
 
@@ -154,7 +159,7 @@ steps:
         ...
 
         ## Automated findings
-        <fold in tool_audit_code_quality output>
+        <fold in tool_audit(scope='step', dimension='code_quality') output>
 
   - id: assign_severity_and_decide
     name: Recommend a verdict

@@ -1,7 +1,12 @@
 id: pick_tool_stack
+tier: 'plan'
 name: Pick Tool Stack (language + library matrix per analysis sub-task)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Sister protocol to `visualization/figure_guidelines`'s `pick_library`
@@ -92,7 +97,7 @@ steps:
   - id: check_env_compatibility
     name: Check env compatibility before committing
     description: |
-      sys_env_snapshot scope="step" step_id="<NN_slug>"
+      sys_env(operation='snapshot', scope='step', step_id='<NN_slug>')
       Confirm the chosen language is installed in the project env. If
       R Bioconductor isn't installed but DESeq2 is the right call,
       surface the install requirement:

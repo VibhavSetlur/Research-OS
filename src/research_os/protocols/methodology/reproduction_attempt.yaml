@@ -1,7 +1,12 @@
 id: reproduction_attempt
+tier: 'plan'
 name: Reproduction Attempt (rerun a published analysis)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering]
+  audience: [researcher]
+  workflow_shape: [experiment_pipeline]
 description: |
   Attempt to REPRODUCE a published analysis — rerun the authors'
   pipeline on the authors' (or claimed) data and check whether the
@@ -126,7 +131,7 @@ steps:
 
       Set up under workspace/<step>/environment/ with a
       requirements.txt + Dockerfile that captures EXACTLY what was
-      used. Use sys_env_docker_generate after sys_env_snapshot.
+      used. Use sys_env(operation='docker_generate') after sys_env(operation='snapshot').
 
       Document every gap (a library used in the code but not pinned
       in the lock file). Pinning the wrong version of one library
@@ -155,8 +160,8 @@ steps:
       For FULL reproductions:
         - run the authors' entrypoint (README's `make all`, `bash
           run.sh`, `python main.py`, `snakemake`, `nextflow run …`)
-          via tool_task_run (background for anything > 60s);
-          tool_task_status to monitor
+          via tool_task(operation='run') (background for anything > 60s);
+          tool_task(operation='status') to monitor
         - capture stderr/stdout to
           workspace/<step>/outputs/logs/rerun_<timestamp>.log
         - record wall-time, peak memory, GPU usage (when applicable)

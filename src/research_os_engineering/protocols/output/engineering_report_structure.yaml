@@ -1,7 +1,11 @@
 id: engineering_report_structure
 name: Engineering Report Structure (non-IMRAD)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [engineering, biology, wet_lab]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Engineering reports do not use IMRAD. They use a

@@ -1,7 +1,12 @@
 id: synthesis_grant
+tier: 'synthesize'
 name: Synthesis — Grant Proposal (funder-tailored)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative]
+  audience: [auditor]
+  workflow_shape: [any]
 description: Draft a grant proposal narrative tuned to the target funder (NIH / NSF / Wellcome / ERC / DoE / DARPA / industry).
 trigger: Researcher asks "draft a grant" / "write the R01" / "Specific Aims page"; OR `research_goal.output_types` includes "grant".
 
@@ -140,7 +145,7 @@ steps:
   - id: audit
     name: Final Audit
     description: |
-      tool_audit_synthesis paper_path="synthesis/grant.md"
+      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/grant.md"
       Check: every Aim mentioned in Summary appears in Approach; every claim
       has a citation; no banned phrases; word counts within limits.
 

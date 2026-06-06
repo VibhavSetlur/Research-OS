@@ -1,0 +1,376 @@
+"""Handlers for the meta_routing sub-domain.
+
+Carved out of handlers/meta.py to stay under the 600-line ceiling.
+"""
+from __future__ import annotations
+
+from .._handlers_runtime import *  # noqa: F401,F403
+# mem_log dispatcher delegates to a methodology handler — pull it into scope.
+
+__all__ = [
+    "_handle_sys_protocol_list",
+    "_handle_tool_protocols_list",
+    "_handle_tool_tools_list",
+    "_handle_sys_protocol_get",
+    "_handle_sys_boot",
+    "_handle_tool_route",
+    "_handle_tool_semantic_route",
+    "_handle_sys_semantic_tool_search",
+    "_handle_sys_active_tools",
+    "_handle_tool_cache_clear",
+    "_handle_tool_step_env_lock",
+    "_handle_tool_workflow_dag",
+    "_handle_sys_tool_describe",
+    "_handle_sys_protocol_validate",
+    "_handle_sys_protocol_next",
+    "_handle_sys_protocol_log",
+    "_handle_sys_protocol_history",
+    "_handle_sys_active_project",
+]
+
+def _handle_sys_protocol_list(name, arguments, root):
+    try:
+        cat = arguments.get("category") if isinstance(arguments, dict) else None
+        cat = cat if isinstance(cat, str) and cat else None
+        protocols = list_protocols(category=cat)
+        return _text(_success({
+            "protocols": protocols,
+            "count": len(protocols),
+            "category": cat,
+        }))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
+def _handle_tool_protocols_list(name, arguments, root):
+    from research_os.tools.actions.listers import list_protocols_flat
+
+    try:
+        cat = arguments.get("category")
+        pack = arguments.get("pack")
+        include_packs = arguments.get("include_pack_protocols", True)
+        if include_packs is None:
+            include_packs = True
+        protocols = list_protocols_flat(
+            category=cat if isinstance(cat, str) and cat else None,
+            pack=pack if isinstance(pack, str) and pack else None,
+            include_pack_protocols=bool(include_packs),
+        )
+        return _text(_success({
+            "protocols": protocols,
+            "count": len(protocols),
+            "filters": {
+                "category": cat or None,
+                "pack": pack or None,
+                "include_pack_protocols": bool(include_packs),
+            },
+        }))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
+def _handle_tool_tools_list(name, arguments, root):
+    from research_os.tools.actions.listers import list_tools_flat
+
+    try:
+        scope = arguments.get("scope") or "all"
+        include_deprecated = bool(arguments.get("include_deprecated", False))
+        match = arguments.get("match_substring")
+        tools = list_tools_flat(
+            TOOL_DEFINITIONS,
+            aliases=_ALIASES,
+            deprecated_aliases=_DEPRECATED_ALIASES,
+            scope=scope,
+            include_deprecated=include_deprecated,
+            match_substring=match if isinstance(match, str) and match else None,
+        )
+        return _text(_success({
+            "tools": tools,
+            "count": len(tools),
+            "filters": {
+                "scope": scope,
+                "include_deprecated": include_deprecated,
+                "match_substring": match or None,
+            },
+        }))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
+def _handle_sys_protocol_get(name, arguments, root):
+    p_name = arguments.get("protocol_name")
+    # Default is "summary" (~300 tokens). Callers who need the bulk
+    # YAML must pass format="full" explicitly. See CHANGELOG for the
+    # rationale behind the default; this comment intentionally stays
+    # timeless.
+    fmt = (arguments.get("format") or "summary").lower()
+    step_id = arguments.get("step_id")
+    profile = _read_profile(root)
+    model_profile = profile.get("model_profile", "medium")
+    try:
+        import yaml as _yaml
+
+        data = load_protocol(
+            p_name, model_profile=model_profile, format=fmt, step_id=step_id
+        )
+        if fmt in {"summary", "step"}:
+            # Lean structured payload (no yaml dump bulk).
+            response = dict(data)
+            response.setdefault(
+                "_loaded_as", fmt
+            )
+        else:
+            # format=full: AI explicitly opted into the bulk payload —
+            # don't tack on another paragraph telling it to prefer
+            # summary. Boot reminder also lives in sys_boot now.
+            response = {"content": _yaml.dump(data, sort_keys=False)}
+            if model_profile == "small":
+                response["note"] = "Loaded in light mode (small model profile)."
+        return _text(_success(response))
+    except Exception as e:
+        return _text(_error(str(e)))
+
+
+def _handle_sys_boot(name, arguments, root):
+    from research_os.tools.actions.router import sys_boot
+
+    res = sys_boot(root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "sys_boot failed")))
+
+
+def _handle_tool_route(name, arguments, root):
+    from research_os.tools.actions.router import route_request
+
+    res = route_request(
+        arguments["prompt"],
+        root,
+        persist_plan=bool(arguments.get("persist_plan", True)),
+    )
+    if res.get("status") == "success":
+        # Phase-9 cross-cutting: name the next tool to call so the AI
+        # doesn't burn a turn deciding.
+        res.setdefault("recommended_action", _recommended_action_for_route(res))
+        return _text(_success(res))
+    return _text(_error(res.get("message", "tool_route failed")))
+
+
+def _handle_tool_semantic_route(name, arguments, root):
+    from research_os.tools.actions import semantic
+
+    if not semantic.semantic_available():
+        return _text(_success({
+            "status": "unavailable",
+            "reason": (
+                "Semantic routing requires the `semantic` extra. "
+                "Install with: pip install 'research-os[semantic]' "
+                "and confirm protocols/_embeddings.npz is present "
+                "(run scripts/build_embeddings.py)."
+            ),
+            "fastembed_installed": semantic.fastembed_available(),
+            "embeddings_on_disk": semantic.embeddings_on_disk(),
+        }))
+    prompt = arguments["prompt"]
+    top_k = int(arguments.get("top_k") or 5)
+    matches = semantic.top_k_protocols(prompt, k=top_k)
+    payload = semantic.semantic_route(prompt, k=top_k) or {}
+    payload["status"] = "success"
+    payload["matches"] = [{"id": m.id, "score": round(m.score, 4)} for m in matches]
+    # Phase-9 cross-cutting: mirror tool_route's recommended_action hint.
+    # When semantic produces a primary candidate, recommend loading it
+    # summary-first; otherwise fall back to tool_route for a full pass.
+    primary = (matches[0].id if matches else None) or payload.get("primary_protocol")
+    if primary:
+        payload.setdefault(
+            "recommended_action",
+            f"sys_protocol_get(protocol_name='{primary}', format='summary')",
+        )
+    else:
+        payload.setdefault(
+            "recommended_action",
+            "tool_route(prompt=<original_or_refined>)",
+        )
+    return _text(_success(payload))
+
+
+def _handle_sys_semantic_tool_search(name, arguments, root):
+    from research_os.tools.actions import semantic
+
+    if not semantic.semantic_available():
+        return _text(_success({
+            "status": "unavailable",
+            "reason": (
+                "Semantic tool search requires the `semantic` extra. "
+                "Install with: pip install 'research-os[semantic]'."
+            ),
+            "fastembed_installed": semantic.fastembed_available(),
+            "embeddings_on_disk": semantic.embeddings_on_disk(),
+        }))
+    query = arguments["query"]
+    top_k = int(arguments.get("top_k") or 5)
+    matches = semantic.top_k_tools(query, k=top_k)
+    return _text(_success({
+        "status": "success",
+        "query": query,
+        "matches": [{"name": m.id, "score": round(m.score, 4)} for m in matches],
+    }))
+
+
+def _handle_sys_active_tools(name, arguments, root):
+    from research_os.tools.actions.router import active_tools_for_protocol
+
+    p_name = arguments.get("protocol_name")
+    if not p_name:
+        return _text(_error("protocol_name is required"))
+    res = active_tools_for_protocol(p_name)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "sys_active_tools failed")))
+
+
+def _handle_tool_cache_clear(name, arguments, root):
+    from research_os.tools.actions.search import cache_clear
+
+    res = cache_clear(
+        root,
+        source=arguments.get("source"),
+        older_than_days=arguments.get("older_than_days"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "tool_cache_clear failed")))
+
+
+def _handle_tool_step_env_lock(name, arguments, root):
+    from research_os.tools.actions.exec import step_env_lock
+
+    res = step_env_lock(
+        root,
+        step_id=arguments.get("step_id"),
+        write_conda_yaml=bool(arguments.get("write_conda_yaml", False)),
+        write_dockerfile=bool(arguments.get("write_dockerfile", False)),
+        write_apptainer=bool(arguments.get("write_apptainer", False)),
+        write_entrypoint=bool(arguments.get("write_entrypoint", True)),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "tool_step_env_lock failed")))
+
+
+def _handle_tool_workflow_dag(name, arguments, root):
+    from research_os.tools.actions.state import workflow_dag
+
+    res = workflow_dag(
+        root,
+        render_png=bool(arguments.get("render_png", False)),
+        output_dir=arguments.get("output_dir", "docs"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "tool_workflow_dag failed")))
+
+
+def _handle_sys_tool_describe(name, arguments, root):
+    tool_name = arguments.get("tool_name")
+    if not tool_name:
+        return _text(_error("tool_name is required"))
+    canonical = _resolve_tool_name(tool_name)
+    schema = TOOL_DEFINITIONS.get(canonical)
+    if not schema:
+        return _text(
+            _error(
+                f"Unknown tool '{tool_name}'. Try sys_protocol_list to browse, "
+                "or tool_route to find by prompt."
+            )
+        )
+    return _text(
+        _success(
+            {
+                "name": canonical,
+                "category": schema.get("category", ""),
+                "short": schema.get("short", ""),
+                "description": schema.get("description", ""),
+                "inputSchema": schema.get("inputSchema", {}),
+                # Phase-9 cross-cutting introspection.
+                "status": schema.get("status", "live"),
+                "pack": schema.get("pack", "core"),
+            }
+        )
+    )
+
+
+def _handle_sys_protocol_validate(name, arguments, root):
+    res = validate_protocol(arguments.get("protocol_name"), root)
+    if "error" in res:
+        return _text(_error(res["error"]))
+    return _text(_success(res))
+
+
+def _handle_sys_protocol_next(name, arguments, root):
+    return _text(_success(get_next_protocol(root)))
+
+
+def _handle_sys_protocol_log(name, arguments, root):
+    from research_os.tools.actions.protocol import log_protocol_execution
+
+    res = log_protocol_execution(
+        root,
+        arguments["protocol_name"],
+        arguments["status"],
+        arguments.get("details", ""),
+    )
+    return _text(_success(res))
+
+
+def _handle_sys_protocol_history(name, arguments, root):
+    from research_os.tools.actions.protocol import get_protocol_history
+
+    res = get_protocol_history(root, arguments.get("limit", 20))
+    return _text(_success(res))
+
+
+def _handle_sys_active_project(name, arguments, root):
+    """Report which project root the server resolved for this request."""
+    env_root = os.environ.get("RESEARCH_OS_WORKSPACE", "").strip()
+    via = "cwd"
+    if env_root and Path(env_root).expanduser().resolve() == root:
+        via = "RESEARCH_OS_WORKSPACE"
+    elif (root / ".os_state").exists():
+        via = "cwd→.os_state"
+    has_state = (root / ".os_state").exists()
+    payload: dict[str, Any] = {
+        "project_root": str(root),
+        "has_os_state": has_state,
+        "resolved_via": via,
+    }
+    # Only surface the orientation advice when the project isn't
+    # scaffolded — that's the only branch the AI needs to act on.
+    if not has_state:
+        payload["advice"] = (
+            "No .os_state/ here — run `research-os init` or open a "
+            "scaffolded folder. Project resolution order: "
+            "RESEARCH_OS_WORKSPACE env var → cwd walked up → cwd."
+        )
+    return _text(_success(payload))
+
+
+HANDLERS = {
+    "sys_protocol_list": _handle_sys_protocol_list,
+    "tool_protocols_list": _handle_tool_protocols_list,
+    "tool_tools_list": _handle_tool_tools_list,
+    "sys_protocol_get": _handle_sys_protocol_get,
+    "sys_boot": _handle_sys_boot,
+    "tool_route": _handle_tool_route,
+    "tool_semantic_route": _handle_tool_semantic_route,
+    "sys_semantic_tool_search": _handle_sys_semantic_tool_search,
+    "sys_active_tools": _handle_sys_active_tools,
+    "tool_cache_clear": _handle_tool_cache_clear,
+    "tool_workflow_dag": _handle_tool_workflow_dag,
+    "sys_tool_describe": _handle_sys_tool_describe,
+    "sys_protocol_validate": _handle_sys_protocol_validate,
+    "sys_protocol_next": _handle_sys_protocol_next,
+    "sys_protocol_log": _handle_sys_protocol_log,
+    "sys_protocol_history": _handle_sys_protocol_history,
+    "sys_active_project": _handle_sys_active_project,
+}

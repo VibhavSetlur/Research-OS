@@ -25,6 +25,7 @@ from research_os.plugins.loader import (
     discover_packs,
     installed_packs,
     load_pack_errors,
+    pack_paper_sections,
     PackLoadResult,
 )
 
@@ -37,5 +38,6 @@ __all__ = [
     "discover_packs",
     "installed_packs",
     "load_pack_errors",
+    "pack_paper_sections",
     "PackLoadResult",
 ]

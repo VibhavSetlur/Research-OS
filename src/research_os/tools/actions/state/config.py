@@ -113,8 +113,9 @@ interaction:
   #            explains WHY each gate exists, asks the researcher to draft
   #            then critiques. Great for graduate students / new PIs
   #            learning how to use a methodology rigorously. Pair with
-  #            tool_mistake_replay each session for self-coaching across
-  #            recurring patterns the researcher keeps tripping.
+  #            tool_lessons(operation='mistake_replay') each session for
+  #            self-coaching across recurring patterns the researcher keeps
+  #            tripping.
 
   # Quality-gate posture (the AI NEVER bypasses on its own).
   #   enforce        → refuse bypass without an explicit researcher ask
@@ -198,16 +199,6 @@ writing_preferences:
 runtime:
   shared_server: false           # set true on HPC / shared boxes
   long_running_threshold_seconds: 60
-  default_n_for_sampling: 1000
-
-# ── Language + tool-stack preferences ──────────────────────────────────
-# Read by `methodology/pick_tool_stack`. AI uses these as hints (NOT
-# hard constraints); field-practice for a given method still wins.
-tool_stack:
-  preferred_languages: ["python", "R"]   # order = tie-breaker; empty = no preference
-  allow_mixed_language_steps: true        # false → split mixed work into separate steps
-  field_practice_overrides_preference: true   # true → R Bioconductor wins for DE even if Python listed first
-  cite_field_practice_when_choosing: true     # require literature citation per language choice
 
 # ── Synthesis pipeline ─────────────────────────────────────────────────
 # Controls how tool_synthesize / tool_slides_compile_reveal /
@@ -244,9 +235,10 @@ synthesis:
   # Also emit a 1-up print handout PDF alongside the deck.
   slide_print_handout: true
 
-  # Poster (tool_poster_compile_typst).
-  #   typst    → recommended (single-binary install, fast)
-  #   latex    → Beamer poster (legacy)
+  # Poster (tool_poster_create). Typst is the only supported engine in
+  # v2.0.0+ — the legacy tikzposter LaTeX renderer was removed in v2.0.0
+  # (phase-14b). The field is retained so existing configs keep
+  # validating; it is enforced to "typst".
   poster_engine: "typst"
   # Poster template (matches dimensions + density).
   #   academic_36x48 | academic_48x36 | academic_a0_portrait
@@ -258,6 +250,23 @@ synthesis:
   poster_qr_url: ""
   # Emit a US-letter handout PDF alongside the poster.
   poster_handout_pdf: true
+
+  # ── Phase-5 review-rewrite drafter loop ───────────────────────────
+  # tool_paper_compile_typst / tool_slides_create / tool_poster_create
+  # run a closed-loop "draft → adversarial review → rewrite" pass when
+  # this is enabled. The reviewer is a fixed subset of the bundled
+  # reviewer personas (no LLM is called from inside RO). Findings are
+  # persisted under workspace/logs/drafter_loops/ with one
+  # <drafter>_iter_<N>.md + .json per iteration AND a cumulative
+  # workspace/logs/drafter_loops/quality_progression.md table.
+  drafter_loop_enabled: true
+  # Hard ceiling on iterations. project_tier=throwaway clamps to 1
+  # regardless of this value. Paper uses the full ceiling; slides /
+  # poster default to min(2, this value) unless overridden below.
+  drafter_loop_max_iterations: 3
+  # Composite-quality-score delta required to keep iterating once no
+  # block-severity findings remain. Below this, the loop converges.
+  drafter_loop_quality_threshold: 0.10
 
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
@@ -271,6 +280,7 @@ api_keys:
 
 
 def _config_path(root: Path) -> Path:
+    root = Path(root)
     return root / "inputs" / "researcher_config.yaml"
 
 
@@ -365,6 +375,7 @@ def get_interaction_policy(root: Path) -> dict[str, str]:
     warn-only on quality-gate blockers; and whether to ask the
     researcher or pick a best-default on ambiguity.
     """
+    root = Path(root)
     defaults = {
         "quality_gate_policy": "enforce",
         "ambiguity_posture": "ask_when_uncertain",
@@ -485,6 +496,7 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     institution / api_keys / writing_preferences seeded from there if
     present. Per-project overrides still win on conflict.
     """
+    root = Path(root)
     overrides = overrides or {}
     cfg_path = _config_path(root)
     already_exists = cfg_path.exists()
@@ -611,7 +623,9 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     "synthesis.slide_template": (
         "conference_15min", "conference_30min", "lab_meeting", "thesis_defense",
     ),
-    "synthesis.poster_engine": ("typst", "latex"),
+    # tikzposter LaTeX renderer was removed; only "typst" is accepted.
+    # The field is retained so existing configs keep validating.
+    "synthesis.poster_engine": ("typst",),
     "synthesis.poster_template": (
         "academic_36x48", "academic_48x36",
         "academic_a0_portrait", "academic_a1_landscape",
@@ -628,6 +642,14 @@ _BOOL_FIELDS: tuple[str, ...] = (
     "synthesis.slide_speaker_notes_enabled",
     "synthesis.slide_print_handout",
     "synthesis.poster_handout_pdf",
+    "synthesis.drafter_loop_enabled",
+)
+
+# Numeric synthesis-tier fields. (name, kind, min, max).
+# Kind: "int" or "float".
+_NUMERIC_FIELDS: tuple[tuple[str, str, float, float], ...] = (
+    ("synthesis.drafter_loop_max_iterations", "int", 1, 10),
+    ("synthesis.drafter_loop_quality_threshold", "float", 0.0, 1.0),
 )
 
 
@@ -687,6 +709,23 @@ def validate_config(root: Path) -> dict[str, Any]:
                 "field": field,
                 "value": value,
                 "allowed": [True, False],
+            })
+
+    # Numeric fields (synthesis tier knobs) — type + range check.
+    for field, kind, lo, hi in _NUMERIC_FIELDS:
+        value = _dotted_get(config, field)
+        if value is None:
+            continue
+        ok = False
+        if kind == "int" and isinstance(value, int) and not isinstance(value, bool):
+            ok = lo <= value <= hi
+        elif kind == "float" and isinstance(value, (int, float)) and not isinstance(value, bool):
+            ok = lo <= float(value) <= hi
+        if not ok:
+            enum_violations.append({
+                "field": field,
+                "value": value,
+                "allowed": [f"{kind} in [{lo}, {hi}]"],
             })
 
     api_keys = config.get("api_keys") or {}

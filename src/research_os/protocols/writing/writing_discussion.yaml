@@ -1,7 +1,12 @@
 id: writing_discussion
+tier: 'synthesize'
 name: Writing — Discussion (the hardest section)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [theory_math]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   Draft / iterate the Discussion section. The Discussion is where most
@@ -150,7 +155,7 @@ steps:
       After this step, the BLOCK gate `tool_discussion_coverage_audit`
       verifies every non-AGREES verdict has a corresponding paragraph in
       `synthesis/discussion.md`. The validate step (below) honours it as
-      a hard BLOCKER unless you pass `override_discussion_coverage=true`.
+      a hard BLOCKER.
 
   - id: build_comparison_to_prior_work
     name: Compare to prior work (cited)
@@ -255,7 +260,7 @@ steps:
 
       Causal language is licensed when design supports it
       (RCT / IV / RDD / DiD / mathematical proof). For everything
-      else, the audit (tool_audit_synthesis) will flag every causal
+      else, the audit (tool_audit(scope='synthesis', dimension='all')) will flag every causal
       verb and BLOCK the paper assembly. Save the audit the round
       trip — do the pass here.
 
@@ -264,9 +269,9 @@ steps:
     description: |
       sys_file_validate_md filepath="synthesis/discussion.md"
         protocol_name="writing_core"
-      Run tool_audit_prose on synthesis/discussion.md — surfaces
+      Run tool_audit(scope='project', dimension='prose') on synthesis/discussion.md — surfaces
       hedging clusters, vague quantifiers, reading-level issues.
-      Run tool_audit_claims if any numbers in the Discussion;
+      Run tool_audit(scope='project', dimension='claims') if any numbers in the Discussion;
       every number must trace to workspace/scratch/discussion_evidence.md
       OR to a verified citation.
 

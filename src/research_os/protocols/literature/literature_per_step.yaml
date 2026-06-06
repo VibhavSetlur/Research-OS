@@ -1,7 +1,12 @@
 id: literature_per_step
+tier: 'ground'
 name: Per-Step Literature Loop (find → download → cite → validate)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [biology, wet_lab, qualitative, theory_math, engineering]
+  audience: [auditor]
+  workflow_shape: [proof]
 last_reviewed: '2026-06-04'
 description: |
   After every analysis step writes its findings, RO grounds those
@@ -63,7 +68,7 @@ description: |
   This protocol is invoked AFTER `analysis_plan` writes the findings
   but BEFORE `path_finalize` closes the step. The grounding tools
   (`tool_ground`, `tool_verify`) capture the
-  audit trail; `tool_audit_step_literature` is the gate.
+  audit trail; `tool_audit(scope='step', dimension='literature')` is the gate.
 
 trigger: |
   Use when:
@@ -89,7 +94,7 @@ trigger: |
         step_intent: visualise
         literature:
           inherits_from: <NN_slug_of_prior_step>
-      tool_audit_step_literature will PASS when it confirms the
+      tool_audit(scope='step', dimension='literature') will PASS when it confirms the
       referenced step's findings_vs_literature.md exists. The
       `literature_required: false` escape also works, but
       `inherits_from` is preferred because the synthesis audit can
@@ -282,13 +287,13 @@ steps:
           - "offline"          # if applicable
           - "claim_3: no_literature_in_10y_window"
 
-      `tool_audit_step_literature` reads this block.
+      `tool_audit(scope='step', dimension='literature')` reads this block.
 
   - id: gate
     name: Gate — block step finalize if literature loop incomplete
     description: |
       Before `tool_path_finalize`:
-        tool_audit_step_literature step_id="<NN_slug>"
+        tool_audit(scope='step', dimension='literature') step_id="<NN_slug>"
 
       BLOCKS when:
         - `findings_vs_literature.md` missing

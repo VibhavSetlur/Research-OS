@@ -1,29 +1,87 @@
-# Research OS — Documentation
+# Research OS — documentation
 
-Pick the doc that matches what you need.
+This page is a **router**, not a content dump. Pick the line that
+matches who you are; follow it to the doc that does the work.
 
-## Researchers
+---
 
-| Doc | When to read it |
-|---|---|
-| [**START.md**](START.md) | First time using Research OS. Install + first project + cheatsheet, all in one. ~15 minutes. |
-| [**RESEARCHER_GUIDE.md**](RESEARCHER_GUIDE.md) | The full workflow guide. Mental model, every protocol, real session transcripts, power-user patterns, troubleshooting. Read this after you've shipped your first output. |
-| [**USE_CASES.md**](USE_CASES.md) | Pick the right protocol by role × goal × output. Browse this when you're not sure what to ask the AI. |
-| [**FAQ.md**](FAQ.md) | Common questions. |
-| [**SETUP.md**](SETUP.md) | Deep dive on install + per-IDE MCP wiring + troubleshooting. |
+## "I'm a researcher" — I want to use Research OS on my own project
 
-## Reference
+Start at [**START.md**](START.md) — install, first project, cheatsheet
+(~15 minutes). Then keep [**RESEARCHER_GUIDE.md**](RESEARCHER_GUIDE.md)
+open as you work — it's the full workflow guide with mental model,
+every protocol, real session transcripts, and troubleshooting.
 
-| Doc | When to read it |
-|---|---|
-| [**PROTOCOLS.md**](PROTOCOLS.md) | Catalogue of all 114 protocols — when each fires, what it does, quality bars. |
-| [**TOOLS.md**](TOOLS.md) | Catalogue of all 212 MCP tools, with example calls. |
-| [**AI_GUIDE.md**](AI_GUIDE.md) | Operating manual for the AI driving Research OS. Read this when you're debugging "why did the AI do that?" — the runtime equivalent is the `sys_help` tool. |
+Supporting docs:
 
-## Contributors
+* [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a
+  poster / reproduce a result" → which protocol fires.
+* [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
+* [FAQ.md](FAQ.md) — common questions.
+* [CLI.md](CLI.md) — every `research-os` CLI sub-command.
 
-| Doc | When to read it |
-|---|---|
-| [**PROTOCOL_DOCTRINE.md**](PROTOCOL_DOCTRINE.md) | The scaffold-not-script principle. Required reading before adding or modifying a protocol. |
-| [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | How to add a tool / protocol / fix a bug. |
-| [`../CHANGELOG.md`](../CHANGELOG.md) | Release history. |
+---
+
+## "I'm an AI agent" — I'm the model driving the MCP session
+
+Start at [**AI_GUIDE.md**](AI_GUIDE.md) — the operating manual for the
+AI on the other side of the MCP wire. Then [**TOOLS.md**](TOOLS.md) is
+the full tool catalogue. At runtime, prefer the `sys_help` and
+`sys_tool_describe` tools over reading the docs — they reflect what's
+actually installed.
+
+Supporting:
+
+* [PROTOCOLS.md](PROTOCOLS.md) — every protocol, when each fires,
+  quality bars enforced.
+* [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — the
+  scaffold-not-script principle behind every protocol.
+
+---
+
+## "I'm a plugin author" — I want to ship a domain pack
+
+Start at [**PLUGIN_AUTHORING.md**](PLUGIN_AUTHORING.md) — pack layout,
+the `PackRegistration` dataclass, the `@register_tool` decorator,
+router-entry conventions, and a worked example. The five in-tree
+packs under `src/research_os_<pack>/` are full working templates.
+
+Supporting:
+
+* [PROTOCOL_DOCTRINE.md](PROTOCOL_DOCTRINE.md) — protocols your pack
+  ships must clear the same bar as core.
+* [CONTRACT.md](CONTRACT.md) — pin against the right surface.
+
+---
+
+## "I'm a maintainer" — I work on this repo
+
+Start at [**MAINTAINER_GUIDE.md**](MAINTAINER_GUIDE.md) — release
+flow, CI overview, audit cadence, plugin-discovery internals, SemVer
+gating, and CHANGELOG conventions. Then
+[`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the contributor
+workflow, and [RELEASING.md](RELEASING.md) for the long-form release
+runbook.
+
+Supporting:
+
+* [`../CHANGELOG.md`](../CHANGELOG.md) — release history.
+* [ROADMAP.md](ROADMAP.md) — what's coming.
+* [RELIABILITY.md](RELIABILITY.md) — the audit + test posture.
+
+---
+
+## "I want to integrate" — embed Research OS in something else
+
+Start at [**INTEGRATION.md**](INTEGRATION.md) — programmatic API for
+embedding RO (import paths, MCP transport, headless invocation), with
+a working code snippet. Then [**CONTRACT.md**](CONTRACT.md) — which
+surfaces are stable enough to pin against.
+
+Supporting:
+
+* [ADAPTERS.md](ADAPTERS.md) — how the six adapter packs (`slurm`,
+  `nextflow`, `snakemake`, `cytoscape`, `redcap`, `synapse`) bridge
+  Research OS to external systems. Use these as integration templates.
+* [SHARING.md](SHARING.md) — how researchers hand off a workspace
+  (relevant if you're building a hand-off tool).

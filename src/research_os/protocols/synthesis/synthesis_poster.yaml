@@ -1,7 +1,12 @@
 id: synthesis_poster
+tier: 'synthesize'
 name: Synthesis — Poster (redirect)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-04'
 description: |
   Redirect stub. Poster content was consolidated into

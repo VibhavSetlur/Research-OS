@@ -1,7 +1,12 @@
 id: qualitative_pii_redaction
+tier: 'plan'
 name: Qualitative PII Redaction (HIPAA / IRB / GDPR-safe transcripts before coding)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative, humanities, engineering]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline, interview_study]
 last_reviewed: '2026-06-05'
 description: |
   Run BEFORE `qualitative_research` opens transcripts for coding.
@@ -249,7 +254,7 @@ steps:
       missed terms) and re-run.
 
       The audit numbers feed the synthesis-level pre-submission
-      audit (`tool_audit_synthesis`) as a "data-handling provenance"
+      audit (`tool_audit(scope='synthesis', dimension='all')`) as a "data-handling provenance"
       block.
 
   - id: handoff_to_qualitative_research

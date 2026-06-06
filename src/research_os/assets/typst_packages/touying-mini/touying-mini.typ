@@ -51,7 +51,7 @@
     margin: if handout { (x: 0.75in, y: 0.6in) } else { (x: 0.6in, y: 0.5in) },
     fill: c.bg,
   )
-  set text(font: ("New Computer Modern", "Latin Modern Sans", "DejaVu Sans"), fill: c.fg, size: if handout { 11pt } else { 22pt })
+  set text(font: "New Computer Modern Sans", fill: c.fg, size: if handout { 11pt } else { 22pt })
   set par(justify: false, leading: 0.65em)
   // expose meta to inner slides
   state("touying.title").update(title)

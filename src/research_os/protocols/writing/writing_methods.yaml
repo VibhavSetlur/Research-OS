@@ -1,7 +1,12 @@
 id: writing_methods
+tier: 'synthesize'
 name: Writing — Methods
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: Document the methods used in an experiment in workspace/methods.md (append-only).
 trigger: Whenever a method, library, or parameter is chosen — either inside analysis_plan or as a standalone task.
 
@@ -19,7 +24,7 @@ steps:
     name: Pre-audit the evidence grid (BEFORE prose is appended)
     description: |
       MANDATORY first step. Before any methods line is appended to
-      `workspace/methods.md`, run `tool_audit_claims` against the
+      `workspace/methods.md`, run `tool_audit(scope='project', dimension='claims')` against the
       existing evidence floor that the methods prose will draw from.
 
       The methods prose references:
@@ -31,10 +36,10 @@ steps:
         - citation keys from `workspace/citations.md`.
 
       Call:
-        tool_audit_claims target="workspace/methods.md"
+        tool_audit(scope='project', dimension='claims') target="workspace/methods.md"
           (when a prior version exists)
         OR
-        tool_audit_claims target="<the methods-evidence floor>:
+        tool_audit(scope='project', dimension='claims') target="<the methods-evidence floor>:
           the conclusions / parameter dumps / citations file the
           new line will quote".
 

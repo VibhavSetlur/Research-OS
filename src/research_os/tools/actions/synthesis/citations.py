@@ -13,10 +13,23 @@ Workflow
 * ``collect_for_section(query, k)`` — ground a section's claims by pulling
   the top-K relevant papers from real providers. Returns a structured list
   with ``verified_via=<provider>``.
+* ``collect_for_section_with_failures(query, k)`` — same as above but also
+  reports the per-provider failure count + structured exception sample so
+  ``tool_synthesize`` can surface why retrieval came back empty instead of
+  silently writing ``citations_used: 0``.
 * ``verify_citation_key(key)`` — re-verify an existing citation key against
   Crossref. Returns the verified metadata or None.
 * ``format_bib(entries, style)`` — BibTeX / APA / Vancouver / ACL formatting.
 * ``write_references_bib(entries, dest)`` — write a proper .bib file.
+
+Failure logging
+---------------
+When live retrieval or per-entry parsing raises (for example, the
+``list index out of range`` triggered by a malformed upstream hit), the
+exception is captured in ``workspace/logs/citation_failures.jsonl`` as one JSON line
+per failure with ``{ts, provider, query, exception_type, message,
+traceback}``. The caller is never re-raised at; an empty list is returned
+so the synthesis pipeline keeps moving.
 
 Section caps
 ------------
@@ -28,8 +41,11 @@ Section caps
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -46,23 +62,122 @@ SECTION_CAPS: dict[str, int] = {
 
 
 # ---------------------------------------------------------------------------
+# Failure logging — surface what the catch-all previously buried
+# ---------------------------------------------------------------------------
+
+
+def _log_citation_failure(
+    *,
+    provider: str,
+    query: str,
+    exc: BaseException,
+    root: Path | None = None,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Append one JSON line to ``workspace/logs/citation_failures.jsonl``.
+
+    Never raises — failure logging must not itself break synthesis. When
+    no project root is available (running outside a project) the failure
+    is logged through the module logger and that's it.
+    """
+    record: dict[str, Any] = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "provider": provider,
+        "query": query,
+        "exception_type": type(exc).__name__,
+        "message": str(exc),
+        "traceback": traceback.format_exc().splitlines()[-12:],
+    }
+    if extra:
+        record.update(extra)
+
+    try:
+        if root is None:
+            from research_os.utils.common import find_project_root
+
+            root = find_project_root()
+        if root is None:
+            logger.warning(
+                "citation retrieval failure (no project root for jsonl): %s",
+                record,
+            )
+            return
+        log_path = root / "workspace" / "logs" / "citation_failures.jsonl"
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a") as fh:
+            fh.write(json.dumps(record) + "\n")
+    except Exception:  # noqa: BLE001
+        logger.warning("could not append citation_failures.jsonl: %r", record)
+
+
+# ---------------------------------------------------------------------------
 # Collect
 # ---------------------------------------------------------------------------
 
 
 def collect_for_section(
     query: str, *, k: int = 5, providers: list[str] | None = None,
+    root: Path | None = None,
 ) -> list[dict[str, Any]]:
-    """Pull k relevant papers from real providers. Skips any with no DOI/url."""
+    """Pull k relevant papers from real providers. Skips any with no DOI/url.
+
+    Backwards-compatible wrapper around
+    :func:`collect_for_section_with_failures` — returns only the list so
+    every existing caller keeps working. New code that wants the failure
+    counts should call the ``_with_failures`` variant.
+    """
+    entries, _failures = collect_for_section_with_failures(
+        query, k=k, providers=providers, root=root
+    )
+    return entries
+
+
+def collect_for_section_with_failures(
+    query: str, *, k: int = 5, providers: list[str] | None = None,
+    root: Path | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Pull k relevant papers AND report per-provider failure metadata.
+
+    Per-hit parsing is wrapped so that one malformed upstream record
+    (for instance an empty / non-list author field that raises
+    ``list index out of range`` inside the parser) cannot abort the
+    whole provider — the bad hit is logged and skipped, every other hit
+    still flows through.
+
+    Returns ``(entries, failures)`` where ``failures`` is::
+
+        {
+            "total": int,                       # all failures across providers
+            "by_provider": {prov: int, ...},    # per-provider counts
+            "samples": [                        # at most 3, for the response
+                {"provider", "exception_type", "message"}, ...
+            ],
+        }
+    """
     from research_os.tools.actions.search.search import (
-        search_crossref,
-        search_semantic_scholar,
-        search_pubmed,
         search_arxiv,
+        search_crossref,
+        search_pubmed,
+        search_semantic_scholar,
     )
 
     providers = providers or ["crossref", "semantic_scholar"]
     pool: list[dict[str, Any]] = []
+    by_provider: dict[str, int] = {}
+    samples: list[dict[str, str]] = []
+
+    def _record_failure(prov: str, exc: BaseException) -> None:
+        by_provider[prov] = by_provider.get(prov, 0) + 1
+        if len(samples) < 3:
+            samples.append(
+                {
+                    "provider": prov,
+                    "exception_type": type(exc).__name__,
+                    "message": str(exc)[:240],
+                }
+            )
+        _log_citation_failure(provider=prov, query=query, exc=exc, root=root)
+
     for prov in providers:
         try:
             if prov == "crossref":
@@ -75,37 +190,89 @@ def collect_for_section(
                 hits = search_arxiv(query, limit=k)
             else:
                 continue
-            for h in hits:
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "collect_for_section: provider %s search raised: %s", prov, e
+            )
+            _record_failure(prov, e)
+            continue
+
+        # Defensive: an upstream provider can in principle hand us None
+        # (no body, deserialise failed) — treat as empty.
+        if not hits:
+            continue
+
+        for h in hits:
+            try:
+                if not isinstance(h, dict):
+                    continue
                 if not (h.get("doi") or h.get("url")):
                     continue
                 h["verified_via"] = prov
                 pool.append(h)
-        except Exception as e:
-            logger.warning(f"collect_for_section: {prov} failed: {e}")
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    "collect_for_section: per-hit parse failure in %s: %s",
+                    prov, e,
+                )
+                _record_failure(prov, e)
+                continue
 
     # Dedupe by DOI (lowercased) then URL.
     seen: set[str] = set()
     out: list[dict[str, Any]] = []
     for p in pool:
-        key = (p.get("doi") or p.get("url") or "").strip().lower()
-        if not key or key in seen:
+        try:
+            key = (p.get("doi") or p.get("url") or "").strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            # Generate a stable citation_key — defensive so a hit with an
+            # empty author / weird title doesn't IndexError out of the loop.
+            p["citation_key"] = _make_key(p)
+            out.append(p)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "collect_for_section: key/dedupe failure for %s: %s",
+                p.get("title") or p.get("url") or "?", e,
+            )
+            _record_failure(p.get("verified_via") or "unknown", e)
             continue
-        seen.add(key)
-        # Generate a stable citation_key.
-        p["citation_key"] = _make_key(p)
-        out.append(p)
         if len(out) >= k:
             break
-    return out
+
+    failures: dict[str, Any] = {
+        "total": sum(by_provider.values()),
+        "by_provider": by_provider,
+        "samples": samples,
+    }
+    return out, failures
 
 
 def _make_key(entry: dict[str, Any]) -> str:
-    """Author{Year}{FirstSignificantWord} citation key."""
+    """Author{Year}{FirstSignificantWord} citation key — defensive.
+
+    Tolerates the failure modes a real upstream feed can hand us:
+      * ``authors`` is missing, ``None``, an empty list, or a list whose
+        first element is an empty / whitespace-only string.
+      * ``authors[0]`` is not a string (some upstreams hand dicts).
+      * ``title`` is missing / ``None`` / a list of strings.
+    Never raises ``IndexError``; falls back to ``anon{year}paper``.
+    """
     authors = entry.get("authors") or []
-    first_author = (authors[0] if authors else "anon").split()[-1]
+    raw_first = authors[0] if authors else "anon"
+    if isinstance(raw_first, dict):
+        raw_first = raw_first.get("name") or raw_first.get("family") or "anon"
+    if not isinstance(raw_first, str) or not raw_first.strip():
+        raw_first = "anon"
+    parts = raw_first.split()
+    first_author = parts[-1] if parts else "anon"
     first_author = re.sub(r"[^a-zA-Z]", "", first_author).lower() or "anon"
     year = str(entry.get("year") or "nd")
-    title_words = re.findall(r"[A-Za-z]{4,}", entry.get("title") or "")
+    raw_title = entry.get("title") or ""
+    if isinstance(raw_title, list):
+        raw_title = raw_title[0] if raw_title and isinstance(raw_title[0], str) else ""
+    title_words = re.findall(r"[A-Za-z]{4,}", raw_title)
     stem = title_words[0].lower() if title_words else "paper"
     return f"{first_author}{year}{stem}"
 

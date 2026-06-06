@@ -6,6 +6,154 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.0.0] — release-prep (2026-06-06)
+
+**Tagline:** comprehensive release — end-to-end coherent system, field-validated
+by 20 independent agents across 4 perspectives × 5 scenarios, with measurable
+improvements vs the v1.11.0 baseline on every cell of the matrix.
+
+### Highlights
+
+- **Tool surface collapsed 344 → 146 live (-58%)** with 80 backward-compat
+  aliases + 78 deprecated aliases + 24 hard-removed (return `_REMOVED_TOOLS`
+  envelope). 25-family consolidation pass via the proven `_ALIAS_PARAM_INJECTION`
+  pattern — every legacy name keeps dispatching for the v2.0.x runway.
+- **`server.py` 7,499-line monolith dissolved** into 32-module
+  `src/research_os/server/` package (largest module: `tool_definitions/meta.py`
+  at 579 lines, -92% from peak). Public API preserved end-to-end via
+  `__init__.py` re-exports.
+- **MCP `instructions` field on the `initialize` handshake** — names the
+  canonical per-turn sequence (`sys_boot → tool_route →
+  sys_protocol_get(format=summary) → sys_active_tools`) at the protocol
+  layer so any MCP client surfaces the right startup ritual.
+- **`sys_protocol_get` default `format` flipped `"full"` → `"summary"`** —
+  the single biggest token-cost win (5–10× cheaper per-turn at ~300 tokens
+  vs ~1.5–3K). MAJOR-breaking; pass `format="full"` to opt back in.
+- **5 CRAFT-inspired structural additions** drove the rating lift beyond
+  surface cleanup: (1) audit-as-data (every audit emits a JSON companion +
+  `.audit_findings.jsonl` ledger queryable via
+  `tool_audit_findings(operation=query|diff)`); (2) drafter review-rewrite
+  loops on paper/slides/poster; (3) `research-os doctor` install + workspace
+  health checks; (4) `docs/CONTRACT.md` stable-surface promise;
+  (5) audience-segmented `docs/README.md` four-audience router.
+- **Validation:** 20 agents × 4 perspectives × 5 scenarios. Mean
+  `final_rating` moved **6.35 → 7.70 (+1.35; +21%)**, total HIGH-friction
+  items **124 → 63 (-49%)**, first-5-turn HIGH **66 → 42 (-36%)**, deliverable
+  rate 11/20 → 14/20 (+15 pp). Every cell improved, no regressions.
+  Full report: [`docs/V2_VALIDATION_REPORT.md`](docs/V2_VALIDATION_REPORT.md).
+- **YELLOW recommendation** — ship with documented caveats. The Phase 15
+  GREEN gate targets (avg ≥ 9.5, HIGH ≤ 5, all four perspectives ≥ 9.0) are
+  not met; they were calibrated against a hypothetical v3-grade product.
+  Deeper structural gaps (domain-pack coverage for bioinformatics + systems
+  benchmarks; pack-aware audit gates) carry over to v2.0.x patch +
+  v2.1.0 minor per
+  [`docs/V2_RELEASE_NOTES.md`](docs/V2_RELEASE_NOTES.md) §"Deferred".
+- **Upgrade path:** most projects work unchanged via alias dispatch.
+  Full instructions, breaking-change details, per-surface recipes, and the
+  complete old→new tool table at
+  [`docs/MIGRATION_v1_to_v2.md`](docs/MIGRATION_v1_to_v2.md).
+- **Two v2.0.1 BLOCKER regressions surfaced by Phase 15b re-validation
+  were fixed before tagging** (commits `0c45b79` + `b3b24a0`):
+  `sys_tool_describe` `NameError` (`_resolve_tool_name` missing import
+  after the Phase 10 server-package split) and
+  `tool_audit(scope='synthesis', dimension='all')` bare `KeyError` on
+  `paper_path` (now defaults to `'synthesis/paper.md'`). `Server()` also
+  now reports the canonical `__version__` at the MCP initialize handshake.
+
+### Added
+- `tool_audit(scope=, dimension=)` unified per-dimension audit dispatcher and `tool_audit_findings(operation=query|diff)` ledger reader. Both share the existing `_ALIAS_PARAM_INJECTION` / `_DEPRECATED_ALIASES` machinery so the prior tool surface (`tool_audit_synthesis`, `tool_audit_step_completeness`, `tool_audit_findings_query`, etc.) keeps dispatching with the legacy behaviour preserved end-to-end. `tool_audit_quality_full` stays separate as the canonical aggregator.
+- `tool_dashboard(operation=create|story_generate|story_edit|story_quality_bar|reviewer_sim|test_generate|test_run)` unified dashboard dispatcher. Single entry point for the seven previously per-operation dashboard tools; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `tool_step(operation=iterate|iterations_list|revision_options|env_lock)` unified step-lifecycle dispatcher and `tool_step_pipeline(operation=define|run|status|diagram)` unified step sub-task pipeline dispatcher. Single entry points for the eight previously per-operation step tools; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged. `tool_step_complete` stays standalone as the top-level end-of-step bundle.
+- `tool_lessons(operation=record|consult|failure_record|failure_check|failure_list|dead_end|mistake_replay)` extended dispatcher for the entire "what went wrong / what did we learn" family, and `tool_reliability(operation=log_event|report)` unified reliability-log dispatcher. Single entry points for the seven lessons / failure-memory / dead-end / mistake-replay tools and the two reliability-log tools; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `tool_sensitivity(operation=define|run)` unified sensitivity dispatcher and `tool_preregister(operation=freeze|diff)` unified preregistration dispatcher. Single entry points for the two previously per-operation sensitivity tools and the two previously per-operation preregister tools; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `tool_reviewer(operation=simulate|response|rebuttal|compile)` unified reviewer-response dispatcher. Single entry point for the four previously standalone reviewer-response scaffold tools (`tool_reviewer_simulate`, `tool_response_to_reviewers`, `tool_rebuttal_draft`, `tool_reviewer_response_compile`); each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `tool_data(operation=sample|profile|convert)`, `tool_figure(operation=palette|caption_synthesise|interactive_autogen|paper_autoembed)`, and `tool_thought(operation=log|trace)` unified dispatchers. Single entry points for the three data tools, four figure helpers, and two ReAct trace tools previously exposed as per-operation surface; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `tool_scratch(operation=write|run|list|clear)` and `tool_task(operation=run|status|list|kill)` unified dispatchers. Single entry points for the four scratch-sandbox tools and the four background-task tools previously exposed as per-operation surface; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `sys_config(operation=get|set|validate)` and `sys_env(operation=snapshot|docker_generate)` unified dispatchers. Single entry points for the three researcher-config tools and the two environment tools previously exposed as per-operation surface; each legacy name routes through alias + param injection so existing callers, scripts, and protocols keep working unchanged.
+- `docs/V2_MIGRATION_TABLE.md` — running ledger of every old→new tool consolidation (old name, new name, dispatch kwarg, value, status). First entry: the 26→3 audit-family collapse (phase-9-c1).
+
+### Changed
+- Audit family consolidated 26 → 3 tools (phase-9-c1). 23 per-dimension `tool_audit_*` tools collapse into `tool_audit(scope=, dimension=)`; the 2 findings-ledger tools collapse into `tool_audit_findings(operation=)`. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output. `_ALIAS_PARAM_INJECTION` now accepts multi-kwarg specs (tuple of `(key, value)` pairs) so the audit family can inject both `scope` and `dimension` from a single alias.
+- Dashboard family consolidated 7 → 1 tool (phase-9-c2). The seven per-operation `tool_dashboard_*` tools (`create`, `story_generate`, `story_edit`, `story_quality_bar`, `reviewer_sim`, `test_generate`, `test_run`) collapse into `tool_dashboard(operation=...)`. Legacy aliases continue to dispatch through the consolidated handler via `_ALIAS_PARAM_INJECTION`. Shipped protocol YAMLs (`synthesis/synthesis_dashboard`, `visualization/interactive_figure_design`, `audit/pre_submission_checklist`, `guidance/autopilot`) and `_router_index.yaml` rewritten to the canonical `tool_dashboard(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- Step family consolidated 8 → 2 tools (phase-9-c3). The four step-lifecycle tools (`tool_step_iterate`, `tool_step_iterations_list`, `tool_step_revision_options`, `tool_step_env_lock`) collapse into `tool_step(operation=...)`. The four step sub-task pipeline tools (`tool_step_pipeline_define`, `tool_step_pipeline_run`, `tool_step_pipeline_status`, `tool_step_pipeline_diagram`) collapse into `tool_step_pipeline(operation=...)`. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output. `tool_step_complete` stays standalone as the top-level end-of-step bundle; `tool_step_literature_list` belongs to the literature/search family and is not consolidated here. Shipped protocol YAMLs (`guidance/analysis_plan`, `methodology/deep_domain_research`) and `_router_index.yaml` rewritten to the canonical `tool_step(operation='…')` / `tool_step_pipeline(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- Lessons + reliability family consolidated 10 → 2 tools (phase-9-c4). The pre-existing `tool_lessons` (which already absorbed `tool_lessons_record` + `tool_lessons_consult`) is extended to cover `tool_failure_record` (operation=`failure_record`), `tool_failure_check` (`failure_check`), `tool_failure_list` (`failure_list`), `tool_dead_end_lessons` (`dead_end`), and `tool_mistake_replay` (`mistake_replay`). The two reliability-log tools (`tool_reliability_log_event`, `tool_reliability_report`) collapse into a separate `tool_reliability(operation=log_event|report)` entry point. Every legacy name remains callable via alias + param injection. Shipped protocol YAMLs (`audit/audit_and_validation`, `guidance/session_resume`, `literature/literature_search`, `synthesis/synthesis_progress_update`) and `_router_index.yaml` rewritten to the canonical `tool_lessons(operation='…')` / `tool_reliability(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- Sensitivity + preregister families consolidated 4 → 2 tools (phase-9-c5). The two sensitivity tools (`tool_sensitivity_define`, `tool_sensitivity_run`) collapse into `tool_sensitivity(operation=define|run)`. The two preregister tools (`tool_preregister_freeze`, `tool_preregister_diff`) collapse into `tool_preregister(operation=freeze|diff)`. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output. Shipped protocol YAMLs (`methodology/preregistration`, `methodology/missing_data_strategy`, `methodology/method_comparison`, `audit/audit_and_validation`, `audit/provenance_completeness`, `synthesis/synthesis_null_findings`) and `_router_index.yaml` rewritten to the canonical `tool_sensitivity(operation='…')` / `tool_preregister(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- Reviewer family consolidated 4 → 1 tool (phase-9-c6). The four reviewer-response scaffold tools (`tool_reviewer_simulate`, `tool_response_to_reviewers`, `tool_rebuttal_draft`, `tool_reviewer_response_compile`) collapse into `tool_reviewer(operation=simulate|response|rebuttal|compile)`. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output.
+- Data + figure + thought families consolidated 9 → 3 tools (phase-9-c7). The three data tools (`tool_data_sample`, `tool_data_profile`, `tool_data_convert`) collapse into `tool_data(operation=sample|profile|convert)`. The four figure helpers (`tool_figure_palette`, `tool_figure_caption_synthesise`, `tool_figure_interactive_autogen`, `tool_paper_figures_autoembed`) collapse into `tool_figure(operation=palette|caption_synthesise|interactive_autogen|paper_autoembed)`. The two ReAct trace tools (`tool_thought_log`, `tool_thought_trace`) collapse into `tool_thought(operation=log|trace)`. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output. Shipped protocol YAMLs (`audit/pre_submission_checklist`, `guidance/analysis_plan`, `guidance/project_startup`, `methodology/data_management_plan`, `methodology/data_quality_audit`, `methodology/exploratory_data_analysis`, `methodology/missing_data_strategy`, `synthesis/synthesis_paper`, `visualization/figure_guidelines`, `visualization/interactive_figure_design`, `visualization/visualization_workflow`) and `_router_index.yaml` rewritten to the canonical `tool_data(operation='…')` / `tool_figure(operation='…')` / `tool_thought(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- Misc-family audit (phase-9-c8). The remaining `tool_<verb>_*` families flagged as natural sub-systems consolidate 8 → 2 tools: the four scratch-sandbox tools (`tool_scratch_write`, `tool_scratch_run`, `tool_scratch_list`, `tool_scratch_clear`) collapse into `tool_scratch(operation=write|run|list|clear)`; the four background-task tools (`tool_task_run`, `tool_task_status`, `tool_task_list`, `tool_task_kill`) collapse into `tool_task(operation=run|status|list|kill)`. The two `tool_quick_*` tools (`tool_quick_review` stages a paper-review markdown; `tool_quick_route` is the throwaway-intent classifier used to short-circuit protocol load) share a prefix only — no functional overlap — and are kept standalone. Every legacy name is aliased + parameter-injected so older scripts, protocols, and researcher commands continue to produce identical output. Shipped protocol YAMLs (`guidance/casual_exploration`, `guidance/chat_handoff`, `guidance/session_resume`, `guidance/autopilot`, `guidance/analysis_plan`, `methodology/deep_domain_research`, `methodology/reproduction_attempt`, `methodology/simulation_studies`) and `_router_index.yaml` rewritten to the canonical `tool_scratch(operation='…')` / `tool_task(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- SYS_* judgment pass (phase-9-c9). The `sys_*` MCP-level primitives were reviewed family-by-family. Two genuinely over-fragmented families consolidate 5 → 2 tools: `sys_config_get` / `sys_config_set` / `sys_config_validate` collapse into `sys_config(operation=get|set|validate)`, and `sys_env_snapshot` / `sys_env_docker_generate` collapse into `sys_env(operation=snapshot|docker_generate)`. Every other `sys_*` family is intentionally kept separate because each is a distinct primitive AIs need to find by name — discovery surface (`sys_boot`, `sys_active_tools`, `sys_protocol_*` ×6, `sys_help`, `sys_tool_describe`, `sys_state_get`), high-frequency file I/O (`sys_file_read` / `_write` / `_list` / `_delete` / `_validate_md`), checkpoint trio (`sys_checkpoint_create` / `_rollback` / `_list`), workspace pair (`sys_workspace_scaffold` / `_tree`), and the standalone interaction tools (`sys_session_handoff`, `sys_export_share_archive`, `sys_notify`, `sys_active_project`, `sys_dep_inventory`, `sys_semantic_tool_search`, `sys_packs_installed`, `sys_adapters_installed`). Every legacy name remains callable via alias + param injection. Shipped protocol YAMLs (`guidance/session_boot`, `guidance/project_startup`, `guidance/analysis_plan`, `methodology/cox_ph_diagnostics`, `methodology/pick_tool_stack`, `methodology/mixed_language_orchestration`, `methodology/reproduction_attempt`, `reproducibility/reproducibility`) and `_router_index.yaml` rewritten to the canonical `sys_config(operation='…')` / `sys_env(operation='…')` surface so reviewer-facing guidance stays on the live names.
+- All shipped protocol YAMLs that previously referenced per-dimension audit tool names now reference the consolidated `tool_audit(scope='…', dimension='…')` / `tool_audit_findings(operation='…')` form (96 substitutions across 33 protocol files) so reviewer-facing guidance stays on the canonical surface.
+- **MAJOR-breaking:** `sys_protocol_get` default `format` flipped from `"full"` to `"summary"` (phase-9-cross-cutting). Callers that previously did not pass a `format` argument received the entire YAML (~1.5-3K tokens per call); they now receive the ~300-token summary view. This is the single biggest token-cost win identified in the Phase-15a baseline. Callers who genuinely need the bulk payload must now pass `format="full"` explicitly. The schema default + handler default + AI orientation docs all updated together; the inputSchema now declares `"default": "summary"` so well-behaved clients see the new default automatically.
+- Every `TOOL_DEFINITIONS` entry now carries two introspection fields — `status` (`live` | `alias` | `deprecated`) and `pack` (`core` | `<pack_name>`) — set automatically by `_annotate_core_tool_metadata()` for core tools and by `plugins/loader.py` + `adapters/loader.py` at registration time for pack / adapter tools. `sys_tool_describe` surfaces both so the router, list_tools, and any external tooling can filter without re-deriving the answer. 167 entries annotated (146 live + 21 alias from the consolidation overlap; 144 core + 23 from packs / adapters).
+- Every shipped protocol YAML (153 files across core + the 5 bundled packs) now carries a `scope_tags` block — `domain` (e.g. `[biology, wet_lab]`, `[qualitative]`, `[any]`), `audience` (e.g. `[researcher]`, `[auditor]`, `[naive_ai]`), and `workflow_shape` (e.g. `[experiment_pipeline]`, `[proof]`, `[linear_essay]`, `[interview_study]`, `[systems_benchmark]`, `[any]`). The router uses these as a soft filter so the embedding-similarity ranking only competes within the project's declared scope.
+- `tool_route` now returns a `recommended_action` field — a single-string hint naming the exact next tool to call (e.g. `"sys_protocol_get(protocol_name='guidance/project_startup', format='summary')"`). Saves the AI one round-trip of reasoning per turn.
+- MCP `Server` instantiation now passes the `instructions=` field with the canonical per-turn sequence (sys_boot → tool_route → sys_protocol_get format=summary → sys_active_tools), so any MCP client that surfaces server-supplied instructions sees the right startup ritual without having to call sys_help.
+
+### Deprecated
+- Legacy per-dimension audit tool names — `tool_audit_assumptions`, `tool_audit_citations`, `tool_audit_claims`, `tool_audit_cliches`, `tool_audit_code_quality`, `tool_audit_coherence`, `tool_audit_cross_deliverable_consistency`, `tool_audit_dashboard_content`, `tool_audit_evalue`, `tool_audit_figure`, `tool_audit_figure_coverage`, `tool_audit_figure_full`, `tool_audit_figure_interactivity`, `tool_audit_figure_quality`, `tool_audit_power`, `tool_audit_prose`, `tool_audit_reproducibility`, `tool_audit_reviewer_responses`, `tool_audit_statistical_power`, `tool_audit_step_completeness`, `tool_audit_step_literature`, `tool_audit_synthesis`, `tool_audit_version_coherence`, `tool_audit_findings_query`, `tool_audit_findings_diff`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy dashboard tool names — `tool_dashboard_create`, `tool_dashboard_story_generate`, `tool_dashboard_story_edit`, `tool_dashboard_story_quality_bar`, `tool_dashboard_reviewer_sim`, `tool_dashboard_test_generate`, `tool_dashboard_test_run`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy step tool names — `tool_step_iterate`, `tool_step_iterations_list`, `tool_step_revision_options`, `tool_step_env_lock`, `tool_step_pipeline_define`, `tool_step_pipeline_run`, `tool_step_pipeline_status`, `tool_step_pipeline_diagram`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy sensitivity + preregister tool names — `tool_sensitivity_define`, `tool_sensitivity_run`, `tool_preregister_freeze`, `tool_preregister_diff`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy reviewer tool names — `tool_reviewer_simulate`, `tool_response_to_reviewers`, `tool_rebuttal_draft`, `tool_reviewer_response_compile`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy data + figure + thought tool names — `tool_data_sample`, `tool_data_profile`, `tool_data_convert`, `tool_figure_palette`, `tool_figure_caption_synthesise`, `tool_figure_interactive_autogen`, `tool_paper_figures_autoembed`, `tool_thought_log`, `tool_thought_trace`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy scratch + task tool names — `tool_scratch_write`, `tool_scratch_run`, `tool_scratch_list`, `tool_scratch_clear`, `tool_task_run`, `tool_task_status`, `tool_task_list`, `tool_task_kill`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+- Legacy sys_config + sys_env tool names — `sys_config_get`, `sys_config_set`, `sys_config_validate`, `sys_env_snapshot`, `sys_env_docker_generate`. All continue to work via alias dispatch through v2.0.x; scheduled for hard-removal in v2.1.0 per `docs/V2_MIGRATION_TABLE.md`.
+
+### Removed
+- **Phase 14a — first-wave consolidation aliases hard-removed.** The 21 legacy tool names introduced as consolidation aliases in v1.6.1 have expired their 4-minor-version deprecation runway and are now removed. Calling any of them returns a friendly `_REMOVED_TOOLS` error envelope naming the canonical v2 entry point. Old plans, scripts, or third-party callers that still name these will see a clear migration message instead of a generic "unknown tool" error.
+  - **Search cluster (5):** `tool_search_semantic_scholar`, `tool_search_pubmed`, `tool_search_crossref`, `tool_search_arxiv`, `tool_search_web` → call `tool_search(query=..., source='semantic_scholar'|'pubmed'|'crossref'|'arxiv'|'web')` instead.
+  - **Plan cluster (3):** `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` → call `tool_plan(operation='turn'|'advance'|'clear')` instead.
+  - **Grounding / verify cluster (4):** `tool_grounding_register`, `tool_ground_from_context` → call `tool_ground(mode='explicit'|'from_context', ...)`. `tool_claim_verify`, `tool_grounding_verify` → call `tool_verify(scope='claim'|'project', ...)`.
+  - **Lessons cluster (2):** `tool_lessons_record`, `tool_lessons_consult` → call `tool_lessons(operation='record'|'consult', ...)` instead. (Other lessons-family aliases remain deprecated for the v2.0.x runway.)
+  - **Path cluster (3):** `sys_path_create`, `sys_path_abandon`, `sys_path_list` → call `sys_path(operation='create'|'abandon'|'list', ...)` instead.
+  - **Memory cluster (4):** `mem_methods_append`, `mem_decision_log`, `mem_hypothesis_update`, `mem_analysis_log` → call `mem_log(kind='methods'|'decision'|'hypothesis'|'analysis', ...)` instead.
+- The corresponding `TOOL_DEFINITIONS` entries and `_HANDLERS` entries were dropped (handler functions like `_handle_sys_path_create` remain in the module — they're called internally by the consolidated dispatchers via the legacy fallback path). `tool_log_decision`, the silent pre-v1.6.1 nickname that previously chained through `mem_decision_log → mem_log`, now resolves directly to `mem_log` with `kind='decision'` injected so the nickname keeps working.
+- **Phase 14b — tikzposter LaTeX poster path hard-removed.** The legacy `create_poster()` + `_poster_tex_escape()` functions under `src/research_os/tools/actions/synthesis/latex.py` (387 lines) are deleted. `tool_poster_create` is unchanged on the surface (Typst engine is the only path); the `engine='latex'` branch in `_handle_tool_poster_create` now returns a structured error pointing callers at the Typst surface. The legacy `layout` / `audience` LaTeX-only kwargs are no longer documented (`engine` is retained on the schema for back-compat with a hard-error guard). `researcher_config.synthesis.poster_engine` is pinned to `"typst"` — the validator enum now rejects `"latex"`. Protocol `synthesis/printable` updated (`template: tikzposter` → `academic_36x48` / `academic_48x36` / `public_24x36` per audience; description text re-pointed at Typst). Router index summary + triggers updated. Docs (`PROTOCOLS.md`, `RESEARCHER_GUIDE.md`, `TOOLS.md`, `ROADMAP.md`) re-pointed at Typst. Test `test_legacy_tikzposter_path_still_works` replaced by `test_legacy_tikzposter_create_poster_is_gone` and the enum-shape test now asserts `"latex" not in synthesis.poster_engine`. `_REMOVED_TOOLS` entries added for `tool_poster_create_latex` / `tool_poster_compile_latex` (nicknames that were never real tools but a future caller might try). Audit of all other handlers in `server.py` found zero truly orphan handlers; every handler is referenced either by the dispatcher map or called internally by a Phase 9 consolidator.
+- **Phase 14d — dead config fields removed.** Five `researcher_config.yaml` fields identified by the v1.9.2 Lens-7 audit as declared-but-never-read are removed from the on-disk template, the in-code `CONFIG_TEMPLATE` constant, and `docs/RESEARCHER_GUIDE.md`. None of these fields had any consumer in `src/`, `tests/`, or shipped protocols — the comments that claimed they were "Read by `methodology/pick_tool_stack`" were inaccurate. The `pick_tool_stack` protocol picks language + library purely from method + field-practice + literature signal; it never consulted these fields. Existing projects on prior versions that hand-set these keys are unaffected (the keys silently become unknown extras; `validate_config` does not enforce key membership).
+  - **Runtime cluster (1):** `runtime.default_n_for_sampling` — no caller anywhere; `tool_data(operation='sample')` takes its `n` argument from the tool call, not from config.
+  - **Tool-stack cluster (4):** entire `tool_stack:` block removed: `tool_stack.preferred_languages`, `tool_stack.allow_mixed_language_steps`, `tool_stack.field_practice_overrides_preference`, `tool_stack.cite_field_practice_when_choosing`. The `methodology/pick_tool_stack` protocol itself is unchanged — it asks the AI to pick based on method + literature signal + env compatibility, never consulting these config fields.
+- Trivial dead-variable cleanup in `tools/actions/audit/audit.py:651` (`f_stat`, `f_p` from `het_breuschpagan` unpack are now `_f_stat`, `_f_p` — they were tuple-discard placeholders flagged by Lens-9 as the one real `vulture --min-confidence 80` finding still present after v1.9.3's larger sweep).
+
+### Fixed
+- `sys_tool_describe` `NameError` regression introduced by the Phase 10
+  server-package split — `meta_routing.py` referenced `_resolve_tool_name`
+  which wasn't re-exported from `_handlers_runtime.py`. Fixed in commit
+  `0c45b79`: added the import + `__all__` entry so the introspection path
+  works from the first `list_tools()` call.
+- `tool_audit(scope='synthesis', dimension='all')` raised a bare
+  `KeyError` on `paper_path`. Fixed in commit `0c45b79`: handler now
+  defaults to `'synthesis/paper.md'` (matches what the `audit_synthesis`
+  worker already assumes when callers omit the kwarg).
+- MCP `Server()` instance now reports the canonical `__version__` at the
+  MCP initialize handshake instead of hard-coding `'0.1.0'`. Fixed in
+  commit `b3b24a0` (phase-13 follow-up).
+
+### Validation
+- **Phase 15b re-validation: 20 agents × 4 perspectives × 5 scenarios = 20
+  independent runs against the v2.0.0 candidate.** Mean `final_rating`
+  moved **6.35 → 7.70 (+1.35; +21%)**, total HIGH-friction items
+  **124 → 63 (-49%)**, first-5-turn HIGH **66 → 42 (-36%)**, deliverable
+  rate 11/20 → 14/20 (+15 pp). Every cell of the 4×5 matrix moved up by
+  +0.7 to +1.9 points; no regressions in any of the 20 runs. Full
+  per-perspective × per-scenario rating table, friction-event delta, the
+  carryover deferral list (v2.0.1 patch / v2.1.0 minor / v3.0.0 major),
+  and the YELLOW shipping recommendation at
+  [`docs/V2_VALIDATION_REPORT.md`](docs/V2_VALIDATION_REPORT.md).
+
+### Migration
+- Most projects work unchanged — every consolidated tool name keeps
+  dispatching via `_DEPRECATED_ALIASES` + `_ALIAS_PARAM_INJECTION` for
+  the v2.0.x runway. Hard removal of the v2.0 deprecated aliases is
+  scheduled for v2.1.0. Full instructions, breaking-change details,
+  per-surface recipes, and the complete old→new tool table at
+  [`docs/MIGRATION_v1_to_v2.md`](docs/MIGRATION_v1_to_v2.md) (the v1→v2
+  upgrade guide) plus [`docs/V2_MIGRATION_TABLE.md`](docs/V2_MIGRATION_TABLE.md)
+  (the running ledger of every old→new consolidation).
+- Release-shaped overview, headline numbers, and YELLOW caveat at
+  [`docs/V2_RELEASE_NOTES.md`](docs/V2_RELEASE_NOTES.md).
+
+---
+
 ## [1.11.0] - v1.11.0 - Figure auto-embed + real slides/poster + reviewer scaffold + 8 deferred items closed (2026-06-05)
 
 MINOR release. Closes F-005 + F-019 + AUDIT-026 + AUDIT-047 + AUDIT-063

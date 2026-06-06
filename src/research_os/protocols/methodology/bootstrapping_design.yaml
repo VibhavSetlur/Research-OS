@@ -1,7 +1,12 @@
 id: bootstrapping_design
+tier: 'plan'
 name: Bootstrap / Resampling Design
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [humanities]
+  audience: [auditor]
+  workflow_shape: [any]
 last_reviewed: '2026-06-02'
 description: |
   Bootstrap and resampling methods are the workhorse for non-parametric

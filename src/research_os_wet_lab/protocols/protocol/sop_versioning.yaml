@@ -1,7 +1,11 @@
 id: sop_versioning
 name: SOP Versioning — every Standard Operating Procedure is versioned
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [wet_lab, biology, humanities]
+  audience: [auditor, maintainer]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Each Standard Operating Procedure (SOP) used by the lab is a

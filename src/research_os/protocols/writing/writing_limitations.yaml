@@ -1,7 +1,12 @@
 id: writing_limitations
+tier: 'synthesize'
 name: Writing — Limitations (the section reviewers read most carefully)
-version: '1.11.0'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [auditor]
+  workflow_shape: [any]
 description: |
   Draft the limitations section / sub-section. Limitations are the
   reviewer's primary attack surface — they get read more carefully than
@@ -204,7 +209,7 @@ steps:
     description: |
       sys_file_validate_md filepath="synthesis/limitations.md"
         protocol_name="writing_core"
-      Run tool_audit_prose on the section — surfaces vague
+      Run tool_audit(scope='project', dimension='prose') on the section — surfaces vague
       quantifiers ("some", "many", "a few") which are particularly
       damaging in limitations prose.
 

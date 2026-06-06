@@ -1,7 +1,12 @@
 id: data_quality_audit
+tier: 'plan'
 name: Data Quality Audit (standalone QC pass)
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [naive_ai, auditor]
+  workflow_shape: [experiment_pipeline]
 description: |
   Standalone data quality audit — for the case where the researcher
   wants to know what is in (or wrong with) a dataset BEFORE deciding
@@ -69,7 +74,7 @@ steps:
     description: |
       For each tabular file:
         - sys_file_read the first ~100 rows + the header
-        - tool_data_profile filepath=<path>     # full profile sample
+        - tool_data(operation='profile', filepath=<path>)     # full profile sample
 
       Check:
         - column types — does each column hold what its name suggests?

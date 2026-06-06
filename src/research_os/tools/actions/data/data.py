@@ -167,7 +167,7 @@ def data_profile(filepath: str, root: Path = Path(".")) -> dict[str, Any]:
                 "enough for the planned statistical test."
             )
         suggestions.append(
-            "Next step: create an experiment (sys_path_create) for baseline EDA."
+            "Next step: create an experiment (sys_path(operation='create')) for baseline EDA."
         )
 
         # Persist

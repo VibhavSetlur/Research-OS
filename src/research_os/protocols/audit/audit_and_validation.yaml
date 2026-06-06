@@ -1,7 +1,12 @@
 id: audit_and_validation
+tier: 'review'
 name: Audit & Validation
-version: '1.9.3'
+version: '2.0.0'
 schema_version: '2.0'
+scope_tags:
+  domain: [qualitative]
+  audience: [auditor]
+  workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'
 description: |
   Validate citations, statistical assumptions, figure quality,
@@ -35,14 +40,14 @@ steps:
       as its first gate.
 
       For per-step debugging, the components are also exposed
-      individually: tool_audit_step_completeness, tool_audit_code_quality,
-      tool_audit_prose, tool_audit_claims, tool_preregister_diff,
+      individually: tool_audit(scope='step', dimension='completeness'), tool_audit(scope='step', dimension='code_quality'),
+      tool_audit(scope='project', dimension='prose'), tool_audit(scope='project', dimension='claims'), tool_preregister(operation='diff'),
       tool_ground (grounding verification surface).
 
   - id: audit_citations
     name: Audit Citations
     description: |
-      tool_audit_citations
+      tool_audit(scope='project', dimension='citations')
       Reads workspace/citations.md, queries Crossref / Semantic Scholar for each
       entry, flags those that don't resolve. Writes report to the current step's
       outputs/reports/citation_audit.md (or workspace/logs/ if no active step).
@@ -52,7 +57,7 @@ steps:
     description: |
       For each experiment step that ran a statistical model, find the residuals
       file (typically workspace/<step>/data/output/residuals.csv) and call:
-        tool_audit_assumptions filepath=<that file>
+        tool_audit(scope='step', dimension='assumptions') filepath=<that file>
       Then read the report and append any FAILED assumptions to the step's
       conclusions.md under "## Limitations".
 
@@ -78,10 +83,10 @@ steps:
     name: Audit Figure Quality
     description: |
       For every PNG in workspace/<step>/outputs/figures/, call:
-        tool_audit_figure_full filepath=<png>
+        tool_audit(scope='step', dimension='figure_full') filepath=<png>
       Checks DPI, dimensions, caption + summary sidecars, SVG companion,
-      time-series aspect-ratio sanity. (`tool_audit_figure` is the lighter
-      DPI-only version, retained for cheap intra-step spot checks.)
+      time-series aspect-ratio sanity. Use `tool_audit(scope='step', dimension='figure')` for a
+      lighter DPI-only spot check during intra-step iteration.
 
       Aggregate warnings into workspace/logs/figure_audit_summary.md.
       Any figure WITHOUT a sibling .caption.md AND .summary.md is a
@@ -119,7 +124,7 @@ steps:
   - id: audit_coherence
     name: Cross-step coherence audit
     description: |
-      tool_audit_coherence
+      tool_audit(scope='project', dimension='coherence')
       Catches the failure mode where the Discussion / Results carries
       paragraphs from a prior chat about a step that was later
       abandoned, or where the AI invented prose during synthesis
@@ -147,10 +152,10 @@ steps:
       Write workspace/logs/audit_report.md combining all findings + counts.
       One section per audit. Mark blocking issues with "BLOCKER:" prefix.
       The step-completeness section is mandatory — surface every BLOCKER
-      from tool_audit_step_completeness at the top.
+      from tool_audit(scope='step', dimension='completeness') at the top.
 
       Include the reliability summary at the bottom by calling
-        tool_reliability_report
+        tool_reliability(operation='report')
       so the report carries a redacted count of gate fires / tool errors
       this session. The researcher can paste this into a bug filing if
       a regression is suspected — it contains no project content.

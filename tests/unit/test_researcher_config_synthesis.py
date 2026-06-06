@@ -181,3 +181,56 @@ def test_validate_config_accepts_blank_optional_strings(tmp_path):
         v for v in res["enum_violations"] if v["field"].startswith("synthesis.")
     ]
     assert synth_violations == []
+
+
+# ── 6. Phase-5 drafter-loop fields ─────────────────────────────────────
+
+
+def test_template_carries_drafter_loop_block():
+    """templates/researcher_config.yaml + CONFIG_TEMPLATE must declare the
+    Phase-5 drafter-loop fields with the documented defaults."""
+    parsed_file = yaml.safe_load(
+        (_repo_root() / "templates" / "researcher_config.yaml").read_text()
+    ) or {}
+    synth_file = parsed_file["synthesis"]
+    assert synth_file["drafter_loop_enabled"] is True
+    assert synth_file["drafter_loop_max_iterations"] == 3
+    assert synth_file["drafter_loop_quality_threshold"] == 0.10
+
+    parsed_code = yaml.safe_load(CONFIG_TEMPLATE.format(project_name="x")) or {}
+    synth_code = parsed_code["synthesis"]
+    assert synth_code["drafter_loop_enabled"] is True
+    assert synth_code["drafter_loop_max_iterations"] == 3
+    assert synth_code["drafter_loop_quality_threshold"] == 0.10
+
+
+def test_validate_config_rejects_non_bool_drafter_loop_enabled(tmp_path):
+    root = _scaffold(tmp_path, {"drafter_loop_enabled": "yes"})
+    res = validate_config(root)
+    fields = {v["field"] for v in res["enum_violations"]}
+    assert "synthesis.drafter_loop_enabled" in fields
+
+
+def test_validate_config_rejects_out_of_range_max_iterations(tmp_path):
+    root = _scaffold(tmp_path, {"drafter_loop_max_iterations": 99})
+    res = validate_config(root)
+    fields = {v["field"] for v in res["enum_violations"]}
+    assert "synthesis.drafter_loop_max_iterations" in fields
+
+
+def test_validate_config_rejects_negative_quality_threshold(tmp_path):
+    root = _scaffold(tmp_path, {"drafter_loop_quality_threshold": -0.5})
+    res = validate_config(root)
+    fields = {v["field"] for v in res["enum_violations"]}
+    assert "synthesis.drafter_loop_quality_threshold" in fields
+
+
+def test_validate_config_accepts_drafter_loop_defaults(tmp_path):
+    """Template defaults must validate clean — no enum violations."""
+    root = _scaffold(tmp_path)
+    res = validate_config(root)
+    bad = [
+        v for v in res["enum_violations"]
+        if v["field"].startswith("synthesis.drafter_loop_")
+    ]
+    assert bad == [], f"defaults must validate; got {bad}"

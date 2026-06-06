@@ -138,8 +138,8 @@ def research_method(query: str, root: Path, limit: int = 5) -> dict[str, Any]:
                 "4. Recommended implementations (library + version, language).",
                 "5. Alternatives if assumptions fail.",
                 "",
-                "Then call `mem_methods_append` to commit the chosen method and",
-                "`mem_decision_log` with context / selected / rationale.",
+                "Then call `mem_log(kind='methods', ...)` to commit the chosen method and",
+                "`mem_log(kind='decision', context=..., selected=..., rationale=...)`.",
             ]
         )
         report_path = _write_report(root, "method_research", _slug(query), "\n".join(lines) + "\n")
@@ -153,8 +153,8 @@ def research_method(query: str, root: Path, limit: int = 5) -> dict[str, Any]:
             "web": web_results,
             "report_path": report_path,
             "next_action": (
-                "Synthesise the evidence into mem_methods_append + mem_decision_log "
-                "before writing any analysis script."
+                "Synthesise the evidence into mem_log(kind='methods') + "
+                "mem_log(kind='decision') before writing any analysis script."
             ),
         }
     except Exception as e:
@@ -250,8 +250,8 @@ def research_tool(task: str, root: Path, language: str = "any") -> dict[str, Any
                 "3. If the best option is `paid_or_licensed` — flag this to the",
                 "   researcher and propose a free alternative ranked second.",
                 "4. Check the GitHub repo (if any) for last-commit-date < 12mo and",
-                "   star count via `tool_search_web` follow-ups.",
-                "5. Commit the decision with `mem_decision_log`.",
+                "   star count via `tool_search(source='web')` follow-ups.",
+                "5. Commit the decision with `mem_log(kind='decision', ...)`.",
             ]
         )
         report_path = _write_report(root, "tool_research", _slug(task), "\n".join(lines) + "\n")
@@ -318,7 +318,7 @@ def external_tool_instructions(
             "## Expected outputs\n*(AI fills this)*\n\n"
             "## After the researcher signals completion\n"
             "- AI runs `tool_data_profile` on the placed outputs.\n"
-            "- AI logs the run via `mem_methods_append` (method = the external tool name).\n"
+            "- AI logs the run via `mem_log(kind='methods', ...)` (method = the external tool name).\n"
             "- AI proceeds with the next step.\n"
         )
         worksheet.write_text(body)
@@ -372,7 +372,7 @@ def plan_step(goal: str, root: Path, max_substeps: int = 6) -> dict[str, Any]:
             "3. [ ] *(sub-task 3: e.g. fit baseline model)*\n"
             "...\n\n"
             f"Up to {max_substeps} sub-tasks. If you need more, that's a sign the\n"
-            "step itself should be split into multiple experiments (`sys_path_create`).\n\n"
+            "step itself should be split into multiple experiments (`sys_path(operation='create')`).\n\n"
             "## Dependencies\n*(any sub-task that requires an earlier output — list them)*\n\n"
             "## Decisions still pending\n*(things to confirm with the researcher before coding)*\n\n"
             "## Long-running sub-tasks\n"
@@ -540,7 +540,7 @@ def plan_step_grounded(
                 " Provenance sidecars auto-emit._",
                 "- **Verification** (CoVe): _the question that would falsify "
                 "this sub-task's output; how it gets checked._",
-                "- **Lessons consulted**: _from `tool_lessons_consult task=\"<goal>\"` — list lesson_ids referenced._",
+                "- **Lessons consulted**: _from `tool_lessons(operation='consult', task=\"<goal>\")` — list lesson_ids referenced._",
                 "",
             ])
 
@@ -549,15 +549,15 @@ def plan_step_grounded(
             "",
             "- [ ] Researcher context (inputs/intake.md + inputs/context/) read end-to-end.",
             "- [ ] Prior step conclusions skimmed.",
-            "- [ ] `tool_lessons_consult task=\"" + goal[:80] + "\"` called — "
+            "- [ ] `tool_lessons(operation='consult', task=\"" + goal[:80] + "\")` called — "
             "prior lessons noted.",
             "- [ ] Every sub-task above has filled grounding + verification slots.",
-            "- [ ] `tool_thought_log kind='plan' content=<this plan summary>` recorded.",
+            "- [ ] `tool_thought(operation='log', kind='plan', content=<this plan summary>)` recorded.",
             "",
             "## After execution",
             "",
-            "- For each completed sub-task: `tool_grounding_register` with the evidence consulted + `tool_claim_verify` with the CoVe question.",
-            "- `tool_lessons_record outcome=<...> reflection=<one paragraph>` for the step as a whole.",
+            "- For each completed sub-task: `tool_ground(mode='explicit', ...)` with the evidence consulted + `tool_verify(scope='claim', ...)` with the CoVe question.",
+            "- `tool_lessons(operation='record', outcome=<...>, reflection=<one paragraph>)` for the step as a whole.",
             "- `tool_audit_quality_full` before synthesis.",
         ])
 
@@ -582,7 +582,8 @@ def plan_step_grounded(
                 "Grounded plan written. Every sub-task has explicit "
                 "Thought / Required grounding / Action / Verification "
                 "slots — fill them ALL before executing the first action. "
-                "Call tool_lessons_consult and tool_thought_log first."
+                "Call tool_lessons(operation='consult') and "
+                "tool_thought(operation='log') first."
             ),
         }
     except Exception as e:
@@ -633,7 +634,7 @@ def alternative_path_propose(
 
     The tool DOES NOT create the branch. The AI surfaces the proposal,
     asks the researcher, and only on confirmation calls
-    ``sys_path_create branch_of=<current_path>`` with ``suggested_branch_name``.
+    ``sys_path(operation='create', branch_of=<current_path>)`` with ``suggested_branch_name``.
 
     Confidence policy
     -----------------
@@ -718,7 +719,7 @@ def alternative_path_propose(
         suggested_branch_name = ""
         if current:
             # Strip lineage tag from the parent slug — the new branch
-            # gets its own lineage from sys_path_create.
+            # gets its own lineage from sys_path(operation='create').
             import re as _re
 
             slug = _re.sub(r"^\d{2,3}_", "", current)
@@ -790,10 +791,10 @@ def alternative_path_propose(
             (
                 "3. If `branch_to_alternative`: phrase the proposal to the researcher exactly once. "
                 "On confirmation, call "
-                f"`sys_path_create name=\"<slug>_alt\" branch_of=\"{current or '<current>'}\"` "
+                f"`sys_path(operation='create', name=\"<slug>_alt\", branch_of=\"{current or '<current>'}\")` "
                 "— that produces an `NN_<slug>_alt_path_<k>` folder that runs alongside the primary without disturbing it."
             ),
-            "4. Log the decision with `mem_decision_log`.",
+            "4. Log the decision with `mem_log(kind='decision', ...)`.",
         ])
 
         out_dir = (

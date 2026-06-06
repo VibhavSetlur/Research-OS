@@ -163,7 +163,7 @@ def freeze_preregistration(
     methods_text = methods_path.read_text() if methods_path.exists() else ""
     methods_block = methods_text.strip() or (
         "*(methods.md is empty — add at least one substantive method "
-        "via mem_methods_append before freezing.)*"
+        "via mem_log(kind='methods') before freezing.)*"
     )
 
     # Hypothesis block.
