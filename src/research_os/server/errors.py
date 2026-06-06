@@ -1,4 +1,4 @@
-"""WHAT / WHY / NEXT structured-error primitive (v2.1.0).
+"""WHAT / WHY / NEXT structured-error primitive.
 
 Every error visible to an AI or researcher carries three load-bearing
 pieces of information:
@@ -8,7 +8,7 @@ pieces of information:
 * NEXT — the one-line description of what the AI should do next
 
 Raised as ``RoError(what, why, next_action)``. The server dispatcher
-catches ``RoError`` and emits the v2.1.0 error envelope (see
+catches ``RoError`` and emits the error envelope (see
 ``research_os.server.envelopes._error``) so the WHAT / WHY / NEXT
 land on ``payload.{what,why,next_action}`` AND ``next_action`` promotes
 to envelope-level ``next_recommended_call``.
@@ -33,7 +33,7 @@ from typing import Iterable
 class RoError(Exception):
     """WHAT/WHY/NEXT structured error.
 
-    The dispatcher renders this as a v2.1.0 error envelope. ``str(e)``
+    The dispatcher renders this as an error envelope. ``str(e)``
     is the composed sentence the user sees in plain-text contexts.
     """
 

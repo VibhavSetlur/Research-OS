@@ -36,7 +36,7 @@ def _handle_tool_synthesize(name, arguments, root):
     from research_os.project_ops import log_override
     from research_os.tools.actions.state.config import get_interaction_policy
 
-    # v2.1.0 FIX-14 — block synthesis on an empty workspace BEFORE running
+    # Block synthesis on an empty workspace BEFORE running
     # any expensive audits. step_completeness vacuously passes on zero
     # steps, so a brand-new init that calls tool_synthesize(output_type=
     # "paper") would otherwise produce a "successful" paper with

@@ -1,16 +1,16 @@
 """Response envelope helpers used by every handler.
 
-Every tool handler returns a v2.1.0 envelope of the shape::
+Every tool handler returns an envelope of the shape::
 
     {
       "status":               "success" | "warning" | "error",
       "payload":              <tool-specific dict>,
-      "data":                 alias for payload (v2.0 back-compat; v2.2.0 removal),
+      "data":                 alias for payload (back-compat; slated for removal),
       "audit_findings":       [<finding>, ...],
       "next_recommended_call": "tool_X(args=...)" | None,
       "tier_transition":      "tier_a -> tier_b" | None,
       "tokens_estimate":      int,
-      "ro_version":           "2.1.0",
+      "ro_version":           "<package version>",
       "error":                str | None   (only when status == "error"),
     }
 
@@ -20,8 +20,8 @@ wraps the dict in the MCP ``TextContent`` shape that the dispatcher
 returns to clients.
 
 Backwards compatibility: ``payload`` and ``data`` reference the SAME
-object, so older callers that read ``envelope["data"]`` keep working
-through the v2.1.x line.  The ``data`` alias is removed in v2.2.0; the
+object, so older callers that read ``envelope["data"]`` keep working.
+The ``data`` alias is slated for removal in the next major; the
 migration table in ``docs/MIGRATION_v2_0_to_v2_1.md`` names callers that
 should switch.
 """
@@ -46,7 +46,7 @@ except ImportError:
         text: str
 
 
-# Envelope fields beyond {status, payload, data, error} that v2.1.0 adds.
+# Envelope fields beyond {status, payload, data, error}.
 # Each handler may override any of these via kwargs to _success / _error.
 _DEFAULT_AUDIT_FINDINGS: list = []
 _DEFAULT_NEXT_CALL: str | None = None
@@ -95,11 +95,11 @@ def _stringify_tier_transition(value: Any) -> str | None:
 
 
 def _payload_lift(payload: Any) -> dict[str, Any]:
-    """Lift v2.1.0 envelope-level fields from a payload dict.
+    """Lift envelope-level fields from a payload dict.
 
-    Bridges the v2.0 handler convention (handlers tuck `recommended_action`,
+    Bridges the legacy handler convention (handlers tuck `recommended_action`,
     `tier_transition`, `audit_findings` into the success payload) with the
-    v2.1.0 envelope contract that surfaces those fields at envelope level.
+    current envelope contract that surfaces those fields at envelope level.
     Handlers don't need to be rewritten — `_success` reads the payload and
     promotes whatever's there. Explicit kwargs to `_success` still win.
     """
@@ -125,13 +125,13 @@ def _success(
     tier_transition: str | None = None,
     tokens_estimate: int | None = None,
 ) -> dict:
-    """Build a v2.1.0 success envelope.
+    """Build a success envelope.
 
     ``data`` becomes ``envelope["payload"]`` AND ``envelope["data"]`` —
-    both names reference the same object for one minor cycle.  Callers
-    that don't pass ``data`` get an empty dict (matches v2.0 behaviour).
+    both names reference the same object while the ``data`` alias is
+    still supported.  Callers that don't pass ``data`` get an empty dict.
 
-    v2.1.0 envelope fields auto-populate from common payload keys when
+    Envelope fields auto-populate from common payload keys when
     not passed explicitly:
       * `payload["recommended_action"]` → envelope `next_recommended_call`
       * `payload["tier_transition"]`    → envelope `tier_transition` (serialized to string)
@@ -160,8 +160,7 @@ def _success(
 def _tokens_heuristic(payload: Any) -> int:
     """Cheap len(json.dumps(payload))//4 heuristic for envelope `tokens_estimate`.
 
-    Replaces the v2.0 placeholder default of 0 so a v2.1-aware client can
-    cost-route on every response without per-handler instrumentation.
+    Lets clients cost-route on every response without per-handler instrumentation.
     """
     try:
         return max(0, len(json.dumps(payload, default=str)) // 4)
@@ -180,19 +179,19 @@ def _error(
     tier_transition: str | None = None,
     tokens_estimate: int | None = None,
 ) -> dict:
-    """Build a v2.1.0 error envelope.
+    """Build an error envelope.
 
-    Two call styles are supported during the v2.1.x cycle:
+    Two call styles are supported:
 
-    * Positional / single-message (v2.0 compat)::
+    * Positional / single-message (legacy compat)::
 
           return _error("path not found")
 
-    * WHAT/WHY/NEXT keyword form (v2.1.0 standard)::
+    * WHAT/WHY/NEXT keyword form (standard)::
 
           return _error(
               what="path not found",
-              why="the protocol was renamed during v2.1.0",
+              why="the protocol was renamed",
               next_action="try `sys_protocol_list` to find the new name",
           )
 
