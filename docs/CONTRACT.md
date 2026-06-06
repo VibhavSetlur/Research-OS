@@ -172,6 +172,37 @@ the response envelope. Adding a new tier or reordering is MAJOR.
 The `current_tier` advance machinery in `tool_step_complete` reads
 this enum.
 
+### A.6.1 Tool response envelope (v2.1.0)
+
+Every tool handler returns a v2.1.0 envelope (the helper
+`research_os.server.envelopes._success` / `_error` produces it; every
+handler funnels through these). The shape is part of the stable
+surface — adding fields is MINOR; renaming or removing fields is MAJOR.
+
+| Field | Type | Stability | Notes |
+|---|---|---|---|
+| `status` | `"success" \| "warning" \| "error"` | MAJOR-stable enum | |
+| `payload` | dict (tool-specific) | MAJOR-stable name, MINOR-mutable content | new canonical key |
+| `data` | dict (alias of `payload`) | DEPRECATED — removed in v2.2.0 | back-compat for v2.0 callers |
+| `audit_findings` | list (default `[]`) | MAJOR-stable name | structured findings per A.2 schema |
+| `next_recommended_call` | string \| null | MAJOR-stable name | literal next-tool-call hint (saves a round-trip) |
+| `tier_transition` | string \| null | MAJOR-stable name | e.g. `"tier_execute -> tier_synthesize"` |
+| `tokens_estimate` | int (≥ 0) | MAJOR-stable name | heuristic for client routing |
+| `ro_version` | string (semver) | MAJOR-stable name | matches `research_os.__version__` |
+| `error` | string | error envelopes only | composed WHAT/WHY/NEXT sentence |
+
+Error envelopes additionally surface `payload.what`, `payload.why`,
+`payload.next_action` for clients that want the parts separately, and
+`payload.next_action` is promoted to envelope-level
+`next_recommended_call` unless the caller overrides.
+
+### A.6.2 RoError exception primitive (v2.1.0)
+
+Internal layers raise `research_os.server.errors.RoError(what, why=None,
+next_action=None)`. The server dispatcher catches it and renders the
+v2.1.0 error envelope above. The class + signature are MAJOR-stable
+for plugin authors.
+
 ### A.7 `tool_route` response envelope (v2.0.0)
 
 The `tool_route` response is part of the stable surface:

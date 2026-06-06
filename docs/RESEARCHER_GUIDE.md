@@ -796,7 +796,7 @@ src/research_os/
         │                        #   revision, rigor_signals, interaction,
         │                        #   extractors
         ├── synthesis/           # synthesize, latex, citations, dashboard,
-        │                        #   dashboard_v2, dashboard_story, typst,
+        │                        #   dashboard_app, dashboard_story, typst,
         │                        #   preview, discussion_from_verdicts, drafter_loops
         └── viz/                 # figures, dashboard_tests
 
