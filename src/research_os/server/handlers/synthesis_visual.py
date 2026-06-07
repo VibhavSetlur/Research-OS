@@ -276,7 +276,7 @@ def _handle_tool_poster_create(name, arguments, root):
 def _handle_tool_dashboard_create(name, arguments, root):
     from research_os.tools.actions.audit.audit import audit_step_completeness
     from research_os.tools.actions.synthesis.latex import create_dashboard
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
     from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_completeness_gate", False))
@@ -289,6 +289,10 @@ def _handle_tool_dashboard_create(name, arguments, root):
             "interaction.quality_gate_policy=enforce: override_completeness_gate=true "
             "requires a one-line override_rationale."
         ))
+    if override_requested and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
 
     gate = audit_step_completeness(root)
     if gate.get("status") == "error":

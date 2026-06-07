@@ -134,6 +134,66 @@ def ensure_lazy_dir(root: Path, rel: str) -> Path:
     return target
 
 
+#: Common low-effort placeholder strings that small models emit when
+#: asked for an override rationale. Rejected case-insensitively after
+#: stripping whitespace. ai-qwen audit (W11) explicitly flagged 'TODO'
+#: and 'preview' as the most common small-model placeholders.
+_OVERRIDE_RATIONALE_PLACEHOLDERS = frozenset({
+    "",
+    "todo",
+    "test",
+    "preview",
+    "tmp",
+    "temporary",
+    "idk",
+    "na",
+    "n/a",
+    "placeholder",
+    "tbd",
+    "fix later",
+    "check later",
+})
+
+
+def validate_override_rationale(rationale: str | None) -> dict | None:
+    """Return an error envelope dict if *rationale* is too thin, else None.
+
+    Rules (all must pass for an override to be accepted):
+      1. ``rationale.strip()`` must be at least 20 characters.
+      2. ``rationale.strip().lower()`` must NOT be in the placeholder set.
+      3. ``rationale.strip()`` must contain at least one whitespace
+         character (rejects single-word rationales).
+
+    Callers should:
+
+        from research_os.project_ops import validate_override_rationale
+        err = validate_override_rationale(rationale)
+        if err is not None:
+            return _text(err)
+
+    Returning a pre-built error envelope (rather than raising) keeps the
+    call-site shape identical to existing override checks.
+    """
+    from research_os.server.envelopes import _error
+
+    text = (rationale or "").strip()
+    lowered = text.lower()
+    n = len(text)
+    is_placeholder = lowered in _OVERRIDE_RATIONALE_PLACEHOLDERS
+    is_single_word = bool(text) and (" " not in text and "\t" not in text)
+    if n < 20 or is_placeholder or is_single_word:
+        return _error(
+            what="override_rationale_too_thin",
+            why=f"rationale {n} chars, single-word/placeholder",
+            next_action=(
+                'Provide a substantive rationale (>=20 chars, multiple '
+                'words). Example: "3pm preview for PI; methods.md is '
+                'still a stub but figures are final."'
+            ),
+        )
+    return None
+
+
 def log_override(
     root: Path,
     *,
@@ -772,6 +832,23 @@ def scaffold_minimal_workspace(
     _write_getting_started(root, project_name)
     _write_project_root_readme(root, project_name, state)
     _write_sharing_scripts(root, project_name)
+    # Open-science scaffolding: CITATION.cff + codemeta.json at project
+    # root so every Research OS project is citable + machine-readable
+    # from day one. Pulls author identity from researcher_config block.
+    try:
+        from research_os.tools.actions.state.citation import (
+            emit_project_citation_cff,
+        )
+        from research_os.tools.actions.state.ro_crate import build_codemeta
+
+        researcher_block = ((config_overrides or {}).get("researcher")
+                            or {})
+        emit_project_citation_cff(root, project_name=project_name,
+                                  researcher=researcher_block)
+        build_codemeta(root)
+    except Exception:
+        # Open-science manifests are best-effort; never block scaffold.
+        pass
     _update_manifest(root)
     _prune_stale_gitkeeps(root)
     if git_init and not (root / ".git").exists():
@@ -931,11 +1008,28 @@ def main() -> int:
     out = args.out or (root / f"{root.name}_share_{today}.zip")
     out = out.resolve()
 
+    # Refresh open-science manifests just before zipping so the
+    # archive carries the latest RO-Crate 1.1 + CodeMeta 2.0 view.
+    try:
+        from research_os.tools.actions.state.ro_crate import (
+            build_codemeta as _build_codemeta,
+            build_ro_crate as _build_ro_crate,
+        )
+        _build_ro_crate(root)
+        _build_codemeta(root)
+    except Exception as _e:
+        print(f"[warn] could not refresh RO-Crate / CodeMeta: {_e}")
+
     files_added = 0
     bytes_added = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        # Top-level files we DO want shipped to collaborators.
-        for top in ("README.md", "CONTRIBUTORS.md"):
+        # Top-level files we DO want shipped to collaborators. The
+        # open-science manifests (RO-Crate + CodeMeta + CITATION.cff)
+        # MUST live at archive root so ro-crate-py + cffconvert can
+        # auto-discover them.
+        for top in ("README.md", "CONTRIBUTORS.md",
+                    "CITATION.cff",
+                    "ro-crate-metadata.json", "codemeta.json"):
             tp = root / top
             if tp.exists():
                 zf.write(tp, arcname=f"{root.name}/{top}")

@@ -259,13 +259,15 @@ def test_register_removed_basic():
 
 @pytest.mark.parametrize("bad", ["", None, 42])
 def test_register_removed_rejects_bad_name(bad):
-    with pytest.raises(ValueError, match="tool_name"):
+    from research_os.server.errors import RoError
+    with pytest.raises((RoError, ValueError), match="tool_name"):
         cr.register_removed(bad, "msg")
 
 
 @pytest.mark.parametrize("bad_msg", ["", None, 42])
 def test_register_removed_rejects_bad_message(bad_msg):
-    with pytest.raises(ValueError, match="message"):
+    from research_os.server.errors import RoError
+    with pytest.raises((RoError, ValueError), match="message"):
         cr.register_removed("tool_x", bad_msg)
 
 
@@ -281,13 +283,15 @@ def test_bind_handler_rebinds_existing_tool():
 
 
 def test_bind_handler_unknown_tool_raises():
-    with pytest.raises(ValueError, match="not registered"):
+    from research_os.server.errors import RoError
+    with pytest.raises((RoError, ValueError), match="not registered"):
         cr.bind_handler("tool_never_registered", _stub_handler)
 
 
 def test_bind_handler_non_callable_raises():
+    from research_os.server.errors import RoError
     cr.register_consolidated("tool_a", [], lambda n, a: a, {})
-    with pytest.raises(ValueError, match="callable"):
+    with pytest.raises((RoError, ValueError), match="callable"):
         cr.bind_handler("tool_a", "not callable")
 
 

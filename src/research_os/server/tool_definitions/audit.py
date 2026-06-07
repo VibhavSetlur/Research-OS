@@ -1,7 +1,4 @@
-"""Tool definitions for the audit domain.
-
-Extracted from server/_core.py as part of the Phase-10 server.py modular split.
-"""
+"""Tool definitions for the audit domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -9,20 +6,21 @@ from typing import Any
 
 AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_audit": {
-        "short": "Unified per-dimension audit. scope=step|project|synthesis; dimension=completeness|literature|code_quality|prose|claims|figure|citations|assumptions|power|reproducibility|evalue|cliches|coherence|version_coherence|cross_deliverable|reviewer_responses|dashboard_content|figure_full|figure_interactivity|figure_coverage|all.",
-        "description": "Unified audit dispatcher. Pick (scope, dimension): scope='step' for per-step gates (completeness, literature, code_quality, evalue, figure, figure_full, figure_interactivity, power, assumptions, reproducibility); scope='project' for project-wide gates (citations, claims, cliches, coherence, cross_deliverable, prose, version_coherence); scope='synthesis' for synthesis-side gates (all, dashboard_content, figure_coverage, reviewer_responses). Per-dimension kwargs are accepted on the same call (e.g. step_id, paper_path, filepath, target_path, override_no_pdfs, override_rationale, ...). Output schema matches the legacy per-dimension tool for the chosen (scope, dimension). Use tool_audit_quality_full to run all primary gates in one shot. Use tool_audit_findings to read the cross-audit findings ledger after one or more audits have written to it.",
+        "short": "Unified per-dimension audit. scope=step|project|synthesis|active_gates; dimension picks the gate.",
+        "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
+        "description": "Unified audit dispatcher. Pick (scope, dimension): scope='step' for per-step gates (completeness, literature, code_quality, evalue, figure, figure_full, figure_interactivity, power, assumptions, reproducibility); scope='project' for project-wide gates (citations, claims, cliches, coherence, cross_deliverable, prose, version_coherence); scope='synthesis' for synthesis-side gates (all, dashboard_content, figure_coverage, reviewer_responses); scope='active_gates' (no dimension required) returns the live armed-gate state on this project — which audit gates have emitted findings in the cross-audit ledger, with per-gate counts by severity, so the AI can see what's actively enforced without grepping audit code. Per-dimension kwargs are accepted on the same call (e.g. step_id, paper_path, filepath, target_path, override_no_pdfs, override_rationale, ...). Output schema matches the legacy per-dimension tool for the chosen (scope, dimension). Use tool_audit_quality_full to run all primary gates in one shot. Use tool_audit_findings to read the cross-audit findings ledger after one or more audits have written to it. Use sys_help(topic='gates') for the full gate vocabulary.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "scope": {
                     "type": "string",
-                    "enum": ["step", "project", "synthesis"],
-                    "description": "Audit scope. step = per-step gate. project = project-wide gate (paper / repo / citations). synthesis = synthesis-side gate (paper / dashboard / reviewer responses).",
+                    "enum": ["step", "project", "synthesis", "active_gates"],
+                    "description": "Audit scope. step = per-step gate. project = project-wide gate (paper / repo / citations). synthesis = synthesis-side gate (paper / dashboard / reviewer responses). active_gates = introspect which gates are armed on this project (no dimension required).",
                 },
                 "dimension": {
                     "type": "string",
-                    "description": "What to audit. See the description for the full (scope, dimension) matrix.",
+                    "description": "What to audit. See the description for the full (scope, dimension) matrix. Not required when scope='active_gates'.",
                 },
                 # Common per-dimension kwargs (all optional; consumed by the
                 # downstream legacy handler). Listed here so MCP clients can
@@ -50,21 +48,22 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "override_dashboard_content_gate": {"type": "boolean"},
                 "override_cross_deliverable": {"type": "boolean"},
                 "override_rationale": {"type": "string"},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode for scope='step' dimension='reproducibility' (slow + expensive; server-enforced autopilot floor gate — see guidance/autopilot.yaml)."},
             },
-            "required": ["scope", "dimension"],
+            "required": ["scope"],
         },
     },
     "tool_audit_findings": {
-        "short": "Read the cross-audit findings ledger. operation='query' filters; operation='diff' compares two snapshots.",
-        "description": "Unified read interface for workspace/logs/.audit_findings.jsonl (the append-only ledger every Phase-4 audit writes to via write_audit_outputs). operation='query' (default) reduces to the latest snapshot per stable finding id and filters by severity ('block' | 'warn' | 'info'), dimension, step (matches evidence_paths containing '/<step>/'), and since (ISO-8601 cutoff). operation='diff' snapshots the ledger as of timestamp_a (EARLIER) and timestamp_b (LATER) and reports {added: [...], resolved: [...], changed: [...]} keyed by stable finding id. Read-only — never mutates the ledger. operation defaults to 'diff' when both timestamps are supplied without an explicit operation, otherwise 'query'.",
+        "short": "Read cross-audit findings ledger. operation='query'|'diff'|'explain'|'timeline'. Use when triaging findings.",
+        "description": "Unified read interface for workspace/logs/.audit_findings.jsonl (the append-only ledger every audit writes to via write_audit_outputs). operation='query' (default) reduces to the latest snapshot per stable finding id and filters by severity ('block' | 'warn' | 'info'), dimension, step (matches evidence_paths containing '/<step>/'), and since (ISO-8601 cutoff). operation='diff' snapshots the ledger as of timestamp_a (EARLIER) and timestamp_b (LATER) and reports {added: [...], resolved: [...], changed: [...]} keyed by stable finding id. operation='explain' (REQUIRES id) walks the ledger chronologically and returns every snapshot of that finding id (full suggested_fix text without 160-char truncation, full evidence_paths, originating audit_name + dimension + severity), so the AI can see when the finding was first raised, when overridden, when re-raised, and what the originating audit's full remediation guidance says. operation='timeline' returns the FULL append-only ledger in chronological order (no dedup, every emission preserved) so long-context models can spot recurrence patterns ('this finding keeps coming back') and override loops; optional gate_name / scope filters. Read-only — never mutates the ledger. operation defaults to 'diff' when both timestamps are supplied without an explicit operation, otherwise 'query'.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["query", "diff"],
-                    "description": "Default 'query'. Use 'diff' to compare two ledger snapshots.",
+                    "enum": ["query", "diff", "explain", "timeline"],
+                    "description": "Default 'query'. Use 'diff' to compare two ledger snapshots. Use 'explain' (with id=...) to get full chronological history + untruncated suggested_fix for one finding. Use 'timeline' to read the FULL append-only ledger (no dedup) for long-context recurrence-pattern analysis.",
                 },
                 # query kwargs
                 "severity": {
@@ -92,6 +91,20 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "timestamp_b": {
                     "type": "string",
                     "description": "operation='diff' — ISO-8601 timestamp for the LATER snapshot; must be on/after timestamp_a.",
+                },
+                # explain kwargs
+                "id": {
+                    "type": "string",
+                    "description": "operation='explain' — REQUIRED. Stable finding id (UUID) to fetch full chronological history for. Use ids surfaced by operation='query', operation='diff', or the tool_synthesize BLOCK error envelope.",
+                },
+                # timeline kwargs
+                "gate_name": {
+                    "type": "string",
+                    "description": "operation='timeline' — optional filter on the originating audit's name (audit_name field, e.g. 'step_completeness', 'cross_deliverable_consistency').",
+                },
+                "scope": {
+                    "type": "string",
+                    "description": "operation='timeline' — optional evidence-path scope filter (matches a step folder like '02_eda' or any path token).",
                 },
             },
         },
@@ -164,6 +177,7 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_quick_route": {
         "short": "Detect throwaway / sanity-check / exploratory intent and short-circuit protocol load.",
+        "compare_to": "tool_route (full hybrid router; call this BEFORE tool_route to catch quick-mode short-circuit).",
         "description": "Call before tool_route on every prompt. If the prompt matches a quick trigger ('just make me a plot', 'sanity check', 'exploratory only', 'quick look', 'throwaway viz', 'quick check', 'scratch'), returns is_quick=true + complexity='quick' + recommended_tool='tool_scratch_write'. Quick mode bypasses protocols + audit gates; results land under workspace/scratch/. Researcher can later promote via tool_promote_to_step.",
         "category": "state",
         "inputSchema": {
@@ -207,7 +221,8 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_step_complete": {
-        "short": "Bundle: tool_path_finalize + tool_audit_step_completeness + tool_audit_step_literature + tool_step_revision_options in one call.",
+        "short": "Bundle: path_finalize + completeness + literature + revision_options. Use at end of every step.",
+        "then": "tool_route on next prompt OR sys_protocol_next",
         "description": "One-shot end-of-step bundle. Calls (in order) tool_path_finalize, tool_audit_step_completeness, tool_audit_step_literature, then tool_step_revision_options on the named step. Returns a merged result {finalize, completeness, literature, revision} with overall_status='success' | 'warning' | 'error'. Reduces 4 tool calls to 1 — eliminates small-model drift between calls and halves the round-trip latency. The AI should still surface the revision options verbatim per the anti-one-shot doctrine.",
         "category": "audit",
         "inputSchema": {

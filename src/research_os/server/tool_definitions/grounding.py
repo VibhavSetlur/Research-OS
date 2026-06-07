@@ -1,7 +1,4 @@
-"""Tool definitions for the grounding domain.
-
-Extracted from server/_core.py as part of the Phase-10 server.py modular split.
-"""
+"""Tool definitions for the grounding domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -52,7 +49,7 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_ground": {
-        "short": "Register a grounded claim. mode='explicit' (sources) | 'from_context' (context_paths). Replaces tool_grounding_register + tool_ground_from_context.",
+        "short": "Register a grounded claim. mode='explicit' (sources) or 'from_context' (context_paths).",
         "description": "Unified grounding tool. mode='explicit' uses an explicit `sources` list (replaces tool_grounding_register). mode='from_context' anchors the claim to files already in the project context (replaces tool_ground_from_context).",
         "category": "research",
         "inputSchema": {
@@ -72,7 +69,7 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_verify": {
-        "short": "Verify a claim or the whole project's grounded claims. scope='claim'|'project'. Replaces tool_claim_verify + tool_grounding_verify.",
+        "short": "Verify one claim or all project claims. scope='claim'|'project'. Use when checking grounding.",
         "description": "Unified verification tool. scope='claim' checks one claim against a verifications list (replaces tool_claim_verify). scope='project' sweeps every registered grounded claim in the project (replaces tool_grounding_verify).",
         "category": "research",
         "inputSchema": {
@@ -87,7 +84,7 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_lessons": {
-        "short": "Unified lessons + failure-memory store. operation=record|consult|failure_record|failure_check|failure_list|dead_end|mistake_replay.",
+        "short": "Unified lessons + failure memory. operation=record|consult|failure_*|dead_end|mistake_replay.",
         "description": "Single entry point for the 'what went wrong / what did we learn' family. operation='record' appends a Reflexion-style lesson (was tool_lessons_record). operation='consult' retrieves the top-K matching prior lessons for the next task (was tool_lessons_consult). operation='failure_record' persists a known-bad URL/DOI / paywall hit (was tool_failure_record). operation='failure_check' pre-checks before retrying a download (was tool_failure_check). operation='failure_list' returns the most recent failures (was tool_failure_list). operation='dead_end' pulls lessons from every __DEAD_END folder (was tool_dead_end_lessons). operation='mistake_replay' surfaces recurring patterns from reliability + override logs (was tool_mistake_replay). The legacy tool names continue to dispatch through this entry point via alias + param injection.",
         "category": "research",
         "inputSchema": {
@@ -146,7 +143,7 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "mem_log": {
-        "short": "Unified memory append. kind='methods'|'decision'|'hypothesis'|'analysis'. Replaces mem_{methods_append,decision_log,hypothesis_update,analysis_log}.",
+        "short": "Unified memory append. kind='methods'|'decision'|'hypothesis'|'analysis'. Use when logging a memory entry.",
         "description": "Consolidates the four memory-append tools behind one entry. kind='methods' (was mem_methods_append) takes method/parameters/justification. kind='decision' (was mem_decision_log) takes context/selected/rationale. kind='hypothesis' (was mem_hypothesis_update) takes hypothesis_id/status/evidence/step. kind='analysis' (was mem_analysis_log) takes a free-form entry.",
         "category": "memory",
         "inputSchema": {

@@ -167,7 +167,8 @@ def _convert_table(table_lines: list[str]) -> str:
     return f"#table(\n  columns: {n_cols},\n  " + ", ".join(cell_strs) + ",\n)"
 
 
-def md_to_typst(markdown_text: str, venue_template: str = "generic_two_column") -> str:
+def md_to_typst(markdown_text: str, venue_template: str = "generic_two_column",
+                 researcher_orcid: str = "") -> str:
     """Convert a paper.md document to a Typst source string.
 
     The output starts with a `#import` of the chosen venue template and
@@ -175,6 +176,10 @@ def md_to_typst(markdown_text: str, venue_template: str = "generic_two_column") 
     Math (`$...$`) is passed through verbatim — Typst's math syntax
     overlaps with LaTeX for common cases and errors gracefully on
     unsupported constructs.
+
+    *researcher_orcid* (when supplied) is emitted as a Typst comment +
+    metadata block above the venue setup so downstream tooling (and the
+    rendered PDF metadata) carries the ORCID URI alongside the author.
     """
     if venue_template not in VENUE_TEMPLATES:
         venue_template = "generic_two_column"
@@ -322,7 +327,19 @@ def md_to_typst(markdown_text: str, venue_template: str = "generic_two_column") 
     abstract_arg = abstract or ""
 
     bibliography_style = VENUE_CITATION_STYLE.get(venue_template, "apa")
+    # ORCID preamble — emitted only when researcher_config supplies one.
+    # Normalised to the canonical https://orcid.org/<id> URI form so it
+    # is dereferenceable from the PDF metadata + share-archive crawls.
+    orcid_uri = (researcher_orcid or "").strip()
+    if orcid_uri and not orcid_uri.startswith("http"):
+        orcid_uri = f"https://orcid.org/{orcid_uri}"
+    orcid_preamble = (
+        f'// ORCID: {orcid_uri}\n'
+        f'#metadata((orcid: "{orcid_uri}")) <author-orcid>\n\n'
+        if orcid_uri else ""
+    )
     header = (
+        f'{orcid_preamble}'
         f'#import "../templates/typst/{venue_template}.typ": {venue_template}\n\n'
         f'#show: {venue_template}.with(\n'
         f'  title: [{title_arg}],\n'
@@ -574,16 +591,24 @@ def paper_compile_typst(
             "message": f"{paper_path} not found. Run tool_synthesize first.",
         }
 
-    # Resolve venue: explicit param > researcher_config > default.
-    if not venue:
-        try:
-            from research_os.tools.actions.state.config import get_research_config
+    # Resolve venue + researcher ORCID from researcher_config. The ORCID
+    # flows into the generated paper.typ as a #metadata block so the PDF
+    # author field carries the dereferenceable ORCID URI.
+    researcher_orcid = ""
+    try:
+        from research_os.tools.actions.state.config import get_research_config
 
-            cfg = get_research_config(root) or {}
+        cfg = get_research_config(root) or {}
+        if not venue:
             venue = (cfg.get("writing_preferences", {}) or {}).get(
                 "venue_template", "generic_two_column"
             )
-        except Exception:
+        researcher_orcid = str(
+            ((cfg.get("researcher") or {}) if isinstance(cfg, dict) else {})
+            .get("orcid") or ""
+        ).strip()
+    except Exception:
+        if not venue:
             venue = "generic_two_column"
     if venue not in VENUE_TEMPLATES:
         return {
@@ -613,7 +638,8 @@ def paper_compile_typst(
                 shutil.copyfile(src, local_templates / name)
 
     md_text = paper.read_text(encoding="utf-8", errors="replace")
-    typst_text = md_to_typst(md_text, venue_template=venue)
+    typst_text = md_to_typst(md_text, venue_template=venue,
+                              researcher_orcid=researcher_orcid)
     # Rewrite the import path to point at the local templates we just copied.
     typst_text = typst_text.replace(
         f'#import "../templates/typst/{venue}.typ":',

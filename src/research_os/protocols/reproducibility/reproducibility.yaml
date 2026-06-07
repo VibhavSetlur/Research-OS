@@ -51,6 +51,24 @@ steps:
       session snapshot. Verify it would build (read it, sanity check the
       package list).
 
+  - id: emit_open_science_manifests
+    name: Emit RO-Crate + CodeMeta Manifests
+    description: |
+      Open-science manifests make the project machine-discoverable + citable.
+      sys_export_ro_crate(operation='build') writes ro-crate-metadata.json
+      (RO-Crate 1.1 Lightweight Profile, JSON-LD with
+      @context: https://w3id.org/ro/crate/1.1/context) AND codemeta.json
+      (CodeMeta 2.0, @context: https://doi.org/10.5063/schema/codemeta-2.0)
+      at the project root. Both are populated from
+      inputs/researcher_config.yaml (author identity, ORCID, license_data,
+      license_code), inputs/intake.md (description), environment/
+      (softwareRequirements), and a walk of synthesis/ + workspace/*/outputs/
+      for hasPart entries (including every *.prov.json sidecar).
+
+      sys_export_share_archive automatically refreshes + bundles these
+      manifests at archive root, so collaborators can point ro-crate-py
+      or cffconvert at the zip and validate it.
+
   - id: mandatory_rerun_audit
     name: Mandatory Re-Run Reproducibility Audit (DEFAULT before any synthesis-grade output)
     description: |
@@ -92,6 +110,8 @@ expected_outputs:
   - workspace/*/environment/requirements.txt
   - environment/Dockerfile
   - workspace/logs/output_hashes.json
+  - ro-crate-metadata.json
+  - codemeta.json
 
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default

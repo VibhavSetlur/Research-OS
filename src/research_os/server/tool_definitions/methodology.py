@@ -1,7 +1,4 @@
-"""Tool definitions for the methodology domain.
-
-Extracted from server/_core.py as part of the Phase-10 server.py modular split.
-"""
+"""Tool definitions for the methodology domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -215,6 +212,7 @@ METHODOLOGY_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_plan_step": {
+        "short": "Break a complex step into atomic sub-tasks. Use BEFORE coding non-trivial work.",
         "description": "Force a complex step to be broken into atomic sub-tasks BEFORE coding. Writes a plan markdown the AI executes piecewise. Required by analysis_plan when scope is non-trivial.",
         "category": "research",
         "inputSchema": {
@@ -227,6 +225,7 @@ METHODOLOGY_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "mem_hypothesis_add": {
+        "short": "Register a new hypothesis (state + analysis.md). Use when introducing a testable claim.",
         "description": "Register a new hypothesis (tracked in state.active_hypotheses + analysis.md).",
         "category": "memory",
         "inputSchema": {
@@ -241,11 +240,13 @@ METHODOLOGY_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "mem_hypothesis_list": {
+        "short": "List every tracked hypothesis. Use when reviewing active claims.",
         "description": "List every tracked hypothesis.",
         "category": "memory",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_plan_next_step": {
+        "short": "Propose the BEST next step from state + fresh literature. Use when researcher asks 'what next?'.",
         "description": "Survey current state, pull fresh literature + tool candidates, propose the BEST next step. Use for iterative workflows where the researcher wants the AI to decide what's worth doing next.",
         "category": "research",
         "inputSchema": {
@@ -258,6 +259,7 @@ METHODOLOGY_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_branch_recommendation": {
+        "short": "Decide: branch into a new parallel experiment or extend the current one. Use when unsure.",
         "description": "Decide whether to branch into a new parallel experiment or continue extending the current one.",
         "category": "research",
         "inputSchema": {
@@ -267,16 +269,19 @@ METHODOLOGY_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_session_resume": {
+        "short": "Reconstruct intent + status from logs after a pause / new chat. Use when resuming a session.",
         "description": "Reconstruct intent + status from logs after a pause / handoff / new chat session. Returns a structured 'resume brief' (current stage, hypotheses, open paths, running tasks, recommended next protocol) plus the message the AI should hand back to the researcher.",
         "category": "interaction",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_progress_digest": {
+        "short": "One-page project summary (experiments, hypotheses, artifact counts). Use for status check-ins.",
         "description": "One-page summary of the project: experiments active/completed/dead-end, hypotheses by status, figures/tables/reports counts, citations counted. Writes workspace/logs/progress_digest.md AND returns the markdown.",
         "category": "interaction",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_quick_review": {
+        "short": "Stage a one-page paper-appraisal skeleton at workspace/reviews/. Use for 'what do you think of this paper?'.",
         "description": "Stage a one-page critical-appraisal skeleton for a paper at workspace/reviews/<slug>.md. AI then populates it per the `guidance/quick_paper_review` protocol. Use for fast peer-review or 'what do you think of this paper?' requests.",
         "category": "research",
         "inputSchema": {

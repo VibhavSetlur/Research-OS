@@ -6,6 +6,147 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.2.0] — multi-perspective validation pass (2026-06-06)
+
+MINOR release. Shipped after a 35-agent audit (10 researcher-domain
+perspectives, 5 technical, 5 UX, 5 AI-model personas, 5 online-research,
+5 meta-improvement) surfaced 119+ findings across 12 themes. The
+synthesis selected v2.2.0 over v2.1.2 because 6 p0 + 12 p1 work-items
+genuinely add tools and knobs rather than just polish.
+
+### Added
+
+- **`sys_where`** — ~30-token mid-session orientation snapshot
+  (project_root, tier, active_plan position, unresolved BLOCK count,
+  last protocol). Use instead of `sys_boot` when you only need to
+  remember "where am I?".
+- **`sys_export_ro_crate`** — emits `ro-crate-metadata.json` +
+  `codemeta.json` at project root. Closes the FAIR-alignment claim
+  that was unbacked in v2.0–v2.1. Discoverable by Zenodo, OSF,
+  downstream RO-Crate consumers.
+- **`sys_export_share_archive`** now bundles `ro-crate-metadata.json`
+  + `codemeta.json` + `CITATION.cff` at archive root automatically.
+- **Autopilot floor gates** (`research_os.server.autopilot_gate`) —
+  8 floor gates enforce mandatory audits before tier advance, even
+  in autopilot mode. Closes the bypass path where `autopilot=true`
+  silently skipped block-severity findings.
+- **`research-os mcp` / `research-os api-key` / `research-os completion`**
+  CLI subcommands (4 → 7). `mcp` adds/removes external MCP server
+  configs (memory, filesystem, github). `api-key` securely stores
+  per-provider keys (chmod 600). `completion` emits shell completion
+  for bash / zsh / fish (uses `argcomplete` when installed, falls
+  back to a hand-rolled script otherwise).
+- **`argcomplete>=3.0`** as the new `completion` optional extra
+  (`pip install 'research-os[completion]'`) + included in `dev`.
+- **`model_profile` + `ai.context_class` config knobs** —
+  `researcher_config.yaml`'s `ai` section now carries
+  `model_profile: small|medium|large` (controls protocol-detail
+  level) and `context_class: short|long` (controls history-window
+  size). `sys_boot` respects both.
+- **`docs/SECURITY.md`** — new page documenting path-containment,
+  autopilot floor gates, override rationale enforcement, the
+  `.os_state/overrides.log` audit trail, and the boundary between
+  trusted and untrusted MCP-tool inputs.
+- **`research-os doctor`** expanded to 25+ checks (was 18+).
+  New checks include: `tool_short_field_present`, `citation_cff_valid`,
+  `external_pack_entrypoints`, `embeddings_fresh`, and
+  `docs_referenced_scripts`.
+- **22 work-item implementation report** ships in `docs/SECURITY.md`
+  + this CHANGELOG entry as evidence of the multi-perspective audit
+  that drove this release.
+
+### Changed
+
+- **Envelope normalization at the dispatcher.** Pack and adapter tools
+  that previously returned the legacy `{"status", "data"}` shape are
+  now upgraded to the v2.1.0 envelope by
+  `research_os.server.envelopes._normalize_envelope`, invoked once in
+  `dispatch._handle_tool_call`. Closes the v2.1.0 envelope gap for
+  13+ pack + adapter tools in one place rather than per-tool. New
+  pack code should call `_success` / `_error` directly per
+  `docs/PLUGIN_AUTHORING.md`.
+- **`RoError(what, why, next_action)` signature** loosened from
+  keyword-only to positional. Matches the contract documented in
+  `docs/CONTRACT.md` A.6.2 verbatim.
+- **`did_you_mean` is namespace-aware** for the `sys_/tool_/mem_`
+  prefixes. Typing `sys_X` now prefers other `sys_*` matches before
+  cross-namespace.
+- **Envelope adds `next_recommended_call_structured`** — a
+  `{"tool": str, "arguments": dict}` form derived from
+  `next_recommended_call` when parseable. Strict tool-loop clients
+  dispatch this directly without re-parsing free-form text.
+- **`override_rationale` enforcement** wired across 9 handler sites
+  (synthesis_writing, synthesis_visual, audit_core, audit_gates,
+  methodology, meta_workspace.sys_path_create,
+  meta_workspace.sys_checkpoint_rollback, tool_step_complete,
+  tool_path_finalize). Thin rationales (`'TODO'`, `'preview'`,
+  single-word, <20 chars) are rejected before the underlying audit
+  runs. Empty-rationale paired with override flag now returns an
+  explicit error instead of silently no-opping.
+- **`sys_file_*` path containment.** `sys_file_read`, `sys_file_write`,
+  `sys_file_list`, and `sys_file_delete` now refuse paths that
+  resolve outside the workspace root. Closes the host-FS escape
+  (`../../etc/passwd`) that was reachable from any MCP client.
+- **CLAUDE.md, FAQ.md, START.md** updated to current counts (preflight
+  25+, doctor 20+, subcommands 7). Future drift is policed by the
+  new `preflight_docs_consistency` test.
+
+### Fixed
+
+- **Test `test_audit_version_coherence_rejects_unknown_step_id`**
+  updated to `pytest.raises((RoError, FileNotFoundError))` —
+  `iteration._step_dir` now raises `RoError` per the contract.
+- **`docs/CONTRACT.md` A.6.1** corrected: the `data` alias removal is
+  slated for **v3.0.0** (not v2.2.0 as the row erroneously claimed).
+  The alias is preserved in `_success` / `_error` through every v2.x
+  release for back-compat with v2.0 callers.
+- **`docs/CONTRACT.md` A.3** no longer lists `tool_stack` as a stable
+  top-level `researcher_config.yaml` section — the key was never
+  shipped in `templates/researcher_config.yaml`.
+- **Internal work-item IDs (W##, FIX-#) stripped** from tool
+  descriptions (`audit.py`, `meta.py`, `synthesis.py`) and
+  user-facing docs (`SECURITY.md`, `FAQ.md`, `AI_GUIDE.md`,
+  `AGENTS.md`). Inline `# W##:` source comments cleaned up
+  (substance kept). Future leaks are caught by
+  `test_tool_description_no_version_chatter`.
+- **`docs/TOOLS.md` lists `sys_where` + `sys_export_ro_crate`** —
+  both were callable but undocumented after Wave-D.
+- **Tool count references** updated 146 → 148 across
+  `docs/{TOOLS,AI_GUIDE,FAQ,RESEARCHER_GUIDE,CONTRACT,START}.md`.
+  Doctor check count 14/18+ → 20+. START.md subcommand count
+  4 → 7 with the full list.
+
+### Removed
+
+- **`dashboard_v2.py` / `dashboard_v2_humanities.py` /
+  `dashboard_v2_qualitative.py` / `humanities_essay_scaffold.py`**
+  deprecation shims (one-minor-cycle removal promised in v2.1.1).
+  Canonical paths: `dashboard_app`, `humanities_essay`.
+
+### Verified
+
+- **Preflight: 29/29 passed.**
+- **Pytest: 1894 passed, 13 skipped, 0 failed.**
+- **Ruff: clean.**
+- **5 independent validators** reviewed the diff by reading + reasoning
+  (not pytest): logic, consistency, contract, UX, tests. Their
+  2 blockers + 14 concerns were triaged and fixed before release.
+
+### Migration
+
+- No required code changes. Every addition is additive; the `data`
+  envelope alias is kept. Tool argument names unchanged.
+- If your code imported from
+  `research_os.tools.actions.synthesis.dashboard_v2*` or
+  `research_os.tools.actions.synthesis.humanities_essay_scaffold`,
+  switch to `dashboard_app` / `humanities_essay` (the canonical
+  modules). The shims were removed per the v2.1.1 deprecation
+  promise.
+- If you parsed `envelope["data"]`, that still works through every
+  2.x release. Switch to `envelope["payload"]` before v3.0.0.
+
+---
+
 ## [2.1.1] — Cleanup release (2026-06-06)
 
 PATCH release. Pure cleanup — no behavior changes, no new tools, no

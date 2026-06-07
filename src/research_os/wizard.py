@@ -609,9 +609,11 @@ def _collect_api_keys() -> dict[str, str]:
 
     keys: dict[str, str] = {}
     for slug, label, descr in API_KEY_SPECS:
-        prompt = f"{label} — {descr}"
-        value = tui.text(prompt, placeholder="paste key or press Enter to skip",
-                         allow_empty=True)
+        # tui.secret masks the pasted key so it never echoes to the
+        # terminal; the captured value is still merged into
+        # inputs/researcher_config.yaml (which init_config chmod's to 600).
+        prompt = f"{label} — {descr} (input hidden; Enter to skip)"
+        value = tui.secret(prompt, allow_empty=True)
         if value and value.strip():
             keys[slug] = value.strip()
 

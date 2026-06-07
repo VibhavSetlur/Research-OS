@@ -3,7 +3,7 @@
 The full guide to working with Research OS day-to-day. Read after
 [START.md](START.md) (5-minute install + first project). This document
 covers: the mental model, the file layout, a typical session, the
-canonical 10-stage pipeline, all 117 core protocols and 146 live MCP
+canonical 10-stage pipeline, all 117 core protocols and 148 live MCP
 tools, the config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
@@ -230,6 +230,44 @@ Also want a poster?
 `synthesis/synthesis_poster` builds a Typst poster PDF with a QR code
 linking back to the paper and a single-headline test.
 
+#### The paper pipeline (file flow)
+
+When `synthesis/synthesis_paper` runs, files move through a fixed
+three-stage pipeline. This used to live in a standalone
+`docs/PAPER_PIPELINE.md`; folded back in here because every file in
+the chain is researcher-facing.
+
+```
+synthesis/paper.md   →   synthesis/paper.{typ,tex}   →   synthesis/paper.pdf
+(AI-edited                (compiler input,                (researcher-facing
+intermediate)             default typ; tex when           final artifact)
+                          pdf_compile_engine: latex)
+```
+
+* **`paper.md`** — the canonical intermediate the AI reads and
+  rewrites between protocol passes (Discussion → Limitations →
+  Introduction → Abstract). Markdown so any model can edit it
+  without learning Typst/LaTeX syntax. Section headings match the
+  active pack's schema (IMRAD by default; theory packs ship their
+  own).
+* **`paper.typ`** — the Typst compilation input, regenerated from
+  `paper.md` on every `tool_paper_compile_typst` call. Fast, no TeX
+  install required. Per-pack section overrides (e.g.
+  `theory_math` swaps IMRAD for Theorem/Proof) are read from the
+  pack's `synthesis_paper.yaml` and applied at this stage.
+* **`paper.tex`** — only emitted when
+  `researcher_config.pdf_compile_engine: latex`. Same input data,
+  different compiler target.
+* **`paper.pdf`** — the file you actually send to a co-author or
+  upload to a preprint server. Never edit by hand; re-run the
+  pipeline.
+
+File-format invariants are locked: the AI may overwrite `paper.md`
+freely, but `paper.{typ,tex,pdf}` are treated as derived artifacts
+and rebuilt from `paper.md` on demand. If you've hand-edited the
+PDF or `.typ`, the next compile pass will silently lose those edits
+— do edits in `paper.md`.
+
 ### 4.8 Hand off at end-of-day
 
 > **You:** Wrap up the session.
@@ -368,7 +406,7 @@ catalogue.
 
 ---
 
-## 7. MCP tools (146 live)
+## 7. MCP tools (148 live)
 
 > All names use underscores. Dot notation + legacy names are
 > auto-rewritten. Full catalogue (alphabetical, with aliases) at
@@ -377,7 +415,7 @@ catalogue.
 > `tool_tools_list(scope='core')` over reading this doc — they
 > reflect what's actually installed.
 
-v2.0.0 consolidated ~344 v1.x tool names into 146 live canonical
+v2.0.0 consolidated ~344 v1.x tool names into 148 live canonical
 tools, dispatched via `scope` / `dimension` / `operation` / `kind`
 parameters on a small set of entry points. **Every legacy v1.x name
 still works** via 80 back-compat aliases + 78 deprecated dispatch
@@ -874,7 +912,7 @@ Two general principles the stack enforces:
 
 | Symptom | Fix |
 |---|---|
-| Anything wrong with the install | `research-os doctor` *(v2.0.0)* — 18+ install + workspace health checks; exit 0/1/2; `--verbose` for fix hints. |
+| Anything wrong with the install | `research-os doctor` *(v2.0.0)* — 20+ install + workspace health checks; exit 0/1/2; `--verbose` for fix hints. |
 | `research-os: command not found` | Add `~/.local/bin` (or your venv's `bin/`) to `PATH`. |
 | `Not a Research OS workspace` | `research-os init .` here, or open a folder that has been initialised. The server is global and resolves per-request. |
 | `WriteProtectedError` | You tried to write into `inputs/raw_data/` or `inputs/literature/`. Write to `workspace/` instead. |
@@ -907,7 +945,7 @@ For more: [FAQ.md](FAQ.md).
 * [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
 * [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 117 core protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 146 live MCP tools.
+* [TOOLS.md](TOOLS.md) — catalogue of all 148 live MCP tools.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
 * `CHANGELOG.md [2.0.0]` — upgrade recipe + old → new tool table.
 * `CHANGELOG.md [2.0.0]` — celebratory v2.0.0 release notes.

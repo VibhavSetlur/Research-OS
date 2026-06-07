@@ -1,7 +1,4 @@
-"""Tool definitions for the meta domain.
-
-Extracted from server/_core.py as part of the Phase-10 server.py modular split.
-"""
+"""Tool definitions for the meta domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -9,13 +6,30 @@ from typing import Any
 
 META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "sys_boot": {
-        "short": "One-call session bootstrap — state + config + history + dep inventory + next protocol. Replaces 4-5 separate calls.",
-        "description": "Single-call session bootstrap. Returns state + researcher config + protocol history tail + optional-dep inventory + recommended next protocol + pause classification + any active plan from a previous turn. Call this ONCE per session instead of sys_state_get + sys_config_get + sys_protocol_history + sys_protocol_next + sys_dep_inventory separately. Cuts a typical boot from ~5K tokens to ~800.",
+        "short": "One-call session bootstrap (state + config + history + deps + next). Use at session start; lean=true mid-session.",
+        "then": "tool_route(prompt=<user_message>)",
+        "description": "Single-call session bootstrap. Returns state + researcher config + protocol history tail + optional-dep inventory + recommended next protocol + pause classification + any active plan from a previous turn + active_packs. Call this ONCE per session instead of sys_state_get + sys_config_get + sys_protocol_history + sys_protocol_next + sys_dep_inventory separately. Cuts a typical boot from ~5K tokens to ~800. Pass lean=true mid-session to get only {active_plan, pause_classification, current_tier, root, active_packs} (~50 tokens) — for cheap orientation when you only need to know where you are.",
         "category": "routing",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "lean": {
+                    "type": "boolean",
+                    "description": "When true, return only {active_plan, pause_classification, current_tier, root, active_packs} (~50 tokens). Default false (full boot payload).",
+                },
+            },
+        },
+    },
+    "sys_where": {
+        "short": "~30-token snapshot (root, tier, plan, blocks, last_protocol). Use for cheap mid-session 'where am I?'.",
+        "description": "Lightweight orientation tool for mid-session checks. Returns five fields: project_root (basename), tier (current_tier from .os_state/current_tier.json), active_plan ({step, total} from .os_state/active_plan.json, or null), unresolved_blocks (count of BLOCK-severity entries in workspace/logs/.audit_findings.jsonl), last_protocol (most recent entry from protocol history). ~30 tokens, <100ms. Use instead of sys_boot when you only need to remember your tier + active plan position. For the full boot payload, call sys_boot (or sys_boot(lean=true) for an intermediate ~50-token subset).",
+        "category": "routing",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
     "tool_route": {
         "short": "Prompt → protocol + decomposition + recommended_action. Call after every researcher message.",
+        "then": "sys_protocol_get(protocol_name=<resolved>, format=<lean|summary|full per model_profile>)",
+        "compare_to": "tool_quick_route (detects throwaway/sanity-check intent BEFORE this) and tool_semantic_route (direct top-k semantic-only ranking, no trigger fallback).",
         "description": "Hybrid router. Tries SEMANTIC search first (embeddings cosine over protocol descriptions + triggers) — best for fuzzy intent + as the protocol catalog grows. Falls back to the hierarchical L1→L2→L3 trigger picker when semantic confidence is low / unavailable. Returns primary_protocol, shortcut_tool, decomposition, complexity, ask_user, alternatives, method (=semantic|trigger), confidence (=high|medium|low|none), and `recommended_action` — a single-string hint naming the exact next tool to call (typically `sys_protocol_get(protocol_name='<primary>', format='summary')`, or the shortcut tool, or an `ask_user:` prompt, or a `tool_semantic_route` fallback when nothing resolved). High-complexity prompts get an active_plan persisted to .os_state/.",
         "category": "routing",
         "inputSchema": {
@@ -29,6 +43,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_semantic_route": {
         "short": "Direct semantic search over protocol embeddings. Returns top-k candidates with scores.",
+        "compare_to": "tool_route (hybrid semantic + trigger picker that returns a single primary protocol) and tool_quick_route (quick/throwaway short-circuit).",
         "description": "Embed the prompt with BAAI/bge-small-en-v1.5 (local ONNX, no network) and return the top-k protocols by cosine similarity, with the length-weighted trigger-phrase boost applied. Use this when you want to SEE the ranked candidates yourself — tool_route picks a primary; tool_semantic_route surfaces the alternatives so you can route deliberately. Requires the `semantic` extra (`pip install 'research-os[semantic]'`); falls back to status='unavailable' otherwise.",
         "category": "routing",
         "inputSchema": {
@@ -42,6 +57,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_semantic_tool_search": {
         "short": "Find tools by what they do — semantic search over tool descriptions.",
+        "compare_to": "sys_tool_describe (return one tool's full body when you already know its name).",
         "description": "Given a natural-language description of what you want to do (e.g. 'compute kappa for inter-rater agreement on transcript codes'), return the top-k matching tool names ranked by semantic similarity to each tool's short + description + category. Useful when sys_active_tools doesn't surface the right tool because the active protocol's decomposition is narrow. Requires the `semantic` extra; falls back to status='unavailable' otherwise.",
         "category": "system",
         "inputSchema": {
@@ -55,7 +71,8 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_tool_describe": {
         "short": "Return the full description + schema + status + pack for one tool.",
-        "description": "list_tools ships only short descriptions to keep context lean. When you genuinely need the full detail (parameter semantics, longer rationale, examples) for one tool, call this. Returns name, category, short, description, inputSchema, plus the Phase-9 introspection fields: status ('live' = canonical | 'alias' = legacy name dispatched to a consolidated tool | 'deprecated' = removed but still tagged) and pack ('core' = built-in | '<pack_name>' = contributed by an installed protocol pack or adapter). Cheaper than re-listing every tool.",
+        "compare_to": "sys_semantic_tool_search (discover tool names by natural-language task, then call this for one).",
+        "description": "list_tools ships only short descriptions to keep context lean. When you genuinely need the full detail (parameter semantics, longer rationale, examples) for one tool, call this. Returns name, category, short, description, inputSchema, plus the introspection fields: status ('live' = canonical | 'alias' = legacy name dispatched to a consolidated tool | 'deprecated' = removed but still tagged) and pack ('core' = built-in | '<pack_name>' = contributed by an installed protocol pack or adapter). Cheaper than re-listing every tool.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -65,6 +82,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_active_tools": {
         "short": "Active tool shortlist for a protocol (essentials + decomposition tools).",
+        "compare_to": "tool_tools_list (flat catalog of every registered MCP tool with scope/summary/required-fields filters).",
         "description": "Given a protocol name, return the tight set of tools the AI should prefer while executing it: ~10-15 tools = essentials + everything the protocol's decomposition actually calls. Use after sys_protocol_get to scope your working set instead of triaging all 212 tools per turn.",
         "category": "routing",
         "inputSchema": {
@@ -94,7 +112,9 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_get": {
-        "short": "Load a protocol — defaults to format='summary' (cheap). Use 'step' (one step), 'lean' (small-model), 'dryrun' (preview), or 'full' explicitly.",
+        "short": "Load a protocol (default format='summary'). Use 'step', 'lean', 'dryrun', or 'full' as needed.",
+        "then": "sys_active_tools(protocol_name=<name>)",
+        "compare_to": "tool_protocols_list (flat catalog of every protocol; this loads one protocol's body).",
         "description": "Load a protocol YAML by name (e.g. 'guidance/project_startup'). Five formats — summary (the default) returns id + step headings + quality_bar + expected outputs in ~300 tokens; step returns one specific step body (requires step_id); full returns the entire YAML (~1.5-3K tokens) and requires opt-in; lean serves the protocol's explicit lean_variant block if present, else auto-distils (cap 3 steps, drop optional sub-steps, trim step descriptions to 200 chars) for small/fast models; dryrun returns the full tool-call sequence with predicted args without executing — for supervised review. Prefer summary first then step on demand; use lean when researcher_config.model_profile=='small'; use dryrun in supervised mode to preview before commit. Routing tip: call tool_route(prompt) BEFORE this to pick the right protocol_name.",
         "category": "protocol",
         "inputSchema": {
@@ -117,7 +137,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_list": {
-        "short": "Full catalog dump across core + all packs (~100+ items). Optional `category` filter (pack name or first path segment). Prefer tool_route / tool_semantic_route — semantic routing scales as the catalog grows.",
+        "short": "Full catalog dump (core + packs). Use for debugging; prefer tool_route / tool_semantic_route at runtime.",
         "description": "Returns every protocol name + one-line summary + pack_or_core source, walking both the in-tree core protocols and every registered pack (humanities, qualitative, theory_math, wet_lab, engineering, plus any externally-installed packs). Pass `category` (e.g. 'theory_math', 'audit', 'guidance') to narrow to one pack or one core category. Designed for debugging + maintainer browsing; not the primary entrypoint at runtime. For routing a user prompt, call tool_route (hybrid semantic + trigger). For inspecting ranked alternatives, call tool_semantic_route. For finding tools by what they do, call sys_semantic_tool_search. As the catalog grows beyond ~150 protocols, dumping the full list every turn wastes context — semantic retrieval is the AI-friendly path.",
         "category": "protocol",
         "inputSchema": {
@@ -132,7 +152,8 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_protocols_list": {
         "short": "Flat protocol catalog with category + pack + intent_class. Filterable.",
-        "description": "Returns a flat list of every protocol with structured metadata: name, category, pack_or_'core', intent_class, tier (null until Phase 8), version, description_short. Filter with `category` (e.g. 'audit', 'guidance'), `pack` ('core' or a pack name), and `include_pack_protocols` (default true). Cheaper for the AI to scan than sys_protocol_list when it only needs the protocols in one category or one pack. Use this when a researcher asks 'what audit protocols do you have?' — narrower than dumping the full catalog.",
+        "compare_to": "sys_protocol_get (load one protocol body) and sys_protocol_list (verbose catalog dump for maintainers).",
+        "description": "Returns a flat list of every protocol with structured metadata: name, category, pack_or_'core', intent_class, tier, version, description_short. Filter with `category` (e.g. 'audit', 'guidance'), `pack` ('core' or a pack name), and `include_pack_protocols` (default true). Cheaper for the AI to scan than sys_protocol_list when it only needs the protocols in one category or one pack. Use this when a researcher asks 'what audit protocols do you have?' — narrower than dumping the full catalog.",
         "category": "protocol",
         "inputSchema": {
             "type": "object",
@@ -154,6 +175,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_tools_list": {
         "short": "Flat tool catalog with scope + summary + required-fields. Filterable.",
+        "compare_to": "sys_active_tools (narrow shortlist scoped to one protocol's decomposition).",
         "description": "Returns a flat list of every registered MCP tool: name, scope ('core' or pack name), summary_first_line, input_schema_required_fields, deprecated, alias_of. Filter with `scope` ('all'|'core'|<pack-name>'), `include_deprecated` (default false), and `match_substring` (case-insensitive needle against name + summary). Use this to discover the tool surface at a glance without pulling every full description; call sys_tool_describe for one tool's full body when you actually need it.",
         "category": "system",
         "inputSchema": {
@@ -175,11 +197,13 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_next": {
+        "short": "Recommend the next protocol from workspace state + pipeline. Use when picking the next move.",
         "description": "Recommend the next protocol to run based on current workspace state and the pipeline.",
         "category": "protocol",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "sys_protocol_validate": {
+        "short": "Check protocol's expected outputs exist in workspace. Use when confirming a protocol finished cleanly.",
         "description": "Check whether the expected outputs of a protocol are present in the workspace.",
         "category": "protocol",
         "inputSchema": {
@@ -189,6 +213,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_log": {
+        "short": "Record protocol execution status. Use when starting/completing/failing/skipping a protocol.",
         "description": "Record a protocol execution (started|completed|failed|skipped) to the pipeline log.",
         "category": "protocol",
         "inputSchema": {
@@ -202,6 +227,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_protocol_history": {
+        "short": "Return recent protocol execution log entries. Use when reviewing what was run lately.",
         "description": "Return the most recent protocol execution log entries.",
         "category": "protocol",
         "inputSchema": {
@@ -210,6 +236,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_state_get": {
+        "short": "Return full workspace state (project, stage, path, hypotheses). Use for orientation.",
         "description": "Return the full workspace state: project name, pipeline stage, current path, all experiment paths, and active hypotheses.",
         "category": "state",
         "inputSchema": {
@@ -223,6 +250,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_workspace_scaffold": {
+        "short": "Create the Research OS directory layout. Use when researcher asks for a re-scaffold.",
         "description": "Create the standard Research OS directory layout. Used by `research-os init`; only call from inside the MCP if the researcher explicitly asks for a re-scaffold.",
         "category": "workspace",
         "inputSchema": {
@@ -238,6 +266,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_workspace_tree": {
+        "short": "Tree of workspace/ — paths, scripts, outputs. Use at session start for orientation.",
         "description": "Return a structured tree of workspace/ — experiment paths, scripts, outputs. Call at session start for orientation.",
         "category": "workspace",
         "inputSchema": {
@@ -249,6 +278,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_file_read": {
+        "short": "Read a workspace file (<=50MB). Use when inspecting project content.",
         "description": "Read a workspace file. Up to 50 MB; use tool_data_sample for larger datasets.",
         "category": "file",
         "inputSchema": {
@@ -258,7 +288,8 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_file_write": {
-        "description": "Write a file. Refuses to write into inputs/raw_data/ or inputs/literature/ (immutable). Use force=true to overwrite a file in synthesis/.",
+        "short": "Write a workspace file (immutable inputs blocked). Use when producing project content.",
+        "description": "Write a file. Refuses to write into inputs/raw_data/ or inputs/literature/ (immutable). Use force=true to overwrite a file in synthesis/. In autopilot mode, writes to synthesis/ with force=true require confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "file",
         "inputSchema": {
             "type": "object",
@@ -266,11 +297,13 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "filepath": {"type": "string"},
                 "content": {"type": "string"},
                 "force": {"type": "boolean"},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode for force-overwrites into synthesis/. Researcher consent."},
             },
             "required": ["filepath", "content"],
         },
     },
     "sys_file_list": {
+        "short": "List files in a workspace directory (recursive). Use when inventorying a folder.",
         "description": "List files in a workspace directory (recursive).",
         "category": "file",
         "inputSchema": {
@@ -280,6 +313,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_file_delete": {
+        "short": "Delete a workspace file or empty directory. Use when removing project content.",
         "description": "Delete a workspace file or an empty directory.",
         "category": "file",
         "inputSchema": {
@@ -289,6 +323,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_file_validate_md": {
+        "short": "Validate markdown headings/sections against a writing protocol. Use when checking required structure.",
         "description": "Validate a markdown file against the headings/sections expected by a writing protocol.",
         "category": "file",
         "inputSchema": {
@@ -301,6 +336,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_export_share_archive": {
+        "short": "Build a share-safe zip of the project (excludes AI internals + raw_data). Use when sharing externally.",
         "description": (
             "Build a share-safe zip of this project (default: "
             "<project>_share_<YYYY-MM-DD>.zip in the project root). "
@@ -324,7 +360,35 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "sys_export_ro_crate": {
+        "short": "Emit RO-Crate 1.1 + CodeMeta 2.0 manifests at project root. Use before sharing externally.",
+        "description": (
+            "Build open-science manifests at the project root: "
+            "ro-crate-metadata.json (RO-Crate 1.1 Lightweight Profile, "
+            "JSON-LD against https://w3id.org/ro/crate/1.1/context) and "
+            "codemeta.json (CodeMeta 2.0). Populated from "
+            "inputs/researcher_config.yaml (author + ORCID + license_data / "
+            "license_code), inputs/intake.md (description), and a walk "
+            "of synthesis/ + workspace/*/outputs/ for hasPart entries "
+            "(including every *.prov.json sidecar). operation='build' "
+            "(default) writes both files; operation='preview' returns "
+            "what WOULD be emitted without touching disk. The manifests "
+            "are auto-included in sys_export_share_archive zips at root."
+        ),
+        "category": "interaction",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["build", "preview"],
+                    "description": "build (default) writes manifests; preview returns summary only.",
+                },
+            },
+        },
+    },
     "tool_synthesis_curate_figures": {
+        "short": "Curate per-step focal figures into synthesis/figures/ with ordered names. Use before tool_dashboard / tool_synthesize.",
         "description": (
             "Collect each step's focal figure into synthesis/figures/ with "
             "stable, ordered names (fig01_<slug>.png, fig02_<slug>.png, …) "
@@ -341,6 +405,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_path_finalize": {
+        "short": "Rewrite step + subfolder READMEs from actual produced artifacts. Use before marking a step complete.",
         "description": (
             "Rewrite a step's stub README + every subfolder README from what "
             "actually got produced. Call this BEFORE marking a step complete: "
@@ -368,6 +433,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_checkpoint_create": {
+        "short": "Snapshot the workspace (hardlinked, fast). Use before risky operations.",
         "description": "Snapshot the current workspace (hardlinked, fast). Returns checkpoint_id.",
         "category": "checkpoint",
         "inputSchema": {
@@ -376,15 +442,21 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_checkpoint_rollback": {
-        "description": "Restore the workspace to a checkpoint. The current state is backed up first.",
+        "short": "Restore workspace to a checkpoint (current state backed up first). Use when undoing changes.",
+        "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
+        "description": "Restore the workspace to a checkpoint. The current state is backed up first. In autopilot mode, requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "checkpoint",
         "inputSchema": {
             "type": "object",
-            "properties": {"checkpoint_id": {"type": "string"}},
+            "properties": {
+                "checkpoint_id": {"type": "string"},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode. Researcher consent."},
+            },
             "required": ["checkpoint_id"],
         },
     },
     "sys_checkpoint_list": {
+        "short": "List all checkpoints with descriptions + timestamps. Use when picking a rollback target.",
         "description": "List all checkpoints with descriptions and timestamps.",
         "category": "checkpoint",
         "inputSchema": {"type": "object", "properties": {}},
@@ -415,6 +487,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_notify": {
+        "short": "Notify the researcher (logged). Use when surfacing info|warn|action_required.",
         "description": "Notify the researcher (logged to workspace/logs/notifications.log).",
         "category": "interaction",
         "inputSchema": {
@@ -427,6 +500,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_session_handoff": {
+        "short": "Generate a markdown handoff (state, last action, next step). Use at session end.",
         "description": "Generate a structured markdown handoff describing the project state, last action, and next step. Use at session end.",
         "category": "interaction",
         "inputSchema": {"type": "object", "properties": {}},
@@ -458,16 +532,19 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "mem_citations_generate": {
+        "short": "Refresh workspace/citations.md from inputs/literature_index.yaml. Use after literature changes.",
         "description": "Refresh workspace/citations.md from inputs/literature_index.yaml.",
         "category": "memory",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "mem_intake_regenerate": {
+        "short": "Regenerate inputs/intake.md (SHA-256 file inventory). Use after inputs/ changes.",
         "description": "Regenerate inputs/intake.md (file inventory with SHA-256 hashes).",
         "category": "memory",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "sys_dep_inventory": {
+        "short": "Report which optional deps failed to import. Use once at session start.",
         "description": "Report which optional dependencies (search, viz, audit, ml, notebook, literature, web) failed to import. Call once at session start so you know which tools will work.",
         "category": "state",
         "inputSchema": {"type": "object", "properties": {}},
@@ -507,7 +584,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_path": {
         "short": "Unified path dispatcher. operation='create'|'abandon'|'list'. Replaces sys_path_{create,abandon,list}.",
-        "description": "One entry for the three path-lifecycle tools. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all paths with status.",
+        "description": "One entry for the three path-lifecycle tools. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all paths with status. In autopilot mode, operation='abandon' requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "state",
         "inputSchema": {
             "type": "object",
@@ -521,6 +598,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "override_rationale": {"type": "string"},
                 "path_name": {"type": "string"},
                 "rationale": {"type": "string"},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode for operation='abandon'. Researcher consent."},
             },
             "required": ["operation"],
         },

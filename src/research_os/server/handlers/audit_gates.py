@@ -110,6 +110,22 @@ def _handle_tool_step_complete(name, arguments, root):
     from research_os.tools.actions.audit.step_literature import audit_step_literature
     from research_os.tools.actions.state.path import finalize_path
     from research_os.tools.actions.state.revision import step_revision_options
+    from research_os.project_ops import validate_override_rationale
+
+    # reject thin override_rationale ('TODO', 'preview',
+    # single-word, <20 chars) BEFORE any audit work runs.
+    # Also reject empty rationale paired with override flag (silently
+    # skipping the override would surprise the caller).
+    if override_lit:
+        if not rationale:
+            return _text(_error(
+                what="override_literature_gate=true requires override_rationale",
+                why="empty rationale would silently no-op the override",
+                next_action="pass override_rationale=\"...\" with substantive text (>=20 chars, multi-word)",
+            ))
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
 
     merged = {"step_id": step_id, "stages": {}}
     statuses: list[str] = []

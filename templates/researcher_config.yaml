@@ -24,6 +24,14 @@ researcher:
   orcid: ""
   email: ""
 
+# ── Open-science licensing (RO-Crate + CodeMeta + CITATION.cff) ────────
+# Used when sys_export_ro_crate / sys_export_share_archive emit
+# ro-crate-metadata.json + codemeta.json. data = applies to outputs +
+# the dataset description; code = applies to scripts. SPDX identifiers.
+licenses:
+  data: "CC-BY-4.0"
+  code: "MIT"
+
 # ── This project ────────────────────────────────────────────────────────
 project_name: ""                 # blank → uses directory name
 
@@ -121,6 +129,30 @@ writing_preferences:
   # default (fast, single-binary install, modern type-safe macros).
   # Use "latex" when a journal requires .tex submission.
   pdf_compile_engine: "typst"    # typst | latex | both
+
+# ── AI client knobs (paired with model_profile above) ──────────────────
+# Optional. When present, the ai.* block overrides the legacy top-level
+# `model_profile`. Lets you tune how much context the AI gets at boot +
+# how big a default protocol load it requests, independent of which
+# model class is running.
+#
+#   ai.context_class:
+#     short → sys_boot returns the lean ~450-token state summary
+#             (default; right for most chat / IDE sessions).
+#     long  → sys_boot returns ~10000 tokens of project history and
+#             sys_protocol_get defaults to format='full'.
+#             Pick for long-context models that benefit from the full
+#             arc in working memory (Opus/Gemini/o-series with big
+#             windows).
+#   ai.model_profile:
+#     small → sys_protocol_get defaults to format='lean' (cap 3 steps,
+#             short descriptions); shortcut tools preferred over full
+#             decomposition. Mirrors the top-level model_profile=small
+#             defaults — included here so ai.* is a single point of truth.
+#     medium / large → use the format defaults above (summary / context-driven).
+ai:
+  context_class: "short"          # short | long
+  model_profile: "medium"         # small | medium | large
 
 # ── Compute environment ─────────────────────────────────────────────────
 runtime:

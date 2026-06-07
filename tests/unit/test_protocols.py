@@ -66,7 +66,8 @@ class TestProtocolLoading:
         assert any(step.get("id") == "protocol_completion" for step in loaded["steps"])
 
     def test_load_nonexistent_protocol_raises(self):
-        with pytest.raises(FileNotFoundError):
+        from research_os.server.errors import RoError
+        with pytest.raises((RoError, FileNotFoundError)):
             load_protocol("nonexistent_xyz")
 
     def test_load_with_subdir(self, full_protocol_dir):
