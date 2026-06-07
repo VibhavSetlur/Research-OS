@@ -11,6 +11,24 @@ categories, anti-patterns). The fuller human-readable version is at
 
 ---
 
+## Small model quickstart
+
+If you're a small model (Haiku, GPT-4o-mini, Gemini Flash, Llama
+3.3-70B, local 7B–13B), do these five things first:
+
+* **Set the profile once.** `sys_config(operation='set',
+  key='ai.model_profile', value='small')` — makes `sys_protocol_get`
+  default to `format='lean'`.
+* **Always pass `format='lean'`** to `sys_protocol_get` explicitly.
+* **Prefer `shortcut_tool` over `decomposition`** when `tool_route`
+  returns one — skip the protocol load.
+* **Call `sys_active_tools(protocol_name=…)` after every routing
+  decision** to scope your working tool set to ~10-15 tools.
+* **Use the `compare_to:` field in every tool description** to pick
+  the lightest tool for the task.
+
+---
+
 ## Mental model
 
 * **You** plan and reason.

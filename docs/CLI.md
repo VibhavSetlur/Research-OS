@@ -1,14 +1,17 @@
 # Research OS — CLI reference
 
-`research-os` ships four top-level commands. Three set up + run the
-MCP server; the fourth diagnoses health.
+`research-os` ships these top-level commands. Three set up + run the
+MCP server; the others diagnose health and emit shell completions.
 
 | Command            | What it does                                         |
 | ------------------ | ---------------------------------------------------- |
 | `research-os init` | Scaffold a workspace ready for any AI IDE.           |
 | `research-os ide`  | Add / remove / list AI IDE MCP configs.              |
+| `research-os mcp`  | Compose third-party MCP servers into IDE configs.    |
+| `research-os api-key` | Manage api_keys in `inputs/researcher_config.yaml`. |
 | `research-os start`| Run the MCP server (your IDE auto-launches it).      |
 | `research-os doctor` | Diagnose install + workspace health (this page).   |
+| `research-os completion` | Print a sourceable shell-completion script.    |
 
 See `research-os <command> --help` for full flag reference.
 
@@ -56,6 +59,71 @@ research-os ide remove vscode           # remove VS Code's
 research-os ide list                    # which IDEs are wired here
 research-os ide config-path claude      # print the absolute path of the config file
 ```
+
+---
+
+## `research-os mcp add | list | remove | template`
+
+Composes **other** MCP servers (Slack, GitHub, Postgres, Filesystem,
+Memory, Notion, ...) into the IDE configs Research-OS already manages,
+so your AI IDE picks them up alongside the RO server.
+
+Additive to `research-os ide add`, which wires the RO server itself.
+
+```bash
+# Drop a vetted snippet for a known server (with ${TOKEN} placeholders).
+# Known templates: slack, github, postgres, notion, filesystem, memory.
+research-os mcp template slack
+
+# Roll your own — adds to every wired IDE config by default.
+research-os mcp add my-server --command npx --args=-y,@scope/server-name
+
+# Restrict to specific IDEs (cursor, claude, antigravity, vscode, opencode).
+research-os mcp add my-server --command npx --args=-y,@x --ide cursor,claude
+
+# Inspect every wired server across IDEs.
+research-os mcp list
+
+# Remove (idempotent — no-op if not present).
+research-os mcp remove my-server
+```
+
+Note: only IDEs with JSON `mcpServers` (or `mcp` for OpenCode) blocks
+can be composed this way. Windsurf / Continue / Aider use their own
+rule files and are not supported here.
+
+---
+
+## `research-os api-key add | list | rotate | remove | test`
+
+Manages the `api_keys:` block of `inputs/researcher_config.yaml`.
+Hidden input via `getpass` so secrets never echo; `chmod 600` is
+re-applied after every write.
+
+```bash
+# Hidden prompt (getpass) — value is read interactively, not from argv.
+research-os api-key add semantic_scholar
+
+# CI-friendly: read from an env var so the secret never appears in a
+# shell-history file or a CI log.
+research-os api-key add openai --from-env OPENAI_API_KEY
+
+# Show every configured provider with masked previews (abcd…wxyz).
+research-os api-key list
+
+# Replace an existing key (same as `add`; just clearer naming).
+research-os api-key rotate pubmed
+
+# 1-token round-trip against the provider to verify the key works.
+# Reports "OK" or "FAIL <reason>". Known: semantic_scholar, pubmed, crossref.
+research-os api-key test pubmed
+
+# Clear a key (sets the value to "").
+research-os api-key remove crossref
+```
+
+Exit codes: `0` on success / OK; `1` on FAIL; `2` on bad usage (no
+provider given, etc.).
 
 ---
 
@@ -162,3 +230,31 @@ research-os doctor --workspace /path/to/my-research
 Every check entry has `name`, `status`, `message`, and `scope`
 (`install` or `workspace`). When a check produced a fix hint, the
 entry also carries a `fix` field.
+
+---
+
+## `research-os completion`
+
+Print a sourceable shell-completion script. Supports **bash**, **zsh**, and
+**fish**. After sourcing the output, `research-os <TAB>` completes
+subcommand names and `research-os init --ide <TAB>` completes IDE names.
+
+```bash
+# Install into your shell rc file (one-liner):
+eval "$(research-os completion zsh)"     # zsh — add to ~/.zshrc
+eval "$(research-os completion bash)"    # bash — add to ~/.bashrc
+research-os completion fish | source     # fish — for current shell
+research-os completion fish \
+  > ~/.config/fish/completions/research-os.fish   # fish — persistent
+```
+
+For richer dynamic completion in bash/zsh (subcommand-aware flags),
+install the `completion` extra so [argcomplete](https://pypi.org/project/argcomplete/)
+backs the generated script:
+
+```bash
+pip install "research-os[completion]"
+```
+
+Without that extra, a smaller hand-rolled fallback is emitted — TAB
+still completes top-level subcommands and `--ide` values.

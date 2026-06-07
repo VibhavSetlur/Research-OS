@@ -37,7 +37,7 @@ error explaining what to install).
 ### Default (recommended)
 
 ```bash
-pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+pip install "research-os[all]"
 ```
 
 The `all` extra pulls every optional Python dependency.
@@ -45,7 +45,7 @@ The `all` extra pulls every optional Python dependency.
 ### Minimal
 
 ```bash
-pip install "research-os @ git+https://github.com/VibhavSetlur/Research-OS.git"
+pip install "research-os"
 ```
 
 Core only. Add extras later: `pip install 'research-os[viz,audit]'`.
@@ -54,7 +54,7 @@ Core only. Add extras later: `pip install 'research-os[viz,audit]'`.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+pip install "research-os[all]"
 ```
 
 ### Conda
@@ -62,6 +62,12 @@ pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.
 ```bash
 conda create -n research-os python=3.11 -y
 conda activate research-os
+pip install "research-os[all]"
+```
+
+### Install from source for development
+
+```bash
 pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
@@ -71,6 +77,39 @@ pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.
 research-os --help
 python -c "import research_os; print(research_os.__version__)"
 ```
+
+### Shell tab-completion (optional)
+
+`research-os` ships a `completion` subcommand that prints a sourceable
+script for **bash**, **zsh**, or **fish**. Install once, then `TAB`
+will complete subcommand names (`init`, `ide`, `start`, `doctor`,
+`completion`) and `--ide` values (`cursor`, `claude`, `all`, `none`,
+...).
+
+```bash
+# zsh — add to ~/.zshrc:
+eval "$(research-os completion zsh)"
+
+# bash — add to ~/.bashrc:
+eval "$(research-os completion bash)"
+
+# fish — write the script into your fish completions directory:
+research-os completion fish | source
+# or persist:
+research-os completion fish > ~/.config/fish/completions/research-os.fish
+```
+
+For richer dynamic completion (subcommand-aware flags), also install
+the `completion` extra so [argcomplete](https://pypi.org/project/argcomplete/)
+backs the generated bash/zsh script:
+
+```bash
+pip install "research-os[completion]"
+```
+
+Without that extra, a smaller hand-rolled fallback script is emitted —
+TAB still completes subcommands and `--ide` values, just with fewer
+context-aware suggestions.
 
 ---
 
@@ -198,7 +237,7 @@ If you want Research OS installed and your IDE wired up BEFORE you
 have a project in mind:
 
 ```bash
-pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+pip install "research-os[all]"
 ```
 
 Done — `research-os` is on your `PATH`. When you eventually have a
@@ -223,7 +262,7 @@ Aider — anywhere) and let it walk you through the setup end-to-end.
 >    my OS (macOS / Linux / Windows / WSL — ask which I'm on).
 > 2. **Install with all optional extras**:
 >    ```
->    pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+>    pip install "research-os[all]"
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.
@@ -345,6 +384,53 @@ api_keys:
 
 These are auto-exported as env vars (`SEMANTIC_SCHOLAR_API_KEY`, etc.)
 when the server starts.
+
+Manage keys without hand-editing the YAML:
+
+```bash
+# Hidden prompt via getpass — secret never echoes, chmod 600 after write.
+research-os api-key add semantic_scholar
+research-os api-key rotate pubmed
+
+# CI-friendly: read from an env var so you don't paste secrets into a
+# pipeline log.
+research-os api-key add openai --from-env OPENAI_API_KEY
+
+# Inspect (values are redacted as abcd…wxyz):
+research-os api-key list
+
+# Round-trip the key against the provider's free endpoint:
+research-os api-key test pubmed     # → "pubmed: OK" or "pubmed: FAIL <detail>"
+
+# Clear a key when rotating providers:
+research-os api-key remove crossref
+```
+
+### Composing other MCP servers
+
+`research-os ide add` wires the Research-OS server itself into your
+IDE. To wire *other* MCP servers (Slack, GitHub, Postgres, Filesystem,
+Memory, Notion, ...) into the same `mcpServers` block so your IDE
+picks them up alongside RO, use `research-os mcp`:
+
+```bash
+# Drop a vetted snippet for a known server (with ${TOKEN} placeholders
+# you fill in afterwards). Known: slack, github, postgres, notion,
+# filesystem, memory.
+research-os mcp template slack
+
+# Or roll your own — added to every wired IDE config by default.
+research-os mcp add my-server --command npx --args=-y,@scope/server
+
+# Restrict to specific IDEs:
+research-os mcp add my-server --command npx --args=-y,@x --ide cursor,claude
+
+# Inspect:
+research-os mcp list
+
+# Remove (idempotent):
+research-os mcp remove my-server
+```
 
 ---
 

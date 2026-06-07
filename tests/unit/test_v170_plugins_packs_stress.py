@@ -63,7 +63,8 @@ def test_pack_registration_namespace_prefix_enforced(tmp_path):
             schema={"type": "object"},
         ),),
     )
-    with pytest.raises(ValueError, match="must start with 'tool_mypack_'"):
+    from research_os.server.errors import RoError
+    with pytest.raises((RoError, ValueError), match="tool_mypack_"):
         _validate(bad)
 
 
@@ -79,7 +80,8 @@ def test_pack_registration_router_prefix_enforced(tmp_path):
         protocols_dir=pdir,
         router_entries={"otherpack/foo": {}},
     )
-    with pytest.raises(ValueError, match="must start with 'mypack/'"):
+    from research_os.server.errors import RoError
+    with pytest.raises((RoError, ValueError), match="mypack/"):
         _validate(bad)
 
 
@@ -90,7 +92,8 @@ def test_pack_registration_lowercase_name_required(tmp_path):
     pdir = tmp_path / "protocols"
     pdir.mkdir()
     bad = PackRegistration(name="MyPack", version="0.1", protocols_dir=pdir)
-    with pytest.raises(ValueError, match="lowercase"):
+    from research_os.server.errors import RoError
+    with pytest.raises((RoError, ValueError), match="lowercase"):
         _validate(bad)
 
 

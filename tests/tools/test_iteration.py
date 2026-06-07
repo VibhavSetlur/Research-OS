@@ -297,8 +297,9 @@ def test_iterate_step_picks_unused_archive_dir(tmp_path):
 
 def test_audit_version_coherence_rejects_unknown_step_id(tmp_path):
     """Typo'd step_id must surface, not silently return success."""
+    from research_os.server.errors import RoError
     _make_step(tmp_path, slug="real_step")
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises((RoError, FileNotFoundError)):
         audit_version_coherence(tmp_path, step_id="not_a_real_step")
 
 

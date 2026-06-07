@@ -17,7 +17,7 @@ pip install "research-os[all]"
 
 # 2. Scaffold a project
 mkdir my-project && cd my-project
-research-os init                 # 6-step arrow-key wizard
+research-os init                 # 7-step arrow-key wizard
 
 # 3. Confirm it's healthy (optional but recommended)
 research-os doctor               # python + conda env + IDE wiring + pack health
@@ -36,7 +36,7 @@ you the full prompt catalogue.
 ## Install (60 s)
 
 ```bash
-pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+pip install "research-os[all]"
 ```
 
 Extras: `all` (everything Python — recommended), `ci` (lean, used by
@@ -65,7 +65,7 @@ Need help with Python / pip / virtualenvs / conda? See
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                 # 6-step interactive wizard (default)
+research-os init                 # 7-step interactive wizard (default)
 # research-os init --yes         # non-interactive (CI / scripts)
 ```
 
@@ -231,7 +231,7 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
   qualitative + survey design, IRR, fairness, calibrated UQ,
   manuscript outline, venue selection, defense prep, and Data
   Management Plans).
-* **146 live MCP tools** across three namespaces — `sys_*` (system /
+* **148 live MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
   (append-only memory). Down from 344 in v1.x — consolidated families
   (`tool_audit`, `tool_dashboard`, `tool_search`, `tool_figure`,
@@ -298,7 +298,7 @@ After install + scaffold, your first prompt should be one of:
 
 ## Cheatsheet — every command worth knowing
 
-### CLI (four commands)
+### CLI (seven commands)
 
 ```bash
 research-os init                          # scaffold THIS folder
@@ -441,7 +441,7 @@ push back if you disagree with my plan
 * `sys_protocol_get` — defaults to `format='summary'` (~3K chars);
   pass `format='full' | 'step' | 'lean' | 'dryrun'` only when needed
 * `sys_active_tools(protocol)` — 13-18-tool scoped shortlist per
-  protocol (down from 146 visible)
+  protocol (down from 344 visible)
 * `sys_help` — AI orientation (which protocol does what)
 * `sys_active_project` — which project did the global server resolve
 
@@ -473,12 +473,12 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    OS (macOS / Linux / Windows / WSL — ask which I'm on).
 > 2. **Install with all optional extras**:
 >    ```
->    pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+>    pip install "research-os[all]"
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.
 > 3. **Verify**: run `research-os --help` and show me the output. There
->    should be four subcommands: `init`, `ide`, `start`, `doctor`.
+>    should be seven subcommands: `init`, `ide`, `mcp`, `api-key`, `start`, `doctor`, `completion`.
 > 4. **Detect my AI IDE.** Ask which I'm using (Claude Code / OpenCode /
 >    Antigravity / Cursor / Claude Desktop / VS Code with MCP / Windsurf
 >    / Continue / Aider / other). For the chosen IDE, tell me what file

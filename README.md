@@ -127,7 +127,7 @@ my-project/
     ├── paper.pdf             (Typst by default, LaTeX opt-in)
     ├── paper.md              The AI-editable intermediate
     ├── dashboard.html        Single-file, offline, colour-blind safe
-    ├── slides.pptx           Conference talk
+    ├── slides.html           Conference talk
     └── poster.pdf            A0 / 36×48 / journal-specific layouts
 ```
 

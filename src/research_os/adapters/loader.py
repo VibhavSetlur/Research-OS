@@ -170,21 +170,35 @@ def _call_register(target: Any) -> AdapterRegistration:
 
 
 def _validate(reg: AdapterRegistration) -> None:
+    from research_os.server.errors import RoError, did_you_mean
     if reg.name in _DISCOVERED_ADAPTERS:
-        raise ValueError(f"Adapter name '{reg.name}' already registered")
+        suggestions = did_you_mean(
+            reg.name, list(_DISCOVERED_ADAPTERS.keys()), n=3, cutoff=0.5
+        )
+        suffix = (
+            f" Nearby adapters: {', '.join(suggestions)}" if suggestions else ""
+        )
+        raise RoError(
+            what=f"Adapter name '{reg.name}' already registered",
+            why="another adapter with the same name was discovered earlier",
+            next_action=f"rename one of the adapters to avoid the collision.{suffix}",
+        )
     # Adapter base.register_adapter already enforces tool name prefix +
     # regex compilation. Re-check name shape here so direct AdapterRegistration
     # constructors (bypassing register_adapter) still get caught.
     if not reg.name or not reg.name.replace("_", "").isalnum() or reg.name != reg.name.lower():
-        raise ValueError(
-            f"Adapter name must be lowercase alphanumeric (underscores ok); got {reg.name!r}"
+        raise RoError(
+            what=f"Adapter name {reg.name!r} is invalid",
+            why="adapter names must be lowercase alphanumeric (underscores ok)",
+            next_action="rename the adapter to use only [a-z0-9_]",
         )
     expected_prefix = f"tool_{reg.name}_"
     for t in reg.tools:
         if not t.name.startswith(expected_prefix):
-            raise ValueError(
-                f"Adapter '{reg.name}' tool '{t.name}' must start with "
-                f"'{expected_prefix}' (namespace convention)"
+            raise RoError(
+                what=f"Adapter '{reg.name}' tool '{t.name}' has wrong prefix",
+                why=f"tool name must start with '{expected_prefix}' (namespace convention)",
+                next_action=f"rename the tool to '{expected_prefix}<verb>'",
             )
 
 
@@ -203,7 +217,7 @@ def _merge(
                 )
             sch = dict(t.schema)
             description = sch.pop("description", "")
-            short = sch.pop("short", description[:160] if description else "")
+            short = sch.pop("short", description[:120] if description else "")
             input_schema = {k: v for k, v in sch.items()
                             if k not in {"description", "short", "category"}}
             input_schema.setdefault("type", "object")

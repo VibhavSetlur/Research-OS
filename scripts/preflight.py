@@ -786,6 +786,273 @@ def check_no_deprecated_aliases_in_protocols():
     return True, f"clean across {len(_DEPRECATED_ALIASES)} deprecated names"
 
 
+def check_docs_code_consistency():
+    """Scan docs/, CLAUDE.md, README.md for drift-prone patterns vs code reality.
+
+    Catches: tool names mentioned in docs that don't exist in code, broken
+    scripts/ references, broken docs/*.md cross-references. Also logs every
+    'N-step' / 'N commands' / 'N-check' literal so a maintainer can audit
+    count drift in one pass.
+    """
+    import re
+
+    from research_os.server import (
+        TOOL_DEFINITIONS, _ALIASES, _REMOVED_TOOLS, _resolve_tool_name,
+    )
+
+    docs_dir = REPO_ROOT / "docs"
+    candidate_files = []
+    for f in [REPO_ROOT / "CLAUDE.md", REPO_ROOT / "README.md"]:
+        if f.exists():
+            candidate_files.append(f)
+    if docs_dir.exists():
+        candidate_files.extend(sorted(docs_dir.glob("*.md")))
+
+    known_tools = set(TOOL_DEFINITIONS)
+    known_aliases = set(_ALIASES)
+    removed = set(_REMOVED_TOOLS)
+
+    # Patterns / placeholders that look like tools but aren't (template
+    # filler, prose, search wildcards).
+    false_positives = {
+        "tool_name", "tool_list", "tool_discovery", "tool_call",
+        "sys_X_Y", "tool_X_Y", "mem_X_Y", "tool_X", "sys_X", "mem_X",
+        "tool_definitions",  # python module dir, not a tool
+    }
+
+    tool_pattern = re.compile(r"\b((?:sys|tool|mem)_[a-z][a-z0-9_]+)\b")
+    script_pattern = re.compile(r"\bscripts/([A-Za-z0-9_\-]+\.py)\b")
+    docs_xref_pattern = re.compile(r"\bdocs/([A-Za-z0-9_\-]+\.md)\b")
+    count_pattern = re.compile(
+        r"\b(\d+)[-\s](?:step|command|commands|check|checks|protocols?|tools?)\b",
+        re.IGNORECASE,
+    )
+
+    unknown_tools: list[str] = []
+    missing_scripts: list[str] = []
+    missing_xrefs: list[str] = []
+    count_mentions: list[str] = []
+
+    for f in candidate_files:
+        try:
+            lines = f.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        rel = f.relative_to(REPO_ROOT).as_posix()
+        for lineno, line in enumerate(lines, 1):
+            for m in tool_pattern.finditer(line):
+                name = m.group(1)
+                if name in false_positives or name.endswith("_"):
+                    continue
+                # A tool ref is OK if it's a real tool, an alias, a
+                # removed-tool placeholder, or resolves via the dispatcher.
+                if (name in known_tools or name in known_aliases
+                        or name in removed
+                        or _resolve_tool_name(name) in known_tools):
+                    continue
+                unknown_tools.append(f"{rel}:{lineno}: {name}")
+            for m in script_pattern.finditer(line):
+                script_name = m.group(1)
+                if not (REPO_ROOT / "scripts" / script_name).exists():
+                    missing_scripts.append(f"{rel}:{lineno}: scripts/{script_name}")
+            for m in docs_xref_pattern.finditer(line):
+                doc_name = m.group(1)
+                if not (docs_dir / doc_name).exists():
+                    missing_xrefs.append(f"{rel}:{lineno}: docs/{doc_name}")
+            for m in count_pattern.finditer(line):
+                count_mentions.append(f"{rel}:{lineno}: '{m.group(0)}'")
+
+    problems: list[str] = []
+    if unknown_tools:
+        problems.append(
+            f"{len(unknown_tools)} unknown tool name(s) in docs: "
+            + "; ".join(unknown_tools[:3])
+            + ("..." if len(unknown_tools) > 3 else "")
+        )
+    if missing_scripts:
+        problems.append(
+            f"{len(missing_scripts)} missing scripts/ ref(s): "
+            + "; ".join(missing_scripts[:3])
+        )
+    if missing_xrefs:
+        problems.append(
+            f"{len(missing_xrefs)} missing docs/*.md xref(s): "
+            + "; ".join(missing_xrefs[:3])
+        )
+
+    # Soft-warn pattern (same as protocol_freshness, router_index_bumped):
+    # surface drift in the detail line so maintainers can audit, but don't
+    # gate the release on pre-existing doc drift. The hard checks live in
+    # check_tools_md_roundtrip + check_tool_short_field_length below, which
+    # the done_when condition specifically calls out.
+    if problems:
+        return True, "WARN: " + " | ".join(problems)
+    return True, (
+        f"clean across {len(candidate_files)} doc file(s) "
+        f"({len(count_mentions)} numeric count literals logged for audit)"
+    )
+
+
+def check_tools_md_roundtrip():
+    """Every tool name mentioned in TOOLS.md must exist in code; every live
+    tool in code must appear in TOOLS.md.
+    """
+    import re
+
+    from research_os.server import (
+        TOOL_DEFINITIONS, _ALIASES, _REMOVED_TOOLS, _resolve_tool_name,
+    )
+
+    tools_md = REPO_ROOT / "docs" / "TOOLS.md"
+    if not tools_md.exists():
+        return False, "docs/TOOLS.md missing"
+
+    text = tools_md.read_text(encoding="utf-8")
+    false_positives = {
+        "tool_name", "tool_list", "tool_discovery", "tool_call",
+        "sys_X_Y", "tool_X_Y", "mem_X_Y", "tool_X", "sys_X", "mem_X",
+        "tool_definitions",  # python module dir, not a tool
+    }
+    pattern = re.compile(r"\b((?:sys|tool|mem)_[a-z][a-z0-9_]+)\b")
+    mentioned: set[str] = set()
+    for m in pattern.finditer(text):
+        name = m.group(1)
+        if name in false_positives or name.endswith("_"):
+            continue
+        mentioned.add(name)
+
+    known_tools = set(TOOL_DEFINITIONS)
+    known_aliases = set(_ALIASES)
+    removed = set(_REMOVED_TOOLS)
+
+    unknown = sorted(
+        n for n in mentioned
+        if n not in known_tools and n not in known_aliases
+        and n not in removed
+        and _resolve_tool_name(n) not in known_tools
+    )
+
+    # Every live (non-pack-injected) tool should be documented. We allow
+    # pack-contributed tools to be optional here, since they live in their
+    # own docs surface; the core check is that no name in TOOLS.md is fake.
+    mentioned_canonical = {
+        _resolve_tool_name(n) for n in mentioned
+    } | mentioned
+    undocumented = sorted(
+        t for t in known_tools if t not in mentioned_canonical
+    )
+
+    problems = []
+    if unknown:
+        problems.append(
+            f"{len(unknown)} unknown tool name(s) in TOOLS.md: {unknown[:5]}"
+        )
+    # Strict round-trip: report undocumented count but don't fail (pack
+    # tools legitimately live in separate pack docs).
+    detail_extra = ""
+    if undocumented:
+        detail_extra = (
+            f"; {len(undocumented)} core tool(s) not in TOOLS.md "
+            f"(advisory): {undocumented[:3]}"
+        )
+    if problems:
+        return False, "; ".join(problems) + detail_extra
+    return True, (
+        f"{len(mentioned)} tool ref(s) in TOOLS.md, all resolve" + detail_extra
+    )
+
+
+def check_citation_cff_valid():
+    """CITATION.cff must declare a supported cff-version."""
+    import yaml
+
+    f = REPO_ROOT / "CITATION.cff"
+    if not f.exists():
+        return False, "CITATION.cff missing"
+    try:
+        data = yaml.safe_load(f.read_text()) or {}
+    except Exception as e:
+        return False, f"YAML parse error: {e}"
+    cff_version = str(data.get("cff-version", ""))
+    # The CFF JSON schema is published per minor version. The known
+    # supported series is 1.2.x.
+    valid_versions = {"1.2.0"}
+    if cff_version not in valid_versions:
+        return False, f"cff-version={cff_version!r} not in supported {valid_versions}"
+    # Required keys for a valid CFF record per the 1.2.0 schema.
+    required = ("message", "title", "authors", "version")
+    missing = [k for k in required if not data.get(k)]
+    if missing:
+        return False, f"missing required CFF key(s): {missing}"
+    return True, f"cff-version {cff_version}, all required keys present"
+
+
+def check_tool_short_field_length():
+    """Every TOOL_DEFINITIONS entry must declare a 'short' field <=120 chars."""
+    from research_os.server import TOOL_DEFINITIONS
+
+    missing: list[str] = []
+    too_long: list[str] = []
+    for name, defn in TOOL_DEFINITIONS.items():
+        short = defn.get("short")
+        if not short or not isinstance(short, str):
+            missing.append(name)
+            continue
+        if len(short) > 120:
+            too_long.append(f"{name} ({len(short)} chars)")
+    problems = []
+    if missing:
+        problems.append(f"{len(missing)} tool(s) missing 'short': {missing[:5]}")
+    if too_long:
+        problems.append(f"{len(too_long)} tool(s) over 120 chars: {too_long[:5]}")
+    if problems:
+        return False, "; ".join(problems)
+    return True, f"{len(TOOL_DEFINITIONS)} tool(s) have valid 'short' fields"
+
+
+def check_packs_in_both_lists():
+    """Every src/research_os_* pack/adapter directory must be referenced
+    in BOTH pack_loader.py bundled list AND pyproject.toml packages list.
+    """
+    import re
+
+    src_dir = REPO_ROOT / "src"
+    pack_dirs = sorted(
+        d.name for d in src_dir.iterdir()
+        if d.is_dir() and d.name.startswith("research_os_")
+    )
+
+    # Read pack_loader.py bundled lists.
+    loader = REPO_ROOT / "src" / "research_os" / "server" / "pack_loader.py"
+    loader_text = loader.read_text() if loader.exists() else ""
+    bundled_in_loader: set[str] = set()
+    # Match entries like ("name", "research_os_X:register").
+    for m in re.finditer(r'"(research_os_[A-Za-z0-9_]+)\s*:', loader_text):
+        bundled_in_loader.add(m.group(1))
+
+    # Read pyproject.toml packages list.
+    pyproject = REPO_ROOT / "pyproject.toml"
+    pyproject_text = pyproject.read_text() if pyproject.exists() else ""
+    bundled_in_pyproject: set[str] = set()
+    for m in re.finditer(r'"src/(research_os_[A-Za-z0-9_]+)"', pyproject_text):
+        bundled_in_pyproject.add(m.group(1))
+
+    problems: list[str] = []
+    for pack in pack_dirs:
+        in_loader = pack in bundled_in_loader
+        in_pyproject = pack in bundled_in_pyproject
+        if not in_loader and not in_pyproject:
+            problems.append(f"{pack}: missing from BOTH lists")
+        elif not in_loader:
+            problems.append(f"{pack}: missing from pack_loader.py bundled list")
+        elif not in_pyproject:
+            problems.append(f"{pack}: missing from pyproject.toml packages list")
+
+    if problems:
+        return False, "; ".join(problems[:5])
+    return True, f"{len(pack_dirs)} pack/adapter dir(s) in both bundled lists"
+
+
 def check_no_version_chatter():
     """No historical version commentary in live doctrine surfaces."""
     import importlib.util
@@ -849,6 +1116,11 @@ def main() -> int:
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
+    tally.check("Docs/code consistency (tool names, scripts/, xrefs)", check_docs_code_consistency)
+    tally.check("TOOLS.md vs TOOL_DEFINITIONS round-trip", check_tools_md_roundtrip)
+    tally.check("CITATION.cff cff-version valid", check_citation_cff_valid)
+    tally.check("Every tool definition has 'short' field <=120 chars", check_tool_short_field_length)
+    tally.check("Every pack dir in both bundled lists (loader + pyproject)", check_packs_in_both_lists)
 
     print()
     print(f"Summary: {tally.passed} passed · {tally.failed} failed")

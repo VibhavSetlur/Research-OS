@@ -4,7 +4,7 @@ name: Mixed-Language Orchestration (Python ↔ R ↔ Bash within a step)
 version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
+  domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-04'

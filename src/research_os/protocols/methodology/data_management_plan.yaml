@@ -4,7 +4,7 @@ name: Data Management Plan (DMP) — funder-compliant, FAIR-aligned
 version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor, maintainer]
   workflow_shape: [experiment_pipeline]
 last_reviewed: '2026-06-02'

@@ -297,7 +297,7 @@ def _try_semantic_route(
 # ---------------------------------------------------------------------------
 
 
-def sys_boot(root: Path) -> dict[str, Any]:
+def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
     """Return everything needed to start (or continue) a session in ONE call.
 
     Bundles: project / pipeline state, researcher config (autonomy +
@@ -305,6 +305,10 @@ def sys_boot(root: Path) -> dict[str, Any]:
     optional deps, recommended next protocol, pause classification, and
     any active plan from a previous turn. Cuts a typical session boot
     from 4-5 MCP calls (~5K tokens) down to one (~800 tokens).
+
+    Pass ``lean=True`` for a ~50-token subset — only
+    {active_plan, pause_classification, current_tier, root, active_packs}.
+    Use for mid-session orientation when you don't need the full boot.
     """
     try:
         from research_os.project_ops import load_state
@@ -313,6 +317,48 @@ def sys_boot(root: Path) -> dict[str, Any]:
             get_protocol_history,
         )
         from research_os.tools.actions.state.config import get_config
+
+        # Pack inventory — names only. Used by both lean + full shapes
+        # so the AI always knows which packs the server has loaded.
+        try:
+            from research_os.plugins import installed_packs as _packs_inv
+
+            active_packs = [p.get("name") for p in (_packs_inv() or []) if p.get("name")]
+        except Exception:
+            active_packs = []
+
+        # Lean mode — minimal orientation. Skip dep_inventory,
+        # protocol_history, recent_calls, freshness, paths_summary, etc.
+        if lean:
+            try:
+                history = get_protocol_history(root, limit=5)
+                entries = history.get("entries", []) or []
+            except Exception:
+                entries = []
+            try:
+                pause = _classify_pause(entries, root)
+            except Exception:
+                pause = "unknown"
+            try:
+                active_plan = _load_active_plan(root)
+            except Exception:
+                active_plan = None
+            try:
+                from research_os.tools.actions.state.tier_state import (
+                    get_current_tier,
+                )
+
+                current_tier = get_current_tier(root)
+            except Exception:
+                current_tier = None
+            return {
+                "status": "success",
+                "active_plan": active_plan,
+                "pause_classification": pause,
+                "current_tier": current_tier,
+                "root": str(root),
+                "active_packs": active_packs,
+            }
 
         # State (graceful when the workspace is partially scaffolded).
         try:
@@ -419,6 +465,16 @@ def sys_boot(root: Path) -> dict[str, Any]:
         except Exception as e:
             logger.debug("state_freshness_check skipped: %s", e)
 
+        # Current tier — surfaced alongside packs for orientation.
+        try:
+            from research_os.tools.actions.state.tier_state import (
+                get_current_tier,
+            )
+
+            current_tier = get_current_tier(root)
+        except Exception:
+            current_tier = None
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -433,7 +489,11 @@ def sys_boot(root: Path) -> dict[str, Any]:
             "expertise": cfg.get("researcher", {}).get(
                 "expertise_level", "intermediate"
             ),
-            "model_profile": cfg.get("model_profile", "medium"),
+            "model_profile": (
+                cfg.get("ai", {}).get("model_profile")
+                or cfg.get("model_profile", "medium")
+            ),
+            "context_class": cfg.get("ai", {}).get("context_class", "short"),
             "shared_server": cfg.get("runtime", {}).get("shared_server", False),
             "long_running_threshold": cfg.get("runtime", {}).get(
                 "long_running_threshold_seconds", 60
@@ -446,6 +506,8 @@ def sys_boot(root: Path) -> dict[str, Any]:
             "next_protocol": next_proto,
             "dep_inventory": dep_inv,
             "active_plan": active_plan,
+            "active_packs": active_packs,
+            "current_tier": current_tier,
             "handoff_recommended": handoff_recommended,
             "handoff_hint": handoff_hint,
             "n_finalized_steps": n_finalized,

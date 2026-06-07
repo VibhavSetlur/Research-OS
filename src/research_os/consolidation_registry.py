@@ -167,9 +167,19 @@ def register_removed(tool_name: str, message: str) -> None:
     See module docstring for the deprecation cadence rule.
     """
     if not tool_name or not isinstance(tool_name, str):
-        raise ValueError(f"tool_name must be a non-empty str, got {tool_name!r}")
+        from research_os.server.errors import RoError
+        raise RoError(
+            what=f"tool_name must be a non-empty str, got {tool_name!r}",
+            why="register_removed() requires a string tool name",
+            next_action="pass a non-empty string tool name",
+        )
     if not message or not isinstance(message, str):
-        raise ValueError("message must be a non-empty str")
+        from research_os.server.errors import RoError
+        raise RoError(
+            what="message must be a non-empty str",
+            why="register_removed() requires a deprecation message",
+            next_action="pass a non-empty string explaining the removal",
+        )
     REMOVED_TOOLS[tool_name] = message
 
 
@@ -182,9 +192,26 @@ def bind_handler(new_name: str, handler: ToolHandler) -> None:
     circular imports.
     """
     if new_name not in CONSOLIDATED_TOOLS:
-        raise ValueError(f"tool {new_name!r} not registered; cannot bind handler")
+        from research_os.server.errors import RoError, did_you_mean
+        suggestions = did_you_mean(
+            new_name, list(CONSOLIDATED_TOOLS.keys()), n=3, cutoff=0.5,
+            namespace_aware=True,
+        )
+        suffix = (
+            f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+        )
+        raise RoError(
+            what=f"tool {new_name!r} not registered; cannot bind handler",
+            why="bind_handler() requires a previously-registered consolidated tool name",
+            next_action=f"call register_consolidated() first.{suffix}",
+        )
     if not callable(handler):
-        raise ValueError("handler must be callable")
+        from research_os.server.errors import RoError
+        raise RoError(
+            what="handler must be callable",
+            why="bind_handler() requires a callable",
+            next_action="pass a function, not a value",
+        )
     CONSOLIDATED_TOOLS[new_name]["handler"] = handler
 
 

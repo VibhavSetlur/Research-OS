@@ -1,6 +1,6 @@
 # Tool Catalog
 
-**146 live MCP tools** across three namespaces (`sys_*` / `tool_*` /
+**148 live MCP tools** across three namespaces (`sys_*` / `tool_*` /
 `mem_*`). Every legacy v1.x name still dispatches via `_ALIASES` +
 `_ALIAS_PARAM_INJECTION` through the v2.0.x patch line. 78 deprecated
 aliases (dispatch-but-flag), 24 hard-removed names (return a friendly
@@ -20,7 +20,7 @@ Every tool definition carries two metadata fields:
 * `status` — `live` (visible in `list_tools`), `alias` (back-compat
   pointer), or `deprecated` (callable, telemetry to
   `.os_state/deprecations.log`). `list_tools` returns `status='live'`
-  only (146 / 146).
+  only (148 / 148).
 * `pack` — `core` (123 tools) or one of `humanities`, `qualitative`,
   `theory_math`, `wet_lab`, `engineering`, `slurm`, `snakemake`,
   `nextflow`, `cytoscape`, `redcap`, `synapse` (23 tools across 11
@@ -84,7 +84,8 @@ under the new canonical tool. Hard-removed names (return
 | `sys_config` | **Unified config dispatcher.** `operation='get'\|'set'\|'validate'`. Aliases: `sys_config_get`, `sys_config_set`, `sys_config_validate` (still callable). Operates on `inputs/researcher_config.yaml`. |
 | `sys_dep_inventory` | Listed above (Discovery). |
 | `sys_env` | **Unified environment dispatcher.** `operation='snapshot'\|'docker_generate'`. Aliases: `sys_env_snapshot`, `sys_env_docker_generate` (still callable). Capture + containerise the env. |
-| `sys_export_share_archive` | Build a share-safe zip of the project (excludes AI-internal files). |
+| `sys_export_ro_crate` | Emit `ro-crate-metadata.json` + `codemeta.json` at project root. FAIR-aligned discoverability for downstream tools (Zenodo, OSF). |
+| `sys_export_share_archive` | Build a share-safe zip of the project (excludes AI-internal files). Bundles `ro-crate-metadata.json` + `codemeta.json` + `CITATION.cff` at archive root. |
 | `sys_file_delete` | Delete a workspace file or empty directory. |
 | `sys_file_list` | List files in a workspace directory (recursive). |
 | `sys_file_read` | Read a project file. |
@@ -104,6 +105,7 @@ under the new canonical tool. Hard-removed names (return
 | `sys_session_handoff` | Generate a structured handoff doc + a fresh checkpoint. |
 | `sys_state_get` | Full / minimal / markdown state snapshot. (Prefer `sys_boot` at session start.) |
 | `sys_tool_describe` | Listed above (Discovery). |
+| `sys_where` | ~30-token mid-session "where am I?" snapshot (root, tier, plan position, blocks, last protocol). Cheaper than `sys_boot`. |
 | `sys_workspace_scaffold` | Re-create the directory tree. |
 | `sys_workspace_tree` | Structured workspace listing. |
 
@@ -121,7 +123,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | v2 entry point | Dispatch by | Operations | v1.x aliases (callable unless **removed**) |
 |---|---|---|---|
 | `tool_audit` | `scope` + `dimension` | step/project/synthesis × completeness, code_quality, prose, claims, citations, coherence, cross_deliverable, dashboard_content, evalue, figure, figure_coverage, figure_full, figure_interactivity, power, reproducibility, reviewer_responses, step_literature, version_coherence, cliches, all | `tool_audit_assumptions`, `tool_audit_citations`, `tool_audit_claims`, `tool_audit_cliches`, `tool_audit_code_quality`, `tool_audit_coherence`, `tool_audit_cross_deliverable_consistency`, `tool_audit_dashboard_content`, `tool_audit_evalue`, `tool_audit_figure`, `tool_audit_figure_coverage`, `tool_audit_figure_full`, `tool_audit_figure_interactivity`, `tool_audit_figure_quality`, `tool_audit_power`, `tool_audit_prose`, `tool_audit_reproducibility`, `tool_audit_reviewer_responses`, `tool_audit_statistical_power`, `tool_audit_step_completeness`, `tool_audit_step_literature`, `tool_audit_synthesis`, `tool_audit_version_coherence` |
-| `tool_audit_findings` | `operation` | `query` (filter the ledger), `diff` (compare two snapshots by stable id) | `tool_audit_findings_query`, `tool_audit_findings_diff` |
+| `tool_audit_findings` | `operation` | `query` (filter the ledger), `diff` (compare two snapshots by stable id), `explain` (full chronological history + untruncated suggested_fix for one id — call after a synthesize BLOCK; the BLOCK envelope's `next_recommended_call` points at it) | `tool_audit_findings_query`, `tool_audit_findings_diff` |
 | `tool_audit_quality_full` | — (aggregator) | (standalone) — runs every gate in one call and returns structured per-component verdicts | — |
 | `tool_dashboard` | `operation` | `create`, `story_generate`, `story_edit`, `story_quality_bar`, `reviewer_sim`, `test_generate`, `test_run` | `tool_dashboard_create`, `tool_dashboard_story_generate`, `tool_dashboard_story_edit`, `tool_dashboard_story_quality_bar`, `tool_dashboard_reviewer_sim`, `tool_dashboard_test_generate`, `tool_dashboard_test_run` |
 | `tool_data` | `operation` | `sample`, `profile`, `convert` (CSV ↔ Parquet ↔ Feather ↔ RDS) | `tool_data_sample`, `tool_data_profile`, `tool_data_convert` |
@@ -257,7 +259,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 ## What's new in v2.0.0 — quick reference
 
-**Tool surface consolidation** (~344 → 146 live)
+**Tool surface consolidation** (~344 → 148 live)
 
 * Audit family 26 → 3 (`tool_audit`, `tool_audit_findings`,
   `tool_audit_quality_full`).
@@ -278,17 +280,21 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 * `tool_route` output gained `recommended_action` (literal next-call
   string) + `why_matched` (similarity score + matched triggers + tier).
 * `sys_active_tools` returns a 13-18-tool scoped shortlist per
-  protocol (down from 146 visible).
+  protocol (down from 344 visible).
 * `sys_protocol_get` default `format` flipped `full` → `summary`
   (5-10× cheaper per-turn load).
 
 **Audit-as-data** *(phase-4)*
 
 * Every audit emits a JSON companion alongside the Markdown report.
-* `tool_audit_findings(operation='query'\|'diff')` reads the
+* `tool_audit_findings(operation='query'\|'diff'\|'explain')` reads the
   cross-audit ledger at `workspace/logs/.audit_findings.jsonl` with
-  stable UUIDv5 ids, filters by `severity`, `dimension`, `step`,
-  `since`.
+  stable UUIDv5 ids. `query` filters by `severity`, `dimension`,
+  `step`, `since`. `diff` compares two snapshots. `explain` (REQUIRES
+  `id=...`) returns the full chronological history of one finding with
+  the **untruncated** `suggested_fix` text — what to call when a
+  synthesize BLOCK preview cuts off the remediation guidance at 160
+  chars.
 * `tool_synthesize` BLOCK-gates on unresolved BLOCK findings and
   names the exact override flag in the error envelope
   (`override_unresolved_blocks=true` + `override_rationale='...'`).
@@ -308,7 +314,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 **`research-os doctor`** *(phase-6)*
 
-* 18+ install + workspace health checks. Exit policy: 0 = all-pass,
+* 20+ install + workspace health checks. Exit policy: 0 = all-pass,
   1 = warn-only, 2 = fail. Run after every `pip install --upgrade
   research-os`. Flags: `--verbose`, `--workspace-only`, `--workspace
   <path>`, `--json`.
@@ -322,12 +328,12 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 **`status` + `pack` on every tool definition**
 
-* 146 / 146 tools annotated. `list_tools` filters to `status='live'`;
+* 148 / 148 tools annotated. `list_tools` filters to `status='live'`;
   no aliases / deprecated leak. 123 core + 23 across 11 packs.
 
 **Preflight checks expanded 22 → 24**
 
-* New: "every tool definition has a handler" (146/146 wired) +
+* New: "every tool definition has a handler" (148/148 wired) +
   "no deprecated-alias tool refs in protocols" (clean across 78
   deprecated names).
 
@@ -600,4 +606,4 @@ If the tool conceptually folds into an existing dispatcher
 (`tool_audit`, `tool_dashboard`, etc.), prefer adding an
 `operation` / `dimension` value to the dispatcher over a fresh
 top-level tool — the consolidation discipline is what keeps the
-surface at 146.
+surface at 148.

@@ -1,7 +1,4 @@
-"""Tool definitions for the research domain.
-
-Extracted from server/_core.py as part of the Phase-10 server.py modular split.
-"""
+"""Tool definitions for the research domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -9,6 +6,7 @@ from typing import Any
 
 RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_web_scrape": {
+        "short": "Scrape a webpage and return markdown content. Use when fetching one URL as text.",
         "description": "Scrape a webpage and return markdown content.",
         "category": "search",
         "inputSchema": {
@@ -18,6 +16,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_literature_download": {
+        "short": "Download a paper PDF + .meta.yaml sidecar. Use when grabbing a specific reference.",
         "description": "Download a paper PDF. Default scope is inputs/literature/ (project-wide). Pass step_id='NN_<slug>' to save it under workspace/<step>/literature/ instead. Writes a .meta.yaml sidecar with title/authors/year/doi if provided so synthesis can cite it correctly.",
         "category": "search",
         "inputSchema": {
@@ -39,6 +38,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_literature_search_and_save": {
+        "short": "Search provider + download top-N PDFs with metadata. Use when sourcing literature for a step.",
         "description": "Search a provider, download the top-N PDFs into the chosen scope (project or step), preserve citation metadata. One-shot 'find + save' for literature you want backing a specific analysis step.",
         "category": "search",
         "inputSchema": {
@@ -57,6 +57,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_step_literature_list": {
+        "short": "List PDFs in a step's literature/ (or all steps). Use when auditing per-step references.",
         "description": "List PDFs in a specific experiment step's literature/ folder, OR across every step when no step_id is given.",
         "category": "search",
         "inputSchema": {
@@ -67,6 +68,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_python_exec": {
+        "short": "Execute a workspace Python script (host permissions). Use when running .py analysis.",
         "description": "Execute a Python script located in the workspace. Runs with host permissions — do NOT execute untrusted code.",
         "category": "execution",
         "inputSchema": {
@@ -79,6 +81,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_r_exec": {
+        "short": "Execute a workspace R script. Use when running .R analysis.",
         "description": "Execute an R script located in the workspace.",
         "category": "execution",
         "inputSchema": {
@@ -91,6 +94,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_julia_exec": {
+        "short": "Execute a workspace Julia script. Use when running .jl analysis.",
         "description": "Execute a Julia script located in the workspace.",
         "category": "execution",
         "inputSchema": {
@@ -103,6 +107,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_bash_exec": {
+        "short": "Execute a workspace Bash script. Use when running .sh utilities.",
         "description": "Execute a Bash script located in the workspace.",
         "category": "execution",
         "inputSchema": {
@@ -115,12 +120,14 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_package_install": {
-        "description": "Install Python packages and append them to environment/requirements.txt.",
+        "short": "Install Python packages + append to environment/requirements.txt. Use when adding deps.",
+        "description": "Install Python packages and append them to environment/requirements.txt. In autopilot mode, requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "execution",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "packages": {"type": "array", "items": {"type": "string"}},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode. Researcher consent."},
             },
             "required": ["packages"],
         },
@@ -213,6 +220,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_research_method": {
+        "short": "Gather 5-10 sources + write a method report. Use BEFORE choosing any statistical/computational method.",
         "description": "Gather 5-10 academic + web sources about a method, dedupe, write a structured report. Use BEFORE choosing any statistical/computational method.",
         "category": "research",
         "inputSchema": {
@@ -225,18 +233,23 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_research_tool": {
-        "description": "Find candidate libraries / CLIs / websites for a task. Tags each candidate as installable | api_available | external_tool | paid_or_licensed. Use when picking a tool.",
+        "short": "Find tagged candidate libs / CLIs / websites. Use when picking a tool for a task.",
+        "description": "Find candidate libraries / CLIs / websites for a task. Tags each candidate as installable | api_available | external_tool | paid_or_licensed. Use when picking a tool. In autopilot mode, calls with source='paid' or paid=true require confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "research",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "task": {"type": "string"},
                 "language": {"type": "string", "description": "any | python | r | julia | bash"},
+                "source": {"type": "string", "description": "Optional source tag. 'paid' triggers the autopilot floor gate."},
+                "paid": {"type": "boolean", "description": "Optional. Set true to flag a paid_or_licensed candidate; triggers the autopilot floor gate."},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode when source is paid. Researcher consent."},
             },
             "required": ["task"],
         },
     },
     "tool_external_tool_instructions": {
+        "short": "Write WORKSHEET.md for an external website / GUI / paid service. Use when handing off to humans.",
         "description": "When the chosen tool is external (website, GUI, paid service), write a WORKSHEET.md telling the researcher how to use it and where to drop the outputs.",
         "category": "research",
         "inputSchema": {
@@ -251,6 +264,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_alternative_path_propose": {
+        "short": "Confidence-gated alt-pipeline scan + recommendation. Use BEFORE committing to a method.",
         "description": (
             "Confidence-gated alternative-pipeline scan. Pulls literature on "
             "the user's chosen method AND on alternatives framed for the "
@@ -288,6 +302,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_intake_autofill": {
+        "short": "Propose project metadata from inputs/ + fill researcher_config blanks. Use during onboarding.",
         "description": "Read inputs/ (data + literature + context notes) and propose project metadata (research question, domain, hypotheses). Fills blanks in researcher_config.yaml and rewrites inputs/intake.md.",
         "category": "intake",
         "inputSchema": {
@@ -338,6 +353,10 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "operation='kill' — Signal to send: TERM | KILL | INT (default TERM).",
                 },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Required in autopilot mode for operation='run' (expensive background jobs). Researcher consent.",
+                },
             },
             "required": ["operation"],
         },
@@ -360,6 +379,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_rmarkdown_render": {
+        "short": "Render an .Rmd or .qmd doc (rmarkdown OR quarto). Use when knitting R/Quarto reports.",
         "description": "Render an .Rmd or .qmd document (rmarkdown::render OR quarto render).",
         "category": "execution",
         "inputSchema": {
@@ -403,6 +423,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_workspace_repair": {
+        "short": "Detect + heal missing dirs / corrupted state (never deletes). Use when workspace looks broken.",
         "description": "Detect missing directories / corrupted state / stale paths and (optionally) heal them. NEVER deletes files.",
         "category": "state",
         "inputSchema": {
@@ -411,6 +432,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_context_intake": {
+        "short": "Route stray files into inputs/ subfolders (logs moves, never overwrites). Use after dropping files.",
         "description": "Detect new files dropped anywhere in the project and route each into the right inputs/ subfolder (literature / raw_data / context). Logs every move; never overwrites.",
         "category": "intake",
         "inputSchema": {
@@ -423,6 +445,7 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_citations_verify": {
+        "short": "Verify citation_keys against Crossref (flags hallucinations). Use before submitting.",
         "description": "Verify every citation_key in workspace/citations.md by hitting Crossref. Reports verified vs unverified (possibly hallucinated) entries.",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},

@@ -353,9 +353,13 @@ def load_protocol(
             f" Did you mean: {', '.join(suggestions)}?"
             if suggestions else ""
         )
-        raise FileNotFoundError(
-            f"Protocol '{name}' not found in {PROTOCOLS_DIR}.{suffix} "
-            "Call sys_protocol_list to see the live catalog."
+        from research_os.server.errors import RoError
+        raise RoError(
+            what=f"Protocol '{name}' not found",
+            why=f"no YAML at {PROTOCOLS_DIR}/{name}.yaml or in installed packs",
+            next_action=(
+                f"call sys_protocol_list to see the live catalog.{suffix}"
+            ),
         )
     with open(file) as f:
         data = yaml.safe_load(f) or {}

@@ -1,7 +1,4 @@
-"""Tool definitions for the synthesis domain.
-
-Extracted from server/_core.py as part of the Phase-10 server.py modular split.
-"""
+"""Tool definitions for the synthesis domain."""
 from __future__ import annotations
 
 from typing import Any
@@ -65,12 +62,15 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_synthesize_plan": {
+        "short": "Recommend section ordering from available sources. Use BEFORE tool_synthesize.",
         "description": "Inspect available sources (methods.md, conclusions per step, citations) and return the recommended section ordering. Call BEFORE tool_synthesize.",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_synthesize": {
-        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure. Quality gate: refuses to build a full document if tool_audit_quality_full reports BLOCKERS. Phase-4c BLOCK-finding gate: ALSO refuses to compile when any unresolved BLOCK finding sits in workspace/logs/.audit_findings.jsonl (latest-snapshot semantics — a BLOCK from an earlier audit run that the latest rerun no longer reproduces is treated as resolved). The researcher (NOT the AI) can authorise a partial / WIP deliverable by passing override_completeness_gate=true (master quality gate bypass) or override_unresolved_blocks=true (BLOCK-finding ledger bypass) with a one-line override_rationale — both are logged to workspace/logs/override_log.md for the audit trail.",
+        "short": "Compile workspace into a publishable paper/poster/dashboard/report. Use when producing final deliverables.",
+        "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
+        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure. Quality gate: refuses to build a full document if tool_audit_quality_full reports BLOCKERS. BLOCK-finding gate: ALSO refuses to compile when any unresolved BLOCK finding sits in workspace/logs/.audit_findings.jsonl (latest-snapshot semantics — a BLOCK from an earlier audit run that the latest rerun no longer reproduces is treated as resolved). The researcher (NOT the AI) can authorise a partial / WIP deliverable by passing override_completeness_gate=true (master quality gate bypass) or override_unresolved_blocks=true (BLOCK-finding ledger bypass) with a one-line override_rationale — both are logged to workspace/logs/override_log.md for the audit trail.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -112,15 +112,21 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "boolean",
                     "description": "AUTOPILOT-ONLY short-circuit. When true AND interaction.autonomy_level == 'autopilot', tool_synthesize processes ALL sections (methods → results → discussion → introduction → abstract) AND runs the full assembly in ONE call. Each per-section file is still written exactly as the multi-turn flow would write it. Passing true in manual/supervised/coaching modes returns an error — the multi-turn cadence is the deliberation pace those modes exist to provide. Default false.",
                 },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Required in autopilot mode (server-enforced autopilot floor gate — see guidance/autopilot.yaml). Researcher consent for the final deliverable.",
+                },
             },
         },
     },
     "tool_latex_compile": {
+        "short": "Compile synthesis/paper.tex → PDF (pdflatex + bibtex). Use when LaTeX submission is required.",
         "description": "Compile synthesis/paper.tex to PDF (pdflatex + bibtex).",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_poster_create": {
+        "short": "Compile a conference poster via Typst from synthesis spec. Use when producing a poster.",
         "description": "Compile a conference poster from the curated synthesis spec via Typst (academic_36x48 portrait, light theme, US-letter handout by default). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). The `engine` kwarg is accepted for back-compat but only `typst` is supported.",
         "category": "synthesis",
         "inputSchema": {
@@ -150,7 +156,8 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_dashboard": {
-        "short": "Unified dashboard tool. operation=create|story_generate|story_edit|story_quality_bar|reviewer_sim|test_generate|test_run.",
+        "short": "Unified dashboard tool. operation=create|story_*|reviewer_sim|test_*. Use when producing the dashboard.",
+        "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
         "description": "Unified dashboard dispatcher. operation='create' (default) renders the standalone offline HTML dashboard at synthesis/dashboard.html (single-page-app by default; pass dashboard_legacy=true for the v1 long-scroll renderer; dashboard_default_mode='story' for narrative-first reading; audience ∈ {academic, executive, technical, teaching}; override_completeness_gate=true + override_rationale='<why>' suppresses the soft completeness warning panel for the FINAL deliverable). operation='story_generate' builds synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state. operation='story_edit' reads (no args) or patches synthesis/dashboard_story.md via `edits` (default mode='patch' diff-style payload, or mode='overwrite' to replace whole file). operation='story_quality_bar' WARNs when reading time falls outside 5-20 min, no figure in first 1000 words, or no DISAGREES/EXTENDS callout (no BLOCKERs — story mode is optional). operation='reviewer_sim' walks synthesis/dashboard.html top-to-bottom and returns whether a 5-minute skimmer would extract the headline finding. operation='test_generate' scaffolds tests/dashboard/ with the baseline Playwright + axe-core suite (pass overwrite=true to replace). operation='test_run' subprocesses pytest under tests/dashboard/ and returns structured failures + trace.zip paths (kwargs: only, visual, update_snapshots, timeout).",
         "category": "synthesis",
         "inputSchema": {
@@ -223,6 +230,7 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "visual": {"type": "boolean", "description": "operation='test_run' — enable visual regression."},
                 "update_snapshots": {"type": "boolean", "description": "operation='test_run' — update snapshot baselines."},
                 "timeout": {"type": "number", "description": "operation='test_run' — timeout in seconds."},
+                "confirmed": {"type": "boolean", "description": "Required in autopilot mode for operation='create' (final-deliverable floor gate — see guidance/autopilot.yaml)."},
             },
         },
     },
@@ -294,7 +302,7 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_slides_create": {
-        "short": "Compile a real presentation deck — Reveal.js HTML or Touying-compatible Typst PDF — from workspace findings + slides_spec.yaml.",
+        "short": "Compile a presentation deck (Reveal.js HTML or Touying PDF). Use when producing slides.",
         "description": "Two production engines. engine='reveal' writes synthesis/slides.html — a single self-contained file backed by the vendored Reveal.js v5 runtime with stock speaker-notes plugin (press 's' for presenter view). engine='touying' writes synthesis/slides.typ against the bundled touying-mini.typ template and shells out to the typst CLI to produce synthesis/slides.pdf (requires typst on PATH). Five stock templates: conference_15min (12 slides), conference_5min_lightning (6 slides), lab_meeting_30min (16 slides + backup section), defense_45min (35 slides chapter-arc), public_outreach (12 slides, no jargon). theme='' picks per-engine default (white). speaker_notes_enabled=True (default) embeds the per-slide notes. print_handout=True (default) also emits synthesis/slides.handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Prereq: at least one workspace/<step>/conclusions.md OR synthesis/slides_spec.yaml; missing both returns a structured error. Back-compat: legacy output_format='reveal'|'beamer'|'pdf' and audience= kwargs are accepted and mapped to engine= silently.",
         "category": "synthesis",
         "inputSchema": {

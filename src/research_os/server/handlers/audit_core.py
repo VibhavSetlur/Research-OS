@@ -25,6 +25,9 @@ __all__ = [
     "_handle_tool_audit_step_literature",
     "_handle_tool_audit_findings_query",
     "_handle_tool_audit_findings_diff",
+    "_handle_tool_audit_findings_explain",
+    "_handle_tool_audit_findings_timeline",
+    "_handle_tool_audit_active_gates",
     "_handle_tool_audit_version_coherence",
     "_handle_tool_audit_figure_full",
     "_handle_tool_audit_code_quality",
@@ -43,14 +46,23 @@ def _handle_tool_audit(name, arguments, root):
     has its scope+dimension injected via ``_ALIAS_PARAM_INJECTION``, so
     callers (researchers, scripts, protocols) using the older per-
     dimension names keep working unchanged.
+
+    Special scope ``active_gates`` (no dimension required) introspects
+    the live armed-gate state on this project — returns the per-gate
+    counts (block/warn/info) by reading the cross-audit findings ledger,
+    plus the static gate vocabulary so callers can see which gates have
+    NEVER fired on this project vs which are actively emitting findings.
     """
     scope = arguments.get("scope")
     dimension = arguments.get("dimension")
+    if scope == "active_gates":
+        return _handle_tool_audit_active_gates(name, arguments, root)
     if not scope or not dimension:
         return _text(_error(
             "tool_audit requires scope= and dimension=. "
-            "Valid scopes: step | project | synthesis. "
-            "See docs/V2_MIGRATION_TABLE.md for the full dimension list."
+            "Valid scopes: step | project | synthesis | active_gates. "
+            "See docs/V2_MIGRATION_TABLE.md for the full dimension list. "
+            "Use sys_help(topic='gates') for the full gate vocabulary."
         ))
     handler_name = _AUDIT_DISPATCH.get((scope, dimension))
     if not handler_name:
@@ -85,20 +97,32 @@ def _handle_tool_audit_findings(name, arguments, root):
         return _handle_tool_audit_findings_query(name, arguments, root)
     if op == "diff":
         return _handle_tool_audit_findings_diff(name, arguments, root)
+    if op == "explain":
+        return _handle_tool_audit_findings_explain(name, arguments, root)
+    if op == "timeline":
+        return _handle_tool_audit_findings_timeline(name, arguments, root)
     return _text(_error(
         f"tool_audit_findings: unknown operation '{op}'. "
-        "Use operation='query' or operation='diff'."
+        "Use operation='query', 'diff', 'explain', or 'timeline'."
     ))
 
 
 def _handle_tool_audit_synthesis(name, arguments, root):
     from research_os.tools.actions.audit import audit_synthesis
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
+
+    # reject thin override_rationale before the audit runs.
+    override_no_pdfs = bool(arguments.get("override_no_pdfs", False))
+    raw_rationale = arguments.get("override_rationale")
+    if override_no_pdfs and raw_rationale:
+        thin = validate_override_rationale(raw_rationale)
+        if thin is not None:
+            return _text(thin)
 
     res = audit_synthesis(
         arguments.get("paper_path", "synthesis/paper.md"),
         root,
-        override_no_pdfs=bool(arguments.get("override_no_pdfs", False)),
+        override_no_pdfs=override_no_pdfs,
         override_rationale=str(arguments.get("override_rationale", "")),
     )
     # Mirror the other six override gates in this file: when the bypass
@@ -188,7 +212,7 @@ def _handle_tool_audit_figure_interactivity(name, arguments, root):
 
 def _handle_tool_audit_dashboard_content(name, arguments, root):
     from research_os.tools.actions.audit.dashboard_content import audit_dashboard_content
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
     from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_dashboard_content_gate", False))
@@ -200,6 +224,10 @@ def _handle_tool_audit_dashboard_content(name, arguments, root):
             "interaction.quality_gate_policy=enforce: "
             "override_dashboard_content_gate=true requires override_rationale."
         ))
+    if override_requested and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
     res = audit_dashboard_content(
         root,
         dashboard_path=arguments.get("dashboard_path", "synthesis/dashboard.html"),
@@ -263,7 +291,7 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
         CrossDeliverableConsistencyAudit,
         audit_cross_deliverable_consistency,
     )
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
     from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_cross_deliverable", False))
@@ -278,6 +306,10 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
             "interaction.quality_gate_policy=enforce: "
             "override_cross_deliverable=true requires override_rationale."
         ))
+    if override_requested and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
 
     res = audit_cross_deliverable_consistency(root)
 
@@ -397,6 +429,124 @@ def _handle_tool_audit_findings_diff(name, arguments, root):
     if res.get("status") == "error":
         return _text(_error(res.get("message", "audit_findings_diff failed")))
     return _text(_success(res))
+
+
+def _handle_tool_audit_findings_explain(name, arguments, root):
+    """Return the full chronological history of one finding id.
+
+    Reads ``workspace/logs/.audit_findings.jsonl`` and emits every
+    snapshot whose id matches, with no 160-char truncation on
+    ``suggested_fix``. Designed for the AI to call after a synthesize
+    BLOCK so it can see WHY the finding sticks (when it was first
+    raised, when overridden, when re-raised).
+    """
+    from research_os.tools.actions.audit.findings_query import (
+        audit_findings_explain,
+    )
+
+    finding_id = arguments.get("id")
+    if not finding_id or not str(finding_id).strip():
+        return _text(_error(
+            "tool_audit_findings(operation='explain') requires id=... "
+            "(the UUID of the finding to explain — copy it from a "
+            "tool_audit_findings(operation='query') result or from the "
+            "synthesize BLOCK error envelope's next_recommended_call)."
+        ))
+    res = audit_findings_explain(Path(root), finding_id=str(finding_id))
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "audit_findings_explain failed")))
+    return _text(_success(res))
+
+
+def _handle_tool_audit_findings_timeline(name, arguments, root):
+    """Return the full append-only ledger in chronological order.
+
+    Unlike operation='query' (latest snapshot per id), 'timeline' keeps
+    every emission so long-context models can spot "this finding keeps
+    coming back" + "researcher keeps overriding same gate" patterns.
+    Optional gate_name / scope filters.
+    """
+    from research_os.tools.actions.audit.findings_query import (
+        audit_findings_timeline,
+    )
+
+    res = audit_findings_timeline(
+        Path(root),
+        gate_name=arguments.get("gate_name"),
+        scope=arguments.get("scope"),
+    )
+    return _text(_success(res))
+
+
+def _handle_tool_audit_active_gates(name, arguments, root):
+    """Introspect armed gates on this project.
+
+    Reads the cross-audit findings ledger and returns:
+      * ``gates`` — every distinct ``audit_name`` seen in the ledger,
+        with per-severity counts (block/warn/info) and the most recent
+        emission timestamp. This is the LIVE state ("what's currently
+        emitting findings on this project").
+      * ``known_gate_vocabulary`` — every gate the dispatch table can
+        route to (``_AUDIT_DISPATCH`` keys), so callers can see which
+        gates have never fired on this project vs which are armed.
+      * ``ledger_path`` — workspace-relative path to the ledger.
+
+    Read-only. Cheap. Useful before tool_synthesize so the AI can
+    answer "what gates am I about to face?" without grepping audit code.
+    """
+    from research_os.tools.actions.audit.findings_query import (
+        FINDINGS_JSONL_RELPATH,
+        _load_jsonl_lines,
+    )
+
+    rows = _load_jsonl_lines(Path(root) / FINDINGS_JSONL_RELPATH)
+
+    # Aggregate per-gate counts + last_emission.
+    per_gate: dict[str, dict] = {}
+    for row in rows:
+        gate = row.get("audit_name")
+        if not gate:
+            continue
+        entry = per_gate.setdefault(
+            gate,
+            {
+                "audit_name": gate,
+                "block": 0,
+                "warn": 0,
+                "info": 0,
+                "total": 0,
+                "last_emission": None,
+            },
+        )
+        sev = row.get("severity")
+        if sev in ("block", "warn", "info"):
+            entry[sev] += 1
+        entry["total"] += 1
+        ts = row.get("generated_at")
+        if ts and (entry["last_emission"] is None or ts > entry["last_emission"]):
+            entry["last_emission"] = ts
+
+    gates = sorted(per_gate.values(), key=lambda r: r["audit_name"])
+
+    # Static gate vocabulary from the dispatch table — every (scope,
+    # dimension) the dispatcher can route to. Lets the AI see the
+    # difference between "never fired" and "actively armed".
+    vocabulary = [
+        {"scope": scope, "dimension": dim, "handler": handler}
+        for (scope, dim), handler in sorted(_AUDIT_DISPATCH.items())
+    ]
+
+    return _text(_success({
+        "gates": gates,
+        "armed_gate_count": len(gates),
+        "known_gate_vocabulary": vocabulary,
+        "vocabulary_count": len(vocabulary),
+        "ledger_path": str(FINDINGS_JSONL_RELPATH),
+        "hint": (
+            "Call sys_help(topic='gates') for the full gate vocabulary, "
+            "autopilot floor list, and bypass shapes."
+        ),
+    }))
 
 
 def _handle_tool_audit_version_coherence(name, arguments, root):

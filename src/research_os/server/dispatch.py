@@ -21,7 +21,8 @@ from .aliases import (
     _DEPRECATED_ALIASES,
     _REMOVED_TOOLS,
 )
-from .envelopes import TextContent, _error, _text
+from .autopilot_gate import enforce_autopilot_gate
+from .envelopes import TextContent, _error, _normalize_envelope, _text
 from .errors import RoError, did_you_mean
 from .rate_limiter import _rate_limiter
 
@@ -82,7 +83,7 @@ def _log_deprecation(root: Path, source: str, target: str) -> None:
 
 def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
     if not _rate_limiter.is_allowed():
-        return _text(_error("Rate limit exceeded — slow down."))
+        return _text(_error("Rate limit exceeded: slow down."))
     canonical_input = name.replace(".", "_")
     resolved = _resolve_tool_name(name)
     logger.info(f"Tool call: {name} -> {resolved}")
@@ -95,12 +96,24 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
     if resolved in _REMOVED_TOOLS:
         return _text(_error(_REMOVED_TOOLS[resolved]))
 
+    # Server-side autopilot floor gates. Refuses one of the 8 enumerated
+    # gates in guidance/autopilot.yaml unless ``confirmed=true`` is set.
+    try:
+        enforce_autopilot_gate(resolved, arguments or {}, root)
+    except RoError as ro:
+        return _text(_error(**ro.to_envelope_kwargs()))
+
     # Defer import to avoid circular at module load time.
     from .registry import _HANDLERS
 
     handler = _HANDLERS.get(resolved)
     if handler is None:
-        suggestions = did_you_mean(resolved, list(_HANDLERS.keys()), n=3)
+        all_handlers = list(_HANDLERS.keys())
+        # Namespace-aware lookup with lowered cutoff for short tool names
+        # (closes FIX-16: sys_X typo prefers other sys_*).
+        suggestions = did_you_mean(
+            resolved, all_handlers, n=3, cutoff=0.5, namespace_aware=True
+        )
         suggestion_clause = (
             f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
         )
@@ -108,7 +121,7 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             _error(
                 what=f"unknown tool '{name}'",
                 why=(
-                    "no handler is registered for that name — it may be "
+                    "no handler is registered for that name; it may be "
                     "deprecated, removed, or a typo"
                 ),
                 next_action=(
@@ -117,7 +130,7 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         )
     try:
-        return handler(resolved, arguments, root)
+        return _normalize_envelope(handler(resolved, arguments, root), resolved)
     except RoError as ro:
         # Structured error from the handler: render its WHAT/WHY/NEXT
         # directly into the envelope.

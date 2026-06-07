@@ -189,6 +189,27 @@ def _handle_sys_packs_installed(name, arguments, root):
     from research_os.plugins import installed_packs, load_pack_errors
     packs = installed_packs()
     errors = load_pack_errors()
+    # Optional pack-name filter: returns one pack or did_you_mean.
+    pack_name = (arguments or {}).get("pack") if isinstance(arguments, dict) else None
+    if pack_name and isinstance(pack_name, str):
+        names = [p.get("name") for p in packs if isinstance(p, dict) and p.get("name")]
+        if pack_name not in names:
+            from research_os.server.errors import did_you_mean
+            suggestions = did_you_mean(pack_name, names, n=3, cutoff=0.5)
+            if not suggestions and names:
+                suggestions = names[:3]
+            suffix = (
+                f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+            )
+            return _text(_error(
+                what=f"Pack '{pack_name}' is not installed",
+                why="no pack with that name was discovered at server startup",
+                next_action=(
+                    f"install the pack via pip, or call sys_packs_installed without "
+                    f"a pack filter to see all installed packs.{suffix}"
+                ),
+            ))
+        packs = [p for p in packs if p.get("name") == pack_name]
     return _text(_success({
         "packs": packs,
         "pack_count": len(packs),
@@ -228,7 +249,32 @@ def _handle_tool_adapter_extract(name, arguments, root):
     res = run_extract(root, adapter_name, step_id=arguments.get("step_id"))
     if res.get("status") == "success":
         return _text(_success(res))
-    return _text(_error(res.get("message", "extract failed")))
+    # Failure: try to enrich with did_you_mean against installed adapter names.
+    msg = res.get("message", "extract failed")
+    try:
+        from research_os.adapters import installed_adapters
+        from research_os.server.errors import did_you_mean
+        names = [
+            a.get("name") for a in installed_adapters()
+            if isinstance(a, dict) and a.get("name")
+        ]
+        if adapter_name not in names:
+            suggestions = did_you_mean(adapter_name, names, n=3, cutoff=0.5)
+            if not suggestions and names:
+                suggestions = names[:3]
+            suffix = (
+                f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+            )
+            return _text(_error(
+                what=f"Adapter '{adapter_name}' not found",
+                why="no adapter with that name was discovered at server startup",
+                next_action=(
+                    f"call sys_adapters_installed to list valid adapter names.{suffix}"
+                ),
+            ))
+    except Exception:
+        pass
+    return _text(_error(msg))
 
 
 def _handle_tool_adapters_list(name, arguments, root):

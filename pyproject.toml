@@ -115,12 +115,17 @@ interactive_figures = ["pyvis>=0.3"]
 # who only need the default story rendering.
 story_math = []
 
+# Shell tab-completion via argcomplete. Optional — `research-os completion`
+# falls back to a minimal hand-rolled script when this isn't installed.
+completion = ["argcomplete>=3.0"]
+
 # Developer extras
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "ruff>=0.4",
     "mypy>=1.0",
+    "argcomplete>=3.0",
 ]
 
 # "all" pulls everything CI can install cross-platform. R / Julia / Docker

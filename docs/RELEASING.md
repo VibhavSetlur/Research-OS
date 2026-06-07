@@ -142,7 +142,7 @@ git push origin dev
 Before tagging:
 
 - [ ] Test suite green on `dev` (`gh run list --branch dev`).
-- [ ] `python scripts/preflight.py` returns 13/13.
+- [ ] `python scripts/preflight.py` all checks pass (currently 24; check count varies — see scripts/preflight.py).
 - [ ] `ruff check src/ tests/ scripts/` is clean.
 - [ ] `__version__`, `pyproject.toml`, `CITATION.cff` agree.
 - [ ] CHANGELOG.md has a fresh `## [X.Y.Z]` section with a date.

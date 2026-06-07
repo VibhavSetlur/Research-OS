@@ -94,6 +94,14 @@ class AssetManager:
 
         asset = self.package_asset(relative_path)
         if not asset.is_file():
-            raise FileNotFoundError(relative_path)
+            from research_os.server.errors import RoError
+            raise RoError(
+                what=f"Asset '{relative_path}' not found",
+                why="no packaged asset or local override at that path",
+                next_action=(
+                    "verify the asset path; drop a local override under "
+                    ".os_state/assets/ to provide one"
+                ),
+            )
         return asset.read_text(encoding=encoding)
 

@@ -4,7 +4,7 @@ name: Methodology Selection (with lightweight lookup mode)
 version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [experiment_pipeline]
 description: |

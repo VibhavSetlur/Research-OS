@@ -41,7 +41,7 @@ def _handle_sys_help(name, arguments, root):
             "synthesis", "methodology", "visualization", "audit",
             "literature", "writing", "routing", "iteration", "overrides",
             "recovery", "fields", "depth", "categories",
-            "anti_patterns", "docs",
+            "anti_patterns", "docs", "gates",
         ],
         "hint": "Call sys_help again with topic=<one of topics> for detail.",
     }
@@ -333,6 +333,89 @@ def _handle_sys_help(name, arguments, root):
             "multi_panel": "visualization/multi_panel_composition",
             "arc": "visualization/figure_narrative_arc",
             "a11y": "visualization/color_accessibility_audit",
+        }))
+    if topic == "gates":
+        # Full gate vocabulary — every (scope, dimension) the
+        # _AUDIT_DISPATCH table can route to + the 8-gate autopilot
+        # floor list + bypass shapes + override_log location. Closes the
+        # discoverability gap where researchers learn gate names only
+        # from BLOCKED errors.
+        return _text(_success({
+            "all_audit_gates": {
+                "step": {
+                    "completeness":         "focal figure + caption + summary + non-stub conclusions + provenance coverage per step.",
+                    "literature":           "per-step literature gate — claims_grounded, citations resolved.",
+                    "code_quality":         "ruff + AST-based complexity / docstring / smell checks per script.",
+                    "evalue":               "E-value sensitivity (VanderWeele & Ding) for observational designs.",
+                    "figure":               "PNG DPI + basic visual hygiene per step figure.",
+                    "figure_full":          "full figure quality audit (axis, ticks, legend, colour, font).",
+                    "figure_interactivity": "dashboard / interactive plot interactivity coverage.",
+                    "power":                "statistical power gate (statsmodels-driven).",
+                    "assumptions":          "residual normality / variance / autocorrelation / VIF / Cook's D battery.",
+                    "reproducibility":      "step rerun + bit-stability check (slow + expensive; autopilot floor gate).",
+                },
+                "project": {
+                    "citations":          "every workspace/citations.md entry verified against Crossref / S2.",
+                    "claims":             "every number in synthesis/paper.md traces to a workspace output.",
+                    "cliches":            "anti-bullshit / hedging / vague-quantifier audit on paper prose.",
+                    "coherence":          "section-to-section thread + figure-call-order coherence.",
+                    "cross_deliverable": "5-dim consistency across paper / poster / dashboard / slides / abstract.",
+                    "prose":              "hedging / passive / vague / causal-language gating across all prose.",
+                    "version_coherence":  "every output traces to the highest-version script (no v1-fig from v2-script).",
+                },
+                "synthesis": {
+                    "all":                "structural synthesis audit (sections, citations, figures, bibliography).",
+                    "dashboard_content":  "dashboard content gate — non-stub story, figure provenance, captions.",
+                    "figure_coverage":    "% of workspace figures referenced from synthesis/.",
+                    "reviewer_responses": "reviewer-response file coverage (every reviewer point answered).",
+                },
+            },
+            "autopilot_floor_gates": {
+                "count": 8,
+                "intro": (
+                    "In autopilot mode, the dispatcher refuses these calls "
+                    "without confirmed=true (or the equivalent gated kwarg). "
+                    "Server-enforced — protocol prose alone can't bypass them."
+                ),
+                "list": [
+                    {"tool": "tool_synthesize",                              "bypass": "tool_synthesize(confirmed=true, ...)"},
+                    {"tool": "tool_dashboard(operation='create')",          "bypass": "tool_dashboard(operation='create', confirmed=true, ...)"},
+                    {"tool": "tool_audit(scope='step', dimension='reproducibility')", "bypass": "tool_audit(scope='step', dimension='reproducibility', confirmed=true, ...)"},
+                    {"tool": "tool_research_tool (paid candidates)",         "bypass": "tool_research_tool(confirmed=true, source='paid', ...)"},
+                    {"tool": "sys_path(operation='abandon')",                "bypass": "sys_path(operation='abandon', confirmed=true, path_name='...', rationale='...')"},
+                    {"tool": "sys_file_write (synthesis/ + force=true)",     "bypass": "sys_file_write(filepath='synthesis/...', force=true, confirmed=true, content='...')"},
+                    {"tool": "tool_package_install",                         "bypass": "tool_package_install(confirmed=true, ...)"},
+                    {"tool": "sys_checkpoint_rollback",                      "bypass": "sys_checkpoint_rollback(checkpoint_id='...', confirmed=true)"},
+                ],
+                "note": (
+                    "The autopilot.yaml protocol lists 9 gates in prose but "
+                    "the SERVER enforces 8 (the final-deliverable gate is "
+                    "logical — collapsed into the tool_synthesize floor)."
+                ),
+            },
+            "quality_gate_overrides": {
+                "intro": (
+                    "Quality gates (not autopilot floor gates) bypass via "
+                    "override_<gate>=true + override_rationale='...'. The "
+                    "rationale is mandatory under quality_gate_policy=enforce."
+                ),
+                "examples": [
+                    "tool_synthesize(override_completeness_gate=true, override_rationale='preview only — informal sketch')",
+                    "tool_dashboard(operation='create', override_completeness_gate=true, override_rationale='...')",
+                    "tool_audit(scope='synthesis', dimension='all', override_no_pdfs=true, override_rationale='novel measurement, no literature exists')",
+                    "tool_audit(scope='synthesis', dimension='dashboard_content', override_dashboard_content_gate=true, override_rationale='...')",
+                    "tool_audit(scope='project', dimension='cross_deliverable', override_cross_deliverable=true, override_rationale='...')",
+                    "tool_step_complete(step_id='02_eda', override_literature_gate=true, override_rationale='pure data engineering, no claims')",
+                ],
+            },
+            "bypass_log_location": "workspace/logs/override_log.md",
+            "discoverability_tools": {
+                "tool_audit(scope='active_gates')":       "introspect live armed-gate state on THIS project (which gates have actually fired).",
+                "tool_audit_findings(operation='timeline')": "full append-only ledger — every emission, no dedup — for recurrence-pattern + override-loop analysis.",
+                "tool_audit_findings(operation='query')":  "latest snapshot per finding id, filtered by severity / dimension / step / since.",
+                "tool_audit_findings(operation='explain', id=...)": "full chronological history of one finding id with untruncated suggested_fix.",
+            },
+            "gate_count_total": 21,
         }))
     if topic in {"audit", "quality"}:
         return _text(_success({

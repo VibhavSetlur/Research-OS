@@ -18,43 +18,49 @@ Pick the one that matches how you collaborate:
 
 ## Option 1 — Zip archive
 
-```sh
-python scripts/export_share_archive.py
-# → <project>_share_<YYYY-MM-DD>.zip in the project root
-```
+In your AI client, ask:
 
-What's included: `inputs/` (minus raw data unless you pass
-`--include-raw-data`), `workspace/`, `synthesis/`, `docs/`, `environment/`,
-and a top-level `README.md` if present.
+> "export a share archive of this project"
+
+The AI will call the `sys_export_share_archive` tool (see
+[`TOOLS.md`](TOOLS.md)) which writes
+`workspace/exports/<timestamp>.zip` in the project root.
+
+What's included: `inputs/` (minus raw data unless you ask the AI to
+include raw inputs), `workspace/`, `synthesis/`, `docs/`,
+`environment/`, and a top-level `README.md` if present.
 
 What's excluded (always): `AGENTS.md`, `CLAUDE.md`, `GETTING_STARTED.md`,
 `.os_state/`, `.claude/`, `.cursor/`, `.vscode/`, `.antigravity/`,
 `.opencode/`, MCP configs, `__pycache__/`, virtualenvs, `node_modules/`.
 
-Pass `--out PATH` to override the destination, e.g.
-
-```sh
-python scripts/export_share_archive.py --out /tmp/myproj.zip
-```
+For a citable, archival-quality bundle (RO-Crate metadata,
+checksums, DOI-ready), ask the AI to "export an RO-Crate of this
+project" instead — see the RO-Crate exporter docs.
 
 ## Option 2 — GitHub repo
 
+Use the [GitHub CLI](https://cli.github.com/) directly. From the
+project root:
+
 ```sh
-./scripts/init_github.sh                  # private repo named after the project
-./scripts/init_github.sh my-repo-name     # custom repo name
-./scripts/init_github.sh my-repo --public # public repo
+gh repo create $(basename $PWD) --private --source=. --push
 ```
 
-This script:
+That one command initialises git if needed, creates the GitHub repo
+named after the current folder, sets it as `origin`, and pushes the
+first commit.
 
-1. Initialises `git` if needed.
-2. Appends the share-safe exclusions to `.gitignore` (idempotent).
-3. Commits if there are any new changes.
-4. Creates the GitHub repo via the `gh` CLI and pushes the first commit.
+**Security note.** Default to `--private`. Only flip to `--public`
+after confirming `inputs/` contains no sensitive data (PHI, embargoed
+results, unpublished collaborator data, API keys). See the
+`confidentiality_level` field documented for the project audit
+metadata before publishing.
 
-Requires the [GitHub CLI](https://cli.github.com/) authenticated
-(`gh auth login`). If `gh` is not installed, the local commit still
-happens — push manually afterward.
+Requires `gh auth login` to be done once. Before running the command,
+review your `.gitignore` to make sure AI-internal files
+(`.os_state/`, `.claude/`, MCP configs) are excluded — the `init`
+wizard adds these by default.
 
 ## What collaborators get
 

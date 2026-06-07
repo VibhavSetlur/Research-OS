@@ -43,14 +43,24 @@ def _short_for_list(schema: dict) -> str:
         1. Explicit `short` field if present.
         2. First sentence of the full description, capped at 160 chars.
     The AI can call sys_tool_describe(name) for the full text on demand.
+
+    Appends the ``then`` chain hint (when present) so the canonical
+    boot-ritual sequence is self-reinforcing on every list_tools scan —
+    small models that lose the MCP `instructions` field after the first
+    turn still see "after this, call X" inline.
     """
     if isinstance(schema.get("short"), str) and schema["short"].strip():
-        return schema["short"].strip()
-    full = schema.get("description", "")
-    first = full.split(". ")[0].strip()
-    if not first.endswith("."):
-        first += "."
-    return first[:160]
+        base = schema["short"].strip()
+    else:
+        full = schema.get("description", "")
+        first = full.split(". ")[0].strip()
+        if not first.endswith("."):
+            first += "."
+        base = first[:120]
+    then = schema.get("then")
+    if isinstance(then, str) and then.strip():
+        return f"{base} then: {then.strip()}"
+    return base
 
 
 def _annotate_core_tool_metadata() -> None:
@@ -90,12 +100,15 @@ _annotate_core_tool_metadata()
 # these to the model on the first turn, removing the need for the AI to
 # discover the canonical session-start ritual by calling sys_help first.
 _MCP_INSTRUCTIONS = (
-    "On every turn: "
-    "(1) call sys_boot once per session, "
-    "(2) call tool_route(prompt=<user_message>) to identify the right protocol, "
-    "(3) load returned protocol with sys_protocol_get format=summary, "
-    "(4) call sys_active_tools to scope your working tool set. "
-    "Pack tools are loaded on-demand via tool_route routing."
+    'On every turn: '
+    '(1) call sys_boot() once per session, '
+    '(2) call tool_route(prompt="<user_message>") to identify the right protocol, '
+    '(3) load returned protocol with sys_protocol_get(protocol_name="<resolved>", format="summary"), '
+    '(4) call sys_active_tools(protocol_name="<resolved>") to scope your working tool set. '
+    'Pack tools are loaded on-demand via tool_route routing. '
+    'Each envelope ships next_recommended_call (string hint) and '
+    'next_recommended_call_structured ({tool, arguments}) — strict tool-loop '
+    'clients can dispatch the structured form directly.'
 )
 
 

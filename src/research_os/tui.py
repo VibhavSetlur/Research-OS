@@ -628,6 +628,72 @@ def _text_fallback(label, default, placeholder, allow_empty):
 
 
 # ---------------------------------------------------------------------------
+# Secret (masked) input — for API keys, tokens, passwords
+# ---------------------------------------------------------------------------
+
+
+def secret(label: str, allow_empty: bool = True, mask_char: str = "•") -> str:
+    """Single-line secret input with masked echo.
+
+    On a POSIX TTY (raw mode), keystrokes are echoed as ``mask_char`` so
+    onlookers cannot read the secret off the terminal. Backspace deletes
+    the last character; Enter submits; Esc cancels. Outside a TTY
+    (Windows, CI, piped stdin) we fall back to ``getpass.getpass`` which
+    suppresses echo entirely.
+
+    Used by the wizard's API-key collection step (W17) so freshly pasted
+    keys never appear on screen.
+    """
+    if not raw_supported():
+        import getpass
+        while True:
+            try:
+                raw = getpass.getpass(f"  {label} › ")
+            except (EOFError, KeyboardInterrupt):
+                raise KeyboardInterrupt
+            val = raw.strip()
+            if val or allow_empty:
+                return val
+
+    print(f"  {label}")
+
+    buf = ""
+
+    def _draw() -> None:
+        sys.stdout.write("\r\033[K")
+        sys.stdout.write(f"  {_C.CYAN}›{_C.RESET} {mask_char * len(buf)}")
+        sys.stdout.flush()
+
+    with _RawMode():
+        _draw()
+        while True:
+            try:
+                key = _read_key()
+            except KeyboardInterrupt:
+                sys.stdout.write("\n")
+                raise
+            if key == KEY_ENTER:
+                if not buf and not allow_empty:
+                    sys.stdout.write("\a")
+                    continue
+                break
+            elif key == KEY_ESC:
+                sys.stdout.write("\n")
+                raise KeyboardInterrupt
+            elif key == KEY_BACK:
+                if buf:
+                    buf = buf[:-1]
+            elif key == KEY_SPACE:
+                buf += " "
+            elif len(key) == 1 and key.isprintable():
+                buf += key
+            # Ignore arrow / nav keys — secrets are append-only.
+            _draw()
+        sys.stdout.write("\n")
+    return buf
+
+
+# ---------------------------------------------------------------------------
 # Yes / No
 # ---------------------------------------------------------------------------
 

@@ -33,6 +33,29 @@ def _handle_sys_protocol_list(name, arguments, root):
         cat = arguments.get("category") if isinstance(arguments, dict) else None
         cat = cat if isinstance(cat, str) and cat else None
         protocols = list_protocols(category=cat)
+        # Unknown category? Build a "did you mean" hint from the live catalog.
+        if cat and not protocols:
+            from research_os.server.errors import did_you_mean
+            all_p = list_protocols(category=None)
+            valid_cats = sorted({
+                (p.get("name") or "").split("/", 1)[0]
+                for p in all_p
+                if (p.get("name") or "")
+            })
+            suggestions = did_you_mean(cat, valid_cats, n=3, cutoff=0.5)
+            if not suggestions and valid_cats:
+                suggestions = valid_cats[:3]
+            suffix = (
+                f" Did you mean: {', '.join(suggestions)}?"
+                if suggestions else ""
+            )
+            return _text(_error(
+                what=f"No protocols for category '{cat}'",
+                why="category does not match any known protocol prefix",
+                next_action=(
+                    f"call sys_protocol_list with a valid category.{suffix}"
+                ),
+            ))
         return _text(_success({
             "protocols": protocols,
             "count": len(protocols),
@@ -99,14 +122,23 @@ def _handle_tool_tools_list(name, arguments, root):
 
 def _handle_sys_protocol_get(name, arguments, root):
     p_name = arguments.get("protocol_name")
-    # Default is "summary" (~300 tokens). Callers who need the bulk
-    # YAML must pass format="full" explicitly. See CHANGELOG for the
-    # rationale behind the default; this comment intentionally stays
-    # timeless.
-    fmt = (arguments.get("format") or "summary").lower()
-    step_id = arguments.get("step_id")
     profile = _read_profile(root)
     model_profile = profile.get("model_profile", "medium")
+    context_class = profile.get("context_class", "short")
+    # Default format respects the AI-side knobs (W20):
+    #   model_profile=small  → lean
+    #   context_class=long   → full
+    #   otherwise            → summary (~300 tokens)
+    # Callers who need a specific format pass it explicitly.
+    if arguments.get("format"):
+        fmt = arguments["format"].lower()
+    elif model_profile == "small":
+        fmt = "lean"
+    elif context_class == "long":
+        fmt = "full"
+    else:
+        fmt = "summary"
+    step_id = arguments.get("step_id")
     try:
         import yaml as _yaml
 
@@ -134,7 +166,8 @@ def _handle_sys_protocol_get(name, arguments, root):
 def _handle_sys_boot(name, arguments, root):
     from research_os.tools.actions.router import sys_boot
 
-    res = sys_boot(root)
+    lean = bool((arguments or {}).get("lean", False))
+    res = sys_boot(root, lean=lean)
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "sys_boot failed")))
