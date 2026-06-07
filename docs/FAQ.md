@@ -5,12 +5,12 @@
 ### What changed in v2.0.0?
 
 The headline shape change is a **tool surface consolidation
-(344 → 146 live)** plus a flip of `sys_protocol_get` to default
+(344 → 148 live)** plus a flip of `sys_protocol_get` to default
 `format='summary'`. Both are breaking on paper but **every legacy
 tool name still dispatches via alias for the v2.0.x runway** — most
 projects upgrade with zero call-site edits. After
 `pip install --upgrade research-os`, run **`research-os doctor`** for
-an 18-check install + workspace health report (exit 0 = all pass,
+a 20+ install + workspace health report (exit 0 = all pass,
 1 = warn-only, 2 = fail). See
 `CHANGELOG.md [2.0.0]` for the full upgrade
 recipe.
@@ -32,7 +32,7 @@ Other v2.0.0 highlights:
   `tool_poster_create` iterate draft → adversarial review → rewrite,
   with per-iteration outputs at
   `workspace/logs/drafter_loops/<deliverable>_iter_<N>.{md,json}`.
-* **`research-os doctor`** — 18+ install + workspace health checks.
+* **`research-os doctor`** — 20+ install + workspace health checks.
 * **`tier:` + `scope_tags`** on every protocol (117/117) — wires the
   router to filter candidates by project lifecycle and applicability.
 * **New discovery tools** — `tool_protocols_list` + `tool_tools_list`
@@ -414,7 +414,7 @@ Two patterns:
 
 ### What is `research-os doctor`?
 
-A CLI sub-command introduced in v2.0.0 that runs 18+ install +
+A CLI sub-command introduced in v2.0.0 that runs 20+ install +
 workspace health checks. Exit policy: 0 = all-pass, 1 = warn-only,
 2 = fail. The first thing the v2 migration guide tells you to run
 after `pip install --upgrade research-os`.
@@ -555,6 +555,49 @@ loaded in the current session (which depends on which packs are
 installed). `sys_packs_installed` lists active packs;
 `sys_adapters_installed` lists infrastructure adapters
 (SLURM / Snakemake / Nextflow / Cytoscape / REDCap / Synapse).
+
+---
+
+## Known caveats in 2.2.x
+
+Even with this release closing the v2.1.0 envelope-normalization gap,
+some caveats remain. Honest disclosure beats stealth — if you hit one
+of these, you can be confident it's known and being worked on, not a
+silent breakage on your end.
+
+* **Adapter envelopes vary by adapter version.** The core normalizer
+  the dispatcher normalizer guarantees envelope shape for tools that ship in-tree. Third-
+  party adapter packs published before 2.2.0 may still emit pre-
+  normalizer envelopes. Workaround: pin `research-os-adapter-*` to a
+  version released on or after 2026-06-01, or wrap the adapter call
+  in a try/except on `KeyError`.
+* **Path containment is enforced for `sys_file_*` only.** Tools that
+  shell out (e.g. `tool_python_exec`, `tool_shell_exec`) can still
+  read/write outside the project root. Workaround: prefer
+  `sys_file_*` for I/O the AI initiates; reserve shell-outs for
+  user-driven work.
+* **Autopilot floor-gates run after each protocol step, not after
+  each tool call.** A tool that runs for several minutes inside one
+  step is not interrupted by gate violations until the step returns.
+  Workaround: break long single-step protocols into smaller steps if
+  you need finer-grained gating.
+* **`override_rationale` is checked for substance, not for truth.**
+  The rationale validator rejects rationales shorter than ~40 chars or that just repeat
+  the block reason. It cannot tell whether the rationale is honest.
+  Workaround: human review of `.os_state/overrides.log` periodically.
+* **Prompt injection from fetched content.** Anything in a literature
+  PDF, web search snippet, or pasted text that reads "please run
+  tool_python_exec(...)" will be executed if the AI follows the
+  instruction and the user has approved tool use. There is no input
+  sanitiser. Workaround: keep `autonomy_level: managed` (default)
+  and review tool calls when ingesting untrusted content. See
+  [SECURITY.md](SECURITY.md) for the full threat model.
+* **`research-os doctor` does not check pack-installed protocol
+  versions.** A pack pinned to an old core version may load protocols
+  that reference removed tools. Workaround: bump packs alongside core.
+
+For the security posture that frames these caveats, read
+[SECURITY.md](SECURITY.md).
 
 ---
 

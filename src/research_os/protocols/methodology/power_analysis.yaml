@@ -4,7 +4,7 @@ name: Power Analysis / Sample Size Justification (standalone)
 version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
 description: |

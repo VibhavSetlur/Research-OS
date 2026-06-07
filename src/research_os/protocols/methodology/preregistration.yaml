@@ -4,7 +4,7 @@ name: Pre-registration & Statistical Analysis Plan
 version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
+  domain: [any]
   audience: [researcher]
   workflow_shape: [any]
 description: |

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
 """Research OS CLI.
 
 Four commands, by design:
@@ -19,6 +20,11 @@ Four commands, by design:
         version consistency, pack registration, embeddings freshness,
         IDE wiring, disk usage, git cleanliness, etc.). Returns exit
         code 0 (clean), 1 (warnings), or 2 (failures).
+
+    research-os completion bash|zsh|fish
+        Print a sourceable shell-completion script. Install with
+        ``eval "$(research-os completion zsh)"`` (or your shell's
+        equivalent) in your shell rc file.
 
 All real research work happens by talking to the AI in the IDE.
 """
@@ -42,10 +48,41 @@ VALID_IDES = (
     "windsurf", "continue", "aider",
 )
 
+# Shell-completion choice list for the `init --ide` flag.
+# Includes the two sentinels ("all", "none") so argcomplete can suggest them.
+IDE_CHOICES_FOR_COMPLETION = (*VALID_IDES, "all", "none")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _supports_utf8() -> bool:
+    """True when stdout encoding looks like UTF-* (else ASCII fallback)."""
+    enc = (getattr(sys.stdout, "encoding", "") or "").lower()
+    return "utf" in enc
+
+
+def _glyph(unicode_char: str, ascii_fallback: str) -> str:
+    """Return the unicode glyph when stdout is UTF-*, else the ASCII fallback.
+
+    Used so messages render correctly on terminals whose encoding doesn't
+    cover ✓/✗/⚠ (e.g. C locale, Windows cp1252, some piped contexts).
+    """
+    return unicode_char if _supports_utf8() else ascii_fallback
+
+
+def _check() -> str:
+    return _glyph("✓", "[+]")
+
+
+def _cross() -> str:
+    return _glyph("✗", "[x]")
+
+
+def _warn_glyph() -> str:
+    return _glyph("⚠", "[!]")
 
 
 def _ide_choice(args_ide: str | None) -> list[str]:
@@ -61,7 +98,7 @@ def _ide_choice(args_ide: str | None) -> list[str]:
     if invalid:
         valid_names = ", ".join(VALID_IDES)
         print(
-            f"  ✗ Unknown IDE(s): {', '.join(invalid)}.\n"
+            f"  {_cross()} Unknown IDE(s): {', '.join(invalid)}.\n"
             f"    Valid choices: {valid_names}, all, none.\n"
             f"    Use --ide none to skip IDE wiring entirely."
         )
@@ -96,7 +133,7 @@ def _link_inputs(target_dir: Path, sources: list[Path]) -> list[str]:
                 shutil.copy2(src, link)
                 linked.append(src.name)
             except OSError as exc:
-                print(f"  ⚠  Could not link {src.name}: {exc}")
+                print(f"  {_warn_glyph()}  Could not link {src.name}: {exc}")
     return linked
 
 
@@ -171,7 +208,7 @@ def _copy_attachments(target_dir: Path, paths: list[Path]) -> list[Path]:
             shutil.copy2(src, dest)
             written.append(dest)
         except OSError as exc:
-            print(f"  ⚠  Could not copy {src.name}: {exc}")
+            print(f"  {_warn_glyph()}  Could not copy {src.name}: {exc}")
     return written
 
 
@@ -212,7 +249,7 @@ def cmd_init(args: argparse.Namespace) -> None:
     project_name = args.name or target_dir.name
     already_initialized = (target_dir / ".os_state").exists()
     if already_initialized and not args.force:
-        print(f"  ✗ Workspace already exists at: {target_dir}")
+        print(f"  {_cross()} Workspace already exists at: {target_dir}")
         print("  Pass --force to re-scaffold (preserves your data and config).")
         sys.exit(1)
 
@@ -469,7 +506,7 @@ def cmd_start(args: argparse.Namespace) -> None:
     if args.workspace:
         workspace = Path(args.workspace).resolve()
         if not (workspace / ".os_state").exists():
-            print(f"  ⚠  --workspace points at a non-RO directory: {workspace}")
+            print(f"  {_warn_glyph()}  --workspace points at a non-RO directory: {workspace}")
             print("  Run 'research-os init' there first, or omit --workspace.")
         sys.argv = [sys.argv[0], "--transport", args.transport,
                     "--workspace", str(workspace)]
@@ -568,6 +605,462 @@ def cmd_ide(args: argparse.Namespace) -> None:
 
 
 # ---------------------------------------------------------------------------
+# mcp subcommand — compose OTHER MCP servers (Slack, GitHub, Postgres, ...)
+# into the IDE configs RO already manages.
+#
+# This is additive: `research-os ide add` still wires the RO server itself
+# into an IDE. `research-os mcp add` wires extra third-party MCP servers
+# into the same mcpServers block so the IDE picks them up alongside RO.
+# ---------------------------------------------------------------------------
+
+
+def cmd_mcp(args: argparse.Namespace) -> int:
+    """Add / list / remove / template third-party MCP servers."""
+    from research_os import collab, wizard
+    if getattr(args, "no_color", False):
+        wizard.disable_color()
+
+    root = _find_workspace_root()
+    if not root:
+        wizard.fail("Not inside a Research OS workspace",
+                    "Run `research-os init` first, or cd into a project.")
+        return 1
+
+    action = args.action
+
+    if action == "list":
+        servers_by_ide = collab.mcp_list_servers(root)
+        if not servers_by_ide:
+            wizard.warn("No IDE configs with composable mcpServers found",
+                        "Run `research-os ide add <name>` to wire an IDE first.")
+            return 0
+        print()
+        print(f"  {wizard._C.BOLD}MCP servers in {root}{wizard._C.RESET}")
+        print(f"  {wizard._C.GREY}{wizard._hr()}{wizard._C.RESET}")
+        for ide, servers in servers_by_ide.items():
+            relpath = collab.IDES_WITH_MCP_JSON[ide][0]
+            print(f"  {wizard._C.BOLD}{ide}{wizard._C.RESET} "
+                  f"{wizard._C.GREY}({relpath}){wizard._C.RESET}")
+            if not servers:
+                print(f"    {wizard._C.GREY}(no servers configured){wizard._C.RESET}")
+                continue
+            for name, entry in sorted(servers.items()):
+                cmd = entry.get("command", "?") if isinstance(entry, dict) else "?"
+                print(f"    {wizard._C.GREEN}·{wizard._C.RESET} "
+                      f"{name:<24}{wizard._C.GREY}{cmd}{wizard._C.RESET}")
+        print()
+        return 0
+
+    if action == "template":
+        name = (args.name or "").strip().lower()
+        if not name:
+            wizard.fail("`research-os mcp template` needs --name",
+                        f"Known: {', '.join(sorted(collab.MCP_TEMPLATES))}")
+            return 2
+        entry = collab.MCP_TEMPLATES.get(name)
+        if not entry:
+            wizard.fail(f"Unknown template: {name!r}",
+                        f"Known: {', '.join(sorted(collab.MCP_TEMPLATES))}")
+            return 2
+        ides = _parse_ide_list_for_mcp(args.ide, collab)
+        results = collab.mcp_add_server(root, args.as_name or name, entry, ides=ides)
+        _print_mcp_results(results, args.as_name or name, action="added", wizard=wizard)
+        author = collab.whoami(root)
+        collab.log_action(root, author, f"Added MCP server template: {args.as_name or name}")
+        return 0
+
+    if action == "add":
+        if not args.name:
+            wizard.fail("`research-os mcp add` needs --name", "")
+            return 2
+        if not args.mcp_command:
+            wizard.fail("`research-os mcp add` needs --command",
+                        "e.g. `--command npx --args -y,@scope/server`")
+            return 2
+        entry: dict = {"command": args.mcp_command}
+        if args.mcp_args:
+            # Accept comma- or space-separated lists (commas are simpler in shells).
+            arg_list = [a for a in args.mcp_args.replace(",", " ").split() if a]
+            if arg_list:
+                entry["args"] = arg_list
+        ides = _parse_ide_list_for_mcp(args.ide, collab)
+        results = collab.mcp_add_server(root, args.name, entry, ides=ides)
+        _print_mcp_results(results, args.name, action="added", wizard=wizard)
+        author = collab.whoami(root)
+        collab.log_action(root, author, f"Added MCP server: {args.name}")
+        return 0
+
+    if action == "remove":
+        if not args.name:
+            wizard.fail("`research-os mcp remove` needs --name", "")
+            return 2
+        ides = _parse_ide_list_for_mcp(args.ide, collab)
+        results = collab.mcp_remove_server(root, args.name, ides=ides)
+        _print_mcp_results(results, args.name, action="removed", wizard=wizard)
+        author = collab.whoami(root)
+        collab.log_action(root, author, f"Removed MCP server: {args.name}")
+        return 0
+
+    wizard.fail(f"Unknown mcp action: {action}", "")
+    return 2
+
+
+def _parse_ide_list_for_mcp(value: str | None, collab_mod) -> list[str] | None:
+    """Parse the --ide flag for `mcp` subcommands. None / 'all' / 'wired'
+    → return None (delegate to mcp_add_server's default).
+    Comma-separated → return the explicit list, validated against the
+    set of IDEs that DO support composable mcpServers blocks."""
+    if not value or value.lower() in ("all", "wired"):
+        return None
+    parts = [p.strip() for p in value.split(",") if p.strip()]
+    valid = collab_mod.IDES_WITH_MCP_JSON
+    invalid = [p for p in parts if p not in valid]
+    if invalid:
+        print(f"  {_cross()} Unknown IDE(s) for mcp: {', '.join(invalid)}. "
+              f"Choose from: {', '.join(sorted(valid))}.")
+        sys.exit(2)
+    return parts
+
+
+def _print_mcp_results(results: dict[str, str], name: str, action: str, wizard) -> None:
+    if not results:
+        wizard.warn(f"No IDEs to {action.rstrip('ed')} {name!r}",
+                    "Wire one with `research-os ide add <name>` first.")
+        return
+    for ide, status in results.items():
+        if status in ("added", "updated", "removed"):
+            wizard.ok(f"{ide}: {status} {name}")
+        else:
+            wizard.warn(f"{ide}", status)
+
+
+# ---------------------------------------------------------------------------
+# api-key subcommand — manage api_keys in inputs/researcher_config.yaml
+# ---------------------------------------------------------------------------
+
+
+# Known free / lift-the-rate-limit providers RO knows how to wire. Anything
+# else still works — providers are open-ended strings — but these are the
+# ones `research-os api-key test` knows how to ping.
+KNOWN_API_KEY_PROVIDERS = (
+    "semantic_scholar",
+    "pubmed",
+    "crossref",
+    "openalex",
+    "openai",
+    "anthropic",
+    "firecrawl",
+    "serpapi",
+)
+
+
+def cmd_api_key(args: argparse.Namespace) -> int:
+    """Add / list / rotate / remove / test an API key in researcher_config.yaml."""
+    from research_os import collab, wizard
+    from research_os.tools.actions.state.config import (
+        add_api_key, check_api_key, list_api_keys, remove_api_key,
+    )
+    if getattr(args, "no_color", False):
+        wizard.disable_color()
+
+    root = _find_workspace_root()
+    if not root:
+        wizard.fail("Not inside a Research OS workspace",
+                    "Run `research-os init` first, or cd into a project.")
+        return 1
+
+    action = args.action
+
+    if action == "list":
+        res = list_api_keys(root)
+        if res.get("status") != "success":
+            wizard.fail("Could not list API keys", res.get("message", ""))
+            return 1
+        api_keys = res.get("api_keys") or {}
+        print()
+        print(f"  {wizard._C.BOLD}API keys in {root / 'inputs' / 'researcher_config.yaml'}{wizard._C.RESET}")
+        print(f"  {wizard._C.GREY}{wizard._hr()}{wizard._C.RESET}")
+        if not api_keys:
+            print(f"  {wizard._C.GREY}(no keys configured){wizard._C.RESET}")
+        for provider, masked_val in sorted(api_keys.items()):
+            mark = (f"{wizard._C.GREEN}·{wizard._C.RESET}" if masked_val
+                    else f"{wizard._C.GREY}·{wizard._C.RESET}")
+            display = masked_val or f"{wizard._C.GREY}(blank){wizard._C.RESET}"
+            print(f"  {mark} {provider:<22}{display}")
+        print()
+        return 0
+
+    if action in ("add", "rotate"):
+        provider = args.provider
+        if not provider:
+            wizard.fail(f"`research-os api-key {action}` needs a provider",
+                        f"e.g. `research-os api-key {action} semantic_scholar`")
+            return 2
+        value = _read_secret_value(args, provider, wizard)
+        if not value:
+            return 2
+        res = add_api_key(root, provider, value)
+        if res.get("status") != "success":
+            wizard.fail(f"Could not store key for {provider}",
+                        res.get("message", ""))
+            return 1
+        verb = "Rotated" if res.get("rotated") or action == "rotate" else "Added"
+        wizard.ok(f"{verb} key for {provider}", "chmod 600 applied")
+        author = collab.whoami(root)
+        collab.log_action(root, author, f"{verb} API key: {provider}")
+        return 0
+
+    if action == "remove":
+        provider = args.provider
+        if not provider:
+            wizard.fail("`research-os api-key remove` needs a provider", "")
+            return 2
+        res = remove_api_key(root, provider)
+        if res.get("status") == "success":
+            wizard.ok(f"Removed key for {provider}")
+            author = collab.whoami(root)
+            collab.log_action(root, author, f"Removed API key: {provider}")
+            return 0
+        if res.get("status") == "noop":
+            wizard.warn(res.get("message", "no-op"))
+            return 0
+        wizard.fail("Could not remove key", res.get("message", ""))
+        return 1
+
+    if action == "test":
+        provider = args.provider
+        if not provider:
+            wizard.fail("`research-os api-key test` needs a provider",
+                        "e.g. `research-os api-key test pubmed`")
+            return 2
+        res = check_api_key(root, provider)
+        if res.get("status") == "ok":
+            wizard.ok(f"{provider}: OK", res.get("detail", ""))
+            return 0
+        wizard.fail(f"{provider}: FAIL", res.get("detail", ""))
+        return 1
+
+    wizard.fail(f"Unknown api-key action: {action}", "")
+    return 2
+
+
+def _read_secret_value(args: argparse.Namespace, provider: str, wizard) -> str:
+    """Return the secret to store, prompting via getpass if not in --from-env."""
+    if getattr(args, "from_env", None):
+        env_name = args.from_env
+        val = os.environ.get(env_name, "").strip()
+        if not val:
+            wizard.fail(f"Environment variable {env_name} not set or empty", "")
+            return ""
+        return val
+    # Interactive: hidden prompt.
+    import getpass as _getpass
+    try:
+        val = _getpass.getpass(f"Paste {provider} API key (input hidden): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        wizard.warn("Cancelled — no key stored")
+        return ""
+    if not val:
+        wizard.warn("Empty input — no key stored")
+        return ""
+    return val
+
+
+# ---------------------------------------------------------------------------
+# completion
+# ---------------------------------------------------------------------------
+
+
+# Top-level subcommand names recognized by the CLI. Kept in one place so
+# the fish completion script and the argparse subparser registry stay in
+# sync (the test suite cross-checks these).
+SUBCOMMANDS_FOR_COMPLETION = (
+    "init", "ide", "mcp", "api-key", "start", "doctor", "completion",
+)
+
+
+_FISH_COMPLETION_TEMPLATE = """\
+# research-os fish completion
+# Generated by `research-os completion fish`.
+# Source via: research-os completion fish | source
+
+complete -c research-os -f
+
+# Top-level subcommands.
+function __research_os_no_subcommand
+    set -l cmd (commandline -opc)
+    set -l subs {sub_list}
+    if test (count $cmd) -le 1
+        return 0
+    end
+    for token in $cmd[2..-1]
+        for s in $subs
+            if test "$token" = "$s"
+                return 1
+            end
+        end
+    end
+    return 0
+end
+
+{sub_complete_block}
+
+# init flags
+complete -c research-os -n '__fish_seen_subcommand_from init' -l name -d 'Project name'
+complete -c research-os -n '__fish_seen_subcommand_from init' -l domain -d 'Domain hint'
+complete -c research-os -n '__fish_seen_subcommand_from init' -l question -d 'Initial research question'
+complete -c research-os -n '__fish_seen_subcommand_from init' -l ide -d 'IDE(s) to wire' -xa "{ide_choices}"
+complete -c research-os -n '__fish_seen_subcommand_from init' -l force -d 'Re-scaffold even if workspace exists'
+complete -c research-os -n '__fish_seen_subcommand_from init' -s y -l yes -d 'Skip the wizard'
+complete -c research-os -n '__fish_seen_subcommand_from init' -l no-color -d 'Disable ANSI styling'
+complete -c research-os -n '__fish_seen_subcommand_from init' -l preflight -d 'Run repo preflight after scaffold'
+
+# ide subcommand
+complete -c research-os -n '__fish_seen_subcommand_from ide' -xa 'list add remove config-path'
+
+# start flags
+complete -c research-os -n '__fish_seen_subcommand_from start' -l workspace -d 'Pin to a workspace path' -r
+complete -c research-os -n '__fish_seen_subcommand_from start' -l transport -d 'MCP transport' -xa 'stdio sse'
+
+# doctor flags
+complete -c research-os -n '__fish_seen_subcommand_from doctor' -l verbose -d 'Show fix hints for passing checks'
+complete -c research-os -n '__fish_seen_subcommand_from doctor' -l workspace-only -d 'Skip install checks'
+complete -c research-os -n '__fish_seen_subcommand_from doctor' -l workspace -d 'Explicit workspace path' -r
+complete -c research-os -n '__fish_seen_subcommand_from doctor' -l json -d 'Emit JSON report'
+complete -c research-os -n '__fish_seen_subcommand_from doctor' -l no-color -d 'Disable ANSI styling'
+
+# completion subcommand
+complete -c research-os -n '__fish_seen_subcommand_from completion' -xa 'bash zsh fish'
+"""
+
+
+def _build_fish_completion() -> str:
+    """Hand-rolled fish completion script for the research-os CLI."""
+    sub_list = " ".join(SUBCOMMANDS_FOR_COMPLETION)
+    # Per-subcommand top-level entries with short descriptions.
+    sub_descriptions = {
+        "init": "Scaffold a Research OS workspace",
+        "ide": "Add / remove / list AI IDE MCP configs",
+        "start": "Run the MCP server",
+        "doctor": "Diagnose install + workspace health",
+        "completion": "Print shell completion script",
+    }
+    lines = []
+    for name in SUBCOMMANDS_FOR_COMPLETION:
+        desc = sub_descriptions.get(name, "")
+        lines.append(
+            f"complete -c research-os -n '__research_os_no_subcommand' "
+            f"-xa '{name}' -d '{desc}'"
+        )
+    return _FISH_COMPLETION_TEMPLATE.format(
+        sub_list=sub_list,
+        sub_complete_block="\n".join(lines),
+        ide_choices=" ".join(IDE_CHOICES_FOR_COMPLETION),
+    )
+
+
+def _build_bash_zsh_completion(shell: str) -> str:
+    """Use argcomplete to emit a bash/zsh completion script when available.
+
+    Falls back to a minimal hand-rolled script when argcomplete isn't
+    installed so the subcommand still works without the optional extra.
+    """
+    try:
+        import shlex
+        import subprocess as _sub
+        # argcomplete ships a console script `register-python-argcomplete`.
+        # It emits a sh-eval'able snippet. For zsh, it auto-detects via
+        # `-s zsh`; for bash, the default mode works.
+        cmd = ["register-python-argcomplete"]
+        if shell == "zsh":
+            cmd += ["-s", "zsh"]
+        cmd += ["research-os"]
+        try:
+            out = _sub.check_output(cmd, text=True, stderr=_sub.DEVNULL)
+            return out
+        except (OSError, _sub.CalledProcessError):
+            # Fall through to fallback below.
+            pass
+        # Try the python module form.
+        cmd = [sys.executable, "-m", "argcomplete.scripts.register_python_argcomplete"]
+        if shell == "zsh":
+            cmd += ["-s", "zsh"]
+        cmd += ["research-os"]
+        try:
+            out = _sub.check_output(cmd, text=True, stderr=_sub.DEVNULL)
+            return out
+        except (OSError, _sub.CalledProcessError):
+            pass
+        _ = shlex  # keep import side-effect free for linters
+    except Exception:
+        pass
+    # Fallback: minimal hand-rolled completion covering subcommands +
+    # --ide values. Works without argcomplete.
+    subs = " ".join(SUBCOMMANDS_FOR_COMPLETION)
+    ides = " ".join(IDE_CHOICES_FOR_COMPLETION)
+    if shell == "zsh":
+        return (
+            "#compdef research-os\n"
+            "# Minimal fallback completion (argcomplete not installed).\n"
+            "_research_os() {\n"
+            "  local -a subs ides\n"
+            f"  subs=({subs})\n"
+            f"  ides=({ides})\n"
+            "  if (( CURRENT == 2 )); then\n"
+            "    compadd -- $subs\n"
+            "    return\n"
+            "  fi\n"
+            "  if [[ $words[2] == init && $words[CURRENT-1] == --ide ]]; then\n"
+            "    compadd -- $ides\n"
+            "    return\n"
+            "  fi\n"
+            "}\n"
+            "compdef _research_os research-os\n"
+        )
+    # bash
+    return (
+        "# Minimal fallback completion (argcomplete not installed).\n"
+        "_research_os() {\n"
+        '  local cur prev words cword\n'
+        '  _init_completion 2>/dev/null || {\n'
+        '    cur="${COMP_WORDS[COMP_CWORD]}"\n'
+        '    prev="${COMP_WORDS[COMP_CWORD-1]}"\n'
+        "  }\n"
+        f'  local subs="{subs}"\n'
+        f'  local ides="{ides}"\n'
+        '  if [[ $COMP_CWORD -eq 1 ]]; then\n'
+        '    COMPREPLY=( $(compgen -W "$subs" -- "$cur") )\n'
+        "    return 0\n"
+        "  fi\n"
+        '  if [[ "$prev" == "--ide" ]]; then\n'
+        '    COMPREPLY=( $(compgen -W "$ides" -- "$cur") )\n'
+        "    return 0\n"
+        "  fi\n"
+        "}\n"
+        "complete -F _research_os research-os\n"
+    )
+
+
+def cmd_completion(args: argparse.Namespace) -> int:
+    """Print a sourceable shell completion script."""
+    shell = args.shell
+    if shell == "fish":
+        sys.stdout.write(_build_fish_completion())
+    elif shell in ("bash", "zsh"):
+        sys.stdout.write(_build_bash_zsh_completion(shell))
+    else:
+        # Should never hit — argparse `choices=` enforces this.
+        print(
+            f"  {_cross()} Unsupported shell: {shell}. "
+            "Choose one of: bash, zsh, fish.",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -623,8 +1116,14 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Initial research question. Refined later by the AI.")
     p_init.add_argument("--questions", action="append", default=None,
                         help="Add a research question (repeatable). Builds a list.")
-    p_init.add_argument("--ide", default="all",
-                        help="IDE(s) to wire up: 'all' or a comma-separated list.")
+    _ide_arg = p_init.add_argument(
+        "--ide", default="all",
+        help="IDE(s) to wire up: 'all' or a comma-separated list. "
+             "Valid names: " + ", ".join(VALID_IDES)
+             + " (plus 'all' and 'none').",
+    )
+    # Attach argcomplete completer hook (no-op when argcomplete absent).
+    _ide_arg.completer = lambda **kw: list(IDE_CHOICES_FOR_COMPLETION)
     p_init.add_argument("--force", action="store_true",
                         help="Re-scaffold even if the workspace already exists.")
     p_init.add_argument("-y", "--yes", action="store_true",
@@ -658,6 +1157,73 @@ def build_parser() -> argparse.ArgumentParser:
     p_ide.add_argument("names", nargs="*",
                        help="IDE names (required for add / remove / config-path).")
     p_ide.add_argument("--no-color", action="store_true",
+                       help="Disable ANSI styling.")
+
+    # ── mcp ─────────────────────────────────────────────────────────────
+    p_mcp = sub.add_parser(
+        "mcp",
+        help="Compose third-party MCP servers (Slack, GitHub, Postgres, ...) into IDE configs.",
+        description=(
+            "Manage OTHER MCP servers wired into your IDE configs. Additive to\n"
+            "`research-os ide add`, which wires the Research-OS server itself.\n\n"
+            "Examples:\n"
+            "  research-os mcp list\n"
+            "  research-os mcp template --name slack\n"
+            "  research-os mcp add my-server --command npx --args -y,@scope/server\n"
+            "  research-os mcp remove my-server\n"
+            "  research-os mcp add foo --command npx --args -y,@x --ide cursor,claude"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_mcp.add_argument("action", choices=["list", "add", "remove", "template"],
+                       help="What to do.")
+    p_mcp.add_argument("name", nargs="?", default=None,
+                       help="Server name (for add/remove) or template key (for template).")
+    p_mcp.add_argument("--name", dest="name_flag",
+                       help="Alternate way to supply --name; positional 'name' takes precedence.")
+    p_mcp.add_argument("--command", dest="mcp_command",
+                       help="Command to run the MCP server (e.g. 'npx').")
+    p_mcp.add_argument("--args", dest="mcp_args",
+                       help="Comma- or space-separated args list for the command "
+                            "(e.g. '-y,@scope/server-name').")
+    p_mcp.add_argument("--ide", default="wired",
+                       help="Which IDE config(s) to update. 'wired' (default) = "
+                            "every wired IDE that supports mcpServers; 'all' is an "
+                            "alias; or pass a comma-separated list (cursor,claude,...).")
+    p_mcp.add_argument("--as-name", dest="as_name",
+                       help="Override the name a template is registered under "
+                            "(default: the template's own key).")
+    p_mcp.add_argument("--no-color", action="store_true",
+                       help="Disable ANSI styling.")
+
+    # ── api-key ─────────────────────────────────────────────────────────
+    p_api = sub.add_parser(
+        "api-key",
+        help="Manage api_keys in inputs/researcher_config.yaml (chmod 600 + hidden prompts).",
+        description=(
+            "Add / rotate / list / remove / test API keys for free-tier research\n"
+            "providers (Semantic Scholar, PubMed, Crossref, OpenAlex, ...).\n"
+            "Stored in inputs/researcher_config.yaml under api_keys:; every write\n"
+            "re-applies chmod 600. Hidden input via getpass for add and rotate.\n\n"
+            "Examples:\n"
+            "  research-os api-key list\n"
+            "  research-os api-key add semantic_scholar          # prompts via getpass\n"
+            "  research-os api-key add openai --from-env OPENAI_API_KEY  # for CI\n"
+            "  research-os api-key rotate pubmed                 # prompts via getpass\n"
+            "  research-os api-key test pubmed                   # 1-token round-trip\n"
+            "  research-os api-key remove crossref"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_api.add_argument("action", choices=["add", "list", "rotate", "remove", "test"],
+                       help="What to do.")
+    p_api.add_argument("provider", nargs="?", default=None,
+                       help="Provider name (e.g. semantic_scholar, pubmed, crossref). "
+                            "Required for add/rotate/remove/test; ignored for list.")
+    p_api.add_argument("--from-env", dest="from_env", default=None,
+                       help="Read the key from this environment variable instead of "
+                            "prompting (used in CI).")
+    p_api.add_argument("--no-color", action="store_true",
                        help="Disable ANSI styling.")
 
     # ── start ───────────────────────────────────────────────────────────
@@ -712,22 +1278,60 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.add_argument("--no-color", action="store_true",
                           help="Disable ANSI styling. Auto-disabled when NO_COLOR is set.")
 
+    # ── completion ──────────────────────────────────────────────────────
+    p_completion = sub.add_parser(
+        "completion",
+        help="Print a sourceable shell completion script (bash | zsh | fish).",
+        description=(
+            "Emit a shell-completion script for `research-os` to stdout.\n\n"
+            "Install (zsh): eval \"$(research-os completion zsh)\"\n"
+            "Install (bash): eval \"$(research-os completion bash)\"\n"
+            "Install (fish): research-os completion fish | source\n\n"
+            "Tab-completes subcommand names and --ide values."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_completion.add_argument(
+        "shell",
+        choices=["bash", "zsh", "fish"],
+        help="Shell to emit completion script for.",
+    )
+
     return parser
 
 
 def main() -> None:
     parser = build_parser()
+
+    # Activate argcomplete if the optional dep is installed; otherwise this
+    # is a no-op. argcomplete short-circuits the process when invoked by the
+    # shell-completion machinery.
+    try:
+        import argcomplete  # type: ignore
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
     args = parser.parse_args()
 
     if args.command == "init":
         cmd_init(args)
     elif args.command == "ide":
         cmd_ide(args)
+    elif args.command == "mcp":
+        # Positional `name` wins over `--name`; argparse stores --name as name_flag.
+        if not getattr(args, "name", None) and getattr(args, "name_flag", None):
+            args.name = args.name_flag
+        sys.exit(cmd_mcp(args))
+    elif args.command == "api-key":
+        sys.exit(cmd_api_key(args))
     elif args.command == "start":
         cmd_start(args)
     elif args.command == "doctor":
         from research_os.cli_doctor import cmd_doctor
         sys.exit(cmd_doctor(args))
+    elif args.command == "completion":
+        sys.exit(cmd_completion(args))
     else:
         parser.print_help()
         print()

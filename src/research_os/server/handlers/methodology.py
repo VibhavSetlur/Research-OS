@@ -43,10 +43,17 @@ __all__ = [
 ]
 
 def _handle_tool_plan_advance(name, arguments, root):
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
     from research_os.tools.actions.router import advance_plan
 
     override = bool(arguments.get("override_gate", False))
+    # if researcher passed an override + rationale, the rationale
+    # must be substantive (>=20 chars, multi-word, not a placeholder).
+    raw_rationale = arguments.get("override_rationale")
+    if override and raw_rationale:
+        thin = validate_override_rationale(raw_rationale)
+        if thin is not None:
+            return _text(thin)
     res = advance_plan(root, override_gate=override)
     # Log the override ONLY when the gate would have blocked — a bypass
     # passed on a deliverable that already met the gate is a phantom

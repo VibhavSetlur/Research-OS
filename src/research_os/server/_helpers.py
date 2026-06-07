@@ -168,15 +168,23 @@ def _log_search(root: Path, tool_name: str, query: str, count: int) -> None:
 
 
 def _read_profile(root: Path) -> dict:
-    """Return autonomy_level, expertise_level, model_profile in <100 tokens."""
+    """Return autonomy_level, expertise_level, model_profile, context_class
+    in <100 tokens.
+
+    ``ai.model_profile`` and ``ai.context_class`` (W20) override the legacy
+    top-level ``model_profile`` when present, so callers can opt into the
+    new ai-side knobs without breaking existing configs.
+    """
     cfg = get_config(root)
     if cfg.get("status") != "success":
         return {
             "autonomy_level": "supervised",
             "expertise_level": "intermediate",
             "model_profile": "medium",
+            "context_class": "short",
         }
     config = cfg.get("config", {})
+    ai_block = config.get("ai") or {}
     return {
         "autonomy_level": config.get("interaction", {}).get(
             "autonomy_level", "supervised"
@@ -184,7 +192,11 @@ def _read_profile(root: Path) -> dict:
         "expertise_level": config.get("researcher", {}).get(
             "expertise_level", "intermediate"
         ),
-        "model_profile": config.get("model_profile", "medium"),
+        "model_profile": (
+            ai_block.get("model_profile")
+            or config.get("model_profile", "medium")
+        ),
+        "context_class": ai_block.get("context_class", "short"),
     }
 
 

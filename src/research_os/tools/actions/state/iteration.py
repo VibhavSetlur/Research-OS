@@ -66,7 +66,24 @@ def _step_dir(root: Path, step_id: str) -> Path:
     seg = _safe_step_segment(step_id)
     d = root / "workspace" / seg
     if not d.is_dir():
-        raise FileNotFoundError(f"Step '{step_id}' not found under workspace/")
+        from research_os.server.errors import RoError, did_you_mean
+        workspace = root / "workspace"
+        suggestions: list[str] = []
+        if workspace.is_dir():
+            existing = [p.name for p in workspace.iterdir() if p.is_dir()]
+            suggestions = did_you_mean(step_id, existing, n=3, cutoff=0.5)
+            if not suggestions and existing:
+                suggestions = existing[:3]
+        suffix = (
+            f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+        )
+        raise RoError(
+            what=f"Step '{step_id}' not found under workspace/",
+            why="no matching step directory",
+            next_action=(
+                f"call sys_path(operation='list') to see valid step IDs.{suffix}"
+            ),
+        )
     return d
 
 

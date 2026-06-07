@@ -33,7 +33,7 @@ def _handle_tool_synthesize(name, arguments, root):
         unresolved_block_findings,
     )
     from research_os.tools.actions.synthesis.synthesize import synthesize_workspace
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
     from research_os.tools.actions.state.config import get_interaction_policy
 
     # Block synthesis on an empty workspace BEFORE running
@@ -112,7 +112,7 @@ def _handle_tool_synthesize(name, arguments, root):
         else:
             top = active_blocks[:10]
             lines = [
-                f"- [{b.get('dimension','?')}] "
+                f"- id={b.get('id','?')} [{b.get('dimension','?')}] "
                 f"{b.get('audit_name','?')}: "
                 f"{(b.get('suggested_fix') or '').strip()[:160]}"
                 for b in top
@@ -122,6 +122,18 @@ def _handle_tool_synthesize(name, arguments, root):
                 if len(active_blocks) > 10
                 else ""
             )
+            # Surface the first active blocker's id as the recommended
+            # follow-up: the AI calls tool_audit_findings(operation=
+            # 'explain', id=...) to fetch the full, untruncated history
+            # of the finding (when first raised, full suggested_fix
+            # text, originating audit) instead of guessing from the
+            # 160-char preview above.
+            first_id = active_blocks[0].get("id")
+            next_call = (
+                f'tool_audit_findings(operation="explain", id="{first_id}")'
+                if first_id
+                else 'tool_audit_findings(operation="query", severity="block")'
+            )
             return _text(_error(
                 "BLOCKED by unresolved audit findings ledger "
                 f"({len(active_blocks)} BLOCK finding(s) in "
@@ -130,9 +142,14 @@ def _handle_tool_synthesize(name, arguments, root):
                 "no longer surfaces them) before tool_synthesize.\n\n"
                 + "\n".join(lines)
                 + extra
+                + f"\n\nNext recommended call: {next_call}"
+                + "\n  (returns the full chronological history + "
+                "untruncated suggested_fix for that finding id; the "
+                "preview above truncates at 160 chars.)"
                 + "\n\nTo bypass for a partial / WIP deliverable, call "
                 "again with override_unresolved_blocks=true AND "
-                "override_rationale='<one-line why>'."
+                "override_rationale='<one-line why>'.",
+                next_recommended_call=next_call,
             ))
     elif active_blocks and override_unresolved_blocks:
         # Record the bypass before we run anything else so the override
@@ -163,6 +180,15 @@ def _handle_tool_synthesize(name, arguments, root):
             "ask the researcher; or relax the policy to 'allow_override' in "
             "inputs/researcher_config.yaml."
         ))
+    # when any override flag is set, the supplied rationale must
+    # be substantive (>=20 chars, multi-word, not a placeholder like
+    # 'TODO'/'preview'). Empty-rationale rejection above is preserved
+    # for back-compat; the W11 check applies WHEN a rationale was
+    # supplied at all (otherwise the empty-rationale branch handles it).
+    if (override_requested or override_unresolved_blocks) and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
 
     def _record_bypass(gate_name: str, blockers: list[str] | None) -> None:
         nonlocal bypass_logged
@@ -412,7 +438,7 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
     from research_os.tools.actions.synthesis.discussion_from_verdicts import (
         discussion_coverage_audit,
     )
-    from research_os.project_ops import log_override
+    from research_os.project_ops import log_override, validate_override_rationale
     from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_discussion_coverage", False))
@@ -424,6 +450,10 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
             "interaction.quality_gate_policy=enforce: "
             "override_discussion_coverage=true requires override_rationale."
         ))
+    if override_requested and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
     res = discussion_coverage_audit(root)
     if res.get("blockers") and override_requested:
         log_override(

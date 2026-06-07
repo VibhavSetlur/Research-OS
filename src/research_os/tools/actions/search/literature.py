@@ -78,14 +78,29 @@ def _slugify(text: str, maxlen: int = 80) -> str:
 
 def _step_literature_dir(root: Path, step_id: str) -> Path:
     """Resolve ``workspace/<step_id>/literature/``."""
+    from research_os.server.errors import RoError, did_you_mean
     workspace = root / "workspace"
     if not workspace.exists():
-        raise FileNotFoundError("workspace/ not found — run scaffold first.")
+        raise RoError(
+            what="workspace/ not found",
+            why="project has not been scaffolded yet",
+            next_action="run the scaffold protocol first",
+        )
     candidate = workspace / step_id
     if not candidate.exists() or not candidate.is_dir():
-        raise FileNotFoundError(
-            f"Step '{step_id}' not found under workspace/. "
-            f"Use sys_path(operation='list') to see valid step IDs."
+        existing = [p.name for p in workspace.iterdir() if p.is_dir()]
+        suggestions = did_you_mean(step_id, existing, n=3, cutoff=0.5)
+        if not suggestions and existing:
+            suggestions = existing[:3]
+        suffix = (
+            f" Did you mean: {', '.join(suggestions)}?" if suggestions else ""
+        )
+        raise RoError(
+            what=f"Step '{step_id}' not found under workspace/",
+            why="no matching numbered step directory",
+            next_action=(
+                f"call sys_path(operation='list') to see valid step IDs.{suffix}"
+            ),
         )
     if not re.match(r"^\d{2,3}_", step_id):
         raise ValueError(

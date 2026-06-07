@@ -97,6 +97,14 @@ researcher:
   orcid: ""
   email: ""
 
+# ── Open-science licensing (RO-Crate + CodeMeta + CITATION.cff) ────────
+# Used when sys_export_ro_crate / sys_export_share_archive emit
+# ro-crate-metadata.json + codemeta.json. data = applies to outputs +
+# the dataset description; code = applies to scripts. SPDX identifiers.
+licenses:
+  data: "CC-BY-4.0"
+  code: "MIT"
+
 # ── This project ────────────────────────────────────────────────────────
 project_name: "{project_name}"
 
@@ -194,6 +202,30 @@ writing_preferences:
   # default (fast, single-binary install, modern type-safe macros).
   # Use "latex" when a journal requires .tex submission.
   pdf_compile_engine: "typst"    # typst | latex | both
+
+# ── AI client knobs (paired with model_profile above) ──────────────────
+# Optional. When present, the ai.* block overrides the legacy top-level
+# `model_profile`. Lets you tune how much context the AI gets at boot +
+# how big a default protocol load it requests, independent of which
+# model class is running.
+#
+#   ai.context_class:
+#     short → sys_boot returns the lean ~450-token state summary
+#             (default; right for most chat / IDE sessions).
+#     long  → sys_boot returns ~10000 tokens of project history and
+#             sys_protocol_get defaults to format='full'.
+#             Pick for long-context models that benefit from the full
+#             arc in working memory (Opus/Gemini/o-series with big
+#             windows).
+#   ai.model_profile:
+#     small → sys_protocol_get defaults to format='lean' (cap 3 steps,
+#             short descriptions); shortcut tools preferred over full
+#             decomposition. Mirrors the top-level model_profile=small
+#             defaults — included here so ai.* is a single point of truth.
+#     medium / large → use the format defaults above (summary / context-driven).
+ai:
+  context_class: "short"          # short | long
+  model_profile: "medium"         # small | medium | large
 
 # ── Compute environment ─────────────────────────────────────────────────
 runtime:
@@ -593,6 +625,166 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# API-key management (CLI: research-os api-key add|list|rotate|remove|test)
+# ---------------------------------------------------------------------------
+#
+# Stored in the api_keys: block of inputs/researcher_config.yaml. Every
+# write re-applies chmod 600 because the file may have been touched by
+# something that doesn't know about the secret. _mask_api_keys above
+# is used to redact previews on list.
+
+
+def add_api_key(root: Path, provider: str, value: str) -> dict[str, Any]:
+    """Add (or overwrite) ``api_keys.<provider>`` and chmod 600 the file.
+
+    Returns ``{"status": "success", "provider": provider, "rotated": bool}``
+    where ``rotated`` is True if an existing value was overwritten.
+    """
+    root = Path(root)
+    if not provider or not isinstance(provider, str):
+        return {"status": "error", "message": "provider name must be a non-empty string"}
+    if not isinstance(value, str) or not value.strip():
+        return {"status": "error", "message": "value must be a non-empty string"}
+    cfg_path = _config_path(root)
+    if not cfg_path.exists():
+        init_config(root)
+    try:
+        config = _load_config_roundtrip(cfg_path)
+        api_keys = config.get("api_keys") or {}
+        if not isinstance(api_keys, dict):
+            api_keys = {}
+        rotated = bool(api_keys.get(provider))
+        api_keys[provider] = value.strip()
+        config["api_keys"] = api_keys
+        _dump_config_roundtrip(cfg_path, config)
+        if os.name != "nt":
+            try:
+                os.chmod(cfg_path, 0o600)
+            except Exception:
+                pass
+        return {"status": "success", "provider": provider, "rotated": rotated}
+    except Exception as e:
+        logger.exception("add_api_key failed")
+        return {"status": "error", "message": str(e)}
+
+
+def remove_api_key(root: Path, provider: str) -> dict[str, Any]:
+    """Clear ``api_keys.<provider>`` (set to empty string)."""
+    root = Path(root)
+    cfg_path = _config_path(root)
+    if not cfg_path.exists():
+        return {"status": "error", "message": "researcher_config.yaml not found"}
+    try:
+        config = _load_config_roundtrip(cfg_path)
+        api_keys = config.get("api_keys") or {}
+        if not isinstance(api_keys, dict) or not api_keys.get(provider):
+            return {"status": "noop", "message": f"{provider}: no key to remove"}
+        api_keys[provider] = ""
+        config["api_keys"] = api_keys
+        _dump_config_roundtrip(cfg_path, config)
+        if os.name != "nt":
+            try:
+                os.chmod(cfg_path, 0o600)
+            except Exception:
+                pass
+        return {"status": "success", "provider": provider}
+    except Exception as e:
+        logger.exception("remove_api_key failed")
+        return {"status": "error", "message": str(e)}
+
+
+def list_api_keys(root: Path) -> dict[str, Any]:
+    """Return the masked api_keys block (preview-only)."""
+    root = Path(root)
+    cfg_path = _config_path(root)
+    if not cfg_path.exists():
+        return {"status": "error", "message": "researcher_config.yaml not found"}
+    try:
+        config = yaml.safe_load(cfg_path.read_text()) or {}
+        masked = _mask_api_keys(config)
+        return {"status": "success", "api_keys": masked.get("api_keys") or {}}
+    except Exception as e:
+        logger.exception("list_api_keys failed")
+        return {"status": "error", "message": str(e)}
+
+
+# Free-tier endpoints we can hit with the configured key to confirm it
+# works. Each entry: (URL template, headers builder). We keep this tiny —
+# 1 token round-trip per provider, never enough payload to incur a meaningful
+# rate-limit hit. Adding a provider here = adding it to the `test` action.
+_API_KEY_TEST_ENDPOINTS: dict[str, dict[str, Any]] = {
+    "semantic_scholar": {
+        "url": "https://api.semanticscholar.org/graph/v1/paper/search?query=test&limit=1",
+        "headers_builder": lambda v: {"x-api-key": v} if v else {},
+        "needs_key": False,  # endpoint works keyless; key just lifts rate-limit
+    },
+    "pubmed": {
+        # eutils returns an XML/JSON ping regardless of API key; api_key just
+        # raises the per-IP rate-limit. We hit a trivial einfo query.
+        "url": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/einfo.fcgi?retmode=json",
+        "headers_builder": lambda v: {},
+        "needs_key": False,
+    },
+    "crossref": {
+        # Crossref expects a 'mailto:' user-agent for the polite pool, not a
+        # secret key; we just verify connectivity.
+        "url": "https://api.crossref.org/works?rows=1",
+        "headers_builder": lambda v: {"User-Agent": f"research-os/test ({v or 'anonymous'})"},
+        "needs_key": False,
+    },
+}
+
+
+def check_api_key(root: Path, provider: str) -> dict[str, Any]:
+    """Do a 1-token round-trip against the provider to verify the key works.
+
+    Returns ``{"status": "ok"|"fail", "provider": ..., "detail": "..."}``.
+    Never raises — network errors / 4xx / 5xx all map to status='fail'.
+
+    (Function is named ``check_api_key`` rather than ``test_api_key`` so
+    pytest doesn't try to collect it as a test case.)
+    """
+    root = Path(root)
+    info = _API_KEY_TEST_ENDPOINTS.get(provider)
+    if not info:
+        return {
+            "status": "fail",
+            "provider": provider,
+            "detail": f"no test endpoint registered for {provider!r}; "
+                      f"known: {sorted(_API_KEY_TEST_ENDPOINTS)}",
+        }
+    cfg_path = _config_path(root)
+    key_value = ""
+    if cfg_path.exists():
+        try:
+            cfg = yaml.safe_load(cfg_path.read_text()) or {}
+            key_value = (cfg.get("api_keys") or {}).get(provider) or ""
+        except Exception:
+            key_value = ""
+    if info.get("needs_key", True) and not key_value:
+        return {"status": "fail", "provider": provider,
+                "detail": "no key configured (add with `research-os api-key add ...`)"}
+    try:
+        # Local import — urllib is stdlib, no dependency footprint.
+        from urllib import error, request
+        url = info["url"]
+        headers = info["headers_builder"](key_value) or {}
+        req = request.Request(url, headers=headers)
+        with request.urlopen(req, timeout=10) as resp:  # noqa: S310
+            status_code = resp.getcode()
+            if 200 <= status_code < 300:
+                return {"status": "ok", "provider": provider,
+                        "detail": f"HTTP {status_code}"}
+            return {"status": "fail", "provider": provider,
+                    "detail": f"HTTP {status_code}"}
+    except error.HTTPError as e:  # type: ignore[name-defined]
+        return {"status": "fail", "provider": provider,
+                "detail": f"HTTP {e.code}"}
+    except Exception as e:
+        return {"status": "fail", "provider": provider, "detail": str(e)}
+
+
 # Enum-membership contracts for fields whose template documents a
 # closed set. validate_config flags off-enum values so a typo (e.g.
 # ``gate_strictness: lite``) surfaces at validate time instead of
@@ -606,6 +798,11 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     "gate_strictness": ("light", "normal", "strict", "auto"),
     "project_tier": ("throwaway", "sketch", "production"),
     "model_profile": ("small", "medium", "large"),
+    # AI-side knobs (paired model_profile + context_class). The ai.*
+    # path takes precedence when present; legacy top-level model_profile
+    # is still honoured for back-compat.
+    "ai.model_profile": ("small", "medium", "large"),
+    "ai.context_class": ("short", "long"),
     "writing_preferences.pdf_compile_engine": ("typst", "latex", "both"),
     "writing_preferences.citation_style": (
         # STEM / biomedical / quantitative

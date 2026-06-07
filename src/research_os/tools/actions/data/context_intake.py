@@ -56,6 +56,11 @@ _SCAFFOLD_NAMES = {
     # board.
     "STATE.md",
     "CONTRIBUTORS.md",
+    # Open-science manifests scaffolded by project_ops + refreshed by
+    # sys_export_ro_crate. Not researcher input — never re-ingest.
+    "CITATION.cff",
+    "codemeta.json",
+    "ro-crate-metadata.json",
     "opencode.json",
     "mcp_config.json",
     ".aider.conf.yml",

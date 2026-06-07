@@ -75,7 +75,7 @@ Every tool definition carries two MAJOR-stable metadata fields:
 The canonical, machine-readable list is whatever
 `sys_tool_describe`, `tool_tools_list`, and the MCP `tools/list`
 handshake return for the running server. As of v2.0.0 that's
-**146 live tools** (123 core + 23 across 11 packs).
+**148 live tools** (123 core + 23 across 11 packs).
 
 ### A.2 Audit-finding JSON schema
 
@@ -94,23 +94,26 @@ The canonical schema lives in
 sections are stable in v2:
 
 * `researcher`
+* `licenses`
 * `project_name`
 * `research_goal`
 * `interaction`
 * `gate_strictness`
 * `project_tier`
 * `model_profile`
+* `ai`
 * `writing_preferences`
 * `runtime`
-* `tool_stack`
 * `synthesis`
 * `api_keys`
 
 Adding a new top-level section or a new key under an existing one is
 **MINOR**. Renaming or removing any of the above is **MAJOR**.
 Enums on `gate_strictness` (`light | normal | strict | auto`),
-`project_tier` (`throwaway | sketch | production`), and
-`model_profile` (`small | medium | large`) are stable.
+`project_tier` (`throwaway | sketch | production`),
+`model_profile` (`small | medium | large`), `ai.model_profile`
+(`small | medium | large`), and `ai.context_class` (`short | long`)
+are stable.
 
 ### A.4 Workspace directory layout
 
@@ -183,9 +186,10 @@ surface — adding fields is MINOR; renaming or removing fields is MAJOR.
 |---|---|---|---|
 | `status` | `"success" \| "warning" \| "error"` | MAJOR-stable enum | |
 | `payload` | dict (tool-specific) | MAJOR-stable name, MINOR-mutable content | new canonical key |
-| `data` | dict (alias of `payload`) | DEPRECATED — removed in v2.2.0 | back-compat for v2.0 callers |
+| `data` | dict (alias of `payload`) | DEPRECATED — removal slated for v3.0.0 | back-compat for v2.0 callers |
 | `audit_findings` | list (default `[]`) | MAJOR-stable name | structured findings per A.2 schema |
 | `next_recommended_call` | string \| null | MAJOR-stable name | literal next-tool-call hint (saves a round-trip) |
+| `next_recommended_call_structured` | dict \| null | MAJOR-stable name | `{"tool": str, "arguments": dict}`; auto-derived from `next_recommended_call` when parseable, `null` for free-form hints. Strict tool-loop clients dispatch this directly. |
 | `tier_transition` | string \| null | MAJOR-stable name | e.g. `"tier_execute -> tier_synthesize"` |
 | `tokens_estimate` | int (≥ 0) | MAJOR-stable name | heuristic for client routing |
 | `ro_version` | string (semver) | MAJOR-stable name | matches `research_os.__version__` |
@@ -195,6 +199,19 @@ Error envelopes additionally surface `payload.what`, `payload.why`,
 `payload.next_action` for clients that want the parts separately, and
 `payload.next_action` is promoted to envelope-level
 `next_recommended_call` unless the caller overrides.
+
+**Pack and adapter tools conform via a dispatcher-level normalizer.**
+The legacy `{"status": "success", "data": {...}}` / `{"status": "error",
+"error": "..."}` shape that bundled packs (humanities, qualitative,
+theory_math, wet_lab, engineering) and bundled adapters (slurm,
+snakemake, nextflow, cytoscape, redcap, synapse) historically returned
+is upgraded to the v2.1.0 envelope by
+`research_os.server.envelopes._normalize_envelope`, invoked once in
+`dispatch._handle_tool_call` after the handler returns. New pack /
+adapter code should call `research_os.server.envelopes._success` /
+`_error` directly — see [`PLUGIN_AUTHORING.md`](PLUGIN_AUTHORING.md) —
+but the normalizer guarantees no pack-tool response reaches a client
+without the full envelope.
 
 ### A.6.2 RoError exception primitive (v2.1.0)
 
@@ -338,11 +355,11 @@ MINOR.
 
 | Surface | v2.0.0 count |
 |---|---|
-| Live tools (`status='live'` in `TOOL_DEFINITIONS`) | 146 |
+| Live tools (`status='live'` in `TOOL_DEFINITIONS`) | 148 |
 | Back-compat aliases (`_ALIASES`) | 80 |
 | Deprecated aliases (`_DEPRECATED_ALIASES`, dispatch + telemetry) | 78 |
 | Hard-removed names (`_REMOVED_TOOLS`, friendly-error) | 24 |
-| Handlers wired (`_HANDLERS`) | 146 |
+| Handlers wired (`_HANDLERS`) | 148 |
 | Core protocols (`src/research_os/protocols/`) | 117 |
 | Pack protocols (humanities + qualitative + theory_math) | 36 |
 | Protocols with `tier:` annotation | 117 / 117 |

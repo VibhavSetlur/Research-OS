@@ -35,10 +35,19 @@ def _read(path: Path):
             result = pyreadr.read_r(str(path))
             return next(iter(result.values()))
         except ImportError as exc:
-            raise RuntimeError(
-                "pyreadr is required for .rds files (pip install pyreadr)"
+            from research_os.server.errors import RoError
+            raise RoError(
+                what="pyreadr is required for .rds files",
+                why="pyreadr is an optional dependency and is not installed",
+                next_action="run: pip install pyreadr",
             ) from exc
-    raise RuntimeError(f"Unsupported file format: {ext}")
+    from research_os.server.errors import RoError
+    supported = ".csv, .tsv, .parquet, .feather, .xlsx, .xls, .json, .jsonl, .rds"
+    raise RoError(
+        what=f"Unsupported file format: {ext}",
+        why=f"reader is only wired for: {supported}",
+        next_action="convert to one of the supported formats or open an issue",
+    )
 
 
 def _current_path(root: Path) -> str:

@@ -124,7 +124,7 @@ def register_tool(name: str, *, schema: dict, description: str = ""):
         merged_schema = dict(schema)
         if description:
             merged_schema.setdefault("description", description)
-            merged_schema.setdefault("short", description[:160])
+            merged_schema.setdefault("short", description[:120])
         _TOOL_REGISTRY.setdefault(module_name, []).append(
             PackTool(name=name, handler=fn, schema=merged_schema)
         )

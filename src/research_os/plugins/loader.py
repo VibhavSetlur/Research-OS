@@ -211,31 +211,51 @@ def _call_register(target: Any) -> PackRegistration:
 
 def _validate(reg: PackRegistration) -> None:
     """Enforce namespace conventions before merging into core."""
+    from research_os.server.errors import RoError, did_you_mean
     if not reg.name or not reg.name.replace("_", "").isalnum():
-        raise ValueError(
-            f"Pack name must be lowercase alphanumeric (underscores ok); got {reg.name!r}"
+        raise RoError(
+            what=f"Pack name {reg.name!r} is invalid",
+            why="pack names must be lowercase alphanumeric (underscores ok)",
+            next_action="rename the pack to use only [a-z0-9_]",
         )
     if reg.name != reg.name.lower():
-        raise ValueError(f"Pack name must be lowercase; got {reg.name!r}")
+        raise RoError(
+            what=f"Pack name {reg.name!r} contains uppercase",
+            why="pack names must be lowercase",
+            next_action="rename the pack to lowercase",
+        )
     if reg.name in _DISCOVERED_PACKS:
-        raise ValueError(f"Pack name '{reg.name}' already registered")
+        suggestions = did_you_mean(reg.name, list(_DISCOVERED_PACKS.keys()), n=3, cutoff=0.5)
+        suffix = (
+            f" Did you mean a different pack? Nearby: {', '.join(suggestions)}"
+            if suggestions else ""
+        )
+        raise RoError(
+            what=f"Pack name '{reg.name}' already registered",
+            why="another pack with the same name was discovered earlier",
+            next_action=f"rename one of the packs to avoid the collision.{suffix}",
+        )
     expected_tool_prefix = f"tool_{reg.name}_"
     for t in reg.tools:
         if not t.name.startswith(expected_tool_prefix):
-            raise ValueError(
-                f"Pack '{reg.name}' tool '{t.name}' must start with "
-                f"'{expected_tool_prefix}' (namespace convention)"
+            raise RoError(
+                what=f"Pack '{reg.name}' tool '{t.name}' has wrong prefix",
+                why=f"tool name must start with '{expected_tool_prefix}' (namespace convention)",
+                next_action=f"rename the tool to '{expected_tool_prefix}<verb>'",
             )
     expected_router_prefix = f"{reg.name}/"
     for key in reg.router_entries:
         if not key.startswith(expected_router_prefix):
-            raise ValueError(
-                f"Pack '{reg.name}' router entry '{key}' must start with "
-                f"'{expected_router_prefix}' (namespace convention)"
+            raise RoError(
+                what=f"Pack '{reg.name}' router entry '{key}' has wrong prefix",
+                why=f"router-entry key must start with '{expected_router_prefix}' (namespace convention)",
+                next_action=f"rename the router entry to '{expected_router_prefix}<intent>'",
             )
     if not reg.protocols_dir.exists():
-        raise ValueError(
-            f"Pack '{reg.name}' protocols_dir does not exist: {reg.protocols_dir}"
+        raise RoError(
+            what=f"Pack '{reg.name}' protocols_dir does not exist",
+            why=f"path {reg.protocols_dir} not found on disk",
+            next_action="check that the pack ships its protocols directory",
         )
 
 
@@ -259,7 +279,7 @@ def _merge(
             # dict — repackage here.
             sch = dict(t.schema)
             description = sch.pop("description", "")
-            short = sch.pop("short", description[:160] if description else "")
+            short = sch.pop("short", description[:120] if description else "")
             input_schema = {k: v for k, v in sch.items()
                             if k not in {"description", "short", "category"}}
             input_schema.setdefault("type", "object")

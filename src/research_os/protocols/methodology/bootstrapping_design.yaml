@@ -4,7 +4,7 @@ name: Bootstrap / Resampling Design
 version: '2.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
 last_reviewed: '2026-06-02'

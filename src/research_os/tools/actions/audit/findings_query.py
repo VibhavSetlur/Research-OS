@@ -399,6 +399,159 @@ def audit_findings_diff(
 # ---------------------------------------------------------------------------
 
 
+def audit_findings_explain(
+    root: Path,
+    *,
+    finding_id: str,
+) -> dict[str, Any]:
+    """Return the full history of one finding id from the ledger.
+
+    The cross-audit ledger is append-only, so a single logical finding
+    can appear many times across reruns: first-raised, overridden,
+    re-raised after a refactor regressed something, resolved.
+    :func:`audit_findings_query` collapses this history to the latest
+    snapshot — useful for "what's blocking me right now" but lossy when
+    the AI needs to understand WHY a block is sticky.
+
+    ``explain`` walks the ledger in file (= chronological) order and
+    returns every snapshot of ``finding_id`` it sees, with the full
+    ``suggested_fix`` text intact (no 160-char truncation), plus the
+    full ``evidence_paths`` list and originating ``audit_name`` /
+    ``dimension`` / ``severity`` on each snapshot. Callers can read the
+    timeline top-to-bottom to see exactly when the finding entered the
+    record and how it has evolved.
+
+    Parameters
+    ----------
+    root:
+        Project root (parent of ``workspace/``).
+    finding_id:
+        Stable id of the finding to explain (UUID string from a prior
+        ``query``/``diff``/synthesis-block error envelope).
+
+    Returns::
+
+        {
+            "status": "success",
+            "id": "<finding_id>",
+            "snapshots": [<finding-dict>, ...],     # chronological
+            "snapshot_count": <int>,
+            "first_seen": "<iso ts>" | None,
+            "last_seen":  "<iso ts>" | None,
+            "current": <finding-dict> | None,       # most recent snapshot
+            "ledger_path": "workspace/logs/.audit_findings.jsonl",
+        }
+
+    If ``finding_id`` is missing or empty, returns
+    ``status="error"`` with a message naming the required parameter.
+    If the ledger has no row with that id, ``snapshots`` is ``[]`` and
+    ``status`` stays ``"success"`` (an empty history is a valid answer
+    — e.g. the id was already pruned, or the caller mistyped).
+    """
+    if not finding_id or not str(finding_id).strip():
+        return {
+            "status": "error",
+            "message": (
+                "audit_findings_explain: finding_id is required "
+                "(pass the stable id surfaced by tool_audit_findings "
+                "operation='query'/'diff' or by the tool_synthesize "
+                "BLOCK error envelope)."
+            ),
+        }
+
+    rows = _load_jsonl_lines(_findings_jsonl_path(root))
+    snapshots = [r for r in rows if r.get("id") == finding_id]
+
+    first_seen = snapshots[0].get("generated_at") if snapshots else None
+    last_seen = snapshots[-1].get("generated_at") if snapshots else None
+    current = snapshots[-1] if snapshots else None
+
+    return {
+        "status": "success",
+        "id": finding_id,
+        "snapshots": snapshots,
+        "snapshot_count": len(snapshots),
+        "first_seen": first_seen,
+        "last_seen": last_seen,
+        "current": current,
+        "ledger_path": str(FINDINGS_JSONL_RELPATH),
+    }
+
+
+def audit_findings_timeline(
+    root: Path,
+    *,
+    gate_name: str | None = None,
+    scope: str | None = None,
+) -> dict[str, Any]:
+    """Return the full append-only ledger in chronological order.
+
+    Unlike :func:`audit_findings_query` (which reduces to the latest
+    snapshot per stable id), ``timeline`` preserves every emission so
+    long-context callers (Gemini, GPT-5, Opus 1M) can spot recurrence
+    patterns ("this finding keeps coming back") and override loops
+    ("researcher keeps overriding this gate"). Optional filters narrow
+    by audit gate (``gate_name`` → matched against ``audit_name``) or
+    by evidence path scope (``scope`` → ``"workspace/<scope>/"`` prefix
+    or ``"/<scope>/"`` substring on any evidence path).
+
+    Parameters
+    ----------
+    root:
+        Project root (parent of ``workspace/``).
+    gate_name:
+        Filter to rows whose ``audit_name`` matches exactly. Useful
+        for "show me every emission of the cross_deliverable gate".
+    scope:
+        Filter to rows whose ``evidence_paths`` reference the given
+        scope (matches a step folder, a project-wide path token, etc.).
+
+    Returns::
+
+        {
+            "status": "success",
+            "snapshots": [<finding-dict>, ...],   # chronological
+            "snapshot_count": <int>,
+            "filters": {"gate_name": ..., "scope": ...},
+            "ledger_path": "workspace/logs/.audit_findings.jsonl",
+        }
+
+    Empty ledger → ``snapshots=[]`` and ``status="success"``.
+    """
+    rows = _load_jsonl_lines(_findings_jsonl_path(root))
+
+    scope_token = scope.strip("/") if scope else None
+
+    def _matches(row: dict[str, Any]) -> bool:
+        if gate_name is not None and row.get("audit_name") != gate_name:
+            return False
+        if scope_token is not None:
+            paths = row.get("evidence_paths") or []
+            target = f"workspace/{scope_token}/"
+            mid = f"/{scope_token}/"
+            if not any(
+                isinstance(p, str)
+                and (
+                    p.startswith(target)
+                    or mid in p
+                    or p == f"workspace/{scope_token}"
+                )
+                for p in paths
+            ):
+                return False
+        return True
+
+    snapshots = [r for r in rows if _matches(r)]
+
+    return {
+        "status": "success",
+        "snapshots": snapshots,
+        "snapshot_count": len(snapshots),
+        "filters": {"gate_name": gate_name, "scope": scope},
+        "ledger_path": str(FINDINGS_JSONL_RELPATH),
+    }
+
+
 def unresolved_block_findings(root: Path) -> list[dict[str, Any]]:
     """Return every BLOCK finding currently present in the latest snapshot.
 

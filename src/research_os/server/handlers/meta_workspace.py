@@ -6,6 +6,36 @@ from __future__ import annotations
 
 from .._handlers_runtime import *  # noqa: F401,F403
 # mem_log dispatcher delegates to a methodology handler — pull it into scope.
+from research_os.errors import WriteProtectedError, check_write_permitted
+
+
+def _resolve_inside_root(root, filepath):
+    """Resolve *filepath* against *root* and guard against path traversal.
+
+    Raises WriteProtectedError when the resolved target escapes *root*
+    (e.g. ``../../etc/passwd``, absolute paths outside the project,
+    symlinks pointing outside the project tree). This is the central
+    path-containment guard for every sys_file_* handler.
+    """
+    root_resolved = Path(root).resolve()
+    target = Path(filepath)
+    candidate = target if target.is_absolute() else (root_resolved / target)
+    try:
+        resolved = candidate.resolve()
+    except OSError as exc:
+        raise WriteProtectedError(
+            str(candidate),
+            f"Path could not be resolved: {exc}",
+        )
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError:
+        raise WriteProtectedError(
+            str(filepath),
+            f"Path '{filepath}' escapes project root.",
+        )
+    return resolved
+
 
 __all__ = [
     "_handle_sys_workspace_scaffold",
@@ -22,10 +52,12 @@ __all__ = [
     "_handle_tool_path_finalize",
     "_handle_tool_synthesis_curate_figures",
     "_handle_sys_export_share_archive",
+    "_handle_sys_export_ro_crate",
     "_handle_sys_checkpoint_create",
     "_handle_sys_checkpoint_rollback",
     "_handle_sys_checkpoint_list",
     "_handle_sys_path",
+    "_handle_sys_where",
 ]
 
 def _handle_sys_workspace_scaffold(name, arguments, root):
@@ -61,14 +93,22 @@ def _handle_sys_state_get(name, arguments, root):
     fmt = (arguments.get("format") or "full").lower()
     state = load_state(root)
     if fmt == "minimal":
+        from research_os.server._helpers import _read_profile
         from research_os.state.state_ledger import ResearchLedger
 
+        # context_class=long → broader history window (10000 tokens)
+        # so long-context models get the full project arc on boot.
+        # short (default) keeps the lean 450-token summary.
+        profile = _read_profile(root)
+        max_tokens = (
+            10000 if profile.get("context_class") == "long" else 450
+        )
         ledger = ResearchLedger(root / ".os_state" / "state_ledger.json")
-        return _text(_success({"minimal_context": ledger.get_project_summary(max_tokens=450)}))
+        return _text(_success({"minimal_context": ledger.get_project_summary(max_tokens=max_tokens)}))
     if fmt == "markdown":
         md_path = root / ".os_state" / "os_state.md"
         if not md_path.exists():
-            return _text(_error("os_state.md missing — run a tool that mutates state first."))
+            return _text(_error("os_state.md missing: run a tool that mutates state first."))
         return _text(_success({"markdown": md_path.read_text()}))
     # full (lean projection — strip very large fields)
     paths = state.get("paths", {})
@@ -92,7 +132,10 @@ def _handle_sys_state_get(name, arguments, root):
 
 
 def _handle_sys_file_read(name, arguments, root):
-    p = root / arguments["filepath"]
+    try:
+        p = _resolve_inside_root(root, arguments["filepath"])
+    except WriteProtectedError as exc:
+        return _text(_error(str(exc)))
     if not p.exists() or not p.is_file():
         return _text(_error(f"File not found: {arguments['filepath']}"))
     if p.stat().st_size > 50 * 1024 * 1024:
@@ -101,15 +144,25 @@ def _handle_sys_file_read(name, arguments, root):
 
 
 def _handle_sys_file_write(name, arguments, root):
-    p = root / arguments["filepath"]
+    try:
+        p = _resolve_inside_root(root, arguments["filepath"])
+    except WriteProtectedError as exc:
+        return _text(_error(str(exc)))
     force = arguments.get("force", False)
-    rel = str(p.relative_to(root)) if str(p).startswith(str(root)) else str(p)
+    root_resolved = Path(root).resolve()
+    rel = str(p.relative_to(root_resolved))
 
-    if rel.startswith("inputs/raw_data") or rel.startswith("inputs/literature"):
+    # Central write-permission gate (inputs/, .os_state/) — was previously
+    # bypassed for sys_file_write; only project_ops used check_write_permitted.
+    try:
+        check_write_permitted(p, root=root_resolved)
+    except WriteProtectedError as exc:
+        # Literature-index updates inside inputs/literature/ are the one
+        # documented mutation allowed under the immutable input tree.
         if not rel.endswith("literature_index.yaml"):
-            return _text(_error("WriteProtectedError: inputs/raw_data and inputs/literature are immutable."))
+            return _text(_error(str(exc)))
     if rel.startswith("synthesis/") and p.exists() and not force:
-        return _text(_error("synthesis/ files exist — pass force=true to overwrite."))
+        return _text(_error("synthesis/ files exist: pass force=true to overwrite."))
 
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(arguments["content"])
@@ -122,7 +175,10 @@ def _handle_sys_file_list(name, arguments, root):
     from research_os.project_ops import LAZY_DIRS
 
     rel = arguments["directory"]
-    p = root / rel
+    try:
+        p = _resolve_inside_root(root, rel)
+    except WriteProtectedError as exc:
+        return _text(_error(str(exc)))
     if not p.exists() or not p.is_dir():
         # A lazy directory that hasn't been materialised yet is NOT an
         # error — it just hasn't received its first artefact. Return an
@@ -139,14 +195,23 @@ def _handle_sys_file_list(name, arguments, root):
                 ),
             }))
         return _text(_error("Directory not found"))
-    files = [str(f.relative_to(root)) for f in p.rglob("*") if f.is_file()]
+    root_resolved = Path(root).resolve()
+    files = [str(f.relative_to(root_resolved)) for f in p.rglob("*") if f.is_file()]
     return _text(_success({"files": files, "empty": not files}))
 
 
 def _handle_sys_file_delete(name, arguments, root):
-    p = root / arguments["filepath"]
+    try:
+        p = _resolve_inside_root(root, arguments["filepath"])
+    except WriteProtectedError as exc:
+        return _text(_error(str(exc)))
     if not p.exists():
         return _text(_error("File or directory not found"))
+    # Central write-permission gate — was previously bypassed for sys_file_delete.
+    try:
+        check_write_permitted(p, root=Path(root).resolve())
+    except WriteProtectedError as exc:
+        return _text(_error(str(exc)))
     if p.is_file():
         p.unlink()
         return _text(_success({"deleted": True}))
@@ -160,6 +225,10 @@ def _handle_sys_file_delete(name, arguments, root):
 def _handle_sys_file_validate_md(name, arguments, root):
     from research_os.tools.actions.audit.md_audit import validate_md_template
 
+    try:
+        _resolve_inside_root(root, arguments["filepath"])
+    except WriteProtectedError as exc:
+        return _text(_error(str(exc)))
     res = validate_md_template(arguments["filepath"], arguments["protocol_name"], root)
     if res.get("status") == "success":
         return _text(_success(res))
@@ -183,7 +252,10 @@ def _handle_sys_path_create(name, arguments, root):
             enforce_predecessor_finalized=not allow_bypass,
         )
         if allow_bypass:
-            from research_os.project_ops import log_override
+            from research_os.project_ops import log_override, validate_override_rationale
+            thin = validate_override_rationale(arguments.get("override_rationale"))
+            if thin is not None:
+                return _text(thin)
             log_override(
                 root,
                 tool="sys_path_create",
@@ -281,8 +353,15 @@ def _handle_sys_export_share_archive(name, arguments, root):
             return _text(_error(f"export script missing and could not be scaffolded: {e}"))
 
     cmd = [_sys.executable, str(script)]
-    if arguments.get("out"):
-        cmd += ["--out", str(arguments["out"])]
+    out_arg = arguments.get("out")
+    if out_arg:
+        # Guard against path-traversal: the export destination must live
+        # inside the project root.
+        try:
+            _resolve_inside_root(root, str(out_arg))
+        except WriteProtectedError as exc:
+            return _text(_error(str(exc)))
+        cmd += ["--out", str(out_arg)]
     if arguments.get("include_raw_data"):
         cmd += ["--include-raw-data"]
     try:
@@ -300,6 +379,21 @@ def _handle_sys_export_share_archive(name, arguments, root):
         return _text(_error(f"export failed: {e}"))
 
 
+def _handle_sys_export_ro_crate(name, arguments, root):
+    """Emit ro-crate-metadata.json + codemeta.json at project root."""
+    try:
+        from research_os.tools.actions.state.ro_crate import (
+            sys_export_ro_crate as _emit,
+        )
+    except Exception as e:
+        return _text(_error(f"ro_crate module unavailable: {e}"))
+    op = arguments.get("operation", "build")
+    res = _emit(root, operation=op)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "ro_crate export failed")))
+
+
 def _handle_sys_checkpoint_create(name, arguments, root):
     res = create_checkpoint(arguments.get("description", "manual"), root)
     if res.get("status") == "success":
@@ -308,6 +402,15 @@ def _handle_sys_checkpoint_create(name, arguments, root):
 
 
 def _handle_sys_checkpoint_rollback(name, arguments, root):
+    # rollback is destructive; if a rationale was supplied, enforce
+    # the same min-quality bar as other override flags so audit trails
+    # don't fill with 'TODO' / 'preview' placeholders.
+    rationale = arguments.get("override_rationale")
+    if rationale:
+        from research_os.project_ops import validate_override_rationale
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
     res = rollback_checkpoint(arguments["checkpoint_id"], root)
     if res.get("status") == "success":
         return _text(_success(res))
@@ -319,6 +422,84 @@ def _handle_sys_checkpoint_list(name, arguments, root):
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "checkpoint list failed")))
+
+
+def _handle_sys_where(name, arguments, root):
+    """Lightweight orientation — ~30 tokens. Cheaper than sys_boot.
+
+    Returns: project_root (basename), tier (current_tier), active_plan
+    (step/total or None), unresolved_blocks (audit ledger count),
+    last_protocol (most recent protocol_history entry name).
+
+    Designed for mid-session "where am I?" checks by small / long-context
+    models that don't need the full sys_boot payload.
+    """
+    payload: dict[str, Any] = {
+        "project_root": Path(root).name,
+        "tier": None,
+        "active_plan": None,
+        "unresolved_blocks": 0,
+        "last_protocol": None,
+    }
+
+    # current_tier
+    try:
+        from research_os.tools.actions.state.tier_state import get_current_tier
+
+        payload["tier"] = get_current_tier(Path(root))
+    except Exception:
+        pass
+
+    # active_plan — step / total
+    try:
+        plan_path = Path(root) / ".os_state" / "active_plan.json"
+        if plan_path.exists():
+            plan = json.loads(plan_path.read_text())
+            decomp = plan.get("decomposition") or []
+            payload["active_plan"] = {
+                "step": int(plan.get("current_step", 1)),
+                "total": len(decomp),
+            }
+    except Exception:
+        pass
+
+    # unresolved_blocks — count of BLOCKer-severity findings in the ledger
+    try:
+        ledger = Path(root) / "workspace" / "logs" / ".audit_findings.jsonl"
+        if ledger.exists():
+            count = 0
+            for raw in ledger.read_text().splitlines():
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                sev = str(obj.get("severity", "")).upper()
+                if sev in ("BLOCK", "BLOCKER"):
+                    count += 1
+            payload["unresolved_blocks"] = count
+    except Exception:
+        pass
+
+    # last_protocol — most recent history entry
+    try:
+        from research_os.tools.actions.protocol import get_protocol_history
+
+        hist = get_protocol_history(Path(root), limit=1)
+        entries = hist.get("entries", []) or []
+        if entries:
+            last = entries[-1]
+            payload["last_protocol"] = (
+                last.get("protocol") or last.get("protocol_name")
+            )
+    except Exception:
+        pass
+
+    return _text(_success(payload))
 
 
 def _handle_sys_path(name, arguments, root):
@@ -354,8 +535,10 @@ HANDLERS = {
     "tool_path_finalize": _handle_tool_path_finalize,
     "tool_synthesis_curate_figures": _handle_tool_synthesis_curate_figures,
     "sys_export_share_archive": _handle_sys_export_share_archive,
+    "sys_export_ro_crate": _handle_sys_export_ro_crate,
     "sys_checkpoint_create": _handle_sys_checkpoint_create,
     "sys_checkpoint_rollback": _handle_sys_checkpoint_rollback,
     "sys_checkpoint_list": _handle_sys_checkpoint_list,
     "sys_path": _handle_sys_path,
+    "sys_where": _handle_sys_where,
 }

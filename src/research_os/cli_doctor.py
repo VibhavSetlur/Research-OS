@@ -448,7 +448,11 @@ def _declared_ides(workspace: Path) -> list[str]:
 
 
 def check_mcp_configs_wired(*, workspace: Path | None = None) -> CheckResult:
-    """Each declared IDE has its primary MCP config file on disk."""
+    """Each declared IDE has its primary MCP config file on disk AND
+    (for JSON-shaped configs) the file parses as valid JSON. A file
+    that exists but contains malformed JSON is treated as a failure —
+    silently passing on a corrupt config defeats the whole point of
+    the doctor."""
     if workspace is None:
         return ("pass", "No workspace; skipping MCP wiring check", None)
     declared = _declared_ides(workspace)
@@ -456,16 +460,242 @@ def check_mcp_configs_wired(*, workspace: Path | None = None) -> CheckResult:
         return ("warn", "No AI IDE config detected in this workspace",
                 "`research-os ide add claude` (or your IDE of choice).")
     missing: list[str] = []
+    invalid: list[tuple[str, str]] = []
     for ide in declared:
-        if not (workspace / _IDE_PRIMARY[ide]).exists():
+        primary = workspace / _IDE_PRIMARY[ide]
+        if not primary.exists():
             missing.append(ide)
+            continue
+        # JSON-shaped IDE configs: validate that they actually parse.
+        if primary.suffix == ".json" or primary.name.endswith("mcp.json"):
+            try:
+                json.loads(primary.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                invalid.append((ide, str(exc).splitlines()[0][:120]))
     if missing:
         return (
             "fail",
             f"Declared IDEs missing config file: {', '.join(missing)}",
             f"Re-wire: `research-os ide add {' '.join(missing)}`",
         )
+    if invalid:
+        detail = ", ".join(f"{ide} ({why})" for ide, why in invalid)
+        bad = " ".join(ide for ide, _ in invalid)
+        return (
+            "fail",
+            f"Declared IDE configs are invalid JSON: {detail}",
+            f"Repair the JSON or re-wire: `research-os ide add {bad}`",
+        )
     return ("pass", f"All declared IDEs wired ({', '.join(declared)})", None)
+
+
+def check_mcp_json_validity(*, workspace: Path | None = None) -> CheckResult:
+    """For each declared IDE config file shaped like JSON, open it,
+    parse it, drill into ``mcpServers.research-os.command`` (or the
+    common variants ``mcp_servers``/``servers``), and verify the
+    command is actually on PATH. Catches "everything looked fine"
+    failure modes where the JSON is malformed, the server entry was
+    renamed, or the command was uninstalled."""
+    if workspace is None:
+        return ("pass", "No workspace; skipping MCP JSON check", None)
+    declared = _declared_ides(workspace)
+    if not declared:
+        return ("pass", "No declared IDEs; skipping MCP JSON check", None)
+    problems: list[str] = []
+    checked = 0
+    for ide in declared:
+        primary = workspace / _IDE_PRIMARY[ide]
+        if not primary.exists():
+            # `check_mcp_configs_wired` already reports this.
+            continue
+        if primary.suffix != ".json" and not primary.name.endswith("mcp.json"):
+            # YAML / RC-style configs aren't in scope here.
+            continue
+        checked += 1
+        try:
+            data = json.loads(primary.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            problems.append(
+                f"{ide}: JSON parse error: {str(exc).splitlines()[0][:80]}"
+            )
+            continue
+        servers = None
+        if isinstance(data, dict):
+            for key in ("mcpServers", "mcp_servers", "servers"):
+                cand = data.get(key)
+                if isinstance(cand, dict):
+                    servers = cand
+                    break
+        if not servers:
+            problems.append(f"{ide}: no mcpServers/servers block found")
+            continue
+        # Look for any research-os-shaped entry (the canonical name is
+        # `research-os` but historical configs used `research_os`).
+        entry = None
+        for cand in ("research-os", "research_os", "researchos"):
+            if isinstance(servers.get(cand), dict):
+                entry = servers[cand]
+                break
+        if entry is None:
+            problems.append(
+                f"{ide}: no research-os entry in {key} (keys: "
+                f"{', '.join(sorted(servers)[:3])})"
+            )
+            continue
+        cmd = entry.get("command")
+        if not cmd or not isinstance(cmd, str):
+            problems.append(f"{ide}: research-os entry has no `command`")
+            continue
+        if not shutil.which(cmd):
+            problems.append(f"{ide}: command `{cmd}` not on PATH")
+    if not checked:
+        return ("pass", "No JSON-shaped IDE configs to validate", None)
+    if problems:
+        return (
+            "fail",
+            f"MCP JSON wiring issues: {'; '.join(problems[:5])}",
+            "Re-wire with `research-os ide add <ide>` or fix the JSON by hand.",
+        )
+    return ("pass", f"MCP JSON wiring valid in {checked} IDE config(s)", None)
+
+
+def check_config_perms(*, workspace: Path | None = None) -> CheckResult:
+    """``inputs/researcher_config.yaml`` may contain author identity /
+    API keys / project secrets. Warn if it is world-readable (mode
+    bits ``& 0o077 != 0``) — W17 enforces ``chmod 600`` on the file;
+    this check verifies the chmod actually stuck."""
+    if workspace is None:
+        return ("pass", "No workspace; skipping config-perm check", None)
+    cfg = workspace / "inputs" / "researcher_config.yaml"
+    if not cfg.exists():
+        return ("pass", "No researcher_config.yaml; nothing to chmod", None)
+    try:
+        mode = cfg.stat().st_mode & 0o777
+    except OSError as exc:
+        return ("warn", f"Couldn't stat researcher_config.yaml: {exc}", None)
+    if mode & 0o077:
+        return (
+            "warn",
+            f"researcher_config.yaml is mode {oct(mode)[2:]} (group/other readable)",
+            f"`chmod 600 {cfg}` to restrict to the owner.",
+        )
+    return ("pass", f"researcher_config.yaml mode is {oct(mode)[2:]} (owner-only)",
+            None)
+
+
+def check_state_ledger_parses(*, workspace: Path | None = None) -> CheckResult:
+    """``.os_state/state_ledger.json`` is the run history. A corrupt
+    ledger silently breaks ``research-os status`` and the audit
+    pipeline — warn if it exists but does not parse as JSON."""
+    if workspace is None:
+        return ("pass", "No workspace; skipping ledger-parse check", None)
+    ledger = workspace / ".os_state" / "state_ledger.json"
+    if not ledger.exists():
+        return ("pass", "No state_ledger.json yet (fresh workspace)", None)
+    try:
+        json.loads(ledger.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return (
+            "warn",
+            f"state_ledger.json is corrupt: {str(exc).splitlines()[0][:120]}",
+            "Back it up and delete `.os_state/state_ledger.json` — the next "
+            "tool run will recreate a clean one.",
+        )
+    return ("pass", "state_ledger.json parses cleanly", None)
+
+
+def check_workspace_writable(*, workspace: Path | None = None) -> CheckResult:
+    """Drop a probe file under ``workspace/`` and remove it — catches
+    read-only mounts (NFS EROFS) and permission misconfigurations
+    that ``check_disk_space`` does not surface."""
+    if workspace is None:
+        return ("pass", "No workspace; skipping writable check", None)
+    ws_dir = workspace / "workspace"
+    if not ws_dir.exists():
+        try:
+            ws_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return (
+                "warn",
+                f"Could not create workspace/ directory: {exc}",
+                "Check the parent directory's permissions and mount options.",
+            )
+    probe = ws_dir / ".doctor_probe"
+    try:
+        probe.write_text("doctor probe — safe to delete\n", encoding="utf-8")
+    except OSError as exc:
+        return (
+            "warn",
+            f"workspace/ is not writable: {exc}",
+            "Check filesystem mount options (EROFS?) or directory permissions.",
+        )
+    try:
+        probe.unlink()
+    except OSError:
+        # Wrote but couldn't unlink — still effectively writable.
+        pass
+    return ("pass", "workspace/ is writable", None)
+
+
+def check_env_var_consistency(*, workspace: Path | None = None) -> CheckResult:
+    """If ``RESEARCH_OS_WORKSPACE`` is exported, it must point at the
+    same directory the doctor is operating on — otherwise tools the
+    user runs interactively will silently act on a different
+    workspace than the doctor reports on."""
+    if workspace is None:
+        return ("pass", "No workspace; skipping env-var consistency check", None)
+    env_val = os.environ.get("RESEARCH_OS_WORKSPACE")
+    if not env_val:
+        return ("pass", "RESEARCH_OS_WORKSPACE not set (default lookup applies)",
+                None)
+    try:
+        env_resolved = Path(env_val).expanduser().resolve()
+    except (OSError, RuntimeError) as exc:
+        return ("warn", f"RESEARCH_OS_WORKSPACE is unparseable: {exc}", None)
+    ws_resolved = workspace.resolve()
+    if env_resolved == ws_resolved:
+        return ("pass", f"RESEARCH_OS_WORKSPACE matches workspace ({ws_resolved})",
+                None)
+    return (
+        "warn",
+        f"RESEARCH_OS_WORKSPACE={env_resolved} does not match active workspace "
+        f"{ws_resolved}",
+        f"`unset RESEARCH_OS_WORKSPACE` or `export RESEARCH_OS_WORKSPACE={ws_resolved}`.",
+    )
+
+
+def check_typst_compiles_fixture() -> CheckResult:
+    """``shutil.which('typst')`` only checks PATH — a broken / version-
+    mismatched binary lies. Compile a tiny known-good fixture to be
+    sure the typst on PATH actually works end-to-end."""
+    if not shutil.which("typst"):
+        return ("pass", "typst not on PATH; skipping compile probe", None)
+    import tempfile
+    fixture = "= Doctor probe\n\nResearch OS doctor compile test.\n"
+    with tempfile.TemporaryDirectory(prefix="ros-doctor-typst-") as tmp:
+        src = Path(tmp) / "probe.typ"
+        out = Path(tmp) / "probe.pdf"
+        src.write_text(fixture, encoding="utf-8")
+        try:
+            result = subprocess.run(
+                ["typst", "compile", str(src), str(out)],
+                capture_output=True, text=True, timeout=20,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return (
+                "warn",
+                f"typst compile probe failed to run: {exc}",
+                "Reinstall typst: https://github.com/typst/typst#installation",
+            )
+        if result.returncode != 0 or not out.exists():
+            stderr = (result.stderr or "").splitlines()
+            first = stderr[0] if stderr else f"exit {result.returncode}"
+            return (
+                "warn",
+                f"typst on PATH but compile failed: {first[:120]}",
+                "Reinstall typst or check the version (>= 0.10 recommended).",
+            )
+    return ("pass", "typst compiles a known-good fixture", None)
 
 
 def check_workspace_integrity(*, workspace: Path | None = None) -> CheckResult:
@@ -648,6 +878,7 @@ _INSTALL_CHECKS: list[tuple[str, Callable[[], CheckResult]]] = [
     ("external_pack_entrypoints", check_external_pack_entrypoints),
     ("embeddings_fresh", lambda: check_embeddings_fresh()),
     ("typst_on_path", check_typst_on_path),
+    ("typst_compiles_fixture", check_typst_compiles_fixture),
     ("chromium_on_path", check_chromium_on_path),
 ]
 
@@ -656,6 +887,14 @@ def _run_workspace_checks(report: DoctorRun, workspace: Path) -> None:
     pairs: list[tuple[str, Callable[[], CheckResult]]] = [
         ("optional_deps", lambda: check_optional_deps(workspace=workspace)),
         ("mcp_configs_wired", lambda: check_mcp_configs_wired(workspace=workspace)),
+        ("mcp_json_validity", lambda: check_mcp_json_validity(workspace=workspace)),
+        ("config_perms", lambda: check_config_perms(workspace=workspace)),
+        ("state_ledger_parses",
+         lambda: check_state_ledger_parses(workspace=workspace)),
+        ("workspace_writable",
+         lambda: check_workspace_writable(workspace=workspace)),
+        ("env_var_consistency",
+         lambda: check_env_var_consistency(workspace=workspace)),
         ("workspace_integrity",
          lambda: check_workspace_integrity(workspace=workspace)),
         ("disk_space", lambda: check_disk_space(workspace=workspace)),

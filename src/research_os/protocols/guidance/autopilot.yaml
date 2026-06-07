@@ -51,7 +51,17 @@ steps:
            environment/requirements.txt.
         8. Any tool_task(operation='run') with an estimated cost > 1 GPU-hour OR > 10 GB
            of memory OR > 50 GB of disk I/O.
+        9. sys_checkpoint_rollback (workspace mutation; reversible only by
+           re-rolling back to a different checkpoint).
       For each gate, sys_notify level="action_required" and wait one turn.
+
+      SERVER-SIDE ENFORCEMENT: these floor gates are enforced by the
+      dispatcher in src/research_os/server/dispatch.py via
+      autopilot_gate.enforce_autopilot_gate. When
+      interaction.autonomy_level == 'autopilot' AND the gated tool is
+      invoked without arguments['confirmed'] == true, the call returns
+      an RoError with what='autopilot_gate_blocked'. The protocol prose
+      above is the documentation; the dispatcher is the floor.
 
       NEVER one-shot the full research project. Autopilot may iterate
       through experiment steps without checking in, but the gates above
