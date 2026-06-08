@@ -24,7 +24,6 @@ __all__ = [
     "_latest_protocol_for_step",
     "_build_tier_progress",
     "_AUDIT_DISPATCH",
-    "_DASHBOARD_DISPATCH",
     "_STEP_DISPATCH",
     "_STEP_PIPELINE_DISPATCH",
 ]
@@ -123,8 +122,8 @@ _AUDIT_DISPATCH: dict[tuple[str, str], str] = {
 }
 
 
-# tool_dashboard removed in v2.3.0; AI authors synthesis/dashboard.html directly.
-_DASHBOARD_DISPATCH: dict[str, str] = {}
+# tool_dashboard removed in v2.3.0; the dispatch table is gone with it.
+# (Old aliases still resolve via _REMOVED_TOOLS to a redirect message.)
 
 
 _STEP_DISPATCH: dict[str, str] = {

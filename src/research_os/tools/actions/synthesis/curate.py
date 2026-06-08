@@ -90,8 +90,11 @@ def curate_figures(root: Path) -> dict[str, Any]:
             try:
                 if not dest_cap.exists() or dest_cap.stat().st_mtime < focal_cap.stat().st_mtime:
                     shutil.copy2(focal_cap, dest_cap)
-            except OSError:
-                pass
+            except OSError as e:
+                # Best-effort sidecar copy. Read-only source dirs /
+                # permission mismatches must not crash the curation
+                # pass; the figure itself is already copied above.
+                logger.debug("caption sidecar copy failed for %s: %s", focal_cap, e)
         else:
             missing_captions.append(p.name)
             if not dest_cap.exists():

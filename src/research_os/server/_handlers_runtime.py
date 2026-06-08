@@ -122,7 +122,6 @@ from ._helpers import (  # noqa: E402,F401
     _latest_protocol_for_step,
     _build_tier_progress,
     _AUDIT_DISPATCH,
-    _DASHBOARD_DISPATCH,
     _STEP_DISPATCH,
     _STEP_PIPELINE_DISPATCH,
 )
@@ -137,8 +136,8 @@ __all__ = [
     # helpers
     "_log_search", "_read_profile", "_recommended_action_for_route",
     "_build_tree", "_latest_protocol_for_step", "_build_tier_progress",
-    # audit/dashboard/step dispatch tables
-    "_AUDIT_DISPATCH", "_DASHBOARD_DISPATCH",
+    # audit + step dispatch tables (tool_dashboard removed in v2.3.0)
+    "_AUDIT_DISPATCH",
     "_STEP_DISPATCH", "_STEP_PIPELINE_DISPATCH",
     # stdlib + common
     "Any", "Path", "argparse", "dataclass", "defaultdict",
