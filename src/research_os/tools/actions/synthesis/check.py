@@ -224,14 +224,16 @@ _DIR_DUMP_HEADING_RE = re.compile(
 
 # Strip <script>...</script> and <style>...</style> bodies so vendored
 # JS / CSS libraries don't trip placeholder + path-leak regexes.
-# Close-tag pattern matches `</script>` / `</script >` / `</SCRIPT  >`
-# per HTML5; CodeQL would flag the naive `</script>` form as too narrow.
+# Close-tag pattern `</script[^>]*>` matches every HTML5-legal close
+# form: `</script>`, `</script >`, `</script\nfoo>`, `</SCRIPT bar>`.
+# The naive `</script>` form would miss whitespace + attribute variants
+# (CodeQL flags the narrower pattern as Bad-HTML-filtering-regexp).
 _SCRIPT_BODY_RE = re.compile(
-    r"<script\b[^>]*>.*?</script\s*>",
+    r"<script\b[^>]*>.*?</script[^>]*>",
     re.DOTALL | re.I,
 )
 _STYLE_BODY_RE = re.compile(
-    r"<style\b[^>]*>.*?</style\s*>",
+    r"<style\b[^>]*>.*?</style[^>]*>",
     re.DOTALL | re.I,
 )
 
