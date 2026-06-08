@@ -177,11 +177,12 @@ steps:
   - id: draft_per_section
     name: Draft each section in the audience profile
     description: |
-      For each section in audience.sections:
-        tool_synthesize section="<name>" output_type="lay_summary"
-      Apply the audience profile's tone. Replace each occurrence of a
-      jargon term with the translation map's alternative. Keep the
-      reading grade level under the quality_bar floor.
+      For each section in audience.sections, author the prose directly
+      into `synthesis/lay_summary.md` (or .typ for a press-kit one-pager
+      that compiles via tool_typst_compile). Apply the audience
+      profile's tone. Replace each occurrence of a jargon term with the
+      translation map's alternative. Keep the reading grade level under
+      the quality_bar floor.
 
       For press_release: write the headline as the FINDING, not the
       topic. "Vaccine cuts hospital admissions in half in over-65s"

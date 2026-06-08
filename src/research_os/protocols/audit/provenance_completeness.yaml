@@ -161,8 +161,9 @@ steps:
         <count> outputs fully covered.
 
       `audit/audit_and_validation` reads this file and rolls the
-      BLOCKER count into the master audit; any BLOCKER bars
-      `tool_synthesize` from running.
+      BLOCKER count into the master audit; any BLOCKER surfaces as a
+      blocker on `tool_synthesis_check` when the AI validates the
+      authored synthesis file.
 
   - id: fix_missing_sidecars
     name: Fix missing sidecars — re-run the producing script under provenance

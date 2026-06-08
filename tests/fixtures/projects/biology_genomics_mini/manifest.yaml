@@ -39,7 +39,7 @@ max_seconds: 30
 synthesis_deliverables:
   - kind: paper
     path: synthesis/paper.pdf
-    tool: tool_paper_compile_typst
+    tool: tool_typst_compile
     args:
       venue_template: generic_two_column
     must_succeed: true

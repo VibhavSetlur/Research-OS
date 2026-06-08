@@ -75,7 +75,7 @@ Every tool definition carries two MAJOR-stable metadata fields:
 The canonical, machine-readable list is whatever
 `sys_tool_describe`, `tool_tools_list`, and the MCP `tools/list`
 handshake return for the running server. As of v2.0.0 that's
-**148 live tools** (123 core + 23 across 11 packs).
+**144 live tools** (121 core + 23 across 11 packs).
 
 ### A.2 Audit-finding JSON schema
 
@@ -355,11 +355,11 @@ MINOR.
 
 | Surface | v2.0.0 count |
 |---|---|
-| Live tools (`status='live'` in `TOOL_DEFINITIONS`) | 148 |
+| Live tools (`status='live'` in `TOOL_DEFINITIONS`) | 144 |
 | Back-compat aliases (`_ALIASES`) | 80 |
 | Deprecated aliases (`_DEPRECATED_ALIASES`, dispatch + telemetry) | 78 |
 | Hard-removed names (`_REMOVED_TOOLS`, friendly-error) | 24 |
-| Handlers wired (`_HANDLERS`) | 148 |
+| Handlers wired (`_HANDLERS`) | 144 |
 | Core protocols (`src/research_os/protocols/`) | 117 |
 | Pack protocols (humanities + qualitative + theory_math) | 36 |
 | Protocols with `tier:` annotation | 117 / 117 |

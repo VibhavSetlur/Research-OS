@@ -1,371 +1,165 @@
 id: synthesis_paper
 tier: 'synthesize'
-name: Synthesis — Paper (IMRAD, venue-tailored)
-version: '2.0.0'
+name: Synthesis — Paper (IMRAD, AI-authored Typst)
+version: '2.3.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
+  domain: [biology, wet_lab, humanities, qualitative, theory_math, engineering]
   audience: [auditor]
   workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-08'
 description: |
-  Compile the final IMRAD paper into synthesis/paper.md (and
-  synthesis/paper.tex → PDF when requested), tuned to the target venue.
-  Uses pandoc for the LaTeX render when available; otherwise our own
-  inline-formatting + table-aware fallback.
-  Server-side completeness gate blocks the assembly until every active
-  step has a focal figure + caption + summary + non-stub conclusions.
+  Guide the AI to author `synthesis/paper.typ` directly, section by
+  section, as a publishable manuscript. Research-OS does not generate
+  papers — the AI does. Tools support: tool_synthesize_plan inspects
+  what's in the workspace, tool_synthesis_scaffold seeds a tiny
+  skeleton, tool_synthesis_check audits the draft, tool_typst_compile
+  renders synthesis/paper.pdf.
 
-  **Multi-turn enforcement.** A paper is the highest-stakes artefact
-  in the project. Producing a publishable draft in ONE research-os
-  call is the anti-pattern — context fills, the AI stops introspecting
-  between sections, and the result is a sketchy draft that under-uses
-  the figure set. This protocol enforces ONE section per researcher
-  prompt:
+  **What "publishable" means here.** The reader can follow every
+  factual claim back to a workspace artefact (numbers come from
+  outputs/, citations resolve in workspace/citations.md, methods
+  match workspace/<step>/conclusions.md). The structure matches the
+  target venue's IMRAD (or domain-equivalent) shape. Length lands in
+  the venue's range. Citations are verified.
 
-    - turn 1: "outline the paper" → produces synthesis/outline.md
-    - turn 2: "draft methods" → writes ONLY the Methods section
-    - turn 3: "draft results" → writes ONLY the Results section
-    - turn 4: "draft discussion" → writes ONLY the Discussion section
-    - turn 5: "draft introduction" → writes ONLY the Introduction
-    - turn 6: "draft abstract" → writes ONLY the Abstract
-    - turn 7: "assemble + compile to PDF" → final_assembly + compile_pdf
-    - turn 8: "workshop the title" → title.md
-    - turn 9: "audit + revise" → audit_synthesis + revision pass
-    - turn 10: "build end matter + cover letter"
+  **Multi-turn cadence.** A real paper is not a single-turn output.
+  One section per researcher prompt is the rhythm — it keeps the
+  context window healthy AND forces the AI to deliberate. In
+  autopilot mode the AI may proceed automatically through sections,
+  but each section is still its own focused authoring pass + its own
+  tool_synthesis_check audit.
 
-  The AI refuses to chain >1 of these sections in a single turn. The
-  researcher initiates each section as a separate prompt — that
-  enforces the deliberative pace a real paper deserves AND keeps the
-  context window healthy. If `interaction.autonomy_level` is
-  `autopilot` the AI may proceed automatically through turns 2-10
-  WITHOUT a fresh prompt, but each section is still its own
-  tool_synthesize call + its own audit pass.
+trigger: |
+  Researcher asks for "the paper" / "draft the manuscript" / "write
+  it up" after at least one analysis step is finished.
 
-  **Autopilot short-circuit.** When
-  `interaction.autonomy_level == autopilot`, tool_synthesize accepts
-  `auto_proceed=true` to process every section (methods → results →
-  discussion → introduction → abstract) AND run the full assembly in
-  ONE call. Each per-section file is still written exactly as the
-  multi-turn flow would write it, so the audit trail is identical;
-  the short-circuit just removes the round-trip overhead when the
-  researcher has already opted into hands-off operation. Passing
-  `auto_proceed=true` in `manual` / `supervised` / `coaching` modes
-  returns an error — the multi-turn cadence is enforced precisely
-  because it is the deliberation pace those modes exist to provide.
-
-  Citation auto-verify is part of final_assembly — `tool_citations_verify`
-  runs as a HARD gate; any citation still in `pending verification`
-  state blocks the assembly until the AI runs the actual lookup.
-
-  Related per-section / supporting protocols this one calls into:
-    - `synthesis/synthesis_title_workshop` — workshop the title
-      (the single most-read sentence) before assembly
-    - `writing/writing_methods` — Methods drafting
-    - `writing/writing_results` — Results drafting
-    - `writing/writing_discussion` — Discussion drafting
-    - `writing/writing_limitations` — Limitations sub-section
-    - `writing/writing_data_availability` — end-matter (data /
-      code / CRediT / funding / COI / acknowledgements)
-    - `synthesis/synthesis_cover_letter` — journal cover letter
-    - `audit/pre_submission_checklist` — final ready-to-submit gate
-trigger: After audit_and_validation passes. Final pipeline step. The researcher asks "write the paper" / "draft the manuscript".
 prerequisites:
-  - workspace/logs/audit_report.md exists with no BLOCKER lines
-  - workspace/logs/step_completeness.md shows no per-step BLOCKERS
-  - At least one experiment step has a substantive conclusions.md (>200 chars under "## Findings")
   - workspace/methods.md, workspace/citations.md exist with real content
-  - inputs/literature_index.yaml has at least 3 entries
+  - At least one workspace/<step>/conclusions.md exists with substantive findings
+  - inputs/literature_index.yaml has at least 3 entries (or workspace/citations.md does)
 
-# ── Quality bars — every paper must meet ALL ─────────────────────────
-quality_bar:
-  abstract_words: [200, 300]            # APA / most journals
-  introduction_words: [400, 800]
-  methods_words_minimum: 400
-  results_words_minimum: 400
-  discussion_words_minimum: 500
-  conclusion_words_minimum: 100
-  figures_minimum: 1
-  tables_minimum: 0
-  citations_minimum: 8
-  citations_maximum: 40                 # capped by output_type
-  every_claim_grounded: true            # quantitative claim → workspace artifact OR cited paper
-  no_causal_language_for_observational: true
-  reproducibility_block_present: true
+design_principles: |
+  - Every quantitative claim is grounded in a real workspace artefact.
+    The reader can audit the path (claim → conclusions.md → script →
+    raw data). If a claim has no traceable origin, cut it or qualify it.
+  - Citations are verified. Unverifiable citations are dropped, never
+    silently retained. tool_synthesis_check flags hallucinated keys.
+  - Figures support the narrative; they don't substitute for it. Each
+    figure has a caption that names what to look at AND why it matters.
+  - The voice matches the venue. Conferences favour terse claims;
+    journals tolerate exposition; theses earn the right to repeat.
+  - Limitations are honest. A paper that omits its weaknesses gets
+    desk-rejected by a careful editor; a paper that names them frames
+    the conversation.
 
-# ── Venue-specific overrides ─────────────────────────────────────────
-venue_profile:
-  journal:                              # default
-    structure: [abstract, introduction, methods, results, discussion, conclusion, references]
-    abstract_style: structured           # Background / Methods / Results / Conclusion
-    sample_length_words: 4000
-    figure_dpi_minimum: 300
-    file_format: [markdown, latex]
-    notes: |
-      Default. Long-form, exhaustive methods, structured abstract, ~30-40 citations.
-  conference:
-    structure: [abstract, introduction, related_work, methods, results, discussion, references]
-    abstract_style: unstructured         # one paragraph
-    sample_length_words: 3000
-    figure_dpi_minimum: 300
-    file_format: [latex]                # most CS confs require LaTeX
-    notes: |
-      Tighter abstract; "Related Work" replaces deep "Discussion". ACL/NeurIPS-style.
-  preprint:
-    structure: [abstract, introduction, methods, results, discussion, conclusion, references]
-    abstract_style: structured
-    sample_length_words: 5000
-    figure_dpi_minimum: 150              # web display ok
-    file_format: [markdown, latex]
-    notes: |
-      arXiv / bioRxiv / SSRN. Longer; can include extended appendix.
-  dissertation:
-    structure: [abstract, introduction, literature_review, methods, results, discussion, conclusion, references]
-    abstract_style: structured
-    sample_length_words: 15000          # per chapter
-    figure_dpi_minimum: 300
-    file_format: [latex]
-    notes: |
-      Massive. Explicit "Literature review" chapter. Often per-chapter abstracts.
-  report:                                # internal / technical
-    structure: [executive_summary, background, methods, results, recommendations, references]
-    abstract_style: executive_summary    # ~150 words, business focus
-    sample_length_words: 2500
-    figure_dpi_minimum: 150
-    file_format: [markdown]
-    notes: |
-      Internal / industry. Prefers "Executive summary" + "Recommendations". Lighter on citations.
+quality_standards: |
+  - abstract — 200-300 words; >=1 quantitative finding; structured for
+    journals/preprints, single-paragraph for conferences.
+  - introduction — 400-800 words; >=3 cited prior works framing the
+    question; ends with an explicit "in this study, we ..." pivot.
+  - methods — minimum 400 words; every workspace step's primary
+    method/tool named; implementation + version + parameters +
+    assumptions for non-trivial choices.
+  - results — minimum 400 words; >=1 inferential statistic per primary
+    finding; every focal figure referenced.
+  - discussion — minimum 500 words; Limitations paragraph present;
+    future-work direction named; every DISAGREES/EXTENDS verdict from
+    findings_vs_literature.md addressed in a paragraph.
+  - references — every cited key resolves in the bibliography.
+  - citations — minimum 8, capped per venue (journal ~40, conference
+    ~25, preprint flexible).
 
 steps:
-  - id: gate_completeness
-    name: Run Completeness Gate (BLOCKING)
+  - id: inspect_workspace
+    name: Inspect what's ready
     description: |
-      tool_audit(scope='step', dimension='completeness')
-      The first step. If any active step has BLOCKERS (missing focal
-      figure, missing caption sidecar, missing summary sidecar, stub
-      conclusions sections), tool_synthesize REFUSES to assemble and
-      this protocol cannot proceed. Fix the blockers in the listed
-      steps (use an AI-authored plotting script for missing figures —
-      auto-generates both sidecars) and re-run.
+      tool_synthesize_plan returns recommended section ordering +
+      per-section source paths + gaps. Read it before authoring
+      anything.
 
-      Override only when the researcher explicitly asks for a partial
-      paper (e.g. "draft what we have so far, mark the gaps"). The
-      override is `override_completeness_gate=true` on tool_synthesize.
-
-  - id: select_venue_profile
-    name: Select Venue Profile
+  - id: pick_venue
+    name: Pick the target venue
     description: |
-      Read research_goal.target_venue from researcher_config.yaml.
-      Pick the matching venue_profile (default: journal). Tell the researcher:
-        "Targeting: <venue> · structure: <list> · length: ~<words>w
-         · figure DPI: ≥<dpi> · output format: <fmt>"
-      Confirm before any drafting.
+      Read writing_preferences.venue_template from researcher_config.yaml
+      (default generic_two_column). Tell the researcher the venue +
+      expected length + format. Confirm before scaffolding.
 
-  - id: plan_sections
-    name: Plan the Synthesis
+  - id: scaffold
+    name: Scaffold paper.typ
     description: |
-      tool_synthesize_plan — returns the available sources and recommended ordering.
-      Read it. In supervised/autopilot, discuss any deviation from the default
-      ordering (methods → results → discussion → introduction → abstract).
+      tool_synthesis_scaffold(kind='paper') writes a <=60-line
+      synthesis/paper.typ with section headers and venue import.
+      Refuses to overwrite an existing file. Idempotent.
 
-  - id: draft_methods
-    name: Draft Methods Section
+  - id: author_sections
+    name: Author each section in its own turn
     description: |
-      tool_synthesize section="methods" output_type="paper"
-      Pulls workspace/methods.md verbatim into synthesis/methods.md, attaches
-      verified citations relevant to the methodology.
+      Recommended order is methods -> results -> discussion ->
+      introduction -> abstract. Each section is grounded in the
+      workspace artefact the plan named for it. In autopilot mode the
+      AI may proceed through sections automatically; each is still its
+      own focused authoring pass.
 
-      QUALITY CHECK after generation:
-        - Word count ≥ methods_words_minimum.
-        - Every method block has implementation + version + parameters + assumptions.
-        - Every cited reference resolves (tool_citations_verify called).
-      Iterate via mem_log if the word/grounding bar fails.
-
-  - id: draft_results
-    name: Draft Results Section
+  - id: per_section_check
+    name: Check after every section
     description: |
-      tool_synthesize section="results" output_type="paper"
-      Aggregates workspace/*/conclusions.md + outputs/reports/*.md.
+      tool_synthesis_check(file='synthesis/paper.typ',
+      mode='substantiveness') after every section. Address blockers
+      before continuing.
 
-      QUALITY CHECK:
-        - Every p-value formatted to 3 decimals (or "p < 0.001").
-        - Every effect estimate paired with 95% CI.
-        - Every figure cited and present in synthesis/figures/.
-        - Word count ≥ results_words_minimum.
-
-  - id: draft_discussion
-    name: Draft Discussion Section
+  - id: embed_figures
+    name: Embed figures
     description: |
-      tool_synthesize section="discussion" output_type="paper"
+      Inline Typst blocks: #figure(image("figures/figXX.png"),
+      caption: [...]) <fig:slug>. Curate with
+      tool_synthesis_curate_figures so paper + dashboard share names.
 
-      QUALITY CHECK:
-        - Directly answers research_overview.md.
-        - Mentions limitations (from conclusions.md > Limitations + audit warnings).
-        - For observational designs: ZERO causal-language hits (the audit will flag this).
-        - At least 5 citations.
-
-  - id: draft_introduction
-    name: Draft Introduction Section
+  - id: title_workshop
+    name: Workshop the title
     description: |
-      tool_synthesize section="introduction" output_type="paper"
+      Load synthesis/synthesis_title_workshop. The title is the
+      single most-read sentence in the paper.
 
-      QUALITY CHECK:
-        - Cites at least 3 prior works that frame the research question.
-        - Ends with explicit "In this study, we …" sentence.
-        - Word count within introduction_words range.
-
-  - id: draft_abstract
-    name: Draft Abstract Section
+  - id: end_matter
+    name: Build end matter
     description: |
-      tool_synthesize section="abstract" output_type="paper"
-      Apply venue_profile.abstract_style (structured for journals/preprints,
-      unstructured for conferences).
+      Load writing/writing_data_availability for data / code / CRediT
+      / funding / COI / acknowledgements.
 
-      QUALITY CHECK:
-        - Word count within abstract_words range.
-        - At most 3 citations (often 0).
-        - Includes one quantitative finding.
-
-  - id: final_assembly
-    name: Final Assembly + Audit
-    description: |
-      tool_synthesize (no section) output_type="paper" output_format=<fmt>
-      Assembles paper.md (+ paper.tex if requested), writes synthesis/references.bib
-      with deduplicated verified citations capped at 40.
-
-      Figure auto-embed. When researcher_config.synthesis.figures_auto_embed
-      is true (default), tool_synthesize calls tool_figure(operation='paper_autoembed')
-      at the end of the assembly so every step's outputs/figures/ (with
-      `figures_for_paper: true` in step_summary.yaml AND in the figure's
-      .caption.md frontmatter) lands in the right paper section. Sidecar
-      frontmatter fields drive placement: `section_hint` (which IMRAD
-      section), `figure_priority` (order within the section), `alt_text`
-      (accessibility), `interactive_required`. Multi-paragraph captions
-      split into a headline + a "Note:" appendix. The pass is idempotent —
-      re-running tool_synthesize after a manual figure edit preserves
-      the edit. The companion tool_audit(scope='synthesis', dimension='figure_coverage') BLOCKs when a
-      step has a figure on disk but the paper doesn't embed it (opt out
-      by setting `figures_for_paper: false` on the step OR sidecar).
-
-      Then:
-        tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/paper.md"
-        tool_citations_verify
-        tool_audit(scope='synthesis', dimension='figure_coverage')
-      Read all three reports. Address BLOCKER warnings (missing sections,
-      hallucinated citations, causal-language hits, orphan figures).
-      Re-assemble.
-
-  - id: compile_pdf
-    name: Compile to PDF (DEFAULT for any serious draft, not optional)
-    description: |
-      paper.md is the WORKING DRAFT. A markdown file is not a
-      publication artefact. EVERY journal-track / grant-track / poster-
-      track deliverable must compile to PDF — either via LaTeX or
-      Typst. Skip ONLY for purely-internal lab-meeting summaries.
-
-      Decision tree:
-        Target journal accepts .tex / has a class file
-          (Nature, Cell, Science, PLOS, eLife, JCO, NEJM, PNAS, ...)
-            → LaTeX. `tool_latex_compile`. Use the journal's bst /
-              class file from inputs/literature/templates/.
-        Target is a preprint / thesis / general manuscript
-            → **Typst** (modern LaTeX alternative; faster compile,
-              cleaner syntax, growing journal support). Convert the
-              paper.md to paper.typ via the rules below.
-        Target is a poster
-            → Use `synthesis/synthesis_poster` (separate protocol).
-        Target is HTML/dashboard
-            → Use `synthesis/synthesis_dashboard` (separate protocol).
-
-      Typst conversion when requested:
-        - Call `tool_paper_compile_typst(venue="<slug>")` — wires
-          the conversion: paper.md → paper.typ → paper.pdf via a
-          bundled venue template (nature | science | nejm | cell |
-          ieee_conf | neurips | acl | plos | generic_two_column |
-          generic_thesis), and synthesises a Hayagriva biblio.yml
-          from workspace/citations.md. The default venue comes from
-          `researcher_config.writing_preferences.venue_template`.
-        - Bundled venues set per-journal page geometry, fonts,
-          heading rules, citation style. Falls back to generic
-          two-column when the venue is unset.
-        - The tool returns parsed Typst errors with line numbers
-          on failure so the AI can iterate on the source.
-
-      LaTeX conversion when requested:
-        - Standard `\documentclass{...}` per journal; preamble
-          loads graphicx, hyperref, natbib OR biblatex.
-        - Generate via tool_latex_compile (handles pdflatex →
-          biber → pdflatex × 2).
-
-      The PDF lives at `synthesis/paper.pdf` regardless of source.
-      `tool_audit(scope='synthesis', dimension='all')` MUST re-run on the compiled artefact
-      (PDF text extraction) to catch any LaTeX-only hallucination
-      (citations resolving differently after \bibliography expansion).
-
-  - id: workshop_the_title
-    name: Workshop the title (single most-read sentence)
-    description: |
-      Load `synthesis/synthesis_title_workshop` to generate, iterate,
-      and pick the title. The title is the single most-read sentence
-      in the paper — first-draft titles age badly.
-
-      Skip this step only when the title was already workshopped
-      this session (synthesis/title.md exists and is recent).
-
-  - id: build_end_matter
-    name: Build the end matter (data / code / CRediT / funding / COI / ack)
-    description: |
-      Load `writing/writing_data_availability` to draft:
-        - data availability statement
-        - code availability statement
-        - author contributions (CRediT)
-        - funding statement
-        - conflicts of interest
-        - acknowledgements
-
-      Append to synthesis/paper.md in the order most journals expect
-      (acknowledgements → author contributions → funding → conflicts
-      → data availability → code availability). Re-order per the
-      target venue's house style.
-
-  - id: draft_cover_letter
+  - id: cover_letter
     name: Draft the cover letter
     description: |
-      Load `synthesis/synthesis_cover_letter` to draft the cover
-      letter the editor will see first. Cover letters are
-      frequently the difference between desk-review and desk-
-      reject; the protocol handles fit + significance +
-      reviewers.
+      Load synthesis/synthesis_cover_letter.
 
-  - id: run_pre_submission_checklist
-    name: Run the pre-submission checklist
+  - id: compile
+    name: Compile to PDF
     description: |
-      Load `audit/pre_submission_checklist` for the final
-      ready-to-submit gate. Produces a single GREEN / YELLOW /
-      RED verdict + a punch list. RED blocks submission; YELLOW
-      means proceed-after-addressing.
+      tool_typst_compile produces synthesis/paper.pdf. Read
+      typst_warnings / typst_errors on failure and iterate on the
+      .typ source.
 
-  - id: report_to_researcher
-    name: Report to Researcher
+  - id: pre_submission
+    name: Pre-submission gate
     description: |
-      Report:
-        - Word count by section
-        - Citation count + verified ratio
-        - Figure count
-        - Output files (paper.md, paper.tex, paper.pdf, references.bib)
-        - End-matter status (each statement present + audited)
-        - Cover letter status
-        - Pre-submission checklist verdict (GREEN / YELLOW / RED +
-          punch list)
-        - Audit summary (any non-BLOCKER warnings to address)
+      Load audit/pre_submission_checklist. Walks every check a journal
+      will run, returns GREEN / YELLOW / RED + punch list.
+
+tools: |
+  - tool_synthesize_plan — what's ready in the workspace
+  - tool_synthesis_scaffold — seed synthesis/paper.typ (idempotent)
+  - tool_synthesis_check — per-IMRAD-section audit (substantiveness, structure, cliches)
+  - tool_synthesis_curate_figures — copy step focal figures to synthesis/figures/
+  - tool_writing_discussion_from_verdicts — mechanical merge of literature verdicts
+  - tool_discussion_coverage_audit — gate, every DISAGREES/EXTENDS verdict addressed
+  - tool_typst_compile — render synthesis/paper.pdf
+  - tool_latex_compile — only when the journal requires .tex submission
 
 expected_outputs:
-  - synthesis/paper.md
-  - synthesis/abstract.md
-  - synthesis/methods.md
-  - synthesis/results.md
-  - synthesis/discussion.md
-  - synthesis/references.bib
+  - synthesis/paper.typ            # AI-authored
+  - synthesis/paper.pdf            # tool_typst_compile output
+  - synthesis/biblio.yml           # Hayagriva citations (auto-generated)
+  - synthesis/figures/fig*_*.png   # curated focal figures
 
 next_protocol: null
 next_protocol_kind: terminal

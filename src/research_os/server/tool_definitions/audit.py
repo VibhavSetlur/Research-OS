@@ -95,7 +95,7 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 # explain kwargs
                 "id": {
                     "type": "string",
-                    "description": "operation='explain' — REQUIRED. Stable finding id (UUID) to fetch full chronological history for. Use ids surfaced by operation='query', operation='diff', or the tool_synthesize BLOCK error envelope.",
+                    "description": "operation='explain' — REQUIRED. Stable finding id (UUID) to fetch full chronological history for. Use ids surfaced by operation='query', operation='diff', or a tool_synthesis_check BLOCK envelope.",
                 },
                 # timeline kwargs
                 "gate_name": {
@@ -111,7 +111,7 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_audit_quality_full": {
         "short": "Run every quality gate in one call — completeness + code + prose + claims + prereg diff + grounding.",
-        "description": "Master auditor. Runs all 6 quality gates: tool_audit_step_completeness + tool_audit_code_quality + tool_audit_prose + tool_audit_claims + tool_preregister_diff + tool_ground (grounding_verify) in one shot; aggregates the blocker set; writes workspace/logs/audit_master.md. tool_synthesize calls this as its first gate when no `section` is given. Grounding blockers surface as `[grounding] N decision(s) without grounding records`. NB: this master audit does NOT run the per-step literature gate — call `tool_audit_step_literature` per step (or rely on `tool_step_complete` to have caught it). The per-step literature check is run separately at synthesis time by `tool_audit_synthesis` / `tool_path_finalize`; if you skip it during the run, expect blockers at synthesis.",
+        "description": "Master auditor. Runs all 6 quality gates: tool_audit_step_completeness + tool_audit_code_quality + tool_audit_prose + tool_audit_claims + tool_preregister_diff + tool_ground (grounding_verify) in one shot; aggregates the blocker set; writes workspace/logs/audit_master.md. tool_synthesis_check calls this as part of the substantiveness pass on an AI-authored synthesis file. Grounding blockers surface as `[grounding] N decision(s) without grounding records`. NB: this master audit does NOT run the per-step literature gate — call `tool_audit_step_literature` per step (or rely on `tool_step_complete` to have caught it). The per-step literature check is run separately at synthesis time by `tool_audit_synthesis` / `tool_path_finalize`; if you skip it during the run, expect blockers at synthesis.",
         "category": "audit",
         "inputSchema": {
             "type": "object",

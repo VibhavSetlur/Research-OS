@@ -1,4 +1,4 @@
-"""Reviewer-response scaffold tests — simulate, draft, compile, audit."""
+"""Reviewer-response scaffold tests — draft, compile, audit."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from research_os.tools.actions.synthesis.reviewer import (
     audit_reviewer_responses,
     rebuttal_draft,
     reviewer_response_compile,
-    reviewer_simulate,
 )
 
 
@@ -53,46 +52,6 @@ def _scaffold_project(root: Path, with_paper: bool = True) -> None:
 def project(tmp_path: Path) -> Path:
     _scaffold_project(tmp_path)
     return tmp_path
-
-
-# ---------------------------------------------------------------------------
-# reviewer_simulate
-# ---------------------------------------------------------------------------
-
-
-def test_reviewer_simulate_lists_all_seven_personas(project):
-    res = reviewer_simulate(project)
-    assert res["status"] == "success"
-    assert res["persona_count"] == 7
-    assert {p["id"] for p in res["personas"]} == set(DEFAULT_PERSONAS)
-    brief = project / "workspace" / "reviewer" / "simulation_brief.md"
-    assert brief.exists()
-    text = brief.read_text(encoding="utf-8")
-    for pid in DEFAULT_PERSONAS:
-        assert f"`id: {pid}`" in text, f"brief missing persona {pid}"
-
-
-def test_reviewer_simulate_works_with_subset(project):
-    res = reviewer_simulate(project, personas=["statistician", "novelty_critic"])
-    assert res["status"] == "success"
-    assert res["persona_count"] == 2
-    assert {p["id"] for p in res["personas"]} == {"statistician", "novelty_critic"}
-
-
-def test_reviewer_simulate_handles_missing_paper(tmp_path):
-    _scaffold_project(tmp_path, with_paper=False)
-    res = reviewer_simulate(tmp_path)
-    # Still succeeds — brief is reading instructions; warns about missing paper.
-    assert res["status"] == "success"
-    assert res["paper_exists"] is False
-    brief_text = (tmp_path / "workspace" / "reviewer" / "simulation_brief.md").read_text()
-    assert "WARNING" in brief_text
-
-
-def test_reviewer_simulate_accepts_str_root(project):
-    # Smoke-gap parity: handler dispatch may pass str root.
-    res = reviewer_simulate(str(project))
-    assert res["status"] == "success"
 
 
 # ---------------------------------------------------------------------------

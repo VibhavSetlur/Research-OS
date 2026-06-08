@@ -170,9 +170,10 @@ flags it before synthesis.
 ## Hard rules (NEVER violate)
 
 1. **Never write to `inputs/raw_data/` or `inputs/literature/`** — immutable.
-2. **Never invent citations.** All final-deliverable citations come
-   from `tool_synthesize` (verified online) or workspace literature
-   sidecars.
+2. **Never invent citations.** All final-deliverable citations are
+   verified via `tool_citations_verify` (Crossref / Semantic Scholar /
+   PubMed / arXiv); `tool_synthesis_check` surfaces unresolved keys
+   in synthesis/paper.typ before compile.
 3. **Never use causal language** ("causes", "proves", "leads to") on
    observational data. Use "is associated with" / "is consistent with".
 4. **Never commit a method or library from training memory alone.**
@@ -187,23 +188,25 @@ flags it before synthesis.
 8. **Never use judgemental language** about the source researcher in
    any deliverable. Use supportive professional voice ("would benefit
    from", "consider", "the alternative interpretation is"). Refer to
-   prior work as "the initial analysis" unless `synthesis_spec.yaml`
+   prior work as "the initial analysis" unless the researcher
    authorises a named credit. No first person.
 9. **Never one-shot complex prompts.** The router persists an
-   `active_plan`; walk it with `tool_plan(operation="advance")`. The server BLOCKS
-   advance into `tool_synthesize` / `tool_dashboard(operation="create")` /
-   `tool_poster_create` when `tool_audit_quality_full` finds blockers.
+   `active_plan`; walk it with `tool_plan(operation="advance")`. The
+   server gates final compile via `tool_typst_compile` — author the
+   synthesis file, run `tool_synthesis_check` until clean, THEN
+   compile.
 10. **Every figure carries four sidecars** — `.caption.md` (technical),
-    `.summary.md` (plain-English), `.prov.json` (provenance), and an
-    SVG companion. **You write the plotting script yourself** in
-    matplotlib / ggplot2 / Altair / plotly / d3 per
-    `visualization/figure_guidelines` (Research-OS does NOT ship a
-    parametric chart-builder as of v1.3.0). `tool_figure_palette` +
-    `tool_audit_figure_full` + `tool_figure_caption_synthesise` are the
-    support utilities. For one figure that needs hover-tooltips, use
-    `visualization/interactive_figure_design` — static PNG/SVG fallback
-    is REQUIRED. Every number in `synthesis/paper.md` must trace to a
-    workspace output — `tool_audit_claims` flags hallucinations.
+    `.summary.md` (plain-English, authored when the figure is created),
+    `.prov.json` (provenance), and an SVG companion. **You write the
+    plotting script yourself** in matplotlib / ggplot2 / Altair /
+    plotly / d3 per `visualization/figure_guidelines`. Research-OS
+    does NOT ship a parametric chart-builder. `tool_figure_palette`
+    returns CVD-safe colours; `tool_audit_figure_full` checks DPI +
+    sidecars + label-overlap. For one figure that needs hover-tooltips,
+    use `visualization/interactive_figure_design` — static PNG/SVG
+    fallback is REQUIRED. Every number in `synthesis/paper.typ` must
+    trace to a workspace output — `tool_audit_claims` flags
+    hallucinations.
 11. **Multi-script steps need a `pipeline.yaml`** — defined via
     `tool_step_pipeline_define`, run via `tool_step_pipeline_run`.
     The runner topologically orders + content-hash-caches; one
@@ -225,8 +228,10 @@ flags it before synthesis.
 
 The hard rules above describe defaults. When the researcher EXPLICITLY
 authorises a bypass — words like "skip the audit", "just draft it",
-"give me a partial preview" — the AI may pass `override_completeness_gate=true`
-(`tool_synthesize` / `tool_dashboard(operation="create")`) or `override_gate=true`
+"give me a partial preview" — the AI may pass per-audit override flags
+(e.g. `override_discussion_coverage=true` on
+`tool_discussion_coverage_audit`, `override_no_pdfs=true` on
+`tool_audit(scope="synthesis", dimension="all")`) or `override_gate=true`
 (`tool_plan(operation="advance")`). REQUIREMENTS:
 
 * The authorisation must be in the researcher's CURRENT message, not

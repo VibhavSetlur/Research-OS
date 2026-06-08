@@ -6,6 +6,156 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.3.0] — guided synthesis (2026-06-08)
+
+MINOR release. Retires the synthesis auto-generators in favour of
+**AI-direct authoring**: the AI writes `synthesis/paper.typ` /
+`slides.typ` / `poster.typ` / `essay.typ` / `dashboard.html` directly,
+following the matching synthesis protocol. Tools validate and
+compile; they no longer generate the prose / layout. The previous
+auto-generators produced rigid, low-quality output — a 3MB
+monolithic dashboard, a markdown-only paper intermediate, slide
+decks no audience could read. Removing them moved 9700+ lines of
+generator code out of the codebase and let the synthesis protocols
+become true scaffolds (per `docs/PROTOCOL_DOCTRINE.md`).
+
+### Breaking changes
+
+The following tools were removed. Each returns a `_REMOVED_TOOLS`
+redirect message naming the new protocol + surviving tools:
+
+- `tool_synthesize` → follow `synthesis/synthesis_paper`; write
+  `synthesis/paper.typ` directly; compile via `tool_typst_compile`.
+- `tool_dashboard` (+ 7 operations: `create`, `story_generate`,
+  `story_edit`, `story_quality_bar`, `reviewer_sim`, `test_generate`,
+  `test_run`) → follow `synthesis/synthesis_dashboard`; write
+  `synthesis/dashboard.html` directly.
+- `tool_slides_create` → follow `synthesis/synthesis_slides`; write
+  `synthesis/slides.typ` (Touying); compile via `tool_typst_compile`.
+- `tool_poster_create` → follow `synthesis/synthesis_poster`
+  (redirect to `synthesis/printable`); write `synthesis/poster.typ`.
+- `tool_humanities_essay_scaffold` → use
+  `tool_synthesis_scaffold(kind='essay')` + author content.
+- `tool_paper_compile_typst` → use `tool_typst_compile` (generic .typ
+  → .pdf; the AI authors the .typ directly, no markdown
+  intermediate).
+- `tool_section_substantiveness` → folded into
+  `tool_synthesis_check(mode='substantiveness')` (now also handles
+  Typst headings).
+- `tool_figure` dispatcher and operations `caption_synthesise`,
+  `interactive_autogen`, `paper_autoembed` → the AI authors plain-
+  English figure summaries, interactive companions, and Typst
+  `#figure(...)` blocks directly when writing the plotting script or
+  paper.typ. `tool_figure_palette` is now a top-level tool.
+- `tool_reviewer` operation `simulate` → the AI walks the paper
+  through the persona YAMLs in `assets/reviewer_personas/` directly
+  (`tool_reviewer` keeps `response`, `rebuttal`, `compile` for real
+  external reviews).
+
+The autopilot floor gate enforcement also shifted: `tool_typst_compile`
+replaces `tool_synthesize` / `tool_dashboard(operation='create')` as
+the final-deliverable gate.
+
+### Added
+
+- **`tool_typst_compile`** — generic Typst compiler. Takes any
+  AI-authored `.typ` source (paper, slides, poster, essay,
+  cover_letter, response_to_reviewers) and renders the PDF.
+  Resolves bundled venue templates from `_typst_templates/`;
+  auto-generates `synthesis/biblio.yml` from `workspace/citations.md`
+  when missing. Returns `pdf_path`, `page_count`, `citation_count`,
+  `typst_warnings`, `typst_errors`.
+- **`tool_synthesis_check`** — quality audit for AI-authored
+  synthesis files. Auto-detects file type from the path. Modes:
+  `all` (default), `substantiveness`, `structure`, `accessibility`,
+  `cliches`. Per-IMRAD-section content depth audits for paper /
+  essay; slide-count + speaker-notes + path-leak audits for slides;
+  section + headline + QR audits for poster; engineering invariants
+  (offline, alt-text, semantic `<section id>`, no placeholders, no
+  filesystem-path leaks) for dashboard.
+- **`tool_synthesis_scaffold`** — writes a `<=80`-line skeleton
+  `synthesis/<paper|slides|poster|essay>.typ` or `dashboard.html`
+  with section headers + `// AI: author this section` markers.
+  Idempotent (refuses overwrite without `overwrite=true`).
+- **`tool_figure_palette`** — promoted from an operation under
+  `tool_figure` to a top-level tool. Returns CVD-safe palettes
+  (Okabe-Ito qualitative, viridis sequential, PuOr diverging,
+  accent).
+
+### Improved
+
+- **Synthesis protocols rewritten as scaffolds.** `synthesis_paper`,
+  `synthesis_dashboard`, `synthesis_slides`, `printable` (poster +
+  handout), `humanities_essay_structure`, `synthesis_grant`,
+  `synthesis_abstract`, `synthesis_report`, `synthesis_lay_summary`,
+  `synthesis_progress_update`, `synthesis_from_inputs` — each
+  collapsed from 100-370 lines of prescriptive recipe to <=130 lines
+  of scaffold (design principles + quality standards + workflow +
+  available tools). Spec files (`synthesis_spec.yaml`,
+  `slides_spec.yaml`, `dashboard_spec.yaml`) are no longer required.
+- **Cleaner `synthesis/` folder.** After a full project run:
+  `paper.typ`, `paper.pdf`, `slides.typ`, `slides.pdf`, `poster.typ`,
+  `poster.pdf`, `dashboard.html`, `biblio.yml`, `figures/`. No
+  intermediate `.md` files, no spec YAMLs, no handout duplicates.
+- **`researcher_config.yaml` schema simplified.** The `synthesis:`
+  block is empty by default. Removed knobs:
+  `figures_auto_embed*`, `figure_xref_rewrite`, `slide_engine`,
+  `slide_template`, `slide_theme`, `slide_speaker_notes_enabled`,
+  `slide_print_handout`, `poster_engine`, `poster_template`,
+  `poster_theme`, `poster_qr_url`, `poster_handout_pdf`,
+  `drafter_loop_*` (5 knobs).
+- **`_router_index.yaml` v21.** Synthesis decompositions point at
+  the new `tool_synthesize_plan` → `tool_synthesis_scaffold` →
+  `tool_synthesis_check` → `tool_typst_compile` chain.
+
+### Removed
+
+- 9 implementation files under `src/research_os/tools/actions/synthesis/`:
+  `dashboard.py` (1604 lines), `dashboard_app.py` (1424), `slides.py`
+  (946), `drafter_loop.py` (850), `reviewer.py` (partial — `reviewer_simulate`),
+  `figure_auto_embed.py` (747), `poster_typst.py` (697),
+  `dashboard_humanities.py` (465), `dashboard_qualitative.py` (455),
+  `humanities_essay.py` (212), `synthesize.py` (1374),
+  `dashboard_story.py` (300). Total: ~9700 lines.
+- `src/research_os/tools/actions/viz/dashboard_tests.py` (the
+  Playwright scaffold for auto-generated dashboards).
+- `src/research_os/assets/reveal/` (260 KB), `slide_templates/`
+  (24 KB), `poster_templates/` (20 KB) — vendored assets only
+  the removed generators consumed.
+- 12 obsolete test files (`test_v191_dashboard_app`,
+  `test_v190_dashboard_content`, `test_dashboard_humanities`,
+  `test_dashboard_qualitative`, `test_v191_story_mode`,
+  `test_slides_engine`, `test_poster_typst`, `test_drafter_loop`,
+  `test_figure_auto_embed`, `test_humanities_essay_structure`,
+  `test_synthesize_auto_proceed`,
+  `test_synthesize_blocks_on_unresolved_findings`,
+  `test_synthesize_uses_pack_sections`, `test_paper_drafter_loop`,
+  `test_researcher_config_synthesis`,
+  `test_audit_audit_figure_coverage`,
+  `test_citation_retrieval_empty_response`,
+  `test_audit_findings_explain`).
+
+### Migration
+
+Existing project files (`synthesis/paper.md`, `synthesis/dashboard.html`
+from prior versions) are preserved as-is on disk. The new tools do
+not regenerate them. To produce the new artefact next to the old:
+ask the AI to follow the matching synthesis protocol (e.g. "redo the
+paper as Typst") — it will author `synthesis/paper.typ` and you can
+delete the old `paper.md` once you're happy with the new PDF.
+
+Tool count: **148 → 144** (8 removed + 4 added). Protocol count
+unchanged at **117 core**.
+
+### Bumped
+
+- `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff`
+  to `2.3.0`.
+- 11 rewritten synthesis-related protocols to `version: '2.3.0'`.
+- `_router_index.yaml` to `version: 21`.
+
+---
+
 ## [2.2.0] — multi-perspective validation pass (2026-06-06)
 
 MINOR release. Shipped after a 35-agent audit (10 researcher-domain

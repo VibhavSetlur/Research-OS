@@ -312,8 +312,10 @@ def test_active_tools_for_protocol_direct_lookup(tmp_path):
     assert res["status"] == "success"
     assert res["intent_class"] == "synthesize"
     assert res["sub_intent"] == "paper"
-    # Decomposition includes tool_synthesize.
-    assert "tool_synthesize" in res["active_tools"]
+    # Decomposition includes the synthesis planning + check tools.
+    assert "tool_synthesize_plan" in res["active_tools"]
+    assert "tool_synthesis_check" in res["active_tools"]
+    assert "tool_typst_compile" in res["active_tools"]
     # Essentials still present.
     assert "sys_boot" in res["active_tools"]
     assert res["active_tools_count"] > 10

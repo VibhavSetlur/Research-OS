@@ -54,7 +54,7 @@ max_seconds: 30
 synthesis_deliverables:
   - kind: scholarly_edition
     path: synthesis/edition.pdf
-    tool: tool_paper_compile_typst
+    tool: tool_typst_compile
     args:
       venue_template: humanities_essay
     must_succeed: true
@@ -63,7 +63,7 @@ synthesis_deliverables:
       min_pages: 1
   - kind: essay
     path: synthesis/essay.pdf
-    tool: tool_paper_compile_typst
+    tool: tool_typst_compile
     args:
       venue_template: humanities_essay
     must_succeed: true

@@ -1,4 +1,9 @@
-"""Pre-registration freeze/diff + dashboard test-suite scaffold."""
+"""Pre-registration freeze/diff tests.
+
+The dashboard test scaffolding (generate_dashboard_test_suite /
+run_dashboard_tests) was removed when the auto-dashboard generator
+was dropped. AI-authored dashboards write their own tests if needed.
+"""
 
 from pathlib import Path
 
@@ -6,10 +11,6 @@ from research_os.project_ops import scaffold_minimal_workspace
 from research_os.tools.actions.audit.preregistration import (
     diff_preregistration,
     freeze_preregistration,
-)
-from research_os.tools.actions.viz.dashboard_tests import (
-    generate_dashboard_test_suite,
-    run_dashboard_tests,
 )
 
 
@@ -43,25 +44,3 @@ def test_diff_returns_warning_when_no_prereg(tmp_path: Path):
     r = diff_preregistration(tmp_path)
     assert r["status"] == "warning"
     assert "pre-registration" in r["message"].lower()
-
-
-def test_dashboard_test_suite_scaffold(tmp_path: Path):
-    _scaffold(tmp_path)
-    r = generate_dashboard_test_suite(tmp_path)
-    assert r["status"] == "success"
-    assert (tmp_path / "tests" / "dashboard" / "test_dashboard.py").exists()
-    assert (tmp_path / "tests" / "dashboard" / "conftest.py").exists()
-
-
-def test_dashboard_test_run_without_prereqs_is_explicit(tmp_path: Path):
-    _scaffold(tmp_path)
-    generate_dashboard_test_suite(tmp_path)
-    # Create a dummy dashboard.
-    (tmp_path / "synthesis").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "synthesis" / "dashboard.html").write_text("<html></html>")
-    r = run_dashboard_tests(tmp_path)
-    # When pytest-playwright is not installed → status='error' with install hint.
-    # When it is → 'success' or 'warning'.
-    assert r["status"] in {"success", "warning", "error"}
-    if r["status"] == "error":
-        assert "install" in r or "Playwright" in r.get("message", "")

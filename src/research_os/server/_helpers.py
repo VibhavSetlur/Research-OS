@@ -123,15 +123,8 @@ _AUDIT_DISPATCH: dict[tuple[str, str], str] = {
 }
 
 
-_DASHBOARD_DISPATCH: dict[str, str] = {
-    "create":            "_handle_tool_dashboard_create",
-    "story_generate":    "_handle_tool_dashboard_story_generate",
-    "story_edit":        "_handle_tool_dashboard_story_edit",
-    "story_quality_bar": "_handle_tool_dashboard_story_quality_bar",
-    "reviewer_sim":      "_handle_tool_dashboard_reviewer_sim",
-    "test_generate":     "_handle_tool_dashboard_test_generate",
-    "test_run":          "_handle_tool_dashboard_test_run",
-}
+# tool_dashboard removed in v2.3.0; AI authors synthesis/dashboard.html directly.
+_DASHBOARD_DISPATCH: dict[str, str] = {}
 
 
 _STEP_DISPATCH: dict[str, str] = {

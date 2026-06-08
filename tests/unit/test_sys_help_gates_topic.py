@@ -81,11 +81,10 @@ def test_gates_topic_lists_autopilot_floor(project_root):
         assert "tool" in entry and entry["tool"]
         assert "bypass" in entry and "confirmed=true" in entry["bypass"]
 
-    # The 8 well-known floor tools must all be enumerated.
+    # The well-known floor tools must all be enumerated.
     tools_joined = " ".join(e["tool"] for e in floor["list"])
     for required in (
-        "tool_synthesize",
-        "tool_dashboard",
+        "tool_typst_compile",
         "tool_audit",  # reproducibility
         "tool_research_tool",
         "sys_path",

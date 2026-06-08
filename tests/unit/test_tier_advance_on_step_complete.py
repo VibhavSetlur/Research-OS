@@ -48,7 +48,7 @@ def test_step_complete_advances_tier_from_active_plan(tmp_path):
         "user_prompt": "draft the paper",
         "primary_protocol": "synthesis/synthesis_paper",
         "shortcut_tool": None,
-        "decomposition": [{"tool": "tool_synthesize", "purpose": "."}],
+        "decomposition": [{"tool": "tool_synthesize_plan", "purpose": "."}],
         "current_step": 1,
         "status": "in_progress",
     }))

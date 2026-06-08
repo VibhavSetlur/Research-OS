@@ -83,7 +83,7 @@ A discussion section that cites your actual results. Every cite is verified; eve
 
 > "build me a dashboard" / "make a poster for next week"
 
-A single-file offline HTML dashboard (colour-blind safe, print-friendly) or a Typst conference poster (≥300 DPI figures, QR code, one headline message).
+The AI authors the deliverable directly — `synthesis/dashboard.html` (single-file, offline, accessible) or a Typst conference poster — following the matching synthesis protocol. Research-OS validates the AI's draft (`tool_synthesis_check`) and compiles `.typ` sources to PDF (`tool_typst_compile`). No rigid templates; the AI custom-designs each artefact.
 
 **Shipping it**
 
@@ -124,11 +124,15 @@ my-project/
 │   └── logs/                 Every audit pass + every quality-gate override
 │
 └── synthesis/              ← AI writes the deliverables here
-    ├── paper.pdf             (Typst by default, LaTeX opt-in)
-    ├── paper.md              The AI-editable intermediate
-    ├── dashboard.html        Single-file, offline, colour-blind safe
-    ├── slides.html           Conference talk
-    └── poster.pdf            A0 / 36×48 / journal-specific layouts
+    ├── paper.typ             AI-authored Typst source
+    ├── paper.pdf             Compiled via tool_typst_compile
+    ├── slides.typ            AI-authored Touying deck
+    ├── slides.pdf            Compiled
+    ├── poster.typ            AI-authored Typst poster
+    ├── poster.pdf            Compiled
+    ├── dashboard.html        AI-authored single-file (offline, accessible)
+    ├── biblio.yml            Hayagriva citations
+    └── figures/              Curated focal figures (PNG + .caption.md)
 ```
 
 The split has a single principle: **you own `inputs/`, the AI owns the rest, and nothing exists until you ask for it**. A fresh project isn't pre-cluttered with empty folders; `workspace/01_*` only appears the first time you run an analysis step.
@@ -180,12 +184,14 @@ research-os doctor
 
 ## What's inside
 
-* **146 MCP tools** in three namespaces — `sys_*` (system / workspace /
+* **144 MCP tools** in three namespaces — `sys_*` (system / workspace /
   files / state), `tool_*` (research work), `mem_*` (append-only memory).
-  Family-level consolidation (`tool_audit`, `tool_dashboard`,
-  `tool_search`, `tool_figure`, `tool_step`, `tool_lessons`, `mem_log`,
-  etc.) dispatches by `scope` / `operation` / `dimension`. Every
-  alias still works via backward-compat dispatch.
+  Family-level consolidation (`tool_audit`, `tool_search`,
+  `tool_step`, `tool_lessons`, `mem_log`, etc.) dispatches by `scope` /
+  `operation` / `dimension`. Synthesis is **AI-direct authoring**: the
+  AI writes `paper.typ` / `slides.typ` / `poster.typ` / `dashboard.html`
+  directly, with `tool_synthesize_plan` for inspection, `tool_synthesis_check`
+  for validation, and `tool_typst_compile` for PDF rendering.
 * **117 core protocols** + 36 in 5 bundled packs (humanities,
   qualitative, theory_math, wet_lab, engineering) the AI picks from
   via `tool_route`. Every protocol carries
@@ -201,7 +207,7 @@ research-os doctor
 * **Cheap-by-default token costs.** `sys_protocol_get` returns
   `format='summary'` (~3K chars vs ~12-25K for full YAML) — 5-10×
   cheaper per-turn load. `sys_active_tools(protocol_name)` returns a
-  scoped 13-18-tool shortlist instead of the full 146.
+  scoped 13-18-tool shortlist instead of the full 144.
 * **Structured tool responses.** Every handler returns an envelope
   with `status` / `payload` / `audit_findings` /
   `next_recommended_call` / `tier_transition` / `tokens_estimate` /

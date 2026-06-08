@@ -3,7 +3,7 @@
 The full guide to working with Research OS day-to-day. Read after
 [START.md](START.md) (5-minute install + first project). This document
 covers: the mental model, the file layout, a typical session, the
-canonical 10-stage pipeline, all 117 core protocols and 148 live MCP
+canonical 10-stage pipeline, all 117 core protocols and 144 live MCP
 tools, the config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
@@ -116,7 +116,7 @@ my-project/
 │   └── logs/                ← search / audit / repair / task logs
 │
 ├── synthesis/               ← FINAL — only created when you ask
-│   ├── paper.md / .tex / .pdf
+│   ├── paper.typ / .pdf  (or .tex when LaTeX submission required)
 │   ├── abstract.md
 │   ├── poster.tex / .pdf + poster_qr.png
 │   ├── dashboard.html       ← single-file, offline-safe
@@ -232,41 +232,33 @@ linking back to the paper and a single-headline test.
 
 #### The paper pipeline (file flow)
 
-When `synthesis/synthesis_paper` runs, files move through a fixed
-three-stage pipeline. This used to live in a standalone
-`docs/PAPER_PIPELINE.md`; folded back in here because every file in
-the chain is researcher-facing.
+When `synthesis/synthesis_paper` runs, the AI authors
+`synthesis/paper.typ` directly and the tool surface validates +
+compiles. Two stages, not three:
 
 ```
-synthesis/paper.md   →   synthesis/paper.{typ,tex}   →   synthesis/paper.pdf
-(AI-edited                (compiler input,                (researcher-facing
-intermediate)             default typ; tex when           final artifact)
-                          pdf_compile_engine: latex)
+synthesis/paper.typ   →   synthesis/paper.pdf
+(AI-authored,             (tool_typst_compile output;
+following the              re-run after any .typ edit)
+synthesis_paper protocol)
 ```
 
-* **`paper.md`** — the canonical intermediate the AI reads and
-  rewrites between protocol passes (Discussion → Limitations →
-  Introduction → Abstract). Markdown so any model can edit it
-  without learning Typst/LaTeX syntax. Section headings match the
-  active pack's schema (IMRAD by default; theory packs ship their
-  own).
-* **`paper.typ`** — the Typst compilation input, regenerated from
-  `paper.md` on every `tool_paper_compile_typst` call. Fast, no TeX
-  install required. Per-pack section overrides (e.g.
-  `theory_math` swaps IMRAD for Theorem/Proof) are read from the
-  pack's `synthesis_paper.yaml` and applied at this stage.
-* **`paper.tex`** — only emitted when
-  `researcher_config.pdf_compile_engine: latex`. Same input data,
-  different compiler target.
-* **`paper.pdf`** — the file you actually send to a co-author or
-  upload to a preprint server. Never edit by hand; re-run the
-  pipeline.
+* **`paper.typ`** — the AI authors this directly, section by section,
+  importing the venue template from `_typst_templates/`. Per-pack
+  section overrides (e.g. `theory_math` swaps IMRAD for
+  Theorem/Proof) are encoded in the active pack's
+  `synthesis_paper.yaml` design principles; the AI applies them as
+  it writes.
+* **`paper.tex`** — only emitted when the venue requires LaTeX
+  (Nature, Cell, NeurIPS LaTeX templates). The AI authors `.tex`
+  directly and calls `tool_latex_compile`.
+* **`paper.pdf`** — the file you send to a co-author or upload to a
+  preprint server. Never edit by hand; re-run the compile.
 
-File-format invariants are locked: the AI may overwrite `paper.md`
-freely, but `paper.{typ,tex,pdf}` are treated as derived artifacts
-and rebuilt from `paper.md` on demand. If you've hand-edited the
-PDF or `.typ`, the next compile pass will silently lose those edits
-— do edits in `paper.md`.
+The AI's edits go in `paper.typ`. The `tool_synthesis_check` audit
+runs against `paper.typ` (or `paper.tex`) and surfaces missing
+sections, ungrounded claims, citation issues, and AI clichés before
+compile.
 
 ### 4.8 Hand off at end-of-day
 
@@ -293,7 +285,7 @@ execution log) say "not done yet".
 | 7 | `guidance/analysis_plan`              | at least one `workspace/NN/conclusions.md` non-empty |
 | 8 | `reproducibility/reproducibility`     | `workspace/*/environment/requirements.txt` exists |
 | 9 | `audit/audit_and_validation`          | `workspace/logs/audit_report.md` exists |
-| 10| `synthesis/synthesis_paper`           | `synthesis/paper.md` exists |
+| 10| `synthesis/synthesis_paper`           | `synthesis/paper.typ` + `paper.pdf` exist |
 
 You do NOT have to follow this in order. Off-pipeline entry points:
 
@@ -406,7 +398,7 @@ catalogue.
 
 ---
 
-## 7. MCP tools (148 live)
+## 7. MCP tools (144 live)
 
 > All names use underscores. Dot notation + legacy names are
 > auto-rewritten. Full catalogue (alphabetical, with aliases) at
@@ -415,12 +407,12 @@ catalogue.
 > `tool_tools_list(scope='core')` over reading this doc — they
 > reflect what's actually installed.
 
-v2.0.0 consolidated ~344 v1.x tool names into 148 live canonical
-tools, dispatched via `scope` / `dimension` / `operation` / `kind`
-parameters on a small set of entry points. **Every legacy v1.x name
-still works** via 80 back-compat aliases + 78 deprecated dispatch
-aliases; 24 hard-removed names return a friendly `_REMOVED_TOOLS`
-error naming the v2 entry point.
+v2.0.0 consolidated ~344 v1.x tool names; v2.3.0 retired the
+synthesis auto-generators in favour of AI-direct authoring. The
+remaining 144 tools dispatch via `scope` / `dimension` / `operation`
+/ `kind` parameters on a small set of entry points. Legacy names
+return a friendly `_REMOVED_TOOLS` error naming the new entry point
+(see CHANGELOG `[2.3.0]` for the synthesis surface migration).
 
 ### Discovery layer — call FIRST every session
 
@@ -468,16 +460,18 @@ error naming the v2 entry point.
 | `tool_audit` | **Unified audit dispatcher.** `scope='step'\|'project'\|'synthesis'` × `dimension='completeness'\|'code_quality'\|'prose'\|'claims'\|'citations'\|'assumptions'\|'figure_full'\|'literature'\|'power'\|'reproducibility'\|...'`. Replaces 23 per-dimension `tool_audit_*` tools. |
 | `tool_audit_findings` | **v2.0.0 new.** Query the cross-audit ledger at `workspace/logs/.audit_findings.jsonl`. `operation='query'` filters by severity / dimension / step / since; `operation='diff'` compares two snapshots. |
 | `tool_audit_quality_full` | Master audit: runs every gate in one call; returns structured per-component verdicts. |
-| `tool_synthesize_plan` / `tool_synthesize` | Plan section order; build paper / abstract / poster / dashboard / grant / report / slides / lay / handout with verified citations. v2.0.0 BLOCK-gates on unresolved BLOCKs in the audit ledger; override with `override_unresolved_blocks=true` + `override_rationale='...'`. |
-| `tool_latex_compile` / `tool_paper_compile_typst` / `tool_poster_create` / `tool_dashboard` (`operation='create'`) | PDF (LaTeX or Typst) + Typst poster + single-file HTML dashboard. `tool_paper_compile_typst` and `tool_poster_create` are wrapped in v2.0.0 review-rewrite loops (drafter loops); per-iteration outputs at `workspace/logs/drafter_loops/`. |
-| `tool_dashboard` | **Unified dashboard dispatcher.** `operation='create'\|'story_generate'\|'story_edit'\|'story_quality_bar'\|'reviewer_sim'\|'test_generate'\|'test_run'`. |
-| `tool_figure` | **Unified figure dispatcher.** `operation='palette'\|'caption_synthesise'\|'interactive_autogen'\|'paper_autoembed'`. |
+| `tool_synthesize_plan` | Inspect workspace + report what's ready to draft (per-section source paths + gaps). Read-only. |
+| `tool_synthesis_scaffold` | Write a tiny `<=80`-line skeleton `synthesis/<paper\|slides\|poster\|essay>.typ` or `dashboard.html` for the AI to author into. Idempotent. |
+| `tool_synthesis_check` | Per-IMRAD-section content depth audit (paper / essay), slide-count + speaker-notes + path-leak audit (slides), section + headline + QR audit (poster), engineering invariants (dashboard: offline, alt-text, semantic, no placeholders). Multi-mode (`all` / `substantiveness` / `structure` / `accessibility` / `cliches`). |
+| `tool_typst_compile` | Generic Typst compiler. Takes any AI-authored `.typ` source + Hayagriva biblio, renders PDF. Resolves bundled venue templates from `_typst_templates/`. |
+| `tool_latex_compile` | LaTeX compiler for journals that require `.tex` submission. AI authors `synthesis/paper.tex`; tool runs pdflatex × bibtex × pdflatex × pdflatex. |
+| `tool_figure_palette` | Colour-blind-safe palette (Okabe-Ito qualitative / viridis sequential / PuOr diverging / accent). Read-only. |
 | `tool_research_method` / `tool_research_tool` / `tool_external_tool_instructions` / `tool_plan_step` / `tool_plan_step_grounded` | Reasoning + grounding helpers. |
 | `tool_plan_next_step` / `tool_branch_recommendation` / `tool_alternative_path_propose` | Iterative planning. |
 | `tool_ground` / `tool_verify` | Bind decisions to PROV-O sources; verify claims (Chain-of-Verification). |
 | `tool_preregister` | **Unified preregister dispatcher.** `operation='freeze'\|'diff'`. Lock the SAP before data; diff at synthesis. |
 | `tool_sensitivity` | **Unified sensitivity dispatcher.** `operation='define'\|'run'`. Specification-curve / multiverse analyses. |
-| `tool_reviewer` | **Unified reviewer dispatcher.** `operation='simulate'\|'response'\|'rebuttal'\|'compile'`. 7-persona pre-submission brief + response scaffolding. |
+| `tool_reviewer` | **Reviewer-response dispatcher.** `operation='response'\|'rebuttal'\|'compile'`. Real external-review response scaffolding. Pre-submission self-review is done directly by the AI walking the paper through the persona YAMLs in `src/research_os/assets/reviewer_personas/`. |
 | `tool_step` | **Unified step lifecycle dispatcher.** `operation='iterate'\|'iterations_list'\|'revision_options'\|'env_lock'`. |
 | `tool_step_pipeline` | **Unified step pipeline dispatcher.** `operation='define'\|'run'\|'status'\|'diagram'`. Per-step sub-task DAG with content-hash caching. |
 | `tool_step_complete` | One-call gate for "this step is done." Bundles per-step audits + `tool_path_finalize`. |
@@ -581,7 +575,7 @@ writing_preferences:
                                   # if your venue requires a specific
                                   # one.
   language: "en-US"
-  # Typst venue template for tool_paper_compile_typst.
+  # Typst venue template imported by AI-authored synthesis/paper.typ.
   #   nature | science | nejm | cell | ieee_conf | neurips | acl
   #   plos  | generic_two_column | generic_thesis
   # For humanities-essay or Chicago-thesis layouts, use
@@ -695,16 +689,17 @@ the Discussion can acknowledge them honestly.
 
 ### Hallucinated citations
 
-Cannot happen for synthesis outputs. `tool_synthesize` pulls every
-citation from Crossref / Semantic Scholar / PubMed / arXiv and drops
-anything unverified. Confirm on demand with `tool_citations_verify`.
+`tool_citations_verify` pulls every citation from Crossref / Semantic
+Scholar / PubMed / arXiv and drops anything unverified. The
+`tool_synthesis_check` audit surfaces unresolved citation keys before
+compile.
 
 ### Hallucinated numbers
 
 `tool_audit_claims` extracts every numeric claim from
-`synthesis/paper.md` and verifies each appears verbatim (or within 1%
-tolerance) in some workspace CSV / JSON / MD / TXT. BLOCKS
-`tool_synthesize` until cleared.
+`synthesis/paper.typ` (or `.md`) and verifies each appears verbatim
+(or within 1% tolerance) in some workspace CSV / JSON / MD / TXT.
+Surfaces as blockers on `tool_synthesis_check` until cleared.
 
 ### Multi-project / shared data
 
@@ -945,7 +940,7 @@ For more: [FAQ.md](FAQ.md).
 * [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
 * [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 117 core protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 148 live MCP tools.
+* [TOOLS.md](TOOLS.md) — catalogue of all 144 live MCP tools.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
 * `CHANGELOG.md [2.0.0]` — upgrade recipe + old → new tool table.
 * `CHANGELOG.md [2.0.0]` — celebratory v2.0.0 release notes.

@@ -1,248 +1,128 @@
-"""Tool definitions for the synthesis domain."""
+"""Tool definitions for the synthesis domain.
+
+The AI authors synthesis outputs directly (paper.typ, slides.typ,
+poster.typ, essay.typ, dashboard.html). These tools support that
+workflow — they plan, validate, scaffold, and compile, but never
+generate the prose / layout themselves.
+"""
 from __future__ import annotations
 
 from typing import Any
 
 
 SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
-    "tool_figure": {
-        "short": "Unified figure helper. operation=palette|caption_synthesise|interactive_autogen|paper_autoembed.",
-        "description": "Unified figure dispatcher. operation='palette' returns colour-blind-safe palettes — Okabe-Ito (qualitative), viridis (sequential), PuOr (diverging), or the dashboard primary/gold/green/red accent set. operation='caption_synthesise' generates a 2-3 sentence plain-language description (<name>.summary.md sidecar) next to a figure for non-expert / accessibility audiences (W3C two-part guidance); reads the figure's existing <name>.caption.md + the step's conclusions.md Findings section; idempotent (pass overwrite=true to replace). operation='interactive_autogen' writes an interactive HTML companion (Vega-Lite for scatter/heatmap/time-series, vis-network for graphml) next to a static figure; offline-capable (inlines vendored Vega/vis-network bundles); tagged <meta name='ro-auto-generated' content='true'>; idempotent (returns status='exists' when companion is already there). operation='paper_autoembed' walks every step's outputs/figures/ where step_summary.yaml.figures_for_paper is true, reads each figure's <stem>.caption.md frontmatter (section_hint, figure_priority, alt_text, ...), and inserts markdown image blocks into synthesis/paper.md; three modes (append_to_section | explicit_map | reorder); idempotent — stems already present are never re-inserted; calls rewrite_figure_xrefs automatically unless override_xref_rewrite is set. Every legacy tool_figure_palette / tool_figure_caption_synthesise / tool_figure_interactive_autogen / tool_paper_figures_autoembed name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
+    "tool_figure_palette": {
+        "short": "Return a colour-blind-safe palette (Okabe-Ito / viridis / PuOr / accent).",
+        "description": "Returns a palette suitable for paper figures: qualitative (Okabe-Ito, 8 hues, CVD-safe), sequential (viridis, monotonic luminance), diverging (PuOr, perceptually balanced), or accent (single primary + gold/green/red). Call when authoring a plotting script. Does NOT modify any file.",
         "category": "viz",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": ["palette", "caption_synthesise", "interactive_autogen", "paper_autoembed"],
-                    "description": "Which figure sub-operation to invoke.",
-                },
-                # operation='palette' kwargs
                 "kind": {
                     "type": "string",
-                    "description": "operation='palette' — qualitative (default) | sequential | diverging | accent.",
+                    "description": "qualitative (default) | sequential | diverging | accent.",
                 },
                 "n": {
                     "type": "number",
-                    "description": "operation='palette' — Number of colours (default 8).",
-                },
-                # operation='caption_synthesise' / 'interactive_autogen' kwargs
-                "figure_path": {
-                    "type": "string",
-                    "description": "operation='caption_synthesise' / 'interactive_autogen' — Path relative to project root (e.g. workspace/03_baseline/outputs/figures/03_calibration.png). REQUIRED for both.",
-                },
-                "technical_caption": {
-                    "type": "string",
-                    "description": "operation='caption_synthesise' — Optional technical caption text to anchor the plain-language summary.",
-                },
-                "findings_context": {
-                    "type": "string",
-                    "description": "operation='caption_synthesise' — Optional findings context from conclusions.md.",
-                },
-                "overwrite": {
-                    "type": "boolean",
-                    "description": "operation='caption_synthesise' — Overwrite an existing summary sidecar (default false).",
-                },
-                # operation='paper_autoembed' kwargs
-                "mode": {
-                    "type": "string",
-                    "description": "operation='paper_autoembed' — Placement mode: append_to_section (default) | explicit_map | reorder.",
-                },
-                "section_map": {
-                    "type": "object",
-                    "description": "operation='paper_autoembed' — Only used when mode='explicit_map'. {figure_stem: section_name}. Overrides each figure's section_hint frontmatter.",
-                    "additionalProperties": {"type": "string"},
-                },
-                "override_xref_rewrite": {
-                    "type": "boolean",
-                    "description": "operation='paper_autoembed' — When true, skip the figure-xref rewrite pass even if researcher_config.synthesis.figure_xref_rewrite=true. Use when paper.md has pre-formatted Pandoc cross-refs the AI must not touch.",
+                    "description": "Number of colours (default 8).",
                 },
             },
-            "required": ["operation"],
         },
     },
     "tool_synthesize_plan": {
-        "short": "Recommend section ordering from available sources. Use BEFORE tool_synthesize.",
-        "description": "Inspect available sources (methods.md, conclusions per step, citations) and return the recommended section ordering. Call BEFORE tool_synthesize.",
+        "short": "Inspect workspace + report what's ready to draft (read-only).",
+        "description": "Inspect available sources (methods.md, conclusions per step, citations) and return the recommended section ordering. Call BEFORE authoring synthesis/paper.typ so you know what's in the workspace. Read-only; writes nothing.",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},
     },
-    "tool_synthesize": {
-        "short": "Compile workspace into a publishable paper/poster/dashboard/report. Use when producing final deliverables.",
-        "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
-        "description": "Compile workspace findings into a publishable output. Without `section`, builds the full paper/poster/etc with numbered figures + tables + verified citations. With `section`, builds one section at a time (abstract | introduction | methods | results | discussion | conclusion | references). `output_type` drives the citation cap and section structure. Quality gate: refuses to build a full document if tool_audit_quality_full reports BLOCKERS. BLOCK-finding gate: ALSO refuses to compile when any unresolved BLOCK finding sits in workspace/logs/.audit_findings.jsonl (latest-snapshot semantics — a BLOCK from an earlier audit run that the latest rerun no longer reproduces is treated as resolved). The researcher (NOT the AI) can authorise a partial / WIP deliverable by passing override_completeness_gate=true (master quality gate bypass) or override_unresolved_blocks=true (BLOCK-finding ledger bypass) with a one-line override_rationale — both are logged to workspace/logs/override_log.md for the audit trail.",
+    "tool_synthesis_preview": {
+        "short": "Predict word/page/figure/citation counts for a synthesis target — without drafting.",
+        "description": "Cheap deterministic dry-run (~1 sec). Reads workspace/<step>/conclusions.md + step_summary.yaml + findings_vs_literature.md + workspace/citations.md but does NOT call the AI to draft prose. Returns predicted_word_count_per_section, predicted_total_word_count, predicted_page_count or slide_count, predicted_figures_embedded, predicted_citations, predicted_steps_drawn_from, detected_gaps, estimated_render_time_seconds. mode='diff' compares against the existing deliverable on disk.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "output_format": {
+                "target": {"type": "string", "description": "paper | dashboard | poster | slides | grant | report. Default 'paper'."},
+                "venue": {"type": "string"},
+                "mode": {"type": "string", "description": "'fresh' (default) or 'diff' against existing deliverable."},
+            },
+        },
+    },
+    "tool_synthesis_scaffold": {
+        "short": "Write a tiny skeleton .typ / .html file for the AI to author into.",
+        "description": "Writes a ≤80-line skeleton with section headers + `// AI: author this` markers. Refuses to overwrite an existing file unless overwrite=true. Kinds: paper, slides, poster, essay, dashboard. After scaffolding, AUTHOR the content directly (follow the matching synthesis protocol), then tool_synthesis_check, then tool_typst_compile (or open the HTML for dashboards).",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "kind": {
                     "type": "string",
-                    "description": "markdown | latex | both (default: markdown)",
+                    "enum": ["paper", "slides", "poster", "handout", "grant", "essay", "dashboard"],
+                    "description": "Which artefact to scaffold. Default 'paper'.",
                 },
-                "section": {
-                    "type": "string",
-                    "description": "Specific section to build, else full output.",
-                },
-                "output_type": {
-                    "type": "string",
-                    "description": "paper | abstract | poster | dashboard | report | grant (default: paper). Drives citation cap and section structure.",
-                },
-                "citation_style": {
-                    "type": "string",
-                    "description": "vancouver (default) | apa",
-                },
-                "override_completeness_gate": {
+                "overwrite": {
                     "type": "boolean",
-                    "description": "Bypass the master quality gate for a partial / WIP deliverable. ONLY set when the researcher has explicitly authorised it. Logged.",
+                    "description": "Replace an existing file. Default false (idempotent).",
                 },
-                "override_unresolved_blocks": {
-                    "type": "boolean",
-                    "description": "Bypass the unresolved-BLOCK-findings gate (workspace/logs/.audit_findings.jsonl). ONLY set when the researcher has explicitly authorised compiling with active BLOCK findings on record. Logged to workspace/logs/override_log.md with the blocker ids.",
-                },
-                "override_rationale": {
+            },
+        },
+    },
+    "tool_synthesis_check": {
+        "short": "Quality-check an AI-authored synthesis file (paper/slides/poster/dashboard/essay).",
+        "description": "Audit a synthesis file against the standards for its artefact type. Auto-detects file type from path. Modes: 'all' (default), 'substantiveness' (per-section content depth), 'structure' (section presence/ordering/references), 'accessibility' (HTML alt-text + semantic), 'cliches' (banned-phrase detection). For paper.typ / essay.typ: checks abstract (≥1 number + method + conclusion verb), introduction (≥3 citations + 'in this study, we' pivot), methods (every workspace step's primary method named; <50% BLOCKS), results (≥1 statistic per finding; focal figures referenced), discussion (limitations + future-work + verdict coverage), references (every cited key in bibliography). For slides.typ: slide count, speaker notes present, ≤12 citations, no path leaks. For poster.typ: section count ≥3, ≤8 citations. For dashboard.html: offline (no http: scripts), alt-text on every <img>, semantic <section id=...>, no TODO/Lorem ipsum placeholders, no path leaks. Returns blockers (errors) + warnings.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "file": {
                     "type": "string",
-                    "description": "Required when override_completeness_gate=true OR override_unresolved_blocks=true. One-line reason the researcher authorised the bypass (e.g. 'reviewer asked for a preview of the discussion section before the final figures are in').",
+                    "description": "Path to synthesis file (default: first existing of synthesis/{paper,slides,poster,essay}.typ or dashboard.html).",
                 },
-                "skip_gates": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Optional list of specific audit names to skip (e.g. ['claims', 'prose']). Defaults to ['claims'] on first synthesis since paper.md doesn't exist yet.",
+                "mode": {
+                    "type": "string",
+                    "enum": ["all", "substantiveness", "structure", "accessibility", "cliches"],
+                    "description": "Which audit to run. Default 'all' (every check appropriate to the file type).",
                 },
-                "auto_proceed": {
-                    "type": "boolean",
-                    "description": "AUTOPILOT-ONLY short-circuit. When true AND interaction.autonomy_level == 'autopilot', tool_synthesize processes ALL sections (methods → results → discussion → introduction → abstract) AND runs the full assembly in ONE call. Each per-section file is still written exactly as the multi-turn flow would write it. Passing true in manual/supervised/coaching modes returns an error — the multi-turn cadence is the deliberation pace those modes exist to provide. Default false.",
+            },
+        },
+    },
+    "tool_typst_compile": {
+        "short": "Compile a Typst source (.typ) to PDF. Use after authoring synthesis/<kind>.typ.",
+        "description": "Generic Typst compiler. Takes a .typ source the AI has authored (paper.typ, slides.typ, poster.typ, essay.typ, cover_letter.typ, response.typ) and renders it to PDF via the `typst` CLI. Resolves citations against a Hayagriva biblio.yml (auto-generated from workspace/citations.md if missing). Returns pdf_path, page_count, citation_count, typst_warnings, typst_errors (with line numbers on failure so the AI can iterate on the source).",
+        "category": "synthesis",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string",
+                    "description": "Path to .typ source (relative to project root or absolute). Default: first existing of synthesis/{paper,slides,poster,essay}.typ.",
                 },
-                "confirmed": {
-                    "type": "boolean",
-                    "description": "Required in autopilot mode (server-enforced autopilot floor gate — see guidance/autopilot.yaml). Researcher consent for the final deliverable.",
+                "output": {
+                    "type": "string",
+                    "description": "Path to output PDF (default: source with .pdf extension).",
+                },
+                "biblio": {
+                    "type": "string",
+                    "description": "Path to Hayagriva biblio.yml (default: synthesis/biblio.yml, auto-generated from workspace/citations.md if absent).",
                 },
             },
         },
     },
     "tool_latex_compile": {
         "short": "Compile synthesis/paper.tex → PDF (pdflatex + bibtex). Use when LaTeX submission is required.",
-        "description": "Compile synthesis/paper.tex to PDF (pdflatex + bibtex).",
+        "description": "Compile synthesis/paper.tex to PDF (pdflatex + bibtex). Use only for journals that require .tex submission (most journals accept Typst-generated PDFs — call tool_typst_compile instead).",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},
     },
-    "tool_poster_create": {
-        "short": "Compile a conference poster via Typst from synthesis spec. Use when producing a poster.",
-        "description": "Compile a conference poster from the curated synthesis spec via Typst (academic_36x48 portrait, light theme, US-letter handout by default). Hero figures land on the poster sorted by `poster_priority` in each figure's .caption.md frontmatter (top 3). Optional QR PNG renders when qr_url is set + the qrcode package is installed (degrades gracefully). The `engine` kwarg is accepted for back-compat but only `typst` is supported.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "template": {
-                    "type": "string",
-                    "description": "academic_36x48 (default) | academic_48x36 | academic_a0_portrait | academic_a1_landscape | public_24x36.",
-                },
-                "theme": {
-                    "type": "string",
-                    "description": "light (default) | dark | institution_branded.",
-                },
-                "qr_url": {
-                    "type": "string",
-                    "description": "URL to encode in the footer QR code. Omitted gracefully if `qrcode` package is missing.",
-                },
-                "handout_pdf": {
-                    "type": "boolean",
-                    "description": "Also emit synthesis/poster.handout.pdf (US-letter text-only condensed). Default true.",
-                },
-                "engine": {
-                    "type": "string",
-                    "description": "Back-compat only. Must be 'typst' (default). Any other value is rejected — the tikzposter LaTeX renderer is no longer supported.",
-                },
-            },
-        },
-    },
-    "tool_dashboard": {
-        "short": "Unified dashboard tool. operation=create|story_*|reviewer_sim|test_*. Use when producing the dashboard.",
-        "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
-        "description": "Unified dashboard dispatcher. operation='create' (default) renders the standalone offline HTML dashboard at synthesis/dashboard.html (single-page-app by default; pass dashboard_legacy=true for the v1 long-scroll renderer; dashboard_default_mode='story' for narrative-first reading; audience ∈ {academic, executive, technical, teaching}; override_completeness_gate=true + override_rationale='<why>' suppresses the soft completeness warning panel for the FINAL deliverable). operation='story_generate' builds synthesis/dashboard_story.md (Theme 21 story-mode source) from workspace state. operation='story_edit' reads (no args) or patches synthesis/dashboard_story.md via `edits` (default mode='patch' diff-style payload, or mode='overwrite' to replace whole file). operation='story_quality_bar' WARNs when reading time falls outside 5-20 min, no figure in first 1000 words, or no DISAGREES/EXTENDS callout (no BLOCKERs — story mode is optional). operation='reviewer_sim' walks synthesis/dashboard.html top-to-bottom and returns whether a 5-minute skimmer would extract the headline finding. operation='test_generate' scaffolds tests/dashboard/ with the baseline Playwright + axe-core suite (pass overwrite=true to replace). operation='test_run' subprocesses pytest under tests/dashboard/ and returns structured failures + trace.zip paths (kwargs: only, visual, update_snapshots, timeout).",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": [
-                        "create",
-                        "story_generate",
-                        "story_edit",
-                        "story_quality_bar",
-                        "reviewer_sim",
-                        "test_generate",
-                        "test_run",
-                    ],
-                    "description": "Which dashboard sub-operation to invoke. Defaults to 'create' when omitted.",
-                },
-                # operation='create' kwargs
-                "title": {"type": "string", "description": "operation='create' — dashboard title."},
-                "audience": {
-                    "type": "string",
-                    "description": "operation='create' — academic (default) | executive | technical | teaching.",
-                },
-                "dashboard_legacy": {
-                    "type": "boolean",
-                    "description": "operation='create' — use the v1 long-scroll renderer (back-compat). Default false (single-page app).",
-                },
-                "dashboard_default_mode": {
-                    "type": "string",
-                    "description": "operation='create' — explore (default) | story. URL hash #mode=... and localStorage override at view time.",
-                },
-                "dashboard_search_enabled": {
-                    "type": "boolean",
-                    "description": "operation='create' — inline the MiniSearch full-text index. Default true.",
-                },
-                "dashboard_print_optimized": {
-                    "type": "boolean",
-                    "description": "operation='create' — include the print stylesheet that hides chrome + paginates sections. Default true.",
-                },
-                "override_completeness_gate": {
-                    "type": "boolean",
-                    "description": "operation='create' — suppress the step-completeness warning panel. Set only on explicit researcher approval. Logged.",
-                },
-                "override_rationale": {
-                    "type": "string",
-                    "description": "operation='create' — one-line reason for the bypass; logged to workspace/logs/override_log.md.",
-                },
-                # operation='story_edit' kwargs
-                "edits": {
-                    "type": "string",
-                    "description": "operation='story_edit' — patch payload (`<<<<replace>>>>...----with----...<<<<end>>>>` blocks) OR full file content (with mode='overwrite').",
-                },
-                "mode": {
-                    "type": "string",
-                    "description": "operation='story_edit' — patch (default) | overwrite.",
-                },
-                # operation='reviewer_sim' kwargs
-                "dashboard_path": {
-                    "type": "string",
-                    "description": "operation='reviewer_sim' — dashboard file path (default synthesis/dashboard.html).",
-                },
-                # operation='test_generate' kwargs
-                "overwrite": {
-                    "type": "boolean",
-                    "description": "operation='test_generate' — overwrite existing test suite. Default false.",
-                },
-                # operation='test_run' kwargs
-                "only": {"type": "string", "description": "operation='test_run' — pytest node-id filter."},
-                "visual": {"type": "boolean", "description": "operation='test_run' — enable visual regression."},
-                "update_snapshots": {"type": "boolean", "description": "operation='test_run' — update snapshot baselines."},
-                "timeout": {"type": "number", "description": "operation='test_run' — timeout in seconds."},
-                "confirmed": {"type": "boolean", "description": "Required in autopilot mode for operation='create' (final-deliverable floor gate — see guidance/autopilot.yaml)."},
-            },
-        },
-    },
     "tool_writing_discussion_from_verdicts": {
         "short": "Append one Discussion paragraph per non-AGREES verdict in any step's findings_vs_literature.md.",
-        "description": "Reads every workspace/<step>/literature/findings_vs_literature.md, finds DISAGREES + EXTENDS verdicts that carry a Discussion implication block, and appends one paragraph per verdict to synthesis/discussion.md under HTML-comment-delimited markers (idempotent — re-runs replace the block; hand-edits outside the markers are preserved). Closes the audit gap where verdicts never reached the Discussion.",
+        "description": "Reads every workspace/<step>/literature/findings_vs_literature.md, finds DISAGREES + EXTENDS verdicts that carry a Discussion implication block, and appends one paragraph per verdict to synthesis/discussion.md under HTML-comment-delimited markers (idempotent — re-runs replace the block; hand-edits outside the markers are preserved). Closes the audit gap where verdicts never reached the Discussion. The AI is expected to fold the appended paragraphs into the actual Discussion section of paper.typ.",
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_discussion_coverage_audit": {
         "short": "BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph.",
-        "description": "Companion to tool_writing_discussion_from_verdicts. Walks every step's findings_vs_literature.md and verifies synthesis/discussion.md mentions each DISAGREES/EXTENDS claim (>=50% key-word overlap). Returns status='error' + a blocker list if any verdict is uncovered — tool_writing_discussion's validate step honours this as a hard BLOCK unless override_discussion_coverage=true (logged to override_log.md with override_rationale).",
+        "description": "Companion to tool_writing_discussion_from_verdicts. Walks every step's findings_vs_literature.md and verifies synthesis/discussion.md (or paper.typ Discussion section) mentions each DISAGREES/EXTENDS claim (>=50% key-word overlap). Returns status='error' + a blocker list if any verdict is uncovered. Acts as a hard BLOCK unless override_discussion_coverage=true (logged to override_log.md with override_rationale).",
         "category": "audit",
         "inputSchema": {
             "type": "object",
@@ -258,111 +138,22 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
-    "tool_paper_compile_typst": {
-        "short": "Compile synthesis/paper.md → paper.typ → paper.pdf via Typst.",
-        "description": "Markdown → Typst → PDF using a per-venue template (nature | science | nejm | cell | ieee_conf | neurips | acl | plos | generic_two_column | generic_thesis). Generates synthesis/paper.typ + synthesis/biblio.yml (Hayagriva) and runs `typst compile`. Returns pdf_path, page_count, citation_count, typst_warnings/errors. Reads researcher_config.writing_preferences.venue_template if `venue` not given. The LaTeX path (tool_latex_compile) remains available for journals that require .tex submission.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
-                "venue": {"type": "string", "description": "One of: nature, science, nejm, cell, ieee_conf, neurips, acl, plos, generic_two_column, generic_thesis. Falls back to researcher_config or 'generic_two_column'."},
-                "output": {"type": "string", "description": "Default 'synthesis/paper.pdf'."},
-            },
-        },
-    },
-    "tool_synthesis_preview": {
-        "short": "Predict what tool_synthesize will produce — word counts, page count, figures, citations, gaps — without drafting.",
-        "description": "Cheap deterministic dry-run (~1 sec vs ~30s for full synthesis). Reads workspace/<step>/conclusions.md + step_summary.yaml + findings_vs_literature.md + workspace/citations.md but does NOT call the AI to draft prose. Returns predicted_word_count_per_section, predicted_total_word_count, predicted_page_count or slide_count, predicted_figures_embedded, predicted_citations, predicted_steps_drawn_from, detected_gaps, estimated_render_time_seconds. mode='diff' compares against the existing deliverable on disk.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "target": {"type": "string", "description": "paper | dashboard | poster | slides | grant | report. Default 'paper'."},
-                "venue": {"type": "string"},
-                "mode": {"type": "string", "description": "'fresh' (default) or 'diff' against existing deliverable."},
-            },
-        },
-    },
-    "tool_section_substantiveness": {
-        "short": "Content depth audit for synthesis/paper.md — per-section checks beyond word counts.",
-        "description": "Runs per-IMRAD-section audits: Abstract (≥1 number + ≥1 method + ≥1 conclusion verb), Introduction (≥3 cited prior works + 'in this study, we' pivot), Methods (every workspace step's primary method/tool named; coverage <50% BLOCKS, <80% WARNS), Results (≥1 statistic per finding; focal figures referenced), Discussion (Limitations paragraph + future-work direction + ≥1 paragraph per non-AGREES verdict), References (every cited key in bibliography, BLOCKER for missing). Returns blockers, warnings, sub_reports per section, cliché hits.",
-        "category": "audit",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "paper_path": {"type": "string", "description": "Default 'synthesis/paper.md'."},
-            },
-        },
-    },
-    "tool_humanities_essay_scaffold": {
-        "short": "Scaffold a non-IMRAD humanities essay.",
-        "description": "Write synthesis/paper.md with the six interpretive section headings + one-paragraph stubs the synthesis/humanities_essay_structure protocol prescribes (introduction+thesis, contextual framing, three close readings, critical conversation, counter-argument+reply, conclusion+stakes). Idempotent: re-running on a partially drafted paper.md preserves substantive content (>200 non-stub chars under a heading) and only fills missing sections. Pairs with humanities_essay.typ for the venue layer (1.25in margins, 12pt serif, MLA-style unnumbered headings, footnote apparatus, 0.5in block-quote indent). No arguments — operates on the current project root.",
-        "category": "synthesis",
-        "inputSchema": {"type": "object", "properties": {}},
-    },
-    "tool_slides_create": {
-        "short": "Compile a presentation deck (Reveal.js HTML or Touying PDF). Use when producing slides.",
-        "description": "Two production engines. engine='reveal' writes synthesis/slides.html — a single self-contained file backed by the vendored Reveal.js v5 runtime with stock speaker-notes plugin (press 's' for presenter view). engine='touying' writes synthesis/slides.typ against the bundled touying-mini.typ template and shells out to the typst CLI to produce synthesis/slides.pdf (requires typst on PATH). Five stock templates: conference_15min (12 slides), conference_5min_lightning (6 slides), lab_meeting_30min (16 slides + backup section), defense_45min (35 slides chapter-arc), public_outreach (12 slides, no jargon). theme='' picks per-engine default (white). speaker_notes_enabled=True (default) embeds the per-slide notes. print_handout=True (default) also emits synthesis/slides.handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Prereq: at least one workspace/<step>/conclusions.md OR synthesis/slides_spec.yaml; missing both returns a structured error. Back-compat: legacy output_format='reveal'|'beamer'|'pdf' and audience= kwargs are accepted and mapped to engine= silently.",
-        "category": "synthesis",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "engine": {
-                    "type": "string",
-                    "description": "reveal (default — single-file HTML, Reveal.js v5) | touying (Typst → PDF, requires typst CLI)",
-                },
-                "template": {
-                    "type": "string",
-                    "description": "conference_15min (default) | conference_5min_lightning | lab_meeting_30min | defense_45min | public_outreach",
-                },
-                "theme": {
-                    "type": "string",
-                    "description": "'' (default = white) | white | black. Reveal engine swaps the vendored theme CSS; touying engine flips the background/foreground in touying-mini.typ.",
-                },
-                "speaker_notes_enabled": {
-                    "type": "boolean",
-                    "description": "Default true. Embed per-slide speaker_notes from the template + slides_spec. Reveal surfaces via the notes plugin ('s' key opens presenter view); touying renders them only in handout mode.",
-                },
-                "print_handout": {
-                    "type": "boolean",
-                    "description": "Default true. Also emit synthesis/slides.handout.pdf — a 2-up A4 condensed PDF with speaker notes printed beneath each slide. Requires typst on PATH (reveal engine uses the touying handout path).",
-                },
-                "audience": {
-                    "type": "string",
-                    "description": "Back-compat: legacy callers passed audience= alongside template=. Accepted as a meta-hint; the template= argument is authoritative.",
-                },
-                "output_format": {
-                    "type": "string",
-                    "description": "Back-compat: legacy kwarg. 'reveal'/'html' maps to engine='reveal'; 'beamer'/'pdf'/'typst'/'touying' maps to engine='touying'.",
-                },
-            },
-        },
-    },
     "tool_reviewer": {
-        "short": "Unified reviewer-response tool. operation=simulate|response|rebuttal|compile.",
-        "description": "Unified reviewer-response dispatcher. operation='simulate' loads N reviewer personas (default: all 7 — methodology_skeptic, domain_expert, statistician, reproducibility_advocate, scope_creep_critic, novelty_critic, presentation_critic) and the paper, then writes workspace/reviewer/simulation_brief.md with each persona's lens + red flags + typical questions + signature phrasings. operation='response' produces synthesis/response_to_reviewers.md with one heading per reviewer comment (Mn, mn), pre-formatted for line-referenced rebuttal text, paired with the latest red-team report. operation='rebuttal' writes a single rebuttal scaffold under workspace/reviewer/rebuttals/<slug>.md given a verbatim reviewer comment + the persona id (+ optional evidence_paths); the scaffold surfaces methods record, per-step findings_vs_literature.md, outputs (figures/tables/reports), and paper sections so the AI can ground the response. operation='compile' concatenates every rebuttal markdown under workspace/reviewer/rebuttals/ (grouped by persona) into workspace/reviewer/response_to_reviewers.md; best-effort PDF compile via the bundled Typst generic_two_column template (status='skipped' for the PDF leg when typst is not on PATH; the markdown is always produced). Returns rebuttal_count, personas_addressed, response_md path, response_pdf path (or null). Internal companion to guidance/peer_review_response (which handles ACTUAL external reviewer reports).",
+        "short": "Reviewer-response tool. operation=response|rebuttal|compile.",
+        "description": "Reviewer-response dispatcher. operation='response' produces synthesis/response_to_reviewers.md with one heading per reviewer comment (Mn, mn), pre-formatted for line-referenced rebuttal text. operation='rebuttal' writes a single rebuttal scaffold under workspace/reviewer/rebuttals/<slug>.md given a verbatim reviewer comment + the persona id (+ optional evidence_paths); the scaffold surfaces methods record, per-step findings_vs_literature.md, outputs (figures/tables/reports), and paper sections so the AI can ground the response. operation='compile' concatenates every rebuttal markdown under workspace/reviewer/rebuttals/ (grouped by persona) into workspace/reviewer/response_to_reviewers.md; best-effort PDF compile via the bundled Typst generic_two_column template (status='skipped' for the PDF leg when typst is not on PATH; the markdown is always produced). Returns rebuttal_count, personas_addressed, response_md path, response_pdf path (or null). Use synthesis/reviewer_response protocol for the full multi-turn flow on a real external review.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["simulate", "response", "rebuttal", "compile"],
+                    "enum": ["response", "rebuttal", "compile"],
                     "description": "Which reviewer sub-operation to invoke.",
                 },
-                # operation='simulate' kwargs
-                "personas": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "operation='simulate' — subset of persona ids to load. Default: all 7 ship and run.",
-                },
-                # operation='response' kwargs
                 "review_path": {
                     "type": "string",
                     "description": "operation='response' — optional path to the red-team review markdown to pair with the response template.",
                 },
-                # operation='rebuttal' kwargs
                 "comment": {
                     "type": "string",
                     "description": "operation='rebuttal' — REQUIRED. Verbatim reviewer comment.",
@@ -376,7 +167,6 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "items": {"type": "string"},
                     "description": "operation='rebuttal' — optional workspace-relative paths the rebuttal will cite.",
                 },
-                # operation='compile' takes no extra kwargs.
             },
             "required": ["operation"],
         },
