@@ -276,7 +276,7 @@ resolved. If `has_os_state` is False, tell the researcher to run
 - `tool_*` — research work: search, exec, audit, synthesis, intake, plan
 - `mem_*` — append-only memory: methods, citations, decisions, hypotheses
 
-v2.0 ships **148 live tools** (down from 344 in v1.x), each annotated
+v2.0 ships **144 live tools** (down from 344 in v1.x), each annotated
 with:
 
 * `status` — `live` (default and visible), `alias` (back-compat
@@ -301,10 +301,10 @@ tool scoped shortlist for that protocol.
 | Audit | `tool_audit` | `scope` + `dimension` | 23 per-dimension `tool_audit_*` |
 | Audit ledger | `tool_audit_findings` | `operation` (`query` / `diff` / `explain`) | `tool_audit_findings_query` + `tool_audit_findings_diff` |
 | Audit master | `tool_audit_quality_full` | — | (standalone aggregator) |
-| Dashboard | `tool_dashboard` | `operation` | 7 `tool_dashboard_*` |
-| Figure | `tool_figure` | `operation` | 10 `tool_figure_*` |
+| Synthesis check | `tool_synthesis_check` | `mode` + auto-detected `file` | `tool_section_substantiveness` + dashboard checks |
+| Synthesis compile | `tool_typst_compile` | (generic .typ → .pdf) | `tool_paper_compile_typst` (paper-specific markdown→typst) |
 | Search | `tool_search` | `operation` | 7 `tool_search_*` |
-| Reviewer | `tool_reviewer` | `operation` | 6 `tool_reviewer_*` |
+| Reviewer | `tool_reviewer` | `operation` (`response`/`rebuttal`/`compile`) | 4 `tool_reviewer_*` |
 | Step lifecycle | `tool_step` | `operation` | `tool_step_iterate`, `tool_step_iterations_list`, `tool_step_revision_options`, `tool_step_env_lock` |
 | Step pipeline | `tool_step_pipeline` | `operation` | 4 `tool_step_pipeline_*` |
 | Lessons + reliability | `tool_lessons` | `operation` | 5 lesson/dead-end/failure tools |
@@ -312,6 +312,15 @@ tool scoped shortlist for that protocol.
 | Plan | `tool_plan` | `operation` | `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` |
 | Config | `sys_config` | `operation` | `sys_config_get`, `sys_config_set`, `sys_config_validate` |
 | Checkpoint | `sys_checkpoint_*` | (3 tools, lifecycle-distinct) | (unchanged) |
+
+The synthesis surface in v2.3.0 is **AI-direct authoring**: the AI
+writes `synthesis/paper.typ` / `slides.typ` / `poster.typ` / `essay.typ`
+/ `dashboard.html` directly following the matching protocol; tools
+validate (`tool_synthesis_check`) and compile (`tool_typst_compile`).
+The legacy auto-generators (`tool_synthesize`, `tool_dashboard`,
+`tool_slides_create`, `tool_poster_create`, `tool_humanities_essay_scaffold`,
+`tool_paper_compile_typst`) are in `_REMOVED_TOOLS` with redirect
+messages.
 
 Every legacy name still works via `_ALIASES` + `_ALIAS_PARAM_INJECTION`
 through the v2.0.x patch line. Phase 14 hard-removed 24 explicit
@@ -436,8 +445,8 @@ prior knowledge.
 - `tool_preregister_diff` — surfaces SAP drift if a preregistration
   exists
 
-`tool_synthesize` calls `tool_audit_quality_full` as its FIRST gate,
-which returns structured per-component verdicts:
+`tool_synthesis_check` calls `tool_audit_quality_full` as part of the
+substantiveness pass, which returns structured per-component verdicts:
 
 ```json
 {
@@ -462,19 +471,20 @@ Quality gates can be bypassed — but only on explicit researcher
 authorisation in their CURRENT message ("just draft it", "give me a
 preview", "skip the audit"). The override path:
 
-* `tool_synthesize(override_completeness_gate=true, override_rationale="<why>")`
-* `tool_dashboard(operation='create', override_completeness_gate=true, override_rationale="<why>")`
+* `tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale="<why>")`
 * `tool_plan(operation='advance', override_gate=true, override_rationale="<why>")`
+* Per-audit overrides (e.g. `tool_audit(scope='synthesis', dimension='all',
+  override_no_pdfs=true, override_rationale="<why>")`)
 
 The rationale is mandatory; the override appends to
 `workspace/logs/override_log.md`. `audit/pre_submission_checklist`
 surfaces every bypass at publish time so the researcher confirms
 each one was intentional.
 
-When `tool_synthesize` BLOCKs on the audit ledger
-(`.audit_findings.jsonl`), the error message names the exact override
-flag and required rationale arg, e.g. `override_unresolved_blocks=true`
-+ `override_rationale='<one-line why>'`. Use those names verbatim.
+When `tool_synthesis_check` surfaces blockers (missing sections,
+hallucinated citations, ungrounded claims), the AI fixes the source
+.typ / .html. There's no "override the gate"; the AI must address
+each blocker before `tool_typst_compile`.
 
 The project-level posture lives at `interaction.quality_gate_policy`
 in `inputs/researcher_config.yaml`:
@@ -556,40 +566,27 @@ the literature loop closes.
 Researcher: "draft the abstract + introduction so I can show my PI
 this afternoon; methods isn't written yet."
 
-Section-only synthesis still runs the step-completeness gate. If
-methods.md is a stub, the bypass for the section call lets the
-preview happen:
+Author just those sections of `synthesis/paper.typ` directly and run
+the substantiveness check only on the sections you've authored:
 
 ```python
-tool_synthesize(
-    output_type="paper",
-    section="abstract",
-    override_completeness_gate=True,
-    override_rationale="3pm preview for PI; methods coming tonight",
-)
-tool_synthesize(
-    output_type="paper",
-    section="introduction",
-    override_completeness_gate=True,
-    override_rationale="3pm preview for PI; methods coming tonight",
-)
+# Author abstract + introduction sections of paper.typ (Edit tool).
+# Then audit only those sections.
+tool_synthesis_check(file="synthesis/paper.typ", mode="substantiveness")
+# Blockers about empty methods / results sections expected; ignore
+# until those sections are authored. Show the PI the preview as-is.
 ```
 
-Two entries land in `override_log.md`. When the methods section is
-ready the full-doc synthesize call should NOT need the override —
-the gate passes naturally and the audit trail shows a clean final
-build with two preview bypasses earlier in the day.
+No override flag needed — the AI authors the file in pieces.
 
-### 4. Pre-publication final pass (gate passes — DO NOT override)
+### 4. Pre-publication final pass (every check passes)
 
-This is the case that demonstrates the override is NOT a "speed
-boost" the AI reaches for. When the final manuscript is ready, the
-researcher asks for the publish-ready PDF:
+When the final manuscript is ready:
 
 ```python
-tool_synthesize(output_type="paper")  # NO override
-tool_audit(scope="synthesis", dimension="all", paper_path="synthesis/paper.md")  # NO override
-tool_paper_compile_typst()
+tool_synthesis_check(file="synthesis/paper.typ", mode="all")
+tool_audit(scope="synthesis", dimension="all", paper_path="synthesis/paper.typ")
+tool_typst_compile(source="synthesis/paper.typ")
 ```
 
 If any of these BLOCK, the answer is to fix the underlying issue
@@ -613,7 +610,7 @@ positive:
 tool_audit(
     scope="synthesis",
     dimension="all",
-    paper_path="synthesis/paper.md",
+    paper_path="synthesis/paper.typ",
     override_no_pdfs=True,
     override_rationale="theory_math project — proof cites earlier theorems, no empirical PDFs",
 )
@@ -630,12 +627,14 @@ tool_discussion_coverage_audit(
 )
 ```
 
-### 6. Figure cross-references the AI must not rewrite
+### 6. Figure cross-references (author directly in Typst)
 
-`tool_paper_figures_autoembed` calls `rewrite_figure_xrefs` after
-auto-embedding when `researcher_config.synthesis.figure_xref_rewrite=true`
-(the default). When the researcher has hand-tuned Pandoc
-`\ref{fig:foo}` / `@fig:foo` cross-references in `synthesis/paper.md`
+The AI authors figure embeds inline as Typst `#figure(...)` blocks
+when writing `paper.typ`, with stable label syntax `<fig:slug>` and
+references via `@fig:slug`. No autoembed pass needed; when the AI
+needs to add another figure, it edits the .typ source. When the
+researcher has hand-tuned Pandoc
+`\ref{fig:foo}` / `@fig:foo` cross-references in `synthesis/paper.typ`
 that should not be re-pointed, pass `override_xref_rewrite=true`:
 
 ```python

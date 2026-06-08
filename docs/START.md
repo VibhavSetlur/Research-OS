@@ -50,7 +50,7 @@ Verify:
 
 ```bash
 research-os --help
-# Four commands: init / ide / start / doctor
+# Seven commands: init / ide / mcp / api-key / start / doctor / completion
 ```
 
 If `research-os: command not found`, add `~/.local/bin` (or your
@@ -231,7 +231,7 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
   qualitative + survey design, IRR, fairness, calibrated UQ,
   manuscript outline, venue selection, defense prep, and Data
   Management Plans).
-* **148 live MCP tools** across three namespaces — `sys_*` (system /
+* **144 live MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
   (append-only memory). Down from 344 in v1.x — consolidated families
   (`tool_audit`, `tool_dashboard`, `tool_search`, `tool_figure`,

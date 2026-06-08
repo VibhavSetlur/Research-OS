@@ -1,7 +1,7 @@
 id: synthesis_abstract
 tier: 'synthesize'
 name: Synthesis — Abstract (venue-tailored)
-version: '2.0.0'
+version: '2.3.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -64,22 +64,25 @@ steps:
   - id: draft
     name: Draft Abstract
     description: |
-      tool_synthesize section="abstract" output_type="abstract"
-      The synthesize tool applies the venue's section structure and pulls ≤3
-      verified citations only when an anchor reference is essential.
+      Author `synthesis/abstract.typ` directly (or `synthesis/abstract.md`
+      when the venue requires markdown). Apply the venue's section
+      structure (structured for journals/preprints, unstructured for
+      conferences). Cite ≤3 verified references only when an anchor is
+      essential.
 
       QUALITY CHECK:
         - Word count inside venue.word_target.
         - For structured: every required section heading present.
         - At least one quantitative finding with unit.
         - No causal language unless design supports it.
-        - No banned phrases (validate via sys_file_validate_md).
+        - No banned phrases.
 
   - id: validate
     name: Validate
     description: |
-      sys_file_validate_md filepath="synthesis/abstract.md" protocol_name="writing_core"
-      Address any errors (banned phrases, missing required sections) and re-draft.
+      tool_synthesis_check(file='synthesis/abstract.typ', mode='all')
+      Address blockers (missing quantitative claim, missing method
+      reference, missing conclusion verb) and re-draft.
 
 expected_outputs:
   - synthesis/abstract.md

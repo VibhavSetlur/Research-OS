@@ -5,7 +5,7 @@
 ### What changed in v2.0.0?
 
 The headline shape change is a **tool surface consolidation
-(344 → 148 live)** plus a flip of `sys_protocol_get` to default
+(344 → 144 live)** plus a flip of `sys_protocol_get` to default
 `format='summary'`. Both are breaking on paper but **every legacy
 tool name still dispatches via alias for the v2.0.x runway** — most
 projects upgrade with zero call-site edits. After
@@ -28,10 +28,12 @@ Other v2.0.0 highlights:
   to the cross-audit ledger at
   `workspace/logs/.audit_findings.jsonl`. Query with
   `tool_audit_findings(operation='query', severity='block')`.
-* **Drafter review-rewrite loops** — `tool_paper_compile_typst` and
-  `tool_poster_create` iterate draft → adversarial review → rewrite,
-  with per-iteration outputs at
-  `workspace/logs/drafter_loops/<deliverable>_iter_<N>.{md,json}`.
+* **AI-direct synthesis authoring (v2.3.0)** — the AI writes
+  `synthesis/paper.typ` / `slides.typ` / `poster.typ` / `essay.typ` /
+  `dashboard.html` directly, following the matching synthesis
+  protocol. Tools validate (`tool_synthesis_check`) and compile
+  (`tool_typst_compile`); the auto-generators that produced rigid
+  output were retired.
 * **`research-os doctor`** — 20+ install + workspace health checks.
 * **`tier:` + `scope_tags`** on every protocol (117/117) — wires the
   router to filter candidates by project lifecycle and applicability.
@@ -179,13 +181,11 @@ turns — you'll see exactly when it tries to mega-shot and can redirect.
 ### The AI keeps hallucinating citations. Help.
 
 By construction, **citations in final synthesis outputs cannot be
-hallucinated**. `tool_synthesize` pulls every citation from real providers
-(Crossref / Semantic Scholar / PubMed / arXiv), drops any entry without a
-DOI/URL, and verifies online. Unverified entries never make it into
-`paper.md` / `abstract.md` / `poster.tex`.
-
-For audit on demand: `tool_citations_verify` re-verifies every key in
-`workspace/citations.md` and reports which fail.
+hallucinated**. `tool_citations_verify` pulls every citation from real
+providers (Crossref / Semantic Scholar / PubMed / arXiv), drops any
+entry without a DOI/URL, and verifies online. `tool_synthesis_check`
+surfaces any unresolved citation key in `paper.typ` / `essay.typ`
+before compile so the AI fixes the source.
 
 ### What if the right tool is a website / GUI / paid service the AI can't run?
 
@@ -477,24 +477,24 @@ tool_audit_findings(
 )
 ```
 
-`tool_synthesize` BLOCK-gates on unresolved BLOCKs in the ledger and
-names the exact override flag in the error envelope
-(`override_unresolved_blocks=true` + `override_rationale='...'`).
+`tool_synthesis_check` surfaces unresolved BLOCKs in the ledger
+as blockers on the AI's synthesis file; the AI fixes the source
+.typ / .html before compiling.
 
-### What are drafter loops?
+### Where did tool_synthesize / tool_dashboard / tool_slides_create / tool_poster_create go?
 
-A v2.0.0 addition where `tool_paper_compile_typst` and
-`tool_poster_create` iterate **draft → adversarial review → rewrite**
-instead of one-shot rendering. Per-iteration outputs land in
-`workspace/logs/drafter_loops/<deliverable>_iter_<N>.{md,json}` plus
-a cumulative `quality_progression.md` table. The reviewer personas
-are deliverable-aware: `presentation_critic`, `scope_creep_critic`,
-`methodology_skeptic` for papers; `presentation_critic` +
-`novelty_critic` for posters (max 2 iterations).
+Retired in v2.3.0. The auto-generators produced rigid, low-quality
+output (the dashboard was a 3MB monolithic HTML; the paper was a
+markdown intermediate, not a publishable artefact). v2.3.0 hands
+authoring to the AI: write `synthesis/paper.typ` /
+`synthesis/slides.typ` / `synthesis/poster.typ` /
+`synthesis/dashboard.html` directly, following the matching
+synthesis protocol. Tools validate (`tool_synthesis_check`) and
+compile (`tool_typst_compile`).
 
-Disable per call with `drafter_loop=false`; tune defaults via
-`synthesis.drafter_loop_iterations` and
-`synthesis.drafter_loop_personas` in `researcher_config.yaml`.
+Calling a removed tool returns a friendly redirect message naming
+the protocol and the surviving tools. See CHANGELOG `[2.3.0]` for
+the full migration.
 
 ### What is `tool_route.recommended_action`?
 

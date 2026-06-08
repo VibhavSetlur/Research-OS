@@ -255,26 +255,10 @@ def _handle_tool_audit_cliches(name, arguments, root):
 
 
 def _handle_tool_audit_figure_coverage(name, arguments, root):
-    from research_os.tools.actions.audit._base import write_audit_outputs
-    from research_os.tools.actions.synthesis.figure_auto_embed import (
-        FigureCoverageAudit,
-    )
+    from research_os.tools.actions.synthesis.curate import audit_figure_coverage
 
     root_path = Path(root)
-    audit = FigureCoverageAudit()
-    # Run the audit to get structured findings, then fan them
-    # out to workspace/figure_coverage_audit.{md,json} +
-    # workspace/logs/.audit_findings.jsonl. Best-effort writes — if the
-    # workspace dir is read-only we still want to return the audit verdict.
-    findings: list = []
-    try:
-        findings = audit.run(root_path)
-        write_audit_outputs(findings, "figure_coverage", root_path)
-    except Exception:  # noqa: BLE001 — best-effort artefact write
-        pass
-    # Legacy dict surface preserved for back-compat callers (tests,
-    # protocols that key on `status`/`blockers`/`checked`/`embedded`).
-    res = audit.to_legacy_dict(root_path, findings)
+    res = audit_figure_coverage(root_path)
     if res.get("status") == "error" and "blockers" in res:
         # Return as success-with-blockers so the audit aggregator can
         # surface them rather than treating the audit as a tool error.

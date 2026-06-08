@@ -24,7 +24,6 @@ __all__ = [
     "_latest_protocol_for_step",
     "_build_tier_progress",
     "_AUDIT_DISPATCH",
-    "_DASHBOARD_DISPATCH",
     "_STEP_DISPATCH",
     "_STEP_PIPELINE_DISPATCH",
 ]
@@ -123,15 +122,8 @@ _AUDIT_DISPATCH: dict[tuple[str, str], str] = {
 }
 
 
-_DASHBOARD_DISPATCH: dict[str, str] = {
-    "create":            "_handle_tool_dashboard_create",
-    "story_generate":    "_handle_tool_dashboard_story_generate",
-    "story_edit":        "_handle_tool_dashboard_story_edit",
-    "story_quality_bar": "_handle_tool_dashboard_story_quality_bar",
-    "reviewer_sim":      "_handle_tool_dashboard_reviewer_sim",
-    "test_generate":     "_handle_tool_dashboard_test_generate",
-    "test_run":          "_handle_tool_dashboard_test_run",
-}
+# tool_dashboard removed in v2.3.0; the dispatch table is gone with it.
+# (Old aliases still resolve via _REMOVED_TOOLS to a redirect message.)
 
 
 _STEP_DISPATCH: dict[str, str] = {

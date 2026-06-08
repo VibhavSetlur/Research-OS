@@ -183,11 +183,10 @@ steps:
   - id: draft_each_section
     name: Draft each section in the audience profile
     description: |
-      For each section in audience.sections:
-        tool_synthesize section="<name>" output_type="progress_update"
-      Apply the audience profile's tone and the word-count band. Hold
-      to "what changed → blockers → next → ask" structure even when
-      the labels in the profile differ.
+      For each section in audience.sections, author the prose directly
+      in `synthesis/progress_update.md`. Apply the audience profile's
+      tone and the word-count band. Hold to "what changed → blockers →
+      next → ask" structure even when the labels in the profile differ.
 
       For lab_slack: each bullet stands alone. End with a single link
       to the dashboard / figure / draft — not three.

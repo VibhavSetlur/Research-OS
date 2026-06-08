@@ -5,8 +5,8 @@ These tests pin three guarantees the v2 migration must hold:
 1. **Markdown regression** — the legacy ``workspace/logs/audit_master.md``
    output of ``audit_quality_full`` is byte-for-byte stable across the
    refactor. The whole point of keeping the legacy function intact is
-   that ``tool_synthesize`` + the dashboard already parse this file;
-   any drift would silently break those callers.
+   that ``tool_synthesis_check`` parses this file; any drift would
+   silently break that caller.
 2. **JSON companion is schema-valid** — every ``AuditFinding`` written
    to ``workspace/audit_master_audit.json`` round-trips through the
    audit_finding JSON Schema.
@@ -86,7 +86,7 @@ def test_legacy_markdown_path_and_format_preserved(passing_root: Path) -> None:
     assert md_path.exists(), "legacy md path moved"
 
     body = md_path.read_text()
-    # Header is exactly what tool_synthesize + dashboard parse for.
+    # Header is exactly what tool_synthesis_check parses for.
     assert body.startswith("# Master quality audit"), body[:80]
     # Each known component shows up as a level-2 section.
     for comp in (

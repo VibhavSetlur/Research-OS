@@ -329,7 +329,7 @@ def _handle_tool_path_finalize(name, arguments, root):
 
 
 def _handle_tool_synthesis_curate_figures(name, arguments, root):
-    from research_os.tools.actions.synthesis.dashboard import curate_figures
+    from research_os.tools.actions.synthesis.curate import curate_figures
 
     res = curate_figures(root)
     if res.get("status") == "success":

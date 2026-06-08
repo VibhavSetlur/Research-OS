@@ -368,18 +368,13 @@ def test_caption_sidecar_frontmatter_parses(stem):
 
 
 def test_caption_body_consumed_by_existing_reader_unchanged():
-    """``_read_caption_sidecar`` reads the WHOLE file (including the
-    frontmatter — current behaviour). This test pins that behaviour:
-    when the integration agent eventually adds frontmatter-stripping,
-    this test should also be updated."""
-    from research_os.tools.actions.synthesis.synthesize import (
-        _read_caption_sidecar,
+    """Caption sidecars carry the W3C-style 'What it shows' text the AI
+    surfaces when authoring the dashboard / paper."""
+    caption_path = (FIGURES_ROOT / "umap_microglia_braak.png").with_suffix(
+        ".caption.md"
     )
-
-    body = _read_caption_sidecar(FIGURES_ROOT / "umap_microglia_braak.png")
-    assert body, "caption reader returned empty"
-    # The body MUST include the W3C-style caption text the integration
-    # agent will eventually surface to the dashboard.
+    body = caption_path.read_text(encoding="utf-8") if caption_path.exists() else ""
+    assert body, "caption sidecar missing"
     assert "What it shows" in body
 
 

@@ -1,157 +1,154 @@
 id: synthesis_grant
 tier: 'synthesize'
-name: Synthesis — Grant Proposal (funder-tailored)
-version: '2.0.0'
+name: Synthesis — Grant Proposal (AI-authored, funder-tailored)
+version: '2.3.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative]
+  domain: [biology, wet_lab, qualitative, theory_math, engineering, humanities]
   audience: [auditor]
   workflow_shape: [any]
-description: Draft a grant proposal narrative tuned to the target funder (NIH / NSF / Wellcome / ERC / DoE / DARPA / industry).
-trigger: Researcher asks "draft a grant" / "write the R01" / "Specific Aims page"; OR `research_goal.output_types` includes "grant".
+last_reviewed: '2026-06-08'
+description: |
+  Guide the AI to author `synthesis/grant.typ` directly as a grant
+  proposal narrative tuned to the target funder (NIH / NSF / Wellcome
+  / ERC / DoE / industry). Research-OS does not generate grants —
+  the AI does. tool_typst_compile renders synthesis/grant.pdf.
 
-quality_bar:
-  specific_aims_words_max: 500          # one page
-  significance_words_minimum: 400
-  innovation_words_minimum: 300
-  approach_words_minimum: 1500
-  preliminary_data_required: true       # link to workspace experiments
-  rigour_and_reproducibility_section: true
-  citations_minimum: 15
-  citations_maximum: 60
-  every_aim_has_milestones: true
-  every_aim_has_pitfalls_and_alternatives: true
+  **The single most important page** in any grant is the
+  Specific Aims (or equivalent ≤1 page summary). Write it BEFORE any
+  other section.
 
-funder_profile:
-  nih_r01:
-    sections: [Specific_Aims, Research_Strategy_Significance, Research_Strategy_Innovation, Research_Strategy_Approach, Bibliography, Rigour_and_Reproducibility]
-    page_limit:
-      specific_aims: 1
-      research_strategy: 12
-    citation_style: vancouver
-    notes: |
-      NIH R01. 12-page Research Strategy + 1-page Specific Aims. Sex as a
-      biological variable section in Approach. Authentication of key resources.
-  nsf:
-    sections: [Project_Summary, Project_Description_Intellectual_Merit, Project_Description_Broader_Impacts, Research_Plan, References_Cited]
-    page_limit:
-      project_summary: 1
-      project_description: 15
-    citation_style: acm
-    notes: |
-      NSF. 15-page Project Description; 1-page Project Summary with separate
-      Intellectual Merit and Broader Impacts paragraphs.
-  wellcome:
-    sections: [Vision, Approach, Research_Environment, Impact, References]
-    page_limit:
-      vision: 1
-      approach: 8
-    citation_style: vancouver
-    notes: |
-      Wellcome Discovery / Investigator. Emphasises Vision + Impact equally
-      with Approach. Less prescriptive on format than NIH.
-  erc:
-    sections: [Extended_Synopsis, State_of_the_Art, Methodology, Project_Team]
-    page_limit:
-      extended_synopsis: 5
-      part_b2: 15
-    citation_style: nature
-    notes: |
-      European Research Council (Starting / Consolidator / Advanced).
-      B1 + B2 structure, "high-risk / high-gain" framing required.
-  doe:
-    sections: [Project_Narrative_Background, Project_Narrative_Approach, Project_Narrative_Timeline, References]
-    page_limit:
-      project_narrative: 12
-    citation_style: ieee
-    notes: |
-      U.S. Department of Energy. Explicit timeline + deliverables for each task.
-  industry:
-    sections: [Executive_Summary, Problem, Solution, Validation, Roadmap, Team, Budget]
-    page_limit:
-      total: 8
-    citation_style: apa
-    notes: |
-      Industry / philanthropic. Business framing, less academic, ROI focus.
+trigger: |
+  Researcher asks "draft a grant" / "write the R01" / "Specific Aims
+  page"; OR `research_goal.output_types` includes "grant".
+
+prerequisites:
+  - workspace/methods.md + workspace/citations.md exist
+  - ≥1 completed analysis step with substantive findings (for
+    preliminary data section)
+  - inputs/literature_index.yaml or workspace/citations.md has ≥15
+    verified entries
+
+design_principles: |
+  - The reviewer reads Specific Aims first and decides whether to
+    keep reading. If the Aims don't sell the project, nothing else
+    matters.
+  - Every Aim has milestones + pitfalls + alternative approaches.
+    Funders fund de-risked work.
+  - Citations are verified. Funders DO check; an unverifiable
+    citation costs the proposal credibility.
+  - Preliminary data grounds every Aim. Link to workspace artefacts
+    that show feasibility.
+  - Rigour and Reproducibility is a HARD section (especially NIH) —
+    statistical plan, sample-size justification, blinding,
+    randomisation, biological variables (sex / age / ancestry when
+    relevant), authentication of key resources.
+
+quality_standards: |
+  - specific_aims_words — <=500 (1 page)
+  - significance_words — >=400
+  - innovation_words — >=300
+  - approach_words — >=1500
+  - preliminary_data — link to >=1 workspace artefact per Aim
+  - rigour_section — present (especially NIH)
+  - citations — 15-60 (verified)
+  - every_aim_has_milestones — yes
+  - every_aim_has_pitfalls_and_alternatives — yes
+
+funder_guidance: |
+  - nih_r01 — 1pg Specific Aims + 12pg Research Strategy
+    (Significance / Innovation / Approach); Vancouver style; Sex as
+    a Biological Variable required; Authentication of Key Resources.
+  - nsf — 1pg Project Summary (separate Intellectual Merit + Broader
+    Impacts paragraphs) + 15pg Project Description; ACM style.
+  - wellcome — 1pg Vision + 8pg Approach; Vision and Impact weighted
+    equally with Approach; Vancouver style; less prescriptive.
+  - erc — 5pg Extended Synopsis + 15pg Part B2; B1/B2 structure;
+    high-risk/high-gain framing required; Nature style.
+  - doe — 12pg Project Narrative; explicit timeline + deliverables
+    for each task; IEEE style.
+  - industry — <=8pg total; Executive Summary / Problem / Solution /
+    Validation / Roadmap / Team / Budget; business framing; APA.
 
 steps:
-  - id: select_funder
-    name: Select Funder Profile
+  - id: pick_funder
+    name: Pick the funder
     description: |
-      Ask: "Funder? nih_r01 | nsf | wellcome | erc | doe | industry"
-      Read research_goal.target_venue if it matches one of these.
+      Read research_goal.target_venue or ask in one line.
 
   - id: aims_first
-    name: Draft Specific Aims First (always)
+    name: Aims first
     description: |
-      The Specific Aims (or equivalent ≤1 page summary) is the most important
-      page. Write it BEFORE any other section.
-      Structure for nih_r01 / nsf:
-        - Opening paragraph: problem + significance.
-        - Long-term goal sentence.
-        - Central hypothesis (singular, testable).
-        - Rationale.
-        - 2-3 Aims, each with: title + hypothesis + 1-3 sub-aims + expected outcome.
-        - Closing: impact paragraph.
-      Word count ≤ specific_aims_words_max. Cite ≤5 high-impact references.
+      Author the <=500-word Specific Aims (or 1pg summary
+      equivalent). Cite <=5 high-impact references. This is the
+      page the reviewer reads.
 
-  - id: gather_preliminary_data
-    name: Gather Preliminary Data from workspace
+  - id: preliminary_data
+    name: Gather preliminary data
     description: |
-      For every completed experiment in workspace/ that supports an Aim:
-        sys_file_read conclusions.md + outputs/reports/*.md
-      Note headline findings. These become "Preliminary Studies" in NIH or
-      embedded results in NSF / Wellcome.
+      For every completed workspace experiment that supports an Aim,
+      note the headline finding. These become "Preliminary Studies".
 
-  - id: ground_in_literature
-    name: Ground Background + Significance
+  - id: ground_literature
+    name: Ground in literature
     description: |
-      For each Aim, call tool_research_method (deep) and pull verified
-      citations via the synthesis citations module. Cap at 60 total across
-      the whole proposal.
+      tool_research_method (deep) for each Aim. Verified citations
+      only.
 
-  - id: draft_each_section
-    name: Draft Each Funder Section
+  - id: scaffold
+    name: Scaffold grant.typ
     description: |
-      Loop over funder_profile.sections. For each, call
-      tool_synthesize section="<name>" output_type="grant".
-      Apply the section-specific word minimum (significance / innovation /
-      approach all have minimums in quality_bar).
+      tool_synthesis_scaffold(kind='paper') then rename to
+      synthesis/grant.typ and adjust section headers to match the
+      funder.
 
-      For Approach (or equivalent):
-        - For each Aim, write: Premise + Rationale + Experimental Design +
-          Expected Outcomes + Potential Pitfalls + Alternative Approaches.
-        - Include preliminary data figures (copy from workspace experiments).
-        - Include a timeline (Gantt-style or year-by-year bullets).
-
-  - id: rigour_and_reproducibility
-    name: Add Rigour & Reproducibility Section
+  - id: author_sections
+    name: Author each funder section
     description: |
-      Required (especially NIH). Cover:
-        - Scientific Premise (cite the prior work; identify weaknesses).
-        - Scientific Rigour (statistical plan, sample size justification,
-          blinding/randomisation if applicable — pull from
-          docs/research_design.md).
-        - Biological Variables (sex, age, ancestry — when relevant).
-        - Authentication of Key Resources (cell lines, antibodies, reagents).
+      Per turn (or autopilot iteration). Apply the funder-guidance
+      word minimums.
 
-  - id: assemble_bibliography
-    name: Assemble Bibliography (verified)
+  - id: approach_per_aim
+    name: Draft the Approach section per Aim
     description: |
-      tool_synthesize output_type="grant"
-      Writes synthesis/grant.md + synthesis/grant_references.bib.
-      tool_citations_verify — ensure ZERO unverified entries (funders DO check).
+      Per Aim — Premise + Rationale + Experimental Design + Expected
+      Outcomes + Potential Pitfalls + Alternative Approaches. Include
+      preliminary-data figures. Include a timeline.
+
+  - id: rigour_section
+    name: Rigour and Reproducibility section
+    description: |
+      Always include for NIH; include where applicable elsewhere.
+
+  - id: bibliography
+    name: Assemble bibliography
+    description: |
+      Citations resolve via the Hayagriva biblio.yml that
+      tool_typst_compile auto-generates from workspace/citations.md.
 
   - id: audit
-    name: Final Audit
+    name: Audit
     description: |
-      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/grant.md"
-      Check: every Aim mentioned in Summary appears in Approach; every claim
-      has a citation; no banned phrases; word counts within limits.
+      tool_synthesis_check(file='synthesis/grant.typ') catches
+      section-coverage, cliches, and reference resolution issues.
+
+  - id: compile
+    name: Compile to PDF
+    description: |
+      tool_typst_compile(source='synthesis/grant.typ') renders
+      synthesis/grant.pdf.
+
+tools: |
+  - tool_synthesize_plan — what's ready
+  - tool_synthesis_scaffold(kind='paper') — structural base
+  - tool_synthesis_check — substantiveness + structure + cliche audit
+  - tool_research_method — funder-relevant literature sweep
+  - tool_typst_compile — render synthesis/grant.pdf
 
 expected_outputs:
-  - synthesis/grant.md
-  - synthesis/grant_references.bib
+  - synthesis/grant.typ
+  - synthesis/grant.pdf
+  - synthesis/biblio.yml
 
 next_protocol: null
 next_protocol_kind: terminal

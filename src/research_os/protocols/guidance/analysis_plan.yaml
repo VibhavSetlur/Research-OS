@@ -420,7 +420,7 @@ steps:
           (plain-English; 2-3 short paragraphs for non-expert
           audiences). An AI-authored script writes both when you pass
           `caption` + `plain_english`. Otherwise
-          tool_figure(operation='caption_synthesise') auto-drafts the summary from
+          authoring the <stem>.summary.md sidecar directly auto-drafts the summary from
           the caption + the step's Findings.
 
         - Set RNG seeds explicitly; print library versions to stderr.

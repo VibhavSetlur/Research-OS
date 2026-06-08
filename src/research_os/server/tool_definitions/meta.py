@@ -388,18 +388,18 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_synthesis_curate_figures": {
-        "short": "Curate per-step focal figures into synthesis/figures/ with ordered names. Use before tool_dashboard / tool_synthesize.",
+        "short": "Curate per-step focal figures into synthesis/figures/ with ordered names. Use before authoring paper.typ/dashboard.",
         "description": (
             "Collect each step's focal figure into synthesis/figures/ with "
             "stable, ordered names (fig01_<slug>.png, fig02_<slug>.png, …) "
-            "so the dashboard + paper can embed them deterministically. "
-            "Copies the figure's existing .caption.md sidecar if present, "
-            "or seeds a placeholder explaining how to write one. Returns the "
-            "list of curated figures plus any step that produced no figures "
-            "(to flag in the audit) and any figure missing a caption. Run "
-            "BEFORE tool_dashboard / tool_synthesize so the deliverables "
-            "use a single canonical figure set rather than scanning the "
-            "workspace anew each time."
+            "so the AI-authored synthesis files (paper.typ, dashboard.html, "
+            "slides.typ) can embed them deterministically. Copies the figure's "
+            "existing .caption.md sidecar if present, or seeds a placeholder "
+            "explaining how to write one. Returns the list of curated figures "
+            "plus any step that produced no figures (to flag in the audit) "
+            "and any figure missing a caption. Run BEFORE authoring the "
+            "synthesis file so the embedded image paths are stable across "
+            "rebuilds."
         ),
         "category": "synthesis",
         "inputSchema": {"type": "object", "properties": {}},

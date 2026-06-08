@@ -1,15 +1,8 @@
-"""LaTeX paper compile + high-quality HTML dashboard generation.
+"""LaTeX paper compile (pdflatex × bibtex × pdflatex × pdflatex).
 
-Posters are rendered by ``synthesis/poster_typst.py`` (Typst engine).
-
-The dashboard is single-file (all CSS + JS embedded) so it opens directly
-without any server. Features:
-  * sortable tables (click any column header)
-  * lightbox-style image gallery (click any thumbnail)
-  * light/dark toggle (auto-detects prefers-color-scheme)
-  * print-friendly stylesheet
-  * semantic landmarks (header / main / aside / footer)
-  * audience-tailored layout (academic | executive | technical | teaching)
+Kept for journals that require .tex submission. For the modern
+authoring path the AI writes synthesis/paper.typ directly and compiles
+via tool_typst_compile.
 """
 
 from __future__ import annotations
@@ -23,23 +16,8 @@ from typing import Any
 logger = logging.getLogger("research_os.tools.synthesis.latex")
 
 
-def _project_name(root: Path) -> str:
-    try:
-        from research_os.project_ops import load_state
-
-        state = load_state(root)
-        return state.get("project_name") or "Research Project"
-    except Exception:
-        return "Research Project"
-
-
-# ---------------------------------------------------------------------------
-# LaTeX paper compile
-# ---------------------------------------------------------------------------
-
-
 def latex_compile(root: Path) -> dict[str, Any]:
-    """Compile ``synthesis/paper.tex`` to PDF (pdflatex × bibtex × pdflatex × pdflatex)."""
+    """Compile ``synthesis/paper.tex`` to PDF."""
     tex_path = root / "synthesis" / "paper.tex"
     if not tex_path.exists():
         return {"status": "error", "message": "synthesis/paper.tex not found", "success": False}
@@ -86,26 +64,3 @@ def latex_compile(root: Path) -> dict[str, Any]:
         "success": success and pdf.exists(),
         "log": "\n".join(log_lines[-3:]),
     }
-
-
-# ---------------------------------------------------------------------------
-# Dashboard — thin compatibility wrapper.
-#
-# The real renderer lives at research_os.tools.actions.synthesis.dashboard
-# (project-agnostic, audience-driven, traceability matrix, plain-English
-# captions, evidence panel). This wrapper exists only so legacy callers
-# that import from the LaTeX module keep working.
-# ---------------------------------------------------------------------------
-
-
-def create_dashboard(
-    root: Path, title: str | None = None, audience: str = "academic",
-    suppress_audit_panel: bool = False,
-) -> dict[str, Any]:
-    """Delegate to the canonical dashboard renderer."""
-    from research_os.tools.actions.synthesis.dashboard import render_dashboard
-
-    return render_dashboard(
-        root, title=title, audience=audience,
-        suppress_audit_panel=suppress_audit_panel,
-    )

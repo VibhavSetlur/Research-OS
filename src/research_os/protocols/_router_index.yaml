@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 20
+version: 21
 generated_at: '2026-06-06'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -982,23 +982,23 @@ protocols:
   synthesis/synthesis_paper:
     intent_class: synthesize
     sub_intent: paper
-    summary: "Write IMRAD paper with verified citations + numbered figures."
+    summary: "AI authors IMRAD paper.typ; tool_typst_compile renders PDF."
     triggers: ["write the paper", "draft the paper", "write a manuscript",
               "the manuscript", "imrad", "for a journal", "for the journal"]
-    shortcut_tool: tool_synthesize
+    shortcut_tool: tool_synthesize_plan
     decomposition:
       - tool: tool_synthesize_plan
-      - tool: tool_audit_synthesis
-      - tool: tool_audit_citations
-      - tool: tool_synthesize
-        args: {output_type: paper}
-      - tool: tool_paper_compile_typst
-        purpose: "Compile the markdown draft to PDF (conditional on writing_preferences.pdf_compile_engine == typst)."
+      - tool: tool_synthesis_scaffold
+        args: {kind: paper}
+      - tool: tool_synthesis_check
+        args: {file: synthesis/paper.typ}
+      - tool: tool_typst_compile
+        args: {source: synthesis/paper.typ}
 
   synthesis/humanities_essay_structure:
     intent_class: synthesize
     sub_intent: humanities_essay
-    summary: "Scaffold + draft a non-IMRAD humanities essay (thesis → contextual framing → close readings → critical conversation → counter-argument → stakes). Pairs with humanities_essay.typ for the venue layer."
+    summary: "AI authors a non-IMRAD essay.typ (thesis → context → close readings → critical conversation → counter-argument → stakes). Compiles via humanities_essay.typ template."
     triggers:
       - "humanities essay"
       - "close-reading essay"
@@ -1006,56 +1006,57 @@ protocols:
       - "literary criticism essay"
       - "write the essay"
       - "essay structure"
-    shortcut_tool: tool_humanities_essay_scaffold
+    shortcut_tool: tool_synthesis_scaffold
     token_estimate: 1800
     decomposition:
-      - tool: tool_humanities_essay_scaffold
-        purpose: "Write synthesis/paper.md with the six interpretive section headings + stubs."
+      - tool: tool_synthesis_scaffold
+        args: {kind: essay}
+        purpose: "Write synthesis/essay.typ with the six interpretive sections + AI markers."
       - tool: tool_synthesize_plan
-        purpose: "Inspect available sources + recommend section ordering."
-      - tool: tool_synthesize
-        args: {output_type: paper}
-        purpose: "Fill in the section bodies under the scaffolded shell."
-      - tool: tool_paper_compile_typst
-        args: {venue: humanities_essay}
-        purpose: "Render paper.md → paper.typ → paper.pdf with the bundled humanities-essay venue template."
+        purpose: "Inspect available sources for the critical conversation + close readings."
+      - tool: tool_synthesis_check
+        args: {file: synthesis/essay.typ}
+        purpose: "Audit substantiveness + cliches once the AI fills in the sections."
+      - tool: tool_typst_compile
+        args: {source: synthesis/essay.typ}
+        purpose: "Render essay.typ → essay.pdf with the humanities_essay venue template."
 
   synthesis/synthesis_abstract:
     intent_class: synthesize
     sub_intent: abstract
-    summary: "Structured / unstructured abstract from finished workspace."
+    summary: "AI authors a standalone abstract from the finished workspace."
     triggers: ["write abstract", "draft abstract", "tldr", "structured abstract"]
-    shortcut_tool: tool_synthesize
+    shortcut_tool: tool_synthesize_plan
 
   synthesis/synthesis_poster:
     intent_class: synthesize
     sub_intent: poster
-    summary: "Typst poster (academic_36x48 default). Redirects to synthesis/printable(format=poster)."
+    summary: "AI authors poster.typ; tool_typst_compile renders PDF. Redirects to synthesis/printable(format=poster)."
     triggers: ["make a poster", "make me a poster", "build me a poster",
                "create a poster", "build a poster", "conference poster",
                "academic poster", "poster", "i need a poster"]
-    shortcut_tool: tool_poster_create
+    shortcut_tool: tool_synthesis_scaffold
 
   synthesis/synthesis_dashboard:
     intent_class: synthesize
     sub_intent: dashboard
-    summary: "Standalone offline HTML dashboard."
+    summary: "AI authors single-file offline dashboard.html."
     triggers: ["dashboard", "executive summary", "html report", "lab meeting"]
-    shortcut_tool: tool_dashboard
+    shortcut_tool: tool_synthesis_scaffold
 
   synthesis/synthesis_grant:
     intent_class: synthesize
     sub_intent: grant
-    summary: "Grant narrative (R01 / NSF / Wellcome / etc.)."
+    summary: "AI authors grant.typ (R01 / NSF / Wellcome / etc.)."
     triggers: ["grant", "r01", "nsf proposal", "wellcome", "specific aims"]
-    shortcut_tool: tool_synthesize
+    shortcut_tool: tool_synthesize_plan
 
   synthesis/synthesis_report:
     intent_class: synthesize
     sub_intent: report
-    summary: "Technical / executive report."
+    summary: "AI authors a technical / executive report."
     triggers: ["technical report", "internal report", "stakeholder report"]
-    shortcut_tool: tool_synthesize
+    shortcut_tool: tool_synthesize_plan
 
   synthesis/synthesis_null_findings:
     intent_class: synthesize
@@ -1274,10 +1275,13 @@ protocols:
     token_estimate: 2000
     decomposition:
       - protocol: synthesis/synthesis_slides
-        purpose: "Pick audience + outline + slides spec."
-      - tool: tool_synthesize
-        args: {output_type: slides}
-      - tool: tool_audit_synthesis
+        purpose: "Pick audience + outline + design principles."
+      - tool: tool_synthesis_scaffold
+        args: {kind: slides}
+      - tool: tool_synthesis_check
+        args: {file: synthesis/slides.typ}
+      - tool: tool_typst_compile
+        args: {source: synthesis/slides.typ}
 
   synthesis/synthesis_lay_summary:
     intent_class: synthesize
@@ -1305,8 +1309,8 @@ protocols:
     decomposition:
       - protocol: synthesis/synthesis_lay_summary
         purpose: "Pick lay audience + translate jargon + anchor numbers."
-      - tool: tool_synthesize
-        args: {output_type: lay_summary}
+      - tool: tool_synthesis_check
+        args: {file: synthesis/lay_summary.md}
 
   synthesis/synthesis_progress_update:
     intent_class: synthesize

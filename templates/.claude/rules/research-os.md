@@ -38,11 +38,12 @@ Never write to `inputs/raw_data/` or `inputs/literature/` (immutable).
 All workspace I/O goes through MCP tools.
 
 When the researcher EXPLICITLY authorises a quality-gate bypass,
-pass `override_completeness_gate=true` plus `override_rationale=…` to
-`tool_synthesize` / `tool_dashboard_create` (or `override_gate=true` +
-`override_rationale=…` to `tool_plan_advance`). The override is appended
-to `workspace/logs/override_log.md`; the pre-submission audit resurfaces
-every bypass.
+pass the relevant per-audit override (e.g.
+`override_discussion_coverage=true` + `override_rationale=…` on
+`tool_discussion_coverage_audit`, or `override_gate=true` +
+`override_rationale=…` on `tool_plan_advance`). The override is
+appended to `workspace/logs/override_log.md`; the pre-submission audit
+resurfaces every bypass.
 
 For DELIBERATE iteration of a step (recolour figure, tighten cutoff,
 swap a model) call `tool_step_iterate(step_id, rationale=…)` BEFORE

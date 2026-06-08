@@ -68,11 +68,11 @@ steps:
   - id: draft_each_section
     name: Draft Each Audience Section
     description: |
-      For each section in audience.sections:
-        tool_synthesize section="<name>" output_type="report"
-      Apply tone (informal_technical / formal_concise / structured_formal /
-      policy_concise). For technical_audit, each Finding entry MUST include
-      severity + remediation.
+      For each section in audience.sections, author the prose directly
+      into `synthesis/report.md` (or `synthesis/report.typ` for a
+      print-ready PDF). Apply tone (informal_technical / formal_concise
+      / structured_formal / policy_concise). For technical_audit, each
+      Finding entry MUST include severity + remediation.
 
   - id: draft_recommendations
     name: Draft Recommendations (evidence-linked)
@@ -83,14 +83,13 @@ steps:
       No vague "explore further" without evidence backing.
 
   - id: assemble
-    name: Assemble + Audit
+    name: Audit + Compile
     description: |
-      tool_synthesize output_type="report" output_format=markdown
-      Writes synthesis/report.md + synthesis/report_references.bib.
-
-      tool_audit(scope='synthesis', dimension='all') paper_path="synthesis/report.md"
-      Check banned phrases, missing sections, ungrounded claims.
-      tool_citations_verify
+      tool_synthesis_check(file='synthesis/report.md') — checks
+      substantiveness, cliches, section coverage.
+      tool_citations_verify — every citation resolves.
+      tool_typst_compile(source='synthesis/report.typ') when a PDF is
+      needed (otherwise the markdown is the deliverable).
 
 expected_outputs:
   - synthesis/report.md

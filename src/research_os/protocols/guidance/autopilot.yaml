@@ -27,7 +27,7 @@ steps:
     description: |
       ONE sentence to the researcher: "Autopilot until <end-condition>.
       I'll page you if: <gates>." End-conditions can be:
-        - "synthesis/paper.md exists and passes audit_synthesis"
+        - "synthesis/paper.typ exists and passes tool_synthesis_check"
         - "N planned experiment steps are completed"
         - "all active hypotheses reach status != testing"
         - "I hit a configured gate (see below)"
@@ -36,22 +36,18 @@ steps:
     name: Mandatory Confirmation Gates
     description: |
       Autopilot DOES stop and ask before:
-        1. tool_synthesize for the final deliverable (paper / grant / report).
-           If tool_audit(scope='step', dimension='completeness') has BLOCKERS, autopilot HALTS
-           before even asking — the gate is server-enforced and refuses
-           the call until fixed.
-        2. tool_dashboard(operation='create') / tool_poster_create for
-           the FINAL deliverable (mid-flight progress dashboards bypass
-           the ask, but flag any open completeness blockers).
-        3. tool_audit(scope='step', dimension='reproducibility') (slow + expensive).
-        4. Any tool_research_tool candidate tagged paid_or_licensed.
-        5. sys_path (dead-end declarations are reversible but loud).
-        6. Any sys_file_write to synthesis/ with force=true.
-        7. tool_package_install for a package not already in
+        1. tool_typst_compile for the final deliverable (paper / slides
+           / poster / grant / report PDF). The compile is the moment the
+           artefact becomes shareable.
+        2. tool_audit(scope='step', dimension='reproducibility') (slow + expensive).
+        3. Any tool_research_tool candidate tagged paid_or_licensed.
+        4. sys_path (dead-end declarations are reversible but loud).
+        5. Any sys_file_write to synthesis/ with force=true.
+        6. tool_package_install for a package not already in
            environment/requirements.txt.
-        8. Any tool_task(operation='run') with an estimated cost > 1 GPU-hour OR > 10 GB
+        7. Any tool_task(operation='run') with an estimated cost > 1 GPU-hour OR > 10 GB
            of memory OR > 50 GB of disk I/O.
-        9. sys_checkpoint_rollback (workspace mutation; reversible only by
+        8. sys_checkpoint_rollback (workspace mutation; reversible only by
            re-rolling back to a different checkpoint).
       For each gate, sys_notify level="action_required" and wait one turn.
 
@@ -104,12 +100,12 @@ steps:
   - id: final_deliverable_gate
     name: Final Deliverable Gate
     description: |
-      Before tool_synthesize for the named deliverable:
-        - tool_audit(scope='synthesis', dimension='all') (dry-run on what's queued)
-        - tool_audit(scope='project', dimension='citations')
-        - Present the proposed section order + figure count + citation
-          count to the researcher
-      Wait for approval. Only after explicit "go" does the synthesis run.
+      Before tool_typst_compile for the named deliverable:
+        - tool_synthesis_check(file='synthesis/<artefact>.typ') passes
+        - tool_audit(scope='project', dimension='citations') passes
+        - tool_synthesis_preview shows the predicted shape (word count,
+          page count, figure count, citation count) to the researcher
+      Wait for approval. Only after explicit "go" does the compile run.
 
 expected_outputs:
   - workspace/logs/autopilot_errors.log (only on failures)

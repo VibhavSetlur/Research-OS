@@ -64,7 +64,6 @@ from .registry import TOOL_DEFINITIONS, _HANDLERS  # noqa: F401
 # ── Helpers shared by handlers (re-exported for tests) ────────────────
 from ._helpers import (  # noqa: F401
     _AUDIT_DISPATCH,
-    _DASHBOARD_DISPATCH,
     _STEP_DISPATCH,
     _STEP_PIPELINE_DISPATCH,
     _build_tier_progress,

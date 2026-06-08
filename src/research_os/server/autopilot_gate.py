@@ -1,21 +1,21 @@
 """Server-side enforcement of autopilot floor gates.
 
-The ``guidance/autopilot.yaml`` protocol lists 8 mandatory confirmation
-gates that must stop and ask the researcher before they execute, even
-when the AI is otherwise hands-off. Before this module, those gates were
-prose only — an AI could legally skip them. Now the dispatcher refuses
-the call unless ``arguments['confirmed'] == True``.
+The ``guidance/autopilot.yaml`` protocol lists the mandatory
+confirmation gates that must stop and ask the researcher before they
+execute, even when the AI is otherwise hands-off. Before this module,
+those gates were prose only — an AI could legally skip them. Now the
+dispatcher refuses the call unless ``arguments['confirmed'] == True``.
 
 The gates intercepted here:
 
-  1. ``tool_synthesize`` (existing handler-side guard remains)
-  2. ``tool_dashboard(operation='create')`` for final deliverable
-  3. ``tool_audit(scope='step', dimension='reproducibility')``
-  4. ``tool_research_tool`` (paid candidates)
-  5. ``sys_path(operation='abandon')`` — irreversible-ish path closure
-  6. ``sys_file_write`` targeting ``synthesis/`` with ``force=true``
-  7. ``tool_package_install``
-  8. ``sys_checkpoint_rollback``
+  1. ``tool_typst_compile`` (final-deliverable PDF compile)
+  2. ``tool_audit(scope='step', dimension='reproducibility')``
+  3. ``tool_research_tool`` (paid candidates)
+  4. ``sys_path(operation='abandon')`` — irreversible-ish path closure
+  5. ``sys_file_write`` targeting ``synthesis/`` with ``force=true``
+  6. ``tool_package_install``
+  7. ``sys_checkpoint_rollback``
+  8. ``tool_task(operation='run')`` — long-running background jobs
 
 Only triggered when ``interaction.autonomy_level == 'autopilot'``;
 ``supervised`` / ``manual`` / ``coaching`` are untouched (their flows
@@ -97,14 +97,9 @@ def _requires_confirmation(tool_name: str, arguments: dict) -> bool:
         if args.get("paid") is True:
             return True
         return False
-    if tool_name == "tool_synthesize":
-        # tool_synthesize already enforces autopilot synthesis gates
-        # inside its handler (auto_proceed flow). Keep the dispatcher
-        # check defensive: require confirmed=true for final deliverable.
+    if tool_name == "tool_typst_compile":
+        # Final-deliverable PDF compile — gate every call.
         return True
-    if tool_name == "tool_dashboard":
-        # Final-deliverable dashboard create — gate operation='create'.
-        return (args.get("operation") or "") == "create"
     if tool_name == "tool_audit":
         # Reproducibility audits are slow + expensive.
         scope = str(args.get("scope") or "")

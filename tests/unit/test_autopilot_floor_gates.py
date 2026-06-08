@@ -38,24 +38,22 @@ def _set_autonomy(root: Path, level: str) -> None:
     )
 
 
-# The 8 floor gates from guidance/autopilot.yaml step `mandatory_gates`.
+# The floor gates from guidance/autopilot.yaml step `mandatory_gates`.
 # Each row: (tool_name, arguments_dict).
 FLOOR_GATES: list[tuple[str, dict]] = [
-    # 1. final-deliverable synthesis
-    ("tool_synthesize", {}),
-    # 2. final-deliverable dashboard
-    ("tool_dashboard", {"operation": "create"}),
-    # 3. reproducibility audit
+    # 1. final-deliverable PDF compile
+    ("tool_typst_compile", {}),
+    # 2. reproducibility audit
     ("tool_audit", {"scope": "step", "dimension": "reproducibility"}),
-    # 4. paid research-tool candidate
+    # 3. paid research-tool candidate
     ("tool_research_tool", {"task": "lit review", "source": "paid"}),
-    # 5. sys_path abandon
+    # 4. sys_path abandon
     ("sys_path", {"operation": "abandon", "path_name": "p", "rationale": "x"}),
-    # 6. sys_file_write to synthesis/ with force=true
-    ("sys_file_write", {"filepath": "synthesis/paper.md", "content": "x", "force": True}),
-    # 7. package install
+    # 5. sys_file_write to synthesis/ with force=true
+    ("sys_file_write", {"filepath": "synthesis/paper.typ", "content": "x", "force": True}),
+    # 6. package install
     ("tool_package_install", {"packages": ["numpy"]}),
-    # 8. expensive task (operation='run')  +  sys_checkpoint_rollback
+    # 7. expensive task (operation='run')  +  sys_checkpoint_rollback
     ("tool_task", {"operation": "run", "command": "ls"}),
     ("sys_checkpoint_rollback", {"checkpoint_id": "ckpt-1"}),
 ]
@@ -171,11 +169,7 @@ def test_unit_requires_confirmation_truth_table():
     assert not _requires_confirmation(
         "tool_audit", {"scope": "step", "dimension": "completeness"}
     )
-    assert _requires_confirmation("tool_dashboard", {"operation": "create"})
-    assert not _requires_confirmation(
-        "tool_dashboard", {"operation": "test_run"}
-    )
-    assert _requires_confirmation("tool_synthesize", {})
+    assert _requires_confirmation("tool_typst_compile", {})
     # Unknown tool — never gated.
     assert not _requires_confirmation("sys_unknown_tool", {})
 
@@ -190,7 +184,7 @@ def test_dispatcher_returns_gate_envelope_for_sys_file_write(tmp_path):
     _set_autonomy(tmp_path, "autopilot")
     res = _handle_tool_call(
         "sys_file_write",
-        {"filepath": "synthesis/paper.md", "content": "x", "force": True},
+        {"filepath": "synthesis/paper.typ", "content": "x", "force": True},
         tmp_path,
     )
     payload = json.loads(res[0].text)

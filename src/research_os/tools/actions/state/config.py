@@ -192,15 +192,17 @@ writing_preferences:
   #                           computing.
   citation_style: "apa"
   language: "en-US"
-  # Typst venue template for tool_paper_compile_typst. One of:
+  # Typst venue template the AI imports when authoring synthesis/paper.typ.
+  # One of:
   #   nature | science | nejm | cell | ieee_conf | neurips | acl
   #   plos  | generic_two_column | generic_thesis
   #   humanities_essay      → single-column, footnote-friendly, MLA/Chicago.
   #   chicago_thesis        → Chicago notes+bibliography thesis layout.
   venue_template: "generic_two_column"
-  # PDF engine for the synthesis pipeline. "typst" is the recommended
-  # default (fast, single-binary install, modern type-safe macros).
-  # Use "latex" when a journal requires .tex submission.
+  # PDF engine. "typst" is the recommended default (fast, single-binary,
+  # modern type-safe macros). Use "latex" when a journal requires .tex
+  # submission — author synthesis/paper.tex by hand and call
+  # tool_latex_compile.
   pdf_compile_engine: "typst"    # typst | latex | both
 
 # ── AI client knobs (paired with model_profile above) ──────────────────
@@ -232,73 +234,13 @@ runtime:
   shared_server: false           # set true on HPC / shared boxes
   long_running_threshold_seconds: 60
 
-# ── Synthesis pipeline ─────────────────────────────────────────────────
-# Controls how tool_synthesize / tool_slides_compile_reveal /
-# tool_poster_compile_typst assemble the final artefacts. Defaults are
-# safe: figures auto-embed into their owning step's section, slides
-# render with reveal.js + a 15-minute conference template, posters
-# render with Typst at 36x48 (academic).
-synthesis:
-  # Figures: auto-embed step output figures into their owning section
-  # of the paper body during tool_synthesize. Off = caller hand-places.
-  figures_auto_embed: true
-  # How auto-embed places figures.
-  #   append_to_section → drop at end of the step's owning section
-  #   inline_at_xref    → place at the first ![fig:id] reference site
-  #   end_of_results    → cluster all figures at end of Results
-  figures_auto_embed_mode: "append_to_section"
-  # Rewrite bare [fig:id] tokens in step conclusions to ![…](…) refs
-  # that resolve against the embedded figure registry.
-  figure_xref_rewrite: true
-
-  # Slide deck (tool_slides_compile_reveal).
-  #   reveal   → reveal.js HTML deck (default; works in any browser)
-  #   marp     → Marp markdown → PDF/HTML
-  #   beamer   → LaTeX Beamer (when a venue requires .tex)
-  slide_engine: "reveal"
-  # Slide template (matches deck length + section shape).
-  #   conference_15min | conference_30min | lab_meeting | thesis_defense
-  slide_template: "conference_15min"
-  # Visual theme; "" → reveal default. Examples: black, white, league,
-  # beige, sky, night, serif, simple, solarized.
-  slide_theme: ""
-  # Generate speaker-notes panel from step conclusions.
-  slide_speaker_notes_enabled: true
-  # Also emit a 1-up print handout PDF alongside the deck.
-  slide_print_handout: true
-
-  # Poster (tool_poster_create). Typst is the only supported engine in
-  # v2.0.0+ — the legacy tikzposter LaTeX renderer was removed in v2.0.0
-  # (phase-14b). The field is retained so existing configs keep
-  # validating; it is enforced to "typst".
-  poster_engine: "typst"
-  # Poster template (matches dimensions + density).
-  #   academic_36x48 | academic_48x36 | academic_a0_portrait
-  #   | academic_a1_landscape | public_24x36
-  poster_template: "academic_36x48"
-  # Visual theme. light | dark | institution_branded
-  poster_theme: "light"
-  # Optional QR URL printed bottom-right (project page / preprint).
-  poster_qr_url: ""
-  # Emit a US-letter handout PDF alongside the poster.
-  poster_handout_pdf: true
-
-  # ── Phase-5 review-rewrite drafter loop ───────────────────────────
-  # tool_paper_compile_typst / tool_slides_create / tool_poster_create
-  # run a closed-loop "draft → adversarial review → rewrite" pass when
-  # this is enabled. The reviewer is a fixed subset of the bundled
-  # reviewer personas (no LLM is called from inside RO). Findings are
-  # persisted under workspace/logs/drafter_loops/ with one
-  # <drafter>_iter_<N>.md + .json per iteration AND a cumulative
-  # workspace/logs/drafter_loops/quality_progression.md table.
-  drafter_loop_enabled: true
-  # Hard ceiling on iterations. project_tier=throwaway clamps to 1
-  # regardless of this value. Paper uses the full ceiling; slides /
-  # poster default to min(2, this value) unless overridden below.
-  drafter_loop_max_iterations: 3
-  # Composite-quality-score delta required to keep iterating once no
-  # block-severity findings remain. Below this, the loop converges.
-  drafter_loop_quality_threshold: 0.10
+# ── Synthesis ──────────────────────────────────────────────────────────
+# No knobs. The AI authors synthesis files directly (paper.typ,
+# slides.typ, poster.typ, essay.typ, dashboard.html). The tools that
+# support that workflow are configuration-free:
+# tool_synthesize_plan inspects what's ready, tool_synthesis_scaffold
+# seeds a tiny starter, tool_synthesis_check validates the AI's draft,
+# tool_typst_compile renders the PDF.
 
 # ── API keys (optional; public endpoints work without keys) ─────────────
 # NO LLM PROVIDER KEYS HERE — Research OS does not call any model.
@@ -812,42 +754,15 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
         # Mathematical sciences
         "amsplain", "siam",
     ),
-    # ── Synthesis pipeline ────────────────────────────────────────────
-    "synthesis.figures_auto_embed_mode": (
-        "append_to_section", "inline_at_xref", "end_of_results",
-    ),
-    "synthesis.slide_engine": ("reveal", "marp", "beamer"),
-    "synthesis.slide_template": (
-        "conference_15min", "conference_30min", "lab_meeting", "thesis_defense",
-    ),
-    # tikzposter LaTeX renderer was removed; only "typst" is accepted.
-    # The field is retained so existing configs keep validating.
-    "synthesis.poster_engine": ("typst",),
-    "synthesis.poster_template": (
-        "academic_36x48", "academic_48x36",
-        "academic_a0_portrait", "academic_a1_landscape",
-        "public_24x36",
-    ),
-    "synthesis.poster_theme": ("light", "dark", "institution_branded"),
+    # Synthesis knobs intentionally absent — the AI authors synthesis
+    # files directly, so there's nothing to validate.
 }
 
-# Fields whose template default is bool. validate_config flags non-bool
-# values so a typo (e.g. ``figures_auto_embed: "yes"``) is surfaced.
-_BOOL_FIELDS: tuple[str, ...] = (
-    "synthesis.figures_auto_embed",
-    "synthesis.figure_xref_rewrite",
-    "synthesis.slide_speaker_notes_enabled",
-    "synthesis.slide_print_handout",
-    "synthesis.poster_handout_pdf",
-    "synthesis.drafter_loop_enabled",
-)
+# No bool fields today. Retained for future use.
+_BOOL_FIELDS: tuple[str, ...] = ()
 
-# Numeric synthesis-tier fields. (name, kind, min, max).
-# Kind: "int" or "float".
-_NUMERIC_FIELDS: tuple[tuple[str, str, float, float], ...] = (
-    ("synthesis.drafter_loop_max_iterations", "int", 1, 10),
-    ("synthesis.drafter_loop_quality_threshold", "float", 0.0, 1.0),
-)
+# No numeric synthesis-tier fields today.
+_NUMERIC_FIELDS: tuple[tuple[str, str, float, float], ...] = ()
 
 
 def _dotted_get(cfg: dict[str, Any], path: str) -> Any:
