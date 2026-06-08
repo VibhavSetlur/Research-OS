@@ -248,9 +248,9 @@ steps:
     description: |
       Read workspace/logs/override_log.md (call sys_file_read).
       Each entry is one moment the researcher authorised the AI
-      to bypass a quality gate (override_completeness_gate=true
-      on tool_synthesize / tool_dashboard(operation='create'), or
-      override_gate=true on tool_plan). Per entry,
+      to bypass a quality gate (override_discussion_coverage=true on
+      tool_discussion_coverage_audit, or override_gate=true on
+      tool_plan). Per entry,
       confirm with the researcher:
 
         - was the bypass still warranted at submission time?

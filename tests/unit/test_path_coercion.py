@@ -162,8 +162,8 @@ def test_audit_step_completeness_accepts_str_root(str_root):
 
 def test_audit_quality_full_accepts_str_root(str_root):
     """``audit_quality_full`` is the master aggregator called by
-    tool_synthesize as a gate — must accept str root without crashing
-    on path arithmetic."""
+    tool_synthesis_check — must accept str root without crashing on
+    path arithmetic."""
     res = audit_quality_full(str_root, skip=["claims", "code_quality", "prose_quality"])
     # Master aggregator returns its unified verdict envelope; the
     # specific status depends on what sub-audits found, but a

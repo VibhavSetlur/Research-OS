@@ -88,23 +88,23 @@ def test_subpackage_imports():
         validate_md_template,
     )
 
-    # synthesis/
-    # NOTE: ``create_poster`` (the tikzposter LaTeX renderer) was
-    # removed in v2.0.0 (phase-14b). Poster compilation now lives
-    # exclusively in ``synthesis/poster_typst.py:compile_poster``.
+    # synthesis/ — AI-direct authoring surface.
     from research_os.tools.actions.synthesis import (  # noqa: F401
         cap_for,
         collect_for_section,
-        create_dashboard,
         format_apa,
         format_bib,
         format_vancouver,
-        latex_compile,
+        synthesis_check,
+        synthesis_scaffold,
         synthesize_plan,
-        synthesize_workspace,
+        typst_compile,
         verify_all_in_workspace,
         verify_citation_key,
         write_references_bib,
+    )
+    from research_os.tools.actions.synthesis.latex import (  # noqa: F401
+        latex_compile,
     )
 
     # memory/

@@ -134,8 +134,7 @@ def _handle_sys_help(name, arguments, root):
                 "warn_only": "gate blockers become warnings (sandbox use only).",
             },
             "how_to_bypass": [
-                "tool_synthesize(override_completeness_gate=true, override_rationale='<why>')",
-                "tool_dashboard(operation='create', override_completeness_gate=true, override_rationale='<why>')",
+                "tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale='<why>')",
                 "tool_plan(operation='advance', override_gate=true, override_rationale='<why>')",
             ],
             "rules": [
@@ -378,19 +377,19 @@ def _handle_sys_help(name, arguments, root):
                     "Server-enforced — protocol prose alone can't bypass them."
                 ),
                 "list": [
-                    {"tool": "tool_synthesize",                              "bypass": "tool_synthesize(confirmed=true, ...)"},
-                    {"tool": "tool_dashboard(operation='create')",          "bypass": "tool_dashboard(operation='create', confirmed=true, ...)"},
+                    {"tool": "tool_typst_compile",                           "bypass": "tool_typst_compile(confirmed=true, ...)"},
                     {"tool": "tool_audit(scope='step', dimension='reproducibility')", "bypass": "tool_audit(scope='step', dimension='reproducibility', confirmed=true, ...)"},
                     {"tool": "tool_research_tool (paid candidates)",         "bypass": "tool_research_tool(confirmed=true, source='paid', ...)"},
                     {"tool": "sys_path(operation='abandon')",                "bypass": "sys_path(operation='abandon', confirmed=true, path_name='...', rationale='...')"},
                     {"tool": "sys_file_write (synthesis/ + force=true)",     "bypass": "sys_file_write(filepath='synthesis/...', force=true, confirmed=true, content='...')"},
                     {"tool": "tool_package_install",                         "bypass": "tool_package_install(confirmed=true, ...)"},
                     {"tool": "sys_checkpoint_rollback",                      "bypass": "sys_checkpoint_rollback(checkpoint_id='...', confirmed=true)"},
+                    {"tool": "tool_task(operation='run')",                   "bypass": "tool_task(operation='run', confirmed=true, ...)"},
                 ],
                 "note": (
-                    "The autopilot.yaml protocol lists 9 gates in prose but "
-                    "the SERVER enforces 8 (the final-deliverable gate is "
-                    "logical — collapsed into the tool_synthesize floor)."
+                    "The compile gate (tool_typst_compile) is the moment "
+                    "the artefact becomes shareable; confirming it is the "
+                    "researcher's final go/no-go on the deliverable."
                 ),
             },
             "quality_gate_overrides": {
@@ -400,10 +399,8 @@ def _handle_sys_help(name, arguments, root):
                     "rationale is mandatory under quality_gate_policy=enforce."
                 ),
                 "examples": [
-                    "tool_synthesize(override_completeness_gate=true, override_rationale='preview only — informal sketch')",
-                    "tool_dashboard(operation='create', override_completeness_gate=true, override_rationale='...')",
+                    "tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale='discussion is being rewritten')",
                     "tool_audit(scope='synthesis', dimension='all', override_no_pdfs=true, override_rationale='novel measurement, no literature exists')",
-                    "tool_audit(scope='synthesis', dimension='dashboard_content', override_dashboard_content_gate=true, override_rationale='...')",
                     "tool_audit(scope='project', dimension='cross_deliverable', override_cross_deliverable=true, override_rationale='...')",
                     "tool_step_complete(step_id='02_eda', override_literature_gate=true, override_rationale='pure data engineering, no claims')",
                 ],

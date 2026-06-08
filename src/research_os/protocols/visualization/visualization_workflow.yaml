@@ -158,7 +158,7 @@ steps:
         workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.png
         workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.svg
             (recommended — enables the SVG label-overlap audit)
-      DPI ≥ 300. Palette CVD-safe (call tool_figure(operation='palette') for hex codes).
+      DPI ≥ 300. Palette CVD-safe (call tool_figure_palette for hex codes).
 
       Record per-figure outputs in figure_plan.md under each entry's
       `outputs:` field so the next step + the synthesis stage can find
@@ -198,7 +198,7 @@ steps:
 
       Write both sidecars in the AI-authored script alongside the
       figure save call. If the .summary.md is missing,
-        tool_figure(operation='caption_synthesise', figure_path=<rel>)
+        authoring the <stem>.summary.md sidecar directly
       generates a competent draft from the existing caption + the
       step's conclusions; polish the draft in your voice.
 

@@ -68,14 +68,7 @@ _ALIASES = {
     "tool_audit_figure_quality": "tool_audit",
     "tool_audit_statistical_power": "tool_audit",
 
-    # ── dashboard cluster (7 → 1) ──────────────────────
-    "tool_dashboard_create":            "tool_dashboard",
-    "tool_dashboard_story_generate":    "tool_dashboard",
-    "tool_dashboard_story_edit":        "tool_dashboard",
-    "tool_dashboard_story_quality_bar": "tool_dashboard",
-    "tool_dashboard_reviewer_sim":      "tool_dashboard",
-    "tool_dashboard_test_generate":     "tool_dashboard",
-    "tool_dashboard_test_run":          "tool_dashboard",
+    # ── dashboard cluster removed; see _REMOVED_TOOLS ─────
 
     # ── step cluster (8 → 2) ──────────────────────────
     # tool_step_complete stays standalone (top-level end-of-step bundle).
@@ -96,8 +89,7 @@ _ALIASES = {
     # ── preregister cluster (2 → 1) ──────
     "tool_preregister_freeze":     "tool_preregister",
     "tool_preregister_diff":       "tool_preregister",
-    # ── reviewer cluster (4 → 1) ─────────
-    "tool_reviewer_simulate":          "tool_reviewer",
+    # ── reviewer cluster (3 → 1; simulate removed in v2.3.0) ─────
     "tool_response_to_reviewers":      "tool_reviewer",
     "tool_rebuttal_draft":             "tool_reviewer",
     "tool_reviewer_response_compile":  "tool_reviewer",
@@ -105,11 +97,11 @@ _ALIASES = {
     "tool_data_sample":                "tool_data",
     "tool_data_profile":               "tool_data",
     "tool_data_convert":               "tool_data",
-    # ── figure cluster (4 → 1) ───────────
-    "tool_figure_palette":             "tool_figure",
-    "tool_figure_caption_synthesise":  "tool_figure",
-    "tool_figure_interactive_autogen": "tool_figure",
-    "tool_paper_figures_autoembed":    "tool_figure",
+    # ── figure cluster ──
+    # v2.3.0: tool_figure dispatcher + caption_synthesise +
+    # interactive_autogen + paper_autoembed removed (AI authors
+    # figure summaries / interactive companions / embedding directly).
+    # tool_figure_palette is now a top-level tool (no alias needed).
     # ── thought cluster (2 → 1) ──────────
     "tool_thought_log":                "tool_thought",
     "tool_thought_trace":              "tool_thought",
@@ -182,14 +174,7 @@ _DEPRECATED_ALIASES = {
     # tool_audit_figure_full / tool_audit_power respectively.
     "tool_audit_figure_quality",
     "tool_audit_statistical_power",
-    # ── dashboard cluster (7 → 1) ──────────────────────
-    "tool_dashboard_create",
-    "tool_dashboard_story_generate",
-    "tool_dashboard_story_edit",
-    "tool_dashboard_story_quality_bar",
-    "tool_dashboard_reviewer_sim",
-    "tool_dashboard_test_generate",
-    "tool_dashboard_test_run",
+    # ── dashboard cluster removed in v2.3.0 (AI authors HTML directly) ──
     # ── step cluster (8 → 2) ──────────────────────────
     "tool_step_iterate",
     "tool_step_iterations_list",
@@ -205,8 +190,7 @@ _DEPRECATED_ALIASES = {
     # ── preregister cluster (2 → 1) ──────
     "tool_preregister_freeze",
     "tool_preregister_diff",
-    # ── reviewer cluster (4 → 1) ─────────
-    "tool_reviewer_simulate",
+    # ── reviewer cluster (3 → 1; simulate removed in v2.3.0) ──
     "tool_response_to_reviewers",
     "tool_rebuttal_draft",
     "tool_reviewer_response_compile",
@@ -214,11 +198,8 @@ _DEPRECATED_ALIASES = {
     "tool_data_sample",
     "tool_data_profile",
     "tool_data_convert",
-    # ── figure cluster (4 → 1) ───────────
-    "tool_figure_palette",
-    "tool_figure_caption_synthesise",
-    "tool_figure_interactive_autogen",
-    "tool_paper_figures_autoembed",
+    # ── figure cluster: dispatcher + ops removed in v2.3.0 ──
+    # tool_figure_palette is now top-level; no alias needed.
     # ── thought cluster (2 → 1) ──────────
     "tool_thought_log",
     "tool_thought_trace",
@@ -293,14 +274,7 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     # Legacy nickname aliases.
     "tool_audit_figure_quality":          (("scope", "step"), ("dimension", "figure_full")),
     "tool_audit_statistical_power":       (("scope", "step"), ("dimension", "power")),
-    # ── dashboard cluster (7 → 1) ──────────────────────
-    "tool_dashboard_create":              ("operation", "create"),
-    "tool_dashboard_story_generate":      ("operation", "story_generate"),
-    "tool_dashboard_story_edit":          ("operation", "story_edit"),
-    "tool_dashboard_story_quality_bar":   ("operation", "story_quality_bar"),
-    "tool_dashboard_reviewer_sim":        ("operation", "reviewer_sim"),
-    "tool_dashboard_test_generate":       ("operation", "test_generate"),
-    "tool_dashboard_test_run":            ("operation", "test_run"),
+    # ── dashboard cluster removed in v2.3.0 (see _REMOVED_TOOLS) ──
     # ── step cluster (8 → 2) ──────────────────────────
     "tool_step_iterate":                  ("operation", "iterate"),
     "tool_step_iterations_list":          ("operation", "iterations_list"),
@@ -316,8 +290,7 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     # ── preregister cluster (2 → 1) ──────
     "tool_preregister_freeze":            ("operation", "freeze"),
     "tool_preregister_diff":              ("operation", "diff"),
-    # ── reviewer cluster (4 → 1) ─────────
-    "tool_reviewer_simulate":             ("operation", "simulate"),
+    # ── reviewer cluster (3 → 1; simulate removed in v2.3.0) ──
     "tool_response_to_reviewers":         ("operation", "response"),
     "tool_rebuttal_draft":                ("operation", "rebuttal"),
     "tool_reviewer_response_compile":     ("operation", "compile"),
@@ -325,11 +298,7 @@ _ALIAS_PARAM_INJECTION: dict[str, Any] = {
     "tool_data_sample":                   ("operation", "sample"),
     "tool_data_profile":                  ("operation", "profile"),
     "tool_data_convert":                  ("operation", "convert"),
-    # ── figure cluster (4 → 1) ───────────
-    "tool_figure_palette":                ("operation", "palette"),
-    "tool_figure_caption_synthesise":     ("operation", "caption_synthesise"),
-    "tool_figure_interactive_autogen":    ("operation", "interactive_autogen"),
-    "tool_paper_figures_autoembed":       ("operation", "paper_autoembed"),
+    # ── figure cluster removed in v2.3.0 (see _REMOVED_TOOLS) ──
     # ── thought cluster (2 → 1) ──────────
     "tool_thought_log":                   ("operation", "log"),
     "tool_thought_trace":                 ("operation", "trace"),
@@ -476,5 +445,128 @@ _REMOVED_TOOLS = {
         "tool_poster_compile_latex was never a real tool name. The legacy "
         "tikzposter LaTeX poster path was removed in v2.0.0 (phase-14b). "
         "Call tool_poster_create() — Typst is the only supported renderer."
+    ),
+    # ── v2.3.0 removals: synthesis generators replaced by AI-direct authoring ──
+    # The 8-tool auto-generation surface produced rigid, low-quality output.
+    # In v2.3.0 the AI authors synthesis files directly (paper.typ,
+    # slides.typ, poster.typ, essay.typ, dashboard.html) following the
+    # matching synthesis protocol, then validates with tool_synthesis_check
+    # and compiles to PDF with tool_typst_compile.
+    "tool_synthesize": (
+        "tool_synthesize was removed in v2.3.0. Auto-generated papers were "
+        "low quality. Author synthesis/paper.typ directly, section by "
+        "section, following synthesis/synthesis_paper (sys_protocol_get "
+        "protocol_name='synthesis/synthesis_paper'). Use "
+        "tool_synthesize_plan to inspect available sources, "
+        "tool_synthesis_scaffold(kind='paper') for a skeleton, "
+        "tool_synthesis_check + tool_typst_compile to validate + render."
+    ),
+    "tool_dashboard": (
+        "tool_dashboard was removed in v2.3.0. The auto-generator produced "
+        "a 3MB monolithic HTML. Author synthesis/dashboard.html directly "
+        "(single-file, offline, accessible) following "
+        "synthesis/synthesis_dashboard. Use tool_synthesis_scaffold(kind="
+        "'dashboard') for a starter, tool_synthesis_check to validate."
+    ),
+    "tool_dashboard_create": (
+        "tool_dashboard_create was removed in v2.3.0. Author "
+        "synthesis/dashboard.html directly (single-file, offline, "
+        "accessible) following synthesis/synthesis_dashboard."
+    ),
+    "tool_dashboard_story_generate": (
+        "tool_dashboard_story_generate was removed in v2.3.0. Story-mode "
+        "dashboards are authored directly inside synthesis/dashboard.html "
+        "as a narrative-led layout. See synthesis/synthesis_dashboard for "
+        "design guidance."
+    ),
+    "tool_dashboard_story_edit": (
+        "tool_dashboard_story_edit was removed in v2.3.0. Edit "
+        "synthesis/dashboard.html directly with the Edit tool."
+    ),
+    "tool_dashboard_story_quality_bar": (
+        "tool_dashboard_story_quality_bar was removed in v2.3.0. Use "
+        "tool_synthesis_check(file='synthesis/dashboard.html') to audit "
+        "engineering invariants (offline, alt-text, semantic sections, "
+        "no placeholders)."
+    ),
+    "tool_dashboard_reviewer_sim": (
+        "tool_dashboard_reviewer_sim was removed in v2.3.0. Skim the "
+        "dashboard yourself or have an external reviewer do it; the AI's "
+        "internal sim added little signal beyond what the author already "
+        "knows."
+    ),
+    "tool_dashboard_test_generate": (
+        "tool_dashboard_test_generate was removed in v2.3.0. Playwright "
+        "scaffolds were tied to the auto-generator's HTML structure. "
+        "For AI-authored dashboards, write targeted tests by hand if "
+        "needed; tool_synthesis_check covers the structural invariants."
+    ),
+    "tool_dashboard_test_run": (
+        "tool_dashboard_test_run was removed in v2.3.0. Run Playwright "
+        "or any browser test runner directly."
+    ),
+    "tool_slides_create": (
+        "tool_slides_create was removed in v2.3.0. Author synthesis/slides.typ "
+        "(Touying) directly following synthesis/synthesis_slides. Use "
+        "tool_synthesis_scaffold(kind='slides') for a skeleton, then "
+        "tool_synthesis_check + tool_typst_compile to validate + render. "
+        "For Reveal.js HTML, author synthesis/slides.html directly."
+    ),
+    "tool_poster_create": (
+        "tool_poster_create was removed in v2.3.0. Author synthesis/poster.typ "
+        "directly following synthesis/synthesis_poster (or "
+        "synthesis/printable). Use tool_synthesis_scaffold(kind='poster') "
+        "for a skeleton, then tool_synthesis_check + tool_typst_compile "
+        "to validate + render."
+    ),
+    "tool_humanities_essay_scaffold": (
+        "tool_humanities_essay_scaffold was removed in v2.3.0. Author "
+        "synthesis/essay.typ directly following "
+        "synthesis/humanities_essay_structure. Use "
+        "tool_synthesis_scaffold(kind='essay') for a skeleton."
+    ),
+    "tool_paper_compile_typst": (
+        "tool_paper_compile_typst was removed in v2.3.0. Its job was "
+        "markdown→typst→pdf. In v2.3.0 the AI authors synthesis/paper.typ "
+        "directly; compile via tool_typst_compile (no markdown step)."
+    ),
+    "tool_section_substantiveness": (
+        "tool_section_substantiveness was folded into tool_synthesis_check "
+        "in v2.3.0. Call tool_synthesis_check(file='synthesis/paper.typ', "
+        "mode='substantiveness') instead — same per-IMRAD-section audits, "
+        "now also covering Typst headings."
+    ),
+    "tool_figure": (
+        "tool_figure was removed in v2.3.0. tool_figure_palette is now a "
+        "top-level tool (call it directly). The caption_synthesise, "
+        "interactive_autogen, and paper_autoembed operations were dropped: "
+        "the AI authors plain-English figure summaries, interactive "
+        "companions, and Typst #figure(...) blocks directly when writing "
+        "the plotting script or paper.typ."
+    ),
+    "tool_figure_caption_synthesise": (
+        "tool_figure_caption_synthesise was removed in v2.3.0. Author "
+        "the <stem>.summary.md plain-English sidecar directly when the "
+        "figure is created — see visualization/figure_guidelines."
+    ),
+    "tool_figure_interactive_autogen": (
+        "tool_figure_interactive_autogen was removed in v2.3.0. If a "
+        "figure benefits from interactivity (>200 points, network, large "
+        "heatmap), the plotting script should emit a Vega-Lite or "
+        "vis-network HTML companion next to the PNG — author that step "
+        "in the script, not as a separate tool."
+    ),
+    "tool_paper_figures_autoembed": (
+        "tool_paper_figures_autoembed was removed in v2.3.0. The AI now "
+        "embeds figures directly when authoring paper.typ via "
+        "`#figure(image(\"figures/figXX.png\"), caption: [...]) <fig:slug>` "
+        "— better placement than a regex pass over frontmatter."
+    ),
+    "tool_reviewer_simulate": (
+        "tool_reviewer_simulate was removed in v2.3.0. The persona briefs "
+        "were auto-generated boilerplate. To pre-review your paper, ask "
+        "the AI to walk through it with the personas listed in "
+        "synthesis/reviewer_response — direct reasoning beats canned "
+        "questionnaires."
     ),
 }

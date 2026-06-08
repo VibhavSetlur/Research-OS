@@ -30,14 +30,14 @@ steps:
         - code_quality — ruff + AST complexity + smells + docstrings;
         - prose_quality — hedging + vague quantifiers + passive +
           reading level + causal language + reporting-standard sections;
-        - claims — every number in synthesis/paper.md traces to a
+        - claims — every number in synthesis/paper.{typ,md} traces to a
           workspace output (catches AI hallucination);
         - preregistration_diff — deviations from the frozen SAP if any;
         - grounding_verify — every decision record in
           workspace/decisions/ resolves to a registered grounding source
           (catches ungrounded synthesis claims).
-      Writes workspace/logs/audit_master.md. tool_synthesize calls this
-      as its first gate.
+      Writes workspace/logs/audit_master.md. tool_synthesis_check
+      calls this as its first gate when validating a synthesis file.
 
       For per-step debugging, the components are also exposed
       individually: tool_audit(scope='step', dimension='completeness'), tool_audit(scope='step', dimension='code_quality'),

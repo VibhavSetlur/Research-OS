@@ -1,6 +1,6 @@
 # Tool Catalog
 
-**148 live MCP tools** across three namespaces (`sys_*` / `tool_*` /
+**144 live MCP tools** across three namespaces (`sys_*` / `tool_*` /
 `mem_*`). Every legacy v1.x name still dispatches via `_ALIASES` +
 `_ALIAS_PARAM_INJECTION` through the v2.0.x patch line. 78 deprecated
 aliases (dispatch-but-flag), 24 hard-removed names (return a friendly
@@ -20,8 +20,8 @@ Every tool definition carries two metadata fields:
 * `status` — `live` (visible in `list_tools`), `alias` (back-compat
   pointer), or `deprecated` (callable, telemetry to
   `.os_state/deprecations.log`). `list_tools` returns `status='live'`
-  only (148 / 148).
-* `pack` — `core` (123 tools) or one of `humanities`, `qualitative`,
+  only (144 / 144).
+* `pack` — `core` (121 tools) or one of `humanities`, `qualitative`,
   `theory_math`, `wet_lab`, `engineering`, `slurm`, `snakemake`,
   `nextflow`, `cytoscape`, `redcap`, `synapse` (23 tools across 11
   packs).
@@ -125,15 +125,13 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_audit` | `scope` + `dimension` | step/project/synthesis × completeness, code_quality, prose, claims, citations, coherence, cross_deliverable, dashboard_content, evalue, figure, figure_coverage, figure_full, figure_interactivity, power, reproducibility, reviewer_responses, step_literature, version_coherence, cliches, all | `tool_audit_assumptions`, `tool_audit_citations`, `tool_audit_claims`, `tool_audit_cliches`, `tool_audit_code_quality`, `tool_audit_coherence`, `tool_audit_cross_deliverable_consistency`, `tool_audit_dashboard_content`, `tool_audit_evalue`, `tool_audit_figure`, `tool_audit_figure_coverage`, `tool_audit_figure_full`, `tool_audit_figure_interactivity`, `tool_audit_figure_quality`, `tool_audit_power`, `tool_audit_prose`, `tool_audit_reproducibility`, `tool_audit_reviewer_responses`, `tool_audit_statistical_power`, `tool_audit_step_completeness`, `tool_audit_step_literature`, `tool_audit_synthesis`, `tool_audit_version_coherence` |
 | `tool_audit_findings` | `operation` | `query` (filter the ledger), `diff` (compare two snapshots by stable id), `explain` (full chronological history + untruncated suggested_fix for one id — call after a synthesize BLOCK; the BLOCK envelope's `next_recommended_call` points at it) | `tool_audit_findings_query`, `tool_audit_findings_diff` |
 | `tool_audit_quality_full` | — (aggregator) | (standalone) — runs every gate in one call and returns structured per-component verdicts | — |
-| `tool_dashboard` | `operation` | `create`, `story_generate`, `story_edit`, `story_quality_bar`, `reviewer_sim`, `test_generate`, `test_run` | `tool_dashboard_create`, `tool_dashboard_story_generate`, `tool_dashboard_story_edit`, `tool_dashboard_story_quality_bar`, `tool_dashboard_reviewer_sim`, `tool_dashboard_test_generate`, `tool_dashboard_test_run` |
 | `tool_data` | `operation` | `sample`, `profile`, `convert` (CSV ↔ Parquet ↔ Feather ↔ RDS) | `tool_data_sample`, `tool_data_profile`, `tool_data_convert` |
-| `tool_figure` | `operation` | `palette` (Okabe-Ito / viridis / PuOr / dashboard accent), `caption_synthesise`, `interactive_autogen` (Vega-Lite / vis-network HTML companion), `paper_autoembed` | `tool_figure_palette`, `tool_figure_caption_synthesise`, `tool_figure_interactive_autogen`, `tool_paper_figures_autoembed` |
 | `tool_ground` | `mode` | `explicit` (register a decision↔evidence binding), `from_context` (extract bindings from a step's conclusions) | **removed**: `tool_grounding_register`, `tool_ground_from_context` |
 | `tool_lessons` | `operation` | `record`, `consult` (cross-session lesson store), `failure_record`, `failure_check`, `failure_list` (URL/DOI paywall / 404 memory), `dead_end` (dead-end summariser), `mistake_replay` (recurring-pattern coaching) | `tool_dead_end_lessons`, `tool_failure_record`, `tool_failure_check`, `tool_failure_list`, `tool_mistake_replay`; **removed**: `tool_lessons_record`, `tool_lessons_consult` |
 | `tool_plan` | `operation` | `turn` (slice the active plan into `this_turn` + `next_turn`, sized to `model_profile`), `advance` (mark current step done), `clear` (discard the active plan) | **removed**: `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` |
 | `tool_preregister` | `operation` | `freeze` (snapshot SAP + hypotheses content-hashed BEFORE data), `diff` (compare frozen SAP vs current at synthesis) | `tool_preregister_freeze`, `tool_preregister_diff` |
 | `tool_reliability` | `operation` | `log_event` (structural event → `reliability.jsonl`), `report` (redacted markdown summary) | `tool_reliability_log_event`, `tool_reliability_report` |
-| `tool_reviewer` | `operation` | `simulate` (7-persona pre-submission brief), `response` (response-to-reviewers template + red-team), `rebuttal` (single rebuttal markdown + evidence inventory), `compile` (assemble every rebuttal under `workspace/reviewer/rebuttals/`) | `tool_reviewer_simulate`, `tool_response_to_reviewers`, `tool_rebuttal_draft`, `tool_reviewer_response_compile` |
+| `tool_reviewer` | `operation` | `response` (response-to-reviewers template + red-team), `rebuttal` (single rebuttal markdown + evidence inventory), `compile` (assemble every rebuttal under `workspace/reviewer/rebuttals/`) | `tool_response_to_reviewers`, `tool_rebuttal_draft`, `tool_reviewer_response_compile` |
 | `tool_scratch` | `operation` | `write`, `run` (by extension), `list`, `clear` (workspace sandbox, gitignored) | `tool_scratch_write`, `tool_scratch_run`, `tool_scratch_list`, `tool_scratch_clear` |
 | `tool_search` | `source` | `semantic_scholar`, `pubmed`, `crossref`, `arxiv`, `web` (Firecrawl → SerpAPI fallback), `auto` | **removed**: `tool_search_semantic_scholar`, `tool_search_pubmed`, `tool_search_crossref`, `tool_search_arxiv`, `tool_search_web` |
 | `tool_sensitivity` | `operation` | `define` (multiverse / specification-curve grid), `run` (execute the Cartesian product + render the Steegen spec curve) | `tool_sensitivity_define`, `tool_sensitivity_run` |
@@ -166,7 +164,6 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_external_tool_instructions` | Writes a `WORKSHEET.md` when the chosen tool is external (website / paid / GUI). |
 | `tool_humanities_archive_lookup` | (pack: `humanities`) Query digital archives (Internet Archive / HathiTrust / DPLA / Europeana / Gallica / Library of Congress). |
 | `tool_humanities_citation_chain` | (pack: `humanities`) Chain-of-custody for a quotation: original ms → critical edition → translation → secondary citation. |
-| `tool_humanities_essay_scaffold` | (pack: `humanities`) Scaffold a humanities-essay structure (introduction, body, conclusion) with edition-pinned passages. |
 | `tool_humanities_transcribe` | (pack: `humanities`) Scaffold OCR + manual-correction for an archival image. Side-by-side transcription template. |
 | `tool_intake_autofill` | Read `inputs/`, infer domain + question + hypotheses, write `inputs/intake.md` + `docs/research_overview.md` + `.os_state/state.json`. |
 | `tool_intake_freshness` | Recommended intake depth (full / refresh-only / skip) based on intake.md freshness + step count. |
@@ -179,12 +176,12 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_notebook_exec` | Run `.ipynb` (`jupyter nbconvert --execute --inplace`). |
 | `tool_null_findings_report` | Assemble a publishable companion document for findings that DIDN'T pan out (anti-file-drawer). |
 | `tool_package_install` | `pip install` + append to per-step `environment/requirements.txt`. |
-| `tool_paper_compile_typst` | `synthesis/paper.md` → `paper.typ` → `paper.pdf` via Typst with a venue template. v2.0.0: wrapped in a review-rewrite loop (presentation_critic + scope_creep_critic + methodology_skeptic); per-iteration logs at `workspace/logs/drafter_loops/paper_iter_<N>.{md,json}`. Disable per call with `drafter_loop=false`; tune via `synthesis.drafter_loop_*` in `researcher_config.yaml`. |
+| `tool_typst_compile` | Generic Typst compiler. Renders any AI-authored `.typ` source (`synthesis/paper.typ`, `slides.typ`, `poster.typ`, `essay.typ`, `cover_letter.typ`, `response.typ`) to PDF. Auto-generates `synthesis/biblio.yml` from `workspace/citations.md` when missing; materialises bundled venue templates into `_typst_templates/` next to the source. Returns `pdf_path`, `page_count`, `citation_count`, `typst_warnings`, `typst_errors`. |
 | `tool_path_finalize` | Seal a numbered experiment path. Runs the per-step literature loop check before sealing. |
 | `tool_plan_next_step` | Survey state + search + propose 2-3 options for "what should I do next?". |
 | `tool_plan_step` | Force a complex step into atomic sub-tasks BEFORE coding. |
 | `tool_plan_step_grounded` | Every sub-task ships with Thought / Required-grounding / Action / Verification slots. |
-| `tool_poster_create` | Typst poster (academic_36x48 / academic_48x36 / academic_a0_portrait / academic_a1_landscape / public_24x36; light/dark/branded themes; optional QR + handout PDF). v2.0.0: wrapped in a review-rewrite loop (presentation_critic + novelty_critic, max 2 iterations). The legacy tikzposter LaTeX engine was hard-removed in v2.0.0 (phase-14b). |
+| `tool_figure_palette` | Returns a colour-blind-safe palette (Okabe-Ito qualitative / viridis sequential / PuOr diverging / accent). Read-only; for the AI's plotting scripts. |
 | `tool_progress_digest` | One-page summary of experiments / hypotheses / outputs / citations. |
 | `tool_project_tier_strictness` | Map `researcher_config.project_tier` (throwaway/sketch/production) → default `gate_strictness`. |
 | `tool_promote_to_step` | Retroactively wrap a scratch result in proper provenance (new numbered step + sidecar + summary). |
@@ -204,11 +201,12 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_rigor_signals_scan` | Score project rigor 0-100 from methods.md, citations, git, preregistration, scripts, prior step summaries. |
 | `tool_rmarkdown_render` | Run `.Rmd` / `.qmd` (`rmarkdown::render` or `quarto render`). |
 | `tool_route` | Listed above (Discovery). |
-| `tool_section_substantiveness` | Per-IMRAD-section content depth: abstract ≥ 1 number, intro ≥ 3 citations + pivot, methods covers ≥ 80% of workspace steps, results has stats, discussion has limitations + future work, refs sync. |
+| `tool_synthesis_check` | Quality audit for AI-authored synthesis files (`paper.typ` / `slides.typ` / `poster.typ` / `essay.typ` / `dashboard.html`). Auto-detects file type. Modes: `all` (default), `substantiveness` (per-IMRAD content depth), `structure` (sections + references), `accessibility` (alt-text, semantic HTML), `cliches`. For paper / essay: abstract >=1 number + method + conclusion verb; intro >=3 citations + pivot; methods covers >=80% of workspace steps; results has stats + figure refs; discussion has limitations + future-work + verdict coverage; refs sync. For slides: slide_count >=4, speaker notes present, <=12 citations. For poster: section_count >=3, <=8 citations. For dashboard: offline (no `http:` scripts), every `<img>` has alt, no placeholders / path leaks. |
+| `tool_synthesis_scaffold` | Writes a `<=80`-line skeleton synthesis file (paper.typ / slides.typ / poster.typ / essay.typ / dashboard.html) with section headers + `// AI: author this` markers. Refuses to overwrite an existing file unless `overwrite=true`. |
 | `tool_self_certify` | Persist a researcher self-certification (domain + scope + rationale). |
 | `tool_semantic_route` | Listed above (Discovery). |
 | `tool_session_resume` | Reconstruct intent + status from logs after any pause / handoff / new chat. |
-| `tool_slides_create` | Build a slide deck (Beamer / Marp / Reveal.js / PowerPoint) with speaker notes + Q&A anticipation. |
+| `tool_synthesize_plan` | Inspect workspace + return what's ready to draft (per-section source paths + gaps). Read-only; call before authoring synthesis files. |
 | `tool_slurm_estimate_cost` | (pack: `slurm`) Estimate compute cost from `#SBATCH walltime + nodes × $/node-hour`. |
 | `tool_slurm_fetch` | (pack: `slurm`) Block until a SLURM job finishes; return stdout / stderr paths. |
 | `tool_slurm_job_status` | (pack: `slurm`) Query Slurm (`squeue --json`) or PBS (`qstat -f`) for a job's status. |
@@ -222,8 +220,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_step_literature_list` | List PDFs in one step's `literature/` (or across all steps). |
 | `tool_synapse_entity_info` | (pack: `synapse`) Opt-in live query of a Synapse entity's metadata via `synapseclient` using the project's `.synapseConfig`. |
 | `tool_synthesis_curate_figures` | Collect each step's focal figure into `synthesis/figures/` with stable ordered names (`fig01_<slug>.png`, …). |
-| `tool_synthesis_preview` | Cheap deterministic dry-run before `tool_synthesize` — predicts word counts, page count, figures, citations, gaps. `mode='diff'` compares against the existing deliverable. |
-| `tool_synthesize` | Compile workspace into paper / abstract / poster / dashboard / grant / report. Verified citations only. **v2.0.0:** also refuses to compile when any unresolved BLOCK finding sits in `workspace/logs/.audit_findings.jsonl` (latest-snapshot semantics). Override: `override_unresolved_blocks=true` + `override_rationale='<why>'`; logged to `workspace/logs/override_log.md`. |
+| `tool_synthesis_preview` | Cheap deterministic dry-run before authoring — predicts word counts, page count, figures, citations, gaps. `mode='diff'` compares against the existing deliverable on disk. |
 | `tool_synthesize_plan` | Inspect available sources; propose section order. |
 | `tool_theory_math_coq_check` | (pack: `theory_math`) `coqc` on a `.v` file with structured error parsing. Install-hint when Coq is missing. |
 | `tool_theory_math_dep_graph` | (pack: `theory_math`) Parse every `.lean` and `.v` under `source_dir`; write Mermaid + JSON dependency graph. |
@@ -259,7 +256,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 ## What's new in v2.0.0 — quick reference
 
-**Tool surface consolidation** (~344 → 148 live)
+**Tool surface consolidation** (~344 → 144 live)
 
 * Audit family 26 → 3 (`tool_audit`, `tool_audit_findings`,
   `tool_audit_quality_full`).
@@ -328,12 +325,12 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 **`status` + `pack` on every tool definition**
 
-* 148 / 148 tools annotated. `list_tools` filters to `status='live'`;
+* 144 / 144 tools annotated. `list_tools` filters to `status='live'`;
   no aliases / deprecated leak. 123 core + 23 across 11 packs.
 
 **Preflight checks expanded 22 → 24**
 
-* New: "every tool definition has a handler" (148/148 wired) +
+* New: "every tool definition has a handler" (144 / 144 wired) +
   "no deprecated-alias tool refs in protocols" (clean across 78
   deprecated names).
 
@@ -606,4 +603,4 @@ If the tool conceptually folds into an existing dispatcher
 (`tool_audit`, `tool_dashboard`, etc.), prefer adding an
 `operation` / `dimension` value to the dispatcher over a fresh
 top-level tool — the consolidation discipline is what keeps the
-surface at 148.
+surface at 144.

@@ -1,18 +1,12 @@
-"""Reviewer-response scaffold — pre-submission adversarial review simulation.
+"""Reviewer-response scaffolds for ACTUAL external reviewer reports.
 
-Four tools work together as a self-review pass BEFORE the paper goes out:
-
-  * reviewer_simulate(root, personas=None)
-      Loads N persona YAMLs and the paper, writes
-      workspace/reviewer/simulation_brief.md — the AI in the host IDE
-      reads the brief, then walks the paper section-by-section through
-      each persona's lens and writes per-persona comment lists into
-      workspace/reviewer/<persona_id>_comments.md.
+Three tools work together to assemble a response to a real journal
+review:
 
   * rebuttal_draft(root, comment, persona, evidence_paths=None)
       Pulls evidence from workspace/<step>/findings_vs_literature.md,
-      workspace/methods.md, outputs/, and synthesis/paper.md, then
-      writes a single rebuttal markdown file at
+      workspace/methods.md, outputs/, and synthesis/paper.{md,typ},
+      then writes a single rebuttal markdown file at
       workspace/reviewer/rebuttals/<slug>.md.
 
   * reviewer_response_compile(root)
@@ -21,17 +15,14 @@ Four tools work together as a self-review pass BEFORE the paper goes out:
       PDF via the bundled Typst generic_two_column template.
 
   * audit_reviewer_responses(root)
-      Walks every rebuttal and WARNs on hand-waving language ("we
-      believe", "future work will address"), unaddressed comments
-      (rebuttals with no evidence reference), and any rebuttal whose
-      cited evidence paths do not exist on disk. Under the hood this
-      uses :class:`ReviewerResponsesAudit` (an ``AuditBase`` subclass)
-      so findings are also persisted via :func:`write_audit_outputs` to
-      the v2 audit artefacts (workspace/<gate>_audit.{md,json}) and
-      appended to the workspace/logs/.audit_findings.jsonl ledger.
+      Walks every rebuttal and WARNs on hand-waving language,
+      unaddressed comments, and missing evidence paths. Findings are
+      persisted via :func:`write_audit_outputs`.
 
-The server never calls an LLM. These tools write READING INSTRUCTIONS
-that the AI in the host IDE drives.
+Pre-submission self-review is done directly by the AI walking the
+paper through the persona YAMLs in
+src/research_os/assets/reviewer_personas/ — no tool mediation. See
+synthesis/reviewer_response for the workflow.
 """
 
 from __future__ import annotations
@@ -141,124 +132,6 @@ def _ensure_reviewer_dirs(root: Path) -> tuple[Path, Path]:
 
 def _paper_path(root: Path) -> Path:
     return Path(root) / "synthesis" / "paper.md"
-
-
-# ---------------------------------------------------------------------------
-# reviewer_simulate
-# ---------------------------------------------------------------------------
-
-
-def reviewer_simulate(
-    root: Path | str,
-    personas: list[str] | None = None,
-) -> dict[str, Any]:
-    """Build a reading brief for the AI to walk through each persona.
-
-    Returns a dict with personas (full payloads), the paper path, and
-    the brief path. Writes workspace/reviewer/simulation_brief.md as
-    the durable artefact.
-    """
-    root = Path(root)
-    reviewer_dir, _ = _ensure_reviewer_dirs(root)
-    paper = _paper_path(root)
-    paper_exists = paper.exists()
-
-    loaded = load_all_personas(personas)
-    if not loaded:
-        return {
-            "status": "error",
-            "message": (
-                "No personas loaded. Pass a non-empty list, or use the "
-                "defaults (7 personas ship with Research-OS)."
-            ),
-        }
-
-    lines: list[str] = []
-    lines.append("# Pre-submission reviewer simulation — reading brief\n")
-    lines.append(
-        f"_Generated {datetime.now(timezone.utc).isoformat(timespec='seconds')}_\n"
-    )
-    lines.append(
-        "This brief is the entry point for an adversarial self-review "
-        "pass. The AI in the host IDE walks the paper through each "
-        "persona's lens, writes per-persona comments, then uses "
-        "`tool_rebuttal_draft` for every comment that requires a response.\n"
-    )
-    if not paper_exists:
-        lines.append(
-            "> **WARNING**: `synthesis/paper.md` does not exist yet. Run "
-            "`tool_synthesize` first; the personas need a paper to attack.\n"
-        )
-    lines.append(f"## Target paper\n\n`{paper.relative_to(root) if paper_exists else 'synthesis/paper.md (missing)'}`\n")
-
-    lines.append("## Reading procedure (run for each persona below)\n")
-    lines.append(
-        "1. Re-read the paper with the persona's `lens` in mind.\n"
-        "2. For every concern, append a numbered comment to\n"
-        "   `workspace/reviewer/<persona_id>_comments.md` in the format:\n"
-        "   `N. <one-line concern>` followed by the relevant paper "
-        "   section / line citation.\n"
-        "3. Cross-check against `red_flags` — any hit is an automatic "
-        "   comment.\n"
-        "4. After all personas are walked, run `tool_rebuttal_draft` "
-        "   for every comment that requires substantive evidence; "
-        "   minor / presentation comments may be batched into a single "
-        "   editorial-pass rebuttal.\n"
-        "5. Run `tool_reviewer_response_compile` to assemble.\n"
-        "6. Run `tool_audit_reviewer_responses` to gate on hand-waving "
-        "   + missing evidence + unaddressed comments before submission.\n"
-    )
-
-    lines.append("## Personas\n")
-    for p in loaded:
-        lines.append(f"### {p.get('name', p.get('id'))}  (`id: {p.get('id')}`)\n")
-        lens = p.get("lens", "").strip()
-        if lens:
-            lines.append(f"**Lens**: {lens}\n")
-        attacks = p.get("what_they_attack") or []
-        if attacks:
-            lines.append("**What they attack**:")
-            lines.extend(f"  - {a}" for a in attacks)
-            lines.append("")
-        values = p.get("what_they_value") or []
-        if values:
-            lines.append("**What they value**:")
-            lines.extend(f"  - {v}" for v in values)
-            lines.append("")
-        qs = p.get("typical_questions") or []
-        if qs:
-            lines.append("**Typical questions to ask of the paper**:")
-            lines.extend(f"  - {q}" for q in qs)
-            lines.append("")
-        rfs = p.get("red_flags") or []
-        if rfs:
-            lines.append("**Red flags (auto-comment if any appear)**:")
-            lines.extend(f"  - {r}" for r in rfs)
-            lines.append("")
-        phrasings = p.get("signature_phrasings") or []
-        if phrasings:
-            lines.append("**Signature phrasings to draft comments in**:")
-            lines.extend(f"  - {s}" for s in phrasings)
-            lines.append("")
-
-    brief_path = reviewer_dir / "simulation_brief.md"
-    brief_text = "\n".join(lines).rstrip() + "\n"
-    brief_path.write_text(brief_text, encoding="utf-8")
-
-    return {
-        "status": "success",
-        "brief_path": str(brief_path.relative_to(root)),
-        "paper_path": str(paper.relative_to(root)) if paper_exists else None,
-        "paper_exists": paper_exists,
-        "personas": [
-            {"id": p.get("id"), "name": p.get("name")} for p in loaded
-        ],
-        "persona_count": len(loaded),
-        "next_step": (
-            "Read the brief, then per-persona walk the paper and write "
-            "workspace/reviewer/<persona_id>_comments.md."
-        ),
-    }
 
 
 # ---------------------------------------------------------------------------

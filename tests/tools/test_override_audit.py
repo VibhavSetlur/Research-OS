@@ -28,21 +28,21 @@ def _scaffold(tmp_path: Path) -> Path:
 def test_log_override_creates_log_with_header(tmp_path):
     root = _scaffold(tmp_path)
     log = log_override(
-        root, tool="tool_synthesize", gate="quality_full",
-        rationale="WIP preview", extra={"section": "abstract"},
+        root, tool="tool_discussion_coverage_audit", gate="discussion_coverage",
+        rationale="WIP preview", extra={"section": "discussion"},
     )
     assert log.exists()
     text = log.read_text()
     assert "Quality-gate bypass log" in text
-    assert "tool_synthesize" in text
-    assert "quality_full" in text
+    assert "tool_discussion_coverage_audit" in text
+    assert "discussion_coverage" in text
     assert "WIP preview" in text
 
 
 def test_log_override_records_missing_rationale_for_audit(tmp_path):
     root = _scaffold(tmp_path)
-    log_override(root, tool="tool_dashboard_create",
-                 gate="step_completeness", rationale=None)
+    log_override(root, tool="tool_discussion_coverage_audit",
+                 gate="discussion_coverage", rationale=None)
     assert "no rationale provided" in (root / "workspace" / "logs"
                                        / "override_log.md").read_text()
 
@@ -130,4 +130,7 @@ def test_pre_submission_checklist_protocol_reads_override_log(tmp_path):
              "src" / "research_os" / "protocols" / "audit"
              / "pre_submission_checklist.yaml").read_text()
     assert "override_log.md" in proto
-    assert "override_completeness_gate" in proto
+    # In v2.3.0 the override_completeness_gate kwarg was removed; the
+    # checklist now references the surviving overrides (e.g.
+    # override_discussion_coverage on tool_discussion_coverage_audit).
+    assert "override_discussion_coverage" in proto or "override_gate" in proto

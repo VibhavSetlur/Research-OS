@@ -1,332 +1,125 @@
 id: synthesis_dashboard
 tier: 'synthesize'
-name: Synthesis — Dashboard (paper-as-interactive)
-version: '2.0.0'
+name: Synthesis — Dashboard (AI-authored single-file HTML)
+version: '2.3.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative]
+  domain: [biology, wet_lab, qualitative, humanities]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-05'
+last_reviewed: '2026-06-08'
 description: |
-  Generate a polished single-file HTML dashboard that reads as
-  **the paper, told as an interactive guided walk-through**. Not a
-  metrics overview, not a screenshot gallery. The reader scrolls
-  top-to-bottom and gets the same understanding the paper delivers —
-  with the figures HOVERABLE, the captions / plain-English summaries
-  INLINE, and the audit trail one click away.
+  Guide the AI to author `synthesis/dashboard.html` directly as a
+  custom, single-file, offline-capable presentation of the project's
+  findings. Research-OS does not generate dashboards — the AI does.
+  The previous auto-generator produced a rigid 3MB monolith; AI
+  authoring yields a leaner, more readable artefact every time.
 
-  Layout adapts to the audience: academic | executive | technical | teaching
+  **The dashboard's job.** A reader who opens the file in a browser
+  understands the question, the headline findings, and the limitations
+  in under ten minutes. They can click into deeper sections if they
+  want; they don't need to in order to get the message. The reader
+  does NOT need access to the project folder — every claim is
+  self-contained inside the HTML.
 
-  Universal sections (in order, with paper-equivalent counterpart):
-    1. Headline + TL;DR        ← paper's title + abstract
-    2. Research overview       ← paper's introduction
-    3. Workflow diagram        ← paper's methods overview
-    4. Findings by hypothesis  ← paper's results (one section per H,
-                                  embeds the focal figure WITH the
-                                  caption AND the .summary.md plain-
-                                  English description side-by-side;
-                                  hover/lightbox opens the SVG full-
-                                  screen; ALL plain-English summaries
-                                  surface — that's what makes this
-                                  "guided", not just "embedded")
-    5. Methods deep-dive       ← paper's methods (collapsible per
-                                  step; each click reveals the
-                                  step's conclusions.md
-                                  ## Methods (full detail) block)
-    6. Mechanism / discussion  ← paper's discussion
-    7. Limitations             ← paper's limitations
-    8. Per-step appendix       ← paper's supplementary
-    9. Reproducibility         ← code + environment + provenance
-   10. Glossary + References   ← paper's bibliography
-
-  Behaviour notes:
-    - The dashboard is THE PAPER IN INTERACTIVE FORM, not a status
-      overview. Every figure ships with BOTH its `.caption.md` AND
-      its `.summary.md` inline (paper has only the caption; dashboard
-      adds the accessible summary as a sibling block — that's what
-      makes it "guided").
-    - The narrative is the spine; figures support it. Don't dump
-      figures grouped by step number — order them by HYPOTHESIS so a
-      reader who cares about H2 sees only H2 figures together.
-    - Hover or click any figure → full-size SVG lightbox + DOI link
-      to the cited paper that grounds the methods choice.
-    - Inline "Why?" expanders next to every methods sentence
-      ("Why DESeq2?", "Why FDR<0.05?", "Why blocked on cell line?")
-      → click reveals the conclusions.md `## Methods (full detail)`
-      paragraph that justifies it + the linked citation.
-    - Visual coherence: same font stack, same palette, same spacing
-      as the paper PDF. The dashboard is a SIBLING deliverable.
-
-  The dashboard is project-agnostic. Structure auto-derives from the
-  hypothesis tracker, conclusions, and curated figures; an optional
-  synthesis/synthesis_spec.yaml lets a project author key sections
-  directly.
+  **What it is NOT.** Not a status overview. Not a screenshot gallery.
+  Not a kitchen-sink dump of every figure. The dashboard tells the
+  same story as the paper, in a form a non-expert can navigate.
 
 trigger: |
-  Researcher asks for "a dashboard"; OR research_goal.output_types
-  includes "dashboard"; OR final-deliverable gate in autopilot.
+  Researcher asks for "a dashboard" / "build me a dashboard" /
+  "interactive findings page"; OR
+  research_goal.output_types includes "dashboard".
 
-editorial_voice:
-  tone: supportive, professional, never accusatory
-  rules:
-    - "Refer to the original work as 'the initial analysis' (not by name)
-       unless explicitly authorised in synthesis_spec.yaml."
-    - "Never use 'wrong', 'incorrect', 'failure', 'smoking gun', or any
-       judgemental language about decisions made in the source work.
-       Use 'the analysis would benefit from', 'consider', 'the
-       alternative interpretation is', 'this is consistent with'."
-    - "No first-person voice ('I', 'we'). Use passive / objective
-       constructions throughout."
-    - "No filesystem paths in visible text — the reader of a dashboard
-       should not need to open the project folder."
+design_principles: |
+  - Single file. No external scripts, no external stylesheets, no
+    fetches. The reader opens the file from email and it works.
+  - Accessibility is not optional. Every <img> has alt text. Every
+    <section> has an id. Heading hierarchy is meaningful. Colour
+    contrast meets WCAG AA.
+  - Information hierarchy. The first 800px tell the headline story.
+    Deeper detail is reachable but not in the way.
+  - Tell, don't dump. Order content by hypothesis or argument, not by
+    workspace step number. Captions interpret figures; they don't
+    repeat what's plotted.
+  - Visual coherence with the paper. Same palette, same typography
+    family, same spacing rhythm. The dashboard is the paper's sibling.
+  - Editorial tone. Supportive, factual, never accusatory. No
+    filesystem paths in visible text. No "TODO" / "Lorem ipsum" /
+    "PLACEHOLDER" makes it into a shareable dashboard.
 
-quality_bar:
-  must_be_offline: true                   # single-file HTML, no network calls
-  must_be_self_contained: true            # figures base64-embedded
-  must_be_accessible: true                # semantic HTML, alt-text + summary
-  must_print_well: true                   # print stylesheet
-  must_have_verdict_section: true
-  must_have_traceability_matrix: true     # hypothesis → step → figure
-  must_have_glossary: true
-  must_pair_figures_with_captions: true
-  must_pair_figures_with_plain_english: true  # .summary.md sidecar
-  must_surface_audit_summary: true         # when blockers exist
-  must_use_supportive_voice: true
-  citations_maximum: 12
-
-prerequisite_gate:
-  rule: |
-    tool_dashboard(operation='create') soft-fails (renders with a warning ribbon)
-    when tool_audit(scope='step', dimension='completeness') has blockers. For the FINAL
-    deliverable, resolve all blockers first.
+quality_standards: |
+  - offline — no `<script src="http`, no `<link href="http`
+  - accessibility — every <img> has alt text; every <section> has an
+    id; at least one <h1>; at least two <h2>
+  - structure — TL;DR section near the top; findings section; methods
+    section; limitations section; references section
+  - no_placeholders — zero `TODO` / `FIXME` / `XXX` / `Lorem ipsum` /
+    `PLACEHOLDER` strings remain
+  - no_path_leaks — filesystem paths like `workspace/<step>/...` do
+    not appear in body text
+  - size — under 5MB total (figures base64-embedded). If larger, the
+    figures are too high-resolution or there are too many of them.
 
 steps:
-  - id: select_audience
-    name: Select Audience Profile
+  - id: walk_workspace
+    name: Walk the workspace
     description: |
-      Ask: "Audience? academic | executive | technical | teaching."
-      Default to academic if the project's output_types includes both
-      "paper" and "dashboard".
+      tool_synthesize_plan returns what's ready (per-step findings,
+      focal figures, citations).
 
-      Section ordering and content density adapt per audience:
-        - academic:  Abstract → Overview → Workflow → Verdicts →
-          Findings → Traceability → Methodological → Open Qs →
-          Limitations → Per-step → Audit → Glossary → References
-        - executive: Abstract → Verdicts → Findings → Limitations →
-          Audit → References  (everything else collapsed)
-        - technical: same as academic + reproducibility-leaning
-        - teaching:  Abstract → Overview → Findings → Workflow →
-          Verdicts → Glossary → Per-step → References
-          (defers jargon; leads with plain-English)
-
-  - id: confirm_sources_exist
-    name: Confirm Sources
+  - id: pick_audience
+    name: Pick the audience
     description: |
-      sys_path — verify at least one experiment has outputs/figures/
-      or outputs/reports/ content. If not, warn:
-        "Dashboard would be empty — run at least one experiment first."
-
-  - id: run_completeness_audit
-    name: Run Step Completeness Audit
-    description: |
-      tool_audit(scope='step', dimension='completeness')
-      Reports per-step BLOCKERS for: missing focal figures, missing
-      caption sidecars, stub conclusions, missing summary sidecars.
-      Writes workspace/logs/step_completeness.md which the dashboard's
-      Outstanding artefacts section surfaces verbatim.
-
-  - id: finalize_all_steps
-    name: Finalize Every Step's READMEs
-    description: |
-      For each completed step (sys_path), run tool_path_finalize.
-      This normalises every subfolder README (environment/, literature/,
-      context/, data/output/, outputs/) AND auto-synthesises missing
-      <name>.summary.md plain-English sidecars for every figure.
+      academic / executive / technical / teaching — density and
+      section order adapt. Default academic when output_types includes
+      paper, executive otherwise.
 
   - id: curate_figures
-    name: Curate Per-Step Focal Figures
+    name: Curate figures into synthesis/figures
     description: |
-      tool_synthesis_curate_figures —
-      Copies each step's focal figure into synthesis/figures/ with stable
-      ordered names (fig01_<slug>.png, fig02_<slug>.png, …) and seeds
-      a caption placeholder for any figure missing one.
+      tool_synthesis_curate_figures copies step focal figures into
+      synthesis/figures/ with stable ordered names. The dashboard and
+      paper share file names.
 
-      The tool returns:
-        curated:            count of figures copied
-        missing_figures:    steps that produced no figure (audit-flag)
-        missing_captions:   figures without an interpretive sidecar (audit-flag)
-
-      If missing_figures is non-empty, return to the step in question and
-      add at least one focal PNG before re-running (preferably via
-      AI-authored scripts that follow visualization/figure_guidelines).
-
-  - id: author_synthesis_spec
-    name: Author synthesis/synthesis_spec.yaml (optional but recommended)
+  - id: scaffold
+    name: Scaffold dashboard.html
     description: |
-      For deliverable-quality dashboards, author synthesis/synthesis_spec.yaml.
-      This file is the SINGLE EDITORIAL SOURCE — paper, dashboard, and poster
-      all read it.
+      tool_synthesis_scaffold(kind='dashboard') writes a <=80-line
+      starter synthesis/dashboard.html with section anchors, minimal
+      accessible CSS, and `<!-- AI: ... -->` markers.
 
-      Sections:
-
-        title:                          # project title, shown in front header
-        subtitle:                       # one-line research question
-        eyebrow:                        # "Research dashboard · Independent reanalysis"
-        brand_title:                    # sidebar brand line
-        brand_subtitle:                 # sidebar second line
-        meta:                           # front-page metadata list
-          - {label: Researcher, value: Jane Doe}
-          - {label: Format,     value: Self-contained dashboard}
-        abstract:                       # one or two paragraphs (overrides auto-derived)
-        overview:
-          background: |                 # markdown allowed
-            ...
-          research_questions:
-            - {id: RQ1, text: "Does X influence Y?"}
-            - {id: RQ2, text: "How does Z moderate?"}
-        verdicts:                       # per-hypothesis presentation overrides
-          H01: {name: "RQ1 — Demographics → Attitudes", desc: "..."}
-        findings:                       # ordered list; each becomes a section
-          - id: rq1
-            name: "RQ1 — Do demographics influence attitudes?"
-            plain_english: "..."
-            finding: "..."
-            verdict: supported          # supported / refuted / inconclusive
-            figure: fig06_rq1_demographics_robust
-            how_to_read: "..."
-            detail: "..."
-        methodological_considerations:  # supportive, never accusatory
-          - name: "Composite scoring"
-            priority: high              # high → red flag; medium → amber
-            body: "The analysis would benefit from clarifying ..."
-        open_questions:
-          - {title: "...", priority: high, body: "..."}
-        limitations:                    # list of strings; overrides auto-aggregated
-          - "Sample size limits sub-group inference."
-        methods_summary:                # one-paragraph methods for the abstract
-        poster_headline:                # plain-English headline for billboard poster
-        paper_url:                      # for the poster QR code
-        references:
-          - heading: Instruments
-            items: ["Author (Year). Title. Journal."]
-        hide_per_step_appendix: false   # set true for non-technical audiences
-
-      When the spec is absent, the dashboard still renders cleanly from
-      auto-derived sources — the spec just lets the project author the
-      tone and per-RQ framing directly.
-
-  - id: ensure_interactive_companions
-    name: Ensure Per-Figure Interactive Companions
+  - id: author
+    name: Author the content
     description: |
-      tool_audit(scope='step', dimension='figure_interactivity')
-      Walks workspace/<step>/outputs/figures/ and reports any figure
-      that should have an HTML companion next to its PNG but doesn't:
-        - >200-mark scatter / volcano / UMAP
-        - >50x50 heatmap matrix
-        - networks (any .graphml)
-        - >1000-point time series
-      In normal-strictness mode the gate auto-generates a Vega-Lite
-      or vis-network HTML companion so the <ro-figure-toggle> in the
-      dashboard has both Static and Interactive tabs to choose from.
-      Per-figure researcher override: drop
-      `<!-- ro:interactive-not-applicable, reason: ... -->`
-      into the figure's .caption.md sidecar.
+      Embed figures as `<figure><img src="..." alt="..."><figcaption>
+      ...</figcaption></figure>`. Use base64 inline OR relative file
+      paths — pick one and stick with it.
 
-  - id: build_story_mode_source
-    name: Build dashboard_story.md (Story Mode source)
+  - id: audit
+    name: Audit
     description: |
-      tool_dashboard(operation='story_generate')
-      Assembles synthesis/dashboard_story.md from the spec abstract +
-      per-step plain summaries + per-step focal figure + adversarial
-      verdicts from each step's findings_vs_literature.md. This is the
-      source the dashboard renders when the reader picks Story mode.
-
-      Optional AI rewrite: tool_dashboard(operation='story_edit')
-      (read or patch) to polish in the researcher's voice.
-
-      Optional quality bar: tool_dashboard(operation='story_quality_bar')
-      checks reading-time (5-20 min), figure-in-first-1000-words, at
-      least one adversarial-grounding callout. Warnings only — story
-      mode is optional.
-
-  - id: build_dashboard
-    name: Build Dashboard
-    description: |
-      tool_dashboard(operation='create', title="<headline>", audience="<profile>",
-                     dashboard_default_mode="explore")
-      Produces:
-        synthesis/dashboard.html — single self-contained file with
-        figures base64-embedded. Opens directly in any browser; no
-        server / no filesystem dependency.
-
-      Default renderer is the single-page-app (sidebar nav + search +
-      filter chips + <ro-figure-toggle> static/interactive + reactive
-      tables + Story/Explore mode toggle). Pass dashboard_legacy=true
-      to fall back to the long-scroll renderer.
-
-      Features:
-        - Sidebar TOC with scroll-spy (active section highlighted on scroll).
-        - Front header with eyebrow / title / subtitle / meta / action
-          buttons (expand-all, collapse, theme toggle, print to PDF).
-        - Abstract card — pulled from spec or auto-derived from the
-          project's final synthesis step.
-        - Verdicts-at-a-glance grid — one row per hypothesis, with the
-          status pill and a short evidence summary.
-        - Per-hypothesis Findings sections, each with: plain-English
-          framing (blockquote), headline finding (coloured card),
-          embedded figure with substantive caption AND plain-English
-          summary, optional "How to read this figure" prose, optional
-          <details> numerical block.
-        - Evidence traceability table — every hypothesis → the steps and
-          focal figures that informed its verdict.
-        - Methodological considerations rendered as supportive review
-          cards (never as accusations).
-        - Open questions surfaced as their own section.
-        - Limitations aggregated across all step conclusions or from
-          the spec.
-        - Per-step appendix in <details> blocks: plain-English summary +
-          headline + focal figure (with both captions) + full
-          conclusions + decision.
-        - Outstanding artefacts: embeds the latest step-completeness
-          audit so reviewers see what's still owed.
-        - Statistical glossary as a rich card grid with one-line plain-
-          language explanations + 🔍 search links + Wikipedia links.
-        - Light/dark toggle (persisted to localStorage).
-        - Print stylesheet — collapses the sidebar, expands all <details>,
-          paginates cleanly for PDF export.
-
-  - id: verify_quality
-    name: Verify Quality
-    description: |
-      sys_file_read filepath="synthesis/dashboard.html"
-      Spot-check:
-        - <title> contains the project title
-        - <section id='abstract'> is present and non-empty
-        - <section id='verdicts'> contains at least one verdict-row
-        - <section id='traceability'> contains a row per hypothesis
-        - At least one .figure block with a non-placeholder caption
-        - At least one figure has a plain-English summary card under it
-        - No <script src="http..."> (must be fully offline)
-        - No proper-noun call-outs unless the spec authorises them
-      tool_citations_verify (references must all resolve).
-      tool_audit(scope='step', dimension='completeness') (resolve blockers before sharing).
+      tool_synthesis_check(file='synthesis/dashboard.html') catches
+      missing alt-text, external scripts, placeholders, and path
+      leaks.
 
   - id: share
-    name: Tell the Researcher Where to Open It
+    name: Share
     description: |
-      Report:
-        "Dashboard written to synthesis/dashboard.html — open in any
-         browser. The file is self-contained (figures embedded as base64);
-         it can be emailed or shared as-is."
-      If the researcher wants a PDF, suggest opening the dashboard in
-      the browser and using Print → Save as PDF.
+      The file IS the deliverable — no compilation step. Hand the
+      path to the researcher and remind them it's portable (emailable,
+      attachable, single-file).
+
+tools: |
+  - tool_synthesize_plan — what's ready in the workspace
+  - tool_synthesis_scaffold — seed synthesis/dashboard.html (idempotent)
+  - tool_synthesis_check — engineering invariants (offline, alt-text, semantic, placeholders)
+  - tool_synthesis_curate_figures — copy step focal figures
+  - tool_figure_palette — colour-blind-safe palette for any inline charts
 
 expected_outputs:
-  - synthesis/dashboard.html
-  - synthesis/figures/fig*_*.png        # via tool_synthesis_curate_figures
-  - synthesis/figures/fig*_*.caption.md # paired technical captions
-  - synthesis/figures/fig*_*.summary.md # paired plain-English summaries
+  - synthesis/dashboard.html       # AI-authored
+  - synthesis/figures/             # shared with paper.typ when both exist
 
 next_protocol: null
 next_protocol_kind: terminal

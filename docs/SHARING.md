@@ -69,7 +69,7 @@ A clean research workspace they can read without any Research-OS context:
 * `synthesis/dashboard.html` — the polished single-file dashboard
   (open in any browser; self-contained).
 * `synthesis/figures/` — every curated figure with its caption sidecar.
-* `synthesis/REPORT.md` / `synthesis/paper.md` — the narrative deliverable.
+* `synthesis/REPORT.md` / `synthesis/paper.typ` — the narrative deliverable.
 * `workspace/NN_*/conclusions.md` — the per-step reasoning chain.
 * `workspace/NN_*/scripts/` — the actual analysis code (reproducible).
 * `workspace/NN_*/data/output/` — derived artefacts each step persisted.

@@ -30,7 +30,7 @@ description: |
        briefly research the right tool, not default to matplotlib.
     2. A chart-chooser table (which kind for which question).
     3. The Okabe-Ito / viridis / PuOr CVD-safe palettes (call
-       `tool_figure(operation='palette')` or copy the hex codes from
+       `tool_figure_palette` or copy the hex codes from
        `visualization/color_accessibility_audit`).
     4. A `common_pitfalls_to_avoid` catalog drawn from real
        reviewer-blocking mistakes — label overlap, clipped y-axes,
@@ -340,7 +340,7 @@ mandatory_per_step_figure:
     even if the step's role is data plumbing or methodology selection.
     A step with no visual representation is hard to follow, hard to
     review, and gets skipped in dashboards. tool_audit(scope='step', dimension='completeness')
-    flags this as a BLOCKER that gates tool_synthesize.
+    flags this as a BLOCKER that surfaces on tool_synthesis_check.
   rationale: |
     Researchers follow analysis visually before they follow it
     numerically. A focal figure makes each step legible at a glance
@@ -352,8 +352,8 @@ mandatory_per_step_figure:
     formats: PNG (raster) + SVG (vector when possible — enables deeper audit)
     caption_sidecar: required — <name>.caption.md (technical)
     summary_sidecar: required — <name>.summary.md (plain-English;
-                     tool_figure(operation='caption_synthesise') drafts a starter
-                     from the step's Findings)
+                     the AI authors this directly when saving the
+                     figure, drawing on the step's Findings)
 
 figure_family_when_step_has_a_model:
   rule: |
@@ -376,7 +376,7 @@ figure_family_when_step_has_a_model:
     A model without diagnostics is a one-sided claim. A summary plot
     without a CI is decoration. The comparison plot is how a reviewer
     decides whether the new method actually wins. Emit them once per
-    step and tool_synthesize promotes the best ones into the paper /
+    step and the AI promotes the best ones into the paper /
     poster / dashboard with no extra work later.
   domain_specific_picks:
     survival:      "KM curve + Schoenfeld + cumulative hazard"
@@ -425,8 +425,7 @@ formatting:
   palettes:
     sequential: viridis
     diverging: PuOr / RdBu_r
-    qualitative: Okabe-Ito (CVD-safe; call tool_figure(operation='palette',
-                 kind='qualitative') for hex codes)
+    qualitative: Okabe-Ito (CVD-safe; call tool_figure_palette(kind='qualitative') for hex codes)
   typography:
     axis_label_size: ≥10pt
     tick_label_size: ≥9pt
@@ -537,7 +536,7 @@ caption_rules:
         finding.
     generation: |
       Either write it yourself in your voice, OR run
-      tool_figure(operation='caption_synthesise', figure_path=<rel>) to produce a
+      authoring the <stem>.summary.md sidecar directly to produce a
       competent draft from the existing caption + the step's
       conclusions.md Findings section, OR run tool_path_finalize
       which auto-synthesises missing summaries for every figure in
@@ -577,8 +576,7 @@ steps:
         workspace/<step>/outputs/figures/<NN>_<short_descriptor>.png
         workspace/<step>/outputs/figures/<NN>_<short_descriptor>.svg
             (highly recommended — enables the SVG label-overlap audit)
-      DPI ≥ 300. Palette CVD-safe (call tool_figure(operation='palette',
-      kind='qualitative'|'sequential'|'diverging'|'accent')).
+      DPI ≥ 300. Palette CVD-safe (call tool_figure_palette(kind='qualitative'|'sequential'|'diverging'|'accent')).
 
   - id: write_caption
     name: Write the Technical Caption
@@ -598,8 +596,7 @@ steps:
         **How to read it.** [axes / colour / trend cue in plain language]
         **Why it matters.** [link to the step's headline finding]
 
-      Quickest path: tool_figure(operation='caption_synthesise',
-      figure_path=<rel>) drafts from the existing caption + the step's
+      Quickest path: authoring the <stem>.summary.md sidecar directly drafts from the existing caption + the step's
       conclusions.md Findings. Polish in your voice.
 
   - id: pre_publish_self_review

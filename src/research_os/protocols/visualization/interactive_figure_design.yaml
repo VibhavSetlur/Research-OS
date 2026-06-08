@@ -182,19 +182,15 @@ steps:
 
       `tool_audit(scope='step', dimension='figure_interactivity')` — separately enforces that
       figures which NEED an interactive companion actually have one.
-      In normal strictness it auto-generates a Vega-Lite or vis-network
-      fallback HTML next to the static (tagged
-      <meta name='ro-auto-generated'> so the researcher knows they
-      can replace it). Per-figure researcher override:
+      The AI authors the HTML companion directly when writing the
+      plotting script — the script saves both the PNG and a Vega-Lite
+      / vis-network HTML next to it. Per-figure opt-out:
         <!-- ro:interactive-not-applicable, reason: ... -->
       in the figure's .caption.md sidecar.
 
-      If a single auto-generated companion is needed in isolation,
-      call `tool_figure(operation='interactive_autogen',
-      figure_path=<workspace/.../figures/<stem>.png>)`.
-
-      Optionally `tool_dashboard(operation='test_generate')` if the
-      HTML is complex enough to need its own smoke test.
+      For dashboards that embed interactive figures, the offline
+      bundles in src/research_os/assets/js/ are available for the AI
+      to copy inline.
 
 expected_outputs:
   - workspace/*/outputs/figures/<NN>_<descriptor>.png

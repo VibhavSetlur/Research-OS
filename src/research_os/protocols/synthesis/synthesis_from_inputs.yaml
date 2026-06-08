@@ -186,8 +186,9 @@ steps:
   - id: seed_methods_and_citations
     name: Seed workspace/methods.md + citations.md
     description: |
-      tool_synthesize requires workspace/methods.md and
-      workspace/citations.md exist. Seed them from the inputs:
+      The synthesis protocols (synthesis_paper, synthesis_dashboard,
+      etc.) read workspace/methods.md and workspace/citations.md.
+      Seed them from the inputs:
 
         - methods.md: each entry comes from a source artefact and
           cites its source. Never seed a method that is not in the

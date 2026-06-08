@@ -14,15 +14,12 @@ about that script, and this module provides:
   consumed by ``tool_path_finalize`` / ``tool_audit_step_completeness``.
 * ``step_figure_inventory`` — used by the completeness gate.
 
-``figure_create`` / ``tool_figure_create`` and the 30+ ``_render_*``
-chart-kind dispatchers have been removed — the AI writes its own
-plotting code. See CHANGELOG migration notes.
+The dashboard test-suite scaffold (``generate_dashboard_test_suite`` /
+``run_dashboard_tests``) was tied to the auto-dashboard generator and
+removed alongside it. AI-authored dashboards write their own tests if
+needed.
 """
 
-from research_os.tools.actions.viz.dashboard_tests import (
-    generate_dashboard_test_suite,
-    run_dashboard_tests,
-)
 from research_os.tools.actions.viz.figures import (
     audit_figure_quality,
     caption_synthesise,
@@ -33,8 +30,6 @@ from research_os.tools.actions.viz.figures import (
 __all__ = [
     "audit_figure_quality",
     "caption_synthesise",
-    "generate_dashboard_test_suite",
     "palette_for",
-    "run_dashboard_tests",
     "step_figure_inventory",
 ]

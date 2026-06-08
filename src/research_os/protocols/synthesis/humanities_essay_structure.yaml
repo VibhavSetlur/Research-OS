@@ -1,227 +1,149 @@
 id: humanities_essay_structure
 tier: 'synthesize'
-name: Humanities Essay Structure (interpretive, non-IMRAD)
-version: '2.0.0'
+name: Humanities Essay Structure (interpretive, non-IMRAD, AI-authored Typst)
+version: '2.3.0'
 schema_version: '2.0'
 scope_tags:
   domain: [humanities]
   audience: [auditor]
   workflow_shape: [linear_essay]
-last_reviewed: '2026-06-05'
+last_reviewed: '2026-06-08'
 description: |
-  Interpretive-structure protocol for the humanities essay form. The
-  synthesis_paper protocol bakes in IMRAD (Introduction-Methods-Results-
-  Discussion), which is the wrong shape for literary criticism, history-of-
-  ideas, philology, or close-reading scholarship. An essay is a sustained
-  ARGUMENT, not a report of an experiment — it earns its claim by accreting
-  evidence (passages, archival traces, secondary critics) under a single
-  thesis, not by separating "what we did" from "what we found".
+  Guide the AI to author `synthesis/essay.typ` directly as a
+  humanities essay — literary criticism, history of ideas,
+  philology, close-reading scholarship. IMRAD is the wrong shape for
+  this form; an essay is a sustained ARGUMENT, not a report of an
+  experiment.
 
-  This protocol scaffolds the interpretive shape humanities reviewers
-  expect: a load-bearing thesis paragraph; contextual framing that seats
-  the argument in the field; three to five close readings (the
-  evidentiary core, where the passage is set out and then unpacked); a
-  critical-conversation section that places the argument against existing
-  scholarship; a counter-argument + reply that anticipates the strongest
-  objection; a conclusion that names the stakes of the claim.
+  The interpretive shape humanities reviewers expect:
+    1. Introduction + thesis (load-bearing sentence)
+    2. Contextual framing (seat the argument in the field)
+    3. Close readings (the evidentiary core — 3–5)
+    4. Critical conversation (where you sit vs the secondary critics)
+    5. Counter-argument + reply (steelmanned objection)
+    6. Conclusion + stakes (why this reading matters beyond the text)
 
-  The venue layer (1.25in margins, 12pt serif, footnote-style notes,
-  block-quote indentation) is handled by `humanities_essay.typ` — that
-  template provides the visual shell; THIS protocol provides the
-  interpretive shell. The two compose: this protocol writes
-  `synthesis/paper.md` with the right section headings + stubs; the
-  typst template renders it.
-
-  Note on the chain: humanities/textual/close_reading and
-  humanities/archival/archival_research produce the apparatus + sources
-  this protocol consumes. After essay assembly, route to
-  `synthesis/synthesis_paper` for the final compile + audit gate (the
-  generic synthesis_paper handles the LaTeX/Typst hand-off + citation
-  verification; the structure question is settled BEFORE that point by
-  this protocol).
+  The venue layer (1.25in margins, 12pt serif, footnote apparatus,
+  block-quote indent) is the `humanities_essay.typ` Typst template
+  the AI imports. Citation style auto-selects from
+  `researcher_config.writing_preferences.citation_style` (mla /
+  chicago_author_date / chicago_notes_bib).
 
 trigger: |
-  Researcher asks: "write the essay", "essay structure", "close-reading
-  essay", "humanities essay", "literary criticism essay", or any
-  drafting request when researcher_config.domain == humanities. Also
-  fires from humanities/textual/close_reading.next_protocol once
-  apparatus + critical ledger are sufficient to argue from.
+  Researcher asks: "write the essay", "humanities essay", "literary
+  criticism essay", "close-reading essay", "philology paper"; OR
+  researcher_config.domain == humanities and a drafting request comes
+  in; OR humanities/textual/close_reading.next_protocol fires after
+  apparatus + critical ledger are sufficient.
 
 prerequisites:
   - A workspace step with apparatus / transcription / close-reading
     notes exists (humanities/textual/close_reading produces this).
-  - A working thesis sentence exists — even a one-line scratch claim
-    is enough at this stage; the protocol refines it.
-  - At least three primary-source passages have been identified for
-    close reading. (Below three the essay is a note, not an essay.)
-  - inputs/literature_index.yaml has at least 5 secondary-critic entries
-    for the critical-conversation section.
+  - A working thesis sentence — even a one-line scratch claim is
+    enough; the protocol refines it.
+  - At least three primary-source passages identified for close
+    reading. Below three this is a note, not an essay.
+  - inputs/literature_index.yaml has ≥5 secondary-critic entries.
 
-editorial_voice:
-  rules:
-    - "The thesis is one sentence. It can be evaluative ('Milton's
-       Satan is rhetorically Royalist where Milton is republican'),
-       comparative ('Donne's metaphysical conceit owes more to Aquinas
-       than to Petrarch'), or revisionist ('The standard reading of
-       Heart of Darkness as anti-imperial misreads the framing
-       narrator's irony'). It must be falsifiable BY EVIDENCE — the
-       essay's job is to bring that evidence."
-    - "Block quote when the passage is long enough that paraphrase
-       would distort the voice. Set off block quotes per the venue
-       template (humanities_essay.typ does 0.5in indent). Quote
-       sparingly — one block quote per close-reading section unless
-       the form (e.g. metrical analysis) demands more."
-    - "Footnotes are the apparatus, not asides. A humanities footnote
-       either cites a source, qualifies a claim, or points the reader
-       to a parallel passage. Avoid the STEM habit of bracketing
-       citations inline — humanities convention is footnote or
-       endnote (MLA = parenthetical author-page; Chicago notes-bib
-       = numbered footnotes)."
-    - "The counter-argument is not a strawman. Steelman the strongest
-       reading against yours — if you cannot, the thesis is too weak
-       to defend. Reply by showing the counter accounts for FEWER of
-       the passages you have shown."
-    - "The stakes paragraph at the close answers 'why this matters
-       beyond the text'. A reading of a single Donne sonnet earns
-       its keep by what it tells us about the metaphysical mode, or
-       about devotional poetry, or about the reception of Aquinas in
-       early-modern England. Without stakes the essay is exegesis,
-       not argument."
+design_principles: |
+  - The thesis is one sentence. Evaluative ("Milton's Satan is
+    rhetorically Royalist where Milton is republican"), comparative
+    ("Donne owes more to Aquinas than to Petrarch"), or revisionist
+    ("the standard reading of Heart of Darkness misreads the framing
+    narrator's irony"). Falsifiable BY EVIDENCE.
+  - Block quote when the passage is long enough that paraphrase
+    would distort the voice. >4 lines of verse or >40 words of prose
+    per MLA. Sparingly — one block quote per close-reading section
+    unless the form (metrical analysis) demands more.
+  - Footnotes are the apparatus, not asides. A humanities footnote
+    cites a source, qualifies a claim, or points to a parallel
+    passage. Avoid the STEM habit of bracketing citations inline.
+  - The counter-argument is not a strawman. Steelman the strongest
+    reading against yours. Reply by showing the counter accounts for
+    FEWER passages, or accounts for them less parsimoniously.
+  - The stakes paragraph answers "why this matters beyond the text"
+    — about the genre, the period, the reception of an idea.
+    Without stakes the essay is exegesis, not argument.
 
-# ── Quality bars — humanities form, dict shape (not list) ─────────────
-quality_bar:
-  thesis_one_sentence_falsifiable: true
-  contextual_framing_present: true
-  close_readings_minimum: 3
-  close_readings_maximum: 5
-  close_reading_each_quotes_passage: true
-  critical_conversation_cites_minimum: 5
-  counter_argument_steelmanned: true
-  counter_argument_reply_present: true
-  conclusion_names_stakes: true
-  footnotes_for_apparatus: true
-  block_quotes_for_long_passages: true
-  no_imrad_headings: true
+quality_standards: |
+  - thesis_one_sentence_falsifiable — yes
+  - contextual_framing_present — yes
+  - close_readings — 3-5; each quotes its passage; each links a
+    formal feature to the thesis
+  - critical_conversation — >=5 named secondary critics, each with
+    your relation to their position (extends / qualifies / contests
+    / ignores-and-replaces)
+  - counter_argument_steelmanned — yes; reply present
+  - conclusion_names_stakes — yes
+  - apparatus — footnotes (not parenthetical), block quotes for
+    long passages, no IMRAD headings
 
 steps:
-  - id: lock_the_thesis
-    name: Lock the thesis sentence (one sentence, falsifiable)
+  - id: lock_thesis
+    name: Lock the thesis sentence
     description: |
-      Write the ONE-SENTENCE thesis the essay will argue. Test it:
-        - is it falsifiable by passage-level evidence (not vague
-          'this essay explores X')?
-        - is it non-obvious to a reader who knows the text?
-        - does the apparatus / archival ledger you have actually
-          support it (not an adjacent claim)?
+      Write the one-sentence thesis in workspace/.outline/thesis.md
+      with rationale + the 3-5 passages you'll read closely. Test
+      it (falsifiable? non-obvious? supported by the apparatus?).
 
-      Write workspace/.outline/thesis.md with the sentence + a
-      one-paragraph rationale + the three to five passages you
-      will read closely to support it.
-
-  - id: scaffold_essay
-    name: Scaffold the essay sections (write synthesis/paper.md)
+  - id: scaffold
+    name: Scaffold essay.typ
     description: |
-      tool_humanities_essay_scaffold (shortcut)
-      Writes synthesis/paper.md with the six interpretive sections:
-        1. Introduction + thesis (3-5 paragraphs, ends on the thesis)
-        2. Contextual framing (seat the argument in the field /
-           period / tradition)
-        3. Close readings — one sub-section per passage (3-5 total),
-           each: passage quoted (block when long) + reading
-        4. Critical conversation (where you stand vs the secondary
-           scholarship; named critics; named positions)
-        5. Counter-argument + reply (steelmanned objection, then
-           the reply)
-        6. Conclusion + stakes (what the reading tells us beyond
-           the text)
+      tool_synthesis_scaffold(kind='essay') writes synthesis/essay.typ
+      with the six interpretive sections + AI markers. Idempotent.
 
-      Each section ships with a one-paragraph stub the AI fills in.
-      The scaffold is IDEMPOTENT — re-running it does not clobber
-      a section that already has substantive content (>200 chars
-      of non-stub text); it only writes the missing sections.
-
-  - id: draft_close_readings
-    name: Draft the close readings (evidentiary core)
+  - id: close_readings
+    name: Draft the close readings
     description: |
-      Per close-reading section, draft the passage + unpacking:
-        - quote the passage (block quote if >4 lines of verse or
-          >40 words of prose, per MLA convention)
-        - identify the formal feature(s) doing the work (metre,
-          enjambment, imagery, syntactic pattern, lexical register,
-          framing device)
-        - link the formal feature to the thesis: what does this
-          passage SHOW that supports the claim?
-        - cite the secondary critic(s) who have or have not noticed
-          this feature (footnote)
+      One section per researcher turn. Each — quote the passage
+      (block when long), identify the formal feature doing the work,
+      link to the thesis, footnote the relevant secondary critic.
 
-      Append revisions in place — do not regenerate the whole essay
-      per section; one section per researcher turn (cf.
-      synthesis_paper's multi-turn enforcement).
-
-  - id: draft_critical_conversation
+  - id: critical_conversation
     name: Draft the critical conversation
     description: |
-      Identify three to seven named critics whose readings of this
-      text (or this tradition) are the closest neighbours to your
-      reading. For each:
-        - one-sentence summary of their position (cite the work)
-        - your relation to it (extends, qualifies, contests,
-          ignores-and-replaces)
+      3-7 named critics + your relation to each (extends / qualifies
+      / contests / ignores-and-replaces).
 
-      The reader of the essay should leave knowing where in the
-      critical landscape your reading sits. A reading that does not
-      know its neighbours is exegesis, not scholarship.
-
-  - id: draft_counter_argument_and_reply
-    name: Draft the counter-argument + reply
+  - id: counter_argument
+    name: Draft the counter-argument and reply
     description: |
-      Steelman the strongest objection. Two common shapes:
-        - the counter-reading: a different interpretation of the
-          same passages
-        - the counter-frame: an argument that the text doesn't
-          support the kind of reading you're doing (e.g. that the
-          author / period / genre rules this out)
+      Steelman the strongest objection. Reply by showing the counter
+      accounts for FEWER passages.
 
-      The reply shows that your reading accounts for MORE of the
-      passages, or accounts for the passages more parsimoniously,
-      or accounts for a feature the counter cannot.
-
-  - id: draft_conclusion_and_stakes
-    name: Draft the conclusion + stakes
+  - id: conclusion_stakes
+    name: Draft the conclusion and stakes
     description: |
-      Two-paragraph close. First paragraph: restate the thesis +
-      the evidence in compressed form. Second paragraph: stakes —
-      what your reading tells us BEYOND THE TEXT (about the
-      genre, the period, the author's relation to a tradition,
-      the reception of an idea, the methodological lesson for
-      reading similar texts).
+      Two-paragraph close. First — restate the thesis + evidence in
+      compressed form. Second — stakes (why this matters beyond the
+      text).
 
-  - id: compile_to_pdf
-    name: Compile via Typst (humanities_essay template)
+  - id: audit
+    name: Audit
     description: |
-      tool_paper_compile_typst(venue="humanities_essay")
-      Renders synthesis/paper.md → synthesis/paper.typ →
-      synthesis/paper.pdf using the bundled humanities_essay.typ
-      template: 1.25in margins, 12pt serif, MLA-style unnumbered
-      headings, footnote apparatus, 0.5in block-quote indent.
+      tool_synthesis_check(file='synthesis/essay.typ') runs the
+      substantiveness checks (auto-detects Typst headings).
 
-      Citation style auto-selects from
-      researcher_config.writing_preferences.citation_style:
-        - mla (default for literary criticism)
-        - chicago_author_date (history of ideas; cultural history)
-        - chicago_notes_bib (history; classics; theology)
+  - id: compile
+    name: Compile to PDF
+    description: |
+      tool_typst_compile(source='synthesis/essay.typ') renders
+      synthesis/essay.pdf using humanities_essay.typ.
 
-      Then route to synthesis/synthesis_paper for the final audit
-      gate + pre-submission checklist.
+tools: |
+  - tool_synthesis_scaffold(kind='essay') — seed essay.typ with the
+    six interpretive sections
+  - tool_synthesis_check — content depth + cliche detection
+  - tool_typst_compile — render essay.pdf
+  - tool_writing_discussion_from_verdicts — only when the essay
+    engages a critical conversation with literature verdicts in the
+    workspace
 
 expected_outputs:
-  - synthesis/paper.md
-  - synthesis/paper.typ
-  - synthesis/paper.pdf
+  - synthesis/essay.typ
+  - synthesis/essay.pdf
   - workspace/.outline/thesis.md
 
-shortcut_tool: tool_humanities_essay_scaffold
-
-next_protocol: synthesis/synthesis_paper
-next_protocol_kind: forward_default
+next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing
