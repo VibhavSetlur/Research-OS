@@ -1,7 +1,7 @@
 id: synthesis_slides
 tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck (AI-authored Touying)
-version: '2.3.0'
+version: '2.4.3'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, theory_math, biology, engineering, humanities]
@@ -32,6 +32,11 @@ trigger: |
 prerequisites:
   - At least one workspace/<step>/conclusions.md has substantive
     findings, OR synthesis/paper.typ already exists.
+  - "Researcher's `research_goal.output_types`
+    (inputs/researcher_config.yaml) includes `slides`. If it
+    doesn't, tool_synthesis_scaffold returns status=ask — confirm
+    with the researcher before scaffolding. Empty output_types is
+    treated as 'open'."
 
 design_principles: |
   - One claim per slide. The title bar makes the claim, not labels

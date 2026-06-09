@@ -1,30 +1,51 @@
-"""Regression tests for v2.4.2 synthesis check + curate fixes.
+"""Topic-named regression tests for the synthesis check + scaffold gates.
 
-Three classes of fix shipped in this PATCH release:
+Covers:
 
 1. ``synthesis_check`` (dashboard kind) flags the per-step recap
    antipattern: a dashboard organised as one section per workspace
    step ("Step 01", "Step 02", ...) is the bookkeeping leak the
-   `synthesis_dashboard` protocol explicitly forbids.
+   `synthesis_dashboard` protocol explicitly forbids. (v2.4.2)
 
 2. ``synthesis_check`` (dashboard kind) flags missing hero / TL;DR /
    headline-finding sections so the first viewport always delivers
-   the top-line result.
+   the top-line result. (v2.4.2)
 
 3. ``synthesis_hygiene`` flags non-canonical synthesis filenames
    (paper-lay.md, REPRODUCIBILITY.md, METHODS.md, CITATIONS.md, ...)
    that downstream tools do not recognise and that come from the AI
    improvising filenames outside the supported synthesis protocols.
+   (v2.4.2)
 
 4. ``workspace_hygiene`` flags loose files at workspace root that
    aren't one of the canonical rolling logs / certifications file.
    They should live under workspace/scratch/, workspace/logs/, or
-   workspace/archive/.
+   workspace/archive/. (v2.4.2)
 
 5. ``curate_figures(mode='all')`` curates every step figure (not just
    the focal one) and copies / seeds caption sidecars for each, so a
    dashboard pulling in many per-step figures cannot end up with
-   uncaptioned PNGs in synthesis/figures/.
+   uncaptioned PNGs in synthesis/figures/. (v2.4.2)
+
+6. ``output_types_gate`` consults
+   ``researcher_config.yaml#research_goal.output_types`` and returns
+   ``ask`` when the requested synthesis kind isn't declared. Empty
+   ``output_types`` falls through to ``proceed`` so unfilled
+   projects don't trip the gate. (v2.4.3)
+
+7. ``synthesis_scaffold`` returns ``status='ask'`` instead of
+   writing when the gate verdict is ``ask`` and the caller hasn't
+   passed ``confirmed=true`` or ``overwrite=true``. (v2.4.3)
+
+8. ``get_next_protocol`` filters the synthesis tail by declared
+   ``output_types`` instead of hardcoding ``synthesis_paper`` as
+   the terminal step. Empty ``output_types`` preserves the v2.4.2
+   ``synthesis_paper`` fallback. (v2.4.3)
+
+Filename note: this file was renamed from
+``test_v242_synthesis_dashboard_lints.py`` in v2.4.3 to drop the
+per-release naming convention. New tests for this surface should
+land here, not in a new ``test_v<version>_*.py`` file.
 """
 
 from __future__ import annotations
@@ -33,10 +54,12 @@ from pathlib import Path
 
 from research_os.tools.actions.synthesis.check import (
     _check_dashboard,
+    output_types_gate,
     synthesis_hygiene,
     workspace_hygiene,
 )
 from research_os.tools.actions.synthesis.curate import curate_figures
+from research_os.tools.actions.synthesis.scaffold import synthesis_scaffold
 
 
 _GOOD_DASHBOARD = """\
@@ -247,3 +270,138 @@ def test_curate_figures_rejects_unknown_mode(tmp_path: Path):
     out = curate_figures(tmp_path, mode="bogus")
     assert out["status"] == "error"
     assert "mode" in out["message"]
+
+
+# ---------------------------------------------------------------------------
+# v2.4.3: output_types intent gate + scaffold + get_next_protocol
+# ---------------------------------------------------------------------------
+
+
+def _seed_config(tmp_path: Path, output_types: list[str]) -> None:
+    """Write a minimal researcher_config.yaml with the given output_types."""
+    inputs = tmp_path / "inputs"
+    inputs.mkdir(exist_ok=True)
+    lines = ["research_goal:", "  output_types:"]
+    for t in output_types:
+        lines.append(f"    - {t}")
+    if not output_types:
+        # Preserve YAML validity for "empty list" case.
+        lines[-1] = "  output_types: []"
+    (inputs / "researcher_config.yaml").write_text("\n".join(lines) + "\n")
+
+
+def test_output_types_gate_proceeds_when_kind_in_declared(tmp_path: Path):
+    _seed_config(tmp_path, ["paper", "dashboard"])
+    out = output_types_gate(tmp_path, "dashboard")
+    assert out["verdict"] == "proceed"
+    assert "dashboard" in out["declared_outputs"]
+    assert out["message"] == ""
+
+
+def test_output_types_gate_asks_when_kind_not_declared(tmp_path: Path):
+    _seed_config(tmp_path, ["dashboard"])
+    out = output_types_gate(tmp_path, "paper")
+    assert out["verdict"] == "ask"
+    assert out["declared_outputs"] == ["dashboard"]
+    assert "paper" in out["message"]
+    assert "dashboard" in out["message"]
+
+
+def test_output_types_gate_proceeds_on_empty_or_missing(tmp_path: Path):
+    # Empty list.
+    _seed_config(tmp_path, [])
+    out = output_types_gate(tmp_path, "paper")
+    assert out["verdict"] == "proceed"
+    # No config file at all (fresh project).
+    import shutil
+    shutil.rmtree(tmp_path / "inputs")
+    out2 = output_types_gate(tmp_path, "paper")
+    assert out2["verdict"] == "proceed"
+
+
+def test_output_types_gate_normalises_aliases(tmp_path: Path):
+    # `lay-summary` (hyphen) should map to canonical lay_summary.
+    _seed_config(tmp_path, ["lay_summary"])
+    out = output_types_gate(tmp_path, "lay-summary")
+    assert out["verdict"] == "proceed"
+
+
+def test_output_types_gate_ignores_exploratory(tmp_path: Path):
+    # `exploratory` is the "no deliverable yet" marker — it must NOT
+    # by itself satisfy a paper / dashboard request.
+    _seed_config(tmp_path, ["exploratory"])
+    out = output_types_gate(tmp_path, "paper")
+    # Filtered out → declared list is empty → falls back to proceed.
+    assert out["verdict"] == "proceed"
+    assert out["declared_outputs"] == []
+
+
+def test_scaffold_returns_ask_when_kind_not_declared(tmp_path: Path):
+    _seed_config(tmp_path, ["dashboard"])
+    out = synthesis_scaffold(tmp_path, kind="paper")
+    assert out["status"] == "ask"
+    assert "paper" in out["message"]
+    # Crucially: nothing was written.
+    assert not (tmp_path / "synthesis" / "paper.typ").exists()
+
+
+def test_scaffold_proceeds_with_confirmed_true(tmp_path: Path):
+    _seed_config(tmp_path, ["dashboard"])
+    out = synthesis_scaffold(tmp_path, kind="paper", confirmed=True)
+    assert out["status"] == "success"
+    assert (tmp_path / "synthesis" / "paper.typ").exists()
+
+
+def test_scaffold_proceeds_when_kind_is_declared(tmp_path: Path):
+    _seed_config(tmp_path, ["dashboard", "paper"])
+    out = synthesis_scaffold(tmp_path, kind="paper")
+    assert out["status"] == "success"
+    assert (tmp_path / "synthesis" / "paper.typ").exists()
+
+
+def test_scaffold_proceeds_on_empty_output_types(tmp_path: Path):
+    _seed_config(tmp_path, [])
+    out = synthesis_scaffold(tmp_path, kind="dashboard")
+    assert out["status"] == "success"
+    assert (tmp_path / "synthesis" / "dashboard.html").exists()
+
+
+def test_get_next_protocol_respects_dashboard_only(tmp_path: Path):
+    from research_os.tools.actions.protocol import _full_pipeline
+    _seed_config(tmp_path, ["dashboard"])
+    tail = [name for name, _ in _full_pipeline(tmp_path)]
+    assert tail[-1] == "synthesis/synthesis_dashboard"
+    assert "synthesis/synthesis_paper" not in tail
+
+
+def test_get_next_protocol_respects_multi_output_order(tmp_path: Path):
+    from research_os.tools.actions.protocol import _full_pipeline
+    _seed_config(tmp_path, ["paper", "lay_summary"])
+    tail_names = [n for n, _ in _full_pipeline(tmp_path)]
+    # Both synthesis protocols present, in declared order.
+    assert tail_names[-2:] == [
+        "synthesis/synthesis_paper",
+        "synthesis/synthesis_lay_summary",
+    ]
+
+
+def test_get_next_protocol_empty_falls_back_to_paper(tmp_path: Path):
+    from research_os.tools.actions.protocol import _full_pipeline
+    _seed_config(tmp_path, [])
+    tail_names = [n for n, _ in _full_pipeline(tmp_path)]
+    # v2.4.2 backwards-compat: empty output_types → paper terminal.
+    assert tail_names[-1] == "synthesis/synthesis_paper"
+
+
+def test_synthesis_check_envelope_includes_intent_gate(tmp_path: Path):
+    """synthesis_check should surface intent_gate alongside hygiene."""
+    from research_os.tools.actions.synthesis.check import synthesis_check
+    _seed_config(tmp_path, ["dashboard"])
+    syn = tmp_path / "synthesis"
+    syn.mkdir()
+    (syn / "paper.typ").write_text("// stub\n= Introduction\nbody\n")
+    res = synthesis_check(tmp_path, file="synthesis/paper.typ")
+    assert "intent_gate" in res
+    assert res["intent_gate"]["verdict"] == "ask"
+    # Warning surfaces the mismatch in human-readable form.
+    assert any("dashboard" in w for w in res.get("warnings", []))

@@ -791,8 +791,17 @@ def _has_real_research_question(root: Path) -> bool:
 
 # Each step is considered done when EITHER the protocol logged completion OR
 # its hallmark on-disk artifact exists with real content.
+#
+# The analysis prefix (session boot → project startup → domain → methodology
+# → literature → analysis_plan → reproducibility → audit_and_validation) is
+# UNIVERSAL — every research project needs it regardless of declared
+# output_types. Synthesis tail is dynamic: chosen from
+# researcher_config.yaml#research_goal.output_types so the loader stops
+# pushing every project toward a paper. Empty output_types falls back to
+# synthesis/synthesis_paper as the terminal (legacy fallback, so
+# existing projects don't regress).
 
-PIPELINE: list[tuple[str, Any]] = [
+_ANALYSIS_PIPELINE: list[tuple[str, Any]] = [
     (
         "guidance/session_boot",
         lambda r: _any_protocol_logged(r) or _protocol_completed(r, "guidance/session_boot"),
@@ -839,17 +848,151 @@ PIPELINE: list[tuple[str, Any]] = [
         lambda r: _protocol_completed(r, "audit/audit_and_validation")
         or _has(r, "workspace/logs/audit_report.md"),
     ),
-    (
+]
+
+
+# Maps each output_types keyword the wizard accepts (researcher_config.yaml
+# template line 113) to its synthesis protocol + the predicate that marks
+# that protocol "done" on disk. Keys are lowercased, hyphens stripped, so
+# `lay_summary` / `lay-summary` / `Lay Summary` all match.
+SYNTHESIS_OUTPUT_TYPE_MAP: dict[str, tuple[str, Any]] = {
+    "paper": (
         "synthesis/synthesis_paper",
-        lambda r: _has(r, "synthesis/paper.md")
-        and (r / "synthesis" / "paper.md").stat().st_size > 1000,
+        lambda r: (
+            (_has(r, "synthesis/paper.md") and (r / "synthesis" / "paper.md").stat().st_size > 1000)
+            or _has(r, "synthesis/paper.pdf")
+        ),
     ),
+    "dashboard": (
+        "synthesis/synthesis_dashboard",
+        lambda r: _has(r, "synthesis/dashboard.html")
+        and (r / "synthesis" / "dashboard.html").stat().st_size > 1000,
+    ),
+    "poster": (
+        "synthesis/synthesis_poster",
+        lambda r: _has(r, "synthesis/poster.pdf") or _has(r, "synthesis/poster.typ"),
+    ),
+    "slides": (
+        "synthesis/synthesis_slides",
+        lambda r: _has(r, "synthesis/slides.pdf") or _has(r, "synthesis/slides.typ"),
+    ),
+    "report": (
+        "synthesis/synthesis_report",
+        lambda r: _has(r, "synthesis/report.pdf") or _has(r, "synthesis/report.typ") or _has(r, "synthesis/report.md"),
+    ),
+    "lay_summary": (
+        "synthesis/synthesis_lay_summary",
+        lambda r: _has(r, "synthesis/lay_summary.md"),
+    ),
+    "grant": (
+        "synthesis/synthesis_grant",
+        lambda r: _has(r, "synthesis/grant.pdf") or _has(r, "synthesis/grant.typ"),
+    ),
+    "abstract": (
+        "synthesis/synthesis_abstract",
+        lambda r: _has(r, "synthesis/abstract.md") or _has(r, "synthesis/abstract.typ"),
+    ),
+    "essay": (
+        "synthesis/humanities_essay_structure",
+        lambda r: _has(r, "synthesis/essay.pdf") or _has(r, "synthesis/essay.typ"),
+    ),
+    "handout": (
+        "synthesis/printable",
+        lambda r: _has(r, "synthesis/handout.pdf") or _has(r, "synthesis/handout.typ"),
+    ),
+}
+
+
+def _normalise_output_kind(kind: str) -> str:
+    """Map any AI-input spelling to the canonical SYNTHESIS_OUTPUT_TYPE_MAP key."""
+    if not isinstance(kind, str):
+        return ""
+    return kind.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _declared_output_types(root: Path) -> list[str]:
+    """Return the lowercased, deduplicated list of declared output_types.
+
+    Empty list ⇒ caller treats as "open" (no preference declared). A
+    missing config file is treated identically to an empty list; the
+    wizard hasn't seeded the project yet, so we don't gate.
+    """
+    cfg_path = root / "inputs" / "researcher_config.yaml"
+    if not cfg_path.exists():
+        return []
+    try:
+        from research_os.tools.actions.state.config import get_config
+    except Exception:
+        return []
+    res = get_config(root)
+    if res.get("status") != "success":
+        return []
+    raw = (
+        ((res.get("config") or {}).get("research_goal") or {}).get("output_types") or []
+    )
+    if not isinstance(raw, list):
+        return []
+    seen: list[str] = []
+    for item in raw:
+        norm = _normalise_output_kind(item)
+        if not norm or norm == "exploratory":
+            # 'exploratory' is the explicit "no deliverable yet" marker;
+            # it doesn't promote any synthesis protocol.
+            continue
+        if norm not in seen:
+            seen.append(norm)
+    return seen
+
+
+def _synthesis_tail(root: Path) -> list[tuple[str, Any]]:
+    """Return the synthesis tail of the pipeline filtered by output_types.
+
+    Empty output_types ⇒ ``synthesis/synthesis_paper`` only (legacy
+    fallback), so projects that haven't filled out the wizard's
+    output_types field don't regress.
+    """
+    declared = _declared_output_types(root)
+    if not declared:
+        return [SYNTHESIS_OUTPUT_TYPE_MAP["paper"]]
+    tail: list[tuple[str, Any]] = []
+    for kind in declared:
+        entry = SYNTHESIS_OUTPUT_TYPE_MAP.get(kind)
+        if entry and entry not in tail:
+            tail.append(entry)
+    if not tail:
+        # Researcher's output_types listed only unknown strings — fall
+        # back to paper so the loader still has a terminal step.
+        return [SYNTHESIS_OUTPUT_TYPE_MAP["paper"]]
+    return tail
+
+
+def _full_pipeline(root: Path) -> list[tuple[str, Any]]:
+    """Analysis prefix + synthesis tail filtered by declared outputs."""
+    return list(_ANALYSIS_PIPELINE) + _synthesis_tail(root)
+
+
+# Backwards-compat alias for callers that import the legacy name. New
+# code should use _full_pipeline(root) so the synthesis tail respects
+# researcher_config.yaml#research_goal.output_types.
+PIPELINE: list[tuple[str, Any]] = list(_ANALYSIS_PIPELINE) + [
+    SYNTHESIS_OUTPUT_TYPE_MAP["paper"]
 ]
 
 
 def get_next_protocol(root: Path) -> dict:
-    """Return the recommended next protocol based on workspace state."""
-    for protocol_name, predicate in PIPELINE:
+    """Return the recommended next protocol based on workspace state.
+
+    The pipeline is the universal analysis prefix
+    (session_boot → project_startup → ... → audit_and_validation)
+    followed by a synthesis tail filtered by
+    ``researcher_config.yaml#research_goal.output_types``. A project
+    that declared ``output_types: [dashboard]`` will see
+    ``synthesis/synthesis_dashboard`` as its terminal step, NOT
+    ``synthesis_paper``. Projects with empty ``output_types`` fall
+    back to ``synthesis_paper`` so the legacy behaviour is preserved.
+    """
+    pipeline = _full_pipeline(root)
+    for protocol_name, predicate in pipeline:
         try:
             done = predicate(root)
         except Exception:
@@ -858,14 +1001,20 @@ def get_next_protocol(root: Path) -> dict:
             return {
                 "next_protocol": protocol_name,
                 "reason": f"Outputs of '{protocol_name}' not yet present.",
-                "pipeline_position": [name for name, _ in PIPELINE].index(protocol_name) + 1,
-                "pipeline_total": len(PIPELINE),
+                "pipeline_position": [name for name, _ in pipeline].index(protocol_name) + 1,
+                "pipeline_total": len(pipeline),
+                "declared_output_types": _declared_output_types(root),
             }
+    declared = _declared_output_types(root)
+    deliverables = ", ".join(declared) if declared else "paper"
     return {
         "next_protocol": None,
-        "reason": "Pipeline complete — paper, audit, and reproducibility outputs all present.",
-        "pipeline_position": len(PIPELINE),
-        "pipeline_total": len(PIPELINE),
+        "reason": (
+            f"Pipeline complete — analysis + {deliverables} outputs all present."
+        ),
+        "pipeline_position": len(pipeline),
+        "pipeline_total": len(pipeline),
+        "declared_output_types": declared,
     }
 
 

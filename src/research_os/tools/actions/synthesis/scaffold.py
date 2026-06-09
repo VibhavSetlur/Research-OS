@@ -345,18 +345,44 @@ def synthesis_scaffold(
     root: Path,
     kind: str = "paper",
     overwrite: bool = False,
+    confirmed: bool = False,
 ) -> dict[str, Any]:
     """Write a tiny skeleton synthesis file.
 
     Returns status='exists' (idempotent) if the file is already present
     and overwrite=False. The AI is expected to author the content; this
     tool only seeds section headers and protocol-pointing comments.
+
+    Output-types intent gate: if ``kind`` is NOT in the researcher's
+    declared ``research_goal.output_types`` (and they HAVE declared
+    something — empty list is treated as "open"), the scaffold returns
+    status='ask' instead of writing. The AI is expected to surface the
+    returned ``message`` to the researcher and re-call with
+    ``confirmed=true`` only if the researcher actually wants this
+    deliverable. This prevents the failure mode where the AI auto-creates
+    a paper / dashboard / poster the user never asked for.
     """
     if kind not in SCAFFOLDS:
         return {
             "status": "error",
             "message": f"Unknown kind '{kind}'. Valid: {', '.join(sorted(SCAFFOLDS))}.",
         }
+
+    # Output-types intent gate. Skipped when the caller has already
+    # confirmed with the researcher (confirmed=true) or is doing a
+    # forced overwrite (overwrite=true implies prior confirmation).
+    if not (confirmed or overwrite):
+        # Local import to avoid pulling check.py at module load.
+        from research_os.tools.actions.synthesis.check import output_types_gate
+
+        gate = output_types_gate(root, kind)
+        if gate.get("verdict") == "ask":
+            return {
+                "status": "ask",
+                "kind": kind,
+                "intent_gate": gate,
+                "message": gate.get("message", "Confirm scaffold with the researcher first."),
+            }
 
     rel_path, body = SCAFFOLDS[kind]
     target = root / rel_path

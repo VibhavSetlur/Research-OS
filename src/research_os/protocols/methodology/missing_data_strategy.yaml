@@ -303,6 +303,9 @@ quality_bar:
   rubin_pooling_used_for_multiple_imputation: true
   preregistered_if_confirmatory: true
 
+# AUTONOMY GATE: in manual / supervised / coaching, surface
+# "Next: audit/audit_and_validation" as a SUGGESTION; only autopilot
+# auto-chains. A missing-data strategy decision ≠ a full project audit.
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

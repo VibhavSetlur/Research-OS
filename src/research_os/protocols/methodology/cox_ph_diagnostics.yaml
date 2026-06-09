@@ -242,6 +242,9 @@ quality_bar:
   fallback_strategy_chosen_and_logged_if_violated: true
   cox_hazard_ratio_never_reported_without_companion_ph_test: true
 
+# AUTONOMY GATE: in manual / supervised / coaching, surface
+# "Next: audit/audit_and_validation" as a SUGGESTION; only autopilot
+# auto-chains. A targeted diagnostics check ≠ a full project audit.
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

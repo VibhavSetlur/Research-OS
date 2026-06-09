@@ -1,7 +1,7 @@
 id: synthesis_paper
 tier: 'synthesize'
 name: Synthesis — Paper (IMRAD, AI-authored Typst → PDF)
-version: '2.4.2'
+version: '2.4.3'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, humanities, qualitative, theory_math, engineering]
@@ -62,6 +62,12 @@ prerequisites:
   - workspace/methods.md, workspace/citations.md exist with real content
   - At least one workspace/<step>/conclusions.md exists with substantive findings
   - inputs/literature_index.yaml has at least 3 entries (or workspace/citations.md does)
+  - "Researcher's `research_goal.output_types` (in
+    inputs/researcher_config.yaml) includes `paper`. If it doesn't,
+    tool_synthesis_scaffold returns status=ask instead of writing —
+    surface the message to the researcher and only re-call with
+    confirmed=true after they say yes. Empty output_types is treated
+    as 'open' so unfilled projects don't trip the gate."
 
 design_principles: |
   - Every quantitative claim is grounded in a real workspace artefact.
@@ -95,6 +101,21 @@ quality_standards: |
     ~25, preprint flexible).
 
 steps:
+  - id: verify_intent
+    name: Confirm the researcher actually wants a paper
+    description: |
+      Read `inputs/researcher_config.yaml#research_goal.output_types`.
+      - Empty list: the researcher hasn't declared preferences; proceed
+        (and consider asking them to add `paper` to make the intent
+        explicit for future sessions).
+      - List includes `paper`: proceed silently.
+      - List does NOT include `paper`: STOP. Ask the researcher
+        "Your declared output_types is <list>; do you want me to add
+        a paper, or skip and use one of <list>?". Do NOT scaffold
+        until they confirm. This is the fix for the failure
+        mode where the AI auto-creates papers for dashboard-only
+        projects.
+
   - id: inspect_workspace
     name: Inspect what's ready
     description: |

@@ -504,6 +504,14 @@ def synthesis_check(
     if hygiene_ws.get("relocations_needed"):
         warnings.extend(hygiene_ws["relocations_needed"])
 
+    # Output-types intent gate: warn (don't block) if the AI is
+    # auditing a synthesis file whose kind isn't in the researcher's
+    # declared output_types. Educates without breaking projects that
+    # haven't filled out the wizard's output_types field.
+    gate = output_types_gate(root, kind)
+    if gate.get("verdict") == "ask" and gate.get("message"):
+        warnings.append(gate["message"])
+
     return {
         "status": "error" if blockers else "success",
         "kind": kind,
@@ -516,6 +524,7 @@ def synthesis_check(
             "synthesis": hygiene_synth,
             "workspace": hygiene_ws,
         },
+        "intent_gate": gate,
     }
 
 
@@ -666,6 +675,124 @@ def workspace_hygiene(root: Path) -> dict[str, Any]:
 # Numbered step folder pattern (NN_slug / NNN_slug). Compiled once at
 # module load so workspace_hygiene's walk stays cheap.
 _STEP_DIR_LIKE = re.compile(r"^\d{2,3}_[A-Za-z0-9]")
+
+
+# ---------------------------------------------------------------------------
+# Output-types gate — every synthesis protocol consults this before
+# scaffolding or compiling. The researcher's wizard answer
+# (researcher_config.yaml#research_goal.output_types) is the contract
+# the AI must honour; auto-creating deliverables outside that contract
+# wastes context and produces material the user didn't ask for.
+# ---------------------------------------------------------------------------
+
+
+# File-kind detected by _file_kind() → canonical output_types keyword. Used
+# by output_types_gate() so the gate can be invoked with the same kind
+# string check.py already uses for per-file linting.
+_KIND_TO_OUTPUT_TYPE: dict[str, str] = {
+    "paper": "paper",
+    "essay": "essay",
+    "slides": "slides",
+    "poster": "poster",
+    "dashboard": "dashboard",
+    "report": "report",
+    "grant": "grant",
+    "lay_summary": "lay_summary",
+    "handout": "handout",
+    "abstract": "abstract",
+}
+
+
+def output_types_gate(
+    root: Path, kind: str, *, autonomy: str | None = None
+) -> dict[str, Any]:
+    """Return a verdict on whether this synthesis kind matches the
+    researcher's declared output_types.
+
+    Verdicts:
+      - ``proceed``: declared output_types is empty (no preference yet),
+        OR the kind is in the declared set. The AI may scaffold /
+        compile without confirmation.
+      - ``ask``: declared output_types is non-empty and the kind is NOT
+        in the set. The AI MUST confirm with the researcher before
+        scaffolding. The returned ``message`` is a one-line prompt the
+        AI can lift verbatim.
+      - ``skip``: only returned when the researcher has explicitly
+        opted this kind out (currently surfaced via
+        ``research_goal.output_types`` containing ``not_<kind>`` /
+        ``no_<kind>``; reserved for future use).
+
+    Empty output_types is treated as "open" so the gate teaches new
+    projects rather than blocking them. Once the wizard's defaults
+    seed a non-empty list (the maintainer's intended path), the gate
+    becomes load-bearing automatically.
+
+    The ``autonomy`` arg is reserved for callers that want the gate to
+    also enforce the autonomy ladder (manual / supervised → ask even
+    on a match; autopilot → proceed silently). Defaults to None, in
+    which case only output_types membership is checked.
+    """
+    # Local import to avoid a circular dep — protocol.py uses helpers
+    # from this module's neighbours during preflight.
+    try:
+        from research_os.tools.actions.protocol import (
+            _declared_output_types,
+            _normalise_output_kind,
+        )
+    except Exception:
+        return {
+            "verdict": "proceed",
+            "declared_outputs": [],
+            "message": "",
+            "kind": kind,
+        }
+
+    declared = _declared_output_types(root)
+    target = _KIND_TO_OUTPUT_TYPE.get(_normalise_output_kind(kind)) or _normalise_output_kind(kind)
+
+    if not declared:
+        return {
+            "verdict": "proceed",
+            "declared_outputs": [],
+            "message": "",
+            "kind": target,
+        }
+    if target in declared:
+        # Autonomy-mode soft gate: in manual / supervised we still ask
+        # if the caller passed an autonomy hint and it's not autopilot,
+        # because the wizard's "I want a paper" is a far-future intent
+        # — confirming the AI should start authoring NOW is courteous.
+        if autonomy and autonomy.lower() in {"manual", "supervised", "coaching"}:
+            return {
+                "verdict": "ask",
+                "declared_outputs": declared,
+                "message": (
+                    f"You declared `{target}` as a research goal — "
+                    f"start scaffolding `synthesis/{target}` now? "
+                    "(say `yes` to proceed, `not yet` to defer)."
+                ),
+                "kind": target,
+            }
+        return {
+            "verdict": "proceed",
+            "declared_outputs": declared,
+            "message": "",
+            "kind": target,
+        }
+    # Mismatch: declared outputs don't include this kind.
+    return {
+        "verdict": "ask",
+        "declared_outputs": declared,
+        "message": (
+            f"Heads up: you declared `output_types: {declared}` in "
+            f"`inputs/researcher_config.yaml` but are about to scaffold "
+            f"`synthesis/{target}`. Was that intended? Say `yes, add "
+            f"{target}` to add it to your goals (recommended), `skip` "
+            "to abort, or `just this once` to scaffold without "
+            "updating the config."
+        ),
+        "kind": target,
+    }
 
 
 def synthesis_hygiene(root: Path) -> dict[str, Any]:

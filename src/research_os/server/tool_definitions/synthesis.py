@@ -49,8 +49,8 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_synthesis_scaffold": {
-        "short": "Write a tiny skeleton .typ / .html file for the AI to author into.",
-        "description": "Writes a ≤80-line skeleton with section headers + `// AI: author this` markers. Refuses to overwrite an existing file unless overwrite=true. Kinds: paper, slides, poster, essay, dashboard. After scaffolding, AUTHOR the content directly (follow the matching synthesis protocol), then tool_synthesis_check, then tool_typst_compile (or open the HTML for dashboards).",
+        "short": "Write a tiny skeleton .typ/.html for the AI to author into. Gates on researcher_config.yaml output_types.",
+        "description": "Writes a ≤80-line skeleton with section headers + `// AI: author this` markers. Refuses to overwrite an existing file unless overwrite=true. Kinds: paper, slides, poster, essay, dashboard, grant, handout. After scaffolding, AUTHOR the content directly (follow the matching synthesis protocol), then tool_synthesis_check, then tool_typst_compile (or open the HTML for dashboards). Output-types intent gate: if the researcher has declared `research_goal.output_types` in `inputs/researcher_config.yaml` and the requested `kind` is NOT in that list, the call returns status='ask' instead of writing — surface the returned message to the researcher and re-call with `confirmed=true` only if they actually want this deliverable. Prevents auto-creating papers / dashboards / posters the user never asked for.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
@@ -62,7 +62,11 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "overwrite": {
                     "type": "boolean",
-                    "description": "Replace an existing file. Default false (idempotent).",
+                    "description": "Replace an existing file. Default false (idempotent). Implies confirmed=true.",
+                },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": "Bypass the output_types intent gate after confirming with the researcher. Default false. Use ONLY after the researcher has explicitly OK'd this kind.",
                 },
             },
         },
