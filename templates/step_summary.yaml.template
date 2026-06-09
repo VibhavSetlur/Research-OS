@@ -1,5 +1,18 @@
 # step_summary.yaml — per-step contract for audit gates
 #
+# ── DEPRECATION NOTICE ────────────────────────────────────────────────
+# This template is soft-deprecated. tool_path_finalize emits a derived
+# step_summary.yaml from conclusions.md headings; the AI should answer
+# the underlying questions as prose in conclusions.md (Findings,
+# Decision, Methods, Limitations) rather than filling YAML fields with
+# zeros and stopping. The audit found YAML stubs trained the AI to
+# leave literature.papers_downloaded as 0 across 11/11 steps instead
+# of actually checking. New protocols should NOT scaffold this file;
+# they should require prose answers in conclusions.md. Existing
+# protocols that reference this template will migrate in a future
+# release.
+# ──────────────────────────────────────────────────────────────────────
+#
 # This file lives at workspace/<NN_slug>/step_summary.yaml and is the
 # machine-readable record of:
 #   1. WHAT KIND of step this is (drives which audits apply)
