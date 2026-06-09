@@ -6,6 +6,111 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.4.1] — deferred v2.4.0 follow-ups (2026-06-09)
+
+PATCH-then-some release. Lands five of the items the v2.4.0
+CHANGELOG explicitly deferred (one of them — `research-os refresh` —
+is technically a new CLI subcommand and so a borderline MINOR
+addition; the rest are pure cleanups). Shipped as 2.4.1 because the
+combined surface change is small and additive: no existing project
+or caller breaks; readers + writers stay tolerant; old field names
+migrate silently.
+
+### Added
+
+- **`research-os refresh`** — new CLI subcommand. Detects drift
+  between a project's copies of bundled templates (`AGENTS.md`,
+  `CLAUDE.md`, `.claude/rules/research-os.md`, IDE rule files) and
+  the version shipped with the installed `research-os` package.
+  Read-only by default; `--check` exits non-zero on drift (CI-friendly);
+  `--write [--yes]` overwrites drifted project copies; `--json` emits
+  machine-readable output; `--regen-readme` also rebuilds the project-
+  root README.md from current state. Smoke-tested against the
+  `/scratch/vsetlur/ontology-mapping` project that drove the v2.4.0
+  audit: correctly flagged the +13-line AGENTS.md drift from the
+  rule #10 rewrite and the +1-line `.claude/rules/research-os.md`
+  drift; flagged CLAUDE.md as identical; ignored un-wired IDE rules.
+  Closes "no refresh CLI" deferred item.
+- **`project_ops.regenerate_root_readme(root)`** — public helper that
+  rewrites the project-root README.md with a "Project status" section
+  listing actual on-disk numbered step folders (with a one-line
+  summary cribbed from each step's README) plus any synthesis
+  deliverables present (`paper.{typ,pdf}`, `slides.{typ,pdf}`,
+  `poster.{typ,pdf}`, `dashboard.html`). Idempotent. Internal
+  `_write_project_root_readme` gained a `force=False` kwarg so the
+  wizard's skip-if-exists default is preserved.
+- **Checkpoint retention tags.** `create_checkpoint(description, root,
+  *, tag=None, keep=5)` now accepts an optional `tag` (e.g.
+  `"release-candidate"`, `"before-major-refactor"`). Tagged checkpoints
+  survive the per-create GC pass; untagged ones beyond `keep` are
+  pruned. `.meta.json` schema gains an optional `tag` field;
+  `list_checkpoints` surfaces it.
+- **Per-create checkpoint GC.** `create_checkpoint` now calls
+  `_prune_old_checkpoints` immediately after writing the snapshot,
+  surfacing the `{kept, removed, tagged}` report under `gc` in the
+  return envelope. Previously the pruner only ran at numbered-step
+  creation, so explicit `tool_checkpoint` chains accumulated unboundedly
+  (audit found one project at 61 MB across 2 checkpoints on a <5 MB
+  source tree).
+
+### Changed
+
+- **`step_summary.yaml` soft-deprecated.** `tool_path_finalize` still
+  writes the file (downstream readers — synthesis, audits, doctor —
+  consume it) but the emit now carries a deprecation banner naming
+  the file as DERIVED from `conclusions.md`, AUTO-GENERATED, "do
+  NOT edit by hand", and "slated for removal once readers migrate
+  to parsing conclusions.md directly". The payload gains a
+  `_derived_from: "conclusions.md"` field so machine readers can
+  detect the soft-deprecation programmatically.
+  `templates/step_summary.yaml.template` gets a matching DEPRECATION
+  NOTICE at the top telling new protocol authors NOT to scaffold the
+  file and pointing them at `conclusions.md` prose answers instead.
+  The 4 protocols that currently scaffold this file (analysis_plan,
+  qualitative_research, close_reading, proof_verification_workflow)
+  stay unchanged for back-compat; their migration is queued.
+- **Dead state-ledger fields dropped.** `checkpoint_history` and
+  `rollback_history` were written every checkpoint / rollback but
+  never read by any code path (the `.meta.json` sidecars in
+  `.os_state/checkpoints/` are the authoritative log). `rollback()`
+  no longer appends; `_migrate` strips both from older state files
+  on load. Reduces in-state JSON bloat across long sessions.
+
+### Not in this release (planned for v2.5.0 / v3.0)
+
+The v2.4.0 deferral list shrank by 5; the remaining items either
+require breaking schema changes or coordinated multi-file migrations:
+
+- Full `step_summary.yaml` retirement (delete the writer + migrate
+  the 4 protocols that scaffold the editable template to require
+  prose in conclusions.md). Breaking for any external reader of the
+  file → v3.0.
+- `.preregistration/` + `.grounding/` directory removal (migrate
+  content into per-step `preregistration.md` + `.os_state/grounding.jsonl`).
+  Touches 20+ readers; needs a back-compat-tolerant migration
+  pattern → v2.5.0.
+- Auto-invoked finalize hook at end of synthesis flow (the helper
+  exists now via `regenerate_root_readme`; wiring it to fire
+  automatically requires changes to the synthesis check / compile
+  tools) → v2.5.0.
+- Per-step `logs/` removal + cross-step utility canonical home
+  (`workspace/scratch/` IS used in practice; needs a positive
+  convention before removing the catch-all) → v2.5.0.
+
+### Verified
+
+- **Preflight: 29/29 passed.**
+- **Pytest: all green** (12 new tests across refresh CLI + checkpoint
+  GC + tag retention).
+- **Ruff: clean.**
+
+### Bumped
+
+- `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff` to
+  `2.4.1`.
+
+---
+
 ## [2.4.0] — scaffolds as questions, not templates (2026-06-08)
 
 MINOR release. Driven by a 10-perspective adversarial audit of a real
