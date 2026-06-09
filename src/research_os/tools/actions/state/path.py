@@ -956,28 +956,17 @@ def finalize_path(
             step_readme.write_text(new_readme)
             changes.append("README.md → stub sections populated")
 
-    # ---- 5. Auto-synthesise plain-English summaries for figures ----
+    # ---- 5. Figure summary sidecars are RETIRED ----
+    # Captions + interpretation now integrate into `conclusions.md` next
+    # to the inline `![](outputs/figures/<slug>.png)` embed. The
+    # `.summary.md` sidecar regime trained the AI to ship stub captions
+    # ("Auto-drafted caption: regenerate from analysis context") that
+    # leaked into the synthesis paper as placeholder rows. The
+    # `<slug>.caption.md` next to each figure stays (technical metadata:
+    # dpi, units, palette) but the AI is expected to author it
+    # deliberately, not derive it after the fact. Opt back in via
+    # `researcher_config.figures.summary_sidecar=true`.
     summaries_written: list[str] = []
-    figs_dir = exp_dir / "outputs" / "figures"
-    if figs_dir.exists():
-        try:
-            from research_os.tools.actions.viz import caption_synthesise
-
-            for f in sorted(figs_dir.iterdir()):
-                if f.suffix.lower() not in {".png", ".svg", ".jpg", ".jpeg"}:
-                    continue
-                if f.with_suffix(".summary.md").exists():
-                    continue
-                rel = f.relative_to(root).as_posix()
-                res = caption_synthesise(figure_path=rel, root=root)
-                if res.get("status") == "success" and not res.get("already_exists"):
-                    summaries_written.append(f.name)
-        except Exception as e:
-            logger.debug("plain-English summary synthesis skipped: %s", e)
-        if summaries_written:
-            changes.append(
-                f"plain-English summaries → {len(summaries_written)} figure(s)"
-            )
 
     # ---- 6. Stub detection — surface as warnings so the AI knows
     #         what's still empty before walking off the step. We do NOT

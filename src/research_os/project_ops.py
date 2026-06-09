@@ -1702,7 +1702,6 @@ def _seed_step_subfolder_readmes(
     global resource (inputs/literature, environment/) when nothing step-
     specific was needed. Idempotent.
     """
-    rel_root = root.absolute()
 
     def _write_if_missing(path: Path, body: str) -> None:
         if not path.exists():
@@ -1751,109 +1750,38 @@ def _seed_step_subfolder_readmes(
         "rewritten to list every persisted artefact with its consumer step.\n",
     )
 
-    # Environment — by default points at global env; only step-specific if the
-    # researcher snapshotted with sys_env_snapshot.
-    _write_if_missing(
-        exp_dir / "environment" / "README.md",
-        f"# `{branch_id}` — environment\n\n"
-        "**Default:** this step uses the project-global environment at "
-        f"`{rel_root.name}/environment/` (see `environment/requirements.txt`).\n\n"
-        "Run `sys_env_snapshot` ONLY if this step needs different package "
-        "versions than the global env — otherwise this folder stays empty "
-        "(intentionally; the global snapshot is sufficient for reproducibility).\n\n"
-        "When `tool_path_finalize` runs at step completion it confirms one of "
-        "the two states above and updates this note accordingly.\n",
-    )
+    # environment/, literature/, context/ are LAZY — created by tools on
+    # first use, not pre-seeded with stub READMEs. Pre-seeded stubs:
+    #   * trained the AI to leave the dirs as boilerplate;
+    #   * caused literature/ to read as "no citations" when really the
+    #     AI just hadn't downloaded any;
+    #   * cluttered every step folder with content nobody wrote.
+    # Each dir is still in EXPERIMENT_SUBDIRS so the path exists, but
+    # the README that should answer "what goes here?" lives in the
+    # researcher / AI guides, not duplicated 14x on disk. When the AI
+    # downloads a citation into literature/<author-year>.md it appears
+    # in an empty dir; the cardinality alone tells the reader the state.
 
-    # Literature — points at global inputs/literature; step-specific only if
-    # the step has its own evidence chain (e.g. methodology pick, sensitivity
-    # comparison). Seed a structured `key_papers.md` so the analyst has a
-    # template, not a blank page.
-    _write_if_missing(
-        exp_dir / "literature" / "README.md",
-        f"# `{branch_id}` — literature\n\n"
-        "**Default:** this step uses the project-global literature corpus at "
-        "`inputs/literature/` (search via `tool_literature_search` or "
-        "`tool_evidence_synthesise`).\n\n"
-        "Put a PDF / DOI / sidecar `.notes.md` here ONLY if the citation is "
-        "specific to a methodological choice made in *this* step (and not "
-        "broadly relevant to the project). For decisions that hang on "
-        "literature, also call `mem_log(kind='decision', ...)` with the citation key + a "
-        "one-line rationale so the reasoning is captured in `analysis.md`.\n\n"
-        "For statistical / methodological choices (e.g. 'use Welch ANOVA "
-        "because variances unequal'), include a short *Why this method?* "
-        "block citing either a textbook reference or the EDA result that "
-        "triggered the choice. See `key_papers.md` for the template the "
-        "finaliser fills in.\n\n"
-        "`tool_path_finalize` will normalise this README to summarise the "
-        "actual decisions + sources captured.\n",
-    )
-    _write_if_missing(
-        exp_dir / "literature" / "key_papers.md",
-        f"# `{branch_id}` — key papers (template)\n\n"
-        "Per-decision evidence list. Fill in only those rows where this step "
-        "leans on a specific source; leave the rest blank. The synthesis "
-        "tools read this to anchor each methodological claim to a real "
-        "citation when they assemble the paper / dashboard.\n\n"
-        "| Decision | Citation key | DOI / URL | One-line rationale |\n"
-        "|---|---|---|---|\n"
-        "| _(e.g. method choice)_ | | | |\n"
-        "| _(e.g. parameter pick)_ | | | |\n"
-        "| _(e.g. assumption check)_ | | | |\n\n"
-        "Tip: `tool_literature_search_and_save query=\"<method>\" step_id="
-        f"\"{branch_id}\" limit=5 download_top=2` populates this folder + the "
-        "step-level `literature_index.yaml` in one shot.\n",
-    )
-
-    # Context — the step's narrative scratchpad. Distinct from literature
-    # (formal sources) and data (machine-readable). Holds: methodology
-    # rationale prose, prior conversation snippets, hand-overs from
-    # upstream collaborators, screenshots the analysis depends on.
-    _write_if_missing(
-        exp_dir / "context" / "README.md",
-        f"# `{branch_id}` — context (narrative scratchpad)\n\n"
-        "Drop anything *prose* here that the next analyst would need to act:\n\n"
-        "- Methodology rationale that doesn't fit in `conclusions.md`.\n"
-        "- Notes from upstream conversations / Slack threads.\n"
-        "- Screenshots of source documents the analysis depends on.\n"
-        "- Drafts of plain-language explanations for the dashboard.\n"
-        "- Hand-overs from a previous chat (auto-written by "
-        "  `sys_session_handoff` when relevant).\n\n"
-        "What does NOT go here:\n\n"
-        "- PDFs / DOIs / formal citations → `literature/`.\n"
-        "- CSV / parquet outputs → `data/output/`.\n"
-        "- Figures / tables → `outputs/figures/` and `outputs/tables/`.\n\n"
-        "Files here are read by the synthesis dashboard's per-step appendix "
-        "and surface in the paper's discussion when relevant. Empty is fine "
-        "for routine steps; `tool_path_finalize` will note the folder was "
-        "intentionally left blank.\n",
-    )
-    _write_if_missing(
-        exp_dir / "context" / "notes.md",
-        f"# `{branch_id}` — notes\n\n"
-        "*(Free-form. Anything that would help a new reader pick this step up.)*\n\n"
-        "## Plain-language summary\n\n"
-        "_If you had to explain this step's purpose to a non-statistician in "
-        "two sentences, what would you say? This is what the dashboard will "
-        "surface for executive / teaching audiences._\n\n"
-        "## Decisions made informally (not yet in mem_log(kind='decision'))\n\n"
-        "_Capture the reasoning as it happens so it doesn't get lost between "
-        "the script and the formal log._\n",
-    )
-
-    # Outputs — explain what each subfolder is for.
+    # Outputs — explain what each subfolder is for. SVG is opt-in via
+    # researcher_config.figures.svg_allowed (off by default).
     _write_if_missing(
         exp_dir / "outputs" / "README.md",
         f"# `{branch_id}` — outputs\n\n"
         "- **`reports/`** — Markdown narratives (`*.md`) summarising results "
-        "for humans. The synthesis report + dashboard surface these verbatim.\n"
-        "- **`figures/`** — PNG / SVG plots. Each figure SHOULD have a "
+        "for humans. Reports go DEEPER than `conclusions.md`: choices, "
+        "reasoning, comparison of options, AI thoughts, tables embedded.\n"
+        "- **`figures/`** — `.png` plots. Each figure SHOULD have a "
         "sibling `<name>.caption.md` describing what the reader is looking at "
-        "in plain language (the dashboard embeds the caption inline).\n"
+        "in plain language. SVG companions are opt-in "
+        "(`researcher_config.figures.svg_allowed: true`). Interactive `.html` "
+        "figures are appropriate for networks, large multi-panel dashboards, "
+        "or any view where reader exploration adds value.\n"
         "- **`tables/`** — CSV / TSV tables. Each table SHOULD have a "
         "sibling `<name>.caption.md` for the same reason.\n\n"
         "Follow `figure_guidelines` (DPI ≥150 screen / ≥300 print, colour-blind "
-        "safe palette, axis units). Audit with `tool_audit_figure`.\n",
+        "safe palette, axis units). The AI MUST `sys_file_read` each figure "
+        "before declaring the step done (catches legend-over-plot, missing "
+        "axis labels, palette regressions). Audit with `tool_audit_figure`.\n",
     )
 
     # Scripts — explain naming + reproducibility expectation.

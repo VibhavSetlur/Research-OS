@@ -104,6 +104,7 @@ sections are stable in v2:
 * `ai`
 * `writing_preferences`
 * `runtime`
+* `figures`
 * `synthesis`
 * `api_keys`
 

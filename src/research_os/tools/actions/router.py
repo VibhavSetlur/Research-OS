@@ -1347,6 +1347,35 @@ def _active_plan_path(root: Path) -> Path:
     return root / ".os_state" / _ACTIVE_PLAN_FILE
 
 
+def _decomposition_removed_tool_warnings(decomposition: list) -> list[str]:
+    """Return per-step warnings for decomposition entries that point at
+    a hard-removed tool.
+
+    The router is a fast-path that doesn't know the live tool catalogue;
+    a stale `_router_index.yaml` decomposition or a hand-written one
+    can list ``tool_synthesize`` / ``tool_dashboard`` / etc., which then
+    waste a turn when the AI calls them and gets the friendly redirect.
+    Logging the warning here means the AI sees it in the plan write
+    result instead of the next dispatch turn.
+    """
+    try:
+        from research_os.server.aliases import _REMOVED_TOOLS
+    except Exception:  # pragma: no cover — defensive
+        return []
+    warnings: list[str] = []
+    for idx, step in enumerate(decomposition or []):
+        if not isinstance(step, dict):
+            continue
+        tool = step.get("tool")
+        if tool and tool in _REMOVED_TOOLS:
+            warnings.append(
+                f"decomposition[{idx}].tool='{tool}' is hard-removed — "
+                "the AI will burn a turn on the redirect. Update the "
+                "router-index entry for the matched protocol."
+            )
+    return warnings
+
+
 def _persist_active_plan(
     root: Path,
     prompt: str,
@@ -1363,6 +1392,11 @@ def _persist_active_plan(
         "current_step": 1,
         "status": "in_progress",
     }
+    removed_warnings = _decomposition_removed_tool_warnings(decomposition)
+    if removed_warnings:
+        plan["validation_warnings"] = removed_warnings
+        for w in removed_warnings:
+            logger.warning("active_plan write: %s", w)
     p = _active_plan_path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(plan, indent=2, default=str))

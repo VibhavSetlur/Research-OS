@@ -195,17 +195,25 @@ flags it before synthesis.
    server gates final compile via `tool_typst_compile` — author the
    synthesis file, run `tool_synthesis_check` until clean, THEN
    compile.
-10. **Every figure carries four sidecars** — `.caption.md` (technical),
-    `.summary.md` (plain-English, authored when the figure is created),
-    `.prov.json` (provenance), and an SVG companion. **You write the
-    plotting script yourself** in matplotlib / ggplot2 / Altair /
-    plotly / d3 per `visualization/figure_guidelines`. Research-OS
-    does NOT ship a parametric chart-builder. `tool_figure_palette`
-    returns CVD-safe colours; `tool_audit_figure_full` checks DPI +
-    sidecars + label-overlap. For one figure that needs hover-tooltips,
-    use `visualization/interactive_figure_design` — static PNG/SVG
-    fallback is REQUIRED. Every number in `synthesis/paper.typ` must
-    trace to a workspace output — `tool_audit_claims` flags
+10. **Each figure is `<slug>.png` + an authored `<slug>.caption.md` —
+    nothing else by default.** The caption goes inline in
+    `conclusions.md` next to the figure embed; the sibling sidecar is
+    the technical metadata (dpi, units, palette). SVG and PNG-summary
+    sidecars are opt-in via
+    `inputs/researcher_config.yaml :: figures.svg_allowed: true` and
+    `figures.summary_sidecar: true`. **You write the plotting script
+    yourself** in matplotlib / ggplot2 / Altair / plotly / d3 per
+    `visualization/figure_guidelines`. Research-OS does NOT ship a
+    parametric chart-builder. `tool_figure_palette` returns CVD-safe
+    colours; `tool_audit_figure_full` checks DPI + sidecars +
+    label-overlap. For visualisation types that benefit from reader
+    exploration (networks, multi-panel dashboards, large hierarchies),
+    ship an interactive `<slug>.html` companion (Plotly / D3 / Altair).
+    **Before declaring a step done, the AI MUST `sys_file_read` every
+    figure it produced** — catches legend-over-plot, missing axis
+    labels, palette regressions, snake_case-leaking-into-label bugs
+    that no JSON audit catches. Every number in `synthesis/paper.typ`
+    must trace to a workspace output — `tool_audit_claims` flags
     hallucinations.
 11. **Multi-script steps need a `pipeline.yaml`** — defined via
     `tool_step_pipeline_define`, run via `tool_step_pipeline_run`.

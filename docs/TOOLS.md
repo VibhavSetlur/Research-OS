@@ -1,12 +1,12 @@
 # Tool Catalog
 
-**144 live MCP tools** across three namespaces (`sys_*` / `tool_*` /
+**Live MCP tools** across three namespaces (`sys_*` / `tool_*` /
 `mem_*`). Every legacy v1.x name still dispatches via `_ALIASES` +
-`_ALIAS_PARAM_INJECTION` through the v2.0.x patch line. 78 deprecated
-aliases (dispatch-but-flag), 24 hard-removed names (return a friendly
-`_REMOVED_TOOLS` error naming the v2 entry point). See
-`CHANGELOG.md [2.0.0]` for the full old → new
-table.
+`_ALIAS_PARAM_INJECTION` through the v2.0.x patch line. Deprecated
+aliases (dispatch-but-flag) and hard-removed names (return a friendly
+`_REMOVED_TOOLS` error naming the v2 entry point) round out the
+back-compat surface. See `CHANGELOG.md [2.0.0]` for the full
+old → new table. For live counts call `tool_tools_list`.
 
 For *when* to use a tool, see [PROTOCOLS.md](PROTOCOLS.md) — protocols
 string tools together to do real work. For *which* protocol to load,
@@ -20,11 +20,10 @@ Every tool definition carries two metadata fields:
 * `status` — `live` (visible in `list_tools`), `alias` (back-compat
   pointer), or `deprecated` (callable, telemetry to
   `.os_state/deprecations.log`). `list_tools` returns `status='live'`
-  only (144 / 144).
-* `pack` — `core` (121 tools) or one of `humanities`, `qualitative`,
+  only.
+* `pack` — `core` or one of `humanities`, `qualitative`,
   `theory_math`, `wet_lab`, `engineering`, `slurm`, `snakemake`,
-  `nextflow`, `cytoscape`, `redcap`, `synapse` (23 tools across 11
-  packs).
+  `nextflow`, `cytoscape`, `redcap`, `synapse`.
 
 ---
 
@@ -256,7 +255,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 ## What's new in v2.0.0 — quick reference
 
-**Tool surface consolidation** (~344 → 144 live)
+**Tool surface consolidation** (~344 v1.x names → ~150 v2 live)
 
 * Audit family 26 → 3 (`tool_audit`, `tool_audit_findings`,
   `tool_audit_quality_full`).
@@ -318,20 +317,20 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 
 **`scope_tags` + `tier:` on every protocol** *(phase-7 + phase-8)*
 
-* 117 / 117 protocols carry `scope_tags: {domain, audience,
+* All protocols carry `scope_tags: {domain, audience,
   workflow_shape}` + a `tier:` annotation. Infrastructure shipped;
   the router does not yet filter on `scope_tags` (default-filter
   wiring is v2.1.0).
 
 **`status` + `pack` on every tool definition**
 
-* 144 / 144 tools annotated. `list_tools` filters to `status='live'`;
-  no aliases / deprecated leak. 123 core + 23 across 11 packs.
+* All tools annotated. `list_tools` filters to `status='live'`;
+  no aliases / deprecated leak.
 
 **Preflight checks expanded 22 → 24**
 
-* New: "every tool definition has a handler" (144 / 144 wired) +
-  "no deprecated-alias tool refs in protocols" (clean across 78
+* New: "every tool definition has a handler" (all wired) +
+  "no deprecated-alias tool refs in protocols" (clean across all
   deprecated names).
 
 **Removed**
@@ -600,7 +599,7 @@ steps:
 6. Add a test in `tests/tools/test_<area>.py`.
 
 If the tool conceptually folds into an existing dispatcher
-(`tool_audit`, `tool_dashboard`, etc.), prefer adding an
+(`tool_audit`, `tool_search`, etc.), prefer adding an
 `operation` / `dimension` value to the dispatcher over a fresh
 top-level tool — the consolidation discipline is what keeps the
-surface at 144.
+surface compact.
