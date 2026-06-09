@@ -1258,16 +1258,28 @@ def _prune_stale_gitkeeps(root: Path) -> None:
                 pass
 
 
-def _write_project_root_readme(root: Path, project_name: str, state: dict) -> None:
+def _write_project_root_readme(
+    root: Path,
+    project_name: str,
+    state: dict,
+    *,
+    force: bool = False,
+) -> None:
     """Drop a project-root README.md — the GitHub / repo-browser front page.
 
     Distinct from GETTING_STARTED.md (which targets the *researcher driving
     this Research OS workspace*); README.md targets anyone who lands on the
     folder cold — a collaborator, a PI, a reviewer cloning from GitHub.
     Researcher-facing AND tooling-neutral: never mentions MCP tool names.
+
+    By default skips when the README already exists (the wizard runs
+    once and shouldn't clobber user edits). Pass ``force=True`` to
+    regenerate — used by ``regenerate_root_readme`` at project finalize
+    to refresh the front page with the current step inventory + a
+    headline finding pointer.
     """
     dest = root / "README.md"
-    if dest.exists():
+    if dest.exists() and not force:
         return
     domain = (state.get("domain") or "").strip()
     question = (state.get("research_question") or "").strip()
@@ -1323,6 +1335,124 @@ or from the previous step's `data/output/`. Outputs land under
 _(set by you in this README — the scaffold leaves it blank by default.)_
 """
     )
+
+    # When force-regenerating (e.g. at project finalize) append a
+    # "Project status" section reflecting the current step inventory,
+    # synthesis artefacts on disk, and a pointer to STATE.md for
+    # anything deeper. Skipped on first-write so the front page stays
+    # clean while a project is fresh.
+    if force:
+        _append_project_status_section(root, dest, state)
+
+
+def _append_project_status_section(root: Path, dest: Path, state: dict) -> None:
+    """Append a current-as-of-finalize "Project status" section.
+
+    Reads what actually exists on disk (numbered step folders,
+    synthesis deliverables) rather than trusting any single index file,
+    so the section reflects ground truth even if STATE.md is stale.
+    """
+    lines: list[str] = ["", "---", "", "## Project status",
+                        f"*Snapshot at {now_iso()}.*", ""]
+
+    # Step inventory
+    workspace = root / "workspace"
+    step_dirs: list[Path] = []
+    if workspace.exists():
+        step_dirs = sorted(
+            p for p in workspace.iterdir()
+            if p.is_dir()
+            and not p.name.startswith((".", "_"))
+            and re.match(r"^\d{2}_", p.name)
+        )
+    if step_dirs:
+        lines.append(f"**{len(step_dirs)} analysis step(s) recorded:**")
+        lines.append("")
+        for sd in step_dirs:
+            readme = sd / "README.md"
+            headline = ""
+            if readme.exists():
+                try:
+                    text = readme.read_text()
+                    # First non-empty non-heading line is usually a one-line summary.
+                    for ln in text.splitlines()[1:30]:
+                        s = ln.strip()
+                        if s and not s.startswith("#"):
+                            headline = s[:160]
+                            break
+                except OSError:
+                    pass
+            lines.append(
+                f"- `workspace/{sd.name}/` — "
+                f"{headline}" if headline else f"- `workspace/{sd.name}/`"
+            )
+        lines.append("")
+
+    # Synthesis deliverables actually on disk
+    synth = root / "synthesis"
+    deliverables: list[str] = []
+    if synth.exists():
+        for name in ("paper.typ", "paper.pdf", "slides.typ", "slides.pdf",
+                     "poster.typ", "poster.pdf", "dashboard.html"):
+            if (synth / name).exists():
+                deliverables.append(name)
+    if deliverables:
+        lines.append("**Synthesis deliverables:** "
+                     + ", ".join(f"`synthesis/{d}`" for d in deliverables))
+        lines.append("")
+
+    # Pointer to STATE.md (live status doc)
+    if (root / "STATE.md").exists():
+        lines.append("See `STATE.md` for the live operational snapshot "
+                     "(active hypotheses, dead ends, next protocol).")
+        lines.append("")
+
+    try:
+        with open(dest, "a") as f:
+            f.write("\n".join(lines))
+    except OSError:
+        pass  # README append is best-effort; failures must not crash finalize
+
+
+def regenerate_root_readme(root: Path) -> dict[str, Any]:
+    """Rewrite the project-root README.md from current on-disk state.
+
+    Use at project finalize to refresh the GitHub front page with the
+    actual step inventory + synthesis deliverables. Idempotent.
+    Returns ``{"status", "path", "step_count", "deliverables"}``.
+    """
+    try:
+        state = load_state(root)
+    except Exception:
+        state = {}
+    project_name = state.get("project_name") or root.name or "Research Project"
+    _write_project_root_readme(root, project_name, state, force=True)
+    dest = root / "README.md"
+
+    # Re-derive the counts so the caller can log what was written.
+    workspace = root / "workspace"
+    step_count = 0
+    if workspace.exists():
+        step_count = sum(
+            1 for p in workspace.iterdir()
+            if p.is_dir()
+            and not p.name.startswith((".", "_"))
+            and re.match(r"^\d{2}_", p.name)
+        )
+    deliverables: list[str] = []
+    synth = root / "synthesis"
+    if synth.exists():
+        for name in ("paper.typ", "paper.pdf", "slides.typ", "slides.pdf",
+                     "poster.typ", "poster.pdf", "dashboard.html"):
+            if (synth / name).exists():
+                deliverables.append(name)
+
+    return {
+        "status": "success",
+        "path": str(dest.relative_to(root)) if dest.exists() else "README.md",
+        "step_count": step_count,
+        "deliverables": deliverables,
+    }
 
 
 def _write_getting_started(root: Path, project_name: str) -> None:
@@ -1673,12 +1803,45 @@ def update_literature_index(root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _prune_old_checkpoints(root: Path, keep: int = 5) -> None:
+def _prune_old_checkpoints(root: Path, keep: int = 5) -> dict[str, Any]:
+    """Bound `.os_state/checkpoints/` size by keeping only the most recent N.
+
+    A checkpoint whose ``.meta.json`` carries any truthy ``tag`` field
+    (e.g. ``tag: "before-major-refactor"``) is preserved regardless of
+    age — taggable retention lets the researcher / AI mark a checkpoint
+    as keep-forever before doing something risky. Untagged checkpoints
+    outside the keep window are deleted (sidecar + snapshot dir).
+
+    Returns a small report: ``{kept, removed, tagged}`` for the caller
+    to log. Idempotent and safe to call repeatedly.
+    """
     ckpt_dir = root / ".os_state" / "checkpoints"
     if not ckpt_dir.exists():
-        return
-    meta_files = sorted(ckpt_dir.glob("*.meta.json"), key=lambda f: f.stat().st_mtime)
-    for meta in meta_files[: max(0, len(meta_files) - keep)]:
+        return {"kept": 0, "removed": 0, "tagged": 0}
+    meta_files = sorted(
+        ckpt_dir.glob("*.meta.json"), key=lambda f: f.stat().st_mtime
+    )
+    if not meta_files:
+        return {"kept": 0, "removed": 0, "tagged": 0}
+
+    # Partition into tagged (always keep) and untagged (subject to GC).
+    tagged: list[Path] = []
+    untagged: list[Path] = []
+    for meta in meta_files:
+        try:
+            data = json.loads(meta.read_text())
+            if data.get("tag"):
+                tagged.append(meta)
+            else:
+                untagged.append(meta)
+        except Exception:
+            # Malformed sidecar: treat as untagged so GC can remove it.
+            untagged.append(meta)
+
+    # Keep the most-recent ``keep`` untagged checkpoints; drop the rest.
+    to_remove = untagged[: max(0, len(untagged) - keep)]
+    removed = 0
+    for meta in to_remove:
         try:
             data = json.loads(meta.read_text())
             cid = data.get("checkpoint_id")
@@ -1688,6 +1851,13 @@ def _prune_old_checkpoints(root: Path, keep: int = 5) -> None:
         snapshot_dir = ckpt_dir / cid if cid else None
         if snapshot_dir and snapshot_dir.exists():
             shutil.rmtree(snapshot_dir, ignore_errors=True)
+        removed += 1
+
+    return {
+        "kept": len(tagged) + min(keep, len(untagged)),
+        "removed": removed,
+        "tagged": len(tagged),
+    }
 
 
 def _seed_step_subfolder_readmes(
