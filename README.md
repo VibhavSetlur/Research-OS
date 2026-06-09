@@ -114,10 +114,10 @@ my-project/
 │
 ├── workspace/              ← AI works here (you read; the AI writes)
 │   ├── 01_baseline_eda/      Each analysis step in its own numbered folder
-│   │   ├── code/               Scripts you can read + re-run
-│   │   ├── outputs/            Figures (with captions), tables, data
-│   │   ├── methods.md          What was done, in plain English
-│   │   └── conclusions.md      What it means + links back to hypotheses
+│   │   ├── scripts/            Scripts you can read + re-run
+│   │   ├── outputs/            Figures (with captions), tables, reports
+│   │   ├── README.md           Past decisions, inputs, outputs, takeaway
+│   │   └── conclusions.md      Detailed findings + tables + interpretations
 │   ├── methods.md            Project-wide append-only methods narrative
 │   ├── analysis.md           Decision log + dead-ends + rationale
 │   ├── citations.md          Verified citations only
@@ -184,7 +184,7 @@ research-os doctor
 
 ## What's inside
 
-* **144 MCP tools** in three namespaces — `sys_*` (system / workspace /
+* **~150 MCP tools** in three namespaces — `sys_*` (system / workspace /
   files / state), `tool_*` (research work), `mem_*` (append-only memory).
   Family-level consolidation (`tool_audit`, `tool_search`,
   `tool_step`, `tool_lessons`, `mem_log`, etc.) dispatches by `scope` /
@@ -192,7 +192,7 @@ research-os doctor
   AI writes `paper.typ` / `slides.typ` / `poster.typ` / `dashboard.html`
   directly, with `tool_synthesize_plan` for inspection, `tool_synthesis_check`
   for validation, and `tool_typst_compile` for PDF rendering.
-* **117 core protocols** + 36 in 5 bundled packs (humanities,
+* **100+ core protocols** + 36 in 5 bundled packs (humanities,
   qualitative, theory_math, wet_lab, engineering) the AI picks from
   via `tool_route`. Every protocol carries
   `scope_tags: {domain, audience, workflow_shape}` and a `tier`
@@ -207,7 +207,7 @@ research-os doctor
 * **Cheap-by-default token costs.** `sys_protocol_get` returns
   `format='summary'` (~3K chars vs ~12-25K for full YAML) — 5-10×
   cheaper per-turn load. `sys_active_tools(protocol_name)` returns a
-  scoped 13-18-tool shortlist instead of the full 144.
+  scoped 13-18-tool shortlist instead of the full catalogue.
 * **Structured tool responses.** Every handler returns an envelope
   with `status` / `payload` / `audit_findings` /
   `next_recommended_call` / `tier_transition` / `tokens_estimate` /

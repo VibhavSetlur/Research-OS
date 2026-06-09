@@ -221,7 +221,7 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
 * **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
   declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
   → fit → diagnose → visualize → report). Content-hash cached.
-* **117 protocols** the AI picks from via `tool_route`. Each protocol
+* **100+ protocols** the AI picks from via `tool_route`. Each protocol
   carries `scope_tags: {domain, audience, workflow_shape}` and a
   `tier` so the router filters intelligently. Covers the canonical data
   → publication pipeline plus partial / off-axis workflows
@@ -231,14 +231,13 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
   qualitative + survey design, IRR, fairness, calibrated UQ,
   manuscript outline, venue selection, defense prep, and Data
   Management Plans).
-* **144 live MCP tools** across three namespaces — `sys_*` (system /
+* **~150 live MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
   (append-only memory). Down from 344 in v1.x — consolidated families
-  (`tool_audit`, `tool_dashboard`, `tool_search`, `tool_figure`,
-  `tool_step`, `tool_lessons`, etc.) dispatch by `scope` / `operation`
-  / `dimension`. Every v1 tool name still works via 80 backward-compat
-  aliases for the v2.0.x patch line — see
-  `CHANGELOG.md [2.0.0]` for the surface map.
+  (`tool_audit`, `tool_search`, `tool_step`, `tool_lessons`, etc.)
+  dispatch by `scope` / `operation` / `dimension`. Every v1 tool name
+  still works via backward-compat aliases for the v2.x patch line —
+  see `CHANGELOG.md [2.0.0]` for the surface map.
 
 ---
 
