@@ -1077,6 +1077,24 @@ def cmd_refresh(args: argparse.Namespace) -> int:
             "Every drifted file was skipped — re-run with --yes to apply "
             "without per-file prompting.",
         )
+
+    # Optional: regenerate the project-root README with a "Project
+    # status" section reflecting current step inventory + synthesis
+    # deliverables. Idempotent; safe to run repeatedly.
+    if getattr(args, "regen_readme", False):
+        from research_os.project_ops import regenerate_root_readme
+
+        try:
+            res = regenerate_root_readme(workspace)
+            wizard.ok(
+                f"Regenerated {res['path']}",
+                f"{res['step_count']} step(s) + "
+                f"{len(res['deliverables'])} synthesis deliverable(s) listed.",
+            )
+        except Exception as e:  # noqa: BLE001
+            wizard.fail("README regeneration failed", str(e))
+            return 1
+
     return 0
 
 
@@ -1536,6 +1554,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_refresh.add_argument(
         "-y", "--yes", action="store_true",
         help="With --write, skip the per-file confirmation prompt.",
+    )
+    p_refresh.add_argument(
+        "--regen-readme", action="store_true",
+        help="Also regenerate the project-root README.md with the current "
+             "step inventory + synthesis deliverable list (use at project "
+             "finalize to refresh the GitHub front page).",
     )
     p_refresh.add_argument(
         "--workspace", default=None,

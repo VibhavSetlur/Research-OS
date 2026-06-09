@@ -1258,16 +1258,28 @@ def _prune_stale_gitkeeps(root: Path) -> None:
                 pass
 
 
-def _write_project_root_readme(root: Path, project_name: str, state: dict) -> None:
+def _write_project_root_readme(
+    root: Path,
+    project_name: str,
+    state: dict,
+    *,
+    force: bool = False,
+) -> None:
     """Drop a project-root README.md — the GitHub / repo-browser front page.
 
     Distinct from GETTING_STARTED.md (which targets the *researcher driving
     this Research OS workspace*); README.md targets anyone who lands on the
     folder cold — a collaborator, a PI, a reviewer cloning from GitHub.
     Researcher-facing AND tooling-neutral: never mentions MCP tool names.
+
+    By default skips when the README already exists (the wizard runs
+    once and shouldn't clobber user edits). Pass ``force=True`` to
+    regenerate — used by ``regenerate_root_readme`` at project finalize
+    to refresh the front page with the current step inventory + a
+    headline finding pointer.
     """
     dest = root / "README.md"
-    if dest.exists():
+    if dest.exists() and not force:
         return
     domain = (state.get("domain") or "").strip()
     question = (state.get("research_question") or "").strip()
@@ -1323,6 +1335,124 @@ or from the previous step's `data/output/`. Outputs land under
 _(set by you in this README — the scaffold leaves it blank by default.)_
 """
     )
+
+    # When force-regenerating (e.g. at project finalize) append a
+    # "Project status" section reflecting the current step inventory,
+    # synthesis artefacts on disk, and a pointer to STATE.md for
+    # anything deeper. Skipped on first-write so the front page stays
+    # clean while a project is fresh.
+    if force:
+        _append_project_status_section(root, dest, state)
+
+
+def _append_project_status_section(root: Path, dest: Path, state: dict) -> None:
+    """Append a current-as-of-finalize "Project status" section.
+
+    Reads what actually exists on disk (numbered step folders,
+    synthesis deliverables) rather than trusting any single index file,
+    so the section reflects ground truth even if STATE.md is stale.
+    """
+    lines: list[str] = ["", "---", "", "## Project status",
+                        f"*Snapshot at {now_iso()}.*", ""]
+
+    # Step inventory
+    workspace = root / "workspace"
+    step_dirs: list[Path] = []
+    if workspace.exists():
+        step_dirs = sorted(
+            p for p in workspace.iterdir()
+            if p.is_dir()
+            and not p.name.startswith((".", "_"))
+            and re.match(r"^\d{2}_", p.name)
+        )
+    if step_dirs:
+        lines.append(f"**{len(step_dirs)} analysis step(s) recorded:**")
+        lines.append("")
+        for sd in step_dirs:
+            readme = sd / "README.md"
+            headline = ""
+            if readme.exists():
+                try:
+                    text = readme.read_text()
+                    # First non-empty non-heading line is usually a one-line summary.
+                    for ln in text.splitlines()[1:30]:
+                        s = ln.strip()
+                        if s and not s.startswith("#"):
+                            headline = s[:160]
+                            break
+                except OSError:
+                    pass
+            lines.append(
+                f"- `workspace/{sd.name}/` — "
+                f"{headline}" if headline else f"- `workspace/{sd.name}/`"
+            )
+        lines.append("")
+
+    # Synthesis deliverables actually on disk
+    synth = root / "synthesis"
+    deliverables: list[str] = []
+    if synth.exists():
+        for name in ("paper.typ", "paper.pdf", "slides.typ", "slides.pdf",
+                     "poster.typ", "poster.pdf", "dashboard.html"):
+            if (synth / name).exists():
+                deliverables.append(name)
+    if deliverables:
+        lines.append("**Synthesis deliverables:** "
+                     + ", ".join(f"`synthesis/{d}`" for d in deliverables))
+        lines.append("")
+
+    # Pointer to STATE.md (live status doc)
+    if (root / "STATE.md").exists():
+        lines.append("See `STATE.md` for the live operational snapshot "
+                     "(active hypotheses, dead ends, next protocol).")
+        lines.append("")
+
+    try:
+        with open(dest, "a") as f:
+            f.write("\n".join(lines))
+    except OSError:
+        pass  # README append is best-effort; failures must not crash finalize
+
+
+def regenerate_root_readme(root: Path) -> dict[str, Any]:
+    """Rewrite the project-root README.md from current on-disk state.
+
+    Use at project finalize to refresh the GitHub front page with the
+    actual step inventory + synthesis deliverables. Idempotent.
+    Returns ``{"status", "path", "step_count", "deliverables"}``.
+    """
+    try:
+        state = load_state(root)
+    except Exception:
+        state = {}
+    project_name = state.get("project_name") or root.name or "Research Project"
+    _write_project_root_readme(root, project_name, state, force=True)
+    dest = root / "README.md"
+
+    # Re-derive the counts so the caller can log what was written.
+    workspace = root / "workspace"
+    step_count = 0
+    if workspace.exists():
+        step_count = sum(
+            1 for p in workspace.iterdir()
+            if p.is_dir()
+            and not p.name.startswith((".", "_"))
+            and re.match(r"^\d{2}_", p.name)
+        )
+    deliverables: list[str] = []
+    synth = root / "synthesis"
+    if synth.exists():
+        for name in ("paper.typ", "paper.pdf", "slides.typ", "slides.pdf",
+                     "poster.typ", "poster.pdf", "dashboard.html"):
+            if (synth / name).exists():
+                deliverables.append(name)
+
+    return {
+        "status": "success",
+        "path": str(dest.relative_to(root)) if dest.exists() else "README.md",
+        "step_count": step_count,
+        "deliverables": deliverables,
+    }
 
 
 def _write_getting_started(root: Path, project_name: str) -> None:
