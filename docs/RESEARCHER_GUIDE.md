@@ -3,8 +3,8 @@
 The full guide to working with Research OS day-to-day. Read after
 [START.md](START.md) (5-minute install + first project). This document
 covers: the mental model, the file layout, a typical session, the
-canonical 10-stage pipeline, all 117 core protocols and 144 live MCP
-tools, the config schema, power-user patterns, and troubleshooting.
+canonical 10-stage pipeline, the full catalogue of core protocols and
+live MCP tools, the config schema, power-user patterns, and troubleshooting.
 
 For the AI-driving-Research-OS guide (which the AI itself reads), see
 [AI_GUIDE.md](AI_GUIDE.md). For the v2.0.0 upgrade recipe, see
@@ -306,11 +306,11 @@ For the full role × goal × output map, see [USE_CASES.md](USE_CASES.md).
 
 ---
 
-## 6. The on-demand protocol surface (117 core, +36 pack)
+## 6. The on-demand protocol surface
 
 For per-protocol triggers + quality bars, see
-[PROTOCOLS.md](PROTOCOLS.md). All 117 carry `tier:` + `scope_tags`
-(v2.0.0). High-level inventory:
+[PROTOCOLS.md](PROTOCOLS.md). All core protocols carry `tier:` +
+`scope_tags` (since v2.0.0). High-level inventory:
 
 **Guidance (19)** — session + flow control. `session_boot` /
 `session_resume` / `chat_handoff` / `collaboration_handoff` /
@@ -409,7 +409,7 @@ catalogue.
 
 v2.0.0 consolidated ~344 v1.x tool names; v2.3.0 retired the
 synthesis auto-generators in favour of AI-direct authoring. The
-remaining 144 tools dispatch via `scope` / `dimension` / `operation`
+remaining tools dispatch via `scope` / `dimension` / `operation`
 / `kind` parameters on a small set of entry points. Legacy names
 return a friendly `_REMOVED_TOOLS` error naming the new entry point
 (see CHANGELOG `[2.3.0]` for the synthesis surface migration).
@@ -939,8 +939,8 @@ For more: [FAQ.md](FAQ.md).
 * [USE_CASES.md](USE_CASES.md) — role × goal × output map.
 * [SETUP.md](SETUP.md) — install + per-IDE wiring + troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
-* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of all 117 core protocols.
-* [TOOLS.md](TOOLS.md) — catalogue of all 144 live MCP tools.
+* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of every core protocol.
+* [TOOLS.md](TOOLS.md) — catalogue of every live MCP tool.
 * [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving Research OS.
 * `CHANGELOG.md [2.0.0]` — upgrade recipe + old → new tool table.
 * `CHANGELOG.md [2.0.0]` — celebratory v2.0.0 release notes.

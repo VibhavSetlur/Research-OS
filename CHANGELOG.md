@@ -6,6 +6,171 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.4.0] — scaffolds as questions, not templates (2026-06-08)
+
+MINOR release. Driven by a 10-perspective adversarial audit of a real
+project run (`AUDIT_ontology_mapping.md`, 233 findings across 10
+personas — PI, junior researcher, senior domain reviewer, fresh-AI
+handoff, Research-OS architect, code-quality, organization, outputs
+quality, docs, reproducibility/citations). The synthesis identified
+v2.0–v2.3 as having succeeded at producing **consistent structure**
+(every project gets the same folder layout) but failing at consistent
+**substance** (auto-generated figure captions leaked into papers as
+placeholder rows; hallucinated bibliographies survived to submission;
+empty literature/ stubs read as "no citations needed" when really the
+AI just hadn't downloaded any). v2.4.0 closes the highest-impact gaps
+without breaking existing projects.
+
+### Added
+
+- **`audit_pdf_grounding(entries, root)`** in
+  `tools/actions/synthesis/citations.py` — reports which citation
+  entries have a downloaded PDF on disk vs which don't. Searches
+  `inputs/literature/<key>.pdf`, `inputs/literature/<doi-slug>.pdf`,
+  and `workspace/*/literature/<key>.pdf`. Returns
+  `{grounded: [...], ungrounded: [{key, doi, url, title}, ...],
+  count, grounded_count}`. Closes the audit's strongest unified
+  finding (8/10 auditors): a project shipped 21 references in
+  `synthesis/references.bib` while `find . -name '*.pdf'` returned
+  zero results.
+- **`require_pdfs` flag on `write_references_bib`** — when true, drops
+  ungrounded entries from the bib and lists them at the file tail as
+  commented-out `UNGROUNDED ENTRIES`. Default keeps every entry but
+  adds a header comment noting how many lack on-disk grounding so the
+  gap is visible at the bib level even without opting in.
+- **`figures:` block in `researcher_config.yaml`** — three knobs
+  (`svg_allowed`, `summary_sidecar`, `interactive_html_allowed`) that
+  control the per-figure sidecar regime. All three default to a lean
+  shape (no SVG, no auto-summary, interactive HTML allowed). Added to
+  both `templates/researcher_config.yaml` and the in-code
+  `CONFIG_TEMPLATE`, kept in sync by
+  `test_config_template_matches_file`. `figures` registered in
+  `docs/CONTRACT.md` A.3 stable-section list.
+- **`validation_warnings` on `active_plan.json`** — `_persist_active_plan`
+  now scans the decomposition for entries whose `tool` field is in
+  `_REMOVED_TOOLS` (`tool_synthesize`, `tool_dashboard`,
+  `tool_slides_create`, etc.) and writes a per-step warning. Surfaces
+  stale router-index entries at plan-write time so the AI sees them
+  before dispatching, not after burning a turn on the friendly
+  redirect.
+
+### Changed
+
+- **Figure audit no longer warns "PNG without SVG companion"** by
+  default. `audit_figure_quality` reads `researcher_config.figures.*`
+  via the new `_load_figures_config` helper; the SVG warning fires
+  only when `svg_allowed=true`; the summary-sidecar warning fires
+  only when `summary_sidecar=true`. Drops a long-running source of
+  false-positive noise.
+- **`tool_path_finalize` stops auto-emitting `.summary.md` sidecars.**
+  Plain-English interpretation now integrates into `conclusions.md`
+  next to the inline `![](outputs/figures/<slug>.png)` embed. The
+  auto-generated sidecars trained the AI to leave stub captions
+  ("Auto-drafted caption: regenerate from analysis context") that
+  leaked verbatim into one project's `synthesis/paper.md` as 92
+  placeholder rows visibly telling reviewers the AI gave up. Opt back
+  in via `figures.summary_sidecar=true`.
+- **`AGENTS.md` hard rule #10 rewritten.** Replaces the "every figure
+  carries four sidecars including an SVG companion" mandate with a
+  lean default (`<slug>.png` + an authored `<slug>.caption.md`), opt-in
+  SVG / summary sidecars, encouragement of interactive `.html`
+  companions for visualisation types that benefit (networks,
+  multi-panel dashboards), and an explicit requirement that the AI
+  `sys_file_read` every figure before declaring a step done — catches
+  legend-over-plot, missing axis labels, palette regressions,
+  snake-case-leaking-into-label bugs that no JSON audit catches.
+- **`_seed_step_subfolder_readmes` stops pre-creating stub READMEs**
+  in `literature/`, `environment/`, and `context/` per step. These
+  dirs stay in `EXPERIMENT_SUBDIRS` (paths exist) but are empty until
+  a tool writes into them. Audit found pre-seeded stubs trained the
+  AI to leave dirs as boilerplate; caused `literature/` to read as
+  "no citations" when really the AI just hadn't downloaded any; and
+  cluttered every step folder with content nobody wrote. The README
+  that answers "what goes here?" now lives once in
+  `RESEARCHER_GUIDE.md` rather than duplicated 14× on disk.
+- **`outputs/README.md` template updated** to reflect the new figure
+  contract: reports go DEEPER than `conclusions.md` (choices,
+  reasoning, comparison of options); figures are `.png`-only by
+  default with optional interactive `.html` companions; AI MUST read
+  each figure before finalize.
+- **Doc hardening: dropped hardcoded tool / protocol counts** across
+  `README.md`, `docs/{TOOLS,PROTOCOLS,RESEARCHER_GUIDE,START,AI_GUIDE}.md`.
+  Replaces "144 tools" / "117 protocols" with vague phrases
+  ("~150 tools", "100+ protocols", "every tool", "All core protocols").
+  CLAUDE.md doctrine already forbids hand-written counts; the
+  maintainer was violating it in 9+ places. Counts go stale within a
+  release. CONTRACT.md keeps its v2.0.0-anchored snapshot table.
+- **Doc drift fix: `README.md:117` `code/` → `scripts/`.** The README
+  showed `01_baseline_eda/code/` in its file-layout diagram while the
+  framework, RESEARCHER_GUIDE, and every real project use `scripts/`.
+  A junior researcher walking through README and then opening a real
+  project would have hit the inconsistency immediately.
+
+### Migration
+
+- **Existing projects are unaffected by the figure default change**
+  — `audit_figure_quality` still reads existing `.summary.md` and
+  `.svg` files when they're present; the change is that it no longer
+  *warns* on their absence. To restore the v2.3 warning behaviour,
+  add to `inputs/researcher_config.yaml`:
+  ```yaml
+  figures:
+    svg_allowed: true
+    summary_sidecar: true
+  ```
+- **Existing per-step `literature/README.md` / `environment/README.md` /
+  `context/README.md` stubs are not touched** — the change only
+  affects newly-created steps. Delete the stubs by hand if you want
+  empty dirs in legacy steps.
+- **`write_references_bib` signature gained two optional kwargs**
+  (`root`, `require_pdfs`). All existing positional calls keep
+  working; opt-in to PDF filtering by passing both.
+- **AGENTS.md template change does NOT propagate** to existing
+  projects (the wizard only copies once). Re-run `research-os init`
+  in a temp dir and diff the AGENTS.md against your project's copy
+  to pick up the new hard rule #10 wording. A `research-os refresh`
+  CLI subcommand to do this automatically is planned for 2.4.x.
+
+### Not in this release (planned for 2.4.x / 2.5.0)
+
+The full audit surfaced ~50 P0 framework changes; this release ships
+the highest-impact subset that doesn't break existing projects. The
+following remain for follow-up:
+
+- Per-step `step_summary.yaml` retirement: the YAML stub anti-pattern
+  flagged by 9/10 audits. The derived emit in `tool_path_finalize`
+  stays in 2.4.0; the editable scaffold via `step_summary.yaml.template`
+  + the `update_step_summary` step in `analysis_plan.yaml` /
+  `literature_per_step.yaml` await migration to prompt-laden README
+  prose.
+- `.os_state` simplification: collapse `state_ledger.json` +
+  `manifest.json` overlap, drop dead fields, bound checkpoint storage
+  (single snapshot can be 39 MB of duplicate workspace; no GC).
+- `research-os refresh` CLI subcommand: auto-upgrade
+  `AGENTS.md` / `CLAUDE.md` / IDE-config templates in an existing
+  project to match the bundled current version.
+- Sparse-root finalize hook: regenerate top-level `README.md` at
+  project finalize (currently write-once at init).
+- Per-step `logs/` removal + cross-step utility canonical home
+  (`workspace/scratch/` IS used in practice but the framework doesn't
+  document a canonical place for it).
+- Hard removal of `.preregistration/` + `.grounding/` hidden dirs in
+  workspace (content moves into per-step README / methodology.md +
+  `.os_state/grounding.jsonl`).
+
+### Verified
+
+- **Preflight: 29/29 passed.**
+- **Pytest: all green.**
+- **Ruff: clean.**
+
+### Bumped
+
+- `pyproject.toml`, `src/research_os/__init__.py`, `CITATION.cff` to
+  `2.4.0`.
+
+---
+
 ## [2.3.0] — guided synthesis (2026-06-08)
 
 MINOR release. Retires the synthesis auto-generators in favour of

@@ -276,7 +276,7 @@ resolved. If `has_os_state` is False, tell the researcher to run
 - `tool_*` — research work: search, exec, audit, synthesis, intake, plan
 - `mem_*` — append-only memory: methods, citations, decisions, hypotheses
 
-v2.0 ships **144 live tools** (down from 344 in v1.x), each annotated
+v2.0 ships **~150 live tools** (down from 344 in v1.x), each annotated
 with:
 
 * `status` — `live` (default and visible), `alias` (back-compat
@@ -354,7 +354,7 @@ benefits from the right files being in the right place.
 
 ---
 
-## Protocol categories (117 protocols, organised in 9)
+## Protocol categories (100+ protocols, organised in 9)
 
 Every protocol carries `scope_tags: {domain, audience, workflow_shape}`
 + a `tier` annotation. `tool_route` surfaces both in
@@ -965,7 +965,7 @@ catalogue.
 - `sys_help(topic="synthesis")` → category-specific guidance
 - `sys_active_project` → which project is this request operating on
 - `tool_route(prompt)` → re-route on a new researcher message
-- `sys_protocol_list` → all 117 protocols indexed
+- `sys_protocol_list` → every protocol indexed
 - `sys_tool_describe(tool_name)` → full schema + status + pack for a tool
 - `sys_active_tools(protocol_name)` → 13-18-tool shortlist for one protocol
 

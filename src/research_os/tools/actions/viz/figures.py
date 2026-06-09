@@ -40,6 +40,43 @@ from typing import Any
 logger = logging.getLogger("research_os.tools.viz")
 
 
+_FIGURES_CONFIG_DEFAULTS = {
+    "svg_allowed": False,
+    "summary_sidecar": False,
+    "interactive_html_allowed": True,
+}
+
+
+def _load_figures_config(root: Path) -> dict[str, Any]:
+    """Read the `figures:` block from `inputs/researcher_config.yaml`.
+
+    Returns the lean defaults (no SVG, no summary sidecar, interactive
+    HTML allowed) when the file or block is absent, malformed, or the
+    config dir is not under the supplied root. Always returns a dict
+    that the figure-audit code can index without raising.
+    """
+    defaults = dict(_FIGURES_CONFIG_DEFAULTS)
+    if not root:
+        return defaults
+    cfg_path = root / "inputs" / "researcher_config.yaml"
+    if not cfg_path.exists():
+        return defaults
+    try:
+        import yaml as _yaml
+
+        data = _yaml.safe_load(cfg_path.read_text()) or {}
+    except Exception as e:
+        logger.debug("figures config parse skipped: %s", e)
+        return defaults
+    block = data.get("figures") or {}
+    if not isinstance(block, dict):
+        return defaults
+    for key, val in block.items():
+        if key in defaults and isinstance(val, type(defaults[key])):
+            defaults[key] = val
+    return defaults
+
+
 # ---------------------------------------------------------------------------
 # Palettes — colour-blind safe by default.
 # ---------------------------------------------------------------------------
@@ -336,16 +373,27 @@ def audit_figure_quality(
         blockers.append(
             f"Missing technical caption — write `{cap.name}` next to the figure."
         )
-    if not summary.exists():
+    # Summary sidecar is opt-in via researcher_config.figures.summary_sidecar
+    # (default off). Auto-generated sidecar stubs tended to leak verbatim
+    # into synthesis prose as placeholder captions — the AI now integrates
+    # the plain-language version into conclusions.md next to the embed.
+    cfg_figures = _load_figures_config(root)
+    if cfg_figures.get("summary_sidecar", False) and not summary.exists():
         warnings.append(
-            f"Missing plain-English summary — call tool_figure_caption_synthesise "
-            f"or write `{summary.name}` directly."
+            f"summary_sidecar=true but `{summary.name}` is missing — "
+            "either set summary_sidecar=false (the lean default; integrate "
+            "into conclusions.md) or author the sidecar manually."
         )
     svg_sibling = p.with_suffix(".svg")
-    if suffix == ".png" and not svg_sibling.exists():
+    if (
+        cfg_figures.get("svg_allowed", False)
+        and suffix == ".png"
+        and not svg_sibling.exists()
+    ):
         warnings.append(
-            "PNG without SVG companion — editorial edits will be harder later, "
-            "and the SVG-based label-overlap audit can't run on a PNG."
+            "svg_allowed=true but no SVG companion present — either set "
+            "svg_allowed=false (the lean default; PNG-only ships) or save "
+            "the SVG alongside the PNG so the editorial pipeline can edit it."
         )
 
     report["caption_present"] = cap.exists()
