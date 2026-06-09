@@ -331,7 +331,8 @@ def _handle_tool_path_finalize(name, arguments, root):
 def _handle_tool_synthesis_curate_figures(name, arguments, root):
     from research_os.tools.actions.synthesis.curate import curate_figures
 
-    res = curate_figures(root)
+    mode = (arguments or {}).get("mode", "focal")
+    res = curate_figures(root, mode=mode)
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "curate failed")))

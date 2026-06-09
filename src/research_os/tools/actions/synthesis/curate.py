@@ -20,18 +20,29 @@ _FIG_SUFFIXES = {".png", ".svg", ".jpg", ".jpeg"}
 _STEP_DIR_RE = re.compile(r"^\d{2,3}_")
 
 
-def curate_figures(root: Path) -> dict[str, Any]:
-    """Collect, number, and copy each step's focal figure into
-    ``synthesis/figures/`` with stable naming for paper.typ / slides.typ
-    / dashboard.html to reference.
+def curate_figures(root: Path, mode: str = "focal") -> dict[str, Any]:
+    """Collect, number, and copy step figures into ``synthesis/figures/``
+    with stable naming for paper.typ / slides.typ / dashboard.html to
+    reference.
+
+    Args:
+      root: project root.
+      mode: ``"focal"`` (default) — one focal figure per step; the
+        canonical curated set used by paper.typ. ``"all"`` — every PNG/
+        SVG/JPG in every step's ``outputs/figures/``; appropriate for a
+        dashboard that wants the full evidence base, and the only way to
+        avoid the failure mode where step figures land in
+        ``synthesis/figures/`` without ``.caption.md`` sidecars.
 
     Behaviour:
       * Walk ``workspace/NN_*/outputs/figures/`` in step order.
-      * Pick each step's focal figure (heuristic: filename starting with
-        the step number, else alphabetically first PNG/SVG/JPG).
-      * Copy to ``synthesis/figures/figNN_<step-descriptor>.<ext>`` so
-        ordering is deterministic across rebuilds.
-      * Copy the figure's ``.caption.md`` sidecar if present, OR seed a
+      * In focal mode: pick each step's focal figure (filename starting
+        with the step number, else alphabetically first PNG/SVG/JPG).
+      * In all mode: every figure in every step's outputs/figures/.
+      * Copy to ``synthesis/figures/figNN_<step-descriptor>.<ext>``
+        (focal) or ``synthesis/figures/<NN>_<original-name>.<ext>`` (all)
+        so ordering is deterministic across rebuilds.
+      * Copy each figure's ``.caption.md`` sidecar if present, OR seed a
         placeholder caption noting interpretive caption is required.
       * Skip steps with no figures (returns them in ``missing_figures``
         so the audit can flag them).
@@ -47,6 +58,11 @@ def curate_figures(root: Path) -> dict[str, Any]:
         return {
             "status": "error",
             "message": "workspace/ not found; nothing to curate.",
+        }
+    if mode not in ("focal", "all"):
+        return {
+            "status": "error",
+            "message": f"unknown mode {mode!r}; expected 'focal' or 'all'.",
         }
 
     fig_no = 1
@@ -67,56 +83,73 @@ def curate_figures(root: Path) -> dict[str, Any]:
             missing_figures.append(p.name)
             continue
         step_num = p.name.split("_", 1)[0]
-        focal = next(
-            (f for f in candidates if f.name.startswith(step_num + "_")),
-            candidates[0],
-        )
-
         slug = re.sub(r"^\d{2,3}_", "", p.name)
-        dest_name = f"fig{fig_no:02d}_{slug}{focal.suffix.lower()}"
-        dest = target / dest_name
-        try:
-            if not dest.exists() or dest.stat().st_mtime < focal.stat().st_mtime:
-                shutil.copy2(focal, dest)
-        except OSError as e:
-            logger.warning("curate copy failed %s: %s", focal, e)
-            continue
 
-        focal_cap = focal.with_suffix(".caption.md")
-        if not focal_cap.exists():
-            focal_cap = focal.parent / f"{focal.stem}.caption.md"
-        dest_cap = dest.with_suffix(".caption.md")
-        if focal_cap.exists():
-            try:
-                if not dest_cap.exists() or dest_cap.stat().st_mtime < focal_cap.stat().st_mtime:
-                    shutil.copy2(focal_cap, dest_cap)
-            except OSError as e:
-                # Best-effort sidecar copy. Read-only source dirs /
-                # permission mismatches must not crash the curation
-                # pass; the figure itself is already copied above.
-                logger.debug("caption sidecar copy failed for %s: %s", focal_cap, e)
+        if mode == "focal":
+            focal = next(
+                (f for f in candidates if f.name.startswith(step_num + "_")),
+                candidates[0],
+            )
+            sources = [focal]
         else:
-            missing_captions.append(p.name)
-            if not dest_cap.exists():
-                dest_cap.write_text(
-                    f"**Figure {fig_no} — {slug.replace('_', ' ')}.** "
-                    "_Caption pending. Lead with the substantive finding the "
-                    "figure shows (not just 'histogram of X'); name the unit "
-                    "on each axis; call out one specific feature the reader "
-                    "should look for._\n"
-                )
+            sources = candidates
 
-        copied.append({
-            "source": str(focal.relative_to(root)),
-            "dest": str(dest.relative_to(root)),
-            "step": p.name,
-            "has_caption": focal_cap.exists(),
-        })
-        fig_no += 1
+        for source in sources:
+            if mode == "focal":
+                dest_name = f"fig{fig_no:02d}_{slug}{source.suffix.lower()}"
+            else:
+                # Preserve the original filename (already step-prefixed
+                # if the AI followed the convention); else namespace it
+                # so the curated set stays deterministic.
+                if source.name.startswith(step_num):
+                    dest_name = source.name
+                else:
+                    dest_name = f"{step_num}_{source.name}"
+            dest = target / dest_name
+            try:
+                if not dest.exists() or dest.stat().st_mtime < source.stat().st_mtime:
+                    shutil.copy2(source, dest)
+            except OSError as e:
+                logger.warning("curate copy failed %s: %s", source, e)
+                continue
+
+            source_cap = source.with_suffix(".caption.md")
+            if not source_cap.exists():
+                source_cap = source.parent / f"{source.stem}.caption.md"
+            dest_cap = dest.with_suffix(".caption.md")
+            if source_cap.exists():
+                try:
+                    if not dest_cap.exists() or dest_cap.stat().st_mtime < source_cap.stat().st_mtime:
+                        shutil.copy2(source_cap, dest_cap)
+                except OSError as e:
+                    # Best-effort sidecar copy. Read-only source dirs /
+                    # permission mismatches must not crash the curation
+                    # pass; the figure itself is already copied above.
+                    logger.debug("caption sidecar copy failed for %s: %s", source_cap, e)
+            else:
+                if p.name not in missing_captions:
+                    missing_captions.append(p.name)
+                if not dest_cap.exists():
+                    dest_cap.write_text(
+                        f"**Figure {fig_no} — {source.stem.replace('_', ' ')}.** "
+                        "_Caption pending. Lead with the substantive finding the "
+                        "figure shows (not just 'histogram of X'); name the unit "
+                        "on each axis; call out one specific feature the reader "
+                        "should look for._\n"
+                    )
+
+            copied.append({
+                "source": str(source.relative_to(root)),
+                "dest": str(dest.relative_to(root)),
+                "step": p.name,
+                "has_caption": source_cap.exists(),
+            })
+            fig_no += 1
 
     return {
         "status": "success",
         "curated": len(copied),
+        "mode": mode,
         "missing_captions": missing_captions,
         "missing_figures": missing_figures,
         "figures": copied,

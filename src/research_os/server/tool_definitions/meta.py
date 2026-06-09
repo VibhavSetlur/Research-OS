@@ -388,21 +388,35 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_synthesis_curate_figures": {
-        "short": "Curate per-step focal figures into synthesis/figures/ with ordered names. Use before authoring paper.typ/dashboard.",
+        "short": "Curate step figures + captions into synthesis/figures/. mode='focal' (one/step) or 'all' (every figure).",
         "description": (
-            "Collect each step's focal figure into synthesis/figures/ with "
-            "stable, ordered names (fig01_<slug>.png, fig02_<slug>.png, …) "
-            "so the AI-authored synthesis files (paper.typ, dashboard.html, "
-            "slides.typ) can embed them deterministically. Copies the figure's "
-            "existing .caption.md sidecar if present, or seeds a placeholder "
-            "explaining how to write one. Returns the list of curated figures "
-            "plus any step that produced no figures (to flag in the audit) "
-            "and any figure missing a caption. Run BEFORE authoring the "
-            "synthesis file so the embedded image paths are stable across "
-            "rebuilds."
+            "Collect step figures into synthesis/figures/ with stable, "
+            "ordered names so the AI-authored synthesis files (paper.typ, "
+            "dashboard.html, slides.typ) can embed them deterministically. "
+            "Always copies each figure's .caption.md sidecar if present, or "
+            "seeds a placeholder explaining how to write one. Mode 'focal' "
+            "(default) picks one focal figure per step and names them "
+            "fig01_<slug>.png, fig02_<slug>.png, … — the canonical curated "
+            "set for paper.typ. Mode 'all' copies every figure in every "
+            "step's outputs/figures/ — appropriate for a dashboard that "
+            "wants the full evidence base, and the only reliable way to "
+            "ensure every figure that lands in synthesis/figures/ has a "
+            "caption sidecar (figures written there directly by the AI, "
+            "bypassing the per-step pipeline, are the most common cause of "
+            "missing captions). Returns the list of curated figures, any "
+            "step with no figures, and any step with missing captions."
         ),
         "category": "synthesis",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": ["focal", "all"],
+                    "description": "'focal' (default) curates one figure per step; 'all' curates every figure in every step.",
+                },
+            },
+        },
     },
     "tool_path_finalize": {
         "short": "Rewrite step + subfolder READMEs from actual produced artifacts. Use before marking a step complete.",

@@ -1,7 +1,7 @@
 id: synthesis_lay_summary
 tier: 'synthesize'
 name: Synthesis — Lay Summary (public / press / outreach)
-version: '2.0.0'
+version: '2.4.2'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -14,6 +14,11 @@ description: |
   patient-facing explainer. Distinct from `synthesis_abstract` (still
   technical, just shorter) and from `synthesis_dashboard`'s "teaching"
   audience profile (still uses dashboard scaffolding).
+
+  **Canonical filename.** Write to `synthesis/lay_summary.md`. Do NOT
+  invent variants (`paper-lay.md`, `lay.md`, `summary.md`, `paper_lay.md`,
+  `LAY.md`); downstream tools (cross-deliverable consistency audit,
+  preview, share-archive bundler) only recognise the canonical name.
 
   The defining constraint: the reader does not share the discipline's
   vocabulary. Every term that needs defining costs words. Every claim
