@@ -1673,12 +1673,45 @@ def update_literature_index(root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _prune_old_checkpoints(root: Path, keep: int = 5) -> None:
+def _prune_old_checkpoints(root: Path, keep: int = 5) -> dict[str, Any]:
+    """Bound `.os_state/checkpoints/` size by keeping only the most recent N.
+
+    A checkpoint whose ``.meta.json`` carries any truthy ``tag`` field
+    (e.g. ``tag: "before-major-refactor"``) is preserved regardless of
+    age — taggable retention lets the researcher / AI mark a checkpoint
+    as keep-forever before doing something risky. Untagged checkpoints
+    outside the keep window are deleted (sidecar + snapshot dir).
+
+    Returns a small report: ``{kept, removed, tagged}`` for the caller
+    to log. Idempotent and safe to call repeatedly.
+    """
     ckpt_dir = root / ".os_state" / "checkpoints"
     if not ckpt_dir.exists():
-        return
-    meta_files = sorted(ckpt_dir.glob("*.meta.json"), key=lambda f: f.stat().st_mtime)
-    for meta in meta_files[: max(0, len(meta_files) - keep)]:
+        return {"kept": 0, "removed": 0, "tagged": 0}
+    meta_files = sorted(
+        ckpt_dir.glob("*.meta.json"), key=lambda f: f.stat().st_mtime
+    )
+    if not meta_files:
+        return {"kept": 0, "removed": 0, "tagged": 0}
+
+    # Partition into tagged (always keep) and untagged (subject to GC).
+    tagged: list[Path] = []
+    untagged: list[Path] = []
+    for meta in meta_files:
+        try:
+            data = json.loads(meta.read_text())
+            if data.get("tag"):
+                tagged.append(meta)
+            else:
+                untagged.append(meta)
+        except Exception:
+            # Malformed sidecar: treat as untagged so GC can remove it.
+            untagged.append(meta)
+
+    # Keep the most-recent ``keep`` untagged checkpoints; drop the rest.
+    to_remove = untagged[: max(0, len(untagged) - keep)]
+    removed = 0
+    for meta in to_remove:
         try:
             data = json.loads(meta.read_text())
             cid = data.get("checkpoint_id")
@@ -1688,6 +1721,13 @@ def _prune_old_checkpoints(root: Path, keep: int = 5) -> None:
         snapshot_dir = ckpt_dir / cid if cid else None
         if snapshot_dir and snapshot_dir.exists():
             shutil.rmtree(snapshot_dir, ignore_errors=True)
+        removed += 1
+
+    return {
+        "kept": len(tagged) + min(keep, len(untagged)),
+        "removed": removed,
+        "tagged": len(tagged),
+    }
 
 
 def _seed_step_subfolder_readmes(

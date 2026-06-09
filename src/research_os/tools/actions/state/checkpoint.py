@@ -17,8 +17,30 @@ def _ledger(root: Path) -> ResearchLedger:
     return ResearchLedger(root / ".os_state" / "state_ledger.json")
 
 
-def create_checkpoint(description: str, root: Path) -> dict[str, Any]:
-    """Snapshot the workspace via hardlinks and record metadata in state."""
+def create_checkpoint(
+    description: str,
+    root: Path,
+    *,
+    tag: str | None = None,
+    keep: int = 5,
+) -> dict[str, Any]:
+    """Snapshot the workspace via hardlinks and record metadata in state.
+
+    Parameters
+    ----------
+    description : str
+        Free-text describing why this checkpoint exists.
+    root : Path
+        Project root.
+    tag : str | None, optional
+        Optional retention tag (e.g. ``"before-major-refactor"``,
+        ``"release-candidate"``). Tagged checkpoints survive the
+        per-create GC pass; use them for snapshots you want to keep
+        even after dozens of new checkpoints land.
+    keep : int, default 5
+        How many untagged checkpoints to retain after this create.
+        Older untagged checkpoints are pruned at the end of this call.
+    """
     try:
         checkpoint_id = f"ckpt_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         ledger = _ledger(root)
@@ -27,38 +49,41 @@ def create_checkpoint(description: str, root: Path) -> dict[str, Any]:
         # Record description in a sidecar metadata file
         meta_path = root / ".os_state" / "checkpoints" / f"{checkpoint_id}.meta.json"
         meta_path.parent.mkdir(parents=True, exist_ok=True)
-        meta_path.write_text(
-            json.dumps(
-                {
-                    "checkpoint_id": checkpoint_id,
-                    "description": description,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "files_snapshotted": snap.get("files_snapshotted"),
-                    "files_ref_only": snap.get("files_ref_only"),
-                },
-                indent=2,
-            )
-        )
+        meta_payload: dict[str, Any] = {
+            "checkpoint_id": checkpoint_id,
+            "description": description,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "files_snapshotted": snap.get("files_snapshotted"),
+            "files_ref_only": snap.get("files_ref_only"),
+        }
+        if tag:
+            meta_payload["tag"] = tag
+        meta_path.write_text(json.dumps(meta_payload, indent=2))
 
-        # Add to ledger's checkpoint history
-        state = ledger.get()
-        state.setdefault("checkpoint_history", []).append(
-            {
-                "id": checkpoint_id,
-                "description": description,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "files": snap.get("files_snapshotted", 0),
-            }
-        )
-        ledger._save(state)
+        # Run GC immediately after writing so unbounded growth isn't
+        # gated on the AI remembering to start a new step. Tagged
+        # checkpoints are preserved by the GC; untagged ones beyond
+        # `keep` are removed.
+        gc_report: dict[str, Any] = {}
+        try:
+            from research_os.project_ops import _prune_old_checkpoints
 
-        return {
+            gc_report = _prune_old_checkpoints(root, keep=keep)
+        except Exception as e:  # noqa: BLE001 — defensive; GC failure must not break create
+            logger.debug("checkpoint GC skipped: %s", e)
+
+        result: dict[str, Any] = {
             "status": "success",
             "checkpoint_id": checkpoint_id,
             "description": description,
             "files_snapshotted": snap.get("files_snapshotted"),
             "message": f"Checkpoint created: {checkpoint_id}",
         }
+        if tag:
+            result["tag"] = tag
+        if gc_report:
+            result["gc"] = gc_report
+        return result
     except Exception as e:
         logger.exception("create_checkpoint failed")
         return {"status": "error", "message": str(e)}
@@ -94,14 +119,15 @@ def list_checkpoints(root: Path) -> dict[str, Any]:
         for meta in sorted(checkpoints_dir.glob("*.meta.json")):
             try:
                 data = json.loads(meta.read_text())
-                out.append(
-                    {
-                        "id": data.get("checkpoint_id"),
-                        "description": data.get("description", ""),
-                        "created_at": data.get("created_at"),
-                        "files": data.get("files_snapshotted", 0),
-                    }
-                )
+                entry: dict[str, Any] = {
+                    "id": data.get("checkpoint_id"),
+                    "description": data.get("description", ""),
+                    "created_at": data.get("created_at"),
+                    "files": data.get("files_snapshotted", 0),
+                }
+                if data.get("tag"):
+                    entry["tag"] = data["tag"]
+                out.append(entry)
             except Exception:
                 continue
         # Fallback: list directories that have no sidecar
