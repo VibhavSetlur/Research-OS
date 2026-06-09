@@ -175,10 +175,13 @@ class ResearchLedger:
         elif "run_id" in state:
             state.pop("run_id", None)
             changed = True
-        # Drop vestigial fields outright.
+        # Drop vestigial fields outright. checkpoint_history /
+        # rollback_history were always written but never read — their
+        # canonical home is .os_state/checkpoints/*.meta.json. Older
+        # state files still carry them; pop on migration.
         for vestigial in (
             "token_budget", "knowledge_graph_path", "data_scale_profile",
-            "execution_dag_path",
+            "execution_dag_path", "checkpoint_history", "rollback_history",
         ):
             if vestigial in state:
                 state.pop(vestigial)
@@ -790,16 +793,12 @@ class ResearchLedger:
                 shutil.copy2(src_path, dest_path)
                 restored += 1
 
-        # Log rollback event in state
+        # Touch updated_at so consumers of state ordering see the
+        # rollback event. The rollback-history list previously persisted
+        # here was never read by any code path (the .meta.json sidecars
+        # in .os_state/checkpoints/ are the authoritative log) — dropped
+        # to keep state.json lean.
         state = self._load()
-        state.setdefault("rollback_history", []).append(
-            {
-                "checkpoint_id": checkpoint_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "backup_id": backup_id,
-                "files_restored": restored,
-            }
-        )
         state["updated_at"] = datetime.now(timezone.utc).isoformat()
         self._save(state)
 
