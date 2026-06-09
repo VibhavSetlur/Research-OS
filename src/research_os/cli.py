@@ -32,6 +32,7 @@ All real research work happens by talking to the AI in the IDE.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -868,6 +869,218 @@ def _read_secret_value(args: argparse.Namespace, provider: str, wizard) -> str:
 
 
 # ---------------------------------------------------------------------------
+# refresh — update project copies of templates from the bundled source
+# ---------------------------------------------------------------------------
+
+
+# Files that the wizard copies into a new project from
+# `templates/`. The refresh command compares each project copy against
+# the bundled source and (optionally) overwrites when they diverge.
+# Path is relative to the project root; the bundled source lives at the
+# same relative path under `templates/`. Order matches the wizard.
+_REFRESHABLE_TEMPLATES: tuple[str, ...] = (
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".claude/rules/research-os.md",
+    ".cursor/rules/research-os.mdc",
+    ".antigravity/rules/research-os.md",
+    ".windsurfrules",
+    ".continuerules",
+    ".aider.conf.yml",
+)
+
+
+def _bundled_templates_dir() -> Path:
+    """Path to the bundled templates directory shipped with the package."""
+    return Path(__file__).resolve().parent.parent.parent / "templates"
+
+
+def _diff_template(bundled: Path, project: Path) -> tuple[str, str]:
+    """Return ``(status, message)`` for one project copy vs the bundled source.
+
+    Status values:
+      * ``fresh``    — project copy missing OR identical to bundled source.
+      * ``drift``    — both exist but content differs.
+      * ``absent``   — neither exists (file isn't applicable to this project,
+                       e.g. .cursor/ rules in a project wired only for Claude).
+      * ``error``    — couldn't read one of the files.
+    """
+    bundled_exists = bundled.exists()
+    project_exists = project.exists()
+    if not bundled_exists and not project_exists:
+        return ("absent", "neither source nor project copy present")
+    if not project_exists:
+        return ("absent", "project copy missing (file is opt-in per IDE)")
+    if not bundled_exists:
+        return ("error", "bundled source missing — package install corrupt?")
+    try:
+        b_text = bundled.read_text()
+        p_text = project.read_text()
+    except OSError as e:
+        return ("error", f"read failed: {e}")
+    if b_text == p_text:
+        return ("fresh", "identical to bundled template")
+    # Cheap line-level diff stats so the report is meaningful without
+    # running a full diff library.
+    b_lines = b_text.splitlines()
+    p_lines = p_text.splitlines()
+    delta = len(b_lines) - len(p_lines)
+    sign = "+" if delta > 0 else ""
+    return (
+        "drift",
+        f"differs from bundled (project has {len(p_lines)} lines, "
+        f"bundled has {len(b_lines)}, {sign}{delta} after refresh)",
+    )
+
+
+def cmd_refresh(args: argparse.Namespace) -> int:
+    """Detect drift between project template copies and bundled sources;
+    optionally overwrite.
+
+    Read-only by default (``--check`` is the only mode that exits non-zero
+    on drift). Pass ``--write`` to overwrite drifted files; pass ``--yes``
+    to skip the confirmation prompt for each file.
+    """
+    from research_os import wizard
+
+    if getattr(args, "no_color", False):
+        wizard.disable_color()
+
+    workspace = (
+        Path(args.workspace).resolve() if getattr(args, "workspace", None)
+        else _find_workspace_root()
+    )
+    if not workspace:
+        wizard.fail(
+            "Not inside a Research OS workspace",
+            "cd into a project directory or pass --workspace <path>.",
+        )
+        return 1
+
+    bundled_dir = _bundled_templates_dir()
+    if not bundled_dir.exists():
+        wizard.fail(
+            "Bundled templates directory not found",
+            f"expected at {bundled_dir} — package install may be corrupt.",
+        )
+        return 1
+
+    results: list[tuple[str, str, str, Path, Path]] = []
+    for rel in _REFRESHABLE_TEMPLATES:
+        bundled = bundled_dir / rel
+        project = workspace / rel
+        status, message = _diff_template(bundled, project)
+        results.append((rel, status, message, bundled, project))
+
+    drift_count = sum(1 for _, status, *_ in results if status == "drift")
+    error_count = sum(1 for _, status, *_ in results if status == "error")
+    fresh_count = sum(1 for _, status, *_ in results if status == "fresh")
+    absent_count = sum(1 for _, status, *_ in results if status == "absent")
+
+    # ── JSON mode ───────────────────────────────────────────────────────
+    if getattr(args, "json", False):
+        out = {
+            "workspace": str(workspace),
+            "bundled_dir": str(bundled_dir),
+            "drift_count": drift_count,
+            "error_count": error_count,
+            "fresh_count": fresh_count,
+            "absent_count": absent_count,
+            "files": [
+                {
+                    "relative_path": rel,
+                    "status": status,
+                    "message": msg,
+                    "bundled_source": str(bundled),
+                    "project_copy": str(project),
+                }
+                for rel, status, msg, bundled, project in results
+            ],
+        }
+        print(json.dumps(out, indent=2))
+        if getattr(args, "check", False):
+            return 0 if drift_count == 0 and error_count == 0 else 1
+        return 0
+
+    # ── Human-readable report ───────────────────────────────────────────
+    print(f"\nWorkspace: {workspace}")
+    print(f"Templates: {bundled_dir}\n")
+    for rel, status, msg, _bundled, _project in results:
+        if status == "fresh":
+            wizard.ok(f"  {rel}", msg)
+        elif status == "drift":
+            wizard.warn(f"  {rel}", msg)
+        elif status == "absent":
+            # Quiet success — file not applicable.
+            print(f"  · {rel}: not applicable (no project copy)")
+        else:
+            wizard.fail(f"  {rel}", msg)
+    print()
+
+    if drift_count == 0 and error_count == 0:
+        wizard.ok(
+            "All template copies fresh",
+            f"{fresh_count} match, {absent_count} not applicable.",
+        )
+        return 0
+
+    # ── Check mode: report only, exit non-zero on drift ─────────────────
+    if getattr(args, "check", False):
+        wizard.warn(
+            f"{drift_count} drifted, {error_count} error(s)",
+            "re-run without --check (and with --write to apply) to upgrade.",
+        )
+        return 1
+
+    # ── Write mode: overwrite drifted files ─────────────────────────────
+    if not getattr(args, "write", False):
+        wizard.warn(
+            f"{drift_count} drifted file(s)",
+            "Re-run with --write to overwrite the project copy with the "
+            "bundled template (use --yes to skip per-file confirmation).",
+        )
+        return 1
+
+    auto_yes = bool(getattr(args, "yes", False))
+    written = 0
+    for rel, status, _msg, bundled, project in results:
+        if status != "drift":
+            continue
+        if not auto_yes:
+            try:
+                resp = input(f"Overwrite {rel}? [y/N] ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                wizard.warn("Cancelled by user — partial refresh", "")
+                return 1
+            if resp not in ("y", "yes"):
+                print(f"  skipped: {rel}")
+                continue
+        try:
+            project.parent.mkdir(parents=True, exist_ok=True)
+            project.write_text(bundled.read_text())
+            wizard.ok(f"  wrote: {rel}", "")
+            written += 1
+        except OSError as e:
+            wizard.fail(f"  failed: {rel}", str(e))
+            return 1
+
+    if written:
+        wizard.ok(
+            f"Refreshed {written} file(s)",
+            "Diff against your prior version with `git diff` to spot any "
+            "project-specific tweaks you want to re-apply on top.",
+        )
+    else:
+        wizard.warn(
+            "No files written",
+            "Every drifted file was skipped — re-run with --yes to apply "
+            "without per-file prompting.",
+        )
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # completion
 # ---------------------------------------------------------------------------
 
@@ -876,7 +1089,8 @@ def _read_secret_value(args: argparse.Namespace, provider: str, wizard) -> str:
 # the fish completion script and the argparse subparser registry stay in
 # sync (the test suite cross-checks these).
 SUBCOMMANDS_FOR_COMPLETION = (
-    "init", "ide", "mcp", "api-key", "start", "doctor", "completion",
+    "init", "ide", "mcp", "api-key", "start", "doctor", "refresh",
+    "completion",
 )
 
 
@@ -930,6 +1144,14 @@ complete -c research-os -n '__fish_seen_subcommand_from doctor' -l workspace -d 
 complete -c research-os -n '__fish_seen_subcommand_from doctor' -l json -d 'Emit JSON report'
 complete -c research-os -n '__fish_seen_subcommand_from doctor' -l no-color -d 'Disable ANSI styling'
 
+# refresh flags
+complete -c research-os -n '__fish_seen_subcommand_from refresh' -l check -d 'Report only; exit 1 on drift'
+complete -c research-os -n '__fish_seen_subcommand_from refresh' -l write -d 'Overwrite drifted files'
+complete -c research-os -n '__fish_seen_subcommand_from refresh' -s y -l yes -d 'Skip per-file confirmation'
+complete -c research-os -n '__fish_seen_subcommand_from refresh' -l workspace -d 'Explicit workspace path' -r
+complete -c research-os -n '__fish_seen_subcommand_from refresh' -l json -d 'Emit JSON report'
+complete -c research-os -n '__fish_seen_subcommand_from refresh' -l no-color -d 'Disable ANSI styling'
+
 # completion subcommand
 complete -c research-os -n '__fish_seen_subcommand_from completion' -xa 'bash zsh fish'
 """
@@ -944,6 +1166,7 @@ def _build_fish_completion() -> str:
         "ide": "Add / remove / list AI IDE MCP configs",
         "start": "Run the MCP server",
         "doctor": "Diagnose install + workspace health",
+        "refresh": "Refresh project template copies from bundled sources",
         "completion": "Print shell completion script",
     }
     lines = []
@@ -1278,6 +1501,55 @@ def build_parser() -> argparse.ArgumentParser:
     p_doctor.add_argument("--no-color", action="store_true",
                           help="Disable ANSI styling. Auto-disabled when NO_COLOR is set.")
 
+    # ── refresh ─────────────────────────────────────────────────────────
+    p_refresh = sub.add_parser(
+        "refresh",
+        help="Refresh project copies of AGENTS.md / CLAUDE.md / IDE rules from the bundled templates.",
+        description=(
+            "Detect drift between a project's copies of bundled templates\n"
+            "(AGENTS.md, CLAUDE.md, .claude/rules/research-os.md, IDE rule\n"
+            "files) and the version shipped with this `research-os` install.\n\n"
+            "Templates evolve across releases; the wizard only copies them\n"
+            "once at init, so a project that's been around for a few\n"
+            "releases can be teaching the AI a stale tool surface or\n"
+            "out-of-date hard rules. `refresh` shows the gap and (with\n"
+            "--write) overwrites the project copies in place.\n\n"
+            "Read-only by default. --check exits non-zero on drift so CI\n"
+            "can fail if the project gets out of sync.\n\n"
+            "Examples:\n"
+            "  research-os refresh             # report drift (default)\n"
+            "  research-os refresh --check     # report + exit 1 if drift\n"
+            "  research-os refresh --write     # prompt per-file, overwrite\n"
+            "  research-os refresh --write --yes  # overwrite every drifted file\n"
+            "  research-os refresh --json      # machine-readable report"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_refresh.add_argument(
+        "--check", action="store_true",
+        help="Report only; exit non-zero if any project copy has drifted.",
+    )
+    p_refresh.add_argument(
+        "--write", action="store_true",
+        help="Overwrite drifted project copies with the bundled template.",
+    )
+    p_refresh.add_argument(
+        "-y", "--yes", action="store_true",
+        help="With --write, skip the per-file confirmation prompt.",
+    )
+    p_refresh.add_argument(
+        "--workspace", default=None,
+        help="Explicit workspace path (default: walk up from CWD).",
+    )
+    p_refresh.add_argument(
+        "--json", action="store_true",
+        help="Emit JSON instead of the human-readable report.",
+    )
+    p_refresh.add_argument(
+        "--no-color", action="store_true",
+        help="Disable ANSI styling. Auto-disabled when NO_COLOR is set.",
+    )
+
     # ── completion ──────────────────────────────────────────────────────
     p_completion = sub.add_parser(
         "completion",
@@ -1330,6 +1602,8 @@ def main() -> None:
     elif args.command == "doctor":
         from research_os.cli_doctor import cmd_doctor
         sys.exit(cmd_doctor(args))
+    elif args.command == "refresh":
+        sys.exit(cmd_refresh(args))
     elif args.command == "completion":
         sys.exit(cmd_completion(args))
     else:
