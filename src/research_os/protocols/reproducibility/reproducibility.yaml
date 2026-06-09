@@ -113,6 +113,10 @@ expected_outputs:
   - ro-crate-metadata.json
   - codemeta.json
 
+# AUTONOMY GATE on next_protocol: in manual / supervised /
+# coaching, present "Next: audit/audit_and_validation" as a SUGGESTION;
+# only autopilot auto-chains. A reproducibility snapshot is its own
+# deliverable and the researcher may not want a full audit immediately.
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

@@ -164,6 +164,15 @@ expected_outputs:
   - workspace/logs/audit_report.md
   - workspace/logs/step_completeness.md
 
+# AUTONOMY + OUTPUT_TYPES GATE on next_protocol:
+#   - autopilot AND `paper` ∈ research_goal.output_types → auto-chain.
+#   - autopilot AND `paper` ∉ output_types → DO NOT chain; instead
+#     route to the first synthesis protocol matching declared outputs
+#     (synthesis_dashboard, synthesis_poster, etc.).
+#   - manual / supervised / coaching → never chain; surface the
+#     suggested next protocol and wait for the researcher. An audit
+#     pass is its own deliverable; the researcher decides whether to
+#     write up next, and which kind of deliverable.
 next_protocol: synthesis/synthesis_paper
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

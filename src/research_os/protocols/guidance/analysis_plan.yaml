@@ -785,6 +785,16 @@ expected_outputs:
   - workspace/*/environment
   - workspace/logs
 
+# AUTONOMY GATE on next_protocol:
+#   - autopilot     → chain to reproducibility/reproducibility automatically.
+#   - manual /      → present "Next: reproducibility/reproducibility" as a
+#     supervised /     SUGGESTION; wait for the researcher to ask before
+#     coaching         loading the next protocol. Single-step requests
+#                      ("run step 17") end here; the AI does NOT auto-
+#                      chain to a reproducibility audit the user didn't
+#                      request. Closes the ontology-mapping failure
+#                      where every analysis step silently kicked off
+#                      the next protocol.
 next_protocol: reproducibility/reproducibility
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

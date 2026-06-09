@@ -1,7 +1,7 @@
 id: printable
 tier: 'synthesize'
 name: Synthesis — Printable Deliverable (poster | handout | one-pager)
-version: '2.3.0'
+version: '2.4.3'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, biology, wet_lab, engineering, humanities, theory_math]
@@ -35,6 +35,11 @@ trigger: |
 prerequisites:
   - At least one workspace step has substantive conclusions OR a
     synthesis/* deliverable exists.
+  - "Researcher's `research_goal.output_types`
+    (inputs/researcher_config.yaml) includes the chosen format's
+    keyword (`poster` or `handout`). If it doesn't,
+    tool_synthesis_scaffold returns status=ask — confirm with the
+    researcher first. Empty output_types is treated as 'open'."
 
 design_principles: |
   - One headline dominates. Anything competing with the headline

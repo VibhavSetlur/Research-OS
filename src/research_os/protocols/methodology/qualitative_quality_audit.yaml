@@ -262,6 +262,9 @@ quality_bar:
   codebook_versioned_with_analytic_memos: true
   audit_summary_written_for_synthesis_consumption: true
 
+# AUTONOMY GATE: in manual / supervised / coaching, surface
+# "Next: audit/audit_and_validation" as a SUGGESTION; only autopilot
+# auto-chains. A qualitative quality check ≠ a full project audit.
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

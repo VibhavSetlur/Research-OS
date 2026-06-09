@@ -1,7 +1,7 @@
 id: synthesis_dashboard
 tier: 'synthesize'
 name: Synthesis — Dashboard (custom, story-driven, self-contained HTML)
-version: '2.4.2'
+version: '2.4.3'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, qualitative, humanities]
@@ -61,6 +61,12 @@ prerequisites:
   - Step figures have `.caption.md` sidecars (visualization_workflow
     enforces this). If they're missing, route there first — the
     dashboard needs interpretive captions for every embedded figure.
+  - "Researcher's `research_goal.output_types` (in
+    inputs/researcher_config.yaml) includes `dashboard`. If it
+    doesn't, tool_synthesis_scaffold returns status=ask instead of
+    writing — surface the message to the researcher and re-call with
+    confirmed=true only after they say yes. Empty output_types is
+    treated as 'open' so unfilled projects don't trip the gate."
 
 design_principles: |
   - **Story before structure.** Organise sections by hypothesis,
@@ -153,6 +159,18 @@ quality_standards: |
     over-resolution or too numerous).
 
 steps:
+  - id: verify_intent
+    name: Confirm the researcher actually wants a dashboard
+    description: |
+      Read `inputs/researcher_config.yaml#research_goal.output_types`.
+      - Empty list: the researcher hasn't declared preferences; proceed
+        (and consider asking them to add `dashboard` so the intent
+        is explicit for future sessions).
+      - List includes `dashboard`: proceed silently.
+      - List does NOT include `dashboard`: STOP. Ask the researcher
+        whether they want to add it or use one of their declared
+        deliverables instead. Do NOT scaffold until they confirm.
+
   - id: walk_workspace
     name: Walk the workspace + audit readiness
     description: |

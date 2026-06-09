@@ -1,7 +1,7 @@
 id: synthesis_lay_summary
 tier: 'synthesize'
 name: Synthesis — Lay Summary (public / press / outreach)
-version: '2.4.2'
+version: '2.4.3'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -37,6 +37,12 @@ prerequisites:
   - "The project has a synthesis-eligible state — at least one
     conclusions.md with a substantive Findings section, OR an existing
     synthesis/* deliverable to derive from."
+  - "Researcher's `research_goal.output_types`
+    (inputs/researcher_config.yaml) includes `lay_summary`. If
+    it doesn't, tool_synthesis_scaffold returns status=ask instead
+    of writing — confirm with the researcher first. Empty
+    output_types is treated as 'open' so unfilled projects don't
+    trip the gate."
 
 quality_bar:
   reading_grade_level_maximum: 9        # roughly US 9th grade

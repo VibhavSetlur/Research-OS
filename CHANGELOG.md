@@ -6,6 +6,136 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.4.3] — output_types gating + scope-creep fix (2026-06-09)
+
+PATCH release. Closes two architectural holes that the v2.4.2
+ontology-mapping audit surfaced as the root cause of "AI auto-creates
+deliverables the user didn't ask for":
+
+1. **The synthesis pipeline was hardcoded to `synthesis_paper`.**
+   `get_next_protocol()` in `tools/actions/protocol.py` ran a fixed
+   9-step PIPELINE ending at `synthesis_paper` regardless of the
+   researcher's declared `research_goal.output_types`. A project whose
+   wizard answer was `output_types: [dashboard]` still saw "next is
+   `synthesis_paper`" from the loader. Fixed: pipeline is now the
+   universal analysis prefix + a synthesis tail filtered by declared
+   `output_types`. Empty `output_types` falls back to `synthesis_paper`
+   (legacy behaviour preserved).
+2. **`next_protocol` chains auto-fired in every autonomy mode.** Six
+   protocols silently chained: `analysis_plan → reproducibility`
+   (every analysis step triggered an audit), `audit_and_validation →
+   synthesis_paper` (every audit triggered a paper draft),
+   `reproducibility → audit_and_validation`,
+   `cox_ph_diagnostics → audit`, `missing_data_strategy → audit`,
+   `qualitative_quality_audit → audit`. Fixed: each chain now carries
+   an explicit `AUTONOMY GATE` annotation telling the AI to suggest
+   (not auto-chain) in `manual` / `supervised` / `coaching` modes.
+   Single-step requests stop at the requested step.
+
+Three parallel `Explore`-agent audits drove the fix. Reports captured
+in chat transcripts (not checked in).
+
+### Added
+
+- **`output_types_gate(root, kind, *, autonomy=None)`** in
+  `tools/actions/synthesis/check.py`. Returns
+  `{verdict: 'proceed'|'ask'|'skip', declared_outputs, message, kind}`.
+  - `proceed` when `output_types` is empty (no preference declared) OR
+    `kind` is in the declared set.
+  - `ask` when `output_types` is non-empty and `kind` is NOT in the
+    set; the returned `message` is a one-line prompt the AI lifts
+    verbatim to the researcher.
+  - `skip` reserved for future use (researcher explicitly opted out).
+  - Normalises aliases (`lay-summary` → `lay_summary`,
+    `Lay Summary` → `lay_summary`) and ignores the `exploratory`
+    sentinel (which marks "no deliverable yet").
+- **`tool_synthesis_scaffold(kind, confirmed=false)`** — new
+  `confirmed` kwarg. When the output_types gate returns `ask` and the
+  caller has not passed `confirmed=true` (or the existing
+  `overwrite=true`), the scaffold returns `status='ask'` instead of
+  writing. The AI is expected to surface the message to the researcher
+  and only re-call with `confirmed=true` after they say yes. Prevents
+  the failure mode where the AI auto-creates a paper / dashboard /
+  poster the user never asked for.
+- **`SYNTHESIS_OUTPUT_TYPE_MAP`** in
+  `tools/actions/protocol.py` — single source of truth mapping each
+  `output_types` keyword (`paper`, `dashboard`, `poster`, `slides`,
+  `report`, `lay_summary`, `grant`, `abstract`, `essay`, `handout`) to
+  its synthesis protocol + "done" predicate. New synthesis protocols
+  must register here to participate in pipeline filtering.
+
+### Changed
+
+- **`get_next_protocol(root)`** consults
+  `inputs/researcher_config.yaml#research_goal.output_types`. The
+  analysis prefix (session_boot → project_startup → domain →
+  methodology → literature → analysis_plan → reproducibility →
+  audit_and_validation) is unchanged. The synthesis tail is now
+  dynamic — for `output_types: [dashboard, lay_summary]`, the
+  pipeline terminates at `synthesis/synthesis_lay_summary` (in
+  declared order), NOT `synthesis/synthesis_paper`. Empty list →
+  fallback to `synthesis_paper` (no regression for unfilled projects).
+  Response envelope gains `declared_output_types` field.
+- **`tool_synthesis_check`** envelope gains an `intent_gate` field. If
+  the kind being audited isn't in declared `output_types`, the gate's
+  one-line message also appears in `warnings`.
+- **`synthesis_paper`** (v2.3.0 → 2.4.3) — adds an explicit
+  `verify_intent` first step that reads `output_types` and stops the
+  AI if `paper` isn't declared. Closes the auto-create-paper failure.
+- **`synthesis_dashboard`** (2.4.2 → 2.4.3) — same `verify_intent`
+  first step for `dashboard`. Reinforces the existing trigger gate.
+- **`synthesis_slides`** (2.3.0 → 2.4.3) — `slides` prerequisite added.
+- **`synthesis_lay_summary`** (2.4.2 → 2.4.3) — `lay_summary`
+  prerequisite added.
+- **`printable`** (2.3.0 → 2.4.3) — `poster` / `handout` prerequisite
+  added.
+- **Autonomy-gate annotations** added to the six high-risk
+  `next_protocol` chains (`guidance/analysis_plan` →
+  `reproducibility/reproducibility`; `audit/audit_and_validation` →
+  `synthesis/synthesis_paper`; `reproducibility/reproducibility` →
+  `audit/audit_and_validation`; the three `methodology/*` audits →
+  `audit/audit_and_validation`;
+  `visualization/interactive_dashboard_design` →
+  `synthesis/synthesis_dashboard`). Each carries a comment block
+  telling the AI to surface "Next: ..." as a SUGGESTION in
+  `manual` / `supervised` / `coaching` modes; only `autopilot`
+  auto-chains, and `autopilot` further gates synthesis chains on
+  `output_types` membership.
+
+### Test cleanup
+
+- **Renamed** `tests/unit/test_v242_synthesis_dashboard_lints.py`
+  → `tests/unit/test_synthesis_check.py`. Per-release test naming
+  (`test_v<version>_<feature>.py`) is now retired as a convention;
+  new tests for this surface land in the topic-named file.
+- **+13 regression tests** in the renamed file covering:
+  output_types_gate proceed / ask / empty / alias-normalisation /
+  exploratory-sentinel; synthesis_scaffold returns `ask` / honours
+  `confirmed=true` / proceeds for declared kinds; pipeline tail
+  respects dashboard-only / paper+lay_summary / empty-fallback;
+  synthesis_check envelope includes the intent_gate field.
+
+### Test gate
+
+- preflight 29/29 · pytest 1643/1643 (+13 new in
+  `test_synthesis_check.py`) · ruff clean.
+
+### Not behaviour change for existing projects
+
+- Projects with `output_types: []` (or no `researcher_config.yaml`)
+  see the legacy fallback: synthesis_paper terminal, no `ask`
+  envelopes. This is the on-disk default for every project initialised
+  before v2.4.3 and for every fresh `research-os init` until the
+  researcher fills in `output_types`. Recommendation: update the
+  wizard answer once to make the intent explicit.
+- The AUTONOMY GATE annotations are guidance to the AI, not
+  loader-enforced refusals (which would be MINOR-shaped). An AI client
+  that ignores them will still see the same `next_protocol` values it
+  did in v2.4.2; correct AI behaviour is now spelled out in the
+  protocol text + the new gate helper.
+
+---
+
 ## [2.4.2] — dashboard quality + synthesis hygiene (2026-06-09)
 
 PATCH release. Six fixes driven by an audit of the

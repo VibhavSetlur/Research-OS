@@ -281,6 +281,11 @@ quality_bar:
   reproducible_source_and_data_shipped: true
   static_pdf_export_for_archival_present: true
 
+# AUTONOMY + OUTPUT_TYPES GATE: in manual / supervised /
+# coaching, surface "Next: synthesis/synthesis_dashboard" as a
+# SUGGESTION; only autopilot auto-chains. The dashboard scaffold ALSO
+# gates on `dashboard` ∈ research_goal.output_types — see
+# tool_synthesis_scaffold's `status=ask` envelope.
 next_protocol: synthesis/synthesis_dashboard
 next_protocol_kind: forward_default
 on_failure: visualization/figure_guidelines
