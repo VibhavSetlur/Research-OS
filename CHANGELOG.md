@@ -6,6 +6,126 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.4.2] — dashboard quality + synthesis hygiene (2026-06-09)
+
+PATCH release. Six fixes driven by an audit of the
+`/scratch/vsetlur/ontology-mapping` v2.1 synthesis run, which surfaced
+a recurring failure mode: the AI authoring a slap-together dashboard
+(one section per workspace step, figure + caption underneath each),
+inventing non-canonical filenames (`paper-lay.md`, `REPRODUCIBILITY.md`,
+`METHODS.md`, `CITATIONS.md`) in `synthesis/`, and leaving behind
+random `.md` / `.mermaid` / `.json` clutter at `workspace/` root. All
+fixes are protocol guidance, scaffold rewrites, lint additions, and
+one tool-mode extension; no breaking changes to existing APIs.
+
+### Changed
+
+- **`synthesis/synthesis_dashboard` — rewrite (v2.3.0 → v2.4.2).**
+  The protocol now explicitly forbids the per-step recap antipattern
+  and requires a custom, story-driven structure: Hero / Headline →
+  Key findings (organised by claim, not by step) → Comparison
+  (adopted vs ruled out) → Methods → Limitations → References.
+  Introduces an explicit choice between Plan-mode (collaborative
+  outline) and Autopilot (AI picks the headline finding and structure)
+  before scaffolding. Quality bar now lists `forbidden_structure`
+  (per-step recap, directory dump, caption-only sections) and
+  `required_structure` (hero + ≥3 claim-driven findings sections).
+- **`synthesis/synthesis_paper` — clarification (v2.3.0 → v2.4.2).**
+  States explicitly that `synthesis/paper.pdf` is mandatory before the
+  paper deliverable is "done" (a stranded `paper.md` with no rendered
+  PDF is a blocker). Lists the four most common AI-improvised
+  filenames that downstream tools do NOT recognise (`paper-lay.md`,
+  `REPRODUCIBILITY.md`, `METHODS.md`, `CITATIONS.md`) and points each
+  at its canonical destination.
+- **`synthesis/synthesis_lay_summary` — clarification (v2.0.0 → v2.4.2).**
+  Canonical filename is `synthesis/lay_summary.md` (not `paper-lay.md`,
+  `lay.md`, `summary.md`, `paper_lay.md`); downstream tools recognise
+  only the canonical name.
+- **`writing/writing_conclusions` — figure/table citations (v2.0.0 →
+  v2.4.2).** Per-step `conclusions.md` template gains a mandatory
+  **Figures + tables produced** section that lifts directly into
+  paper / dashboard / slides synthesis. Every Findings bullet must
+  cite at least one figure / table / output file produced by the
+  step; an unciteable finding is rejected. The Statistical summary
+  table gains a `Source` column. Closes the gap where downstream
+  synthesis stages had to guess which figures backed which findings.
+- **`tool_synthesis_curate_figures` — multi-figure curation.** New
+  `mode` parameter: `'focal'` (default, unchanged behaviour — one
+  focal figure per step, named `figNN_<slug>.png` for paper.typ) and
+  `'all'` (every figure in every step's `outputs/figures/`, named
+  with the step number prefix, plus every figure's caption sidecar
+  copied or seeded). The `'all'` mode fixes the failure where the
+  AI bypasses curation and writes step figures directly to
+  `synthesis/figures/`, leaving them without `.caption.md` sidecars.
+  Backwards-compatible: omitting `mode` keeps the v2.4.1 behaviour.
+
+### Added
+
+- **`synthesis_check` — story-structure lints for dashboards.**
+  Three new checks on `synthesis/dashboard.html`:
+    1. BLOCKER on ≥4 `Step NN` section headings (per-step recap
+       antipattern). Tolerates up to 3 (a comparison block
+       referencing specific steps is fine).
+    2. WARN on 2-3 `Step NN` headings (graduated nudge to
+       claim-driven headings).
+    3. WARN on missing hero / TL;DR / headline-finding section in
+       the first viewport (any of "Headline", "TL;DR", "Hero",
+       "Key finding(s)", "Summary", "Top-line", "Bottom line",
+       "At a glance" as heading text or section id satisfies it).
+- **`synthesis_hygiene` — synthesis-directory filename lint.**
+  Every `tool_synthesis_check` call now also walks `synthesis/` for
+  non-canonical files and surfaces per-file rename / delete hints.
+  Recognises the four most common AI-improvised names from the
+  ontology-mapping audit (`paper-lay.md` → `lay_summary.md`;
+  `REPRODUCIBILITY.md`, `METHODS.md`, `CITATIONS.md` → delete and
+  fold into canonical artefacts). Unknown filenames get a softer
+  "move to archive/ or fold into canonical deliverable" warning.
+  Subdirectories (`figures/`, `archive/`, `scripts/`,
+  `dashboard_data/`, `_typst_templates/`) are ignored.
+- **`workspace_hygiene` — workspace-root clutter lint.** Every
+  `tool_synthesis_check` call now also walks `workspace/` for loose
+  files / subdirectories outside the canonical set (`methods.md`,
+  `analysis.md`, `citations.md`, `researcher_certifications.yaml` +
+  the `logs/`, `scratch/`, `archive/`, `.preregistration/`, and
+  numbered `NN_<slug>/` directories). Loose planning docs, hand-rolled
+  audits, `.mermaid` diagrams, and agent briefs at workspace root get
+  per-file relocate hints (move to `scratch/`, `logs/`, or
+  `archive/`).
+- **Dashboard scaffold rewrite.** `tool_synthesis_scaffold(kind='dashboard')`
+  now writes a story-arc skeleton: hero section with metric-card
+  grid + interpretive caption slot, key-findings block organised by
+  claim, comparison block for adopted-vs-rejected, methods block
+  linking to paper.pdf, limitations + open questions, references +
+  cite. CSS is inline and CVD-aware. The previous scaffold's
+  per-section `<!-- AI: ... -->` markers explicitly warn against
+  per-step recap and step-numbered headings.
+
+### Test gate
+
+- **`tests/unit/test_v242_synthesis_dashboard_lints.py`** — 9 new
+  regression tests covering: dashboard step-by-step recap BLOCKER,
+  hero-section absence WARN, story-driven structure passes,
+  `synthesis_hygiene` flags `paper-lay.md` / `REPRODUCIBILITY.md` /
+  `METHODS.md` / `CITATIONS.md` with the right rename hints,
+  `workspace_hygiene` flags `v2_1_*.md` / `tools.md` /
+  `workflow.mermaid` / `step_completeness_audit.{md,json}` /
+  loose subdirectories, `curate_figures(mode='all')` curates every
+  figure with caption sidecars, `curate_figures(mode='focal')`
+  default unchanged, unknown `mode` rejected.
+- 1630 tests pass (was 1621 in v2.4.1; +9 new).
+
+### Not behaviour change
+
+- The `synthesis_check` BLOCKER list grew by one (≥4 `Step NN`
+  headings). Projects that *want* a per-step structure can either
+  cap to ≤3 such sections (a comparison block referencing 2-3 steps
+  is fine) or set the dashboard mode to a printable / handout
+  artefact (those protocols don't run the per-step lint).
+- `tool_synthesis_curate_figures` continues to default to `'focal'`
+  mode; no behaviour change for callers that don't pass `mode`.
+
+---
+
 ## [2.4.1] — deferred v2.4.0 follow-ups (2026-06-09)
 
 PATCH-then-some release. Lands five of the items the v2.4.0

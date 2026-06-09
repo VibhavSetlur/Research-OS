@@ -1,25 +1,49 @@
 id: writing_conclusions
 tier: 'synthesize'
 name: Writing — Conclusions (per step)
-version: '2.0.0'
+version: '2.4.2'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
-description: How to write per-step conclusions.md. Called by analysis_plan's document_conclusions step.
+description: |
+  How to write per-step `workspace/<step>/conclusions.md`. Called by
+  analysis_plan's `document_conclusions` step. Conclusions are the
+  authoritative finding artefact a step produces — every downstream
+  synthesis stage (paper, dashboard, slides, lay summary) reads them
+  to assemble the narrative. They must be self-contained: a reader
+  who opens conclusions.md alone, with no other context, must be able
+  to see WHAT the step found, the evidence (numbers + figures +
+  tables) BEHIND each finding, and HOW the step's outputs are wired
+  into the workspace.
 
 template: |
   # {step_id} — Conclusions
 
   ## Findings
-  - {quantitative finding 1 with number + unit}
-  - {quantitative finding 2}
+  - {quantitative finding 1 with number + unit} (see Figure X / Table Y)
+  - {quantitative finding 2 with number + unit} (see Figure Z)
+
+  Every finding cites at least one figure OR table OR scalar output
+  produced by this step. A finding with no cited evidence is rejected.
 
   ## Statistical summary
-  | Metric | Value | 95% CI | p-value |
-  |---|---|---|---|
-  | {metric} | {value} | [{lo}, {hi}] | {p} |
+  | Metric | Value | 95% CI | p-value | Source |
+  |---|---|---|---|---|
+  | {metric} | {value} | [{lo}, {hi}] | {p} | {table_or_figure_or_output_file} |
+
+  ## Figures + tables produced
+  | Artefact | File | Caption summary |
+  |---|---|---|
+  | Figure 1 | outputs/figures/{name}.png | {one-line interpretive summary, same as .caption.md} |
+  | Table 1 | outputs/tables/{name}.csv | {what the rows + columns are; what the headline cell shows} |
+
+  Synthesis stages (paper, dashboard, slides) lift this table directly
+  to pick which figures + tables to surface. If a figure has no
+  `.caption.md` sidecar, the row's "Caption summary" cell is left
+  blank and an audit blocker is raised — visualization_workflow
+  enforces the sidecar.
 
   ## Limitations
   - {assumption checks performed + their result}
@@ -36,7 +60,15 @@ steps:
     name: Write Conclusions
     description: |
       sys_file_write filepath="workspace/<step>/conclusions.md"
-      content=<template above filled in>
+      content=<template above filled in>.
+
+      Findings section MUST cite each finding to a figure, table, or
+      output file produced by THIS step (workspace/<step>/outputs/...).
+      The Figures + tables produced section MUST list every figure
+      under outputs/figures/ and every table under outputs/tables/
+      with a one-line caption summary that mirrors the figure's
+      `.caption.md` sidecar — the downstream synthesis stages depend
+      on this table to pick what to embed.
 
   - id: log
     name: Log to analysis.md
@@ -48,6 +80,13 @@ steps:
     description: |
       sys_file_validate_md filepath="workspace/<step>/conclusions.md"
         protocol_name="writing_core"
+
+      Validation gates (BLOCKER if violated):
+        - every bullet in Findings cites at least one figure / table /
+          output file produced by the step
+        - Figures + tables produced section lists every artefact under
+          outputs/figures/ and outputs/tables/
+        - every figure row references an existing `.caption.md` sidecar
 
 expected_outputs:
   - workspace/*/conclusions.md

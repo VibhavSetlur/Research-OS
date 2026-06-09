@@ -229,50 +229,101 @@ _DASHBOARD_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- synthesis/dashboard.html — author following synthesis/synthesis_dashboard.
-     AI: keep it offline (no http: scripts), accessible (alt-text on every
-     image, semantic headings, every <section> has an id), and small. -->
-<title>Project title — single-line framing</title>
+     AI: this is a CUSTOM, STORY-DRIVEN dashboard, NOT a per-step recap.
+       - Section headings name CLAIMS / DECISIONS, never "Step NN".
+       - Hero section delivers the top-line finding in the first viewport.
+       - Embed only the 5-8 figures that move the argument; not all of them.
+       - Captions interpret figures (what to see + why it matters), not label them.
+       - Single file: no <script src="http", no <link href="http".
+       - Every <img> has alt text; every <section> has an id. -->
+<title>Project title — single-line framing of the answer</title>
 <style>
-  body { font-family: -apple-system, system-ui, sans-serif; max-width: 880px;
-         margin: 0 auto; padding: 2rem; line-height: 1.5; color: #1a1a1a; }
-  h1 { font-size: 1.6rem; }
-  h2 { font-size: 1.25rem; margin-top: 2rem; }
-  figure { margin: 1.5rem 0; }
-  figcaption { font-size: 0.9rem; color: #555; }
+  :root { --fg:#1a1a1a; --muted:#555; --accent:#0f3460; --bg:#fafafa;
+          --card:#fff; --line:#e0e0e0; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0;
+         color: var(--fg); background: var(--bg); line-height: 1.55; }
+  header { background: var(--accent); color: #fff; padding: 1.2rem 2rem; }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header p { margin: 0.3rem 0 0; color: #d0d8e0; font-size: 0.9rem; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 2rem; }
+  section { background: var(--card); border: 1px solid var(--line);
+            border-radius: 6px; padding: 1.2rem 1.5rem; margin-bottom: 1.2rem; }
+  section.hero { border-left: 4px solid #e94560; }
+  section h2 { margin-top: 0; color: var(--accent); }
+  .metric-grid { display: grid;
+                 grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                 gap: 0.6rem; margin: 0.8rem 0; }
+  .metric-card { background: #f7fafc; border: 1px solid var(--line);
+                 border-radius: 4px; padding: 0.6rem 0.8rem; }
+  .metric-card .label { color: var(--muted); font-size: 0.75rem;
+                        text-transform: uppercase; letter-spacing: 0.05em; }
+  .metric-card .value { font-size: 1.6rem; font-weight: 600;
+                        color: var(--accent); margin: 0.2rem 0; }
+  figure { margin: 1rem 0; }
+  figure img { max-width: 100%; height: auto; border: 1px solid var(--line);
+               border-radius: 4px; }
+  figcaption { font-size: 0.88rem; color: var(--muted); margin-top: 0.3rem; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { padding: 0.4rem 0.6rem; border: 1px solid var(--line); text-align: left; }
+  th { background: #f0f4f8; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>Project title</h1>
-  <p><!-- AI: one-line framing of what this dashboard shows --></p>
+  <p><!-- AI: ONE sentence framing the answer (not the question). --></p>
 </header>
 
-<section id="tldr">
-  <h2>TL;DR</h2>
-  <!-- AI: 2-3 sentence summary. The reader who never scrolls should get the point. -->
+<main>
+
+<section class="hero" id="headline">
+  <h2>Headline finding</h2>
+  <!-- AI: ONE sentence — the single most important thing the reader
+       should take away. Then 3-6 metric cards with the numbers behind it. -->
+  <div class="metric-grid">
+    <!-- AI: 3-6 <div class="metric-card"> with label / value / delta. -->
+  </div>
+  <!-- AI: optional — embed the single most important figure here, with a
+       caption that names what to see + what it means. -->
 </section>
 
-<section id="findings">
-  <h2>Findings</h2>
-  <!-- AI: one block per hypothesis. Headline claim, embedded figure with
-       caption, evidence summary. -->
+<section id="key-findings">
+  <h2>Key findings</h2>
+  <!-- AI: 3-6 sub-sections, each tied to ONE supported claim / decision.
+       Organise by hypothesis or argument, NOT by workspace step number.
+       Each finding: claim sentence + supporting figure or table + caption
+       that interprets the evidence. Skip findings that don't move the
+       argument; this is curated, not exhaustive. -->
+</section>
+
+<section id="comparison">
+  <h2>What we tried (adopted vs ruled out)</h2>
+  <!-- AI: when the project tested multiple paths / candidates / variants,
+       surface the comparison here — scorecard table, before/after, or
+       ablation. Skip this section if a single approach was tested. -->
 </section>
 
 <section id="methods">
   <h2>Methods</h2>
-  <!-- AI: short. Link to the paper for full detail. -->
+  <!-- AI: one short paragraph. Point readers at synthesis/paper.pdf for
+       full detail. Do NOT duplicate workspace/methods.md. -->
 </section>
 
 <section id="limitations">
-  <h2>Limitations</h2>
-  <!-- AI: be honest. What the reader should not over-interpret. -->
+  <h2>Limitations + open questions</h2>
+  <!-- AI: be honest. What this dashboard CANNOT claim. What the next
+       investigation should answer. -->
 </section>
 
 <section id="references">
-  <h2>References</h2>
-  <!-- AI: ≤12 citations. Link out where possible. -->
+  <h2>References + how to cite</h2>
+  <!-- AI: ≤12 citations. Data + code availability line. Link to the
+       paper / preprint when available. -->
 </section>
+
+</main>
 
 </body>
 </html>

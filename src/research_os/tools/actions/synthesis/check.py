@@ -221,6 +221,27 @@ _TOKEN_RE = re.compile(r"\{[a-z][a-z0-9_]{2,40}\}")
 _DIR_DUMP_HEADING_RE = re.compile(
     r"<h[1-3][^>]*>\s*\d{2,3}_[a-z][a-z0-9_]*\s*</h[1-3]>", re.I,
 )
+# Per-step recap antipattern: dashboards organised as "Step 01 / Step 02 /
+# ..." with one section per workspace step are bookkeeping leaks, not
+# narrative artefacts. We tolerate up to 3 such headings (a "comparison"
+# block referencing 2-3 specific steps is fine); >3 is the failure mode
+# synthesis_dashboard exists to prevent.
+_STEP_HEADING_RE = re.compile(
+    r"<h[1-4][^>]*>\s*Step\s+\d{1,3}\b[^<]*</h[1-4]>", re.I,
+)
+# Hero / TL;DR / headline anchor: the first viewport must deliver the
+# top-line finding. We accept any of these tokens in a heading or
+# section id.
+_HERO_HINTS = (
+    "headline", "tl;dr", "tldr", "hero", "key finding", "key findings",
+    "top-line", "topline", "bottom line", "summary", "at a glance",
+)
+_HERO_HEADING_RE = re.compile(
+    r"<h[1-3][^>]*>\s*([^<]{1,80})</h[1-3]>", re.I,
+)
+_HERO_SECTION_ID_RE = re.compile(
+    r"<section[^>]*\bid\s*=\s*[\"']([^\"']{1,40})[\"']", re.I,
+)
 
 # Strip <script>...</script> and <style>...</style> bodies so vendored
 # JS / CSS libraries don't trip placeholder + path-leak regexes.
@@ -301,6 +322,48 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
             f"Dashboard has {len(dir_dump)} heading(s) that are raw workspace "
             "directory names (e.g. '01_baseline_eda'). Use descriptive prose "
             "headings — readers don't navigate by step number."
+        )
+    # Per-step recap antipattern. A dashboard with 4+ `Step NN` headings
+    # is the bookkeeping-leak structure synthesis_dashboard explicitly
+    # forbids. Tolerate 3 (a comparison block referencing specific
+    # steps is fine); reject more.
+    step_headings = _STEP_HEADING_RE.findall(text)
+    if len(step_headings) >= 4:
+        blockers.append(
+            f"Dashboard has {len(step_headings)} 'Step NN' section headings. "
+            "Dashboards are organised by claim / decision / hypothesis, NOT "
+            "by workspace step. Re-group sections by what was learned (e.g. "
+            "'What lifted accuracy', 'Ruled out', 'Where the ceiling sits') "
+            "and embed only the figures that move the argument."
+        )
+    elif len(step_headings) >= 2:
+        warnings.append(
+            f"Dashboard has {len(step_headings)} 'Step NN' section headings. "
+            "Prefer claim-driven headings (e.g. 'Headline finding', 'What "
+            "lifted accuracy') so the reader navigates by argument, not "
+            "by chronology."
+        )
+    # Hero / TL;DR section — the first viewport must deliver the
+    # top-line finding. Look for a heading or a section id containing
+    # one of the hero hints.
+    headings_lower = [
+        m.lower() for m in _HERO_HEADING_RE.findall(text)
+    ]
+    section_ids_lower = [
+        m.lower() for m in _HERO_SECTION_ID_RE.findall(text)
+    ]
+    has_hero = any(
+        any(hint in h for hint in _HERO_HINTS) for h in headings_lower
+    ) or any(
+        any(hint.replace(" ", "-") in s or hint.replace(" ", "") in s
+            for hint in _HERO_HINTS)
+        for s in section_ids_lower
+    )
+    if not has_hero:
+        warnings.append(
+            "Dashboard has no hero / TL;DR / headline-finding section. "
+            "The first viewport should deliver the project's top-line "
+            "result so a reader who never scrolls still gets the point."
         )
     # Path leaks (filesystem paths visible in body text, not script comments).
     path_leaks = re.findall(r"workspace/[\w/.-]+\.\w+", visible)
@@ -430,6 +493,17 @@ def synthesis_check(
             "message": f"Unsupported file type: {target.suffix}",
         }
 
+    # Synthesis + workspace hygiene run alongside every per-file check
+    # so a single tool_synthesis_check call surfaces both deliverable-
+    # specific blockers AND repository-shape drift (non-canonical
+    # filenames, loose files at workspace root).
+    hygiene_synth = synthesis_hygiene(root)
+    if hygiene_synth.get("renames_needed"):
+        warnings.extend(hygiene_synth["renames_needed"])
+    hygiene_ws = workspace_hygiene(root)
+    if hygiene_ws.get("relocations_needed"):
+        warnings.extend(hygiene_ws["relocations_needed"])
+
     return {
         "status": "error" if blockers else "success",
         "kind": kind,
@@ -438,4 +512,206 @@ def synthesis_check(
         "blockers": blockers,
         "warnings": warnings,
         "details": sub,
+        "hygiene": {
+            "synthesis": hygiene_synth,
+            "workspace": hygiene_ws,
+        },
     }
+
+
+# ---------------------------------------------------------------------------
+# Synthesis-directory hygiene — flag non-canonical files that the AI may
+# author when it improvises filenames outside the supported synthesis
+# protocols. Caught here so a single per-file synthesis_check call also
+# surfaces "you authored synthesis/paper-lay.md but the canonical name
+# is synthesis/lay_summary.md".
+# ---------------------------------------------------------------------------
+
+
+# Canonical names downstream tools (preview, cross-deliverable audit,
+# share-archive bundler) recognise.
+_CANONICAL_SYNTHESIS_FILES = frozenset({
+    # AI-authored deliverables (one per supported synthesis protocol).
+    "paper.typ", "paper.pdf", "paper.md", "paper.tex",
+    "essay.typ", "essay.pdf",
+    "slides.typ", "slides.pdf", "slides.html",
+    "poster.typ", "poster.pdf",
+    "handout.typ", "handout.pdf", "handout_qr.png",
+    "grant.typ", "grant.pdf",
+    "dashboard.html",
+    "lay_summary.md", "lay_summary.typ", "lay_summary.pdf",
+    "abstract.md", "abstract.typ",
+    "cover_letter.md", "cover_letter.typ", "cover_letter.pdf",
+    "title_workshop.md",
+    "report.typ", "report.pdf", "report.md",
+    "progress_update.md", "progress_update.typ",
+    "null_findings.md",
+    # Bibliography + spec files (tool-managed).
+    "biblio.yml", "biblio.bib", "biblio.json",
+    "synthesis_spec.yaml",
+    # Lit-review intermediates (literature/evidence_synthesis protocol).
+    "evidence_table.md", "contradictions.md",
+    # Figure-narrative brief (visualization/figure_narrative_arc protocol).
+    "figure_brief.md",
+    # README is project convention; archive holds prior versions.
+    "README.md",
+})
+
+# Common AI-improvised names → canonical name the protocol expects.
+_RENAME_HINTS: dict[str, str] = {
+    "paper-lay.md": "lay_summary.md",
+    "paper_lay.md": "lay_summary.md",
+    "lay.md": "lay_summary.md",
+    "summary.md": "lay_summary.md",
+    "LAY.md": "lay_summary.md",
+    "PRESS_RELEASE.md": "lay_summary.md",
+    "REPRODUCIBILITY.md": (
+        "[delete] reproducibility belongs in paper.typ Methods/Data "
+        "Availability + workspace/logs/reproducibility_report.md"
+    ),
+    "reproducibility.md": (
+        "[delete] reproducibility belongs in paper.typ Methods/Data "
+        "Availability + workspace/logs/reproducibility_report.md"
+    ),
+    "METHODS.md": "[delete] update workspace/methods.md; render into paper.typ",
+    "Methods.md": "[delete] update workspace/methods.md; render into paper.typ",
+    "CITATIONS.md": "[delete] update workspace/citations.md; render into paper.typ References",
+    "Citations.md": "[delete] update workspace/citations.md; render into paper.typ References",
+    "Bibliography.md": "[delete] update workspace/citations.md; render into paper.typ References",
+    "results.md": "[delete] render into paper.typ Results from workspace/<step>/conclusions.md",
+    "discussion.md": "[delete] render into paper.typ Discussion",
+    "introduction.md": "[delete] render into paper.typ Introduction",
+}
+
+# Subdirectories that are expected to live under synthesis/ — never
+# flag these as non-canonical files.
+_CANONICAL_SYNTHESIS_DIRS = frozenset({
+    "figures", "scripts", "tables", "archive",
+    "_typst_templates", "dashboard_data",
+})
+
+
+# Canonical workspace-root files (the rolling logs + tool-managed
+# artefacts). Anything else loose at workspace root is hygiene noise.
+_CANONICAL_WORKSPACE_FILES = frozenset({
+    "analysis.md",
+    "methods.md",
+    "citations.md",
+    "researcher_certifications.yaml",
+})
+
+# Workspace-root subdirectories Research-OS itself uses.
+_CANONICAL_WORKSPACE_DIRS = frozenset({
+    "logs", "scratch", "archive",
+    ".preregistration",
+})
+
+
+def workspace_hygiene(root: Path) -> dict[str, Any]:
+    """Walk workspace/ for loose-at-root files outside the canonical set.
+
+    Research-OS keeps workspace/ disciplined:
+      * Numbered step folders ``NN_<slug>/`` hold per-step state.
+      * Rolling logs ``methods.md`` / ``analysis.md`` / ``citations.md``
+        plus ``researcher_certifications.yaml`` live at workspace root.
+      * ``scratch/`` holds ad-hoc work; ``logs/`` holds audit reports;
+        ``archive/`` holds retired material.
+
+    Anything ELSE at workspace root (planning docs, hand-rolled
+    audits, .mermaid diagrams, agent briefs, version notes) is clutter
+    that should live in ``scratch/`` or ``archive/``. We surface a
+    rename / relocate hint for each offender. Hidden files and
+    canonical subdirectories are ignored.
+    """
+    ws = root / "workspace"
+    if not ws.exists():
+        return {"relocations_needed": [], "offenders": []}
+
+    relocations_needed: list[str] = []
+    offenders: list[dict[str, str]] = []
+    for entry in sorted(ws.iterdir()):
+        name = entry.name
+        if name.startswith("."):
+            continue
+        if entry.is_dir():
+            if name in _CANONICAL_WORKSPACE_DIRS:
+                continue
+            # Numbered step folders are canonical.
+            if _STEP_DIR_LIKE.match(name):
+                continue
+            # Anything else loose at workspace root is clutter (e.g.
+            # an ad-hoc `planning/` dir).
+            relocations_needed.append(
+                f"workspace/{name}/ — loose subdirectory at workspace root. "
+                "Move under workspace/scratch/ if it's ad-hoc, or rename "
+                "to NN_<slug>/ if it's an analysis step."
+            )
+            offenders.append({"name": name, "kind": "dir"})
+            continue
+        if name in _CANONICAL_WORKSPACE_FILES:
+            continue
+        relocations_needed.append(
+            f"workspace/{name} — loose file at workspace root. "
+            "Move to workspace/scratch/ (planning notes, briefs), "
+            "workspace/logs/ (audits, reports), or "
+            "workspace/archive/ (retired material). The canonical "
+            "rolling logs at workspace root are methods.md, "
+            "analysis.md, citations.md, "
+            "researcher_certifications.yaml."
+        )
+        offenders.append({"name": name, "kind": "file"})
+    return {"relocations_needed": relocations_needed, "offenders": offenders}
+
+
+# Numbered step folder pattern (NN_slug / NNN_slug). Compiled once at
+# module load so workspace_hygiene's walk stays cheap.
+_STEP_DIR_LIKE = re.compile(r"^\d{2,3}_[A-Za-z0-9]")
+
+
+def synthesis_hygiene(root: Path) -> dict[str, Any]:
+    """Walk synthesis/ for non-canonical files the AI may have authored
+    when it improvised filenames outside the supported protocols.
+
+    Reports:
+      - ``renames_needed``: list of human-readable rename / delete hints
+        (one per offending file).
+      - ``offenders``: structured list of ``{name, suggested}`` entries
+        so callers can act programmatically.
+
+    Designed to be cheap (one scandir pass) and side-effect-free.
+    """
+    sdir = root / "synthesis"
+    if not sdir.exists():
+        return {"renames_needed": [], "offenders": []}
+
+    renames_needed: list[str] = []
+    offenders: list[dict[str, str]] = []
+    for entry in sorted(sdir.iterdir()):
+        if entry.is_dir():
+            # Don't audit subdirectories — figures/, archive/, etc.
+            continue
+        name = entry.name
+        if name in _CANONICAL_SYNTHESIS_FILES:
+            continue
+        # Hidden files (.DS_Store, .gitkeep) are ignored.
+        if name.startswith("."):
+            continue
+        suggested = _RENAME_HINTS.get(name)
+        if suggested:
+            renames_needed.append(
+                f"synthesis/{name} → {suggested} "
+                "(non-canonical filename; downstream synthesis tools "
+                "do not recognise this name)."
+            )
+            offenders.append({"name": name, "suggested": suggested})
+        else:
+            # Unknown but not hint-recognised — soft warning.
+            renames_needed.append(
+                f"synthesis/{name} — non-canonical synthesis artefact "
+                "(downstream tools may not pick it up). Move to "
+                "synthesis/archive/ if you need to keep it, or fold its "
+                "content into the canonical paper.typ / dashboard.html / "
+                "lay_summary.md deliverable."
+            )
+            offenders.append({"name": name, "suggested": "archive_or_fold"})
+    return {"renames_needed": renames_needed, "offenders": offenders}

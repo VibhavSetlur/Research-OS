@@ -36,8 +36,8 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 21
-generated_at: '2026-06-06'
+version: 22
+generated_at: '2026-06-09'
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)

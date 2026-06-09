@@ -1,126 +1,257 @@
 id: synthesis_dashboard
 tier: 'synthesize'
-name: Synthesis — Dashboard (AI-authored single-file HTML)
-version: '2.3.0'
+name: Synthesis — Dashboard (custom, story-driven, self-contained HTML)
+version: '2.4.2'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, qualitative, humanities]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-08'
+last_reviewed: '2026-06-09'
 description: |
-  Guide the AI to author `synthesis/dashboard.html` directly as a
-  custom, single-file, offline-capable presentation of the project's
-  findings. Research-OS does not generate dashboards — the AI does.
-  The previous auto-generator produced a rigid 3MB monolith; AI
-  authoring yields a leaner, more readable artefact every time.
+  Guide the AI to author `synthesis/dashboard.html` as a **custom,
+  story-driven, single-file HTML** that summarises the project's
+  findings — NOT a step-by-step recap of the workspace. The dashboard
+  is a publication-grade research artefact in its own right: the
+  reader opens the file in a browser, gets the headline in seconds,
+  and can drill into evidence on demand.
 
-  **The dashboard's job.** A reader who opens the file in a browser
-  understands the question, the headline findings, and the limitations
-  in under ten minutes. They can click into deeper sections if they
-  want; they don't need to in order to get the message. The reader
-  does NOT need access to the project folder — every claim is
-  self-contained inside the HTML.
+  **What it IS.** A custom narrative dashboard. The first viewport
+  delivers the headline finding. The next block compares paths /
+  candidates / branches that were tested. The next surfaces the
+  evidence — the most useful figures and tables with interpretive
+  captions. A small methods / limitations block closes it. The
+  reader leaves understanding the question, the answer, and the
+  caveats. The dashboard is self-contained: zero network requests,
+  every figure embedded, the single .html file is the deliverable.
 
-  **What it is NOT.** Not a status overview. Not a screenshot gallery.
-  Not a kitchen-sink dump of every figure. The dashboard tells the
-  same story as the paper, in a form a non-expert can navigate.
+  **What it IS NOT.**
+  - **NOT a per-step recap.** A section per workspace step (`Step 01`,
+    `Step 02`, ...) with a figure + caption underneath each is the
+    failure mode this protocol exists to prevent. That structure
+    leaks workspace bookkeeping into the reader's experience and
+    buries the finding under chronology. Sections are organised by
+    **what was learned**, not by which folder the figure lives in.
+  - NOT a status overview, kitchen-sink figure dump, or screenshot
+    gallery.
+  - NOT a static print of paper.typ. The paper is the linear argument;
+    the dashboard is the navigable surface a reader skims first.
+
+  **Two authoring modes.** Ask the researcher which fits:
+    1. **Plan-mode (collaborative).** The AI proposes a dashboard
+       outline (hero claim, 3-6 narrative sections, which figures
+       and tables ground each), the researcher iterates in 1-3 turns,
+       then the AI authors. Best when the project has many findings
+       and the curator's judgement matters (most cases).
+    2. **Autopilot (AI-decides).** The AI walks the workspace, picks
+       the headline finding from `mem_hypothesis_list` /
+       `step_summary.yaml`, and builds the dashboard end-to-end. Best
+       for quick share-outs, hand-offs, or when the researcher has
+       already declared `autopilot` in researcher_config.yaml.
 
 trigger: |
   Researcher asks for "a dashboard" / "build me a dashboard" /
-  "interactive findings page"; OR
+  "interactive findings page" / "share this with my team" / "I need
+  something to email"; OR
   research_goal.output_types includes "dashboard".
 
+prerequisites:
+  - At least one workspace/<step>/conclusions.md with substantive
+    Findings, OR an existing synthesis/* deliverable to derive from.
+  - Step figures have `.caption.md` sidecars (visualization_workflow
+    enforces this). If they're missing, route there first — the
+    dashboard needs interpretive captions for every embedded figure.
+
 design_principles: |
-  - Single file. No external scripts, no external stylesheets, no
-    fetches. The reader opens the file from email and it works.
-  - Accessibility is not optional. Every <img> has alt text. Every
-    <section> has an id. Heading hierarchy is meaningful. Colour
-    contrast meets WCAG AA.
-  - Information hierarchy. The first 800px tell the headline story.
-    Deeper detail is reachable but not in the way.
-  - Tell, don't dump. Order content by hypothesis or argument, not by
-    workspace step number. Captions interpret figures; they don't
-    repeat what's plotted.
-  - Visual coherence with the paper. Same palette, same typography
-    family, same spacing rhythm. The dashboard is the paper's sibling.
-  - Editorial tone. Supportive, factual, never accusatory. No
-    filesystem paths in visible text. No "TODO" / "Lorem ipsum" /
-    "PLACEHOLDER" makes it into a shareable dashboard.
+  - **Story before structure.** Organise sections by hypothesis,
+    decision, or argument — not by step number. The reader navigates
+    by *what was learned* (e.g. "What lifted accuracy", "What we
+    tried and ruled out", "Where the ceiling sits"), not by chronology.
+  - **First viewport = headline.** The top ~600px of the page must
+    deliver the project's single most important finding plus 3-6
+    headline metrics. A reader who never scrolls still gets the point.
+  - **Show the path, not just the destination.** If the project
+    tested multiple candidates / variants / branches, surface a
+    comparison view — adopted vs rejected, with the deciding metric
+    visible. Don't just present the winner in isolation.
+  - **Curate, don't dump.** Embed the figures and tables that *move
+    the argument*, not all of them. A dashboard with 23 figures is
+    a directory listing. A dashboard with 5-8 carefully chosen
+    figures is a research artefact.
+  - **Self-contained.** Single .html file. Zero `http://` /
+    `https://` script or stylesheet references. Figures embedded
+    inline (base64) OR via relative path to a sibling figures/
+    folder that travels with the file. Email-able as one attachment.
+  - **Accessibility is non-negotiable.** Every `<img>` has descriptive
+    alt-text. Every `<section>` has an `id`. Heading hierarchy is
+    meaningful (one `<h1>`, ≥2 `<h2>`, semantic order). WCAG AA
+    colour contrast.
+  - **Interpret figures; don't repeat them.** Captions name what to
+    look at AND what it means. "Figure 3a — Δhits@10 across splits"
+    is a label, not a caption. "Figure 3a — No leakage signal: the
+    +5.9pp KO lift on Split-C matches the lift on Split-A within
+    1pp, ruling out source-disjoint overfitting" is a caption.
+  - **No filesystem path leaks.** `workspace/<step>/...` never
+    appears in body text. The reader doesn't navigate by step folder.
+
+required_structure: |
+  Every dashboard MUST contain, in this rough order (section names
+  may be customised to project voice; the ROLES must be present):
+
+    1. <header> — project title + one-line framing + generation date.
+    2. Hero section — the single most important finding stated as a
+       sentence, plus 3-6 key metric cards. THIS IS THE TL;DR.
+       Required heading text contains one of:
+         "Headline", "TL;DR", "Hero", "Key finding", "Summary",
+         "Top-line", "Bottom line".
+    3. Findings sections — organised by hypothesis / argument /
+       decision. Each section delivers ONE claim with the figures
+       and tables that support it. Typical span: 3-6 such sections.
+    4. Comparison / evolution view (when multiple candidates tested)
+       — adopted vs rejected, scorecard, ablation, before/after.
+       Skip if the project tested a single approach.
+    5. Methods (brief) — one paragraph + link to paper.typ / .pdf
+       for full detail. Not a duplicate of methods.md.
+    6. Limitations + open questions — what the dashboard CANNOT
+       claim, what the next investigation should answer.
+    7. References + how to cite — ≤12 citations; link to paper if
+       available; data + code availability line.
+
+  Sections MAY include filters, search, or mode toggles (e.g.
+  "Academic / Story" tone switch) as inline `<script>`-driven UI
+  — provided no external script is loaded.
+
+forbidden_structure: |
+  The following structures will fail `tool_synthesis_check`:
+
+  - **Per-step recap.** Section headings shaped like
+    `Step 01 — <description>`, `Step 02 — <description>`, ... for
+    more than 3 consecutive sections. A dashboard with 23 such
+    sections (one per workspace step) is rejected.
+  - **Directory dump.** Section headings that ARE workspace folder
+    names (e.g. `01_baseline_eda`, `17_sapbert_lora`).
+  - **Caption-only sections.** Section containing only an image +
+    caption with no surrounding interpretive prose. Captions
+    augment claims; they don't replace them.
 
 quality_standards: |
-  - offline — no `<script src="http`, no `<link href="http`
-  - accessibility — every <img> has alt text; every <section> has an
-    id; at least one <h1>; at least two <h2>
-  - structure — TL;DR section near the top; findings section; methods
-    section; limitations section; references section
-  - no_placeholders — zero `TODO` / `FIXME` / `XXX` / `Lorem ipsum` /
-    `PLACEHOLDER` strings remain
-  - no_path_leaks — filesystem paths like `workspace/<step>/...` do
-    not appear in body text
-  - size — under 5MB total (figures base64-embedded). If larger, the
-    figures are too high-resolution or there are too many of them.
+  - offline — zero `<script src="http`, zero `<link href="http`.
+  - accessibility — every `<img>` has alt text; every `<section>`
+    has an id; ≥1 `<h1>`; ≥2 `<h2>`; logical heading order.
+  - hero_present — first viewport contains a hero/headline/TL;DR
+    section with the project's top-line finding.
+  - story_structure — sections organised by claim / hypothesis /
+    decision, NOT by workspace step number. ≤3 sections may share
+    a "Step NN" heading pattern; more triggers a blocker.
+  - figure_interpretation — every embedded figure has a caption
+    that names what to look at AND what it means.
+  - no_placeholders — zero `TODO` / `FIXME` / `XXX` / `Lorem ipsum`
+    / `PLACEHOLDER` strings.
+  - no_path_leaks — `workspace/<step>/...` does not appear in
+    visible body text.
+  - size — under 5MB total. >2MB triggers a warning (figures likely
+    over-resolution or too numerous).
 
 steps:
   - id: walk_workspace
-    name: Walk the workspace
+    name: Walk the workspace + audit readiness
     description: |
       tool_synthesize_plan returns what's ready (per-step findings,
-      focal figures, citations).
+      curated focal figures, citations). Also call
+      tool_synthesis_curate_figures to ensure synthesis/figures/ is
+      populated with every step's figure(s) AND `.caption.md`
+      sidecars. If captions are missing, route to
+      visualization_workflow before authoring the dashboard.
+
+  - id: pick_mode
+    name: Plan-mode or autopilot?
+    description: |
+      Ask the researcher (unless autopilot is the configured default):
+        "Dashboard mode? Plan-mode lets us draft an outline together
+        before authoring; autopilot has me pick the headline finding
+        and structure on my own."
+      In plan-mode, do NOT scaffold dashboard.html yet — propose the
+      outline (steps 3-4 below) and iterate.
+
+  - id: draft_outline
+    name: Draft the dashboard outline (plan-mode) OR pick it autonomously
+    description: |
+      Walk `mem_hypothesis_list status=supported`, the most recent
+      `conclusions.md` per active step, and any
+      `synthesis/synthesis_spec.yaml#findings`. Distil to:
+        - ONE headline finding (the hero claim, as a sentence)
+        - 3-6 findings sections, each tied to ONE supported claim /
+          decision / comparison
+        - which figures + tables ground each section (max 1-2 per
+          section; the dashboard is curated, not exhaustive)
+        - whether a comparison / scorecard view is warranted
+      In plan-mode, present this outline as a numbered list and ask
+      for revisions. In autopilot, write the outline to
+      workspace/scratch/dashboard_outline.md and proceed.
 
   - id: pick_audience
-    name: Pick the audience
+    name: Pick the audience profile
     description: |
       academic / executive / technical / teaching — density and
-      section order adapt. Default academic when output_types includes
+      ordering adapt. Default academic when `output_types` includes
       paper, executive otherwise.
-
-  - id: curate_figures
-    name: Curate figures into synthesis/figures
-    description: |
-      tool_synthesis_curate_figures copies step focal figures into
-      synthesis/figures/ with stable ordered names. The dashboard and
-      paper share file names.
 
   - id: scaffold
     name: Scaffold dashboard.html
     description: |
-      tool_synthesis_scaffold(kind='dashboard') writes a <=80-line
-      starter synthesis/dashboard.html with section anchors, minimal
-      accessible CSS, and `<!-- AI: ... -->` markers.
+      tool_synthesis_scaffold(kind='dashboard') writes a minimal
+      story-arc skeleton (hero / findings / comparison / methods /
+      limitations / references) with `<!-- AI: ... -->` markers.
+      Idempotent — refuses overwrite without `overwrite=true`.
 
   - id: author
-    name: Author the content
+    name: Author the content (story before structure)
     description: |
-      Embed figures as `<figure><img src="..." alt="..."><figcaption>
-      ...</figcaption></figure>`. Use base64 inline OR relative file
-      paths — pick one and stick with it.
+      Fill each section. For figures, embed via either base64 inline
+      OR `<figure><img src="figures/..." alt="..."><figcaption>
+      ...</figcaption></figure>` referencing synthesis/figures/.
+      Pick ONE embedding style and stick with it. Captions interpret
+      figures (what to see + why it matters), not just label them.
+      Do NOT structure findings by workspace step.
 
   - id: audit
-    name: Audit
+    name: Audit (offline, accessibility, story structure)
     description: |
       tool_synthesis_check(file='synthesis/dashboard.html') catches
-      missing alt-text, external scripts, placeholders, and path
-      leaks.
+      missing alt-text, external scripts, placeholders, path leaks,
+      AND the per-step recap antipattern (≥4 consecutive `Step NN`
+      headings). Address blockers before sharing.
+
+  - id: cross_check_paper
+    name: Cross-check against paper + lay summary (when present)
+    description: |
+      tool_audit(scope='project', dimension='cross_deliverable')
+      catches drift between the dashboard's headline numbers and the
+      paper / lay summary. A reader who reads both should see the
+      same finding stated the same way.
 
   - id: share
     name: Share
     description: |
       The file IS the deliverable — no compilation step. Hand the
-      path to the researcher and remind them it's portable (emailable,
-      attachable, single-file).
+      path to the researcher and remind them it's portable
+      (emailable, attachable, single-file). For multi-page
+      interactive variants, route to
+      visualization/interactive_dashboard_design.
 
 tools: |
   - tool_synthesize_plan — what's ready in the workspace
   - tool_synthesis_scaffold — seed synthesis/dashboard.html (idempotent)
-  - tool_synthesis_check — engineering invariants (offline, alt-text, semantic, placeholders)
-  - tool_synthesis_curate_figures — copy step focal figures
+  - tool_synthesis_check — engineering invariants + story-structure lint
+  - tool_synthesis_curate_figures — copy step figures + captions (mode='focal' or 'all')
+  - tool_audit(scope='project', dimension='cross_deliverable') — drift vs paper / lay summary
   - tool_figure_palette — colour-blind-safe palette for any inline charts
 
 expected_outputs:
-  - synthesis/dashboard.html       # AI-authored
+  - synthesis/dashboard.html       # AI-authored, story-driven, self-contained
   - synthesis/figures/             # shared with paper.typ when both exist
+  - workspace/scratch/dashboard_outline.md   # autopilot only
 
 next_protocol: null
 next_protocol_kind: terminal
-on_failure: null
+on_failure: visualization/interactive_dashboard_design

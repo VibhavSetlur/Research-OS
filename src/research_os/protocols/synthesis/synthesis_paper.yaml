@@ -1,13 +1,13 @@
 id: synthesis_paper
 tier: 'synthesize'
-name: Synthesis — Paper (IMRAD, AI-authored Typst)
-version: '2.3.0'
+name: Synthesis — Paper (IMRAD, AI-authored Typst → PDF)
+version: '2.4.2'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, humanities, qualitative, theory_math, engineering]
   audience: [auditor]
   workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-08'
+last_reviewed: '2026-06-09'
 description: |
   Guide the AI to author `synthesis/paper.typ` directly, section by
   section, as a publishable manuscript. Research-OS does not generate
@@ -15,6 +15,30 @@ description: |
   what's in the workspace, tool_synthesis_scaffold seeds a tiny
   skeleton, tool_synthesis_check audits the draft, tool_typst_compile
   renders synthesis/paper.pdf.
+
+  **Canonical artefacts.** The paper deliverable is `synthesis/paper.typ`
+  (source) + `synthesis/paper.pdf` (rendered). The Markdown-intermediate
+  path (`synthesis/paper.md` → tool_typst_compile → paper.typ + paper.pdf)
+  is supported for AIs that prefer drafting in Markdown, but the final
+  state on disk MUST include `paper.pdf`. A `paper.md` that never
+  compiles to a PDF is a stranded draft, not a deliverable, and the
+  pre-submission audit will flag it as a blocker.
+
+  **Forbidden artefact names** (the dashboard / preview tools do NOT
+  recognise these, and downstream synthesis stages will not pick them
+  up):
+    - `synthesis/paper-lay.md` → use `synthesis/lay_summary.md`
+      (synthesis_lay_summary protocol writes there).
+    - `synthesis/REPRODUCIBILITY.md` → reproducibility belongs in the
+      paper's Methods + Data Availability sections, OR in
+      `workspace/logs/reproducibility_report.md` (produced by the
+      reproducibility protocol's tool_audit). Do not author a top-level
+      REPRODUCIBILITY.md in synthesis/.
+    - `synthesis/METHODS.md` / `synthesis/CITATIONS.md` (upper-case
+      stand-alones) → these duplicate `workspace/methods.md` /
+      `workspace/citations.md` (the canonical rolling logs) and the
+      paper's Methods + References sections. Update the workspace logs
+      instead and let the paper's Methods + References render from them.
 
   **What "publishable" means here.** The reader can follow every
   factual claim back to a workspace artefact (numbers come from
@@ -133,11 +157,19 @@ steps:
       Load synthesis/synthesis_cover_letter.
 
   - id: compile
-    name: Compile to PDF
+    name: Compile to PDF (mandatory before declaring the paper done)
     description: |
-      tool_typst_compile produces synthesis/paper.pdf. Read
-      typst_warnings / typst_errors on failure and iterate on the
-      .typ source.
+      tool_typst_compile produces synthesis/paper.pdf from paper.typ
+      (and the Markdown-intermediate path also compiles paper.md →
+      paper.typ → paper.pdf). Read typst_warnings / typst_errors on
+      failure and iterate on the .typ source.
+
+      The paper deliverable is NOT done until `synthesis/paper.pdf`
+      exists on disk. A `paper.md` or `paper.typ` source with no
+      rendered PDF is a stranded draft, not a deliverable. The
+      pre-submission gate (step `pre_submission`, below) and
+      tool_audit(scope='synthesis', dimension='all') will both flag
+      a missing paper.pdf as a BLOCKER.
 
   - id: pre_submission
     name: Pre-submission gate
