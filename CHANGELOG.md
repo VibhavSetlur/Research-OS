@@ -6,6 +6,128 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [2.4.4] — figure + dashboard style polish (2026-06-10)
+
+PATCH release. Lifts the visual quality of both the figures AI produces
+and the dashboard chrome that surrounds them to match a published
+Research-OS reference deliverable (cream background, italic serif
+titles, muted CVD-safe accent palette, value-labels-above-bars, clean
+spines, generous whitespace). Also turns the loose "look at the
+rendered figure" guidance into a mandatory render → view → v2 loop so
+the AI can no longer ship a figure it never opened.
+
+### Added
+
+- **`research_os.tools.actions.viz.style`** — new module exporting
+  the Research-OS publication style preset for matplotlib:
+  - `apply_research_os_style(destination=..., palette=...)` —
+    one call sets rcParams (cream bg, serif typography, dropped
+    spines, dotted horizontal grid, constrained_layout on,
+    300 dpi save) and returns a context dict with the destination
+    figsize + palette so the AI's first render lands close to
+    publication-ready. Destinations: `single_col` / `two_col` /
+    `full_width` / `slide` / `slide_half` / `dashboard` /
+    `dashboard_tile` / `poster`.
+  - `RO_PALETTE` — five muted CVD-safe accents
+    (navy `#1F4D7A`, olive `#9B7E2D`, forest `#3F6049`, oxblood
+    `#9B3737`, mustard `#C3A14E`) plus a diverging emphasis pair
+    (oxblood / forest) and a neutral chrome set
+    (cream / warm-dark / muted / hairline).
+  - `DESTINATION_FIGSIZES` — pre-tuned `(width, height)` for every
+    destination so the AI doesn't pick a 6×4 default that crops at
+    print size.
+  - `label_bars_above(ax, bars, unit="ms")` — italic value labels
+    floating 2 % above each bar, matching the reference figure
+    aesthetic (`467 ms`, `128 ms`, …). Reserves headroom so the
+    label doesn't crash into the next bar in a stacked chart.
+  - `label_diverging_bars(ax, bars, values)` — signed delta labels
+    coloured forest (positive) / oxblood (negative) for the
+    diverging-bar comparison panel.
+  - `polish_axes(ax)` — re-asserts top + right spine off and
+    dotted horizontal grid on a specific axes after the AI built
+    the chart.
+  - `apply_suptitle(fig, title, subtitle=...)` — italic serif
+    suptitle + smaller subtitle line, positioned to never overlap
+    constrained_layout.
+  - Graceful import: when matplotlib isn't installed, the module
+    still imports and returns `applied=False` from
+    `apply_research_os_style` instead of raising.
+- **`first_render_spacing_discipline:`** block in
+  `visualization/figure_guidelines` — a 9-item upfront discipline
+  (pick destination, leave y-margin for value labels, plan legend
+  placement, decide tick rotation, reserve suptitle headroom) so the
+  FIRST render doesn't need a v2 to fix spacing. Calls out the
+  matplotlib `tight_layout()` ↔ `constrained_layout` conflict.
+- **`visually_verify_render` step** in
+  `visualization/visualization_workflow` — the workflow's
+  counterpart to the strengthened `pre_publish_self_review` step in
+  `figure_guidelines`. Both protocols now teach the same mandatory
+  render → open the PNG → check overlap / clipping / legend
+  placement / palette cohesion → write v2 if anything fails → only
+  ship v_final loop.
+- **Research-OS accent palette in `audit_color_palette`** — the
+  five RO_PALETTE accents + the neutral chrome colours are now in
+  the allowed-palette set, so dashboards built from the new
+  scaffold and figures generated through `apply_research_os_style`
+  no longer trip the out-of-palette warning.
+
+### Changed
+
+- **`synthesis/scaffold._DASHBOARD_HTML`** — full CSS rewrite to
+  match the reference figure aesthetic. Cream background, two-font
+  stack (EB Garamond serif for titles + figure captions, Inter sans
+  for body), italic serif `h1` / `h2` / `h3` / table headers, muted
+  accent palette as CSS variables (`--accent` navy, `--accent-gold`
+  olive, `--accent-green` forest, `--accent-red` oxblood,
+  `--accent-mustard`), hairline rule colour for separators,
+  near-white cards on cream, italic `figcaption` for figure
+  interpretation, print-friendly fallback retained. Adds an
+  `.eyebrow` line and a `.lead` paragraph class in the hero so the
+  TL;DR has room to breathe.
+- **`visualization/figure_guidelines`** (v2.0.0 → v2.4.4) — adds the
+  `research_os_style_preset` reference block, the
+  `first_render_spacing_discipline` rules, the new `set_up_canvas`
+  step (call `apply_research_os_style` BEFORE writing the chart
+  code), and rewrites `pre_publish_self_review` into the mandatory
+  open-the-PNG view loop with explicit `sys_file_read filepath=...`
+  instructions and a 14-item OBSERVATION checklist that the human
+  eye must verify against the rendered pixels.
+- **`visualization/visualization_workflow`** (v2.0.0 → v2.4.4) —
+  inserts `visually_verify_render` after `build_each_figure` so the
+  on-demand figure workflow inherits the same loop. Updates
+  `build_each_figure` to mention `apply_research_os_style` + the
+  spacing discipline.
+- **`synthesis/synthesis_dashboard`** (v2.4.3 → v2.4.4) — adds a
+  "visual cohesion with the figures" principle pointing at
+  `apply_research_os_style()`; bumps version.
+
+### Test gate
+
+- **`tests/unit/test_viz_style.py`** — new file covering the style
+  preset surface (palette has 5+ entries, DESTINATION_FIGSIZES has
+  the expected destinations, `apply_research_os_style` returns the
+  context dict, helpers no-op safely without matplotlib bars).
+- **`tests/unit/test_v244_dashboard_style.py`** — new file covering
+  the dashboard CSS rewrite (cream bg + accent palette present in
+  scaffold, section IDs preserved, print stylesheet retained, new
+  accent palette passes `audit_color_palette` without warnings,
+  protocol YAMLs updated with the new spacing + view loop language).
+- preflight passes · pytest passes · ruff clean.
+
+### Not behaviour change for existing projects
+
+- Pre-v2.4.4 dashboards on disk are untouched — the new CSS only
+  applies to scaffolds created after upgrading. Re-scaffold with
+  `tool_synthesis_scaffold(kind='dashboard', overwrite=true)` to
+  adopt the new style.
+- The style preset is opt-in. Plotting scripts that don't import
+  `apply_research_os_style` continue to render with matplotlib
+  defaults. The `figure_guidelines` protocol recommends adopting
+  the preset for visual cohesion with the dashboard, but doesn't
+  reject figures that depart from it (journal templates win).
+
+---
+
 ## [2.4.3] — output_types gating + scope-creep fix (2026-06-09)
 
 PATCH release. Closes two architectural holes that the v2.4.2
