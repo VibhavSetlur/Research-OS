@@ -1,13 +1,13 @@
 id: synthesis_dashboard
 tier: 'synthesize'
 name: Synthesis — Dashboard (custom, story-driven, self-contained HTML)
-version: '2.4.3'
+version: '2.4.4'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, qualitative, humanities]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-09'
+last_reviewed: '2026-06-10'
 description: |
   Guide the AI to author `synthesis/dashboard.html` as a **custom,
   story-driven, single-file HTML** that summarises the project's
@@ -69,6 +69,14 @@ prerequisites:
     treated as 'open' so unfilled projects don't trip the gate."
 
 design_principles: |
+  - **Visual cohesion with the figures.** The scaffold ships with the
+    Research-OS dashboard style (cream background `#FBF8F3`, italic
+    serif accents, muted navy / olive / forest / oxblood accent
+    palette, hairline rules instead of heavy borders) — the same
+    palette + typography that `apply_research_os_style()` applies to
+    matplotlib figures. Embed figures generated through that helper
+    and the dashboard reads as a single deliverable rather than a
+    chrome wrapper around miscellaneous PNGs.
   - **Story before structure.** Organise sections by hypothesis,
     decision, or argument — not by step number. The reader navigates
     by *what was learned* (e.g. "What lifted accuracy", "What we

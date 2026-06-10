@@ -235,66 +235,151 @@ _DASHBOARD_HTML = """<!doctype html>
        - Embed only the 5-8 figures that move the argument; not all of them.
        - Captions interpret figures (what to see + why it matters), not label them.
        - Single file: no <script src="http", no <link href="http".
-       - Every <img> has alt text; every <section> has an id. -->
+       - Every <img> has alt text; every <section> has an id.
+     STYLE: matches the Research-OS reference figures — cream background,
+       italic serif accents, muted navy / olive / forest / oxblood
+       palette, generous whitespace, no gradients or shadows. The figures
+       you embed should use research_os.tools.actions.viz.apply_research_os_style()
+       so the colour identity is consistent throughout. -->
 <title>Project title — single-line framing of the answer</title>
 <style>
-  :root { --fg:#1a1a1a; --muted:#555; --accent:#0f3460; --bg:#fafafa;
-          --card:#fff; --line:#e0e0e0; }
+  /* Research-OS dashboard style — mirrors viz/style.py STYLE_RCPARAMS so
+     embedded figures and the page chrome share one visual identity. */
+  :root {
+    --bg: #FBF8F3;          /* cream page */
+    --card: #FFFDF8;        /* near-white card on cream */
+    --fg: #3D3A35;          /* warm dark grey foreground */
+    --muted: #7C7468;       /* muted secondary text */
+    --rule: #D6CFC2;        /* hairline rule on cream */
+    --accent: #1F4D7A;      /* navy — primary */
+    --accent-gold: #9B7E2D; /* olive gold — secondary */
+    --accent-green: #3F6049;/* forest — positive deltas */
+    --accent-red: #9B3737;  /* oxblood — emphasis / negative deltas */
+    --accent-mustard: #C3A14E; /* fifth accent */
+    --serif: "EB Garamond", "Crimson Text", "Source Serif Pro",
+             "Liberation Serif", Georgia, serif;
+    --sans: "Inter", "Helvetica Neue", "Source Sans Pro", "Roboto",
+            "Liberation Sans", Arial, sans-serif;
+  }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, system-ui, sans-serif; margin: 0;
-         color: var(--fg); background: var(--bg); line-height: 1.55; }
-  header { background: var(--accent); color: #fff; padding: 1.2rem 2rem; }
-  header h1 { margin: 0; font-size: 1.4rem; }
-  header p { margin: 0.3rem 0 0; color: #d0d8e0; font-size: 0.9rem; }
-  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 2rem; }
-  section { background: var(--card); border: 1px solid var(--line);
-            border-radius: 6px; padding: 1.2rem 1.5rem; margin-bottom: 1.2rem; }
-  section.hero { border-left: 4px solid #e94560; }
-  section h2 { margin-top: 0; color: var(--accent); }
+  html { background: var(--bg); }
+  body { font-family: var(--sans); margin: 0; color: var(--fg);
+         background: var(--bg); line-height: 1.6;
+         font-size: 15px; -webkit-font-smoothing: antialiased; }
+  header { padding: 2.2rem 2.5rem 1.6rem;
+           border-bottom: 1px solid var(--rule); }
+  header .eyebrow { font-family: var(--serif); font-style: italic;
+                    color: var(--muted); font-size: 0.92rem;
+                    letter-spacing: 0.02em; margin: 0 0 0.4rem; }
+  header h1 { font-family: var(--serif); font-style: italic;
+              font-weight: 500; color: var(--accent);
+              margin: 0; font-size: 1.8rem; letter-spacing: -0.005em; }
+  header .tagline { font-family: var(--serif); font-style: italic;
+                    color: var(--muted); margin: 0.45rem 0 0;
+                    font-size: 1.02rem; max-width: 64ch; }
+  main { max-width: 1100px; margin: 0 auto;
+         padding: 1.8rem 2.5rem 3rem; }
+  section { background: var(--card); border: 1px solid var(--rule);
+            border-radius: 4px; padding: 1.5rem 1.8rem;
+            margin-bottom: 1.4rem; }
+  section.hero { border-left: 3px solid var(--accent-red);
+                 padding-left: 1.6rem; }
+  section h2 { font-family: var(--serif); font-style: italic;
+               font-weight: 500; color: var(--accent);
+               margin: 0 0 0.6rem; font-size: 1.35rem;
+               letter-spacing: -0.005em; }
+  section h3 { font-family: var(--serif); font-style: italic;
+               color: var(--accent-gold); font-weight: 500;
+               font-size: 1.08rem; margin: 1.2rem 0 0.4rem; }
+  section p { margin: 0.5rem 0; }
+  .lead { font-family: var(--serif); font-size: 1.12rem;
+          color: var(--fg); line-height: 1.55; margin: 0.4rem 0 1rem; }
   .metric-grid { display: grid;
-                 grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-                 gap: 0.6rem; margin: 0.8rem 0; }
-  .metric-card { background: #f7fafc; border: 1px solid var(--line);
-                 border-radius: 4px; padding: 0.6rem 0.8rem; }
-  .metric-card .label { color: var(--muted); font-size: 0.75rem;
-                        text-transform: uppercase; letter-spacing: 0.05em; }
-  .metric-card .value { font-size: 1.6rem; font-weight: 600;
-                        color: var(--accent); margin: 0.2rem 0; }
-  figure { margin: 1rem 0; }
-  figure img { max-width: 100%; height: auto; border: 1px solid var(--line);
-               border-radius: 4px; }
-  figcaption { font-size: 0.88rem; color: var(--muted); margin-top: 0.3rem; }
-  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-  th, td { padding: 0.4rem 0.6rem; border: 1px solid var(--line); text-align: left; }
-  th { background: #f0f4f8; }
+                 grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+                 gap: 0.9rem; margin: 1rem 0 0.6rem; }
+  .metric-card { background: var(--bg);
+                 border: 1px solid var(--rule);
+                 border-radius: 3px; padding: 0.9rem 1rem; }
+  .metric-card .label { color: var(--muted); font-size: 0.72rem;
+                        text-transform: uppercase; letter-spacing: 0.08em;
+                        font-weight: 600; }
+  .metric-card .value { font-family: var(--serif);
+                        font-size: 1.7rem; font-weight: 500;
+                        color: var(--accent); margin: 0.35rem 0 0; }
+  .metric-card .delta { font-family: var(--serif); font-style: italic;
+                        color: var(--muted); font-size: 0.85rem;
+                        margin-top: 0.2rem; }
+  .metric-card .delta.up   { color: var(--accent-green); }
+  .metric-card .delta.down { color: var(--accent-red); }
+  figure { margin: 1.2rem 0; }
+  figure img { max-width: 100%; height: auto;
+               background: var(--bg);
+               border: 1px solid var(--rule);
+               border-radius: 3px; padding: 0.4rem; }
+  figcaption { font-family: var(--serif); font-style: italic;
+               font-size: 0.92rem; color: var(--muted);
+               margin-top: 0.5rem; line-height: 1.55; max-width: 72ch; }
+  table { border-collapse: collapse; width: 100%;
+          font-size: 0.92rem; margin: 0.8rem 0; }
+  th, td { padding: 0.55rem 0.75rem;
+           border-bottom: 1px solid var(--rule); text-align: left; }
+  th { font-family: var(--serif); font-style: italic; font-weight: 500;
+       color: var(--accent); background: var(--bg);
+       border-bottom: 1.5px solid var(--accent); }
+  tr:last-child td { border-bottom: none; }
+  a { color: var(--accent); text-decoration: none;
+      border-bottom: 1px solid var(--rule); }
+  a:hover { border-bottom-color: var(--accent); }
+  code { font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+         font-size: 0.88em; background: var(--bg);
+         padding: 0.1rem 0.35rem; border-radius: 2px;
+         border: 1px solid var(--rule); }
+  hr { border: none; border-top: 1px solid var(--rule);
+       margin: 1.4rem 0; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: 0.2rem 0; }
+  @media print {
+    html, body { background: #fff; color: #000; }
+    section { break-inside: avoid; border: 1px solid #ccc;
+              background: #fff; box-shadow: none; }
+    a { color: #000; border-bottom: none; }
+    figure img { background: #fff; }
+  }
 </style>
 </head>
 <body>
 
 <header>
+  <p class="eyebrow"><!-- AI: project type · date · audience tag. e.g. "Research synthesis · 2026-06-10 · Internal review" --></p>
   <h1>Project title</h1>
-  <p><!-- AI: ONE sentence framing the answer (not the question). --></p>
+  <p class="tagline"><!-- AI: ONE sentence framing the answer (not the question). --></p>
 </header>
 
 <main>
 
 <section class="hero" id="headline">
   <h2>Headline finding</h2>
-  <!-- AI: ONE sentence — the single most important thing the reader
-       should take away. Then 3-6 metric cards with the numbers behind it. -->
+  <p class="lead">
+    <!-- AI: ONE sentence — the single most important thing the reader
+         should take away. Lead with a number + finding verb. -->
+  </p>
   <div class="metric-grid">
-    <!-- AI: 3-6 <div class="metric-card"> with label / value / delta. -->
+    <!-- AI: 3-6 <div class="metric-card"> with label / value / delta.
+         Use class="delta up" or "delta down" for direction-coloured
+         deltas (forest for up, oxblood for down). -->
   </div>
   <!-- AI: optional — embed the single most important figure here, with a
-       caption that names what to see + what it means. -->
+       caption that names what to see + what it means. Use a figure
+       generated via research_os.tools.actions.viz.apply_research_os_style()
+       so its palette matches the dashboard chrome. -->
 </section>
 
 <section id="key-findings">
   <h2>Key findings</h2>
-  <!-- AI: 3-6 sub-sections, each tied to ONE supported claim / decision.
-       Organise by hypothesis or argument, NOT by workspace step number.
-       Each finding: claim sentence + supporting figure or table + caption
-       that interprets the evidence. Skip findings that don't move the
+  <!-- AI: 3-6 sub-sections (h3), each tied to ONE supported claim or
+       decision. Organise by hypothesis or argument, NOT by workspace
+       step number. Each finding: claim sentence + supporting figure or
+       table + interpretive caption. Skip findings that don't move the
        argument; this is curated, not exhaustive. -->
 </section>
 
