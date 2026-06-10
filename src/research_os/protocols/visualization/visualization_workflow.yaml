@@ -1,8 +1,9 @@
 id: visualization_workflow
 tier: 'synthesize'
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '2.0.0'
+version: '2.4.4'
 schema_version: '2.0'
+last_reviewed: '2026-06-10'
 scope_tags:
   domain: [biology, wet_lab, engineering]
   audience: [auditor]
@@ -148,21 +149,60 @@ steps:
       `visualization/figure_guidelines` for:
         - the `pick_library` step (RNA-seq → ggplot2 + EnhancedVolcano,
           single-cell → scanpy, GWAS → qqman, ...; not always matplotlib)
+        - the `set_up_canvas` step — call
+          `apply_research_os_style(destination=...)` at the top of every
+          matplotlib script so the FIRST render lands close to
+          publication-ready (cream bg, italic serif titles, muted
+          accent palette, value-labels-above-bars, figsize tuned for
+          destination). This eliminates the most common v1→v2 churn.
+        - `first_render_spacing_discipline` (set figsize, reserve
+          y-margin, plan legend placement, decide tick rotation BEFORE
+          the first save)
         - `common_pitfalls_to_avoid` (label overlap, clipped y-axis,
           legend-on-data, untitled legends, etc.)
         - the chart_chooser (which kind for which question)
-        - the Okabe-Ito / viridis / PuOr palettes
-        - the pre-publish self-review checklist
+        - RO_PALETTE (the Research-OS dashboard-cohesive accent set)
+          and the Okabe-Ito / viridis / PuOr palettes for the broader
+          choice
+        - the pre-publish self-review loop (see visually_verify_render
+          below — mandatory open-the-PNG-and-look-at-it pass)
 
       Save to:
         workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.png
         workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.svg
             (recommended — enables the SVG label-overlap audit)
-      DPI ≥ 300. Palette CVD-safe (call tool_figure_palette for hex codes).
+      DPI ≥ 300. Palette CVD-safe (the style preset handles it; for
+      other stacks call tool_figure_palette for hex codes).
 
       Record per-figure outputs in figure_plan.md under each entry's
       `outputs:` field so the next step + the synthesis stage can find
       them.
+
+  - id: visually_verify_render
+    name: Visually verify the render (MANDATORY view-then-iterate loop)
+    description: |
+      For every figure you just built, OPEN the PNG and look at it
+      before moving on. Reading the script is not a substitute — the
+      reader sees pixels, and reviewer-blocking mistakes hide there.
+
+      The loop (per figure):
+        1. sys_file_read filepath="workspace/<NN_slug>/outputs/figures/<NN>_<figure_slug>.png"
+           (or use your IDE's native image preview)
+        2. Walk the OBSERVATION checklist in
+           `visualization/figure_guidelines#pre_publish_self_review` —
+           overlap / clipping / legend on data / autoscale crops /
+           tick rotation / suptitle headroom / palette cohesion.
+        3. If ANY check fails: write
+           scripts/<NN>_<figure_slug>_v2.<ext> with the fixes (do NOT
+           leave v1 broken on disk; overwrite the same PNG), and
+           return to step 1.
+        4. When the figure passes EVERY check, log the iteration count
+           in figure_plan.md under the entry's `revisions:` field
+           (e.g. `revisions: 2 (v1 had legend overlap with cluster B)`).
+
+      Skip ONLY when the figure is a one-off look-and-see throwaway
+      the researcher already saw on screen — never skip for figures
+      destined for a deliverable (paper / dashboard / poster / report).
 
   - id: sensitivity_check
     name: Sensitivity / alternative-encoding check

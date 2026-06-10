@@ -1,13 +1,13 @@
 id: figure_guidelines
 tier: 'synthesize'
 name: Figure Guidelines
-version: '2.0.0'
+version: '2.4.4'
 schema_version: '2.0'
 scope_tags:
   domain: [biology, wet_lab, qualitative, humanities]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-10'
 description: |
   The reasoning scaffold for producing publication-grade figures.
 
@@ -331,7 +331,72 @@ common_pitfalls_to_avoid:
     fix: |
       Set `figsize` to the FINAL printed size (e.g. 3.5 x 2.5 inches
       for a single-column figure) and use ≥9 pt for tick labels, ≥10
-      pt for axis labels, ≥11 pt for the title.
+      pt for axis labels, ≥11 pt for the title. `apply_research_os_style(destination=...)`
+      handles both — it sets the figsize per destination AND sets
+      paper-readable font sizes in one call.
+
+# Spacing discipline applied BEFORE the first render lands on disk.
+# These rules fix the ~80 % of "label X overlaps Y" pitfalls upfront,
+# so the post-render visual-self-review loop (mandatory; see
+# steps.pre_publish_self_review below) reaches v_final quickly instead
+# of cycling through v1/v2/v3.
+first_render_spacing_discipline:
+  rule: |
+    The Research-OS style preset and a small upfront discipline
+    eliminate the most common overlap problems BEFORE the first save.
+    Skipping this means you'll write v2 and v3 chasing problems the
+    first render shouldn't have had.
+  steps: |
+    1. **Pick the destination FIRST.** Call
+       `apply_research_os_style(destination="<single_col|two_col|full_width|slide|dashboard|dashboard_tile|poster>")`
+       at the top of the script. The returned `style["figsize"]` is
+       the figsize the chart was designed for. Don't override it
+       except for figures with a known different aspect (e.g. a
+       Manhattan plot wider than two_col).
+    2. **Constrained layout is on by default in the preset.** Don't
+       call `plt.tight_layout()` afterwards — it conflicts with
+       constrained_layout and produces silently-cropped figures.
+       Use `gridspec` if you need precise multi-panel control.
+    3. **Reserve headroom for value labels.** When you call
+       `ax.bar(...)`, the chart's y-limit auto-fits the bars. Floating
+       value labels above bars then sit ABOVE the auto y-limit and
+       get clipped. Either:
+       - call `label_bars_above(ax, bars, ...)` AFTER setting an
+         explicit `ax.set_ylim(0, max_value * 1.12)`, OR
+       - call `ax.margins(y=0.12)` before `label_bars_above` so the
+         autoscaler leaves a 12 % top margin.
+       The bundled helper uses `offset_frac=0.02` (2 % of y-range) so
+       labels float clear of the bar; if you change that, raise the
+       y-margin proportionally.
+    4. **Suptitle headroom.** `apply_suptitle(fig, ...)` defaults
+       `y=0.98` which constrained_layout respects. If you write the
+       suptitle directly, leave `y=0.97` or higher so it never
+       overlaps the top panel's title.
+    5. **Legend placement.** Busy legends (>3 entries) go BELOW the
+       axes via `ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3, frameon=False)`
+       or to the RIGHT via `bbox_to_anchor=(1.02, 1.0)`. Inside-axes
+       legends are reserved for single-entry callouts (one regression
+       line). The preset turns `frameon=False` by default — keep it.
+    6. **Tick rotation.** When x-tick labels are long enough to
+       overlap each other at the chosen figsize, rotate to 30°
+       (`ax.tick_params(axis='x', rotation=30)` with `ha='right'` set
+       via `plt.setp(ax.get_xticklabels(), ha='right')`). Don't rotate
+       to 90° unless the labels are very long — 30°-right is more
+       legible. If rotation feels forced, the chart is probably a
+       horizontal bar (`barh`) in disguise.
+    7. **Panel titles in multi-panel figures.** Use
+       `ax.set_title(panel_label, fontsize=9, fontstyle='italic', pad=8)`
+       — italic small-caps that match the reference figures. Avoid
+       large panel titles competing with the figure-level suptitle.
+    8. **Stacked bars: edge stroke.** The preset sets a thin warm-grey
+       edge on every patch so adjacent stacked bar segments separate
+       visually on cream. If you call `ax.bar(...)` with custom
+       colours, pass `edgecolor='#3D3A35', linewidth=0.6` to keep the
+       look.
+    9. **Save with constrained_layout, NOT tight_layout.** The preset
+       sets `bbox_inches='tight', pad_inches=0.15` in `savefig.bbox`
+       so the cream background extends to the file edge. Don't
+       override unless the destination requires zero-margin.
 
 mandatory_per_step_figure:
   rule: |
@@ -453,9 +518,45 @@ publication_aesthetics:
     matplotlib (DejaVu Sans, default colors, fixed axes spines, busy
     grid) reads as "I didn't have time to polish this." The audit
     won't catch that; reviewers will.
+  research_os_style_preset: |
+    For matplotlib figures, the fastest way to land the polished
+    Research-OS aesthetic — cream background, italic serif titles,
+    muted CVD-safe accent palette (navy / olive / forest / oxblood /
+    mustard), clean spines, value-labels-above-bars, and a figsize
+    pre-tuned for the destination — is to call the bundled style
+    preset at the top of every plotting script:
+
+        from research_os.tools.actions.viz import (
+            apply_research_os_style,
+            label_bars_above, polish_axes, apply_suptitle,
+        )
+        style = apply_research_os_style(destination="single_col")
+        fig, ax = plt.subplots(figsize=style["figsize"])
+        bars = ax.bar(x, y, color=style["palette"][0])
+        label_bars_above(ax, bars, unit="ms")
+        polish_axes(ax)
+        apply_suptitle(fig, "Step NN · headline",
+                       subtitle="Optional explanatory line")
+        fig.savefig(out_path, dpi=style["dpi"])
+
+    The preset matches the figures embedded in `synthesis/dashboard.html`
+    (same `viz/style.py STYLE_RCPARAMS` → same CSS variables), so the
+    dashboard reads as a cohesive deliverable instead of "figures
+    pasted into a webpage". `destination=` picks from `single_col` /
+    `two_col` / `full_width` / `slide` / `slide_half` / `dashboard` /
+    `dashboard_tile` / `poster` — single-pick that fixes ~80 % of
+    "figure too tall / squished / cropped" problems before the first
+    render lands on disk.
+
+    For non-matplotlib stacks (ggplot2 / Altair / Vega-Lite / d3), the
+    preset is not enforced — copy the palette hex codes from
+    `research_os.tools.actions.viz.RO_PALETTE` and lift the spacing
+    discipline rules below by hand.
   steps: |
     - **Pick a stylesheet, not the default.** matplotlib:
-      `plt.style.use(['science', 'nature'])` (SciencePlots package);
+      `plt.style.use(['science', 'nature'])` (SciencePlots package), OR
+      the bundled `apply_research_os_style()` preset above (the
+      default for new Research-OS projects);
       ggplot2: `theme_classic() + theme(...)` overrides; Altair:
       `alt.themes.enable('latimes')`. Then patch rcParams per project
       — set font, size, spine treatment, grid color — ONCE in a
@@ -564,19 +665,57 @@ steps:
       synthesis stage knows which environment to re-create for the
       paper figures.
 
+  - id: set_up_canvas
+    name: Set Up the Canvas FIRST (style + figsize + spacing reserve)
+    description: |
+      BEFORE writing the plotting code, set the canvas so the FIRST
+      render lands close to publication-ready. This is the difference
+      between v1=v_final and v1→v2→v3.
+
+      For matplotlib (the dominant case):
+
+        from research_os.tools.actions.viz import (
+            apply_research_os_style, label_bars_above,
+            label_diverging_bars, polish_axes, apply_suptitle,
+        )
+        style = apply_research_os_style(destination="single_col")
+        fig, ax = plt.subplots(figsize=style["figsize"])
+
+      Then walk the `first_render_spacing_discipline` checklist above:
+      reserve y-margin for value labels, plan legend placement,
+      decide tick rotation, choose panel-title formatting. Each item
+      takes seconds to plan but minutes to fix after a v1→view round-trip.
+
+      For ggplot2 / Altair / d3, set the equivalents:
+        ggplot2: theme_classic(base_family = "EB Garamond") +
+                 theme(plot.title = element_text(face = "italic"),
+                       plot.background = element_rect(fill = "#FBF8F3"),
+                       panel.grid.major.x = element_blank())
+        Altair:  alt.themes.register('research_os', ...) with the
+                 RO_PALETTE colours; .properties(width=350, height=250)
+                 for single_col.
+
   - id: write_the_script
     name: Write the Script
     description: |
       Write the actual plotting code in scripts/<NN>_<slug>_v<k>.py
       (or .R, .qmd, .ipynb). Apply every rule from
       `common_pitfalls_to_avoid` as you go — they're the
-      reviewer-blocking mistakes.
+      reviewer-blocking mistakes. Apply the bundled helpers from
+      step `set_up_canvas`:
+        - `label_bars_above(ax, bars, unit=...)` for vertical bar labels
+        - `label_diverging_bars(ax, bars, values)` for signed deltas
+        - `polish_axes(ax)` to re-assert spines + grid per-axes
+        - `apply_suptitle(fig, title, subtitle=...)` for the italic
+          serif figure header in the Research-OS aesthetic
 
       Save to:
         workspace/<step>/outputs/figures/<NN>_<short_descriptor>.png
         workspace/<step>/outputs/figures/<NN>_<short_descriptor>.svg
             (highly recommended — enables the SVG label-overlap audit)
-      DPI ≥ 300. Palette CVD-safe (call tool_figure_palette(kind='qualitative'|'sequential'|'diverging'|'accent')).
+      DPI ≥ 300. Palette CVD-safe (the `apply_research_os_style()`
+      preset sets the accent palette automatically; for other stacks
+      call `tool_figure_palette(kind='qualitative'|'sequential'|'diverging'|'accent')`).
 
   - id: write_caption
     name: Write the Technical Caption
@@ -600,19 +739,50 @@ steps:
       conclusions.md Findings. Polish in your voice.
 
   - id: pre_publish_self_review
-    name: Pre-publish self-review (run before audit + finalize)
+    name: Pre-publish visual self-review (MANDATORY render → view → v2 loop)
     description: |
-      Before calling `tool_audit(scope='step', dimension='figure_full')` or `tool_path_finalize`,
-      walk this checklist for EVERY figure you wrote. Each item
-      catches a real reviewer-blocking mistake.
+      Once the script has rendered v1 of the figure to disk, you MUST
+      open the rendered PNG and look at it before declaring the
+      figure done. Reading the script is NOT a substitute. The
+      reviewer / dashboard reader sees the pixels, not the matplotlib
+      call. This is the single change that catches the most
+      reviewer-blocking mistakes — and the audit gate cannot catch
+      everything a human eye sees in 5 seconds.
 
-      OBSERVATION (look at the rendered PNG, not the script):
-      - [ ] Legend is NOT covering any data points or marks.
-      - [ ] Legend has a title naming the variable color/shape encodes.
+      THE LOOP (mandatory; do not skip):
+
+        1. Render v1 → workspace/<step>/outputs/figures/<NN>_<slug>.png
+        2. OPEN the PNG and look at it. Two options:
+           - sys_file_read filepath="workspace/<step>/outputs/figures/<NN>_<slug>.png"
+             (returns the file contents; in an IDE with image preview,
+             this surfaces the pixels you need to see)
+           - read it directly in your IDE's image viewer if you have
+             native vision (Claude Code, Cursor, Continue, etc.)
+        3. Walk the OBSERVATION checklist below — ACTUALLY check each
+           item against the rendered pixels, not the source code.
+        4. If ANY item fails (overlap, clip, ugly autoscale, missing
+           legend title, busy grid on a scatter, mis-rotated tick
+           labels): write v2 of the script in
+           scripts/<NN>_<slug>_v2.py with the fixes, render to
+           <NN>_<slug>.png (overwriting v1 — only the final ships),
+           and return to step 2.
+        5. Only when the figure passes EVERY observation item does it
+           leave the loop. Record the iteration count in
+           workspace/<step>/scratch/figure_revisions.md so finalize
+           knows the figure had a human-style review.
+
+      OBSERVATION (the human-eye checklist):
+      - [ ] No label / value text overlaps another label, a bar, a
+            data mark, the legend, or the title. (The #1 ship-blocker.)
+      - [ ] No marker / bar / line is clipped by an axis edge.
+      - [ ] Legend has a title naming what colour / shape encodes.
+      - [ ] Legend is NOT sitting on top of data points or marks.
       - [ ] Axis labels include units in parentheses where applicable
             ("Body mass (g)" not "body_mass_g").
-      - [ ] Title sits ABOVE the plot, not overlapping the top spine.
-      - [ ] Tick labels are readable (no overlap, rotation if needed).
+      - [ ] Title sits ABOVE the plot, not overlapping the top spine
+            and not crashing into the panel titles.
+      - [ ] Tick labels are readable (no overlap; rotated 30° with
+            ha='right' when long).
       - [ ] Point / gene / sample labels don't overlap each other
             (use ggrepel / adjustText / explicit jittered offsets).
       - [ ] y-axis is NOT clipped at -log10(1e-300) — cap p-values or
@@ -624,23 +794,36 @@ steps:
             marks. Faint horizontal grid OK for bar / line / hist.
       - [ ] Top + right spines off. Spines for non-numeric axes off.
       - [ ] Sample-size annotation is light grey, corner, no box.
-      - [ ] Palette is CVD-safe (Okabe-Ito / viridis / PuOr).
+      - [ ] Palette is CVD-safe (RO_PALETTE / Okabe-Ito / viridis / PuOr).
       - [ ] At least 300 DPI on save.
       - [ ] Figure looks readable at FINAL print size (set figsize to
             the slot you're targeting; ≥9 pt fonts).
+      - [ ] Cohesive with sibling figures in this step — same palette
+            family, same suptitle style, same panel-title formatting.
 
       SCRIPT + SIDECARS:
       - [ ] PNG + SVG dual export.
       - [ ] `<name>.caption.md` exists, ≤3 sentences, lead with the
             substantive finding.
-      - [ ] `<name>.summary.md` exists, 3-paragraph plain-English
-            structure (What it shows / How to read it / Why it matters).
+      - [ ] `<name>.summary.md` exists when researcher_config has
+            summary_sidecar=true; otherwise interpret the figure inline
+            in conclusions.md.
       - [ ] File named `<step_number>_<short_descriptor>.png`.
       - [ ] Script is in `scripts/`, not hand-pasted into a notebook
             cell that won't survive a re-run.
 
-      If you can't tick everything, fix it. The audit gate IS strict
-      because reviewers are stricter.
+      WHY THIS LOOP IS NON-NEGOTIABLE: the `audit_figure_quality`
+      server gate catches DPI, sidecars, and (when SVG is present) a
+      text-bbox-overlap heuristic. It CANNOT catch: a legend sitting
+      on top of a scatter cloud, a suptitle crashing into a panel
+      title, a value label running off the figure edge, a categorical
+      x-axis with overlapping tick labels at the current figsize, or
+      a stacked bar where adjacent segments visually merge because
+      the AI used default colours without edge strokes. The
+      first-pass spacing discipline + the bundled style preset
+      handle most of these upfront, but the eye on the pixel is the
+      final check. Without it, "the AI rendered a figure" is not
+      "the AI produced a publishable figure."
 
   - id: audit
     name: Audit the Figure (server-enforced gate)

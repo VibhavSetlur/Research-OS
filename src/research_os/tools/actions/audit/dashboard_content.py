@@ -403,6 +403,24 @@ def audit_print_friendly(dashboard_html: str) -> dict[str, Any]:
 OKABE_ITO = {"#000000", "#e69f00", "#56b4e9", "#009e73", "#f0e442", "#0072b2", "#d55e00", "#cc79a7"}
 VIRIDIS_KEYS = {"#440154", "#3b528b", "#21918c", "#5ec962", "#fde725"}
 PUOR_KEYS = {"#b35806", "#e08214", "#fdb863", "#fee0b6", "#d8daeb", "#b2abd2", "#8073ac", "#542788"}
+# Research-OS dashboard accent palette (matches viz/style.py RO_PALETTE).
+# The five accent colours are perceptually distinct under deuteranopia /
+# protanopia simulation, and the warm dark grey + cream rule colours
+# match the page chrome so dashboards generated from the bundled
+# scaffold + figures generated through apply_research_os_style() share
+# one allowed-palette set.
+RESEARCH_OS_ACCENT = {
+    "#1f4d7a",  # navy — primary
+    "#9b7e2d",  # olive gold — secondary
+    "#3f6049",  # forest — positive deltas
+    "#9b3737",  # oxblood — emphasis / negative deltas
+    "#c3a14e",  # mustard — fifth accent
+    "#3d3a35",  # warm dark grey foreground
+    "#7c7468",  # muted secondary text
+    "#d6cfc2",  # hairline rule on cream
+    "#fbf8f3",  # cream background
+    "#fffdf8",  # near-white card on cream
+}
 
 
 def audit_color_palette(dashboard_html: str) -> dict[str, Any]:
@@ -415,7 +433,7 @@ def audit_color_palette(dashboard_html: str) -> dict[str, Any]:
         c for c in colors
         if c not in {"#000000", "#ffffff"} and not _is_grey(c)
     }
-    allowed = OKABE_ITO | VIRIDIS_KEYS | PUOR_KEYS
+    allowed = OKABE_ITO | VIRIDIS_KEYS | PUOR_KEYS | RESEARCH_OS_ACCENT
     out_of_palette = [c for c in chart_colors if c not in allowed]
     warnings: list[str] = []
     if len(out_of_palette) > 5:
