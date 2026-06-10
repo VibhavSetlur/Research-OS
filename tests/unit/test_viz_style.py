@@ -183,7 +183,7 @@ def test_viz_package_exports_style_surface():
     palette_for / audit_figure_quality / caption_synthesise /
     step_figure_inventory so the AI's plotting script can import the
     whole figure surface from one place."""
-    import research_os.tools.actions.viz as viz
+    from research_os.tools.actions import viz
     for sym in (
         "apply_research_os_style", "RO_PALETTE", "RO_BG", "RO_FG",
         "RO_MUTED", "RO_RULE", "DESTINATION_FIGSIZES", "STYLE_RCPARAMS",
