@@ -772,8 +772,8 @@ project into one of seven entry archetypes (DATA-READY / ANALYSES-READY
 MIXED) and routes to the right downstream protocol without forcing
 redundant intake.
 
-Record a PROVENANCE CEILING in `docs/entry_record.md` so downstream
-audits know what was reasoned vs imported.
+Record a PROVENANCE CEILING in `entry_record.md` (in the project's
+`docs/` folder) so downstream audits know what was reasoned vs imported.
 
 ---
 

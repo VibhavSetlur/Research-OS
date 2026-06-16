@@ -14,6 +14,11 @@ Run the Research OS session-start sequence (two MCP calls, then route):
    `complexity: low`: call the shortcut tool OR load the primary
    protocol with `sys_protocol_get format='summary'`.
 
-Do NOT call `sys_state_get`, `sys_config_get`, `sys_protocol_history`,
+Do NOT call `sys_state_get`, `sys_config`, `sys_protocol_history`,
 `sys_protocol_next`, or `sys_dep_inventory` separately — `sys_boot`
 returns the union.
+
+When `sys_boot` reports `workspace_mode: tool_build`, route to the
+`build/*` arc instead of the analysis pipeline (`spec_and_design` →
+`implement_iteration` loop → `test_strategy` / `benchmark_vs_baseline`
+→ `release_and_changelog`); "done" is tests / build / eval, not figures.

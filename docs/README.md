@@ -13,6 +13,7 @@ Start at [**START.md**](START.md) — install, first project, cheatsheet (~15 mi
 Supporting:
 
 - [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster / reproduce a result" → which protocol fires.
+- [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software, not analysing data? The **tool_build** workspace mode: spec → implement → test → ship.
 - [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
 - [FAQ.md](FAQ.md) — common questions.
 - [CLI.md](CLI.md) — every `research-os` CLI sub-command.

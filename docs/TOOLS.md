@@ -164,7 +164,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_humanities_archive_lookup` | (pack: `humanities`) Query digital archives (Internet Archive / HathiTrust / DPLA / Europeana / Gallica / Library of Congress). |
 | `tool_humanities_citation_chain` | (pack: `humanities`) Chain-of-custody for a quotation: original ms → critical edition → translation → secondary citation. |
 | `tool_humanities_transcribe` | (pack: `humanities`) Scaffold OCR + manual-correction for an archival image. Side-by-side transcription template. |
-| `tool_intake_autofill` | Read `inputs/`, infer domain + question + hypotheses, write `inputs/intake.md` + `docs/research_overview.md` + `.os_state/state.json`. |
+| `tool_intake_autofill` | Read `inputs/`, infer domain + question + hypotheses, write `inputs/intake.md` + `research_overview.md` (in the project's `docs/`) + `.os_state/state.json`. |
 | `tool_intake_freshness` | Recommended intake depth (full / refresh-only / skip) based on intake.md freshness + step count. |
 | `tool_julia_exec` | Run `.jl` (requires `julia` on PATH). |
 | `tool_latex_compile` | `pdflatex` + `bibtex` on `synthesis/paper.tex`. Use when a venue requires `.tex` submission. |
@@ -369,10 +369,13 @@ project.
     "literature": ["3 PDFs"],
     "context": ["IRB approval letter"]
   },
-  "wrote": ["inputs/intake.md", "docs/research_overview.md", ".os_state/state.json"],
+  "wrote": ["inputs/intake.md", "research_overview.md", ".os_state/state.json"],
   "next_steps": "Run methodology/qualitative_research to enter the COREQ/SRQR loop."
 }
 ```
+
+`research_overview.md` is written into the project's `docs/` folder
+(alongside any `domain_summary.md` / `glossary.md` later protocols add).
 
 ### `tool_synthesis_check`
 

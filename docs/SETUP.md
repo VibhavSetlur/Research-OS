@@ -313,7 +313,7 @@ optional** — blank fields get sensible defaults applied silently. The
 file tells the AI **who it's working with** and **how you want it to
 behave**. Domain / research question / hypotheses are NOT here — drop
 data into `inputs/` and say "fill out the intake"; the AI writes those
-to `inputs/intake.md` + `docs/research_overview.md`.
+to `inputs/intake.md` + `research_overview.md` (in the project's `docs/`).
 
 The minimal useful subset (ordered most → least important):
 

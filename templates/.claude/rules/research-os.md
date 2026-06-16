@@ -11,7 +11,7 @@ else.
 1. `sys_boot` — your FIRST MCP call (first turn only). Returns state +
    config + history + dep inventory + next protocol + pause
    classification + active plan. Never call `sys_state_get` /
-   `sys_config_get` / `sys_protocol_history` / `sys_protocol_next`
+   `sys_config` / `sys_protocol_history` / `sys_protocol_next`
    separately while sys_boot's payload is fresh.
 2. `tool_route(prompt=<their verbatim message>)` — your SECOND MCP
    call. Hierarchical L1→L2→L3 picker. Returns `resolved_level`,
@@ -32,11 +32,26 @@ On **subsequent turns** of the same session, skip `sys_boot` — its
 payload is still in context — and go straight to `tool_route` (or
 continue an in-flight plan via `tool_plan(operation="advance")`).
 
-Tools use underscores: `sys_state_get`, `tool_data_profile`,
+Tools use underscores: `sys_state_get`, `tool_data`,
 `mem_log`. Dot notation + legacy aliases auto-rewrite.
 
 Never write to `inputs/raw_data/` or `inputs/literature/` (immutable).
 All workspace I/O goes through MCP tools.
+
+**Workspace modes.** `sys_boot` reports `workspace_mode`. It shapes what
+"a unit of work" and "done" mean — let it steer routing:
+
+- **analysis** (default) — numbered experiment steps under
+  `workspace/NN_*`; "done" = grounded figures + conclusions.
+- **tool_build** — Research OS governs from above (`spec/`, `decisions/`,
+  `eval/`); the tool lives in an inner git repo. Route to `build/*`
+  (`spec_and_design` → `implement_iteration` loop → `test_strategy` /
+  `benchmark_vs_baseline` → `release_and_changelog`). "Done" = tests /
+  build / eval pass, not figures. Drive the inner repo with `tool_git`,
+  the configured commands with `tool_build`, and gate via
+  `tool_audit(scope='tool')`.
+- **exploration** — scratch-first; light gates. Promote a probe in
+  `workspace/scratch/` to a numbered step only when it earns it.
 
 When the researcher EXPLICITLY authorises a quality-gate bypass,
 pass the relevant per-audit override (e.g.
@@ -47,8 +62,9 @@ appended to `workspace/logs/override_log.md`; the pre-submission audit
 resurfaces every bypass.
 
 For DELIBERATE iteration of a step (recolour figure, tighten cutoff,
-swap a model) call `tool_step_iterate(step_id, rationale=…)` BEFORE
-editing — it snapshots scripts + outputs + captions + conclusion as
-a coordinated `.versions/v<n>/`. `tool_audit_version_coherence` flags
+swap a model) call `tool_step(operation="iterate", step_id=…,
+rationale=…)` BEFORE editing — it snapshots scripts + outputs +
+captions + conclusion as a coordinated `.versions/v<n>/`.
+`tool_audit(scope="project", dimension="version_coherence")` flags
 outputs whose `.prov.json` points at a script that's no longer the
 highest version on disk.

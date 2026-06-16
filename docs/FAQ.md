@@ -152,8 +152,9 @@ Yes. After `research-os init`, drop your data / PDFs / notes anywhere in
 
 `tool_intake_autofill` reads everything, classifies the domain, extracts
 your research question + hypotheses from context notes, and writes them
-into `inputs/intake.md` + `docs/research_overview.md` (with the
-hypothesis ledger persisted to `.os_state/state.json`). Domain / research
+into `inputs/intake.md` + the project's `docs/` folder (as
+`research_overview.md`), with the hypothesis ledger persisted to
+`.os_state/state.json`. Domain / research
 question / hypotheses are intentionally NOT in `researcher_config.yaml`
 — that file is reserved for fields a researcher actively chooses.
 

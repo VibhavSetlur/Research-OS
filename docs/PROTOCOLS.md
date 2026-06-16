@@ -115,8 +115,8 @@ orientation).
 |---|---|---|---|
 | 1 | `guidance/session_boot` | One-call boot via `sys_boot`; route first message via `tool_route` | first entry in execution log |
 | 2 | `guidance/project_startup` | Intake autofill, profile data, lock research question | intake.md filled + research_overview.md confirmed |
-| 3 | `domain/domain_analysis` | Classify domain, pick reporting standard, list biases | docs/domain_summary.md exists |
-| 4 | `domain/research_design` | Choose study design + sample size justification | docs/research_design.md exists |
+| 3 | `domain/domain_analysis` | Classify domain, pick reporting standard, list biases | `domain_summary.md` written to the project's `docs/` |
+| 4 | `domain/research_design` | Choose study design + sample size justification | `research_design.md` written to the project's `docs/` |
 | 5 | `methodology/methodology_selection` | Pick statistical / computational methods (literature-grounded) | workspace/methods.md substantive |
 | 6 | `literature/literature_search` | Multi-database search + dedup + PRISMA accounting | literature_index.yaml + citations.md exist |
 | 7 | `guidance/analysis_plan` | Per-step loop: scope → ground → execute → document → snapshot | ≥1 experiment with non-empty conclusions.md |
@@ -428,7 +428,7 @@ _All core protocols, grouped by category, alphabetised within each._
 | `collaboration_handoff` | Package the project for handoff to a human collaborator who is |
 | `constructive_disagreement` | Protocol for the case where the AI's grounded judgement disagrees |
 | `dead_end_routing` | What to do when an experiment path fails or a methodology proves unworkable. Preserves the failed path and… |
-| `glossary_update` | Add or refine a definition in docs/glossary.md. Run this protocol the first time any non-trivial term appears… |
+| `glossary_update` | Add or refine a definition in `glossary.md` (in the project's `docs/`). Run this protocol the first time any non-trivial term appears… |
 | `hypothesis_tracking` | Maintain a clear ledger of active, supported, and refuted hypotheses across the project. |
 | `iterative_planning` | For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state +… |
 | `mid_pipeline_entry` | Routing protocol for researchers entering Research-OS with WORK ALREADY |

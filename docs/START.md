@@ -17,7 +17,7 @@ pip install "research-os[all]"
 
 # 2. Scaffold a project
 mkdir my-project && cd my-project
-research-os init                 # 7-step arrow-key wizard
+research-os init                 # arrow-key wizard
 
 # 3. Confirm it's healthy (optional but recommended)
 research-os doctor               # python + conda env + IDE wiring + pack health
@@ -65,15 +65,17 @@ Need help with Python / pip / virtualenvs / conda? See
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                 # 7-step interactive wizard (default)
+research-os init                 # interactive arrow-key wizard (default)
 # research-os init --yes         # non-interactive (CI / scripts)
 ```
 
-`init` is the only per-project command. The wizard collects: location,
-project name, optional domain + research question, which AI IDEs to
-wire up, and whether to run a post-scaffold smoke check. Pass any of
-`--name / --domain / --question / --ide` to pre-fill an answer and the
-wizard will skip that step. It drops:
+`init` is the only per-project command. The wizard's first question —
+**"What are you building?"** — sets the *workspace mode* (see
+[Pick a workspace mode](#pick-a-workspace-mode) below). It then collects:
+location, project name, optional domain + research question, which AI
+IDEs to wire up, and whether to run a post-scaffold smoke check. Pass any
+of `--workspace-mode / --name / --domain / --question / --ide` to
+pre-fill an answer and the wizard will skip that step. It drops:
 
 - `AGENTS.md` — the AI's operating manual (every supported IDE reads it)
 - `inputs/{raw_data, literature, context}/` — where YOU drop files
@@ -82,6 +84,75 @@ wizard will skip that step. It drops:
   Claude Desktop, VS Code, Windsurf, Continue, Aider**
 
 You typically need to **restart your IDE** so it picks up the new MCP config.
+
+---
+
+## Pick a workspace mode
+
+The very first wizard question — *"What are you building?"* — sets a
+**workspace mode** that shapes the scaffold and how the AI works. Most
+people want the default. The three options:
+
+| Pick this if you're… | Mode | What changes |
+|---|---|---|
+| Turning data into results + a write-up | **analysis** *(default)* | Numbered experiment steps under `workspace/NN_*`; "done" = grounded figures + conclusions. |
+| Building / iterating on software (a CLI, library, service) | **tool_build** | Governance layer (`spec/`, `decisions/`, `eval/`) above an inner git repo; "done" = tests + build + eval pass. → [TOOL_BUILDER.md](TOOL_BUILDER.md) |
+| Just poking around with no committed direction | **exploration** | Scratch-first (`workspace/scratch/`), light gates; promote a probe to a real step only when it earns it. |
+
+Set it without the wizard via `research-os init --workspace-mode <mode>`,
+or change it later in `inputs/researcher_config.yaml`
+(`workspace.mode`). Not sure? Pick **analysis** — you can switch.
+
+---
+
+## New here? The 3-minute on-ramp
+
+Never used a research workflow tool before? You don't need to learn any
+of the vocabulary on this page yet. Here's the whole thing:
+
+1. **Drop a file in `inputs/`.** A CSV, a spreadsheet, a PDF — whatever
+   you've got. (No data yet? Skip to step 2 and just ask a question.)
+
+   ```bash
+   mv ~/Downloads/my_data.csv inputs/raw_data/
+   ```
+
+2. **Open the folder in your AI IDE and say what you want — in plain
+   English.** You don't call any commands. Try literally any of these:
+
+   ```
+   i have a csv, what do i do?
+   look at my data
+   make a chart from this
+   is my result significant?
+   ```
+
+3. **Read what the AI says back, and answer its one question if it asks
+   one.** It will tell you what it found, propose a next step, and wait
+   for your OK before doing anything heavy.
+
+That's it. The AI figures out which of the built-in workflows fits your
+words and walks you through it. You'll pick up the rest by doing.
+
+**What to expect — the coaching posture.** Research OS is built to be a
+careful collaborator, not an eager autocomplete:
+
+* It **looks before it leaps.** On a fresh project it reads your files
+  and proposes a plan; it asks before creating experiments or writing
+  final outputs.
+* It **won't make things up.** Every citation in a write-up is checked
+  against real databases; every number has to trace back to a real file
+  it produced. If it can't, it says so instead of guessing.
+* It **explains, if you want.** Ask *"explain that to me"* or *"why did
+  you pick that test?"* and it will. Ask *"teach me about ANCOVA before I
+  use it"* and it'll teach you with no commitment to a project.
+* It **remembers.** Close the chat, come back tomorrow, say *"pick up
+  where we left off"* — your data, decisions, and progress are still
+  there.
+
+When you're ready for more, the [1-hour walkthrough](#the-1-hour-walkthrough-optional)
+below shows the full arc; [USE_CASES.md](USE_CASES.md) maps "what I want"
+to "what to say".
 
 ---
 
@@ -187,7 +258,7 @@ For longer, scenario-flavoured first-turn prompts (text corpus,
 interview transcripts, benchmark study, theorem-to-prove, mixed data +
 hypothesis), see the **Common first prompts** table at the top of
 [USE_CASES.md](USE_CASES.md) — those are the variants validated
-against five end-to-end fresh-agent walkthroughs.
+against end-to-end fresh-agent walkthroughs.
 
 ### Using a small or medium AI? Set `model_profile` first
 
@@ -221,23 +292,23 @@ up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your
 * **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
   declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
   → fit → diagnose → visualize → report). Content-hash cached.
-* **100+ protocols** the AI picks from via `tool_route`. Each protocol
-  carries `scope_tags: {domain, audience, workflow_shape}` and a
+* **A broad protocol catalogue** the AI picks from via `tool_route`. Each
+  protocol carries `scope_tags: {domain, audience, workflow_shape}` and a
   `tier` so the router filters intelligently. Covers the canonical data
   → publication pipeline plus partial / off-axis workflows
   (visualization-only, talks, lay summaries, EDA + hypothesis
   generation, method comparison, reproduction, methodological
   consultation, multi-paper review, mid-pipeline entry, plus pre-data
   qualitative + survey design, IRR, fairness, calibrated UQ,
-  manuscript outline, venue selection, defense prep, and Data
-  Management Plans).
-* **~150 live MCP tools** across three namespaces — `sys_*` (system /
+  manuscript outline, venue selection, defense prep, Data
+  Management Plans, and the `build/*` arc for tool_build mode).
+* **Live MCP tools** across three namespaces — `sys_*` (system /
   workspace / files / state), `tool_*` (research work), `mem_*`
-  (append-only memory). Down from 344 in v1.x — consolidated families
+  (append-only memory). Consolidated families
   (`tool_audit`, `tool_search`, `tool_step`, `tool_lessons`, etc.)
-  dispatch by `scope` / `operation` / `dimension`. Every v1 tool name
-  still works via backward-compat aliases for the v2.x patch line —
-  see `CHANGELOG.md [2.0.0]` for the surface map.
+  dispatch by `scope` / `operation` / `dimension`. Legacy v1 tool names
+  still resolve via backward-compat aliases — see
+  `CHANGELOG.md [2.0.0]` for the surface map.
 
 ---
 
@@ -439,8 +510,8 @@ push back if you disagree with my plan
   and `why_matched` for the AI to rank options
 * `sys_protocol_get` — defaults to `format='summary'` (~3K chars);
   pass `format='full' | 'step' | 'lean' | 'dryrun'` only when needed
-* `sys_active_tools(protocol)` — 13-18-tool scoped shortlist per
-  protocol (down from 344 visible)
+* `sys_active_tools(protocol)` — a scoped tool shortlist per
+  protocol, instead of the full catalogue
 * `sys_help` — AI orientation (which protocol does what)
 * `sys_active_project` — which project did the global server resolve
 
@@ -521,6 +592,8 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
   patterns, troubleshooting).
 * [USE_CASES.md](USE_CASES.md) — pick the right protocol by role × goal
   × output.
+* [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software instead of
+  analysing data? The **tool_build** workspace mode.
 * [SETUP.md](SETUP.md) — detailed install + per-IDE wiring +
   troubleshooting.
 * [FAQ.md](FAQ.md) — common questions.
