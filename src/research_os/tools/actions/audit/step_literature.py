@@ -183,7 +183,14 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
             "disagreement must address what to do about it."
         )
 
-    pdfs = sorted(lit_dir.glob("*.pdf")) if lit_dir.exists() else []
+    # Count only magic-validated PDFs: a renamed 403/HTML page named
+    # *.pdf is NOT a downloaded paper and must not satisfy this gate.
+    from research_os.tools.actions.search.literature import is_valid_pdf
+    pdfs = (
+        sorted(p for p in lit_dir.glob("*.pdf") if is_valid_pdf(p))
+        if lit_dir.exists()
+        else []
+    )
     info["papers_downloaded"] = len(pdfs)
     if claim_count > 0 and verdict_counts["DEFERRED"] == claim_count and not pdfs:
         blockers.append(

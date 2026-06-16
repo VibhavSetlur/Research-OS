@@ -326,6 +326,28 @@ steps:
 
       Skip this step for new submissions.
 
+  - id: server_enforced_ship_gate
+    name: Server-enforced ship gate
+    description: |
+      Every check above is advisory — the AI could, in principle,
+      proceed past any of them. This step is the one gate that can
+      actually refuse to mark the deliverable done.
+
+      Run tool_finalize_project(operation='check') first to see the
+      aggregated blocker report (unresolved audit blockers, cited-but-
+      invalid PDFs that fail the %PDF- magic check, ungrounded numeric
+      claims, and stub/placeholder sections). Read
+      workspace/logs/ship_gate.md.
+
+      Then run tool_finalize_project(operation='finalize') as the true
+      pre-ship gate. If it returns clear, the deliverable may ship. If
+      it BLOCKS, do not declare done: surface the blocker list to the
+      researcher and either resolve each blocker or — only with the
+      researcher's explicit authorization — re-run with override=true
+      and a substantive override_rationale (logged). The decision of
+      whether a residual blocker is acceptable is the researcher's, not
+      the AI's; this step refuses to make it silently.
+
   - id: produce_the_verdict
     name: Produce the verdict
     description: |

@@ -70,14 +70,17 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_verify": {
         "short": "Verify one claim or all project claims. scope='claim'|'project'. Use when checking grounding.",
-        "description": "Unified verification tool. scope='claim' checks one claim against a verifications list (replaces tool_claim_verify). scope='project' sweeps every registered grounded claim in the project (replaces tool_grounding_verify).",
+        "description": "Unified verification tool. scope='claim' checks one claim against a verifications list (replaces tool_claim_verify). scope='project' sweeps every registered grounded claim in the project (replaces tool_grounding_verify). PROVENANCE-BOUND: scope='claim' no longer accepts supports:true on assertion alone — each verification's evidence.path is resolved under the project root and the cited token (evidence.cited_text / locator / anchor / expected / token) must actually be present in that file (verbatim, whitespace-normalized, or ±0.5% numeric match). A supporting verification whose source lacks the token is downgraded to needs_revision; a supporting verification with no checkable path/locator is kept but flagged unverifiable and the claim verdict becomes 'unverified' (never 'verified'). This makes verification check the substrate instead of self-grading.",
         "category": "research",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "scope": {"type": "string", "enum": ["claim", "project"]},
                 "claim": {"type": "string"},
-                "verifications": {"type": "array"},
+                "verifications": {
+                    "type": "array",
+                    "description": "scope='claim' — list of {question, answer, supports: bool, evidence: {type, path, cited_text}}. For supports:true to be honoured, evidence.path must resolve under the project and contain evidence.cited_text (or locator/anchor/expected/token). Otherwise the entry is downgraded (needs_revision) or flagged unverifiable.",
+                },
                 "decision_id": {"type": "string"},
                 "step_id": {"type": "string"},
             },

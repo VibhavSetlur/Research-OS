@@ -412,6 +412,9 @@ def audit_synthesis(
         zero_pdf_block = ""
         try:
             import yaml as _yaml_mod
+            from research_os.tools.actions.search.literature import (
+                count_valid_pdfs,
+            )
             workspace = root / "workspace"
             lit_required_steps: list[str] = []
             total_pdfs = 0
@@ -433,11 +436,11 @@ def audit_synthesis(
                             continue
                     lit_required_steps.append(step_dir.name)
                     lit_dir = step_dir / "literature"
-                    if lit_dir.is_dir():
-                        total_pdfs += sum(1 for _ in lit_dir.glob("*.pdf"))
+                    # Count only magic-validated PDFs: a renamed 403/HTML
+                    # page named *.pdf is NOT a downloaded paper.
+                    total_pdfs += count_valid_pdfs(lit_dir)
             project_lit_dir = root / "inputs" / "literature"
-            if project_lit_dir.is_dir():
-                total_pdfs += sum(1 for _ in project_lit_dir.glob("*.pdf"))
+            total_pdfs += count_valid_pdfs(project_lit_dir)
             report["literature_required_steps"] = lit_required_steps
             report["total_pdfs_across_workspace"] = total_pdfs
             # Require BOTH override_no_pdfs=true AND a non-empty

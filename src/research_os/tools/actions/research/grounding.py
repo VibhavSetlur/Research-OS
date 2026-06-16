@@ -282,6 +282,138 @@ def grounding_for_decision(
 # ---------------------------------------------------------------------------
 
 
+def _substrate_check(
+    root: Path, evidence: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Check a verification's cited source ACTUALLY backs the claim.
+
+    The old behaviour recorded ``supports: true`` exactly as the model
+    asserted, with no check against the cited file — a self-asserted
+    pass. This binds the assertion to the substrate:
+
+      * The cited ``path`` must resolve under the project root (no path
+        traversal, must exist, must be a readable file).
+      * Where the verification carries a value/locator to look for
+        (``cited_text`` / ``locator`` / ``anchor`` / ``expected`` /
+        ``token``), that token must be present in the file's text. For
+        numeric tokens, a tolerant numeric match (±0.5% rel) also counts
+        so "0.84" matches a corpus "0.8401".
+
+    Returns a verdict dict::
+
+        {"substrate": "confirmed" | "missing_token" | "missing_file"
+                      | "no_path" | "no_locator" | "unreadable",
+         "checked_path": <rel or None>,
+         "locator": <str or None>,
+         "detail": <str>}
+
+    ``no_path`` / ``no_locator`` are NOT failures on their own — a
+    verification can legitimately cite a reasoning chain rather than a
+    file. They downgrade the claim to ``unverified`` (we couldn't
+    substantiate it), not to a hard contradiction.
+    """
+    if not isinstance(evidence, dict):
+        return {"substrate": "no_path", "checked_path": None,
+                "locator": None,
+                "detail": "no evidence object on this verification"}
+    rel = evidence.get("path") or evidence.get("file") or evidence.get("source")
+    if not rel or not isinstance(rel, str):
+        return {"substrate": "no_path", "checked_path": None,
+                "locator": None,
+                "detail": "verification carries no file path to check"}
+    # Resolve safely under root; reject traversal that escapes the project.
+    try:
+        target = (root / rel).resolve()
+        root_resolved = root.resolve()
+        target.relative_to(root_resolved)
+    except (ValueError, OSError):
+        return {"substrate": "missing_file", "checked_path": rel,
+                "locator": None,
+                "detail": f"path does not resolve under project root: {rel}"}
+    if not target.is_file():
+        return {"substrate": "missing_file", "checked_path": rel,
+                "locator": None,
+                "detail": f"cited file not found: {rel}"}
+
+    # The locator: the token/anchor the claim says lives in this file.
+    locator = None
+    for key in ("cited_text", "locator", "anchor", "expected", "token", "quote"):
+        v = evidence.get(key)
+        if v not in (None, ""):
+            locator = str(v)
+            break
+
+    try:
+        body = target.read_text(errors="replace")
+    except OSError:
+        return {"substrate": "unreadable", "checked_path": rel,
+                "locator": locator,
+                "detail": f"cited file could not be read: {rel}"}
+
+    if locator is None:
+        # File exists but the verification gave us nothing to look for.
+        # Existence alone is weak grounding → unverified, not confirmed.
+        return {"substrate": "no_locator", "checked_path": rel,
+                "locator": None,
+                "detail": (
+                    "cited file exists but no cited_text/locator/anchor "
+                    "given to substantiate the claim against it"
+                )}
+
+    if _token_present(locator, body):
+        return {"substrate": "confirmed", "checked_path": rel,
+                "locator": locator,
+                "detail": f"locator found in {rel}"}
+    return {"substrate": "missing_token", "checked_path": rel,
+            "locator": locator,
+            "detail": (
+                f"locator not present in cited file {rel} — the source "
+                "does not contain the quoted text/value"
+            )}
+
+
+def _token_present(locator: str, body: str) -> bool:
+    """Is ``locator`` present in ``body`` (verbatim, normalized, or numeric)?
+
+    Three passes, cheapest first:
+      1. Verbatim substring (case-sensitive).
+      2. Whitespace-normalized, case-folded substring — quotes copied
+         from a file often differ only in run-length whitespace/case.
+      3. Numeric tolerant match — if the locator is a bare number, look
+         for any number in the body within ±0.5% relative difference.
+    """
+    loc = locator.strip()
+    if not loc:
+        return False
+    if loc in body:
+        return True
+    norm_loc = re.sub(r"\s+", " ", loc).strip().lower()
+    norm_body = re.sub(r"\s+", " ", body).lower()
+    if norm_loc and norm_loc in norm_body:
+        return True
+    # Numeric tolerant match for a bare numeric locator.
+    num = _as_number(loc)
+    if num is not None:
+        for m in re.finditer(r"-?\d+(?:\.\d+)?(?:e[+-]?\d+)?", body, flags=re.I):
+            cand = _as_number(m.group(0))
+            if cand is None:
+                continue
+            denom = max(abs(num), abs(cand), 1e-12)
+            if abs(cand - num) / denom <= 0.005:
+                return True
+    return False
+
+
+def _as_number(tok: str) -> float | None:
+    t = tok.strip().replace(",", "")
+    if t.endswith("%"):
+        t = t[:-1]
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
 def claim_verify(
     root: Path,
     *,
@@ -297,27 +429,95 @@ def claim_verify(
         {"question": "Are variances unequal across the two groups?",
          "answer":   "Levene p < 0.01 → yes",
          "evidence": {"type": "workspace_artefact",
-                       "path": ".../residuals.csv"},
+                       "path": ".../residuals.csv",
+                       "cited_text": "Levene p = 0.003"},
          "supports": true}
 
-    A claim is "verified" only when EVERY verification entry has
-    ``supports == true``.
+    PROVENANCE-BOUND VERIFICATION
+    -----------------------------
+    Recording ``supports`` exactly as the model asserts would be a
+    self-grading pass. Instead, each verification is checked against its
+    cited substrate (see :func:`_substrate_check`):
+
+      * ``supports: true`` is only honoured when the cited file resolves
+        AND the claimed token/anchor is actually present in it. A
+        verification claiming support whose source does not contain the
+        token is downgraded — the recorded ``supports`` becomes ``false``
+        and the substrate verdict explains why.
+      * A verification with no checkable path/locator is kept as the
+        model stated it but flagged ``unverifiable`` — the overall
+        verdict for such a claim becomes ``unverified`` (not
+        ``verified``), so it can never masquerade as substantiated.
+
+    Resulting per-claim ``verdict``:
+      * ``verified``     — every verification supports AND was confirmed
+                           against its substrate.
+      * ``unverified``   — at least one supporting verification could not
+                           be substantiated (no path / no locator) but
+                           none was outright contradicted.
+      * ``needs_revision`` — at least one verification does not support,
+                           OR a claimed-support verification's source
+                           does NOT contain the cited token.
     """
     if not verifications:
         return {
             "status": "error",
             "message": "at least one verification entry required",
         }
-    n_supports = sum(1 for v in verifications if v.get("supports") is True)
-    verdict = "verified" if n_supports == len(verifications) else "needs_revision"
+
+    checked: list[dict[str, Any]] = []
+    n_supports = 0
+    n_confirmed = 0
+    n_unverifiable = 0
+    n_contradicted = 0
+    for v in verifications:
+        v = dict(v)
+        asserted = v.get("supports") is True
+        sub = _substrate_check(root, v.get("evidence"))
+        v["substrate_check"] = sub
+        verdict_sub = sub["substrate"]
+        if asserted:
+            if verdict_sub == "confirmed":
+                n_confirmed += 1
+                v["supports"] = True
+            elif verdict_sub in ("no_path", "no_locator"):
+                # Asserted but not substantiable — keep the assertion but
+                # mark it unverifiable; it can't count as confirmed.
+                v["supports_unverified"] = True
+                v["supports"] = False
+                n_unverifiable += 1
+            else:
+                # missing_file / missing_token / unreadable / missing →
+                # the cited source contradicts the asserted support.
+                v["supports"] = False
+                v["substrate_contradiction"] = True
+                n_contradicted += 1
+        else:
+            # Model itself said this does not support the claim.
+            v["supports"] = False
+        if v.get("supports") is True:
+            n_supports += 1
+        checked.append(v)
+
+    n_total = len(verifications)
+    if n_contradicted > 0 or n_confirmed < (n_total - n_unverifiable):
+        verdict = "needs_revision"
+    elif n_unverifiable > 0:
+        verdict = "unverified"
+    else:
+        verdict = "verified"
+
     rec = {
         "ts": _now(),
         "claim": claim.strip(),
         "decision_id": decision_id,
         "step_id": step_id,
-        "verifications": verifications,
-        "n_total": len(verifications),
+        "verifications": checked,
+        "n_total": n_total,
         "n_supports": n_supports,
+        "n_confirmed": n_confirmed,
+        "n_unverifiable": n_unverifiable,
+        "n_contradicted": n_contradicted,
         "verdict": verdict,
     }
     _append_jsonl(_verifications_log(root), rec)

@@ -53,3 +53,6 @@ from research_os.tools.actions.audit.findings_query import (  # noqa: F401
     audit_findings_query,
     unresolved_block_findings,
 )
+from research_os.tools.actions.audit.ship_gate import (  # noqa: F401
+    finalize_project,
+)

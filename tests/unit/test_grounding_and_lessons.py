@@ -75,6 +75,38 @@ def test_ground_from_context(tmp_path: Path):
 
 
 def test_claim_verify_records_cove(tmp_path: Path):
+    # Provenance-bound verification: supports:true is only honoured when
+    # the cited source actually contains the token. Write the substrate
+    # files first.
+    rep = tmp_path / "workspace" / "01_eda" / "outputs" / "reports"
+    rep.mkdir(parents=True)
+    (rep / "levene.md").write_text("Levene p = 0.003\n")
+    (rep / "bartlett.md").write_text("Bartlett p = 0.01\n")
+    r = claim_verify(
+        tmp_path,
+        claim="Variances are unequal across groups.",
+        verifications=[
+            {"question": "Does Levene reject equality?",
+             "answer": "p = 0.003 — yes",
+             "supports": True,
+             "evidence": {"type": "workspace_artefact",
+                          "path": "workspace/01_eda/outputs/reports/levene.md",
+                          "cited_text": "Levene p = 0.003"}},
+            {"question": "Does Bartlett agree?",
+             "answer": "p = 0.01 — yes",
+             "supports": True,
+             "evidence": {"type": "workspace_artefact",
+                          "path": "workspace/01_eda/outputs/reports/bartlett.md",
+                          "cited_text": "Bartlett p = 0.01"}},
+        ],
+    )
+    assert r["status"] == "success"
+    assert r["verdict"] == "verified"
+
+
+def test_claim_verify_unverified_without_substrate(tmp_path: Path):
+    # supports:true with no cited source can no longer self-grade to
+    # 'verified' — it is now 'unverified' (provenance-bound check).
     r = claim_verify(
         tmp_path,
         claim="Variances are unequal across groups.",
@@ -82,13 +114,10 @@ def test_claim_verify_records_cove(tmp_path: Path):
             {"question": "Does Levene reject equality?",
              "answer": "p = 0.003 — yes",
              "supports": True},
-            {"question": "Does Bartlett agree?",
-             "answer": "p = 0.01 — yes",
-             "supports": True},
         ],
     )
     assert r["status"] == "success"
-    assert r["verdict"] == "verified"
+    assert r["verdict"] == "unverified"
 
 
 def test_claim_verify_flags_needs_revision(tmp_path: Path):
