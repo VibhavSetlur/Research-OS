@@ -21,9 +21,11 @@ description: |
   loop back for the next increment.
 
   This is a SCAFFOLD. It names the discipline of an honest build loop; it
-  does not pick your language, test framework, or commit cadence. The AI
-  runs git / build / test itself via the exec tools — there is no magic
-  "commit" or "run tests" tool; you call them like any other shell work.
+  does not pick your language, test framework, or commit cadence. Git, build,
+  and test are first-class here: tool_git drives the inner repo (commit per
+  increment, with a step trailer for provenance) and tool_build runs the
+  build/test/lint commands you declared in workspace.commands. For anything
+  those don't cover, fall back to the language exec tools / tool_bash_exec.
 
   "Done" in this mode is tests/build/eval passing, NOT figures. The
   audit + figure gates that govern analysis steps do not apply here; the
@@ -31,7 +33,7 @@ description: |
 trigger: After build/spec_and_design, or whenever the researcher asks to "implement", "add a feature", "build the next increment", "fix this", "refactor", or "make it work".
 prerequisites:
   - spec/requirements.md exists with at least one acceptance criterion
-  - The inner repo exists and is a git repository (tool_build scaffold git-inits it; init it if entering mid-build)
+  - The inner repo exists and is a git repository (the tool_build scaffold git-inits it; if entering mid-build, tool_git(operation='init'))
 
 steps:
   - id: orient_loop
@@ -41,8 +43,8 @@ steps:
         - sys_boot once per session for workspace_mode + state.
         - Read the current state of the inner repo: what's the working
           tree, what's the last commit, are there uncommitted changes.
-          Run git status / git log via tool_bash_exec in the inner repo
-          dir; never assume the tree is clean.
+          tool_git(operation='status') + tool_git(operation='log') report
+          this from the inner repo; never assume the tree is clean.
         - Re-read the acceptance criterion this increment targets in
           spec/requirements.md and the relevant milestone in milestones.md.
 
@@ -115,19 +117,29 @@ steps:
       across the whole tool — consult it when the testing approach for the
       tool as a whole is unsettled, not for every small increment.
 
-      Then RUN the suite via the appropriate exec tool and read the result.
-      A green run you didn't actually execute is not evidence.
+      Then RUN the suite and read the result. tool_build(operation='test')
+      runs the test command you declared in workspace.commands.test; for a
+      one-off invocation or a language the command doesn't cover, use the
+      matching exec tool. A green run you didn't actually execute is not
+      evidence — and tool_audit(scope='tool', dimension='tests') will block a
+      suite that ran zero tests, so make sure the new test actually executes.
 
   - id: run_checks
     name: Run the checks — build, tests, linters
     description: |
-      Run the gate that defines "done" for this increment, via tool_bash_exec
-      / the language exec tools in the inner repo:
-        - the build/compile succeeds (for compiled or packaged tools);
-        - the test suite passes (the new test AND the existing ones — guard
-          against regressions);
-        - whatever static checks the project enforces (linters, type
+      Run the gate that defines "done" for this increment. tool_build runs
+      the commands you declared in workspace.commands:
+        - tool_build(operation='build') — the build/compile succeeds (for
+          compiled or packaged tools);
+        - tool_build(operation='test') — the test suite passes (the new test
+          AND the existing ones — guard against regressions);
+        - tool_build(operation='lint') — the static checks (linters, type
           checks) are clean.
+      For the gate verdict in one call, tool_audit(scope='tool',
+      dimension='tests') runs the suite and blocks on failure or a zero-test
+      run; tool_audit(scope='tool', dimension='build') does the same for the
+      build. (Anything workspace.commands doesn't cover: the language exec
+      tools / tool_bash_exec.)
 
       If anything fails, fix it within this increment before committing —
       do NOT commit a red tree and "fix it next". A broken main is the
@@ -141,10 +153,11 @@ steps:
   - id: commit
     name: Commit the increment against its objective
     description: |
-      Commit in the inner repo via tool_bash_exec (git add + git commit).
-      The commit is the unit of work and the unit of record, so the message
-      must carry meaning a future reader (or `build/release_and_changelog`)
-      can use:
+      Commit in the inner repo via tool_git(operation='commit', message=...).
+      Pass step_id= so the commit carries a Research-OS-Step trailer linking
+      it back to the RO unit of work (provenance). The commit is the unit of
+      work and the unit of record, so the message must carry meaning a future
+      reader (or `build/release_and_changelog`) can use:
         - WHAT changed, in the imperative;
         - WHY — link to the acceptance criterion / milestone / ADR / issue
           this increment advances, so the history is traceable to intent;

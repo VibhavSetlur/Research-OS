@@ -119,6 +119,11 @@ _AUDIT_DISPATCH: dict[tuple[str, str], str] = {
     ("synthesis", "dashboard_content"): "_handle_tool_audit_dashboard_content",
     ("synthesis", "figure_coverage"):   "_handle_tool_audit_figure_coverage",
     ("synthesis", "reviewer_responses"): "_handle_tool_audit_reviewer_responses",
+    # scope=tool — the tool_build analog of the analysis gates. Mode-aware:
+    # a no-op outside workspace.mode='tool_build'.
+    ("tool", "tests"):                  "_handle_tool_audit_tool_tests",
+    ("tool", "git_hygiene"):            "_handle_tool_audit_tool_git_hygiene",
+    ("tool", "build"):                  "_handle_tool_audit_tool_build",
 }
 
 

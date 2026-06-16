@@ -102,17 +102,23 @@ steps:
       Record the gate where it's actionable: as the inner repo's CI config
       and/or in eval/ as the acceptance harness. The gate should enforce the
       acceptance criteria from spec/requirements.md, closing the loop from
-      "what done means" to "what's automatically checked".
+      "what done means" to "what's automatically checked". The RO-side mirror
+      of that gate is tool_audit(scope='tool', dimension='tests'|'build') —
+      it runs the same workspace.commands the CI runs, so the AI can check
+      the gate locally before pushing.
 
   - id: wire_and_record
     name: Wire the regime in and record it
     description: |
       Scaffold the agreed regime in the inner repo — test directory layout,
       the runner invocation, fixtures, and the CI config — via the exec
-      tools (tool_bash_exec for setup, the language exec tools to run the
-      suite once and confirm it's green). Install test dependencies via
-      tool_package_install / the language's manager so the regime is
-      reproducible.
+      tools (tool_bash_exec for setup, the language exec tools as needed).
+      Record the runner invocation as workspace.commands.test (and build /
+      lint where they apply) so tool_build(operation='test') and the
+      tool_audit(scope='tool', dimension='tests') gate run the regime you
+      just designed. Run the suite once via tool_build(operation='test') and
+      confirm it's green. Install test dependencies via tool_package_install
+      / the language's manager so the regime is reproducible.
 
       mem_log the testing-regime decision (kinds chosen + rationale +
       coverage stance + CI gate) so build/implement_iteration's per-increment

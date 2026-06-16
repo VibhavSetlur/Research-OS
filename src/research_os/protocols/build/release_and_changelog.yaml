@@ -36,11 +36,14 @@ steps:
   - id: confirm_releasable
     name: Confirm the tree is releasable
     description: |
-      A release inherits whatever state the tree is in, so verify it first
-      via tool_bash_exec in the inner repo:
-        - the working tree is clean (no uncommitted changes);
-        - the build succeeds and the full test suite / CI gate is green on
-          the exact commit you intend to release;
+      A release inherits whatever state the tree is in, so verify it first:
+        - the working tree is clean (no uncommitted changes), HEAD is a real
+          commit, and recent commit subjects aren't WIP/fixup leftovers —
+          tool_audit(scope='tool', dimension='git_hygiene') checks all three;
+        - the build succeeds and the full test suite / CI gate is green on the
+          exact commit you intend to release — tool_build(operation='build')
+          + tool_build(operation='test'), or the one-shot tool_audit(scope=
+          'tool', dimension='build') / dimension='tests');
         - the relevant eval/ acceptance checks pass (the release meets the
           spec's definition of done).
 
@@ -80,7 +83,7 @@ steps:
     description: |
       Assemble the release's changelog entry from the actual history, not
       from memory of what you think changed. Read the commits since the
-      last release (git log via tool_bash_exec) and translate them into
+      last release (tool_git(operation='log')) and translate them into
       user-facing language grouped the way the project groups changes
       (commonly Added / Changed / Fixed / Removed, or the project's own
       convention).
@@ -132,10 +135,11 @@ steps:
   - id: artefact_and_tag
     name: Cut the release artefact + tag, with a citable record
     description: |
-      Produce the release: tag the version in git (annotated tag on the
-      release commit, via tool_bash_exec), build the distributable artefact
-      the ecosystem expects (package / wheel / binary / image / archive),
-      and prepare the release notes (the changelog section is the body).
+      Produce the release: tag the version in git (an annotated tag on the
+      release commit via tool_git(operation='tag', name=<version>,
+      message=...)), build the distributable artefact the ecosystem expects
+      (package / wheel / binary / image / archive), and prepare the release
+      notes (the changelog section is the body).
 
       For a tool meant to be cited or attributed, add the metadata that
       makes it citable — a CITATION file, author/affiliation, license

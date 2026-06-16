@@ -118,6 +118,15 @@ project_name: "{project_name}"
 workspace:
   mode: "analysis"        # analysis | tool_build | exploration
   inner_repo: ""          # tool_build only: inner project dir (blank → "project")
+  # tool_build only: the shell commands that define "done" for the inner
+  # repo. tool_build(operation=build|test|lint) runs these (cwd = inner
+  # repo) and tool_audit(scope='tool', dimension='build'|'tests') gates on
+  # them. Blank = the command isn't configured; that gate reports a clear
+  # "configure workspace.commands.<op>" message instead of running.
+  commands:
+    build: ""             # e.g. "make" | "cargo build" | "npm run build"
+    test: ""              # e.g. "pytest -q" | "cargo test" | "npm test"
+    lint: ""              # e.g. "ruff check ." | "cargo clippy" | "eslint ."
 
 # ── What you want to produce (blank = AI suggests; start exploratory) ───
 research_goal:

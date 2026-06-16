@@ -38,6 +38,81 @@ _INDEX_PATH = Path(__file__).parent.parent.parent / "protocols" / "_router_index
 _PROTOCOLS_DIR = Path(__file__).parent.parent.parent / "protocols"
 _ACTIVE_PLAN_FILE = "active_plan.json"
 
+# ---------------------------------------------------------------------------
+# Routing-robustness knobs — all tunable here rather than as magic
+# literals scattered through the resolver.
+# ---------------------------------------------------------------------------
+
+# CONFIDENCE-MARGIN GATE (semantic path). The semantic module already
+# abstains on its own _AMBIGUOUS_GAP (0.025), but only when the two
+# contenders sit in DIFFERENT intent_classes AND below its confidence
+# floor. Here we add a router-level guard for the band the module passes
+# through as a "medium" primary: a primary that is NOT yet clearly
+# dominant (cosine below _SEMANTIC_DOMINANT_AT) but has a different-class
+# runner-up within _SEMANTIC_MARGIN_ASK is too close to bet a YAML load
+# on — ask one short question instead. CLEARLY-DOMINANT primaries
+# (cosine ≥ _SEMANTIC_DOMINANT_AT) route silently even when a neighbour
+# shares vocabulary: a high absolute cosine means we found a real topic.
+# Tuned against the adversarial fixtures in test_router.py /
+# test_semantic_routing.py; keep both green if you move it.
+_SEMANTIC_MARGIN_ASK = 0.03
+_SEMANTIC_DOMINANT_AT = 0.62
+
+# CONFIDENCE-MARGIN GATE (trigger path). Two L3 candidates whose integer
+# trigger scores differ by less than this are "too close to call". The
+# existing L3 ambiguity check uses gap < 2 but ONLY fires within the
+# same (L1, L2) bucket; this margin additionally catches near-ties that
+# span DIFFERENT intent_classes (the real misroute risk), where the L1
+# aggregate already picked a winner and the cross-class runner-up would
+# otherwise be silently discarded. A 1-point gap on the raw trigger
+# score (one extra single-word match) is not enough separation to bet a
+# wrong protocol load on.
+_TRIGGER_MARGIN_ASK = 1
+
+# Minimum trigger length (chars) for the PARTIAL (unbounded-substring)
+# match path in _score_protocols. Exact space-bounded matches always
+# count; this only gates the fuzzier "trigger appears anywhere inside
+# the prompt" fallback so 2-3 char acronyms ("hi", "map", "ess", "mar",
+# "ipw", "uq") don't fire as accidental substrings of unrelated words
+# ("this", "heatmap", "assessment", "summary"). Their exact-token form
+# still routes.
+_PARTIAL_MATCH_MIN_LEN = 4
+
+# MODE-AWARE ROUTING BIAS. When workspace_mode == 'tool_build', add this
+# to the trigger score of every build/* protocol so build-shaped prompts
+# ("add a feature", "write tests", "cut a release") reliably win over a
+# same-vocabulary analysis protocol. It's a thumb on the scale (a single
+# extra single-word match's worth), never an override: an explicit
+# cross-mode trigger ("write the paper") still out-scores the bias.
+_MODE_BUILD_BOOST = 2
+
+# Sub-intents that belong to the tool_build workspace mode. Boosted when
+# workspace_mode == 'tool_build'.
+_BUILD_SUB_INTENTS = frozenset({
+    "build_spec", "build_implement", "build_test",
+    "build_benchmark", "build_release",
+})
+
+# EXPLORATION-mode bias. exploration workspaces are scratch-first quick
+# probes — when in that mode, nudge the lightweight / open-ended
+# protocols (casual exploration + open-ended EDA) so an ambiguous
+# "let me poke at this" leans probe-shaped rather than committing to a
+# heavyweight confirmatory loop. Smaller than the build boost: a single
+# tie-break point, since exploration overlaps heavily with normal
+# analysis vocabulary and we don't want to over-steer.
+_EXPLORATION_BOOST = 1
+
+# Sub-intents that are "quick / scratch / exploratory" shaped. Boosted
+# when workspace_mode == 'exploration'.
+_EXPLORATION_SUB_INTENTS = frozenset({"casual", "eda"})
+
+# WORKFLOW-SHAPE TIEBREAK. A light nudge (half the size of a single
+# trigger-word match, so it can only break a tie, never flip a real
+# winner) applied to protocols whose scope_tags.workflow_shape overlaps
+# the project's declared shape. 'any'-shaped protocols are universal and
+# get no nudge (they'd otherwise drown out shape-specific matches).
+_WORKFLOW_SHAPE_BOOST = 1
+
 # Cache: protocol_id → tier (read lazily from the YAML).
 _TIER_CACHE: dict[str, str] = {}
 
@@ -134,6 +209,88 @@ def reload_index() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Workspace-mode + workflow-shape signals (best-effort, never raise)
+# ---------------------------------------------------------------------------
+
+
+def _read_workspace_mode(root: Path | None) -> str:
+    """Read workspace_mode ('analysis' default). Never raises out of routing."""
+    if root is None:
+        return "analysis"
+    try:
+        from research_os.tools.actions.state.config import get_workspace_mode
+        return get_workspace_mode(root)
+    except Exception as exc:
+        logger.debug("workspace_mode read failed: %s", exc)
+        return "analysis"
+
+
+# Cache: protocol_id → tuple of workflow_shape tags read from the
+# protocol body YAML's scope_tags. Read lazily; the maintainer owns the
+# bodies but the router only reads them as a routing signal.
+_WORKFLOW_SHAPE_CACHE: dict[str, tuple[str, ...]] = {}
+
+
+def _protocol_workflow_shape(protocol_id: str) -> tuple[str, ...]:
+    """Return the scope_tags.workflow_shape tags for a protocol body.
+
+    Best-effort: returns () when the body is missing, malformed, or has no
+    workflow_shape. Cached for process lifetime.
+    """
+    cached = _WORKFLOW_SHAPE_CACHE.get(protocol_id)
+    if cached is not None:
+        return cached
+    shape: tuple[str, ...] = ()
+    try:
+        rel = protocol_id if protocol_id.endswith(".yaml") else f"{protocol_id}.yaml"
+        candidate = _PROTOCOLS_DIR / rel
+        if candidate.exists():
+            data = yaml.safe_load(candidate.read_text()) or {}
+            tags = (data.get("scope_tags") or {}).get("workflow_shape") or []
+            if isinstance(tags, list):
+                shape = tuple(str(t).strip().lower() for t in tags if t)
+            elif isinstance(tags, str):
+                shape = (tags.strip().lower(),)
+    except Exception as exc:
+        logger.debug("workflow_shape read for %s failed: %s", protocol_id, exc)
+    _WORKFLOW_SHAPE_CACHE[protocol_id] = shape
+    return shape
+
+
+def _read_project_workflow_shape(root: Path | None) -> str | None:
+    """Read the project's declared workflow_shape from researcher_config.
+
+    Looks under ``workspace.workflow_shape`` first (forward-compatible)
+    then a top-level ``workflow_shape``. Returns a lowercased string or
+    None when unset. Never raises out of routing.
+    """
+    if root is None:
+        return None
+    try:
+        from research_os.tools.actions.state.config import get_config
+        cfg_res = get_config(root)
+        if cfg_res.get("status") != "success":
+            return None
+        cfg = cfg_res.get("config", {}) or {}
+        workspace = cfg.get("workspace") or {}
+        shape = None
+        if isinstance(workspace, dict):
+            shape = workspace.get("workflow_shape")
+        if not shape:
+            shape = cfg.get("workflow_shape")
+        if isinstance(shape, str) and shape.strip():
+            return shape.strip().lower()
+    except Exception as exc:
+        logger.debug("project workflow_shape read failed: %s", exc)
+    return None
+
+
+def _clear_workflow_shape_cache() -> None:
+    """Test hook — drop the workflow-shape cache."""
+    _WORKFLOW_SHAPE_CACHE.clear()
+
+
+# ---------------------------------------------------------------------------
 # Semantic routing — primary path when fastembed + embeddings file present
 # ---------------------------------------------------------------------------
 
@@ -147,6 +304,8 @@ def _try_semantic_route(
     is_complex: bool,
     root: Path,
     persist_plan: bool,
+    workspace_mode: str = "analysis",
+    project_workflow_shape: str | None = None,
 ) -> dict[str, Any] | None:
     """Run the semantic router and shape the result like the trigger router.
 
@@ -158,6 +317,11 @@ def _try_semantic_route(
         the semantic path missed).
       - the top semantic protocol_id is not in the router index (defensive
         — happens if embeddings + index are out of sync).
+      - MODE override: in ``tool_build`` mode a build/* protocol matched a
+        trigger strongly enough that we'd rather take the mode-biased
+        trigger path than the semantic guess (keeps build-shaped prompts
+        landing on build/* even when their vocabulary embeds near an
+        analysis protocol).
     """
     try:
         from research_os.tools.actions import semantic
@@ -165,6 +329,25 @@ def _try_semantic_route(
         return None
     if not semantic.semantic_available():
         return None
+
+    # MODE override (tool_build): if a build/* protocol has a strong
+    # trigger match, defer to the mode-biased trigger router rather than
+    # the semantic guess. "Strong" = a multi-word trigger (base ≥ 4) so a
+    # single stray build word doesn't hijack an analysis prompt.
+    if workspace_mode == "tool_build":
+        prompt_norm = " " + re.sub(r"[,.;:!?]+", " ", prompt.lower().strip()) + " "
+        prompt_norm = re.sub(r"\s+", " ", prompt_norm)
+        build_scored = [
+            s for s in _score_protocols(
+                prompt_norm, protocols,
+                workspace_mode=workspace_mode,
+                project_workflow_shape=project_workflow_shape,
+            )
+            if (s["data"].get("sub_intent") in _BUILD_SUB_INTENTS)
+            and s.get("base_score", 0) >= 4
+        ]
+        if build_scored:
+            return None
 
     sem = semantic.semantic_route(prompt, k=5)
     if sem is None:
@@ -186,6 +369,77 @@ def _try_semantic_route(
         )
         return None
 
+    # ── CONFIDENCE-MARGIN GATE (semantic path) ─────────────────────────
+    # Even on a confident primary, if the runner-up's cosine is within
+    # _SEMANTIC_MARGIN_ASK AND it lives in a different intent_class, the
+    # two are too close to silently pick one. Surface a 2-named ask_user
+    # instead of loading the wrong YAML. (Same-intent-class near-ties are
+    # left alone — picking the wrong sibling is cheap to recover from.)
+    cands = sem.get("candidates") or []
+    if len(cands) >= 2:
+        try:
+            s0 = float(cands[0].get("score", 0.0))
+            s1 = float(cands[1].get("score", 0.0))
+        except (TypeError, ValueError):
+            s0, s1 = 1.0, 0.0
+        id0, id1 = cands[0].get("id"), cands[1].get("id")
+        cls0 = (protocols.get(id0) or {}).get("intent_class")
+        cls1 = (protocols.get(id1) or {}).get("intent_class")
+        if (
+            id1 in protocols
+            and cls0 and cls1 and cls0 != cls1
+            and s0 < _SEMANTIC_DOMINANT_AT          # not clearly dominant
+            and (s0 - s1) < _SEMANTIC_MARGIN_ASK
+        ):
+            return {
+                "status": "success",
+                "resolved_level": 2,
+                "intent_class": None,
+                "sub_intent": None,
+                "primary_protocol": None,
+                "shortcut_tool": None,
+                "decomposition": [],
+                "alternatives": [
+                    {
+                        "name": c.get("id"),
+                        "score": round(float(c.get("score", 0.0)), 4),
+                        "intent_class": (protocols.get(c.get("id")) or {}).get(
+                            "intent_class"
+                        ),
+                        "why_matched": (
+                            f"Semantic similarity {round(float(c.get('score', 0.0)), 3)}"
+                        ),
+                    }
+                    for c in cands[:3]
+                    if c.get("id") in protocols
+                ],
+                "ambiguous_alternatives": [id0, id1],
+                "matched_triggers": [],
+                "why_matched": (
+                    f"Two protocols match similarly ({round(s0, 3)} vs "
+                    f"{round(s1, 3)}) across different intent classes."
+                ),
+                "tier": None,
+                "tier_transition": _compute_route_transition(root, None),
+                "complexity": "high" if is_complex else "low",
+                "ask_user": (
+                    "Your prompt matches two different kinds of work about "
+                    f"equally: (1) {id0} — {(protocols.get(id0) or {}).get('summary', id0)}; "
+                    f"or (2) {id1} — {(protocols.get(id1) or {}).get('summary', id1)}. "
+                    "Which did you mean?"
+                ),
+                "why": (
+                    "Confidence-margin gate: top-2 semantic candidates within "
+                    f"{_SEMANTIC_MARGIN_ASK} across intent classes."
+                ),
+                "advice": _route_advice_hier(2, is_complex, None, None, True),
+                "token_estimate": None,
+                "active_tools": list(_ESSENTIAL_TOOLS),
+                "method": "semantic",
+                "confidence": "low",
+                "semantic_candidates": cands,
+            }
+
     primary_data = protocols[primary_id]
     decomposition = primary_data.get("decomposition", []) or []
     shortcut_tool = primary_data.get("shortcut_tool")
@@ -205,7 +459,11 @@ def _try_semantic_route(
     # promised, none persisted).
     fall_through = False
     if is_complex and not decomposition:
-        scored = _score_protocols(prompt.lower(), protocols)
+        scored = _score_protocols(
+            prompt.lower(), protocols,
+            workspace_mode=workspace_mode,
+            project_workflow_shape=project_workflow_shape,
+        )
         for cand in scored[:3]:
             cand_data = cand["data"]
             if cand_data.get("decomposition"):
@@ -728,6 +986,13 @@ def route_request(
         prompt_norm = re.sub(r"\s+", " ", prompt_norm)
         is_complex = _is_complex(prompt_norm)
 
+        # Mode + shape signals — read once, used by both the semantic and
+        # the trigger paths to bias scoring (build/* boost in tool_build
+        # mode; workflow_shape tiebreak). Best-effort; default analysis /
+        # no-shape so a missing config behaves exactly like today.
+        workspace_mode = _read_workspace_mode(root)
+        project_workflow_shape = _read_project_workflow_shape(root)
+
         # Quick-mode pre-check. If the prompt explicitly signals
         # throwaway / sanity-check / exploratory intent, short-circuit
         # the protocol load. Results write to workspace/scratch/, no
@@ -777,14 +1042,21 @@ def route_request(
         # bows out on low-confidence answers so the trigger router can
         # try a literal-phrase match.
         if not shortcut_hit:
-            semantic_resp = _try_semantic_route(prompt, protocols, hierarchy,
-                                                shortcuts, is_complex=is_complex,
-                                                root=root, persist_plan=persist_plan)
+            semantic_resp = _try_semantic_route(
+                prompt, protocols, hierarchy, shortcuts,
+                is_complex=is_complex, root=root, persist_plan=persist_plan,
+                workspace_mode=workspace_mode,
+                project_workflow_shape=project_workflow_shape,
+            )
             if semantic_resp is not None:
                 return semantic_resp
 
         # ── Step 1: score every protocol; group by (class, sub_intent) ─
-        scored = _score_protocols(prompt_norm, protocols)
+        scored = _score_protocols(
+            prompt_norm, protocols,
+            workspace_mode=workspace_mode,
+            project_workflow_shape=project_workflow_shape,
+        )
 
         # state_hint bias: when the caller passes the AI's currently-active
         # phase (e.g. ``{"current_phase": "synthesize"}`` mid-paper), nudge
@@ -841,9 +1113,39 @@ def route_request(
             and (candidates_l3[0]["score"] - candidates_l3[1]["score"]) < 2
         )
 
+        # ── CONFIDENCE-MARGIN GATE (cross-class, trigger path) ─────────
+        # The L3 check above only catches near-ties WITHIN the chosen
+        # (L1, L2) bucket. The more dangerous misroute is two protocols
+        # in DIFFERENT intent_classes tying for the top — the L1
+        # aggregate quietly picks one and the cross-class runner-up
+        # vanishes. Detect that here on the *base* trigger score (before
+        # the mode / shape thumb-on-the-scale, so an intentional build
+        # boost doesn't read as an accidental tie) and surface a 2-named
+        # ask_user. Only fires when the top match is NOT clearly
+        # dominant: a multi-word trigger (base ≥ 4) beating a lone word
+        # (base ≤ 2) is a comfortable margin and routes silently.
+        cross_class_ambiguous = False
+        cross_class_pair: list[dict] = []
+        if not l3_ambiguous and not shortcut_hit and len(scored) >= 2:
+            top0, top1 = scored[0], scored[1]
+            cls0 = (top0["data"].get("intent_class") or "")
+            cls1 = (top1["data"].get("intent_class") or "")
+            base0 = top0.get("base_score", top0["score"])
+            base1 = top1.get("base_score", top1["score"])
+            if (
+                cls0 and cls1 and cls0 != cls1
+                and (base0 - base1) <= _TRIGGER_MARGIN_ASK
+            ):
+                cross_class_ambiguous = True
+                cross_class_pair = [top0, top1]
+
         # Final resolved level.
         if not l1_winner:
             resolved_level = 0
+        elif cross_class_ambiguous:
+            # Genuinely split across intent_classes — drop to L2 so the AI
+            # asks before loading a YAML.
+            resolved_level = 2
         elif not l2_winner:
             resolved_level = 1
         elif not l3_winner or l3_ambiguous:
@@ -852,7 +1154,11 @@ def route_request(
             resolved_level = 3
 
         # ── Build the response ────────────────────────────────────────
-        primary_name = l3_winner["name"] if l3_winner and not l3_ambiguous else None
+        primary_name = (
+            l3_winner["name"]
+            if l3_winner and not l3_ambiguous and not cross_class_ambiguous
+            else None
+        )
         primary_data = l3_winner["data"] if l3_winner else {}
         decomposition = primary_data.get("decomposition", []) or []
 
@@ -861,19 +1167,22 @@ def route_request(
         shortcut_tool = None
         if shortcut_hit:
             shortcut_tool = shortcut_hit["tool"]
-        elif primary_data:
+        elif primary_data and not cross_class_ambiguous:
             shortcut_tool = primary_data.get("shortcut_tool")
 
         # Ambiguity prompt for the AI to surface to the researcher.
-        ask_user = _ask_user_for_level(
-            resolved_level,
-            hierarchy,
-            l1_winner,
-            l1_alternatives,
-            l2_winner,
-            l2_alternatives,
-            candidates_l3 if l3_ambiguous else [],
-        )
+        if cross_class_ambiguous:
+            ask_user = _ask_user_cross_class(cross_class_pair)
+        else:
+            ask_user = _ask_user_for_level(
+                resolved_level,
+                hierarchy,
+                l1_winner,
+                l1_alternatives,
+                l2_winner,
+                l2_alternatives,
+                candidates_l3 if l3_ambiguous else [],
+            )
 
         # Build per-result `why_matched` for the primary + alternatives.
         primary_matched = (
@@ -909,7 +1218,9 @@ def route_request(
             "decomposition": decomposition if resolved_level == 3 else [],
             "alternatives": alternatives_full,
             "ambiguous_alternatives": (
-                [c["name"] for c in candidates_l3[:3]] if l3_ambiguous else []
+                [c["name"] for c in cross_class_pair]
+                if cross_class_ambiguous
+                else ([c["name"] for c in candidates_l3[:3]] if l3_ambiguous else [])
             ),
             "matched_triggers": primary_matched,
             "why_matched": primary_why_matched,
@@ -1037,6 +1348,25 @@ def _ask_user_for_level(
             + ". Which one?"
         )
     return None
+
+
+def _ask_user_cross_class(pair: list[dict]) -> str | None:
+    """One-sentence disambiguation naming the two near-tied candidates.
+
+    Fired by the confidence-margin gate when the top two protocols sit in
+    different intent_classes within ``_TRIGGER_MARGIN_ASK`` of each other.
+    Names both so the AI can ask a crisp follow-up instead of guessing.
+    """
+    if len(pair) < 2:
+        return None
+    a, b = pair[0], pair[1]
+    a_sum = (a.get("data") or {}).get("summary") or a["name"]
+    b_sum = (b.get("data") or {}).get("summary") or b["name"]
+    return (
+        "Your prompt matches two different kinds of work about equally: "
+        f"(1) {a['name']} — {a_sum}; or (2) {b['name']} — {b_sum}. "
+        "Which did you mean?"
+    )
 
 
 def _format_why_matched(
@@ -1256,7 +1586,32 @@ def _shortcut_response(
     return response
 
 
-def _score_protocols(prompt_norm: str, protocols: dict) -> list[dict]:
+def _score_protocols(
+    prompt_norm: str,
+    protocols: dict,
+    *,
+    workspace_mode: str = "analysis",
+    project_workflow_shape: str | None = None,
+) -> list[dict]:
+    """Score every protocol against the normalised prompt.
+
+    Two additive biases on top of the raw trigger score:
+
+      * MODE bias — when ``workspace_mode == 'tool_build'`` every build/*
+        protocol gets ``_MODE_BUILD_BOOST`` so build-shaped prompts win
+        over same-vocabulary analysis protocols. A thumb on the scale,
+        not an override: it's only applied to protocols that ALREADY
+        matched a trigger (score > 0), so an unrelated build protocol is
+        never conjured out of nothing.
+      * WORKFLOW-SHAPE tiebreak — a protocol whose body declares a
+        ``workflow_shape`` overlapping the project's declared shape gets
+        a tiny ``_WORKFLOW_SHAPE_BOOST``. Applied only to already-matched
+        protocols; 'any'-shaped protocols are universal and skipped.
+
+    Both biases are recorded on the entry (``mode_boost`` /
+    ``shape_boost``) so the margin gate can reason about whether a near
+    tie was created purely by a thumb-on-the-scale.
+    """
     scored: list[dict] = []
     for name, data in protocols.items():
         if not isinstance(data, dict):
@@ -1264,18 +1619,45 @@ def _score_protocols(prompt_norm: str, protocols: dict) -> list[dict]:
         score = 0
         matched: list[str] = []
         for trig in data.get("triggers", []) or []:
-            t = " " + str(trig).lower().strip() + " "
+            trig_lc = str(trig).lower().strip()
+            t = " " + trig_lc + " "
             if t in prompt_norm:
                 # Multi-word triggers outrank single-word ones.
                 weight = max(1, len(str(trig).split()))
                 score += weight * 2
                 matched.append(str(trig))
-            elif str(trig).lower() in prompt_norm:
-                # partial match still counts (substring inside a longer word)
+            elif len(trig_lc) >= _PARTIAL_MATCH_MIN_LEN and trig_lc in prompt_norm:
+                # Partial match (substring inside a longer word). Gated by
+                # a minimum length so short acronyms don't fire as
+                # accidental substrings of unrelated words.
                 score += 1
                 matched.append(str(trig))
-        if score > 0:
-            scored.append({"name": name, "data": data, "score": score, "matched": matched})
+        if score <= 0:
+            continue
+        base_score = score
+        # ── MODE bias (build/* or exploration probes) ─────────────────
+        mode_boost = 0
+        sub = data.get("sub_intent")
+        if workspace_mode == "tool_build" and sub in _BUILD_SUB_INTENTS:
+            mode_boost = _MODE_BUILD_BOOST
+        elif workspace_mode == "exploration" and sub in _EXPLORATION_SUB_INTENTS:
+            mode_boost = _EXPLORATION_BOOST
+        # ── WORKFLOW-SHAPE tiebreak ───────────────────────────────────
+        shape_boost = 0
+        if project_workflow_shape:
+            shape = _protocol_workflow_shape(name)
+            if shape and "any" not in shape and project_workflow_shape in shape:
+                shape_boost = _WORKFLOW_SHAPE_BOOST
+        score = base_score + mode_boost + shape_boost
+        scored.append({
+            "name": name,
+            "data": data,
+            "score": score,
+            "base_score": base_score,
+            "mode_boost": mode_boost,
+            "shape_boost": shape_boost,
+            "matched": matched,
+        })
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored
 

@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 24
+version: 25
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -188,8 +188,13 @@ protocols:
     intent_class: session
     sub_intent: boot
     summary: "First protocol of every session. Loads state + config + sets behaviour."
-    triggers: ["hi", "hello", "start session", "begin", "open", "boot",
-              "let's begin", "good morning"]
+    # NOTE: bare "begin" / "open" / "boot" removed (v3.0.0) — they
+    # grabbed unrelated prompts ("begin analysing", "open the data
+    # file") and "boot" partial-matched "bootstrap" / "reboot". The
+    # session greeting is carried by hi / hello / start session /
+    # let's begin / good morning, which don't collide.
+    triggers: ["hi", "hello", "start session", "boot up",
+              "let's begin", "good morning", "start a session"]
     shortcut_tool: sys_boot
     token_estimate: 1500
     decomposition:
@@ -288,7 +293,11 @@ protocols:
     triggers:
       - "review this paper"
       - "tear apart"
-      - "critique"
+      # bare "critique" removed (v3.0.0) — collided with figure_critique
+      # ("critique this figure"). Paper-specific forms below.
+      - "critique this paper"
+      - "critique the paper"
+      - "critique this manuscript"
       - "tough reviewer"
       - "quick review"
       - "what do you think of this paper"
@@ -337,6 +346,17 @@ protocols:
       - "new project"
       - "figure out what's going on"
       - "tell me what you're going to do"
+      # Beginner / plain-English phrasings (v3.0.0). A novice who just
+      # has a file and no plan asks "i have a csv what do i do".
+      - "i have a csv what do i do"
+      - "i have a csv"
+      - "i have a dataset what do i do"
+      - "i have some data what do i do"
+      - "what do i do with this data"
+      - "what do i do with my data"
+      - "where do i start with this data"
+      - "i have data what now"
+      - "got a csv"
     shortcut_tool: tool_intake_autofill
     token_estimate: 1400
     decomposition:
@@ -407,10 +427,15 @@ protocols:
       - "what should i do next"
       - "what's next"
       - "propose next"
-      - "iterate"
+      # bare "iterate" removed (v3.0.0) — collided with build
+      # ("iterate on the tool") and the step_iterate shortcut
+      # ("iterate on this step"). Plan-level forms below.
+      - "iterate on the plan"
+      - "iterate the approach"
       - "i'm stuck"
       - "what now"
       - "what do i do"
+      - "what do i do next"
     shortcut_tool: tool_plan_next_step
     token_estimate: 800
     decomposition:
@@ -547,6 +572,11 @@ protocols:
       - "refactor this"
       - "extract this into"
       - "fix this bug"
+      - "fix the bug"
+      - "fix a bug"
+      - "fix the bugs"
+      - "squash the bug"
+      - "patch the bug"
       - "commit this"
       - "build loop"
       - "iterate on the tool"
@@ -699,7 +729,17 @@ protocols:
     intent_class: methodology
     sub_intent: pick
     summary: "Choose statistical / computational method given design + data."
-    triggers: ["pick method", "which method", "choose model", "what should i use"]
+    triggers: ["pick method", "which method", "choose model", "what should i use",
+               # Beginner / plain-English phrasings (v3.0.0). Novices ask
+               # "what stats should i use" and "is my result significant"
+               # — both are method-selection questions (which test fits).
+               "what stats should i use", "what statistics should i use",
+               "what test should i use", "which test should i use",
+               "what statistical test", "which statistical test",
+               "is my result significant", "is this significant",
+               "is my result statistically significant",
+               "how do i test this", "what analysis should i run",
+               "which model should i use", "what method should i use"]
 
   methodology/pick_tool_stack:
     intent_class: methodology
@@ -808,9 +848,13 @@ protocols:
     intent_class: methodology
     sub_intent: qualitative
     summary: "COREQ/SRQR interview / focus-group / thematic analysis."
-    triggers: ["interviews", "thematic", "qualitative", "coding", "coreq",
+    # NOTE: bare "coding" removed (v3.0.0) — it collided with software
+    # "coding this up" (→ build/implement). The qualitative sense is
+    # carried by open coding / axial coding / thematic coding.
+    triggers: ["interviews", "thematic", "qualitative", "coreq",
               "srqr", "grounded theory", "ethnography", "focus group",
-              "open coding", "axial coding"]
+              "open coding", "axial coding", "thematic coding",
+              "qualitative coding"]
 
   methodology/qualitative_pii_redaction:
     intent_class: methodology
@@ -842,9 +886,15 @@ protocols:
     intent_class: methodology
     sub_intent: irr
     summary: "Design + compute + report inter-rater reliability (kappa / alpha / ICC)."
+    # NOTE: bare "alpha" + "agreement" removed (v3.0.0) — "alpha" grabbed
+    # "set alpha to 0.05" / "alphabetical" and "agreement" grabbed "data
+    # sharing agreement". The specific forms (krippendorff alpha, rater
+    # agreement, annotation reliability) carry the intent without the
+    # collisions.
     triggers: ["inter-rater", "inter-coder", "irr", "kappa",
-               "krippendorff", "alpha", "icc", "agreement",
-               "annotation reliability", "rater agreement"]
+               "krippendorff", "krippendorff alpha", "icc",
+               "annotation reliability", "rater agreement",
+               "inter-rater agreement", "coder agreement"]
 
   methodology/survey_design:
     intent_class: methodology
@@ -1034,7 +1084,12 @@ protocols:
     intent_class: synthesize
     sub_intent: geo
     summary: "Plot a map (choropleth, points, raster); projection + classification + palette."
-    triggers: ["map", "choropleth", "geospatial", "shapefile",
+    # NOTE: bare "map" removed (v3.0.0) — it grabbed "heatmap", "roadmap",
+    # "map the gene names". Replaced with the unambiguous map-making
+    # phrasings; "choropleth" / "geospatial" / "shapefile" already carry
+    # the specific intent.
+    triggers: ["make a map", "plot a map", "draw a map", "map of",
+               "choropleth", "geospatial", "shapefile",
                "geojson", "lat/lon", "gis", "trajectory map",
                "geographic", "spatial visualization",
                "satellite imagery", "raster map", "leaflet",
@@ -1148,7 +1203,13 @@ protocols:
     sub_intent: paper
     summary: "AI authors IMRAD paper.typ; tool_typst_compile renders PDF."
     triggers: ["write the paper", "draft the paper", "write a manuscript",
-              "the manuscript", "imrad", "for a journal", "for the journal"]
+              "the manuscript", "imrad", "for a journal", "for the journal",
+              # Beginner / plain-English phrasings (v3.0.0). "write this
+              # up" / "write up my results" is the novice route to the
+              # canonical IMRAD write-up.
+              "help me write this up", "write this up", "write it all up",
+              "write up my results", "write up the results",
+              "write up my findings", "help me write up"]
     shortcut_tool: tool_synthesize_plan
     decomposition:
       - tool: tool_synthesize_plan
@@ -1380,6 +1441,20 @@ protocols:
       - "pretty figures"
       - "build figures from"
       - "i want pretty figures"
+      # Beginner / plain-English phrasings (v3.0.0). Novices say "chart"
+      # and "graph", not "figure".
+      - "make a chart"
+      - "make a graph"
+      - "make me a chart"
+      - "make me a graph"
+      - "draw a chart"
+      - "draw a graph"
+      - "plot this"
+      - "plot my data"
+      - "graph my data"
+      - "chart my data"
+      - "can you make a graph"
+      - "can you make a chart"
     token_estimate: 1500
     decomposition:
       - protocol: visualization/visualization_workflow
@@ -1543,6 +1618,18 @@ protocols:
       - "what should i be asking"
       - "open-ended exploration"
       - "find a hypothesis"
+      # Beginner / plain-English phrasings (v3.0.0). Novices rarely say
+      # "EDA" — they say "look at my data" / "what's in my data".
+      - "look at my data"
+      - "look at the data"
+      - "explore my data"
+      - "understand my data"
+      - "get to know my data"
+      - "what's in my data"
+      - "what is in my data"
+      - "summarize my data"
+      - "summarise my data"
+      - "poke around the data"
     token_estimate: 1700
     decomposition:
       - protocol: methodology/exploratory_data_analysis
@@ -1590,6 +1677,16 @@ protocols:
       - "before i trust this data"
       - "check missingness"
       - "check data leakage"
+      # Beginner / plain-English phrasings (v3.0.0). "clean my data" is
+      # the novice entry point to QC + quality auditing.
+      - "clean my data"
+      - "clean the data"
+      - "clean up my data"
+      - "is my data clean"
+      - "is my data any good"
+      - "check my data"
+      - "check my data quality"
+      - "tidy my data"
     token_estimate: 1500
     decomposition:
       - protocol: methodology/data_quality_audit
@@ -1796,10 +1893,12 @@ protocols:
       - "bringing this into ro"
       - "import this project"
       - "migrate this into ro"
-      - "fork"
+      # bare "fork" removed (v3.0.0) — grabbed "fork in the road" / git
+      # forks. The pipeline-specific forms below carry the intent.
       - "fork a pipeline"
       - "fork this pipeline"
       - "fork an existing pipeline"
+      - "fork the pipeline"
       - "inherited"
       - "took over"
       - "took over from"
