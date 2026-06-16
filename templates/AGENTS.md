@@ -141,6 +141,29 @@ synthesis.
 
 ---
 
+## Workspace modes
+
+`sys_boot` reports `workspace_mode` (set at `research-os init`). It
+shapes what "a unit of work" and "done" mean — let it steer routing:
+
+* **analysis** (default) — the classic numbered-step model. A unit of
+  work is an experiment step under `workspace/NN_*`; "done" is figures +
+  tables + grounded conclusions (`guidance/analysis_plan`).
+* **tool_build** — Research OS governs a software build from above
+  (`spec/`, `decisions/`, `eval/`); the tool lives in an inner git repo.
+  A unit of work is a **commit / iteration in the inner repo**, and
+  "done" is **tests / build / eval passing, not figures**. Route to the
+  `build/*` protocols: `build/spec_and_design` (what + definition of
+  done) → `build/implement_iteration` (the inner loop; loops per
+  increment) → `build/test_strategy`, `build/benchmark_vs_baseline`,
+  `build/release_and_changelog`. You run git / build / test yourself via
+  `tool_bash_exec` (and `tool_task` for long builds) — there is no
+  dedicated commit/test tool.
+* **exploration** — scratch-first. `workspace/scratch/` is home base;
+  gates are light; promote a probe to a numbered step only when it earns it.
+
+---
+
 ## Quick lookup
 
 | Need | Look in |

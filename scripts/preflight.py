@@ -396,6 +396,7 @@ def check_protocols_referenced_tools_resolve():
         "tool_name",        # field inside tool_external_tool_instructions
         "tool_discovery",   # protocol name (methodology/tool_discovery)
         "tool_list",        # word appearing in prose ("tool list")
+        "tool_build",       # workspace.mode name (build/* protocols, scope_tags)
     }
     refs: dict[str, set[str]] = {}
     # Match a tool name, but reject the match if the very next char is `*`
