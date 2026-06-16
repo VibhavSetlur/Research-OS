@@ -1,13 +1,16 @@
 id: fairness_audit
 tier: 'plan'
 name: Fairness Audit (ML / decision systems / clinical AI)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/machine_learning          # the model whose fairness is audited
+  - methodology/data_ethics_review         # group-attribute collection lawfulness
 description: |
   When a predictive model or decision system will be used in a
   context where outcomes affect people differently across groups
@@ -154,22 +157,22 @@ steps:
   - id: compute_disparity_metrics
     name: Compute the disparity metrics on test + held-out data
     description: |
-      tool_python_exec (or tool_r_exec) — packages include:
-        - aif360 (IBM): comprehensive, many metrics + mitigations
-        - fairlearn (Microsoft): clean API, good docs
-        - holisticai (Holistic AI): metrics + bias mitigation
-        - audit-AI (pymetrics): regulatory-flavoured (4/5ths rule)
-        - R: fairness, fairmodels
+      Write the audit script via tool_python_exec (or tool_r_exec).
+      Fairness toolkits exist in both ecosystems; surface the one the
+      field's recent fairness literature uses for THIS criterion (e.g.
+      via tool_research_method) rather than defaulting — toolkits
+      differ in which metrics and mitigations they implement.
 
       Compute the chosen criterion's metrics per group + per
       intersectional subgroup. Persist:
-        - per-group TPR, FPR, TNR, FNR, PPV, NPV, base rate,
-          prediction rate
+        - per-group confusion-matrix rates the criterion needs (TPR,
+          FPR, TNR, FNR, PPV, NPV), base rate, prediction rate
         - the chosen-criterion disparity (ratio + difference)
         - calibration plots per group
         - confidence intervals (bootstrap when not analytic)
-        - if a regulatory test applies (e.g. 4/5ths rule for
-          employment), the test outcome
+        - if a regulatory disparate-impact test applies in the
+          jurisdiction, run it and report the outcome + cite the
+          governing rule
 
       Save to workspace/.fairness/disparity_report.md.
 
@@ -271,9 +274,8 @@ quality_bar:
   model_card_drafted: true
   monitoring_plan_specifies_metrics_thresholds_and_escalation: true
 
-# Back-edge to methodology/uncertainty_quantification removed to
-# break a 2-cycle; route via the dispatcher when uncertainty work
-# is needed after fairness analysis.
+# Route via the dispatcher when uncertainty work is needed after the
+# fairness analysis (no back-edge here, to keep the graph acyclic).
 next_protocol: null
 next_protocol_kind: terminal
 on_failure: guidance/scope_clarification

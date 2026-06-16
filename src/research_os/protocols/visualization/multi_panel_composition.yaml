@@ -1,12 +1,16 @@
 id: multi_panel_composition
 tier: 'synthesize'
 name: Multi-Panel Figure Composition (Figure 2 = A / B / C / D)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/figure_guidelines   # single-panel styling rules each panel still obeys
+  - visualization/figure_critique      # adversarial encoding check for a headline composite
 description: |
   Compose a multi-panel figure — the kind where Figure 2 has panels
   A, B, C, D each making a related point. Real papers spend a lot of
@@ -67,7 +71,7 @@ steps:
       coherent claim.
 
   - id: enumerate_panels
-    name: Enumerate the panels (≤6, justify each)
+    name: Enumerate the panels (justify each)
     description: |
       For each panel, write:
         - panel label (A, B, C, ... in reading order)
@@ -80,8 +84,11 @@ steps:
         - whether axis / colour scales should be SHARED with other
           panels
 
-      Hard cap: ≤6 panels per figure. More than 6 panels usually
-      means the figure is doing the work of two — split.
+      Watch the panel count: when the panels stop reading at the
+      destination size, or when they no longer collapse to ONE
+      whole-figure claim, the figure is doing the work of two —
+      split it rather than cramming. Each panel must earn its place
+      in the single story from name_the_story.
 
       Write the plan to workspace/scratch/multi_panel_<slug>.md.
 
@@ -98,15 +105,16 @@ steps:
       For 4-panel: 2 × 2 unless the panels form a clear sequence
       (e.g. four time points), in which case 1 × 4 reads better.
 
-      Aspect ratio of the final figure:
-        - single-column paper figure   →  ≤ 3.5 inches wide
-        - double-column paper figure   →  ≤ 7.2 inches wide
-        - slide figure                 →  ≤ 10 inches wide
-        - poster figure                →  per poster column width
+      Set the final figure WIDTH from the destination's column
+      width — a single-column vs double-column journal slot, the
+      slide's safe area, the poster column. Use the target venue's
+      stated figure width; the common single-/double-column print
+      widths are a starting estimate, not the bound.
 
-      Choose ROW HEIGHT so each panel reads at the destination —
-      typically ≥ 1.5 inches per panel for paper, ≥ 2 inches for
-      slides / posters.
+      Choose ROW HEIGHT so each panel still reads at the destination
+      size — verify by opening the render at 100% (the
+      pre_publish self-review in figure_guidelines), not by a fixed
+      per-panel height.
 
   - id: align_scales_where_appropriate
     name: Align axis + colour scales across panels (where appropriate)
@@ -232,7 +240,7 @@ expected_outputs:
   - workspace/<step>/outputs/figures/<slug>_composite.summary.md
 
 quality_bar:
-  panel_count_at_most_six: true
+  every_panel_earns_its_place_in_one_story: true
   whole_figure_claim_is_one_sentence: true
   panel_labels_consistent_position: true
   shared_scales_when_panels_compare_same_quantity: true

@@ -1,12 +1,16 @@
 id: revise_and_resubmit
 tier: 'review'
 name: Revise & Resubmit (full R&R orchestration)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, humanities]
-  audience: [auditor]
+  domain: [any]
+  audience: [researcher, naive_ai]
   workflow_shape: [any]
+see_also:
+  - guidance/peer_review_response      # the reply-drafting sub-step this protocol owns end-to-end
+  - audit/pre_submission_checklist     # the final GREEN/YELLOW/RED gate (next_protocol)
 description: |
   End-to-end orchestration for a Revise & Resubmit decision from a
   journal. Distinct from `guidance/peer_review_response`, which
@@ -93,25 +97,23 @@ steps:
 
         VERDICT ∈ {ACCEPT, CLARIFY, PARTIAL, PUSH-BACK, DEFER}
 
-        ROUTE ∈ {
-          analysis_plan,           # new experiment / new analysis
-          methodology/cox_ph_diagnostics,    # PH-specific question
-          methodology/missing_data_strategy, # missing-data question
-          methodology/qualitative_quality_audit, # qualitative re-audit
-          methodology/power_analysis,         # power / N question
-          methodology/preregistration,        # SAP-deviation question
-          writing/writing_results,            # results re-draft
-          writing/writing_methods,            # methods re-draft
-          writing/writing_discussion,         # discussion re-draft
-          writing/writing_limitations,        # limitations re-draft
-          writing/writing_data_availability,  # end-matter
-          visualization/figure_critique,      # single-figure fix
-          visualization/multi_panel_composition, # panel re-layout
-          visualization/color_accessibility_audit, # a11y fix
-          audit/provenance_completeness,      # provenance gap
-          prose-only,              # in-paper edit, no new protocol
-          none,                    # DEFERred or PUSH-BACK
-        }
+        ROUTE — pick the protocol whose scope matches what the
+        comment actually demands. Route by the NATURE of the work,
+        not a fixed table; use `tool_route` on the comment text when
+        the right target isn't obvious. The recurring families:
+
+          - new experiment / new analysis     → guidance/analysis_plan
+          - a method-specific concern         → the methodology/* protocol
+              (diagnostics, missing data, power, prereg/SAP deviation,
+               a qualitative re-audit, …) that owns that method
+          - a section re-draft                → the writing/* protocol
+              for that section (results, methods, discussion, …)
+          - a figure fix / re-layout / a11y   → the visualization/* protocol
+              matching the change
+          - a provenance / reproducibility gap → the audit/* protocol
+              that covers it
+          - an in-paper edit, no new protocol  → prose-only
+          - DEFER / PUSH-BACK (no edit)        → none
 
         SECTION — the section + line range in `synthesis/paper.md`
           where the change will land (or "N/A" for DEFER /

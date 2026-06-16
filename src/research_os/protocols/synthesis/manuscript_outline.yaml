@@ -1,13 +1,17 @@
 id: manuscript_outline
 tier: 'synthesize'
 name: Manuscript Outline + Narrative Arc (before drafting)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, humanities, engineering]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline, systems_benchmark]
-last_reviewed: '2026-06-02'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper          # drafting runs against the locked outline
+  - synthesis/journal_selection        # the venue the template aligns to
+  - synthesis/synthesis_null_findings  # negative-result class has its own form
 description: |
   Drafting a paper before outlining is the most common source of
   rewrite-from-scratch revisions. A 30-minute outline saves 20 hours.
@@ -124,9 +128,10 @@ steps:
     name: Write section beats (one paragraph per beat)
     description: |
       For each section of the venue's template (IMRAD by default;
-      adjust for venue), write 2-5 beats — each beat is the
+      adjust for venue), write the beats it needs — each beat is the
       one-sentence claim that paragraph will make + which evidence
-      it cites.
+      it cites. As many beats as the section's argument requires, no
+      filler.
 
       Example beats (Introduction):
         B1: The problem (one sentence, citing the body of work).

@@ -1,12 +1,16 @@
 id: reproduction_attempt
 tier: 'plan'
 name: Reproduction Attempt (rerun a published analysis)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/replication_study        # re-tests the FINDING in new data; this regenerates the AUTHORS' result
+  - reproducibility/reproducibility      # audits OUR OWN work; this audits someone else's
 description: |
   Attempt to REPRODUCE a published analysis — rerun the authors'
   pipeline on the authors' (or claimed) data and check whether the
@@ -184,12 +188,14 @@ steps:
     description: |
       For each headline output, build a NUMERICAL DIFF TABLE:
         | Quantity | Paper | Our run | Absolute Δ | Relative Δ | Tolerance |
-      Tolerances are typed:
+      Tolerances are typed, and the band for each is set by what the
+      reproduction is FOR — state it explicitly per quantity:
         - exact match: data preprocessing pipelines, model checksums
-        - small numerical Δ (e.g., 0.005 on ROC AUC): expected for
-          floating-point + GPU non-determinism
-        - large numerical Δ (≥ a clinically / scientifically
-          meaningful threshold): a finding
+        - small numerical Δ: expected for floating-point + GPU
+          non-determinism; size the band from a multi-seed run of the
+          paper's own number, not a guessed constant
+        - large numerical Δ (beyond a scientifically meaningful band
+          for this outcome): a finding
 
       Save the table to
       workspace/<step>/outputs/reports/numerical_diff.md.

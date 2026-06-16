@@ -1,13 +1,16 @@
 id: coding_scheme_development
 tier: 'plan'
 name: Coding Scheme Development (qualitative codebook)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]
   audience: [researcher]
   workflow_shape: [interview_study]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/inter_rater_reliability  # consumes the frozen codebook to compute agreement
+  - methodology/interview_guide_design   # the upstream collection protocol
 description: |
   Before multiple coders apply a coding scheme to qualitative data
   (transcripts, field notes, open survey responses), the scheme
@@ -48,8 +51,10 @@ editorial_voice:
        same label to different things."
     - "Iteration is the point. The first-pass codebook is wrong; the
        calibration cycle (code → disagree → discuss → revise) is
-       where the codebook becomes useful. Plan for 3-5 cycles
-       before locking."
+       where the codebook becomes useful. Iterate until agreement
+       stabilises at the planned reliability bar — the number of
+       cycles is an outcome of convergence, not a number to set in
+       advance."
     - "Deductive, inductive, hybrid — name the approach explicitly.
        A deductive codebook starts from prior theory; an inductive
        one emerges from open coding; a hybrid combines both. Each
@@ -135,7 +140,8 @@ steps:
 
       Repeat calibration until agreement is consistently above the
       planned IRR threshold (see methodology/inter_rater_reliability
-      for the threshold reasoning). Typically 3-5 cycles.
+      for the threshold reasoning). Stop when agreement stabilises,
+      not after a fixed number of rounds.
 
   - id: lock_codebook
     name: Lock the codebook + freeze

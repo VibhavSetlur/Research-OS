@@ -1,12 +1,16 @@
 id: writing_limitations
 tier: 'synthesize'
 name: Writing — Limitations (the section reviewers read most carefully)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - writing/writing_discussion         # the section this one is woven into
+  - writing/writing_core               # vague-quantifier rules that bite hardest here
 description: |
   Draft the limitations section / sub-section. Limitations are the
   reviewer's primary attack surface — they get read more carefully than
@@ -110,8 +114,11 @@ steps:
     name: Deduplicate + prioritise
     description: |
       Most candidate lists have redundancy ("small sample" appears in
-      Sample AND in Generalisability). Collapse to ≤6 distinct
-      limitations for a journal discussion, ≤10 for a thesis chapter.
+      Sample AND in Generalisability). Collapse to the distinct
+      limitations that genuinely change how a reader should weigh the
+      findings — a tight journal discussion carries fewer than a thesis
+      chapter, but in both the test is "does this change the reader's
+      belief", not a target count.
 
       Prioritise by HOW MUCH each limitation changes the
       interpretation:
@@ -223,7 +230,7 @@ quality_bar:
   critical_limitations_first: true
   known_vs_discovered_distinguished: true
   scope_limit_cross_check_done: true
-  number_of_substantive_limitations: [3, 10]   # at least 3, at most 10
+  covers_the_limitations_that_change_the_interpretation: true   # every belief-changing limitation surfaced; not padded to a count
 
 next_protocol: null
 next_protocol_kind: terminal

@@ -1,12 +1,16 @@
 id: simulation_studies
 tier: 'plan'
 name: Simulation Studies (ADEMP)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [researcher, auditor]
   workflow_shape: [experiment_pipeline]
+see_also:
+  - methodology/uncertainty_quantification   # Monte Carlo SE is the simulation's own UQ
+  - guidance/analysis_plan                    # the simulation runs as plan steps
 description: |
   Monte Carlo, agent-based, discrete-event, or in-silico studies. Follows
   the ADEMP framework (Aims, Data-generating mechanisms, Estimands,
@@ -49,17 +53,22 @@ steps:
   - id: seed_plan
     name: Random-state Plan
     description: |
-      One master seed; per-scenario seeds derived deterministically
-      (e.g. seed = master_seed * scenario_id). Document the seed strategy
-      and the master_seed in outputs/reports/seed_plan.md. Every script
-      must print its seed at start-up.
+      One master seed; per-scenario seeds derived deterministically from it
+      (any documented, collision-free derivation — e.g. a counter-based or
+      spawn-key scheme). Document the seed strategy and the master_seed in
+      outputs/reports/seed_plan.md. Every script must print its seed at
+      start-up so any run is reproducible from the log alone.
 
   - id: scale_pilot_then_full
     name: Pilot Then Full Run
     description: |
-      Run a tiny pilot (e.g. 10 reps per scenario) to confirm the pipeline,
-      audit outputs, then scale to the planned N_reps. Background the full
-      run with tool_task(operation='run') if expected runtime > 5 min on shared infra.
+      Run a tiny pilot (a handful of reps per scenario) to confirm the
+      pipeline and audit outputs, then scale to the planned N_reps. Justify
+      N_reps from the Monte Carlo SE the aim can tolerate (the SE of a
+      performance measure shrinks with 1/sqrt(N_reps) — derive N_reps from
+      the target precision, do not pick a round number). Background the full
+      run with tool_task(operation='run') when its expected runtime would
+      block interactive work on shared infra.
 
   - id: tidy_results
     name: Tidy Results into Long Format
@@ -79,9 +88,12 @@ steps:
   - id: sensitivity
     name: Sensitivity to Design Choices
     description: |
-      Rerun a subset of scenarios with a perturbed master seed AND with
-      doubled N_reps. Both should yield qualitatively the same conclusions;
-      if not, the original run was under-powered — document and re-scale.
+      Rerun a subset of scenarios with a perturbed master seed AND with a
+      materially larger N_reps. Both should yield qualitatively the same
+      conclusions; if the conclusion moves when N_reps grows, the original
+      run was under-powered for the claim — document and re-scale. If it
+      moves when only the seed changes, the Monte Carlo SE is too large to
+      support the claim at all.
 
   - id: report
     name: Per-step Conclusions

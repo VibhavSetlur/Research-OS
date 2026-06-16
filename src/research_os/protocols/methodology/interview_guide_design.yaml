@@ -1,13 +1,16 @@
 id: interview_guide_design
 tier: 'plan'
 name: Interview / Topic Guide Design (qualitative pre-collection)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, humanities]
-  audience: [auditor]
+  audience: [researcher]
   workflow_shape: [interview_study]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/qualitative_research        # the open-coding stage the guide feeds
+  - methodology/coding_scheme_development    # the next protocol after collection
 description: |
   Qualitative protocols in Research-OS pick up at open coding. This
   protocol covers the step BEFORE — designing the interview guide
@@ -47,11 +50,12 @@ editorial_voice:
     - "Question order matters. Sensitive topics go after rapport is
        built; demographic questions go last (less context-poisoning,
        less self-presentation effect)."
-    - "Pilot the guide. Two pilot interviews catch ~80% of bad
-       questions. Pilots count as method work, not analysis — the
-       transcripts inform guide revision, not the findings (unless
-       the pilots were pre-registered as part of the corpus, which
-       is the exception)."
+    - "Pilot the guide. Even a couple of pilot interviews surface
+       most of the questions that don't elicit. Pilots count as
+       method work, not analysis — the transcripts inform guide
+       revision, not the findings (unless the pilots were
+       pre-registered as part of the corpus, which is the
+       exception)."
     - "Match the question form to the epistemology. A phenomenological
        study uses 'tell me about a time when…'; a grounded theory
        study uses theoretical-sampling probes; a thematic analysis
@@ -88,8 +92,10 @@ steps:
   - id: map_research_question_to_topics
     name: Map the research question to interview topics
     description: |
-      Decompose the research question into 4-8 topic areas the guide
-      will cover. For each topic:
+      Decompose the research question into the handful of topic
+      areas the guide will cover — enough to give the question full
+      coverage, few enough to go deep within the interview's time
+      budget. For each topic:
         - what aspect of the RQ does it inform?
         - what depth is needed (brief mention vs deep narrative)?
         - what kind of question form fits (open, scenario, hypothetical,
@@ -103,7 +109,7 @@ steps:
       For each topic, draft:
         - a MAIN question (one open-ended prompt that opens the
           topic)
-        - 2-3 PROBES (follow-ups when the main question doesn't
+        - a few PROBES (follow-ups when the main question doesn't
           elicit enough — "tell me more about that", "what was that
           like?", "can you give an example?")
         - a TRANSITION (a sentence that moves to the next topic
@@ -135,15 +141,16 @@ steps:
       want me to know?" — often surfaces the highest-value data.
 
   - id: pilot_design
-    name: Plan the pilot (≥2 interviews) + revision triggers
+    name: Plan the pilot + revision triggers
     description: |
       Pilot interviews surface:
         - questions that don't elicit (rephrase)
         - questions that confuse (clarify or split)
         - missing topics the participant brought up unprompted
           (consider adding)
-        - timing (a 60-min slot needs ~10 main questions; over-stuff
-          and you'll cut depth)
+        - timing (the guide has to fit the interview's time slot
+          with room to follow the participant; over-stuffing the
+          question list forces you to cut depth)
 
       Pre-specify the revision triggers: what would cause a question
       to be cut, added, or reworded? Document the pilot debrief

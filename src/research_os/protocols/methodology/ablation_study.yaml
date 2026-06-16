@@ -1,16 +1,24 @@
 id: ablation_study
 tier: 'plan'
 name: Ablation Study
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative, engineering]
+  domain: [engineering]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
+see_also:
+  - methodology/evaluation_design        # ablations are measured under an eval regime
+  - methodology/uncertainty_quantification  # the Δ needs an uncertainty estimate
 description: |
   Systematic removal / replacement of model or pipeline components to
   attribute performance to specific design choices. Standard practice for
   ML/AI methods papers and any system-engineering research.
+
+  Distinct from methodology/method_comparison (which ranks whole methods
+  head-to-head); ablation decomposes ONE system to attribute its
+  performance to its parts.
 trigger: |
   Researcher says "ablate", "ablation", "remove component X", "ablation
   table", "which part matters?". Usually triggered after a successful
@@ -61,7 +69,11 @@ steps:
     description: |
       outputs/reports/ablation_table.md with columns:
         | Variant | <metric_1> | Δ vs baseline | <metric_2> | Δ vs baseline |
-      Highlight rows where Δ exceeds noise (e.g. > MC SE × 2). Tag rows as
+      Highlight rows where Δ exceeds the run-to-run noise floor. The
+      "exceeds noise" rule is a decision about Monte Carlo / resampling
+      error on the Δ — name the rule you use (e.g. Δ outside the
+      bootstrap CI on the difference) and cite the source for it; do not
+      assert a fixed multiple of the SE. Tag rows as
       essential | helpful | neutral | harmful.
 
   - id: pair_with_qualitative

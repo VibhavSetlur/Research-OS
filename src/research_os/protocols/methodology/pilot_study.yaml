@@ -1,12 +1,16 @@
 id: pilot_study
 tier: 'plan'
 name: Pilot Study
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/power_analysis        # the pilot's variance estimate feeds the full-study power calc
+  - domain/research_design            # the pilot de-risks the design this protocol sketches
 description: |
   Small-N preliminary run to de-risk a full study: feasibility, instrument
   reliability, recruitment rate, refining inclusion/exclusion criteria,
@@ -23,10 +27,11 @@ editorial_voice:
     - "A pilot is not a small confirmatory study. If the writeup
        reports the primary effect estimate as a headline, the pilot
        was misused."
-    - "Variance estimates from a pilot are noisy by construction —
-       use a conservative inflation factor (the UCL of the pilot
-       variance is a defensible default) when feeding them into a
-       full-study power calculation."
+    - "Variance estimates from a pilot are noisy by construction.
+       Feeding the point estimate straight into a power calc
+       under-powers the full study; inflate conservatively (e.g.
+       anchor on the upper bound of the pilot variance's CI) and cite
+       the basis for the inflation you choose."
 
 steps:
   - id: declare_pilot_aim
@@ -46,9 +51,15 @@ steps:
   - id: pilot_sample
     name: Choose Pilot Sample Size + Stopping Rule
     description: |
-      Justify N (typically 10-30 for variance estimation, 5-15 per arm for
-      feasibility). Pre-specify a stopping rule: hit N, hit a time bound, or
-      hit an acceptability red flag.
+      Justify N from the pilot's declared AIM, not from a rule of thumb.
+      A variance-estimation pilot needs enough units to estimate the
+      primary-outcome dispersion with a usable CI; a feasibility pilot
+      needs enough to surface the logistics that break — these are
+      different sizes. Cite whatever sizing guidance the field uses for
+      pilots in this design (e.g. published recommendations for pilot
+      sizing in trials) rather than asserting a number. Pre-specify a
+      stopping rule: hit N, hit a time bound, or hit an acceptability
+      red flag.
 
   - id: run_pilot
     name: Run the Pilot
@@ -72,8 +83,10 @@ steps:
     description: |
       If the pilot is feeding a power calculation, report the observed
       SD / proportion / event rate for the primary outcome with a CI. Be
-      explicit that these estimates are noisy — the future power calc should
-      use a conservative inflation factor (e.g. UCL of pilot variance).
+      explicit that these estimates are noisy — the future power calc
+      should inflate them conservatively (e.g. anchor on the upper CI
+      bound) rather than plug in the point estimate; cite the inflation
+      rationale.
 
   - id: refine_main_protocol
     name: Refine the Main Protocol

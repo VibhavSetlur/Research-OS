@@ -1,12 +1,17 @@
 id: power_analysis
 tier: 'plan'
 name: Power Analysis / Sample Size Justification (standalone)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/pilot_study           # pilot variance is the preferred source for the effect-size assumption
+  - methodology/preregistration       # the chosen N + SAP get frozen here before data collection
+  - domain/research_design            # the inline sample-size step lives here when sizing is part of design
 description: |
   Standalone power / sample-size justification — for the case where the
   researcher needs the calculation as a deliverable in its own right
@@ -70,7 +75,7 @@ audience_profile:
       be an appendix; the body just needs the chosen N + a
       one-paragraph why.
   post_hoc_sensitivity:
-    sections: [Study_summary, N_achieved, Detectable_effect_size_at_alpha_0_05_power_0_8, What_this_implies_for_interpretation, References]
+    sections: [Study_summary, N_achieved, Detectable_effect_size_at_stated_alpha_and_target_power, What_this_implies_for_interpretation, References]
     notes: |
       Frame as 'with N achieved, what's the smallest effect we
       could have detected?' — not as 'observed power'.
@@ -113,9 +118,13 @@ steps:
            outcomes, the smallest effect of practical interest the
            field would act on. Cite the consensus document or
            guideline.
-        4. CONSERVATIVE DEFAULT — Cohen's d=0.2 / odds ratio=1.3 /
-           proportion change=5pp / etc. Only when 1-3 are unavailable;
-           flag prominently.
+        4. SMALLEST-EFFECT-OF-INTEREST fallback — when 1-3 are
+           unavailable, anchor on the smallest effect that would change
+           a decision in this field, NOT on a generic "small effect"
+           convention from a textbook. If you cite a benchmark-magnitude
+           convention at all, cite it as a benchmark for THIS field and
+           flag prominently that no project- or field-specific source
+           was available.
 
       Write the assumption + source to
       workspace/<step>/outputs/reports/power_assumptions.md.
@@ -153,16 +162,19 @@ steps:
         - allocation ratio (for two-group): 1:1 + the unequal ratio
           when that's a real constraint
         - attrition: 0% / planned / pessimistic
-        - power: 0.7 / 0.8 / 0.9
+        - power: the range the field reports against (commonly several
+          points spanning the conventional target); cite the target the
+          audience expects
 
-      Use whichever library the field reaches for (Python: statsmodels
-      / `pingouin`; R: `pwr` / `WebPower` / `simr` for mixed models;
-      stand-alone: G*Power). Tag the library + version in the
+      Use whichever power library the field reaches for THIS design;
+      surface that via tool_research_tool rather than defaulting to the
+      one you know best, and tag the library + version in the
       assumptions report.
 
       For non-standard designs (multilevel / non-inferiority /
-      time-to-event with stratification / cluster-randomised), prefer
-      a SIMULATION-based power calc:
+      time-to-event with stratification / cluster-randomised), a
+      closed-form calc may not exist — prefer a SIMULATION-based power
+      calc:
         tool_python_exec script that simulates the data + runs the
         intended test under each grid cell + estimates power as the
         proportion of rejections across replications.
@@ -174,20 +186,21 @@ steps:
         data="<power_grid.csv>"
         x="effect_size" y="power"
         with one line per (alpha, allocation, attrition) combination
-        and a horizontal reference line at power=0.8.
+        and a horizontal reference line at the target power the audience
+        expects (cite it).
 
       The figure is what reviewers look at first. Caption leads with
-      the substantive claim: "the design has 80% power to detect an
-      effect of <X> or larger at α=0.05; below <Y> the study is
+      the substantive claim: "the design has <target> power to detect an
+      effect of <X> or larger at the stated α; below <Y> the study is
       underpowered." Add both sidecars.
 
   - id: pick_n_and_justify
     name: Pick the chosen N and write the one-paragraph justification
     description: |
       For prospective designs: pick N from the table at the planned
-      effect size, target power, allocation, and attrition. Round
-      UP to the nearest practical multiple (typically 10 or 50
-      depending on study scale).
+      effect size, target power, allocation, and attrition. Round UP
+      (never down — rounding down silently under-powers the study) to
+      a practical enrolment unit for this study's scale and allocation.
 
       Write the justification paragraph (the reviewer-facing prose):
 
@@ -226,8 +239,11 @@ steps:
     name: Handle sequential designs correctly
     description: |
       For shape (c) — group-sequential / alpha-spending:
-        - state the boundary family (O'Brien-Fleming, Pocock, Haybittle-
-          Peto, or alpha-spending with a named spending function)
+        - name and justify the boundary / spending family chosen
+          (the field names several — e.g. O'Brien-Fleming, Pocock,
+          Haybittle-Peto, or a named alpha-spending function); the
+          choice trades early-stopping aggressiveness against final-look
+          power, so cite the basis for picking one over the others
         - state the information fraction schedule (how many interim
           looks, at what enrolment fractions)
         - report operating characteristics: expected sample size under

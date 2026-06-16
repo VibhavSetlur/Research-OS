@@ -1,19 +1,34 @@
 id: audit_and_validation
 tier: 'review'
 name: Audit & Validation
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-04'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - audit/provenance_completeness   # supplies the .prov.json ground truth this audit rolls up
+  - reproducibility/reproducibility # the re-run + hash baseline this audit assumes ran
+  - audit/pre_submission_checklist  # the final ready-to-submit gate downstream of this pass
 description: |
   Validate citations, statistical assumptions, figure quality,
   per-step completeness, causal language, and code style across the
   project. Per-step completeness is server-enforced — it BLOCKS the
   final synthesis until every active step has a focal figure with both
   caption sidecars and non-stub conclusions.
+
+  Rigor stance: an audit is only as trustworthy as its independence. The
+  deterministic gates below (completeness, claims-tracing, coherence,
+  provenance) are the CI-style backbone — they run the same way every
+  time and BLOCK on hard failures, so a green pass means the same thing
+  across sessions. The judgement calls (causal over-reach, prose quality,
+  whether a flagged claim is actually wrong) are weaker the more they
+  rest on a single read; where a verdict is consequential and contestable,
+  corroborate it — re-derive it from the artefact independently, or have a
+  second pass adjudicate — rather than trusting one look. Reserve that
+  cost for the verdicts that gate submission, not every line.
 trigger: After every experiment completes and reproducibility has been recorded. Re-run before synthesis.
 prerequisites:
   - At least one workspace/<step>/conclusions.md exists

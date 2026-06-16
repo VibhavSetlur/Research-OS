@@ -1,12 +1,17 @@
 id: method_comparison
 tier: 'plan'
 name: Method Comparison (head-to-head benchmark)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [engineering]
-  audience: [maintainer]
+  domain: [any]
+  audience: [researcher]
   workflow_shape: [systems_benchmark]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/methodology_selection       # picks ONE; this benchmarks N
+  - methodology/hyperparameter_search_design # equal-budget tuning per method
+  - methodology/ablation_study              # pulls components from one method
 description: |
   Compare N candidate methods on the SAME prediction / estimation
   task with the SAME data, the SAME evaluation, and the SAME
@@ -67,10 +72,13 @@ steps:
         - The N METHODS to compare. Each gets a candidate name (as the
           literature names it) plus the implementation library if
           already chosen.
-        - A baseline. Every comparison MUST include a baseline (a
-          simple model whose loss is the floor a real method should
-          beat) — logistic regression, mean predictor, prevalence
-          baseline, random forest with defaults, depending on task.
+        - A baseline. Every comparison MUST include a baseline — a
+          model trivial enough that its loss is the floor any real
+          method should clear (a constant / prevalence / nearest-
+          neighbour predictor for ML tasks; the language's standard
+          library for systems tasks; whatever the field treats as
+          "the thing to beat"). State which, and why it is the right
+          floor for this task.
 
   - id: ground_each_candidate
     name: Ground each candidate in the literature (MANDATORY)
@@ -156,9 +164,9 @@ steps:
           early stopping)
         - test set is touched ONCE per method, at the very end
 
-      Same trial budget for every method. A method given 500 trials
-      vs another given 5 is not being compared — it is being
-      advantaged. Log the trial budget per method in
+      Same trial budget for every method. A method given far more
+      tuning trials than its rivals is not being compared — it is
+      being advantaged. Log the trial budget per method in
       workspace/<step>/outputs/reports/tuning_audit.md.
 
   - id: evaluate_with_uncertainty

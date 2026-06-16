@@ -1,12 +1,16 @@
 id: synthesis_from_inputs
 tier: 'synthesize'
 name: Synthesis — From Inputs (no workspace analysis required)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper       # the target deliverable this sources for
+  - synthesis/synthesis_report
 description: |
   Synthesis for the case where the researcher has finished analyses,
   results tables, draft figures, prior reports, meeting notes, or other

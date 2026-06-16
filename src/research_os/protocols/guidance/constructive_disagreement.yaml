@@ -1,12 +1,16 @@
 id: constructive_disagreement
 tier: 'plan'
 name: Constructive Disagreement (when the AI should push back)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [naive_ai, researcher]
   workflow_shape: [any]
+see_also:
+  - guidance/dead_end_routing      # what to do after a path the AI warned about fails
+  - audit/audit_and_validation     # the audit signals that often trigger grounded pushback
 description: |
   Protocol for the case where the AI's grounded judgement disagrees
   with the researcher's stated direction. Default AI behaviour is to
@@ -40,9 +44,12 @@ editorial_voice:
        consensus) — never 'I think otherwise'. Ungrounded pushback
        erodes trust faster than silence."
     - "Pushback is SPECIFIC. 'I think you should reconsider' is
-       useless; 'The signal you'd see at n=412 is dominated by
-       noise at this effect size — Cohen's d=0.2 requires n ≥
-       1600 for 80% power (Cohen 1988)' is actionable."
+       useless; name the exact quantity, the exact analysis, and
+       the exact consequence — e.g. 'at the planned sample size the
+       study is underpowered for the target effect; the power
+       calculation in <step> shows the required n, cited to <source>'.
+       Compute the numbers from THIS project's data and a cited
+       convention, never from a memorised rule of thumb."
     - "Pushback respects AUTONOMY. The researcher gets the final
        call; the AI's job is to put the evidence on the table,
        not to override. After two rounds of disagreement the AI
@@ -54,8 +61,9 @@ editorial_voice:
 
 thresholds_for_pushback:
   pre_data_choices:
-    - "the chosen design is underpowered for the planned analysis
-       by ≥ 30% (per power_analysis)"
+    - "the chosen design is materially underpowered for the planned
+       analysis (quantify the shortfall via power_analysis; cite the
+       effect-size and power convention you used)"
     - "the chosen split risks data leakage that would invalidate
        the headline (per evaluation_design)"
     - "the chosen method's assumptions are clearly violated by
@@ -102,12 +110,12 @@ steps:
     description: |
       Three severity classes:
 
-        BLOCKER (rare; ~5% of triggered cases) — the chosen
-          direction will invalidate the headline finding /
-          publishability / ethics. Examples: a leaky split that
-          inflates accuracy by 2× the true value; an analysis
-          that conflates two different cohorts; a synthesis claim
-          contradicted by an unaddressed audit BLOCKER.
+        BLOCKER (rare) — the chosen direction will invalidate the
+          headline finding / publishability / ethics. Examples: a
+          leaky split that materially inflates the reported metric;
+          an analysis that conflates two different cohorts; a
+          synthesis claim contradicted by an unaddressed audit
+          BLOCKER.
 
         CAUTION — the chosen direction will work but is
           measurably weaker than an alternative the literature
@@ -209,7 +217,8 @@ steps:
   - id: meta_calibrate
     name: Meta-calibrate (occasionally)
     description: |
-      Once per ~10 disagreements, review the disagreement log:
+      Periodically — once the disagreement log holds enough entries
+      to show a pattern — review it:
         - how often did the AI push back?
         - how often did the researcher accept vs decline?
         - of the declined cases, did any later become a real

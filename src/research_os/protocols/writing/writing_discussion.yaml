@@ -1,13 +1,17 @@
 id: writing_discussion
 tier: 'synthesize'
 name: Writing — Discussion (the hardest section)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [theory_math]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [proof]
-last_reviewed: '2026-06-04'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - writing/writing_results            # reports what this section interprets
+  - writing/writing_limitations        # the sub-section this protocol routes into
+  - literature/literature_per_step     # produces the findings-vs-literature verdicts piped in here
 description: |
   Draft / iterate the Discussion section. The Discussion is where most
   papers under-deliver — it either restates the Results, over-claims
@@ -68,9 +72,9 @@ structure_options:
   three_paragraph:
     sections: [What_we_found_and_what_it_means, What_could_explain_it_otherwise_and_why_our_explanation_holds, What_we_could_not_settle_and_what_comes_next]
     notes: |
-      Short-form Discussion (typical for letter-format journals,
-      Science / Nature shorter articles). Each section is one tight
-      paragraph (~150 words) doing real interpretive work.
+      Short-form Discussion (typical for letter-format journals and
+      shorter front-matter articles). Each section is one tight
+      paragraph doing real interpretive work.
   thesis_chapter:
     sections: [Recap_of_aim_and_finding, Evidence_for_the_finding, Alternative_explanations, Connection_to_field, Limitations, Implications_for_theory, Implications_for_practice, Future_work]
     notes: |
@@ -90,11 +94,13 @@ steps:
       Ask (or infer from target_venue):
         "Structure? classical | three_paragraph | thesis_chapter |
          guideline_clinical."
-      Defaults:
-        target_venue=journal       → classical
-        target_venue=conference    → three_paragraph
-        target_venue=dissertation  → thesis_chapter
-        target_venue in {bmj, jama, nejm} → guideline_clinical
+      Match the structure to the venue's expectation: a standard
+      journal article tends toward the classical six-block form;
+      short-form / letter venues toward the three-paragraph form; a
+      dissertation chapter toward the longer thesis form; and some
+      clinical journals mandate the structured "strengths and
+      limitations" (guideline) form. When the venue mandates a
+      structure, that mandate wins over any default.
 
   - id: pull_the_evidence_floor
     name: Pull the evidence floor (what the data ACTUALLY support)
@@ -120,7 +126,9 @@ steps:
     description: |
       The first paragraph is THE most-read paragraph in the
       Discussion. Constraints:
-        - ≤150 words
+        - one tight paragraph — long enough to state the finding and
+          its scope, short enough that a reader gets the headline
+          before their attention drifts
         - leads with the principal finding in interpretive form (NOT
           a results restatement)
         - includes the headline number with its uncertainty (e.g.
@@ -244,7 +252,7 @@ steps:
         - what the result of THIS study would licence the next study
           to do that it could not do without
 
-      Three concrete future-work items beat a generic "future
+      A handful of concrete future-work items beats a generic "future
       research". When you can't name a specific next study, the
       finding may be too small / fragile to lever future work —
       that's a finding worth noting.
@@ -296,7 +304,7 @@ expected_outputs:
   - workspace/scratch/discussion_evidence.md
 
 quality_bar:
-  principal_findings_paragraph_under_150_words: true
+  principal_findings_paragraph_is_one_tight_paragraph: true
   alternative_explanations_named_for_each_principal_finding: true
   comparison_to_prior_work_includes_both_agreements_and_disagreements: true
   implications_carry_scope_limits: true

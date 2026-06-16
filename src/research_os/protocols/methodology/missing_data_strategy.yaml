@@ -1,12 +1,16 @@
 id: missing_data_strategy
 tier: 'plan'
 name: Missing-Data Strategy (MCAR/MAR/MNAR → handling → sensitivity)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/preregistration             # freeze the mechanism + handling before fitting
+  - methodology/multiple_comparisons        # both shape the analysis plan
 description: |
   Missing data is not a nuisance to be silently dropped — it is a
   modelling choice that affects every downstream estimate. This
@@ -20,14 +24,15 @@ description: |
        even valid; assuming MCAR without evidence is the most common
        reproducibility failure in observational research.
     3) Pick the PRIMARY handling — complete-case (with explicit
-       justification) OR multiple imputation by chained equations
-       (MICE via sklearn's `IterativeImputer`, statsmodels `MICE`,
-       or R `mice`). Other options (single imputation, mean fill,
-       indicator method) are documented as INADEQUATE for
-       confirmatory work and only allowed for descriptive EDA.
+       justification) OR a principled multiple-imputation approach
+       under MAR. Single-value imputation (mean / median / mode /
+       single regression / single nearest-neighbour fill)
+       understates uncertainty and is documented as INADEQUATE for
+       confirmatory work — allowed only for descriptive EDA.
     4) Run at LEAST ONE sensitivity analysis under a DIFFERENT
-       plausible mechanism — typically MAR-imputed primary +
-       pattern-mixture / tipping-point / Heckman / MNAR-δ sensitivity.
+       plausible mechanism (e.g. a complete-case re-fit, a different
+       auxiliary set, or an MNAR pattern-mixture / selection /
+       tipping-point analysis).
     5) If the study is confirmatory, the mechanism + handling +
        sensitivity must be PRE-REGISTERED — route to
        `methodology/preregistration` BEFORE the imputed analysis is
@@ -57,7 +62,7 @@ prerequisites:
     missingness numbers are not guessed).
 
 editorial_voice:
-  mode: prescription
+  mode: guidance
   rules:
     - "Quantify before reasoning. A missingness PERCENTAGE per column,
        per stratum, per time-point is non-negotiable. Hand-waving
@@ -144,33 +149,30 @@ steps:
 
         STRATEGY 1 — COMPLETE CASE (CC).
           Drop rows with ANY missingness in the analysis variables.
-          Valid when: (a) missingness < ~5% overall AND (b) MCAR is
-          plausible AND (c) the analysis is descriptive or the
-          inferential bias is bounded by sensitivity.
-          Report N_complete vs N_total and the dropped-row profile
-          (does the dropped subset differ on observables?).
+          Defensible when missingness is low, MCAR is plausible, and
+          the analysis is descriptive or the inferential bias is
+          bounded by sensitivity. "Low" is a judgement call grounded
+          in the dropped-row profile and the field's convention —
+          cite it, don't pick a round number. Report N_complete vs
+          N_total and whether the dropped subset differs on
+          observables.
 
         STRATEGY 2 — MULTIPLE IMPUTATION (MI / MICE).
-          The default for confirmatory work under MAR. Use:
-            Python:
-              - `sklearn.experimental.enable_iterative_imputer` +
-                `sklearn.impute.IterativeImputer` (BayesianRidge
-                default; switch to `ExtraTreesRegressor` for
-                non-linear / mixed types) with m ≥ 20 imputations
-                for stable Rubin pooling,
-              - OR `statsmodels.imputation.mice.MICE` with explicit
-                conditional models per column,
-              - OR call R `mice` via `rpy2` for fully
-                conditional specification with mixed types.
-            R:
-              - `mice::mice()` is the reference implementation;
-                document the method per column
-                (`pmm` / `logreg` / `polyreg` / `cart`).
-          INCLUDE the auxiliary variables identified in step 2 as
-          predictors. INCLUDE the outcome in the imputation model
-          (von Hippel 2007) — yes, this is correct and the most
-          common mistake is to omit it.
-          m (number of imputations) ≥ max(20, % missingness).
+          The principled choice for confirmatory work under MAR.
+          A fully-conditional / chained-equations implementation
+          exists in every major stats ecosystem; pick a maintained
+          one and document the conditional model used per column
+          (matched to that column's type). Key decisions that are
+          NOT defaults:
+            - INCLUDE the auxiliary variables identified in step 2
+              as predictors.
+            - INCLUDE the outcome in the imputation model
+              (von Hippel 2007) — the most common mistake is to
+              omit it.
+            - Choose the NUMBER OF IMPUTATIONS so Rubin pooling is
+              stable at this missingness level; the MI literature
+              gives rules of thumb scaled to the fraction of
+              missing information — cite the one you adopt.
           Pool estimates via Rubin's rules; report the pooled point
           + 95% CI + fraction of missing information (FMI).
 

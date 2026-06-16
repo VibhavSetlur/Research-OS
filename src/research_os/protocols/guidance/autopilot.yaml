@@ -1,12 +1,16 @@
 id: autopilot
 tier: 'plan'
 name: Autopilot Mode
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [naive_ai, researcher]
   workflow_shape: [any]
+see_also:
+  - guidance/constructive_disagreement   # distinct: AI driving vs AI pushing back on the researcher
+  - guidance/dead_end_routing            # where autopilot routes on an abandoned step
 description: |
   Hands-off "drive the project to its next deliverable without checking in
   on every step" mode. Defines the exact gates where the AI MUST stop and
@@ -45,8 +49,13 @@ steps:
         5. Any sys_file_write to synthesis/ with force=true.
         6. tool_package_install for a package not already in
            environment/requirements.txt.
-        7. Any tool_task(operation='run') with an estimated cost > 1 GPU-hour OR > 10 GB
-           of memory OR > 50 GB of disk I/O.
+        7. Any tool_task(operation='run') whose estimated compute /
+           memory / disk cost is large relative to the project's
+           budget (a long GPU job, a memory- or I/O-heavy run). Page
+           before spending; cite the cost estimate you based the call
+           on. If the project declares a resource budget in config,
+           gate against that; otherwise gate on any run you'd hesitate
+           to launch unattended.
         8. sys_checkpoint_rollback (workspace mutation; reversible only by
            re-rolling back to a different checkpoint).
       For each gate, sys_notify level="action_required" and wait one turn.

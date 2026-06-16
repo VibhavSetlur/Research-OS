@@ -1,12 +1,17 @@
 id: qualitative_quality_audit
 tier: 'plan'
 name: Qualitative Quality Audit (COREQ + SRQR enforcement)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]
   audience: [auditor, maintainer]
   workflow_shape: [interview_study]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/qualitative_research      # designs the work this audit enforces
+  - methodology/inter_rater_reliability   # the single source of truth for κ / α computation + interpretation
+  - methodology/qualitative_pii_redaction # the at-ingest de-identification this audit's quote check backstops
 description: |
   Companion to `methodology/qualitative_research`. The research protocol
   DESIGNS the qualitative work; this audit ENFORCES the COREQ
@@ -146,19 +151,17 @@ steps:
         Write to `outputs/reports/intercoder_agreement.md`:
           - shared subset size + selection method,
           - per-pair κ (or α),
-          - verdict per the canonical Landis & Koch (1977) table —
-            see methodology/inter_rater_reliability for the single
-            source of truth:
-              κ ≥ 0.81 = almost perfect,
-              0.61 ≤ κ < 0.81 = substantial,
-              0.41 ≤ κ < 0.61 = moderate,
-              0.21 ≤ κ < 0.41 = fair,
-              κ < 0.21 = slight / poor.
-          - if κ < 0.70 (i.e. below the 'substantial' floor): a
+          - verdict against the interpretation band the field reports —
+            methodology/inter_rater_reliability is the single source of
+            truth for the canonical bands and which one to cite; do not
+            re-derive a threshold here,
+          - the acceptability floor used + ITS source (the field's
+            reporting standard names a floor; cite it rather than
+            assuming one), and if the achieved value falls below it, a
             RECONCILIATION plan (disagreements discussed, codebook
             revised, subset re-coded).
 
-      A verdict < 0.70 without a reconciliation plan is a BLOCKER.
+      A below-floor verdict without a reconciliation plan is a BLOCKER.
 
   - id: member_checking_attempted
     name: Member checking attempted (or justified absence)
@@ -229,12 +232,13 @@ steps:
     description: |
       mem_log:
         method="COREQ/SRQR quality audit"
-        parameters="kappa_target=0.70; saturation_window=last_3"
+        parameters="<the agreement floor + its source; the saturation
+                     window used + its rationale>"
         justification="Tong et al. 2007 (COREQ); O'Brien et al. 2014
-                       (SRQR)."
+                       (SRQR); plus the cited source for the agreement
+                       floor applied."
         assumptions=["coders independent on shared subset",
-                     "saturation defined as ≤0 new codes in last 3
-                      transcripts"]
+                     "saturation operationalisation stated + justified"]
       And append the verdict per check to conclusions.md ## Limitations.
 
   - id: cross_check_with_audit
@@ -256,7 +260,7 @@ expected_outputs:
 quality_bar:
   saturation_evidence_present_or_explicit_limitation: true
   reflexivity_statement_substantive_and_first_person: true
-  intercoder_agreement_kappa_ge_0_7_or_documented_limitation: true
+  intercoder_agreement_meets_cited_field_floor_or_documented_limitation: true
   member_checking_attempted_or_justified_absence: true
   every_verbatim_quote_anonymised_with_participant_id: true
   codebook_versioned_with_analytic_memos: true

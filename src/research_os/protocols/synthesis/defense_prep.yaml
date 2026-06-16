@@ -1,13 +1,16 @@
 id: defense_prep
 tier: 'synthesize'
 name: Defense / Talk Q&A Prep (thesis / job talk / conference)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
-  audience: [auditor]
-  workflow_shape: [interview_study]
-last_reviewed: '2026-06-02'
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_slides        # the deck this Q&A prep wraps around
+  - synthesis/reviewer_response       # the same weak-claim hunt, for a paper
 description: |
   A dissertation defense, a job talk, or a high-stakes conference
   presentation is not a slides exercise — it is a Q&A exercise. The
@@ -81,9 +84,11 @@ steps:
       Write workspace/.defense/audience.md.
 
   - id: identify_weak_claims
-    name: Identify the 3-5 weakest claims (be honest)
+    name: Identify the weakest claims (be honest)
     description: |
-      Audit the work for the claims most likely to be challenged:
+      Audit the work for the claims most likely to be challenged —
+      enough of them that the genuinely contestable ones are all on the
+      list, not just the easy two. Look for:
         - extrapolations beyond the sample
         - causal language on observational data
         - generalisations from a single dataset / domain / time period
@@ -105,9 +110,10 @@ steps:
       a prepared answer.
 
   - id: enumerate_questions
-    name: Enumerate likely questions (20-40 across categories)
+    name: Enumerate likely questions (across categories)
     description: |
-      Draft the question bank — categorised:
+      Draft the question bank — broad enough that every category below
+      is genuinely covered, not just the comfortable ones. Categorised:
 
         FRAMING — "What is the contribution?", "Why this question
           now?", "Who is this for?", "How does it differ from X?"
@@ -222,12 +228,14 @@ expected_outputs:
 
 quality_bar:
   audience_and_format_documented: true
-  three_or_more_weak_claims_identified_with_credible_defense: true
+  weak_claims_identified_with_credible_defense: true   # every genuinely
+                                                       # contestable claim, not
+                                                       # a token few
   question_bank_covers_framing_method_evidence_limitations_reproducibility: true
   answers_drafted_for_every_question_with_honest_idk_marked: true
   at_least_one_rehearsal_logged: true
   logistics_checklist_complete: true
-  brief_under_two_pages: true
+  brief_stays_short: true               # a night-before brief, not a reference
 
 next_protocol: synthesis/synthesis_slides
 next_protocol_kind: forward_default

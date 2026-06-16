@@ -1,13 +1,16 @@
 id: distribution_comparison
 tier: 'synthesize'
 name: Distribution Comparison (raincloud, beeswarm, ridgeline, halfeye)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-02'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/uncertainty_visualization   # shares the show-the-distribution idioms
+  - visualization/color_accessibility_audit    # palette check before finalising
 description: |
   Comparing distributions across groups is one of the most common
   figures in any empirical paper, and one of the most consistently
@@ -40,11 +43,12 @@ prerequisites:
 
 editorial_voice:
   rules:
-    - "Show the data. With N ≤ ~100 per group, raw points (strip or
-       beeswarm) are almost always feasible and ALWAYS more honest
-       than a summary. With N ≫ 100, switch to density-based idioms
-       (violin, halfeye) but keep some indication of N (e.g. width
-       proportional to sqrt(N))."
+    - "Show the data. While plotting every raw point stays legible at
+       the target render size, raw points (strip or beeswarm) are
+       almost always more honest than a summary. Once overplotting
+       defeats the raw idiom, switch to a density-based idiom (violin,
+       halfeye) but keep a visible indication of per-group N so a
+       small group can't masquerade as a large one."
     - "Avoid SD as the error metric for between-group comparison.
        SD describes spread in ONE group; SE / CI describes uncertainty
        about a MEAN. Confusing them is a perennial reviewer
@@ -72,39 +76,42 @@ steps:
       drives the idiom choice in step 2.
 
   - id: pick_idiom_by_group_size_and_shape
-    name: Pick the idiom by group size + distribution shape
+    name: Pick the idiom from the question + what stays legible
     description: |
-      Idioms ranked by typical fit:
+      The idiom follows from FOUR dimensions, not a group-size lookup:
+        - HOW MANY GROUPS are being compared (a few side-by-side vs
+          many stacked);
+        - WHETHER raw points stay legible at the target render size
+          or overplotting forces a density summary (from the data
+          profile);
+        - WHETHER the structure is INDEPENDENT groups or PAIRED /
+          repeated measures (paired structure demands a paired idiom);
+        - HOW MUCH distributional detail the reader needs (a ranked
+          comparison vs a shape-by-shape read).
 
-        2-5 groups, ≤ ~30 per group:
-          RAINCLOUD (half-violin + boxplot + strip; Allen et al.
-          2019) — shows raw, summary, density in one go.
-          DOT + JITTER + MEAN/MEDIAN LINE — simplest, very honest.
+      The modern idiom vocabulary (cite the source for any
+      non-conventional choice):
+        - RAINCLOUD (half-violin + box + strip; Allen et al. 2019)
+          and HALFEYE / dot-interval (ggdist) — raw + summary +
+          density together; strong when the per-group sample stays
+          showable.
+        - DOT/STRIP + JITTER with a mean/median line — the simplest,
+          most honest option when points stay legible.
+        - BEESWARM — when discrete y-jitter helps the count read.
+        - RIDGELINE / JOY plot — many distributions stacked; reads
+          shape across groups.
+        - LETTER-VALUE / BOXEN plot — box-like compactness without a
+          boxplot's bimodality blind spot, when N is large.
+        - VIOLIN (optionally with embedded box) — density when raw
+          points overplot.
+        - ECDF, QQ-plot, mirror/back-to-back, overlaid densities —
+          for comparing two distributions' shapes in detail (ECDF is
+          the cleanest for reading percentiles).
+        - PAIRED-LINE / slopegraph — one line per subject for
+          pre/post; pair with summary distributions on each side.
 
-        2-10 groups, ~30-300 per group:
-          RAINCLOUD or HALFEYE (ggdist) — density + interval.
-          BEESWARM with summary overlay (when discrete y-jitter
-          would help reveal the count).
-
-        Many groups (10+) or large N (>300 per group):
-          RIDGELINE / JOY DIVISION (densities stacked vertically) —
-          shows shape across many groups.
-          LETTER-VALUE PLOT / BOXENPLOT — box-like compactness
-          without hiding bimodality.
-          VIOLIN with embedded boxplot.
-
-        Compare two distributions in detail:
-          OVERLAY HISTOGRAMS / DENSITIES with alpha.
-          MIRROR PLOT (back-to-back) — for two groups only.
-          QQ-PLOT — comparing shapes directly.
-          ECDF (empirical CDF) — proper for distribution comparison;
-          easy to read percentiles.
-
-        Repeated measures / paired:
-          PAIRED-LINE PLOT (slopegraph) — each subject's pre/post
-          as a line. Add summary distributions on each side.
-
-      Document choice + the literature reference + WHY it fits.
+      Document the choice, the dimensions that drove it, and the
+      literature reference + WHY it fits THIS comparison.
 
   - id: encoding_choices
     name: Encoding choices (order, palette, summary overlay)

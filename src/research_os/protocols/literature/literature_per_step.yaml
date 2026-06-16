@@ -1,13 +1,16 @@
 id: literature_per_step
 tier: 'ground'
 name: Per-Step Literature Loop (find → download → cite → validate)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, theory_math, engineering]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [proof]
-last_reviewed: '2026-06-04'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - literature/literature_search       # builds the project-wide corpus this loop draws from
+  - writing/writing_discussion         # consumes the verdicts this loop produces
 description: |
   After every analysis step writes its findings, RO grounds those
   findings in the published literature: searches → downloads PDFs to
@@ -18,7 +21,14 @@ description: |
   Doctrine
   --------
   A finding is not a finding until it has been compared to what the
-  literature says. Five outcomes per finding:
+  literature says — and that comparison rests on the cited paper's
+  actual content, not on an abstract snippet. The grounding standard
+  is the same as the project-wide search: no claim is grounded against
+  a paper until that paper's full text has been downloaded and its
+  metadata validated. An undownloadable paper is a DEFERRED grounding,
+  not a silently-accepted one.
+
+  Five outcomes per finding:
     1. AGREES — literature confirms the result. Strengthens the claim;
        cite to anchor the paragraph.
     2. DISAGREES — literature reports the opposite or qualifies it.
@@ -117,9 +127,10 @@ steps:
         - the QUANTITATIVE anchor (log2FC, padj, HR, CI)
 
       Write the claim list to
-      `workspace/<step>/literature/claims_to_ground.md`. Cap at the
-      top 5 claims per step — comprehensive grounding of every
-      sub-claim is for the synthesis stage, not the per-step loop.
+      `workspace/<step>/literature/claims_to_ground.md`. Ground the
+      claims that actually carry the step's conclusion — the ones a
+      reader would challenge. Exhaustive grounding of every sub-claim
+      is the synthesis stage's job, not the per-step loop's.
 
   - id: build_search_queries
     name: Build a search query per claim
@@ -136,29 +147,33 @@ steps:
   - id: search_literature
     name: Search literature per claim
     description: |
-      Per claim, batch the search calls:
-        tool_search query="<specific>" max_results=5
-        tool_search query="<specific>" max_results=5
-        tool_search query="<methodological>" max_results=3
-
-      Domain notes:
-        - Biomedical / clinical → PubMed + Semantic Scholar are most
-          authoritative.
-        - Quantitative / methods → Semantic Scholar + arXiv.
-        - Social / behavioral → Crossref + Semantic Scholar.
-        - Geoscience / hard sciences → Crossref + arXiv.
+      Per claim, run both the specific and the methodological query
+      across more than one provider — single-provider coverage is
+      always partial. Choose the providers that index this field's
+      venues authoritatively (name the choice). The specific query
+      catches confirmations of the result; the methodological query
+      catches papers that validate the analytical approach.
 
       Capture results in `workspace/<step>/literature/search_results.yaml`.
 
   - id: download_relevant
-    name: Download top-3 PDFs per claim
+    name: Download the relevant PDFs per claim
     description: |
-      Filter search results by:
-        1. Recency: published in last 10 years (or earlier classics).
-        2. Citations: ≥ 20 cumulative citations (proxy for landmark
-           status; relax to ≥ 5 for niche methods).
-        3. Title relevance: drop reviews unless your finding is itself
-           a review-level claim.
+      Rank the search results for each claim, reasoning over (not
+      mechanically thresholding on) these dimensions:
+        1. Recency vs. seminality — recent work for the current state,
+           the foundational paper for the result the field still cites.
+           The age boundary is field-specific.
+        2. Standing — citation count is a noisy proxy for influence;
+           weigh it against venue and how niche the method is, rather
+           than applying one cutoff across fields.
+        3. Title / abstract relevance — does the paper actually speak
+           to THIS claim? Drop reviews unless the finding is itself a
+           review-level claim.
+
+      Download the full text of the papers a reader would need to
+      adjudicate the claim. A claim is grounded only against papers
+      whose PDFs are on disk and validated — an abstract is a lead.
 
       For each survivor:
         tool_literature_download url="<pdf_url>" filename="<key>.pdf"
@@ -230,10 +245,10 @@ steps:
       entry.
 
   - id: verify_key_claims
-    name: CoVe-style claim verification on top-3
+    name: CoVe-style claim verification on the load-bearing claims
     description: |
-      For the top-3 highest-stakes claims (those that will lead
-      paragraphs in the synthesis):
+      For the highest-stakes claims (those that will lead paragraphs
+      in the synthesis):
         tool_verify
             claim="<original claim>"
             questions=[
@@ -328,7 +343,7 @@ quality_bar:
   every_IMPORTED_AS_CITED_names_the_cited_result_AND_where_used: true
   every_SPECIALIZES_names_the_parent_result_AND_specialisation_conditions: true
   every_non_deferred_claim_has_grounding_record: true
-  top_3_claims_have_cove_verification: true
+  load_bearing_claims_have_cove_verification: true
   visualise_steps_either_inherit_or_set_literature_required_false: true
 
 next_protocol: null

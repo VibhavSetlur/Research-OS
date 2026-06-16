@@ -1,12 +1,17 @@
 id: clinical_trials
 tier: 'plan'
 name: Clinical Trial Analysis (CONSORT family)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [biology, wet_lab]
   audience: [researcher]
-  workflow_shape: [any]
+  workflow_shape: [experiment_pipeline]
+see_also:
+  - methodology/preregistration          # the SAP is the trial's frozen plan
+  - methodology/missing_data_strategy    # missingness handling is SAP-driven
+  - methodology/cox_ph_diagnostics       # time-to-event endpoints need the PH check
 description: |
   Reasoning scaffold for analysing a randomised clinical trial. Names
   the analytical decisions an RCT must reason through (balance,

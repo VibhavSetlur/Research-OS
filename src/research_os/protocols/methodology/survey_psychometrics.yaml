@@ -1,12 +1,16 @@
 id: survey_psychometrics
 tier: 'plan'
 name: Survey & Psychometrics
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
+see_also:
+  - methodology/survey_design       # builds the instrument this protocol analyses
+  - methodology/missing_data_strategy  # item-level missingness handling
 description: |
   Reasoning scaffold for analysing survey / multi-item-scale /
   complex-sample-design data. Names the dimensions an analyst must
@@ -14,6 +18,10 @@ description: |
   weighting, non-response, item-level missingness) without prescribing
   cutoffs, fit indices, or tools — those come from the literature for
   the specific instrument and the field's reporting standard.
+
+  Distinct from survey_design, which scaffolds building an instrument
+  before data exists; THIS protocol analyses survey data already in
+  hand.
 trigger: Data is survey responses with multi-item scales OR complex sample design.
 
 editorial_voice:

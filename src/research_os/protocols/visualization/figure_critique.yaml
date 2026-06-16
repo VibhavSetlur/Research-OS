@@ -1,12 +1,16 @@
 id: figure_critique
 tier: 'review'
 name: Figure Critique (review a single figure — yours or theirs)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/visualization_workflow      # rebuild the figure once the fix is agreed
+  - visualization/color_accessibility_audit    # deeper CVD/contrast check on a flagged palette
 description: |
   Reviewer-style critique of ONE figure. Distinct from
   `audit/audit_and_validation` (mechanical DPI / sidecar checks) and from

@@ -1,13 +1,17 @@
 id: journal_selection
 tier: 'synthesize'
 name: Journal / Venue Selection + Fit Assessment
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [humanities]
-  audience: [auditor]
-  workflow_shape: [systems_benchmark]
-last_reviewed: '2026-06-02'
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper
+  - synthesis/synthesis_cover_letter
+  - synthesis/manuscript_outline       # venue choice shapes the outline template
 description: |
   Picking the wrong venue wastes months. The right venue is the
   intersection of: scope fit (does the audience care about THIS
@@ -83,9 +87,10 @@ steps:
       Write workspace/.venue/paper_profile.md.
 
   - id: enumerate_candidate_venues
-    name: Enumerate 5-10 candidate venues
+    name: Enumerate candidate venues
     description: |
-      Draw from:
+      Cast a wide enough net that the comparison has real alternatives,
+      not a foregone conclusion. Draw from:
         - venues cited by the paper's references (where do its
           intellectual neighbours publish?)
         - venues recommended by senior collaborators / advisor
@@ -126,8 +131,9 @@ steps:
       Build a comparison table — one row per candidate, columns:
 
         SCOPE FIT — does the journal publish work like this?
-          (Read the aims & scope + the last 6 months of TOC. Be
-          honest about whether THIS paper's audience overlaps.)
+          (Read the aims & scope + a recent run of the table of
+          contents. Be honest about whether THIS paper's audience
+          overlaps.)
         EVIDENCE FIT — does the paper meet the journal's typical
           evidence bar? (Sample size, replication, mechanism, etc.)
         FORMAT FIT — letter / brief / full article / data paper /
@@ -204,8 +210,9 @@ expected_outputs:
   - (research_goal.target_venue updated in researcher_config.yaml)
 
 quality_bar:
-  paper_profile_one_page_summary: true
-  at_least_5_candidates_considered: true
+  paper_profile_summary_present: true
+  multiple_real_candidates_considered: true   # enough that the choice is
+                                              # comparative, not foregone
   predatory_legitimacy_check_run_per_candidate: true
   comparison_covers_scope_evidence_format_timeline_cost_open_science: true
   shortlist_includes_top_choice_plus_fallbacks: true

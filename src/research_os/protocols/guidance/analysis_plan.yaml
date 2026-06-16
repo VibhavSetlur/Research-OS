@@ -1,13 +1,17 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, humanities, theory_math, engineering]
+  domain: [any]
   audience: [naive_ai, auditor]
   workflow_shape: [experiment_pipeline, proof]
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/methodology_selection      # the upstream step that sets each step's method
+  - literature/literature_per_step         # the findings-vs-literature loop this protocol gates on
+  - guidance/dead_end_routing              # where an abandoned step routes
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.
 trigger: After methodology_selection — or whenever the researcher asks for "the next experiment" / "now run X".
 prerequisites:
@@ -102,8 +106,8 @@ steps:
             OR (if you already know the candidates):
               parallel:
                 tool_search query="<method> <domain>"
-                tool_search         query="<method> <domain>"
-                tool_search            query="best <method> 2024 2025"
+                tool_search query="<method> <domain> recent"
+                tool_search query="best <method>" year_min="<recent window>"
 
         (2) **Ground each decision in a SPECIFIC paper.** For each
             non-trivial methods choice (which normalization, which
@@ -403,12 +407,16 @@ steps:
           when the researcher explicitly asks for "just the headline
           figure"):
             * diagnostic suite (residuals, QQ, calibration, etc.)
-            * summary (effect + 95% CI)
+            * summary (effect estimate + interval at the field's
+              conventional confidence level)
             * comparison (vs baseline or alternative spec)
-          For domain-specific steps, generate the figure types that
-          domain expects (survival curve + Schoenfeld for Cox; trace
-          + posterior predictive for Bayesian; ROC + PR + calibration
-          for ML classifiers; forest + funnel for meta-analysis). Use
+          For method-specific steps, generate the diagnostic figures
+          the method's reporting standard expects — i.e. the plots a
+          reviewer in that field would look for (e.g. proportional-
+          hazards diagnostics for a Cox model; posterior predictive
+          checks for a Bayesian fit; discrimination + calibration for
+          a classifier; heterogeneity + small-study plots for a meta-
+          analysis). Name the reporting standard you're following. Use
           the visualization protocol that matches the work
           (visualization/uncertainty_visualization,
           visualization/distribution_comparison,

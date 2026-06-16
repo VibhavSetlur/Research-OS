@@ -1,13 +1,15 @@
 id: external_tool_setup
 tier: 'plan'
 name: External Tool Setup (top-tier viz / analysis stacks installed properly)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/mcp_ecosystem_integration  # the linear successor: wiring installed tools as MCP servers
 description: |
   Many top-tier deliverables require tools beyond `pip install
   research-os`. This protocol guides researchers through installing
@@ -77,7 +79,7 @@ steps:
       requirements. Common needs:
 
         OBSERVABLE FRAMEWORK / D3 / VEGA-LITE / THREE.JS — Node
-          (≥ 20) + npm; per-project `npm init` + `npm install`.
+          (a current LTS) + npm; per-project `npm init` + `npm install`.
 
         QUARTO (academic publishing) — quarto.org installer +
           system LaTeX (for PDF) + Pandoc (bundled).
@@ -138,14 +140,17 @@ steps:
             observable-framework three`
           (NOT global — avoids version conflicts across projects.)
 
-      Each command paired with a verification:
-          `node --version`  → expect ≥ v20
-          `quarto --version` → expect ≥ 1.5
-          `R --version`     → expect ≥ 4.3
-          `ffmpeg -version`  → expect ≥ 6.0
-          `latex --version`  → expect TeX Live ≥ 2024
+      Each command paired with a verification that prints the version,
+      checked against the minimum the TARGET protocol / stack actually
+      documents (look it up at setup time — pinned minimums drift):
+          `node --version`
+          `quarto --version`
+          `R --version`
+          `ffmpeg -version`
+          `latex --version`
 
-      Document in workspace/.toolsetup/install_<tool>.md.
+      Document the resolved minimum + the observed version in
+      workspace/.toolsetup/install_<tool>.md.
 
   - id: propose_setup_script
     name: Propose a one-shot setup script (researcher reviews)

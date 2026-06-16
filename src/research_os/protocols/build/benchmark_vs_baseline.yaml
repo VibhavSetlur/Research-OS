@@ -8,6 +8,9 @@ scope_tags:
   audience: [naive_ai, auditor]
   workflow_shape: [tool_build]
 last_reviewed: '2026-06-16'
+see_also:
+  - build/test_strategy          # correctness checks, the sibling of this performance pass
+  - build/implement_iteration    # where a missed bar routes back as the next increment
 description: |
   Reason about how to measure the tool honestly against the right
   baseline(s): which comparator a claim should be made against, the

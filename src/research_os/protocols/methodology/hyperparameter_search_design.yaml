@@ -1,12 +1,16 @@
 id: hyperparameter_search_design
 tier: 'plan'
 name: Hyperparameter Search Design (sweeps + budgets)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [researcher]
   workflow_shape: [systems_benchmark]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/method_comparison          # the sweep feeds a fair head-to-head
+  - methodology/evaluation_design          # the sweep runs INSIDE this split regime
 description: |
   Design a hyperparameter sweep — the search space, the budget, the
   search strategy, the early-stopping rule, and the reporting
@@ -37,21 +41,23 @@ prerequisites:
 editorial_voice:
   mode: hybrid
   rules:
-    - "Search what MATTERS. Tuning 30 hyperparameters when 4 carry
-       95% of the variance is compute spent on noise. The
+    - "Search what MATTERS. Most of a method family's tunable
+       hyperparameters carry little variance; a few dominate.
+       Tuning the long tail is compute spent on noise. The
        literature names which hyperparameters drive each method
-       family; consult before searching."
+       family for each task type; consult before searching."
     - "Budget is part of the experiment, not a hidden choice. A
        comparison between two methods given different trial
        budgets is not a comparison."
-    - "Random search beats grid search in most regimes (Bergstra &
-       Bengio 2012). Bayesian optimisation beats both for
-       expensive evaluations but adds variance from the surrogate
-       model — report it."
+    - "Search strategy follows the cost regime. Random search tends
+       to beat grid for the same budget (Bergstra & Bengio 2012);
+       sequential model-based search is sample-efficient for
+       expensive evaluations but adds surrogate-model variance —
+       cite the source for the choice you make on THIS budget."
     - "Early-stopping rules are part of the search definition. A
-       sweep with one method using ASHA / Hyperband and another
-       using fixed budget is comparing two designs, not two
-       methods."
+       sweep with one method using a multi-fidelity early-stopper
+       and another using a fixed budget is comparing two designs,
+       not two methods."
 
 steps:
   - id: scope_the_sweep
@@ -76,69 +82,57 @@ steps:
       For each method family in scope:
         tool_research_method query="<method> hyperparameter
                                     sensitivity for <task type>"
-      Read the returned methods + benchmark papers to identify
-      the 3-7 hyperparameters that drive most of the variance for
-      THIS task family. Examples (illustrative; pick from
-      literature for the actual project):
-        - gradient-boosted trees → n_estimators, max_depth,
-          learning_rate, min_child_weight, regularisation
-          (the count "10 to tune" is misleading; ~5 carry the
-          variance for most tasks)
-        - random forest → n_estimators, max_depth, min_samples_leaf,
-          max_features
-        - transformer fine-tuning → learning_rate, batch_size,
-          warmup_ratio, weight_decay, lora_rank when applicable
+      Read the returned methods + benchmark / sensitivity-analysis
+      papers to identify the SMALL SET of hyperparameters that drive
+      most of the variance for THIS task family — the literature's
+      sensitivity studies name them. Searching the long tail of
+      low-impact knobs spends budget on noise; defending which
+      hyperparameters you searched (and which you fixed at the
+      library default, and why) is part of the design.
 
-      For each, set a SEARCH RANGE based on the literature's
-      reported good values + a wider margin. Write to
+      For each searched hyperparameter, set a SEARCH RANGE from the
+      literature's reported good values widened by a margin, and cite
+      the source. Write to
       workspace/<step>/outputs/reports/sweep_space.md.
 
   - id: pick_search_strategy
     name: Pick the search strategy
     description: |
-      Pick based on (number of hyperparameters, evaluation cost,
-      compute budget):
+      The strategy follows from a few axes; reason over them rather
+      than reading a cutoff table:
 
-        GRID SEARCH:
-          good for: ≤3 params with discrete values; reproducibility
-                    audit
-          bad for: continuous spaces; >3 params (curse of
-                   dimensionality)
+        - DIMENSIONALITY of the search space. Exhaustive (grid)
+          enumeration is only tractable in low dimensions and over
+          discrete values; it degrades fast as dimensions grow.
+        - EVALUATION COST per trial. When each trial is cheap,
+          sampling-based search (random) with a generous budget is
+          hard to beat and trivially parallelises. When each trial
+          is expensive, sample-efficient sequential model-based
+          search (e.g. TPE / GP-based Bayesian optimisation) earns
+          its surrogate-model overhead.
+        - WHETHER COST SCALES with an iteration knob (epochs /
+          rounds / samples). When it does, a multi-fidelity
+          early-stopper (successive-halving family) can kill poor
+          configs early; when the method is non-iterative there is
+          no early signal to exploit.
+        - WHETHER THE SCHEDULE ITSELF benefits from tuning
+          mid-run (population-based training), which is rare outside
+          large-scale neural training.
 
-        RANDOM SEARCH:
-          good for: 3-7 params; mixed discrete + continuous;
-                    parallelisable; reproducible (seeded);
-                    default for most projects
-          bad for:  very expensive evaluations where each trial
-                    is hours
-
-        BAYESIAN OPTIMISATION (TPE / GP):
-          good for: 3-15 params; expensive evaluations; sample-
-                    efficient
-          bad for:  fast evaluations (overhead matters);
-                    multi-fidelity setups (use the next option)
-
-        SUCCESSIVE HALVING / ASHA / HYPERBAND:
-          good for: when evaluation cost SCALES with epochs /
-                    samples / iterations; early-stops poor configs
-          bad for:  non-iterative methods (no early signal)
-
-        POPULATION-BASED TRAINING:
-          good for: deep nets with schedules that themselves
-                    benefit from tuning
-          rare outside large-scale neural training
-
-      Document the choice + the citation that motivated it. Save
-      to workspace/<step>/outputs/reports/sweep_strategy.md.
+      Surface the convention this method-family + budget combination
+      uses in the recent literature, pick, and cite the source that
+      motivated the choice. Save to
+      workspace/<step>/outputs/reports/sweep_strategy.md.
 
   - id: define_the_budget
     name: Define the trial / wall-clock budget
     description: |
-      Budget definitions vary by search strategy:
-        - grid: trial count = product of grid sizes
-        - random: trial count (typical: 50-200 for 3-7 params)
-        - bayes: trial count (typical: 30-100 incl. ~10 warmup)
-        - asha/hyperband: total resource budget (GPU-hours, epochs)
+      The budget unit follows the strategy: a trial count for
+      grid / random / Bayesian search; a total resource budget
+      (GPU-hours, epochs) for multi-fidelity early-stoppers. Pick
+      the magnitude from what the literature reports as sufficient
+      for a space of this size on this method family — and state
+      the source — rather than a fixed number.
 
       Constraints:
         - SAME budget across method variants when this sweep is
@@ -146,9 +140,9 @@ steps:
         - budget feasible within the compute deadline
         - leave headroom for the final test-set evaluation
           (which runs ONCE per variant)
-
-      For multi-seed reporting: budget × N_seeds, with N_seeds
-      typically 3-5 for confident variance estimates.
+        - account for the seed budget: the final reporting runs the
+          winning config across multiple seeds, so total cost is
+          (search budget) + (seed count × final-fit cost)
 
   - id: set_early_stopping_and_pruning
     name: Set early-stopping + pruning rules
@@ -177,9 +171,11 @@ steps:
         - SEED any random aug / dropout etc.
 
       For final reporting:
-        - run the BEST configuration with N_seeds different seeds
-          (typically 3-5)
-        - report mean ± std across seeds on the test set
+        - run the BEST configuration across several different seeds
+          (enough that the variance estimate is stable — justify the
+          count from the observed seed-to-seed spread, not a default)
+        - report the central estimate ± spread across seeds on the
+          test set
         - report the per-seed CI alongside the point estimate
 
       Single-seed test-set numbers underestimate variance and
@@ -188,14 +184,13 @@ steps:
   - id: implement_via_supported_library
     name: Implement via a supported library
     description: |
-      Pick the library based on the search strategy + the
-      project's stack:
-        Python: Optuna (default — supports grid / random / TPE /
-                ASHA / pruners), Ray Tune (distributed),
-                scikit-learn (GridSearchCV / RandomizedSearchCV),
-                Hyperopt
-        R:      mlr3tuning, tune package
-        Julia:  Hyperopt.jl
+      Pick a maintained sweep library that implements the chosen
+      search strategy in the project's stack — every major language
+      ecosystem has one or more (some support grid / random /
+      model-based search / pruners in one API; others specialise in
+      distributed execution). Confirm the library implements your
+      strategy and is maintained; do not let library availability
+      silently re-pick the strategy decided above.
 
       Configure trial logging so EACH trial writes:
         - hyperparameters tried

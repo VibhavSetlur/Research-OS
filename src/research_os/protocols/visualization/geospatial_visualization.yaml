@@ -1,13 +1,16 @@
 id: geospatial_visualization
 tier: 'synthesize'
 name: Geospatial Visualization (choropleth, points, flow, raster)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/color_accessibility_audit   # palette + CVD check before finalising the map
+  - visualization/uncertainty_visualization    # showing estimate reliability on the map
 description: |
   Data with a location dimension — counties, countries, points,
   trajectories, satellite pixels — needs a map, not a bar chart.

@@ -8,6 +8,9 @@ scope_tags:
   audience: [naive_ai, auditor]
   workflow_shape: [tool_build]
 last_reviewed: '2026-06-16'
+see_also:
+  - build/implement_iteration    # the per-increment tests that inherit this regime
+  - build/benchmark_vs_baseline  # performance measurement, the sibling of correctness checks
 description: |
   Reason about what testing regime actually fits the tool being built —
   which kinds of tests earn their keep, what coverage bar is defensible

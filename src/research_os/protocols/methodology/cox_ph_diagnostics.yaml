@@ -1,21 +1,24 @@
 id: cox_ph_diagnostics
 tier: 'plan'
 name: Cox PH Diagnostics (Proportional Hazards check + fallback routing)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/clinical_trials          # time-to-event trial endpoints route here
+  - methodology/bootstrapping_design     # the diagnostic's CIs are often resampled
 description: |
   Whenever a Cox proportional-hazards model is fit (lifelines `CoxPHFitter`,
   R `survival::coxph`, statsmodels PH regression, sksurv `CoxPHSurvivalAnalysis`,
   Stata `stcox`, SAS `PROC PHREG`), the proportional-hazards assumption must
   be tested — NOT assumed. A violated PH assumption silently biases hazard
-  ratios and inflates confidence in the point estimate; reviewers and editors
-  at survival-heavy journals (JCO, Stat Med, Lancet, NEJM) will reject papers
-  that report Cox hazard ratios without an explicit PH check.
+  ratios and inflates confidence in the point estimate; survival-heavy
+  journals routinely reject papers that report Cox hazard ratios without
+  an explicit PH check.
 
   This protocol forces the AI to:
     1) detect the Cox fit,
@@ -199,7 +202,8 @@ steps:
 
       If NO violation, append a one-line note to conclusions.md:
       "PH assumption supported (global Grambsch-Therneau p=<value>,
-      all per-covariate p>0.05; see outputs/reports/cox_ph_diagnostics.md)."
+      all per-covariate results within the pre-specified threshold;
+      see outputs/reports/cox_ph_diagnostics.md)."
 
   - id: append_to_methods_and_conclusions
     name: Append to methods.md + conclusions.md
@@ -209,7 +213,8 @@ steps:
 
         method="Schoenfeld residual test (Grambsch-Therneau)"
         implementation="lifelines==<version>" (or survival package)
-        parameters="p_value_threshold=0.05; transformation=identity"
+        parameters="decision_threshold=<pre-specified value + citation>;
+                    transformation=<identity / km / rank>"
         justification="proportional-hazards assumption check
                        required for any reported Cox hazard ratio
                        (Grambsch & Therneau 1994, Biometrika)."

@@ -1,12 +1,17 @@
 id: synthesis_cover_letter
 tier: 'synthesize'
 name: Synthesis — Journal Cover Letter
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper
+  - synthesis/journal_selection       # the venue the letter argues fit for
+  - synthesis/reviewer_response       # distinct from the post-review rebuttal
 description: |
   Draft the cover letter that accompanies a journal submission. The
   cover letter is the editor's first read — it determines whether the
@@ -29,13 +34,15 @@ prerequisites:
     or in the prompt).
 
 quality_bar:
-  word_count: [200, 400]                # one page max
+  fits_one_page: true                   # the editor's first read; keep it short
   names_the_editor_or_journal_explicitly: true
   explains_fit_with_journal: true
   states_significance_in_one_sentence: true
   discloses_concurrent_submissions: true
-  names_two_to_four_suggested_reviewers: true
-  names_at_least_one_excluded_reviewer_with_reason: true
+  suggested_reviewers_match_journal_request: true   # supply as many as the
+                                                    # journal asks for, all real
+  names_at_least_one_excluded_reviewer_with_reason: true   # when the journal
+                                                           # allows exclusions
   ethical_clearances_disclosed: true
 
 editorial_voice:
@@ -116,7 +123,7 @@ steps:
   - id: draft_the_letter
     name: Draft the letter
     description: |
-      Standard structure (one page max, ≤400 words):
+      Standard structure (one page max):
 
         [Letterhead — institution, address, date]
 
@@ -190,8 +197,9 @@ steps:
         - verify each reviewer's current affiliation + email via
           their lab page or a recent publication
 
-      List 2-4 reviewers (most journals want 3); 1-2 excluded
-      reviewers with brief reason.
+      Supply as many suggested reviewers as the journal asks for, plus
+      an excluded reviewer or two with a brief reason where the journal
+      allows exclusions.
 
       If the journal does not request reviewer suggestions, omit
       the paragraph rather than imposing one.
@@ -222,7 +230,7 @@ steps:
         - journal fit paragraph cites at least one recent journal paper
         - all suggested reviewers verifiable
         - disclosures (preprint / IRB / data sharing) complete
-        - word count ≤ 400
+        - fits on one page
         - signature block has corresponding author + ORCID
         - tone is formal but not stiff
 

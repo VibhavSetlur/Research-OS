@@ -1,12 +1,16 @@
 id: comparative_paper_review
 tier: 'ground'
 name: Comparative Paper Review (compare / contrast 2-N papers)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
+  domain: [any]
   audience: [researcher]
-  workflow_shape: [systems_benchmark]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - guidance/quick_paper_review        # single-paper appraisal (this synthesises across N)
+  - literature/systematic_review       # full PRISMA screening (this is the few-papers case)
 description: |
   Compare-and-contrast review of TWO OR MORE papers. Distinct from:
     - `guidance/quick_paper_review` — that does a single-paper
@@ -101,7 +105,9 @@ steps:
       Picking the dimensions BEFORE reading prevents the comparison
       from drifting into "first paper good, second paper good, both
       good." Force the researcher (or the autopilot inference) to
-      name 4-7 dimensions to compare on.
+      commit to a named set of dimensions — enough to separate the
+      papers on what matters, few enough that every cell can be filled
+      at parallel depth.
 
   - id: ingest_each_paper
     name: Ingest each paper (notes per dimension)
@@ -226,15 +232,16 @@ steps:
         - discussion questions (journal_club)
         - references
 
-      Cap at:
-        journal_club        → 1200 words
-        related_work_section → 1500 words + ready-to-paste paragraphs
-        reviewer_response   → 1000 words
-        foundational_reading → 2000 words
+      Length follows the audience's norm: a journal-club brief and a
+      reviewer-response are tight; a related-work section ships
+      ready-to-paste paragraphs; foundational-reading runs longest.
+      Match the venue / setting the deliverable serves rather than a
+      fixed word count.
 
       Citation honesty: every claim that ANY paper makes is sourced
       to a specific page / section / table — not paraphrased into
-      an unsourced bullet.
+      an unsourced bullet. And the source must be the paper's actual
+      text on disk, not a recollection of its abstract.
 
   - id: hand_back
     name: Hand back + offer the follow-up

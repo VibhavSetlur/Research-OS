@@ -1,13 +1,16 @@
 id: synthesis_slides
 tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck (AI-authored Touying)
-version: '2.4.3'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative, theory_math, biology, engineering, humanities]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [proof, experiment_pipeline, any]
-last_reviewed: '2026-06-08'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/defense_prep            # a deck for a defense needs the Q&A prep
+  - synthesis/synthesis_paper         # the paper the talk compresses
 description: |
   Guide the AI to author `synthesis/slides.typ` directly (Touying
   template) for a talk — lab meeting, conference, defense, invited
@@ -42,9 +45,11 @@ design_principles: |
   - One claim per slide. The title bar makes the claim, not labels
     the slide. "Random forests recover the effect" beats "Random
     forest results."
-  - Readable at the back of the room. >=24pt axis labels, >=36pt
-    slide titles. If a figure has 8pt grid labels, it belongs in the
-    paper, not the talk. Make a TALK VERSION when needed.
+  - Readable at the back of the room. Type and axis labels are sized
+    for the worst seat at the venue's projection size, not for a laptop
+    preview — a figure whose grid labels are legible on screen but
+    vanish on a projector belongs in the paper, not the talk. Make a
+    TALK VERSION of dense figures when needed.
   - Speaker notes are mandatory. Every slide gets >=1 sentence (what
     to say, what to point at, what to skip if time is short).
   - Backup slides anticipate the questions you know are coming. A
@@ -55,27 +60,32 @@ design_principles: |
     `workspace/<step>/outputs/...`.
 
 audience_guidance: |
-  - lab_meeting — 12-20 slides; 25-30 min; informal; skip background;
-    backup slides for likely lab questions.
-  - conference_lightning — 6-10 slides; 8-12 min; ruthless
-    one-idea-per-slide; headline finding on the title slide.
-  - conference_talk — 18-28 slides; 20-25 min; include prior-work +
-    a sensitivity / limitations slide.
-  - defense — 30-45 slides; 45 min; one chapter ~ one mini-arc;
-    backup deck is half the work.
-  - invited_seminar — 25-40 slides; 50 min; story-first arc across
-    multiple studies, not paper-by-paper.
-  - teaching — 20-30 slides; 50 min; learning objectives at top;
-    worked problem in the middle; common-mistakes slide earns its
-    place here.
+  Slide count follows from the duration and the one-idea-per-slide
+  pacing, not from a fixed number — budget roughly a minute or two per
+  content slide and cut to fit. What changes per audience is the ARC
+  and what earns a slide:
+  - lab_meeting — informal; skip background; backup slides for the
+    questions the lab will actually ask.
+  - conference_lightning — ruthless one-idea-per-slide; headline
+    finding on the title slide; almost no background.
+  - conference_talk — include prior-work framing + a sensitivity /
+    limitations slide.
+  - defense — one chapter ~ one mini-arc; the backup deck is roughly
+    half the work.
+  - invited_seminar — story-first arc across multiple studies, not a
+    paper-by-paper recap.
+  - teaching — learning objectives up front; a worked problem in the
+    middle; a common-mistakes slide earns its place here.
 
 quality_standards: |
-  - slide_count — >=4 (real talk has at least 8 for any audience)
+  - slide_count — enough to carry the arc at one idea per slide for the
+    chosen duration; a two-slide "deck" is a stub, not a talk.
   - speaker_notes — every slide carries >=1 sentence of notes
-  - citation_cap — <=12 citations across the deck
+  - citation_cap — a deck is a talk, not a bibliography; cite only the
+    handful of works the audience needs named aloud.
   - no_path_leaks — zero `workspace/<step>/...` in slide-visible text
-  - figure_readability — every figure passes the back-of-room test
-    (>=24pt axis labels, >=36pt slide titles when authoring)
+  - figure_readability — every figure passes the back-of-room test at
+    the venue's projection size (legible type, no laptop-only labels)
 
 steps:
   - id: pick_audience
@@ -113,8 +123,10 @@ steps:
   - id: q_and_a
     name: Build the Q&A anticipation list
     description: |
-      5+ anticipated questions, each with a one-bullet answer outline
-      + a backup slide jump. Sources — workspace/<step>/conclusions.md
+      Anticipate the questions this audience will actually ask — each
+      with a one-bullet answer outline + a backup slide jump. Cover the
+      likely objections; a deck with no Q&A prep is half-finished.
+      Sources — workspace/<step>/conclusions.md
       Limitations sections, workspace/logs/audit_report.md, mem_log
       close-call decisions, sys_path dead-end paths.
 

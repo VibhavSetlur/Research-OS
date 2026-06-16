@@ -1,12 +1,16 @@
 id: color_accessibility_audit
 tier: 'synthesize'
 name: Color + Accessibility Audit (figures + dashboards)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/figure_guidelines   # the CVD-safe palette references the fixes route to
+  - visualization/figure_critique     # broader single-figure critique
 description: |
   Audit one or more figures (or a dashboard's CSS palette) for
   color-blindness safety, contrast adequacy, and WCAG-aligned
@@ -14,9 +18,9 @@ description: |
   sidecars; this protocol goes deeper on the COLOUR + ACCESSIBILITY
   layer that's usually missed.
 
-  Distinct from `visualization/figure_guidelines` (which prescribes
-  Okabe-Ito / viridis as defaults but doesn't audit existing figures
-  against those defaults) and from `visualization/figure_critique`
+  Distinct from `visualization/figure_guidelines` (which names the
+  CVD-safe palette references but doesn't audit existing figures
+  against them) and from `visualization/figure_critique`
   (broader critique).
 
 trigger: |
@@ -171,8 +175,9 @@ steps:
       For paper / dashboard / poster:
         - confirm each figure has BOTH sidecars (.caption.md +
           .summary.md)
-        - confirm the summary.md is non-trivial (>50 words; not
-          just "this figure shows X")
+        - confirm the summary.md is non-trivial — it explains what
+          the figure shows and how to read it, not a one-line
+          restatement of the title
         - for dashboards, confirm the HTML carries alt="..."
           attributes on <img> tags (semantic alt-text, not just
           the filename)
@@ -184,14 +189,16 @@ steps:
     name: Propose fixes per failure
     description: |
       For each flagged failure, write a specific fix:
-        - palette → switch to Okabe-Ito / viridis / PuOr; cite
-          which one and why
+        - palette → switch to a CVD-safe palette matched to the data
+          type (Okabe-Ito / viridis / PuOr are the common
+          references); name which one and why it fits this figure
         - contrast → name the specific pair + the target
-          contrast ratio
+          contrast ratio for the WCAG bar in force
         - colour-only encoding → add the second channel (specify
           which: linetype, marker, label)
-        - grayscale → switch palette to one that survives
-          grayscale (viridis does; jet does not)
+        - grayscale → switch to a palette that stays monotonic /
+          distinguishable in grayscale (perceptually-uniform
+          sequential maps survive; rainbow maps like jet do not)
         - missing alt-text → write the alt-text inline
 
       Where the source data is available, route to

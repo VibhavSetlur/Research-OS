@@ -1,12 +1,16 @@
 id: meta_analysis
 tier: 'plan'
 name: Meta-Analysis
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - literature/systematic_review            # supplies the studies + extraction table
+  - methodology/multiple_comparisons        # subgroup/sensitivity multiplicity
 description: |
   Reasoning scaffold for pooling effect estimates across primary
   studies. Names the decisions a defensible meta-analysis must

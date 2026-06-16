@@ -1,13 +1,16 @@
 id: interactive_figure_design
 tier: 'synthesize'
 name: Interactive Figure Design (per-figure, NOT dashboard-scale)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-05'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/interactive_dashboard_design   # when the interactivity spans many figures
+  - visualization/figure_guidelines              # the static companion this figure must also ship
 description: |
   When a SINGLE figure is best served by interactivity — hover-to-
   identify a gene in a 5,000-point volcano, brush-to-select cells on
@@ -32,22 +35,27 @@ description: |
   the reader explore.
 
 trigger: |
-  Use when:
-    - n > 200 marks on a scatter / volcano / UMAP and the reader
-      needs to identify specific points (gene symbols, sample IDs).
-    - Heatmap > 50 rows or > 50 columns — hover for value, click for
-      row/column detail.
-    - Network with > 30 nodes — hover for node attributes, drag for
-      layout exploration.
-    - Time series with > 1000 points — zoom + brush.
-    - Geo map — pan + zoom + click feature for popover.
-    - Stakeholder is going to *use* the figure (not just read it) to
-      answer their own follow-up questions.
+  Use when the static figure can't serve the reader's task and
+  interactivity closes the gap:
+    - a scatter / volcano / UMAP has too many marks to label
+      statically and the reader needs to identify specific points
+      (gene symbols, sample IDs) — hover to identify.
+    - a heatmap has too many rows/columns to read every cell —
+      hover for value, click for row/column detail.
+    - a network is dense enough that static labels overlap — hover
+      for node attributes, drag to explore layout.
+    - a time series is too long to read at one zoom level — zoom +
+      brush.
+    - a geo map needs pan + zoom + click-feature popovers.
+    - the stakeholder is going to *use* the figure (not just read it)
+      to answer their own follow-up questions.
 
   Do NOT use when:
-    - Figure goes into a paper PDF as Figure N (static only).
-    - Figure has < 30 marks (interactivity adds noise without payoff).
-    - Project is a one-off literature review with no live deliverable.
+    - the figure goes into a paper PDF as Figure N (static only).
+    - the figure is sparse enough to read fully at a glance —
+      interactivity then adds noise without payoff.
+    - the project is a one-off literature review with no live
+      deliverable.
 
 prerequisites:
   - The underlying static figure has been drafted (matplotlib /
@@ -61,39 +69,31 @@ steps:
   - id: pick_library
     name: Pick the interactive library that matches the data + audience
     description: |
-      Quick decision tree:
+      Choose the library from THREE dimensions, not a default:
+        - the static stack the figure already lives in (translate
+          the same encoding rather than re-invent the chart);
+        - the interactions the figure needs (cross-filter + brush
+          favour grammar-of-graphics stacks; physics-drag favours
+          network stacks);
+        - whether the field has a canonical interactive tool for
+          this data type — surface it via tool_research_tool rather
+          than reaching for the most familiar one.
 
-        Single bespoke figure, you already wrote it in matplotlib:
-          → **mpld3** (drop-in matplotlib → interactive HTML;
-                       hover labels, zoom; ~10 lines).
-          → **plotly** (`plotly.express.scatter(...).write_html(...)`)
-                       — best when hover tooltips need formatted data.
+      Illustrative examples (a vocabulary, not auto-picks):
+        - matplotlib already written → mpld3 (drop-in) or plotly
+          (`write_html`) when tooltips need formatted fields.
+        - grammar-of-graphics statistical figures → Altair /
+          Vega-Lite (brush + cross-filter + selection first-class).
+        - genomics / single-cell → the field's interactive stack
+          (scanpy / cellxgene for UMAPs, igv.js for genomic tracks,
+          a glimma-style companion for an otherwise-static volcano).
+        - networks → pyvis for quick HTML; vis.js / cytoscape.js
+          for more control.
+        - geo → folium / leafmap (Leaflet) or kepler.gl at scale.
+        - web-native publishable artefact → D3 / Observable Plot
+          (steepest curve, most flexible).
 
-        Statistical figures with grammar-of-graphics ergonomics:
-          → **Altair / Vega-Lite** (declarative; brush + cross-filter
-                                    + selection are first-class).
-          → **plotly** for everything else.
-
-        Genomics / single-cell:
-          → **scanpy.pl + sc.pl.umap(legend_loc='on data')**
-                       + Vega-Lite for interactive UMAP. cellxgene
-                       for sharable browser.
-          → **igv.js** for genomic tracks.
-          → **EnhancedVolcano** stays static; pair with `glimma::glXYPlot`
-                       (R) for the interactive volcano companion.
-
-        Networks:
-          → **pyvis** (networkx → HTML; physics drag, hover).
-          → **vis.js / cytoscape.js** when more control is needed.
-
-        Geo:
-          → **folium / leafmap** (Leaflet under the hood).
-          → **kepler.gl** for large-data interactive maps.
-
-        Web-native publishable artefact:
-          → **D3 / Observable Plot** (steepest curve, most flexible).
-
-      Pin the library in `environment/requirements.txt` so the
+      Pin the chosen library in `environment/requirements.txt` so the
       deliverable replays after a re-clone.
 
   - id: design_the_interactions

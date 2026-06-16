@@ -1,13 +1,16 @@
 id: project_startup
 tier: 'intake'
 name: Project Startup
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
-  audience: [researcher]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-04'
+  domain: [any]
+  audience: [naive_ai, researcher]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - guidance/mid_pipeline_entry    # use INSTEAD when the researcher already has work done
+  - domain/domain_analysis         # the linear successor (next_protocol)
 description: First substantive protocol. Auto-fills intake from researcher dumps, locks in research question, classifies domain, snapshots the base environment.
 trigger: Second protocol every new project — and any time inputs/ changes substantially.
 prerequisites:
@@ -111,23 +114,24 @@ steps:
       Required calls (parallel; use whichever providers the
       researcher has API keys for — see researcher_config.api_keys):
 
-        tool_search query=<domain + research_question>
-                                     year_min=<current_year-3>
-        tool_search         query=<domain + research_question>
-                                     year_min=<current_year-3>
-        tool_search            query=<central method or dataset name>
-                                     recency_days=180
-        tool_research_method       method=<the canonical method the
-                                           PI likely expects> domain=<domain>
+        tool_search        query=<domain + research_question>
+                                  year_min=<recent window — see below>
+        tool_search        query=<central method or dataset name>
+                                  year_min=<recent window — see below>
+        tool_research_method method=<the canonical method the PI
+                                  likely expects> domain=<domain>
+
+      Choose the recency window from the FIELD's pace, not a fixed
+      number: a fast-moving area (single-cell, foundation models,
+      LLM-as-judge, …) warrants a tighter, last-year-or-two pass;
+      a slow-moving area tolerates a wider window. State the window
+      you picked and why in the search log.
 
       Specific patterns:
         - PI brief named papers ("Cite Himes 2014", "GTEx airway
           atlas") → tool_literature_search_and_save for each.
         - intake_autofill returned a `named_paper_references` list
           → fetch every entry.
-        - Domain is a recently-active area (single-cell, foundation
-          models, LLM-as-judge, …) → also do a -1-year
-          tool_search pass.
 
       Save successful hits to inputs/literature/. Record the search
       itself in workspace/logs/search_log.md (tool_search_* logs

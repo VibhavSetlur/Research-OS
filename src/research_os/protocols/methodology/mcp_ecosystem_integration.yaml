@@ -1,13 +1,15 @@
 id: mcp_ecosystem_integration
 tier: 'plan'
 name: MCP Ecosystem Integration (compose other MCP servers with Research OS)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/external_tool_setup         # verifying the runtime prereqs an MCP needs
 description: |
   Research OS is one MCP server. Researchers may need access to
   many — Postgres / SQLite for live database queries; Slack / GitHub
@@ -123,10 +125,11 @@ steps:
         - DATA EGRESS: does it send data to a third-party (the
           server's hosted backend)? Important for sensitive data
           (PHI, IP-restricted).
-        - MAINTENANCE: last commit within 6 months; open issues
+        - MAINTENANCE: recent commit activity; open issues
           addressed; not abandoned.
-        - TOOL COUNT: how many tools does it expose? Adding a
-          50-tool MCP for a single capability is wasteful.
+        - TOOL COUNT: how many tools does it expose? A large tool
+          surface added for a single capability bloats the context
+          the AI must reason over — weigh the gain against the cost.
 
       Skip + alternative-source any MCP that fails vetting.
 
@@ -245,9 +248,9 @@ quality_bar:
   smoke_test_passed_on_new_mcp_tools: true
   project_readme_documents_the_composition: true
 
-# Back-edge to methodology/external_tool_setup removed to break a
-# 2-cycle (external_tool_setup -> mcp_ecosystem_integration ->
-# external_tool_setup); route via the dispatcher instead.
+# Route back to external_tool_setup via the dispatcher when runtime
+# prereqs need verifying (no direct back-edge, to keep the graph
+# acyclic).
 next_protocol: null
 next_protocol_kind: terminal
 on_failure: guidance/scope_clarification

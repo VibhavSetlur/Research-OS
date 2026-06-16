@@ -1,13 +1,16 @@
 id: network_visualization
 tier: 'synthesize'
 name: Network / Graph Visualization (DAGs, citation networks, knowledge graphs)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
+  domain: [any]
   audience: [auditor, maintainer]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-02'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/color_accessibility_audit   # edge/node colour CVD check
+  - visualization/animation_design             # for a network evolving over time
 description: |
   When relationships matter more than aggregates — co-authorship,
   citation networks, social ties, gene regulatory networks, model
@@ -43,18 +46,22 @@ prerequisites:
 
 editorial_voice:
   rules:
-    - "If the network has > ~500 nodes, force-directed layouts produce
-       hairballs. Switch to clustered layouts (community detection +
-       layout per cluster), matrix views, or aggregated representations
-       (super-node summaries) BEFORE drawing."
+    - "Once a graph is dense enough that force-directed layout
+       collapses into a hairball (edges crossing everywhere, no
+       readable structure), stop drawing the raw node-link. Switch to
+       clustered layouts (community detection + layout per cluster),
+       matrix views, or aggregated representations (super-node
+       summaries) BEFORE drawing. The node/edge profile from step 1
+       tells you when you're there — don't wait for the render."
     - "Layout choice is not aesthetic — it encodes structure. Tree
        layouts assume hierarchy; force-directed assumes spring
        equilibrium; circular emphasizes order; arc diagrams compare
        within a fixed sequence. Pick by the structural question."
     - "Visual encoding budget is finite. Size = degree or weight,
        color = community or type, label = SELECTED nodes only.
-       Labelling every node makes a network unreadable above ~30
-       nodes."
+       Labelling every node makes a network unreadable once the
+       labels start to overlap — label the few the story names, not
+       all of them."
     - "Static for publications; interactive for exploration. A
        publication figure should answer ONE question; an exploration
        tool should let the reader pan, zoom, and filter."
@@ -109,9 +116,10 @@ steps:
       Layout families + when they fit:
 
         FORCE-DIRECTED (Fruchterman-Reingold, Kamada-Kawai,
-          ForceAtlas2, OpenORD) — best for small-medium networks
-          (~< 500 nodes) with natural community structure. Bad for
-          dense or scale-free graphs (hairball).
+          ForceAtlas2, OpenORD) — best for small-to-medium networks
+          with natural community structure, where the layout still
+          separates clusters legibly. Degrades to a hairball on dense
+          or scale-free graphs.
 
         HIERARCHICAL (graphviz `dot`, Sugiyama) — best for DAGs,
           trees, layered structures (causal DAGs, computation
@@ -159,10 +167,12 @@ steps:
           centrality). Don't double-encode (size + colour for the
           same variable adds nothing).
         NODE COLOUR — best for categorical (community, type). For
-          ordinal, use a sequential palette. Cap to ~7-8 categories;
-          otherwise legend explodes.
+          ordinal, use a sequential palette. Keep the category count
+          to what a reader can hold in a legend; collapse rare
+          categories into "other" before the legend explodes.
         NODE LABELS — show selectively. Top-k by chosen centrality;
-          or only nodes the story names. NEVER all nodes above ~30.
+          or only the nodes the story names. Never label so many that
+          the labels overlap each other.
         EDGE WEIGHT — line thickness. Use alpha or thickness, not
           both. Saturate values above the 95th percentile so a few
           mega-edges don't drown the rest.

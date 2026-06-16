@@ -1,13 +1,17 @@
 id: session_resume
 tier: 'intake'
 name: Session Resume
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [naive_ai, maintainer]
   workflow_shape: [any]
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-16'
+see_also:
+  - guidance/session_boot          # resume is reached via boot's pause_classification
+  - guidance/chat_handoff          # the handoff doc resume reads back in on ctx_exhaustion
+  - guidance/mid_pipeline_entry    # distinct: resuming RO state vs importing outside work
 description: |
   Re-enter a paused / interrupted / handed-off project — possibly in a
   different chat or with a different AI model. Two MCP calls: tool_session_resume

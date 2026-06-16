@@ -1,12 +1,17 @@
 id: methodology_selection
 tier: 'plan'
 name: Methodology Selection (with lightweight lookup mode)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [researcher]
   workflow_shape: [experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/methodological_consultation # upstream "teach me X" before committing
+  - methodology/method_comparison           # when more than one survives, benchmark them
+  - methodology/deep_domain_research        # when the right answer is a canonical pipeline
 description: |
   Pick the statistical / computational method(s) for the active
   hypotheses. Document implementation, parameters, and assumptions.
@@ -70,7 +75,7 @@ steps:
       hypothesis is the usual factoring).
 
   - id: enumerate_candidates
-    name: Enumerate 2-3 candidate methods (from literature, not memory)
+    name: Enumerate a small candidate set (from literature, not memory)
     description: |
       Generate the candidate set from the LITERATURE, not from this
       file. The protocol does not name methods on purpose — naming
@@ -87,13 +92,14 @@ steps:
              "predict <outcome> from <p> features when n ≪ p"
              "compare <treatment> effect on <outcome> in observational
               data without random assignment"
-        2. Run `tool_research_method query="<phrasing>"` — pulls 5-10
+        2. Run `tool_research_method query="<phrasing>"` — pulls
            sources across academic + best-practice providers.
-        3. From the returned sources, extract the 2-3 method families
+        3. From the returned sources, extract the method families
            that the literature currently treats as competitive for
-           this combination. Note WHICH paper named each.
+           this combination — usually a handful, not a long menu.
+           Note WHICH paper named each.
 
-      Record 2-3 candidates with:
+      Record the candidates with:
         - method name (as the literature names it)
         - pros / cons relative to this project's data
         - 1+ citation per candidate
@@ -199,10 +205,10 @@ steps:
         2. State the analytical GOAL in one phrase (description /
            association / prediction / causal effect / classification
            / clustering / ranking / anomaly detection / generation).
-        3. Run two-to-four targeted literature searches against the
+        3. Run a few targeted literature searches against the
            goal-and-data combination.
-        4. Pull the 2-4 most recent or most cited candidates into the
-           `enumerate_candidates` step.
+        4. Pull the most recent / most cited candidates forward into
+           the `enumerate_candidates` step.
 
 expected_outputs:
   - workspace/methods.md

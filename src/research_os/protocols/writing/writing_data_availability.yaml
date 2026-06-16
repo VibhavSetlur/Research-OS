@@ -1,12 +1,15 @@
 id: writing_data_availability
 tier: 'synthesize'
 name: Writing — Data + Code Availability + CRediT
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [humanities]
+  domain: [any]
   audience: [auditor, maintainer]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - writing/writing_core               # the honesty / grounding voice these statements must keep
 description: |
   Draft the Data Availability, Code Availability, Author Contributions
   (CRediT), Funding, Conflicts of Interest, and Acknowledgements

@@ -1,13 +1,23 @@
 id: writing_citations
 tier: 'synthesize'
 name: Writing — Citations
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
-  workflow_shape: [experiment_pipeline]
-description: Maintain workspace/citations.md so every claim is grounded and every citation is verified online.
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - literature/literature_search       # populates the literature_index this protocol renders
+  - writing/writing_core               # the claim-grounding rules citations serve
+description: |
+  Maintain workspace/citations.md so every claim is grounded and every
+  citation resolves to a real, verifiable source. A citation_key earns
+  its place only when it points to a paper whose full text is on disk
+  or whose metadata has been verified against an authority (Crossref /
+  Semantic Scholar) — a key invented from a half-remembered title is a
+  fabrication risk, not a citation.
 
 steps:
   - id: regenerate_from_index

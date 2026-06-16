@@ -1,12 +1,16 @@
 id: synthesis_null_findings
 tier: 'synthesize'
 name: Synthesis — Null findings & inconclusive results
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
-  audience: [researcher]
+  domain: [any]
+  audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper        # the null doc is often a companion to a paper
+  - methodology/power_analysis       # power is what makes a null interpretable
 description: |
   Assemble a publishable companion document for findings that DIDN'T
   pan out: refuted hypotheses, underpowered tests, abandoned
@@ -53,7 +57,10 @@ steps:
     description: |
       Walk three sources of "didn't pan out":
         1. Hypothesis tracker — every status `refuted` or `inconclusive`.
-        2. Step power reports — any computed power < 0.80.
+        2. Step power reports — any test whose achieved power falls
+           below the adequacy threshold the project (or the field)
+           pre-specified; cite the source of that threshold rather
+           than assuming a convention.
         3. Dead-end paths — every `workspace/<id>__DEAD_END/` folder.
 
       The tool `tool_null_findings_report` does this walk automatically
@@ -122,21 +129,22 @@ steps:
   - id: choose_venue
     name: Choose a publication venue
     description: |
-      Several venues actively welcome null results:
-        - PLOS ONE
-        - BMC Research Notes
-        - F1000Research
-        - Royal Society Open Science
-        - The All Results Journals
-        - Registered Reports tracks at Cortex, Nature, eLife, PLOS
-          Biology, and 300+ other journals.
-      Pre-registered nulls usually fit best at Registered Report
-      tracks (Stage 2 acceptance is contingent only on methods,
-      not on result direction).
+      Find venues that actively welcome null and inconclusive results
+      — sound-science / results-agnostic journals and, for
+      pre-registered work, Registered Report tracks (where Stage 2
+      acceptance is contingent on the methods, not the result
+      direction). Names and policies shift; route to
+      synthesis/journal_selection to score current candidates on scope,
+      evidence bar, and open-science fit rather than picking from a
+      static list.
 
 expected_outputs:
   - synthesis/null_findings.md
 
-next_protocol: synthesis/synthesis_paper
-next_protocol_kind: forward_default
+# Terminal: the null-findings doc is a deliverable in its own right.
+# It is frequently a COMPANION to a paper, but composing the paper is
+# a separate, researcher-initiated deliverable (see_also synthesis_paper)
+# — do not auto-create one the researcher did not ask for.
+next_protocol: null
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

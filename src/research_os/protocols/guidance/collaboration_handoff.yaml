@@ -1,12 +1,15 @@
 id: collaboration_handoff
 tier: 'finalize'
 name: Collaboration Handoff (to a human, not the next AI)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
-  domain: [humanities]
+  domain: [any]
   audience: [naive_ai]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [any]
+see_also:
+  - guidance/chat_handoff      # distinct: handoff to the next AI vs to a human collaborator
 description: |
   Package the project for handoff to a human collaborator who is
   not running Research-OS. Distinct from `chat_handoff` (AI-to-AI,

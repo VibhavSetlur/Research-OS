@@ -1,12 +1,16 @@
 id: provenance_completeness
 tier: 'review'
 name: Provenance Completeness Audit (every output has a .prov.json sidecar)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - audit/audit_and_validation       # the master audit that rolls up this verdict
+  - reproducibility/reproducibility  # uses each sidecar's output.sha256 as the re-run baseline
 description: |
   Every figure, table, model artefact, and report output in the workspace
   must ship with a sibling `<stem>.prov.json` sidecar. The sidecar records:
@@ -208,8 +212,9 @@ steps:
     description: |
       mem_log:
         method="Provenance completeness audit"
-        parameters="coverage_threshold=100% for synthesis-cited;
-                    >=90% workspace-wide warned at <90%"
+        parameters="full coverage required for every synthesis-cited
+                    artefact (hard contract); remaining workspace
+                    coverage gap surfaced as a warning to close"
         justification="Research-OS provenance contract; PROV-O /
                        RO-Crate compatible."
         assumptions=["every output cited in synthesis has a

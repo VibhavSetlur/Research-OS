@@ -1,12 +1,16 @@
 id: mixed_methods
 tier: 'plan'
 name: Mixed Methods (Qual + Quant)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]
   audience: [researcher]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [experiment_pipeline, interview_study]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/qualitative_research        # the qual strand's protocol
+  - methodology/methodology_selection       # the quant strand's method choice
 description: |
   Concurrent or sequential integration of qualitative and quantitative
   strands. Enforces an explicit integration plan — not just "we ran both

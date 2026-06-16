@@ -1,13 +1,16 @@
 id: animation_design
 tier: 'synthesize'
 name: Animation Design (time-series, model behaviour, talks)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/multi_panel_composition   # the static fallback when small multiples win
+  - visualization/showcase_visualization     # for demo/landing-page-tier animation
 description: |
   Animation earns its place when CHANGE OVER TIME (or another
   continuous parameter) IS the story — model training trajectory,
@@ -48,10 +51,13 @@ editorial_voice:
        FEEL. For discrete comparison, small multiples win — a
        reader can compare two panels side-by-side but cannot
        compare a frame to a frame they saw 4 seconds ago."
-    - "Frame rate + duration are budgets. Sustained > 12 fps for
-       smooth motion; total length capped by audience patience
-       (15-30s for talks; ≤8s for autoplay on web). Slow when
-       precision matters; fast when only the shape matters."
+    - "Frame rate + duration are budgets. The frame rate must be
+       high enough that motion reads as continuous rather than
+       stuttering; the total length is bounded by the audience's
+       attention at the venue (a conference talk tolerates more than
+       a web autoplay loop). Slow the pacing when precision matters;
+       speed it up when only the shape matters. Name the budget for
+       the deliverable rather than inheriting a default."
     - "Pause-on-key-frame is mandatory for talks. Don't autoplay
        through a critical moment. Build the figure so the
        presenter can stop on the most important frame and
@@ -118,38 +124,34 @@ steps:
   - id: implement_the_animation
     name: Implement via the right library
     description: |
-      Libraries (Python):
-        - matplotlib.animation.FuncAnimation → mp4 / gif (FFmpeg
-          required for mp4).
-        - plotly with frames= argument (interactive HTML; works in
-          dashboards).
-        - holoviews + bokeh (interactive web with slider).
-        - manim (3Blue1Brown's library — for didactic talk
-          animations of equations / geometry).
-        - bokeh + Server (interactive widget animations).
+      Pick the rendering stack from the deliverable's runtime, not a
+      default. The dimensions to reason over:
+        - OUTPUT TARGET — archival video file, interactive web embed,
+          dashboard widget, or a didactic talk sequence each favour a
+          different library family.
+        - SCALE — point/line animation vs WebGL-scale (geospatial,
+          3D scenes, embeddings traversed in time) push toward
+          GPU-backed stacks.
+        - AUTHORING COST — a quick declarative frame sweep vs a
+          hand-tuned scene is a real trade; surface it.
 
-      R: gganimate (declarative, ggplot-extending), magick (for
-      animated GIFs).
-
-      Web (top-tier):
-        - D3 + transition (canonical for publication / journalism)
-        - deck.gl animated layers (large-scale geospatial / 3D)
-        - Three.js + react-three-fiber for WebGL 3D scene
-          animations (molecular, neural-network architectures,
-          embeddings traversed in time)
-        - Lottie / Rive for hand-animated micro-interactions
-          (think "interactive Distill article")
-        - Vega-Lite signals for declarative-reactive transitions
+      Survey the field's current best-practice tool for THIS target
+      via tool_research_tool rather than reaching for whatever is
+      most familiar. Common examples (illustrative, not a menu to
+      pick from): matplotlib FuncAnimation / gganimate (declarative
+      frame sweeps to mp4/gif), plotly / bokeh / Vega-Lite signals
+      (interactive web + dashboards), D3 transitions / deck.gl /
+      Three.js (publication- and demo-tier web).
 
       For showcase-tier animations (paper landing pages, demos),
-      route to visualization/showcase_visualization. Don't ship
-      a low-fps matplotlib gif as "the animation" for a
-      conference demo.
+      route to visualization/showcase_visualization. Don't ship a
+      stuttering throwaway gif as "the animation" for a conference
+      demo.
 
       The script must:
         - set + record the RNG seed if any stochastic element
-        - render to mp4 (h264) + gif (with lower fps; ~10 fps and
-          loop) for embed contexts
+        - render to an archival video (h264 mp4) plus a loop-friendly
+          embed format (gif at a frame rate suited to its context)
         - export the static fallback (the headline frame or
           small-multiples) to PNG + SVG
         - emit the standard sidecars + a .frames/ directory of

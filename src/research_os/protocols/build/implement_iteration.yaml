@@ -8,6 +8,10 @@ scope_tags:
   audience: [naive_ai, auditor]
   workflow_shape: [tool_build]
 last_reviewed: '2026-06-16'
+see_also:
+  - build/spec_and_design        # the design pass this loop executes against
+  - build/test_strategy          # the tool-wide testing regime each increment inherits
+  - build/release_and_changelog  # closes an increment set into a release
 description: |
   The core build loop for tool_build mode — the analog of
   guidance/analysis_plan's per-step loop, but the unit of work is a

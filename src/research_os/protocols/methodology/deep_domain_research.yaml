@@ -1,12 +1,16 @@
 id: deep_domain_research
 tier: 'plan'
 name: Deep Domain Research (subfield-canonical pipeline)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [experiment_pipeline, systems_benchmark]
+see_also:
+  - methodology/methodology_selection    # picks the per-stage test on top of this pipeline
+  - domain/domain_analysis               # the upstream high-level domain classification
 description: |
   Reasoning scaffold for entering an unfamiliar subfield. Before any
   statistical test or tool is named, this protocol walks the AI
@@ -14,7 +18,8 @@ description: |
     1. identifying the project's SPECIFIC subfield from real signals
        (not picking from a hardcoded list),
     2. surveying the literature for whatever the field currently
-       considers its canonical analytical chain (≥3 cited sources),
+       considers its canonical analytical chain, grounded in multiple
+       independent cited sources,
     3. proposing a project-specific pipeline skeleton where every
        stage carries its own tool / language / runtime — all chosen
        from the literature, not from training memory,
@@ -54,9 +59,9 @@ editorial_voice:
        memory alone. Every pipeline stage cites at least one primary
        methods paper + one recent best-practice / benchmark paper."
     - "Confidence-gate alternative paths. Only surface an alternative
-       pipeline when the literature scan shows ≥3 comparative signals
-       that it would meaningfully out-perform the primary on THIS
-       data shape. Silent acceptance is the default."
+       pipeline when the literature scan shows convergent comparative
+       evidence that it would meaningfully out-perform the primary on
+       THIS data shape. Silent acceptance is the default."
     - "Choose the runtime per stage, not globally. Pipelines can be
        polyglot when the canonical tool for a stage lives in a
        different language than the rest. Justify each runtime choice
@@ -105,13 +110,15 @@ steps:
   - id: survey_state_of_the_art_pipeline
     name: Survey the subfield's canonical pipeline (MANDATORY literature pass)
     description: |
-      Search for the WHOLE pipeline, not one tool. Demand ≥3 cited
-      sources spanning:
+      Search for the WHOLE pipeline, not one tool. Demand cited
+      sources spanning at least these roles (one source may fill more
+      than one role, but a single source is never enough):
         - a current best-practices / community-standard reference
           (whatever the subfield treats as canonical — a tutorial, a
           consensus paper, a community whitepaper)
-        - a recent benchmark or comparison paper (last 24-36 months)
-          showing which tools win on which data shapes
+        - a recent benchmark or comparison paper — recent enough that
+          its tool rankings still reflect the field's current state;
+          judge "recent" by the field's churn rate, not a fixed window
         - a methods paper for the single most critical pipeline
           stage (the stage where a bad choice would invalidate
           everything downstream)

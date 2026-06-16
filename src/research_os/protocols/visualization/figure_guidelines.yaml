@@ -1,13 +1,17 @@
 id: figure_guidelines
 tier: 'synthesize'
 name: Figure Guidelines
-version: '2.4.4'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-10'
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/visualization_workflow      # the workflow that consults these rules
+  - visualization/color_accessibility_audit    # deeper CVD/contrast/grayscale audit
+  - visualization/figure_critique              # reviewer-style critique of one figure
 description: |
   The reasoning scaffold for producing publication-grade figures.
 
@@ -76,10 +80,13 @@ ai_writes_the_script:
 
 research_the_right_library_first:
   rule: |
-    BEFORE you write a single line of plotting code, spend ~1 minute
-    deciding the right library / package for THIS data type in THIS
-    field. matplotlib is a sensible default but it is rarely the
-    canonical choice in a specific domain.
+    BEFORE you write a single line of plotting code, decide the right
+    library / package for THIS data type in THIS field. matplotlib is
+    a sensible general default but it is rarely the canonical choice
+    in a specific domain. The domain_defaults table below records what
+    the current literature commonly reaches for — confirm it against
+    THIS project's field + target venue rather than treating it as the
+    answer; it goes stale at the rate the field's tooling does.
   how: |
     Quick check (skip if obvious):
       - tool_research_tool topic="<chart kind> for <data type> in <field>"
@@ -434,7 +441,8 @@ figure_family_when_step_has_a_model:
       (whichever the model demands; Schoenfeld for Cox, posterior
       predictive checks for Bayesian, ROC + PR + calibration for an
       ML classifier, funnel + Q for meta-analysis)
-    - summary — the effect / coefficient / metric WITH 95% CI
+    - summary — the effect / coefficient / metric WITH its
+      uncertainty interval at the field's conventional level
     - comparison — vs baseline or alternative spec (forest, gain,
       overlay), only when a baseline exists
   why: |
@@ -503,9 +511,11 @@ formatting:
     axis_units: always include units in parentheses
                 (e.g. "Blood pressure (mmHg)")
     error_indicator:
-      bar_chart: 95% CI or SE error bars
-      regression: shaded 95% CI band
-      forest_plot: lines for 95% CI
+      # State the interval level + what it represents in the caption;
+      # use the level conventional for the field, not a default.
+      bar_chart: CI or SE error bars (label which, and the level)
+      regression: shaded confidence band (label the level)
+      forest_plot: lines for the per-study + pooled interval
 
 # Aesthetic-not-just-functional. matplotlib defaults look like
 # "ggplot output" — fine for an internal report, NOT for a paper or
@@ -813,17 +823,13 @@ steps:
             cell that won't survive a re-run.
 
       WHY THIS LOOP IS NON-NEGOTIABLE: the `audit_figure_quality`
-      server gate catches DPI, sidecars, and (when SVG is present) a
-      text-bbox-overlap heuristic. It CANNOT catch: a legend sitting
-      on top of a scatter cloud, a suptitle crashing into a panel
-      title, a value label running off the figure edge, a categorical
-      x-axis with overlapping tick labels at the current figsize, or
-      a stacked bar where adjacent segments visually merge because
-      the AI used default colours without edge strokes. The
-      first-pass spacing discipline + the bundled style preset
-      handle most of these upfront, but the eye on the pixel is the
-      final check. Without it, "the AI rendered a figure" is not
-      "the AI produced a publishable figure."
+      server gate catches DPI, sidecars, and (with SVG) a text-bbox
+      overlap heuristic — but it cannot see a legend on a scatter
+      cloud, a suptitle crashing a panel title, a label off the
+      figure edge, or merged stacked-bar segments. The spacing
+      discipline + style preset prevent most of these upfront; the
+      eye on the pixel is the final check. Without it, "the AI
+      rendered a figure" is not "the AI produced a publishable one".
 
   - id: audit
     name: Audit the Figure (server-enforced gate)
