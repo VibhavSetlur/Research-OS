@@ -97,6 +97,7 @@ sections are stable in v2:
 * `researcher`
 * `licenses`
 * `project_name`
+* `workspace`
 * `research_goal`
 * `interaction`
 * `gate_strictness`

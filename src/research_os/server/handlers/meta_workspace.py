@@ -115,6 +115,7 @@ def _handle_sys_state_get(name, arguments, root):
     out: dict[str, Any] = {
         "project_name": state.get("project_name") or state.get("project", ""),
         "pipeline_stage": state.get("pipeline_stage", state.get("phase", "init")),
+        "workspace_mode": state.get("workspace_mode", "analysis"),
         "step": state.get("step", 0),
         "current_path": state.get("current_path", "main"),
     }

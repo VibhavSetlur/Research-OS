@@ -276,6 +276,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         start_server=False,
         create_dir_needed=created_new_folder,
         detected_inputs=raw_data_sources,
+        workspace_mode=getattr(args, "workspace_mode", None) or "analysis",
     )
     _execute(result, run_preflight_repo=args.preflight, quiet_banner=True)
 
@@ -320,12 +321,19 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
         "model_profile": getattr(r, "model_profile", "medium"),
         "researcher": researcher_block,
     }
+    # Workspace mode (analysis | tool_build | exploration). Threaded into
+    # config_overrides so init_config stamps it AND the scaffold selects
+    # the matching profile. Default analysis keeps the classic surface.
+    workspace_mode = getattr(r, "workspace_mode", "analysis") or "analysis"
+    if workspace_mode != "analysis":
+        config_overrides["workspace"] = {"mode": workspace_mode}
     scaffold_minimal_workspace(
         target_dir,
         r.project_name,
         config_overrides=config_overrides,
         ide_flags=r.ides,
         copy_agents=True,
+        mode=workspace_mode,
     )
     wizard.ok("Workspace scaffolded", str(target_dir))
 
@@ -1357,6 +1365,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Initial research question. Refined later by the AI.")
     p_init.add_argument("--questions", action="append", default=None,
                         help="Add a research question (repeatable). Builds a list.")
+    p_init.add_argument("--workspace-mode", dest="workspace_mode",
+                        choices=["analysis", "tool_build", "exploration"],
+                        default=None,
+                        help="What kind of work this is. "
+                             "analysis (default) = linear analysis steps; "
+                             "tool_build = governed software build; "
+                             "exploration = scratch-first probes.")
     _ide_arg = p_init.add_argument(
         "--ide", default="all",
         help="IDE(s) to wire up: 'all' or a comma-separated list. "

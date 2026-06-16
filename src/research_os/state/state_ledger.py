@@ -125,6 +125,7 @@ class ResearchLedger:
             "created_at": now,
             "updated_at": now,
             "pipeline_stage": "init",
+            "workspace_mode": "analysis",
             "step": 0,
             "current_path": "main",
             "checkpoints": {},
@@ -200,6 +201,10 @@ class ResearchLedger:
             del state["context_transfer_memos"]
             changed = True
         state.setdefault("context_transfer_memo_stubs", [])
+        # Workspace mode (analysis | tool_build | exploration). Defaulted on
+        # read so pre-existing projects boot as the classic linear-analysis
+        # workspace without a manual edit.
+        state.setdefault("workspace_mode", "analysis")
         # Per-path: drop the bulky input_data_hashes / data_hashes mirrors;
         # `compute_input_hashes` returns the live view on demand.
         for p in state.get("paths", {}).values():
@@ -632,6 +637,7 @@ class ResearchLedger:
         state = self._load()
         lines = [
             f"Project: {state.get('project_name', 'unnamed')}",
+            f"Mode: {state.get('workspace_mode', 'analysis')}",
             f"Phase: {state.get('pipeline_stage', 'unknown')} (step {state.get('step', 0)})",
             f"Path: {state.get('current_path', 'main')}",
         ]

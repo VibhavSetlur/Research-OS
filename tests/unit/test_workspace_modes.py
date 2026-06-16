@@ -1,0 +1,252 @@
+"""Workspace-mode foundation: config getter, scaffold profiles, state field.
+
+A single ``workspace.mode`` axis drives the scaffold (and, in later
+slices, routing + audits). Three modes:
+
+* ``analysis``    — the classic linear numbered-step workspace (default).
+* ``tool_build``  — Research OS governs a software build from above (spec
+                    + decisions + eval + milestones); the tool lives in an
+                    inner git repo.
+* ``exploration`` — scratch-first quick probes with light gates.
+
+The HARD invariant these tests protect: when the mode is unset / old /
+``analysis``, the scaffold surface is BYTE-IDENTICAL to every prior
+release (same TOP_LEVEL_DIRS / EAGER_DIRS / LAZY_DIRS contract).
+"""
+
+from __future__ import annotations
+
+import tempfile
+from pathlib import Path
+
+from research_os.project_ops import (
+    EAGER_DIRS,
+    LAZY_DIRS,
+    SCAFFOLD_PROFILES,
+    TOP_LEVEL_DIRS,
+    scaffold_minimal_workspace,
+)
+from research_os.tools.actions.state.config import (
+    get_inner_repo_dir,
+    get_workspace_mode,
+    init_config,
+)
+
+
+# ---------------------------------------------------------------------------
+# Config getter
+# ---------------------------------------------------------------------------
+
+
+def test_get_workspace_mode_defaults_analysis_when_config_absent():
+    """No config file → analysis (the back-compat default)."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        assert get_workspace_mode(root) == "analysis"
+
+
+def test_get_workspace_mode_defaults_analysis_for_old_config():
+    """A config with no ``workspace:`` block reads as analysis."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        cfg = root / "inputs" / "researcher_config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("project_name: legacy\nmodel_profile: medium\n")
+        assert get_workspace_mode(root) == "analysis"
+
+
+def test_get_workspace_mode_defaults_analysis_for_malformed_config():
+    """Unparseable / odd config falls back to analysis, never raises."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        cfg = root / "inputs" / "researcher_config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("workspace: 'not-a-dict'\n")
+        assert get_workspace_mode(root) == "analysis"
+
+
+def test_get_workspace_mode_reads_written_mode():
+    """A written tool_build / exploration mode round-trips through the getter."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        init_config(root, overrides={
+            "project_name": "T",
+            "workspace": {"mode": "tool_build", "inner_repo": "engine"},
+        })
+        assert get_workspace_mode(root) == "tool_build"
+        assert get_inner_repo_dir(root) == "engine"
+
+
+def test_get_workspace_mode_unknown_value_is_analysis():
+    """An off-enum mode string degrades to analysis."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        cfg = root / "inputs" / "researcher_config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("workspace:\n  mode: nonsense\n")
+        assert get_workspace_mode(root) == "analysis"
+
+
+def test_get_inner_repo_dir_defaults_project():
+    """Blank / absent inner_repo → 'project'."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        assert get_inner_repo_dir(root) == "project"
+        init_config(root, overrides={
+            "project_name": "T", "workspace": {"mode": "tool_build"},
+        })
+        assert get_inner_repo_dir(root) == "project"
+
+
+# ---------------------------------------------------------------------------
+# Scaffold profiles — analysis is byte-identical to today
+# ---------------------------------------------------------------------------
+
+
+def test_analysis_profile_reproduces_legacy_constants():
+    """The analysis profile IS the legacy contract — exact set equality."""
+    prof = SCAFFOLD_PROFILES["analysis"]
+    assert prof["top_level_dirs"] == TOP_LEVEL_DIRS
+    assert prof["eager_dirs"] == EAGER_DIRS
+    assert prof["lazy_dirs"] == LAZY_DIRS
+
+
+def _top_level_dirs_on_disk(root: Path) -> set[str]:
+    """The directory contract the scaffold actually built, as a flat set
+    matching the relative paths in TOP_LEVEL_DIRS (incl. nested inputs/*)."""
+    found: set[str] = set()
+    for rel in TOP_LEVEL_DIRS:
+        if (root / rel).is_dir():
+            found.add(rel)
+    return found
+
+
+def test_scaffold_unset_mode_creates_exactly_legacy_top_level_dirs():
+    """Mode unset == analysis: every eager TOP_LEVEL_DIR exists; the lone
+    lazy dir (synthesis/) does not — byte-identical to the classic surface."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(root, "Legacy", ide_flags=[], copy_agents=False)
+        # Every eager dir present.
+        for rel in EAGER_DIRS:
+            assert (root / rel).is_dir(), f"missing eager dir {rel}"
+        # Lazy dirs absent on a cold init.
+        for rel in LAZY_DIRS:
+            assert not (root / rel).exists(), f"lazy dir {rel} should not exist"
+        # No governance surface from other modes leaked in.
+        for leaked in ("spec", "decisions", "eval", "governance.md",
+                       "milestones.md"):
+            assert not (root / leaked).exists(), f"analysis leaked {leaked}"
+
+
+def test_scaffold_explicit_analysis_matches_unset():
+    """Passing mode='analysis' explicitly builds the same dir set as unset."""
+    with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
+        a, b = Path(d1), Path(d2)
+        scaffold_minimal_workspace(a, "A", ide_flags=[], copy_agents=False)
+        scaffold_minimal_workspace(b, "B", ide_flags=[], copy_agents=False,
+                                   mode="analysis")
+        assert _top_level_dirs_on_disk(a) == _top_level_dirs_on_disk(b)
+
+
+# ---------------------------------------------------------------------------
+# tool_build profile
+# ---------------------------------------------------------------------------
+
+
+def test_tool_build_scaffold_creates_governance_surface():
+    """tool_build seeds spec/, decisions/, eval/, milestones.md, governance.md,
+    CHANGELOG.md, and an inner repo dir with its own .git — and does NOT
+    pre-create analysis numbered-step plumbing."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Builder", ide_flags=[], copy_agents=False,
+            mode="tool_build",
+            config_overrides={"project_name": "Builder",
+                              "workspace": {"mode": "tool_build"}},
+        )
+        # Governance layer.
+        for rel in ("spec", "decisions", "eval"):
+            assert (root / rel).is_dir(), f"missing governance dir {rel}"
+        for f in ("spec/requirements.md", "spec/design.md",
+                  "decisions/README.md", "eval/README.md",
+                  "milestones.md", "governance.md", "CHANGELOG.md"):
+            assert (root / f).is_file(), f"missing governance file {f}"
+
+        # Inner repo with its own .git.
+        inner = root / "project"   # default inner_repo name
+        assert inner.is_dir(), "inner repo dir not created"
+        assert (inner / ".git").exists(), "inner repo not git-init'd"
+        assert (inner / "README.md").is_file()
+
+        # Mode-agnostic safety surface preserved.
+        for rel in ("inputs/raw_data", "inputs/literature", "inputs/context",
+                    ".os_state", "environment", "workspace/scratch", "docs"):
+            assert (root / rel).is_dir(), f"missing safety dir {rel}"
+
+        # Config + state both record the mode.
+        assert get_workspace_mode(root) == "tool_build"
+        from research_os.project_ops import load_state
+        assert load_state(root).get("workspace_mode") == "tool_build"
+
+
+def test_tool_build_does_not_create_analysis_step_dirs():
+    """tool_build must NOT seed the classic synthesis/ output dir or any
+    numbered analysis step folder."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Builder", ide_flags=[], copy_agents=False,
+            mode="tool_build",
+        )
+        assert not (root / "synthesis").exists()
+        # No NN_* step dirs pre-created.
+        ws = root / "workspace"
+        step_dirs = [p for p in ws.iterdir()
+                     if p.is_dir() and p.name[:2].isdigit()]
+        assert step_dirs == [], f"unexpected step dirs: {step_dirs}"
+
+
+def test_tool_build_custom_inner_repo_name():
+    """A configured inner_repo name is used for the inner git repo."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Builder", ide_flags=[], copy_agents=False,
+            mode="tool_build",
+            config_overrides={"workspace": {"mode": "tool_build",
+                                            "inner_repo": "engine"}},
+        )
+        assert (root / "engine" / ".git").exists()
+        assert not (root / "project").exists()
+
+
+# ---------------------------------------------------------------------------
+# exploration profile
+# ---------------------------------------------------------------------------
+
+
+def test_exploration_scaffold_is_scratch_first():
+    """exploration: workspace/scratch is eager; synthesis stays lazy;
+    workspace/logs deferred. The classic numbered-step plumbing is minimal."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Probe", ide_flags=[], copy_agents=False,
+            mode="exploration",
+        )
+        # Scratch home base eager.
+        assert (root / "workspace" / "scratch").is_dir()
+        # Safety surface present.
+        for rel in ("inputs/raw_data", "inputs/literature", "inputs/context",
+                    ".os_state", "environment", "docs"):
+            assert (root / rel).is_dir(), f"missing safety dir {rel}"
+        # Synthesis is lazy → absent on cold init.
+        assert not (root / "synthesis").exists()
+        # workspace/logs is lazy in exploration → absent on cold init.
+        assert not (root / "workspace" / "logs").exists()
+        # No tool_build governance surface leaked in.
+        for leaked in ("spec", "decisions", "eval", "governance.md"):
+            assert not (root / leaked).exists()
+        assert get_workspace_mode(root) == "exploration"

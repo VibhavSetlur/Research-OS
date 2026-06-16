@@ -108,6 +108,17 @@ licenses:
 # ── This project ────────────────────────────────────────────────────────
 project_name: "{project_name}"
 
+# ── Workspace mode — what kind of work is this? ─────────────────────────
+# Changes the scaffold, which protocols route, and which audits apply.
+#   analysis    → linear numbered analysis steps (default; classic Research OS)
+#   tool_build  → building software / a tool you iterate on. Research OS
+#                 governs from above (spec + decisions + milestones + eval
+#                 harness); the tool itself lives in an inner git repo.
+#   exploration → scratch-first quick probes, light gates, promote-to-step.
+workspace:
+  mode: "analysis"        # analysis | tool_build | exploration
+  inner_repo: ""          # tool_build only: inner project dir (blank → "project")
+
 # ── What you want to produce (blank = AI suggests; start exploratory) ───
 research_goal:
   output_types: []               # paper | abstract | poster | dashboard | report | exploratory
@@ -384,6 +395,57 @@ def get_interaction_policy(root: Path) -> dict[str, str]:
         return defaults
 
 
+VALID_WORKSPACE_MODES = ("analysis", "tool_build", "exploration")
+
+
+def get_workspace_mode(root: Path) -> str:
+    """Return the workspace mode from the config (``analysis`` default).
+
+    The mode picks the scaffold profile + (later slices) which protocols
+    route and which audits apply. Falls back to ``analysis`` whenever the
+    config is missing, the ``workspace:`` block is absent, or the value
+    is unknown — so an old / malformed config behaves exactly like the
+    classic linear-analysis workspace. Never raises.
+    """
+    root = Path(root)
+    try:
+        cfg_path = _config_path(root)
+        if not cfg_path.exists():
+            return "analysis"
+        cfg = yaml.safe_load(cfg_path.read_text()) or {}
+        workspace = cfg.get("workspace") or {}
+        mode = workspace.get("mode") if isinstance(workspace, dict) else None
+        if mode in VALID_WORKSPACE_MODES:
+            return mode
+        return "analysis"
+    except Exception:
+        return "analysis"
+
+
+def get_inner_repo_dir(root: Path) -> str:
+    """Return the tool_build inner project dir name (blank → ``project``).
+
+    Only meaningful for ``workspace.mode == 'tool_build'``. The inner
+    directory is where the actual tool lives + gets its own ``git init``;
+    Research OS governs it from above. Always returns a usable, traversal-
+    safe single path segment.
+    """
+    root = Path(root)
+    try:
+        cfg_path = _config_path(root)
+        if not cfg_path.exists():
+            return "project"
+        cfg = yaml.safe_load(cfg_path.read_text()) or {}
+        workspace = cfg.get("workspace") or {}
+        raw = workspace.get("inner_repo") if isinstance(workspace, dict) else None
+    except Exception:
+        raw = None
+    name = (raw or "").strip().strip("/").replace("..", "").strip()
+    # Collapse to a single safe segment — never a nested / traversing path.
+    name = name.split("/")[0] if name else ""
+    return name or "project"
+
+
 def _mask_api_keys(config: dict[str, Any]) -> dict[str, Any]:
     safe = copy.deepcopy(config)
     keys = safe.get("api_keys")
@@ -537,6 +599,18 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                 config["authors"] = existing
             if overrides.get("depth"):
                 config.setdefault("research_goal", {})["target_venue"] = overrides["depth"]
+            # Workspace mode (analysis | tool_build | exploration) + the
+            # tool_build inner-repo dir. Only non-default values are written;
+            # the template already ships mode: "analysis".
+            ws_in = overrides.get("workspace")
+            if isinstance(ws_in, dict):
+                ws_block = config.setdefault("workspace", {})
+                mode_in = ws_in.get("mode")
+                if mode_in in VALID_WORKSPACE_MODES:
+                    ws_block["mode"] = mode_in
+                inner_in = ws_in.get("inner_repo")
+                if isinstance(inner_in, str) and inner_in.strip():
+                    ws_block["inner_repo"] = inner_in.strip()
             if overrides.get("model_profile") in ("small", "medium", "large"):
                 config["model_profile"] = overrides["model_profile"]
             # API keys: merge non-empty values into the api_keys: block.
@@ -751,6 +825,7 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     "interaction.ambiguity_posture": VALID_AMBIGUITY_POSTURES,
     "gate_strictness": ("light", "normal", "strict", "auto"),
     "project_tier": ("throwaway", "sketch", "production"),
+    "workspace.mode": VALID_WORKSPACE_MODES,
     "model_profile": ("small", "medium", "large"),
     # AI-side knobs (paired model_profile + context_class). The ai.*
     # path takes precedence when present; legacy top-level model_profile

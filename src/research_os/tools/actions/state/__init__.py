@@ -8,7 +8,9 @@ from research_os.tools.actions.state.checkpoint import (  # noqa: F401
 )
 from research_os.tools.actions.state.config import (  # noqa: F401
     get_config,
+    get_inner_repo_dir,
     get_interaction_policy,
+    get_workspace_mode,
     init_config,
     set_config,
     validate_config,
