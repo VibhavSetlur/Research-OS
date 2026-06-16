@@ -16,7 +16,7 @@ model, see the **Known caveats in 2.2.x** section of
 
 > The Research-OS MCP server runs as **you**, the OS user that
 > started it — and any tool the server exposes (notably
-> `tool_python_exec` and `tool_shell_exec`) inherits every permission
+> `tool_python_exec` and `tool_bash_exec`) inherits every permission
 > you have on that machine.
 
 Concretely: if your shell can `rm -rf ~`, the AI driving the MCP
@@ -94,7 +94,7 @@ injection in a fetched literature PDF, a web-search snippet, or text
 the user pastes into chat), they can:
 
 * **Execute arbitrary code** via `tool_python_exec` or
-  `tool_shell_exec` — anything you could type in a shell.
+  `tool_bash_exec` — anything you could type in a shell.
 * **Read any file your OS user can read** — including SSH keys, API
   tokens in `~/.config/`, browser cookie stores, etc. — by calling
   `tool_python_exec` with `open(...).read()`.

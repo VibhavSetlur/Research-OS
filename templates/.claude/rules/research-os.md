@@ -19,20 +19,21 @@ else.
    `decomposition`, `complexity`, `ask_user`. If `ask_user` is
    non-null, ASK that question and re-route.
 3. For `complexity: high`, `tool_route` persists an `active_plan` to
-   `.os_state/active_plan.json`. Call `tool_plan_turn` to get the batch
-   for this turn (sized to your `model_profile`). Walk it with
-   `tool_plan_advance` after each step. If `chat_split_recommended` is
-   true, hand off + tell the researcher to open a fresh chat.
+   `.os_state/active_plan.json`. Call `tool_plan(operation="turn")` to
+   get the batch for this turn (sized to your `model_profile`). Walk it
+   with `tool_plan(operation="advance")` after each step. If
+   `chat_split_recommended` is true, hand off + tell the researcher to
+   open a fresh chat.
 4. For `complexity: low`, call the shortcut tool directly OR load the
    primary protocol with `sys_protocol_get format='summary'` (~300
    tokens), then `format='step' + step_id='<id>'` when ready to execute.
 
 On **subsequent turns** of the same session, skip `sys_boot` — its
 payload is still in context — and go straight to `tool_route` (or
-continue an in-flight plan via `tool_plan_advance`).
+continue an in-flight plan via `tool_plan(operation="advance")`).
 
 Tools use underscores: `sys_state_get`, `tool_data_profile`,
-`mem_analysis_log`. Dot notation + legacy aliases auto-rewrite.
+`mem_log`. Dot notation + legacy aliases auto-rewrite.
 
 Never write to `inputs/raw_data/` or `inputs/literature/` (immutable).
 All workspace I/O goes through MCP tools.
@@ -41,7 +42,7 @@ When the researcher EXPLICITLY authorises a quality-gate bypass,
 pass the relevant per-audit override (e.g.
 `override_discussion_coverage=true` + `override_rationale=…` on
 `tool_discussion_coverage_audit`, or `override_gate=true` +
-`override_rationale=…` on `tool_plan_advance`). The override is
+`override_rationale=…` on `tool_plan(operation="advance")`). The override is
 appended to `workspace/logs/override_log.md`; the pre-submission audit
 resurfaces every bypass.
 

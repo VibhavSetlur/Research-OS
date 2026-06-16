@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from research_os.tools.actions.audit._base import AuditBase, AuditFinding
+from research_os.tools.actions.audit._paper import resolve_paper_path
 
 
 _AUDIT_NAME = "synthesis"
@@ -51,7 +52,7 @@ class SynthesisAudit(AuditBase):
     def run(  # type: ignore[override]
         self,
         root: Path,
-        paper_path: str = "synthesis/paper.md",
+        paper_path: str | None = None,
         *,
         override_no_pdfs: bool = False,
         override_rationale: str = "",
@@ -61,8 +62,12 @@ class SynthesisAudit(AuditBase):
 
         Always returns a ``list[AuditFinding]`` — never raises for a
         missing paper or workspace; emits a ``warn`` finding instead so
-        the gate ledger sees the no-op.
+        the gate ledger sees the no-op. ``paper_path`` defaults to the
+        resolved synthesis paper (``synthesis/paper.typ`` if present,
+        else the Markdown forms).
         """
+        if paper_path is None:
+            paper_path = resolve_paper_path(root)
         # Local import so audit/__init__.py's import of audit_synthesis
         # (legacy) + SynthesisAudit (this module) doesn't create an
         # import cycle when the legacy module pulls

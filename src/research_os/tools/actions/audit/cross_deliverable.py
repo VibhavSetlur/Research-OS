@@ -66,16 +66,22 @@ logger = logging.getLogger("research_os.audit.cross_deliverable")
 # might ship paper.md, paper.pdf, or both. We read text-shaped sources only
 # (PDFs are skipped; the source of truth for the audit is the markdown).
 _DELIVERABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
-    "paper": ("synthesis/paper.md",),
+    "paper": (
+        "synthesis/paper.typ",
+        "synthesis/paper.md",
+        "synthesis/report.md",
+    ),
     "dashboard": (
         "synthesis/dashboard.html",
         "synthesis/dashboard_story.md",
     ),
     "slides": (
+        "synthesis/slides.typ",
         "synthesis/slides.md",
         "synthesis/slides.html",
     ),
     "poster": (
+        "synthesis/poster.typ",
         "synthesis/poster.md",
         "synthesis/poster.tex",
     ),
@@ -297,7 +303,8 @@ def _within(a: float, b: float, tol: float) -> bool:
 
 _MD_IMG_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)")
 _HTML_IMG_RE = re.compile(r"<img[^>]+src=[\"']([^\"']+)", re.IGNORECASE)
-_TYPST_IMG_RE = re.compile(r"#image\(\"([^\"]+)")
+# Typst: ``#image("path")`` and the wrapped ``#figure(image("path"))`` form.
+_TYPST_IMG_RE = re.compile(r"#(?:figure\(\s*)?image\(\s*[\"']([^\"']+)")
 _LATEX_INCLUDE_RE = re.compile(r"\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}")
 
 
@@ -691,8 +698,8 @@ def audit_cross_deliverable_consistency(root: Path) -> dict[str, Any]:
             warn = (
                 f"Cross-deliverable audit needs ≥2 deliverables; "
                 f"found {len(deliverables)} ({list(deliverables.keys())}). "
-                f"Run tool_synthesize + tool_dashboard_create (or slides / "
-                f"poster) before this audit."
+                f"Author the paper plus at least one of dashboard / slides / "
+                f"poster before this audit."
             )
             return {
                 "status": "skipped",
@@ -922,11 +929,15 @@ class CrossDeliverableConsistencyAudit(AuditBase):
             return findings
 
         deliverables_found = list(result.get("deliverables_found") or [])
-        # All deliverables live under synthesis/; surface them as evidence
-        # so the structured finding lets a reviewer jump straight to the
+        # All deliverables live under synthesis/; surface their real paths
+        # (the actual suffix on disk — .typ / .md / .html) as evidence so
+        # the structured finding lets a reviewer jump straight to the
         # files that diverge.
+        discovered = _discover_deliverables(root)
         evidence_paths_all = sorted(
-            f"synthesis/{d}.md" for d in deliverables_found
+            str(discovered[d].relative_to(root))
+            for d in deliverables_found
+            if d in discovered
         )
         log_path = result.get("log_path") or (
             "workspace/logs/cross_deliverable_audit.md"

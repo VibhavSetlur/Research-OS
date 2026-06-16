@@ -154,7 +154,8 @@ _HANDOUT_TYP = """// synthesis/handout.typ — single-page A4 handout. Author fo
 // AI: <=6 citations.
 
 #align(bottom + right)[
-  #image("handout_qr.png", width: 1.2in)
+  // AI: when you have a QR PNG, drop it next to this file and uncomment:
+  // #image("handout_qr.png", width: 1.2in)
   Contact · email · ORCID
 ]
 """

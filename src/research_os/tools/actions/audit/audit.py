@@ -13,6 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from research_os.tools.actions.audit._base import AuditBase, AuditFinding
+from research_os.tools.actions.audit._paper import (
+    figure_refs as _resolve_figure_refs,
+    has_references as _resolve_has_references,
+    has_section as _resolve_has_section,
+    is_typst as _is_typst,
+    section_body as _resolve_section_body,
+)
 
 logger = logging.getLogger("research_os.tools.audit")
 
@@ -72,10 +79,27 @@ def audit_synthesis(
 
         text = p.read_text()
         lower = text.lower()
+        typst = _is_typst(paper_path)
 
-        # Section coverage
+        # Section coverage. Markdown uses ``## <name>`` (or LaTeX
+        # ``\section{<name>}``); Typst uses ``= <name>`` headings, except
+        # the abstract, which lives in the template ``conf(abstract: [ … ])``
+        # block rather than under a heading.
         required = ["abstract", "introduction", "methods", "results", "discussion"]
-        missing_sections = [s for s in required if f"## {s}" not in lower and f"\\section{{{s}" not in lower]
+        if typst:
+            missing_sections = []
+            for s in required:
+                if s == "abstract":
+                    present = bool(re.search(r"abstract\s*:\s*\[", text, re.I))
+                else:
+                    present = _resolve_has_section(text, s, True)
+                if not present:
+                    missing_sections.append(s)
+        else:
+            missing_sections = [
+                s for s in required
+                if f"## {s}" not in lower and f"\\section{{{s}" not in lower
+            ]
 
         # Causal language flagged for observational research
         causal_terms = [
@@ -106,8 +130,18 @@ def audit_synthesis(
         word_count = len(text.split())
         citation_density = citation_count / max(1, word_count) * 1000  # per 1000 words
 
-        # Figures referenced vs. files present
-        figure_refs = set(re.findall(r"!\[[^\]]*\]\(([^)]+\.(?:png|svg|pdf|jpg))\)", text))
+        # Figures referenced vs. files present. Markdown drafts embed via
+        # ``![](path)``; Typst drafts via ``#figure(image("path"))`` /
+        # ``#image("path")`` — restrict to image-like extensions either way.
+        if typst:
+            figure_refs = {
+                ref for ref in _resolve_figure_refs(text, True)
+                if ref.lower().endswith((".png", ".svg", ".pdf", ".jpg"))
+            }
+        else:
+            figure_refs = set(
+                re.findall(r"!\[[^\]]*\]\(([^)]+\.(?:png|svg|pdf|jpg))\)", text)
+            )
         figures_present = []
         synthesis_dir = root / "synthesis"
         for ref in figure_refs:
@@ -116,7 +150,7 @@ def audit_synthesis(
                 candidate = root / ref
             figures_present.append({"ref": ref, "exists": candidate.exists()})
 
-        has_bibliography = "## references" in lower or "\\bibliography" in text
+        has_bibliography = _resolve_has_references(text, typst)
 
         # Quality-bar gates against the available workspace evidence.
         # A purely structural audit (sections exist, citations cited)
@@ -149,17 +183,29 @@ def audit_synthesis(
         coverage = (figures_used_from_workspace / n_available) if n_available else 1.0
 
         # Word counts per IMRAD section.
-        # Terminator `^##\s` (require space) so `###` / `####`
-        # sub-section headers don't truncate the parent section. A
-        # plain `^##` form would force sub-headers to be demoted to
-        # bold for the audit to count properly.
+        # Markdown terminator `^##\s` (require space) so `###` / `####`
+        # sub-section headers don't truncate the parent section. Typst
+        # sections are `= <name>` headings; the abstract is the template
+        # `conf(abstract: [ … ])` block, captured via _resolve_section_body
+        # / the abstract regex.
         section_word_counts: dict[str, int] = {}
         for sec in ("abstract", "introduction", "methods", "results", "discussion"):
-            m = re.search(
-                rf"^##\s+{sec}\s*\n(.+?)(?=^##\s|\Z)",
-                text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
-            )
-            section_word_counts[sec] = len((m.group(1) if m else "").split())
+            if typst:
+                if sec == "abstract":
+                    am = re.search(
+                        r"abstract\s*:\s*\[(.+?)\]",
+                        text, re.DOTALL | re.IGNORECASE,
+                    )
+                    body = am.group(1) if am else ""
+                else:
+                    body = _resolve_section_body(text, sec, True)
+            else:
+                m = re.search(
+                    rf"^##\s+{sec}\s*\n(.+?)(?=^##\s|\Z)",
+                    text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
+                )
+                body = m.group(1) if m else ""
+            section_word_counts[sec] = len(body.split())
         total_words = sum(section_word_counts.values()) or word_count
 
         # MIN bar (target = informal paper); HARD bar (target = real journal).

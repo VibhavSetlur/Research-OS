@@ -38,6 +38,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from research_os.tools.actions.audit._paper import resolve_paper_path
+
 logger = logging.getLogger("research_os.audit.redteam")
 
 
@@ -86,9 +88,10 @@ def _inventory(root: Path) -> dict[str, Any]:
         "step_count": 0,
         "figure_count": 0,
     }
-    paper = root / "synthesis" / "paper.md"
+    paper_rel = resolve_paper_path(root)
+    paper = root / paper_rel
     if paper.exists():
-        inv["paper"] = str(paper.relative_to(root))
+        inv["paper"] = paper_rel
     for fname, key in [
         ("synthesis/abstract.md", "abstract"),
         ("synthesis/dashboard.html", "dashboard"),
@@ -151,8 +154,8 @@ def redteam_scaffold(
         return {
             "status": "error",
             "message": (
-                "no synthesis/paper.md to review. Run tool_synthesize "
-                "first."
+                "no synthesis paper to review. Author synthesis/paper.typ "
+                "first (seed it with tool_synthesis_scaffold)."
             ),
         }
 

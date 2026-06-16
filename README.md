@@ -184,7 +184,7 @@ research-os doctor
 
 ## What's inside
 
-* **~150 MCP tools** in three namespaces — `sys_*` (system / workspace /
+* **MCP tools** in three namespaces — `sys_*` (system / workspace /
   files / state), `tool_*` (research work), `mem_*` (append-only memory).
   Family-level consolidation (`tool_audit`, `tool_search`,
   `tool_step`, `tool_lessons`, `mem_log`, etc.) dispatches by `scope` /
@@ -192,7 +192,7 @@ research-os doctor
   AI writes `paper.typ` / `slides.typ` / `poster.typ` / `dashboard.html`
   directly, with `tool_synthesize_plan` for inspection, `tool_synthesis_check`
   for validation, and `tool_typst_compile` for PDF rendering.
-* **100+ core protocols** + 36 in 5 bundled packs (humanities,
+* **Core protocols** + bundled domain packs (humanities,
   qualitative, theory_math, wet_lab, engineering) the AI picks from
   via `tool_route`. Every protocol carries
   `scope_tags: {domain, audience, workflow_shape}` and a `tier`

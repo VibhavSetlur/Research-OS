@@ -18,12 +18,12 @@ Strategy
      * **grounded** — appeared verbatim or within tolerance in an output.
      * **ungrounded** — no output file contains the number.
 4. Write `workspace/logs/claim_grounding.md` and return a structured
-   report. `tool_synthesize` reads this and BLOCKS if any
-   ungrounded claim is in the paper.
+   report. The synthesis gate reads this and BLOCKS if any ungrounded
+   claim is in the paper.
 
 The auditor is opinionated about what counts as a "claim":
-* Numbers in `# Headings` are skipped (counts, sample sizes in titles
-  are usually re-stated in body).
+* Numbers in `# Headings` (Markdown) / `= Headings` (Typst) are skipped
+  (counts, sample sizes in titles are usually re-stated in body).
 * Numbers in `> blockquote` are still checked (often quoted findings).
 * Numbers in fenced code blocks are skipped (those are inline data).
 
@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any
 
 from research_os.tools.actions.audit._base import AuditBase, AuditFinding
+from research_os.tools.actions.audit._paper import is_typst, resolve_paper_path
 
 logger = logging.getLogger("research_os.audit.claim_grounding")
 
@@ -64,10 +65,21 @@ _CLAIM_PAT = re.compile(
 )
 
 
-def _strip_code_and_citations(text: str) -> str:
-    """Remove fenced code blocks + inline code + bracketed citation refs."""
+def _strip_code_and_citations(text: str, typst: bool = False) -> str:
+    """Remove fenced code blocks + inline code + bracketed citation refs.
+
+    When ``typst`` is set, also strip Typst ``// line`` and ``/* block */``
+    comments — a .typ scaffold is mostly authoring comments, and the
+    numbers inside them ("400-800 words", "≥3 cited works") are not
+    claims.
+    """
+    out = text
+    if typst:
+        # Block comments first, then line comments (whole-line + trailing).
+        out = re.sub(r"/\*.*?\*/", " ", out, flags=re.DOTALL)
+        out = re.sub(r"//[^\n]*", " ", out)
     # Fenced code blocks.
-    out = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
+    out = re.sub(r"```.*?```", " ", out, flags=re.DOTALL)
     # Inline code.
     out = re.sub(r"`[^`]+`", " ", out)
     # Bracketed citation refs: [1], [1,2], [1-5]
@@ -99,14 +111,18 @@ def _normalise(token: str) -> float | None:
 
 
 def extract_claims(md_path: Path) -> list[dict[str, Any]]:
-    """Pull every quantitative claim out of a Markdown document."""
+    """Pull every quantitative claim out of a Markdown or Typst document."""
     if not md_path.exists():
         return []
-    text = _strip_code_and_citations(md_path.read_text(errors="replace"))
+    typst = is_typst(md_path)
+    text = _strip_code_and_citations(
+        md_path.read_text(errors="replace"), typst=typst
+    )
+    heading_char = "=" if typst else "#"
     claims: list[dict[str, Any]] = []
     for line_no, line in enumerate(text.splitlines(), start=1):
         # Skip pure headings (numbers in titles are usually restated).
-        if line.lstrip().startswith("#"):
+        if line.lstrip().startswith(heading_char):
             continue
         for m in _CLAIM_PAT.finditer(line):
             tok = m.group(0).strip()
@@ -193,8 +209,9 @@ def audit_claims(
     Parameters
     ----------
     target_path:
-        Relative path of the document to audit. Defaults to
-        ``synthesis/paper.md``; falls back to ``synthesis/report.md``.
+        Relative path of the document to audit. Defaults to the resolved
+        paper (``synthesis/paper.typ`` if present, else the Markdown
+        forms); falls back to abstract / null-findings drafts.
     tolerance:
         Relative-difference tolerance for float matching. Default 1%.
     """
@@ -203,10 +220,10 @@ def audit_claims(
         return {"status": "error", "message": "workspace/ not found"}
 
     if not target_path:
-        # Find the most plausible target.
+        # Find the most plausible target — the resolved paper first
+        # (.typ preferred), then the lighter standalone drafts.
         for candidate in (
-            "synthesis/paper.md",
-            "synthesis/report.md",
+            resolve_paper_path(root),
             "synthesis/abstract.md",
             "synthesis/null_findings.md",
         ):
@@ -217,7 +234,8 @@ def audit_claims(
             return {
                 "status": "warning",
                 "message": (
-                    "no synthesis target found — run tool_synthesize first."
+                    "no synthesis target found — author synthesis/paper.typ "
+                    "first."
                 ),
             }
 
@@ -354,7 +372,7 @@ class ClaimGroundingAudit(AuditBase):
             )
             return findings
 
-        target = result.get("target") or (target_path or "synthesis/paper.md")
+        target = result.get("target") or (target_path or resolve_paper_path(root))
         report_path = result.get("report_path") or (
             "workspace/logs/claim_grounding.md"
         )

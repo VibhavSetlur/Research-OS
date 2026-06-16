@@ -359,9 +359,10 @@ Query the ledger with `tool_audit_findings`:
 * `tool_audit_findings(operation='diff', timestamp_a=..., timestamp_b=...)` —
   confirm a fix actually resolved a BLOCK finding between two audit runs.
 
-`tool_synthesize` BLOCK-gates on unresolved BLOCKs in the ledger and
-names the exact override flag in the error envelope
-(`override_unresolved_blocks=true` + `override_rationale='...'`).
+`tool_audit(scope='synthesis')` surfaces unresolved BLOCKs in the
+ledger in its error envelope; triage them with
+`tool_audit_findings(operation='query', severity='block')` and resolve
+the source before authoring or compiling the deliverable.
 
 ### Visualization
 
@@ -595,14 +596,14 @@ The AI MUST walk the plan instead of one-shotting:
 * `tool_plan(operation='turn')` — returns `this_turn` (steps to execute
   now) + `next_turn` (queued), sized to the researcher's `model_profile`
   (small=1 step/turn, medium=3, large=6; heavy tools like
-  `tool_synthesize` count for more).
+  `tool_typst_compile` count for more).
 * `tool_plan(operation='advance')` — after each step completes.
 * `tool_plan(operation='clear')` — if the researcher pivots mid-plan.
 
-(The legacy `tool_plan_turn` / `tool_plan_advance` / `tool_plan_clear`
-names were hard-removed in v2.0.0 — call `tool_plan(operation=...)`
-with the matching `operation`. The `_REMOVED_TOOLS` error envelope
-names the canonical entry point if a stale caller hits the old name.)
+(The legacy `tool_plan_turn` / `tool_plan_advance` / `tool_plan_clear` names were hard-removed
+in v2.0.0 — call `tool_plan(operation=...)` with the matching
+`operation`. The `_REMOVED_TOOLS` error envelope names the canonical
+entry point if a stale caller hits the old name.)
 
 When `chat_split_recommended=true` (long plan remaining), the AI hands
 off + asks the researcher to open a fresh chat with "pick up where we

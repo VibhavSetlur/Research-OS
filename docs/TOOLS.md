@@ -245,7 +245,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `sys_protocol_get format='step' step_id='...'` | ~150-500 | When executing one step. |
 | `sys_protocol_get format='full'` | ~1.5-3K | Only when you need every step at once. |
 | `sys_tool_describe(name)` | ~200 | Full description for one tool. |
-| `tool_synthesize output_type='paper'` | ~2-5K | One-shot — actual paper draft. |
+| `tool_synthesis_check(file='synthesis/paper.typ')` | ~1-3K | Audit an AI-authored synthesis file before compiling. |
 
 **Default `list_tools` payload is ~1K tokens** (vs ~3K pre-consolidation)
 — each tool ships its `short` field, full description on demand via
@@ -289,24 +289,24 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
   `step`, `since`. `diff` compares two snapshots. `explain` (REQUIRES
   `id=...`) returns the full chronological history of one finding with
   the **untruncated** `suggested_fix` text — what to call when a
-  synthesize BLOCK preview cuts off the remediation guidance at 160
-  chars.
-* `tool_synthesize` BLOCK-gates on unresolved BLOCK findings and
-  names the exact override flag in the error envelope
-  (`override_unresolved_blocks=true` + `override_rationale='...'`).
+  synthesis-scope BLOCK preview cuts off the remediation guidance at
+  160 chars.
+* `tool_audit(scope='synthesis')` surfaces unresolved BLOCK findings
+  in its error envelope so they can be triaged
+  (`tool_audit_findings(operation='query', severity='block')`) and
+  resolved before authoring or compiling the deliverable.
 * `tool_audit_quality_full` returns structured per-component verdicts:
   `components: {step_completeness, code_quality, prose_quality,
   claims, preregistration_diff, grounding}` each with `{status,
   blockers, advice}`.
 
-**Drafter review-rewrite loops** *(phase-5)*
+**Draft → review → rewrite loop**
 
-* `tool_paper_compile_typst` and `tool_poster_create` iterate draft →
-  adversarial review → rewrite. Per-iteration outputs to
-  `workspace/logs/drafter_loops/<deliverable>_iter_<N>.{md,json}` +
-  cumulative `quality_progression.md`. Disable per call with
-  `drafter_loop=false`; tune via `synthesis.drafter_loop_*` in
-  `researcher_config.yaml`.
+* The AI authors the deliverable (`synthesis/paper.typ`,
+  `poster.typ`, …) directly, then iterates draft → adversarial review
+  (`tool_redteam_review`) → rewrite → `tool_synthesis_check` →
+  `tool_typst_compile`. Drive the loop yourself rather than calling a
+  one-shot generator.
 
 **`research-os doctor`** *(phase-6)*
 
@@ -339,10 +339,10 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
   `tool_plan_*`, `tool_ground_*`, `tool_verify_*` legacy names,
   `sys_path_*`, `mem_*_log`/`mem_*_append`). Call the canonical entry
   point shown in the migration table.
-* Phase 14b — `tool_poster_create(engine='latex')` (tikzposter)
-  removed. Typst is the only supported poster renderer.
-* `tool_figure_create` and the 30+ `_render_*` chart-kind
-  dispatchers (removed in v1.3.0). The AI writes its own
+* Phase 14b — `tool_poster_create(engine='latex')` (tikzposter) removed.
+  Typst is the only supported poster renderer.
+* `tool_figure_create` was removed (along with the 30+ `_render_*`
+  chart-kind dispatchers, in v1.3.0). The AI writes its own
   matplotlib / ggplot2 / Altair / plotnine / d3 / plotly code per
   `visualization/figure_guidelines`.
 
@@ -374,22 +374,18 @@ project.
 }
 ```
 
-### `tool_dashboard(operation='create')`
+### `tool_synthesis_check`
 
 ```json
 {
-  "status": "ok",
-  "wrote": "synthesis/dashboard.html",
-  "size_kb": 612,
-  "audience": "academic",
-  "mode": "explore",
-  "embedded_figures": 7,
-  "verdicts_rendered": 3,
-  "blockers_surfaced": 0,
+  "status": "warning",
+  "file": "synthesis/dashboard.html",
+  "mode": "all",
+  "blockers": [],
   "warnings": [
-    "Two figures lack an interactive companion; gate auto-generated Vega-Lite fallbacks."
+    "Two <img> elements are missing alt text — add a plain-English description for each."
   ],
-  "next_steps": "Open synthesis/dashboard.html in any browser. To share, the file is self-contained — email or upload as-is."
+  "next_steps": "Add the missing alt text, then re-run tool_synthesis_check. The file is self-contained — open synthesis/dashboard.html in any browser to share."
 }
 ```
 
@@ -456,43 +452,15 @@ explicit override is needed.
 
 | Tool | Gate kwarg | Pairs with | Blocks what |
 |---|---|---|---|
-| `tool_synthesize` | `override_completeness_gate` | `override_rationale` | Master quality gate (full doc) / step-completeness (section-only) |
-| `tool_synthesize` | `override_unresolved_blocks` | `override_rationale` | Active BLOCK findings in `workspace/logs/.audit_findings.jsonl` (v2.0.0) |
-| `tool_dashboard(operation='create')` | `override_completeness_gate` | `override_rationale` | Step-completeness warnings panel on the rendered dashboard |
-| `tool_dashboard(operation='create')` | `override_dashboard_content_gate` | `override_rationale` | `tool_audit(scope='synthesis', dimension='dashboard_content')` BLOCKERs (placeholder text, stub captions, etc.) |
-| `tool_audit(scope='synthesis', dimension='dashboard_content')` | `override_dashboard_content_gate` | `override_rationale` | Same gate when called directly (returns `override_applied: true`) |
+| `tool_audit(scope='synthesis', dimension='dashboard_content')` | `override_dashboard_content_gate` | `override_rationale` | Dashboard-content BLOCKERs (placeholder text, stub captions, etc.) |
 | `tool_plan(operation='advance')` | `override_gate` | `override_rationale` | Deliverable-step quality gate before advancing the plan |
-| `tool_path_finalize` | `override_literature_gate` | `override_rationale` | Per-step literature loop check (missing `findings_vs_literature.md`, uncovered DISAGREES verdicts) |
-| `tool_audit(scope='step', dimension='literature')` | `override_literature_gate` | `override_rationale` | Same gate when called directly |
-| `tool_discussion_coverage_audit` | `override_discussion_coverage` | `override_rationale` | Discussion-coverage BLOCK (non-AGREES verdict missing from `synthesis/discussion.md`) |
+| `tool_step_complete` | `override_literature_gate` | `override_rationale` | Per-step literature loop check (missing `findings_vs_literature.md`, uncovered DISAGREES verdicts) |
+| `tool_discussion_coverage_audit` | `override_discussion_coverage` | `override_rationale` | Discussion-coverage BLOCK (non-AGREES verdict missing from the Discussion) |
 | `tool_audit(scope='synthesis', dimension='all')` | `override_no_pdfs` | `override_rationale` | Zero-PDF default-deny on literature-required steps |
-| `tool_figure(operation='paper_autoembed')` | `override_xref_rewrite` | n/a (local flip) | Skip the auto rewrite of figure cross-references when `synthesis.figure_xref_rewrite=true` |
 | `tool_audit(scope='project', dimension='cross_deliverable')` | `override_cross_deliverable` | `override_rationale` | 5-dimension cross-deliverable audit |
 | `sys_path(operation='create')` | `allow_unfinalized_predecessor` | `override_rationale` | Refusal to create the next numbered step before the previous one is finalised |
 
 ### Example calls
-
-Synthesize a partial paper preview before the final figures land:
-
-```python
-tool_synthesize(
-    output_type="paper",
-    override_completeness_gate=True,
-    override_rationale="reviewer wants a preview of the discussion before Fig 3 is final",
-)
-```
-
-Render the executive dashboard for a status meeting even though three
-step captions are still stubs:
-
-```python
-tool_dashboard(
-    operation="create",
-    audience="executive",
-    override_completeness_gate=True,
-    override_rationale="board update at 16:00, finals land tomorrow",
-)
-```
 
 Walk the plan past a deliverable step the researcher already produced
 outside the workspace:
@@ -528,17 +496,6 @@ tool_audit(
 )
 ```
 
-Compile a paper with known active BLOCK findings in the ledger
-(v2.0.0):
-
-```python
-tool_synthesize(
-    output_type="paper",
-    override_unresolved_blocks=True,
-    override_rationale="reviewer wants the draft tonight; prose blockers known + queued for tomorrow",
-)
-```
-
 Use `tool_audit_findings(operation='query', severity='block')` to list
 the current active blockers and
 `tool_audit_findings(operation='diff', timestamp_a=..., timestamp_b=...)`
@@ -558,7 +515,7 @@ prevent.
 Every honoured bypass appends a single markdown bullet:
 
 ```
-- 2026-06-06T17:42:11Z · `tool_synthesize` · gate=quality_full · reviewer wants a preview · {"output_type": "paper", "section": null, "blocker_count": 4}
+- 2026-06-06T17:42:11Z · `tool_audit` · gate=quality_full · reviewer wants a preview · {"output_type": "paper", "section": null, "blocker_count": 4}
 ```
 
 Fields in order:
@@ -569,7 +526,7 @@ Fields in order:
 4. The rationale string verbatim (or
    `<no rationale provided — flag in audit>` if the policy allowed an
    empty one)
-5. Optional JSON extras — for `tool_synthesize` this includes
+5. Optional JSON extras — for a synthesis-scope audit this includes
    `output_type`, `section`, and `blocker_count`; other tools attach
    tool-specific context
 

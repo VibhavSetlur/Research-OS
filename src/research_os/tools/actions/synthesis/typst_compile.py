@@ -122,8 +122,13 @@ def _materialise_template_imports(source: Path) -> None:
             for pkg in packages_dir.iterdir():
                 if not pkg.is_dir():
                     continue
-                # Match by file name OR by package dir name == stem.
-                for cand in (pkg / name, pkg / f"{stem}.typ", pkg / "poster.typ"):
+                # Match by exact file name OR by package dir name == stem.
+                # Both forms already resolve every bundled package
+                # (touying-mini.typ -> touying-mini/touying-mini.typ;
+                # poster.typ -> poster-mini/poster.typ), so no greedy
+                # filename fallback that could copy the wrong package's
+                # file under a different requested name.
+                for cand in (pkg / name, pkg / f"{stem}.typ"):
                     if cand.exists():
                         shutil.copyfile(cand, dst)
                         break
@@ -187,6 +192,25 @@ def typst_compile(
                 biblio_path = synth_biblio
         elif synth_biblio.exists():
             biblio_path = synth_biblio
+
+    # A freshly scaffolded source references `#bibliography("biblio.yml")`
+    # before the author has added any citations. Ensure a minimal valid
+    # Hayagriva file exists so the skeleton compiles out of the box (the
+    # author overwrites it once citations.md is populated). Mirrors the
+    # placeholder the markdown synthesis path has always written.
+    try:
+        src_text = src.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        src_text = ""
+    if "#bibliography(" in src_text:
+        referenced = src.parent / "biblio.yml"
+        if not referenced.exists():
+            referenced.write_text(
+                'placeholder:\n  type: misc\n  title: "No citations yet"\n',
+                encoding="utf-8",
+            )
+            if biblio_path is None:
+                biblio_path = referenced
 
     _materialise_template_imports(src)
 

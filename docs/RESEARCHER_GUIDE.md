@@ -398,7 +398,7 @@ catalogue.
 
 ---
 
-## 7. MCP tools (144 live)
+## 7. MCP tools
 
 > All names use underscores. Dot notation + legacy names are
 > auto-rewritten. Full catalogue (alphabetical, with aliases) at
@@ -636,8 +636,9 @@ an `intake_autofill` pass.
 
 Skip `tool_research_tool` (or run it to confirm no library fits). Run
 `tool_research_method` for published precedent. Document with
-`mem_methods_append implementation="custom"` and `mem_decision_log`
-explaining why off-the-shelf was inadequate. Prototype in
+`mem_log(kind='methods', implementation='custom')` and
+`mem_log(kind='decision')` explaining why off-the-shelf was
+inadequate. Prototype in
 `workspace/scratch/`; promote into a numbered step when it works.
 
 ### Branching
@@ -653,8 +654,8 @@ confidence-gated.
 
 `mem_hypothesis_add` for each (auto-assigned `H1, H2, …` or you pick
 the ID). Every experiment step declares which hypothesis IDs it
-touches via `mem_hypothesis_update status=testing|supported|refuted|
-inconclusive evidence=<one-line>`.
+touches via `mem_log(kind='hypothesis',
+status=testing|supported|refuted|inconclusive, evidence='<one-line>')`.
 
 ### Mid-flow context
 
@@ -791,7 +792,7 @@ src/research_os/
 ├── data/typst/                  # 11 Typst venue templates (Nature, Science, …)
 ├── inputs/                      # paper + paste intake helpers
 ├── plugins/                     # domain-pack loader + pack_api surface
-├── protocols/                   # 117 YAML protocols + _router_index.yaml + _tiers.py
+├── protocols/                   # YAML protocols + _router_index.yaml + _tiers.py
 │   ├── audit/        (3)        # audit_and_validation, pre_submission_checklist, provenance_completeness
 │   ├── domain/       (2)
 │   ├── guidance/    (19)        # autopilot, code_review, mid_pipeline_entry, scope_clarification, …
@@ -884,9 +885,9 @@ you there fastest.
 | **Log-log benchmark scaling plot** (runtime vs n, fitted exponent + CI) | Systems / algorithms benchmark; engineering pack | `methodology/method_comparison` (including the engineering / systems-benchmark addendum) → `visualization/figure_guidelines` → `visualization/uncertainty_visualization` (the CI on the exponent is the headline) |
 
 For every recipe, the AI also pairs `tool_audit(scope='step',
-dimension='figure_full')` and auto-synthesises a `<figure>.caption.md`
-+ `<figure>.summary.md` sidecar via
-`tool_figure(operation='caption_synthesise')`. Skipping the sidecar
+dimension='figure_full')` and authors a `<figure>.caption.md`
++ `<figure>.summary.md` sidecar directly when the figure is created
+(see `visualization/figure_guidelines`). Skipping the sidecar
 blocks at the per-step completeness audit, so don't.
 
 Two general principles the stack enforces:
@@ -927,7 +928,7 @@ Two general principles the stack enforces:
 | `Protocol not found` | `sys_protocol_list` (or `tool_protocols_list` for filterable catalogue). |
 | "Unknown tool" error | The dispatcher accepts `sys_state_get` / `sys.state.get` / legacy v1.x names via `_ALIASES`. If a name is in `_REMOVED_TOOLS` (Phase 14a), the error names the canonical v2 entry point. If still failing, "Call `tool_tools_list` and tell me what's available." |
 | AI calls deprecated tool names | Harmless — `_ALIASES` dispatches old names through the v2.0.x runway. `tool_deprecations_summary` aggregates `.os_state/deprecations.log` for a sweep before v2.1.0. |
-| `BLOCK: unresolved audit findings` from `tool_synthesize` | Run `tool_audit_findings(operation='query', severity='block')` to list active blockers; fix them or pass `override_unresolved_blocks=true` + `override_rationale='...'`. |
+| `BLOCK: unresolved audit findings` from `tool_audit(scope='synthesis')` | Run `tool_audit_findings(operation='query', severity='block')` to list active blockers; fix them or pass `override_rationale='...'`. |
 
 For more: [FAQ.md](FAQ.md).
 

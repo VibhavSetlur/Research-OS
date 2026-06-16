@@ -1,7 +1,8 @@
 """Cross-step coherence audit.
 
-Verifies every paragraph in ``synthesis/paper.md`` maps back to a step's
-``conclusions.md`` via key-phrase overlap. Flags orphan paragraphs —
+Verifies every paragraph in the synthesis paper (``synthesis/paper.typ``
+or the Markdown forms) maps back to a step's ``conclusions.md`` via
+key-phrase overlap. Flags orphan paragraphs —
 text that was likely carried over from a prior chat about a step that
 was later abandoned, or text invented during synthesis without grounding.
 
@@ -18,6 +19,8 @@ import logging
 import re
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._paper import is_typst, resolve_paper_path
 
 logger = logging.getLogger("research_os.tools.audit.coherence")
 
@@ -46,14 +49,23 @@ def _shingles(words: list[str], k: int = 3) -> set[str]:
 _NUMBERED_LIST_RE = re.compile(r"^\d+\.\s")
 _BULLET_LIST_RE = re.compile(r"^[-*+]\s")
 _CODE_FENCE_RE = re.compile(r"^\s*```")
+# Markdown section heading (## …) vs Typst top-level heading (= …).
+_MD_SECTION_RE = re.compile(r"^##\s+(.*)$")
+_TYP_HEADING_RE = re.compile(r"^=+\s+(.*)$")
+# Typst figure/image lines + comment lines (skipped like markdown images).
+_TYP_IMG_RE = re.compile(r"^\s*#(?:figure\(\s*)?image\(")
+_TYP_COMMENT_RE = re.compile(r"^\s*//")
 
 
-def _paragraphs(text: str) -> list[tuple[str, str]]:
-    """Return (section, paragraph) pairs. Section is the most-recent ## heading.
+def _paragraphs(text: str, typst: bool = False) -> list[tuple[str, str]]:
+    """Return (section, paragraph) pairs. Section is the most-recent heading.
 
-    Match any digit prefix for numbered lists (not just '1.'), and
-    track in_code state so fenced-block bodies are skipped (not just
-    the ``` fence line).
+    Markdown: a ``## `` heading opens a section; ``#`` of any depth and
+    ``![`` images break paragraphs. Typst: any ``=``-prefixed heading
+    opens a section; ``#image(`` / ``#figure(image(`` and ``//`` comment
+    lines break paragraphs. Match any digit prefix for numbered lists
+    (not just '1.'), and track in_code state so fenced-block bodies are
+    skipped (not just the ``` fence line).
     """
     out: list[tuple[str, str]] = []
     current_section = "preamble"
@@ -69,23 +81,34 @@ def _paragraphs(text: str) -> list[tuple[str, str]]:
             para_lines = []
 
     for line in text.splitlines():
-        if _CODE_FENCE_RE.match(line):
+        if not typst and _CODE_FENCE_RE.match(line):
             _flush()
             in_code = not in_code
             continue
         if in_code:
             continue
-        if line.startswith("## "):
-            _flush()
-            current_section = line[3:].strip().lower()
-            continue
-        if line.startswith("#"):
-            _flush()
-            continue
+        if typst:
+            m = _TYP_HEADING_RE.match(line)
+            if m:
+                _flush()
+                current_section = m.group(1).strip().lower()
+                continue
+            if _TYP_COMMENT_RE.match(line) or _TYP_IMG_RE.match(line):
+                _flush()
+                continue
+        else:
+            m = _MD_SECTION_RE.match(line)
+            if m:
+                _flush()
+                current_section = m.group(1).strip().lower()
+                continue
+            if line.startswith("#"):
+                _flush()
+                continue
+            if line.startswith("!["):
+                continue
         if not line.strip():
             _flush()
-            continue
-        if line.startswith("!["):
             continue
         stripped = line.lstrip()
         if (
@@ -99,9 +122,11 @@ def _paragraphs(text: str) -> list[tuple[str, str]]:
     return out
 
 
-def audit_coherence(root: Path, paper_path: str = "synthesis/paper.md") -> dict[str, Any]:
+def audit_coherence(root: Path, paper_path: str | None = None) -> dict[str, Any]:
     """Audit cross-step coherence in the paper."""
     try:
+        if paper_path is None:
+            paper_path = resolve_paper_path(root)
         p = root / paper_path
         if not p.exists() or not p.is_file():
             return {
@@ -110,7 +135,7 @@ def audit_coherence(root: Path, paper_path: str = "synthesis/paper.md") -> dict[
             }
 
         text = p.read_text()
-        paragraphs = _paragraphs(text)
+        paragraphs = _paragraphs(text, typst=is_typst(paper_path))
 
         step_corpus: dict[str, set[str]] = {}
         workspace = root / "workspace"

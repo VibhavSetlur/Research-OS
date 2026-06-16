@@ -132,11 +132,12 @@ genuinely cross-disciplinary / open-ended ask, load
 hands back to `tool_route` with a workable prompt.
 
 Append-only logs (`methods.md`, `analysis.md`, `citations.md`) only via
-`mem_*`. Numbers go in `mem_decision_log` / `mem_methods_append` /
-`mem_hypothesis_update` so the audit trail is intact. Every decision
-must cite its grounding via `tool_grounding_register` (which
-inputs/context/papers informed it) — otherwise `tool_grounding_verify`
-flags it before synthesis.
+`mem_*`. Numbers go in `mem_log(kind="decision")` /
+`mem_log(kind="methods")` / `mem_log(kind="hypothesis")` so the audit
+trail is intact. Every decision must cite its grounding via
+`tool_ground(mode="explicit")` (which inputs/context/papers informed
+it) — otherwise `tool_verify(scope="project")` flags it before
+synthesis.
 
 ---
 
@@ -179,8 +180,8 @@ flags it before synthesis.
 4. **Never commit a method or library from training memory alone.**
    Run `tool_research_method` / `tool_research_tool` first; register
    the citation as the decision's grounding.
-5. **Never delete in `workspace/`.** Use `sys_path_abandon` — it
-   renames to `__DEAD_END`, preserves files.
+5. **Never delete in `workspace/`.** Use `sys_path(operation="abandon")`
+   — it renames to `__DEAD_END`, preserves files.
 6. **Never block on a long job.** Use `tool_task_run` (local) or
    `tool_slurm_submit` (cluster); poll status.
 7. **Never pick step slugs from training memory** — derive from the
