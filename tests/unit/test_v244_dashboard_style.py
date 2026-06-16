@@ -222,16 +222,23 @@ def test_synthesis_scaffold_dashboard_round_trips(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("file_rel,pattern,expected", [
-    ("pyproject.toml", "version = \"2.4.4\"", True),
-    ("CITATION.cff", "version: 2.4.4", True),
-    ("src/research_os/__init__.py", "__version__ = \"2.4.4\"", True),
-])
-def test_version_files_coherent(file_rel: str, pattern: str, expected: bool):
-    body = (REPO_ROOT / file_rel).read_text()
-    assert (pattern in body) is expected, (
-        f"{file_rel} should{'' if expected else ' not'} contain {pattern!r}"
-    )
+def test_version_files_coherent():
+    """pyproject / CITATION / __init__ must all carry the canonical version.
+
+    Reads research_os.__version__ as the single source of truth so this
+    never needs a per-release edit (CLAUDE.md: all three must agree).
+    """
+    import research_os
+
+    v = research_os.__version__
+    checks = {
+        "pyproject.toml": f'version = "{v}"',
+        "CITATION.cff": f"version: {v}",
+        "src/research_os/__init__.py": f'__version__ = "{v}"',
+    }
+    for file_rel, pattern in checks.items():
+        body = (REPO_ROOT / file_rel).read_text()
+        assert pattern in body, f"{file_rel} should contain {pattern!r}"
 
 
 def test_changelog_has_244_entry():

@@ -42,8 +42,10 @@ project_name: ""                 # blank → uses directory name
 #                 governs from above (spec + decisions + milestones + eval
 #                 harness); the tool itself lives in an inner git repo.
 #   exploration → scratch-first quick probes, light gates, promote-to-step.
+#   notebook    → Jupyter-first; a notebook / cell is the unit of work.
+#   multi_study → a portfolio of sub-studies with a shared codebook + roll-up.
 workspace:
-  mode: "analysis"        # analysis | tool_build | exploration
+  mode: "analysis"        # analysis | tool_build | exploration | notebook | multi_study
   inner_repo: ""          # tool_build only: inner project dir (blank → "project")
   # tool_build only: the shell commands that define "done" for the inner
   # repo. tool_build(operation=build|test|lint) runs these (cwd = inner
