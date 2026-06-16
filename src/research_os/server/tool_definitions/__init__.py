@@ -11,6 +11,7 @@ from .synthesis import SYNTHESIS_TOOL_DEFINITIONS  # noqa: E501
 from .methodology import METHODOLOGY_TOOL_DEFINITIONS  # noqa: E501
 from .grounding import GROUNDING_TOOL_DEFINITIONS  # noqa: E501
 from .build import BUILD_TOOL_DEFINITIONS  # noqa: E501
+from .gradient import GRADIENT_TOOL_DEFINITIONS  # noqa: E501
 
 TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     **META_TOOL_DEFINITIONS,
@@ -20,4 +21,5 @@ TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     **METHODOLOGY_TOOL_DEFINITIONS,
     **GROUNDING_TOOL_DEFINITIONS,
     **BUILD_TOOL_DEFINITIONS,
+    **GRADIENT_TOOL_DEFINITIONS,
 }

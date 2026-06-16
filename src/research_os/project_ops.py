@@ -184,6 +184,96 @@ _EXPLORATION_LAZY_DIRS = (
     "synthesis",
 )
 
+# ── notebook ────────────────────────────────────────────────────────────
+# A Jupyter-first layout: the unit of work is a notebook in ``notebooks/``,
+# not a numbered analysis step. ``data/`` holds inputs the notebooks read,
+# ``outputs/`` holds what they emit (figures / tables / exports). The
+# mode-agnostic safety dirs (.os_state, inputs/*, docs, environment,
+# workspace/scratch) hold as in every profile. workspace/logs stays eager
+# so audit/override trails have a home; synthesis is lazy (a notebook
+# project still writes a paper/report eventually, but not at cold init).
+_NOTEBOOK_TOP_LEVEL_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "notebooks",
+    "data",
+    "outputs",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "synthesis",
+    "environment",
+)
+
+_NOTEBOOK_EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "notebooks",
+    "data",
+    "outputs",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+_NOTEBOOK_LAZY_DIRS = (
+    "synthesis",
+)
+
+# ── multi_study (program) ───────────────────────────────────────────────
+# A portfolio / program layout. ``studies/`` holds each sub-study (every
+# child is itself a small project surface the researcher fills in). ``shared/``
+# is the program-wide commons: the codebook, the preregistration, the
+# governing protocol every study inherits. ``roll_up/`` is where cross-study
+# synthesis + meta-analysis live. The classic numbered-step ``workspace/``
+# surface stays minimal here — the unit of work is a STUDY, not a step;
+# heavyweight per-study analysis happens inside each ``studies/<child>/``.
+_MULTI_STUDY_TOP_LEVEL_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "studies",
+    "shared",
+    "roll_up",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "synthesis",
+    "environment",
+)
+
+_MULTI_STUDY_EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "studies",
+    "shared",
+    "roll_up",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+_MULTI_STUDY_LAZY_DIRS = (
+    "synthesis",
+)
+
 SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
     # analysis == today's behaviour, byte-identical (reuses the constants).
     "analysis": {
@@ -200,6 +290,16 @@ SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "top_level_dirs": _EXPLORATION_TOP_LEVEL_DIRS,
         "eager_dirs": _EXPLORATION_EAGER_DIRS,
         "lazy_dirs": _EXPLORATION_LAZY_DIRS,
+    },
+    "notebook": {
+        "top_level_dirs": _NOTEBOOK_TOP_LEVEL_DIRS,
+        "eager_dirs": _NOTEBOOK_EAGER_DIRS,
+        "lazy_dirs": _NOTEBOOK_LAZY_DIRS,
+    },
+    "multi_study": {
+        "top_level_dirs": _MULTI_STUDY_TOP_LEVEL_DIRS,
+        "eager_dirs": _MULTI_STUDY_EAGER_DIRS,
+        "lazy_dirs": _MULTI_STUDY_LAZY_DIRS,
     },
 }
 
@@ -770,6 +870,260 @@ The numbered-step + synthesis surface stays out of your way until then.
 | `workspace/NN_slug/` | Promoted steps (appear once a probe earns it). |
 | `docs/` | Glossary + overview. |
 | `environment/` | Reproducibility surface. |
+
+See `GETTING_STARTED.md` for the workflow.
+""",
+        )
+        return ""
+
+    if mode == "notebook":
+        # Jupyter-first. The notebook is the unit of work; seed a starter
+        # notebook + getting-started so a fresh researcher opens
+        # notebooks/ and starts running cells immediately.
+        nb_readme = (
+            "# `notebooks/`\n\n"
+            "The unit of work in this project is a **notebook**, not a "
+            "numbered analysis step. Each notebook is a self-contained, "
+            "top-to-bottom-runnable narrative: read from `../data/`, write "
+            "figures / tables / exports to `../outputs/`.\n\n"
+            "Discipline that keeps a notebook trustworthy:\n\n"
+            "* **Restart-and-run-all is the only valid state.** A notebook "
+            "  that only works out-of-order is a notebook that doesn't work. "
+            "  Re-run top-to-bottom before you trust a result.\n"
+            "* **Cells are the provenance unit.** One coherent idea per cell; "
+            "  set the RNG seed in the first cell; print library versions so "
+            "  the run is reproducible.\n"
+            "* **Outputs are derived, never hand-edited.** Anything in "
+            "  `../outputs/` should be regenerable by re-running the notebook "
+            "  that produced it.\n\n"
+            "Name notebooks by what they do, ordered for reading: "
+            "`01_explore.ipynb`, `02_clean.ipynb`, `03_model.ipynb`. Run "
+            "cells with `tool_notebook_exec`; promote a notebook's result "
+            "into a paper/report via the synthesis tools when it's ready.\n"
+        )
+        _write_if_missing(root / "notebooks" / "README.md", nb_readme)
+        _write_if_missing(
+            root / "data" / "README.md",
+            "# `data/`\n\n"
+            "Working data the notebooks read + the derived data they write. "
+            "Immutable source data still lives in `../inputs/raw_data/` (the "
+            "AI never modifies it); copy or load from there into here, and "
+            "treat anything here as regenerable from a notebook run.\n",
+        )
+        _write_if_missing(
+            root / "outputs" / "README.md",
+            "# `outputs/`\n\n"
+            "Figures, tables, and exports the notebooks emit. Everything "
+            "here is **derived** — regenerable by re-running the notebook "
+            "that wrote it. Don't hand-edit; fix the cell and re-run.\n",
+        )
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (notebook mode)
+
+This is a Research OS workspace in **notebook mode** — Jupyter-first. The
+unit of work is a notebook in `notebooks/`, not a numbered analysis step.
+
+## 1. Drop your files
+
+| Where | What goes here |
+|---|---|
+| `inputs/raw_data/`  | Immutable source data (CSV, Parquet, FASTQ, ...) |
+| `inputs/literature/`| PDFs of papers the AI should know about |
+| `inputs/context/`   | Notes, drafts, prior reports |
+| `data/`             | Working + derived data the notebooks read/write |
+
+`inputs/` is immutable — the AI reads it but never modifies it.
+
+## 2. Work in notebooks
+
+`notebooks/` is the home base. Each notebook is a top-to-bottom-runnable
+narrative; outputs land in `outputs/`. Try:
+
+```
+start a notebook for exploring <dataset>
+run this notebook
+clean up cell 3 and re-run from there
+```
+
+The cell-as-unit discipline (restart-and-run-all, seed in cell 1, derived
+outputs only) is what keeps the work reproducible — see
+`notebooks/README.md`.
+
+## 3. Synthesize when ready
+
+When a notebook's result is worth keeping, promote it into a paper /
+report / dashboard via the synthesis tools.
+
+## More
+
+* AI rules: `AGENTS.md`
+* Config: `inputs/researcher_config.yaml` (`workspace.mode: notebook`)
+""",
+        )
+        _write_if_missing(
+            root / "README.md",
+            f"""# {project_name}
+
+> A Research OS workspace in **notebook mode** — Jupyter-first. The unit of
+> work is a notebook in `notebooks/`; outputs are derived into `outputs/`.
+
+## What's in this folder
+
+| Folder | Purpose |
+|---|---|
+| `notebooks/` | The unit of work — runnable, ordered notebooks. |
+| `data/` | Working + derived data the notebooks read/write. |
+| `outputs/` | Figures / tables / exports (derived, regenerable). |
+| `inputs/` | Immutable source data, literature, context. |
+| `synthesis/` | Paper / report (appears once you synthesize). |
+| `environment/` | Reproducibility surface. |
+
+See `GETTING_STARTED.md` for the workflow.
+""",
+        )
+        return ""
+
+    if mode == "multi_study":
+        # Program / portfolio. Seed the program governance commons so a
+        # fresh researcher understands the study → shared → roll-up model.
+        _write_if_missing(
+            root / "studies" / "README.md",
+            "# `studies/` — the sub-studies in this program\n\n"
+            "Each sub-study is a **child** of the program: one folder per "
+            "study (`studies/<slug>/`), each its own coherent piece of work "
+            "with its own question, data, analysis, and conclusion. A study "
+            "is the unit of work in multi_study mode — not a numbered step.\n\n"
+            "Every study inherits the program commons in `../shared/` (the "
+            "codebook, the preregistration, the governing protocol). Keep "
+            "study-specific deviations from the shared codebook documented "
+            "inside that study so the roll-up can account for them.\n\n"
+            "When you start a new study, create `studies/<slug>/` and treat "
+            "it as a small project surface; the cross-study synthesis happens "
+            "in `../roll_up/`.\n",
+        )
+        _write_if_missing(
+            root / "shared" / "README.md",
+            "# `shared/` — the program commons every study inherits\n\n"
+            "The single source of truth shared across all sub-studies. "
+            "Keeping these here (rather than copied into each study) is what "
+            "makes the program coherent and the roll-up valid.\n\n"
+            "* `codebook.md` — the shared variable definitions / coding "
+            "  scheme. Every study codes to THIS unless it documents a "
+            "  deviation. Divergent codebooks make a meta-analysis "
+            "  meaningless.\n"
+            "* `preregistration.md` — the program-level prereg: the "
+            "  hypotheses + analysis commitments that span studies, frozen "
+            "  before the studies run.\n"
+            "* `protocol.md` — the governing protocol each study follows "
+            "  (inclusion criteria, shared measures, common QC).\n",
+        )
+        _write_if_missing(
+            root / "shared" / "codebook.md",
+            "# Shared codebook\n\n"
+            "Program-wide variable definitions + coding scheme. Every study "
+            "codes to this. Document any per-study deviation inside that "
+            "study, not here.\n\n"
+            "| Variable | Definition | Values / coding | Source |\n"
+            "|---|---|---|---|\n",
+        )
+        _write_if_missing(
+            root / "shared" / "preregistration.md",
+            "# Program preregistration\n\n"
+            "_The hypotheses + analysis commitments that span the studies in "
+            "this program, frozen before the studies run. Per-study prereg "
+            "(if any) lives inside each study._\n\n"
+            "## Program hypotheses\n\n"
+            "_What the program as a whole predicts, across studies._\n\n"
+            "## Cross-study analysis plan\n\n"
+            "_How results will be pooled / compared in `roll_up/` (fixed vs "
+            "random effects, heterogeneity handling, moderators), decided "
+            "before seeing study results._\n",
+        )
+        _write_if_missing(
+            root / "roll_up" / "README.md",
+            "# `roll_up/` — cross-study synthesis + meta-analysis\n\n"
+            "Where the program becomes more than its studies. This is the "
+            "ONLY place that reads ACROSS `../studies/` to produce a "
+            "program-level claim:\n\n"
+            "* the meta-analysis / pooled estimate across studies,\n"
+            "* the heterogeneity story (why studies agree or differ),\n"
+            "* the cross-study narrative the program reports.\n\n"
+            "A roll-up is only valid when the studies share a codebook + "
+            "prereg (see `../shared/`). If a study deviated, account for the "
+            "deviation here rather than quietly pooling over it.\n",
+        )
+        _write_if_missing(
+            root / "governance.md",
+            f"# Governance — {project_name} (program / multi_study)\n\n"
+            "This is a **multi_study** Research OS workspace — a research "
+            "**program**, not a single analysis. The program model:\n\n"
+            "* `studies/<slug>/` — each sub-study, a child of the program. "
+            "  The unit of work is a STUDY; heavyweight analysis happens "
+            "  inside each study.\n"
+            "* `shared/` — the commons every study inherits: the codebook, "
+            "  the preregistration, the governing protocol. Coherence across "
+            "  studies is what makes the program's roll-up valid.\n"
+            "* `roll_up/` — cross-study synthesis + meta-analysis: the one "
+            "  place that reads across studies to make a program-level "
+            "  claim.\n\n"
+            "Mode-agnostic safety holds: `inputs/` is immutable, all "
+            "workspace writes go through the tools, nothing escapes the "
+            "project root. Run `program/program_setup` to reason about the "
+            "shared codebook + prereg + how the studies roll up.\n",
+        )
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (multi_study mode)
+
+This is a Research OS workspace in **multi_study mode** — a research
+**program**: several sub-studies that share a codebook + prereg and roll
+up into a cross-study synthesis.
+
+## The program layout
+
+| Path | What it's for |
+|---|---|
+| `studies/<slug>/` | Each sub-study — a child of the program. |
+| `shared/codebook.md` | Variable definitions every study codes to. |
+| `shared/preregistration.md` | Program-level hypotheses + pooling plan. |
+| `shared/protocol.md` | The governing protocol each study follows. |
+| `roll_up/` | Cross-study synthesis + meta-analysis. |
+| `governance.md` | How the program model fits together. |
+
+## Typical flow
+
+1. Set up the commons first: the shared codebook + preregistration in
+   `shared/`. Coherence here is what makes the roll-up valid.
+2. Start each sub-study under `studies/<slug>/`; it inherits the commons.
+3. When studies have results, do the cross-study synthesis in `roll_up/`.
+
+Start by running `program/program_setup` — it reasons about the shared
+codebook, the prereg, and how the studies will roll up.
+
+## More
+
+* AI rules: `AGENTS.md`
+* Config: `inputs/researcher_config.yaml` (`workspace.mode: multi_study`)
+""",
+        )
+        _write_if_missing(
+            root / "README.md",
+            f"""# {project_name}
+
+> A Research OS workspace in **multi_study mode** — a research program of
+> sub-studies that share a codebook + prereg and roll up into a cross-study
+> synthesis.
+
+## What's in this folder
+
+| Path | Purpose |
+|---|---|
+| `studies/` | Each sub-study — a child of the program. |
+| `shared/` | The commons every study inherits (codebook / prereg / protocol). |
+| `roll_up/` | Cross-study synthesis + meta-analysis. |
+| `governance.md` | How the program model fits together. |
+| `inputs/` | Immutable data / literature / context. |
 
 See `GETTING_STARTED.md` for the workflow.
 """,

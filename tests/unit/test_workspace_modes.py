@@ -250,3 +250,105 @@ def test_exploration_scaffold_is_scratch_first():
         for leaked in ("spec", "decisions", "eval", "governance.md"):
             assert not (root / leaked).exists()
         assert get_workspace_mode(root) == "exploration"
+
+
+# ---------------------------------------------------------------------------
+# notebook profile
+# ---------------------------------------------------------------------------
+
+
+def test_notebook_scaffold_is_jupyter_first():
+    """notebook: notebooks/ + data/ + outputs/ are eager; synthesis stays
+    lazy; the mode-agnostic safety dirs hold. No analysis/tool_build/program
+    surface leaks in."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Nb", ide_flags=[], copy_agents=False,
+            mode="notebook",
+        )
+        # Jupyter-first work surface, eager.
+        for rel in ("notebooks", "data", "outputs"):
+            assert (root / rel).is_dir(), f"missing notebook dir {rel}"
+        for f in ("notebooks/README.md", "data/README.md", "outputs/README.md"):
+            assert (root / f).is_file(), f"missing notebook seed {f}"
+        # Mode-agnostic safety surface present.
+        for rel in ("inputs/raw_data", "inputs/literature", "inputs/context",
+                    ".os_state", "environment", "workspace/scratch",
+                    "workspace/logs", "docs"):
+            assert (root / rel).is_dir(), f"missing safety dir {rel}"
+        # synthesis is lazy → absent on cold init.
+        assert not (root / "synthesis").exists()
+        # No other mode's surface leaked in.
+        for leaked in ("spec", "decisions", "eval", "governance.md",
+                       "studies", "shared", "roll_up"):
+            assert not (root / leaked).exists(), f"notebook leaked {leaked}"
+        assert get_workspace_mode(root) == "notebook"
+        from research_os.project_ops import load_state
+        assert load_state(root).get("workspace_mode") == "notebook"
+
+
+# ---------------------------------------------------------------------------
+# multi_study (program) profile
+# ---------------------------------------------------------------------------
+
+
+def test_multi_study_scaffold_creates_program_surface():
+    """multi_study: studies/ + shared/ + roll_up/ are eager and seeded with
+    the program commons (codebook, prereg, governance). The mode-agnostic
+    safety dirs hold; no tool_build/notebook surface leaks in."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Program", ide_flags=[], copy_agents=False,
+            mode="multi_study",
+            config_overrides={"project_name": "Program",
+                              "workspace": {"mode": "multi_study"}},
+        )
+        # Program portfolio surface.
+        for rel in ("studies", "shared", "roll_up"):
+            assert (root / rel).is_dir(), f"missing program dir {rel}"
+        for f in ("studies/README.md", "shared/README.md",
+                  "shared/codebook.md", "shared/preregistration.md",
+                  "roll_up/README.md", "governance.md"):
+            assert (root / f).is_file(), f"missing program seed {f}"
+        # Mode-agnostic safety surface present.
+        for rel in ("inputs/raw_data", "inputs/literature", "inputs/context",
+                    ".os_state", "environment", "workspace/scratch",
+                    "workspace/logs", "docs"):
+            assert (root / rel).is_dir(), f"missing safety dir {rel}"
+        # synthesis is lazy → absent on cold init.
+        assert not (root / "synthesis").exists()
+        # No other mode's surface leaked in.
+        for leaked in ("spec", "decisions", "eval", "notebooks", "data",
+                       "outputs"):
+            assert not (root / leaked).exists(), f"multi_study leaked {leaked}"
+        # Config + state both record the mode.
+        assert get_workspace_mode(root) == "multi_study"
+        from research_os.project_ops import load_state
+        assert load_state(root).get("workspace_mode") == "multi_study"
+
+
+def test_new_modes_in_valid_workspace_modes():
+    """notebook + multi_study are registered enum values + scaffold profiles."""
+    from research_os.tools.actions.state.config import VALID_WORKSPACE_MODES
+    for m in ("analysis", "tool_build", "exploration", "notebook",
+              "multi_study"):
+        assert m in VALID_WORKSPACE_MODES
+        assert m in SCAFFOLD_PROFILES
+
+
+def test_unknown_mode_still_falls_back_to_analysis_byte_identical():
+    """A nonsense mode collapses to the analysis profile (the fallback the
+    new modes must NOT disturb) — same dir set as an explicit analysis build."""
+    with tempfile.TemporaryDirectory() as d1, tempfile.TemporaryDirectory() as d2:
+        a, b = Path(d1), Path(d2)
+        scaffold_minimal_workspace(a, "A", ide_flags=[], copy_agents=False,
+                                   mode="analysis")
+        scaffold_minimal_workspace(b, "B", ide_flags=[], copy_agents=False,
+                                   mode="totally-bogus-mode")
+        assert _top_level_dirs_on_disk(a) == _top_level_dirs_on_disk(b)
+        # The unknown-mode build must not have grown any new-mode surface.
+        for leaked in ("notebooks", "studies", "shared", "roll_up", "spec",
+                       "data", "outputs"):
+            assert not (b / leaked).exists(), f"fallback leaked {leaked}"

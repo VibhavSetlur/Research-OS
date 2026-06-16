@@ -234,6 +234,8 @@ def run_wizard(args) -> WizardResult:
         "analysis":    "Mode: analysis (linear analysis steps)",
         "tool_build":  "Mode: tool_build (governed software build)",
         "exploration": "Mode: exploration (scratch-first probes)",
+        "notebook":    "Mode: notebook (Jupyter-first)",
+        "multi_study": "Mode: multi_study (program / portfolio)",
     }.get(workspace_mode, f"Mode: {workspace_mode}"))
 
     # ── Step 3: Research details (optional, menu-driven) ────────────────
@@ -379,7 +381,9 @@ def run_wizard(args) -> WizardResult:
 # ---------------------------------------------------------------------------
 
 
-VALID_WORKSPACE_MODES = ("analysis", "tool_build", "exploration")
+VALID_WORKSPACE_MODES = (
+    "analysis", "tool_build", "exploration", "notebook", "multi_study",
+)
 
 
 def _ask_workspace_mode(preset: str | None = None) -> str:
@@ -387,7 +391,7 @@ def _ask_workspace_mode(preset: str | None = None) -> str:
 
     Honors a value already passed on the command line (``--workspace-mode``).
     Mixed / unsure maps implicitly to ``analysis``. Returns one of
-    ``analysis | tool_build | exploration``.
+    ``analysis | tool_build | exploration | notebook | multi_study``.
     """
     if isinstance(preset, str) and preset.strip() in VALID_WORKSPACE_MODES:
         return preset.strip()
@@ -396,7 +400,9 @@ def _ask_workspace_mode(preset: str | None = None) -> str:
         [
             ("analysis",    "Analysis pipeline (data → results → paper)"),
             ("tool_build",  "A tool / software I iterate on"),
-            ("exploration", "Quick exploration"),
+            ("exploration", "Quick exploration (scratch-first probes)"),
+            ("notebook",    "A Jupyter notebook project"),
+            ("multi_study", "A multi-study program (portfolio + meta-analysis)"),
         ],
         default_index=0,
         help_line="Shapes the scaffold + how the AI works. Change later in "

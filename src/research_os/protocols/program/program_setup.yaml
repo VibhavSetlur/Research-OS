@@ -1,0 +1,165 @@
+id: program_setup
+tier: 'plan'
+name: Program Setup (shared codebook, prereg, how studies roll up)
+version: '3.0.0'
+schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher, naive_ai, auditor]
+  workflow_shape: [multi_study, program_governance]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/preregistration                 # the per-study prereg this program-level one frames
+  - methodology/meta_analysis                    # the cross-study synthesis the roll-up performs
+  - methodology/coding_scheme_development         # how the shared codebook is built rigorously
+description: |
+  The opening move of a multi_study (program) workspace. Before any single
+  study runs, establish the commons that make the program coherent: the
+  shared codebook every study codes to, the program-level preregistration,
+  and the explicit plan for how the studies roll up into a cross-study
+  claim.
+
+  This is a SCAFFOLD for program-level reasoning, not a template to fill.
+  The judgement it scaffolds is "what must be SHARED across these studies
+  for their results to be poolable, and what is each study free to vary?"
+  — which is the question that decides whether the eventual roll-up is a
+  valid meta-analysis or an apples-to-oranges average. The hardest and
+  most load-bearing decisions in a research program are made here, before
+  the first study, because they are expensive to retrofit once studies
+  have run on divergent definitions.
+
+  Distinct from:
+    - `methodology/preregistration` — freezes ONE study's SAP; this
+      frames the PROGRAM-level commitments + how studies combine.
+    - `methodology/meta_analysis` — performs the cross-study pooling;
+      this sets up the conditions under which that pooling is valid.
+    - `guidance/analysis_plan` — the per-step loop INSIDE a single study;
+      this governs the program above all the studies.
+trigger: |
+  First protocol in multi_study mode, or whenever the researcher says
+  "set up the program", "shared codebook", "harmonise across studies",
+  "how do these studies combine", "program prereg", or starts a portfolio
+  of related studies.
+prerequisites:
+  - workspace.mode is multi_study (sys_boot reports workspace_mode), OR the researcher has explicitly described a multi-study program
+  - The program surface exists (studies/, shared/, roll_up/) — the multi_study scaffold seeds it; create it if entering mid-program
+
+steps:
+  - id: orient_program
+    name: Orient on the program (not a single study)
+    description: |
+      If you haven't called sys_boot this session, do so once — it reports
+      workspace_mode + autonomy. In multi_study mode the unit of work is a
+      STUDY (a child under studies/), and the program-level claim lives in
+      roll_up/. Read what already exists before proposing the commons:
+      shared/codebook.md, shared/preregistration.md, shared/protocol.md,
+      and any studies already under studies/.
+
+      The mental model to confirm with the researcher up front: is this
+      genuinely a PROGRAM (multiple studies that should combine into one
+      claim) or a few unrelated analyses that happen to share a folder? If
+      the latter, multi_study is the wrong mode — say so. The program
+      machinery only pays off when the studies are meant to roll up.
+
+  - id: define_the_shared_codebook
+    name: Define the shared codebook every study inherits
+    description: |
+      The single most coherence-critical artefact: the variable
+      definitions + coding scheme that EVERY study codes to. Reason about,
+      and write into shared/codebook.md:
+        - The core constructs the program measures, and the exact
+          operationalisation each study must use (so "depression" or
+          "engagement" or "expression level" means the same thing in
+          every study).
+        - Allowed value ranges / categories / units per variable.
+        - Where studies are PERMITTED to differ (e.g. an extra local
+          covariate) versus where they MUST agree (the shared outcome +
+          key predictors). Divergence on the shared variables is what
+          makes a roll-up meaningless; name the non-negotiables.
+
+      A study that needs to deviate from the shared codebook documents the
+      deviation inside that study — it does not silently re-define a shared
+      variable. When the coding scheme itself is non-trivial, ground it via
+      methodology/coding_scheme_development rather than inventing categories.
+
+  - id: program_preregistration
+    name: Frame the program-level preregistration
+    description: |
+      Distinct from any single study's SAP: the commitments that span the
+      program, frozen before the studies run. Write into
+      shared/preregistration.md:
+        - The program hypotheses — what the body of studies, taken
+          together, predicts.
+        - Which studies test which hypotheses, and how (confirmatory vs
+          exploratory per study).
+        - The cross-study analysis commitments decided NOW: how results
+          will be pooled (fixed vs random effects and WHY, given expected
+          heterogeneity), how heterogeneity will be characterised, which
+          moderators are pre-specified versus exploratory.
+
+      Pre-committing the pooling plan is what stops the roll-up from
+      becoming a garden of forking paths across studies. Per-study prereg
+      (methodology/preregistration) sits UNDER this.
+
+  - id: plan_the_rollup
+    name: Plan how the studies roll up
+    description: |
+      Make the roll-up's validity a design decision, not an afterthought.
+      Reason about:
+        - The estimand the program reports: what single quantity (or set)
+          the cross-study synthesis is for. The studies should each
+          produce something commensurable with it.
+        - The minimum each study must emit for the roll-up to consume it
+          (the effect + its uncertainty in shared units, the n, the
+          coding-deviation note if any). Record this as the "study output
+          contract" in roll_up/README.md so each study knows what it owes.
+        - Anticipated heterogeneity: why might studies legitimately
+          differ (population, instrument, timing)? Deciding how that will
+          be handled now beats discovering it at pooling time.
+
+      The roll-up reads ACROSS studies/ only; no study reaches into
+      another. Keeping that boundary is what lets studies proceed
+      independently while the program stays coherent.
+
+  - id: scaffold_first_study
+    name: Scaffold the first study (and confirm the model)
+    description: |
+      With the commons in place, create the first sub-study as a child:
+        - a folder studies/<slug>/ that inherits shared/ (the codebook,
+          the prereg, the protocol).
+        - inside it, the researcher runs ordinary research — for an
+          analysis-shaped study that's guidance/analysis_plan; the study
+          is a project surface in miniature.
+
+      Confirm the program model with the researcher in one line: "each
+      study under studies/ codes to shared/codebook.md and contributes to
+      the roll-up per shared/preregistration.md; cross-study synthesis
+      happens in roll_up/." mem_log a "program setup complete:
+      <N studies planned, shared codebook + prereg frozen>" so the trail
+      is intact.
+
+      AUTONOMY GATE:
+        manual / supervised → present the commons (codebook outline +
+          prereg + roll-up plan) + the proposed first study; wait for the
+          researcher before scaffolding studies.
+        autopilot → write the commons, scaffold the first study, and
+          enter its analysis loop; log each decision for later review.
+
+expected_outputs:
+  - shared/codebook.md
+  - shared/preregistration.md
+  - roll_up/README.md  (the study output contract)
+  - studies/<slug>/  (the first sub-study)
+
+quality_bar: |
+  - The shared codebook names what MUST agree across studies vs what may
+    vary — coherence is explicit, not assumed.
+  - The pooling plan (fixed vs random, heterogeneity, moderators) is
+    pre-committed before any study result is seen.
+  - Each study knows the minimum it must emit for the roll-up (the study
+    output contract).
+  - The study↔study boundary is preserved (only roll_up reads across).
+
+next_protocol: guidance/analysis_plan
+next_protocol_kind: forward_default
+on_failure: guidance/scope_clarification

@@ -174,9 +174,9 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_tools_list": {
-        "short": "Flat tool catalog with scope + summary + required-fields. Filterable.",
+        "short": "Flat tool catalog with scope + summary + required-fields. Filterable; mode='auto' scopes to the active workspace.",
         "compare_to": "sys_active_tools (narrow shortlist scoped to one protocol's decomposition).",
-        "description": "Returns a flat list of every registered MCP tool: name, scope ('core' or pack name), summary_first_line, input_schema_required_fields, deprecated, alias_of. Filter with `scope` ('all'|'core'|<pack-name>'), `include_deprecated` (default false), and `match_substring` (case-insensitive needle against name + summary). Use this to discover the tool surface at a glance without pulling every full description; call sys_tool_describe for one tool's full body when you actually need it.",
+        "description": "Returns a flat list of every registered MCP tool: name, scope ('core' or pack name), summary_first_line, input_schema_required_fields, deprecated, alias_of. Filter with `scope` ('all'|'core'|<pack-name>'), `include_deprecated` (default false), `match_substring` (case-insensitive needle against name + summary), and `mode` — the context-bloat fix. mode='auto' resolves the project's workspace.mode (analysis | tool_build | exploration) and returns only CORE + that mode's working tools (e.g. tool_build mode surfaces tool_git/tool_build + scope='tool' audits; analysis surfaces the analysis set), cutting the ~16K-token full list to a fraction. Pass an explicit mode name to scope deliberately; omit mode for the full catalog (default, unchanged). A pack's tools stay visible under mode scoping when you also pass scope=<packname>. Call sys_tool_describe for one tool's full body when you actually need it.",
         "category": "system",
         "inputSchema": {
             "type": "object",
@@ -192,6 +192,11 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "match_substring": {
                     "type": "string",
                     "description": "Restrict to tools whose name or summary contains this substring (case-insensitive).",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["auto", "analysis", "tool_build", "exploration"],
+                    "description": "Scope to CORE + a workspace mode's tools. 'auto' reads the project's workspace.mode; an explicit name forces it; omit for the full catalog (default).",
                 },
             },
         },

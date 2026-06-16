@@ -1366,12 +1366,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--questions", action="append", default=None,
                         help="Add a research question (repeatable). Builds a list.")
     p_init.add_argument("--workspace-mode", dest="workspace_mode",
-                        choices=["analysis", "tool_build", "exploration"],
+                        choices=["analysis", "tool_build", "exploration",
+                                 "notebook", "multi_study"],
                         default=None,
                         help="What kind of work this is. "
                              "analysis (default) = linear analysis steps; "
                              "tool_build = governed software build; "
-                             "exploration = scratch-first probes.")
+                             "exploration = scratch-first probes; "
+                             "notebook = Jupyter-first notebook project; "
+                             "multi_study = multi-study program (portfolio "
+                             "+ cross-study meta-analysis).")
     _ide_arg = p_init.add_argument(
         "--ide", default="all",
         help="IDE(s) to wire up: 'all' or a comma-separated list. "

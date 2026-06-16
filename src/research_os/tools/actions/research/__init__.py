@@ -4,8 +4,13 @@
 * ``research``  — research_method, research_tool, plan_step (decompose).
 * ``grounding`` — ReAct thought log + PROV-O grounding registry + CoVe.
 * ``lessons``   — Reflexion-style lessons + relevance ranking.
+* ``gradient``  — beginner↔PI on-ramps: explain_scaffold + deliverable_chooser.
 """
 
+from research_os.tools.actions.research.gradient import (  # noqa: F401
+    deliverable_chooser,
+    explain_scaffold,
+)
 from research_os.tools.actions.research.grounding import (  # noqa: F401
     claim_verify,
     ground_from_context,

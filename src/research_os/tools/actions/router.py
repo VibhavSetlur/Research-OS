@@ -103,8 +103,15 @@ _BUILD_SUB_INTENTS = frozenset({
 _EXPLORATION_BOOST = 1
 
 # Sub-intents that are "quick / scratch / exploratory" shaped. Boosted
-# when workspace_mode == 'exploration'.
-_EXPLORATION_SUB_INTENTS = frozenset({"casual", "eda"})
+# when workspace_mode == 'exploration'. Includes the native exploration/*
+# family (probe → observe → decide loop, triage, promote) so an
+# exploration-mode workspace leans on its own scratch-first protocols, plus
+# the analysis-mode lightweight surfaces (casual / eda) it can still fall
+# back to.
+_EXPLORATION_SUB_INTENTS = frozenset({
+    "casual", "eda",
+    "explore_probe", "explore_promote", "explore_triage",
+})
 
 # WORKFLOW-SHAPE TIEBREAK. A light nudge (half the size of a single
 # trigger-word match, so it can only break a tie, never flip a real

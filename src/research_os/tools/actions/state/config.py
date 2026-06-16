@@ -404,7 +404,9 @@ def get_interaction_policy(root: Path) -> dict[str, str]:
         return defaults
 
 
-VALID_WORKSPACE_MODES = ("analysis", "tool_build", "exploration")
+VALID_WORKSPACE_MODES = (
+    "analysis", "tool_build", "exploration", "notebook", "multi_study",
+)
 
 
 def get_workspace_mode(root: Path) -> str:

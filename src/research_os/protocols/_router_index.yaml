@@ -36,7 +36,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 25
+version: 26
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -56,14 +56,16 @@ hierarchy:
   discover:
     label: "Project intake + question lock-in"
     sub_intents:
-      intake:     "Read inputs and propose project metadata"
-      mid_entry:  "Enter an in-progress project (prior work outside RO)"
-      clarify:    "Narrow a vague / cross-disciplinary ask before picking a protocol"
+      intake:        "Read inputs and propose project metadata"
+      mid_entry:     "Enter an in-progress project (prior work outside RO)"
+      clarify:       "Narrow a vague / cross-disciplinary ask before picking a protocol"
+      explore_triage: "exploration: rank cheap, high-information probes on fresh data"
   plan:
     label: "Planning + iteration"
     sub_intents:
-      next_step:  "Propose the best next experiment"
-      casual:     "Lightweight exploration"
+      next_step:      "Propose the best next experiment"
+      casual:         "Lightweight exploration"
+      program_setup:  "multi_study: shared codebook + prereg + how studies roll up"
   execute:
     label: "Experiment execution"
     sub_intents:
@@ -76,6 +78,9 @@ hierarchy:
       build_test:      "tool_build: design the testing regime + CI gate for the tool"
       build_benchmark: "tool_build: measure the tool against the right baseline(s)"
       build_release:   "tool_build: cut a versioned, reproducible release + changelog"
+      explore_probe:   "exploration: one probe → observe → decide cycle in scratch"
+      explore_promote: "exploration: graduate a probe into a real numbered step"
+      notebook_run:    "notebook: author + run a notebook with cell-provenance discipline"
   methodology:
     label: "Methodology choice + study design"
     sub_intents:
@@ -675,6 +680,150 @@ protocols:
         purpose: "Snapshot the build environment for reproducibility."
       - tool: mem_log
         purpose: "Record the release (version + headline + tag)."
+
+# ─────────────────────────────────────────────────────────────────────
+# EXPLORATION protocols (exploration workspace mode)
+# Scratch-first quick probes — the unit of work is a PROBE in
+# workspace/scratch, not a numbered step, and gates are light. The loop is
+# probe → observe → decide; triage ranks what to probe; promote graduates
+# a probe that earned it into a real analysis step.
+# ─────────────────────────────────────────────────────────────────────
+
+  exploration/exploration_loop:
+    intent_class: execute
+    sub_intent: explore_probe
+    summary: "The exploration-mode home loop: frame a question cheaply → run a scratch probe → record the observation → decide promote / drop / iterate."
+    triggers:
+      - "poke at the data"
+      - "poke at this"
+      - "just explore"
+      - "explore the data"
+      - "quick probe"
+      - "is there any signal"
+      - "is there signal"
+      - "let me see what's here"
+      - "see what's in the data"
+      - "throwaway probe"
+      - "scratch probe"
+      - "exploration loop"
+    token_estimate: 1300
+    decomposition:
+      - protocol: exploration/exploration_loop
+        purpose: "Frame the question, probe in scratch, record the observation, decide promote / drop / iterate."
+      - tool: tool_scratch
+        purpose: "Write + run the cheap throw-away probe in the sandbox."
+      - tool: sys_file_write
+        purpose: "Append the question + observation to workspace/scratch/probe_log.md."
+
+  exploration/exploration_triage:
+    intent_class: discover
+    sub_intent: explore_triage
+    summary: "Orient on fresh data and produce a short, ranked list of cheap, high-information probes for the exploration loop to run first."
+    triggers:
+      - "where do i start"
+      - "where should i start"
+      - "what's worth looking at"
+      - "what should i poke at first"
+      - "what's in this data"
+      - "help me prioritise"
+      - "help me prioritize"
+      - "triage the data"
+      - "what looks interesting"
+    token_estimate: 1100
+    decomposition:
+      - protocol: exploration/exploration_triage
+        purpose: "Read the landscape, surface intent, rank cheap high-information probes, hand the top one to the loop."
+      - tool: tool_scratch
+        purpose: "Cheap landscape read of shape / dtypes / missingness."
+      - tool: sys_file_write
+        purpose: "Write the ranked probe backlog to workspace/scratch/triage.md."
+
+  exploration/exploration_promote:
+    intent_class: execute
+    sub_intent: explore_promote
+    summary: "Graduate a scratch probe that earned it into a real numbered step — back-filling the hypothesis, method grounding, and provenance exploration deferred."
+    triggers:
+      - "promote this"
+      - "promote this probe"
+      - "make this a real step"
+      - "make this a real experiment"
+      - "turn this into an experiment"
+      - "do this properly"
+      - "let's keep this"
+      - "keep this and do it properly"
+    token_estimate: 1300
+    decomposition:
+      - protocol: exploration/exploration_promote
+        purpose: "Confirm worth promoting, register the hypothesis, create the step, carry probe artefacts in, back-fill rigor."
+      - tool: mem_hypothesis_add
+        purpose: "Register the hypothesis the probe hinted at."
+      - tool: sys_path
+        purpose: "Create the numbered step folder the probe graduates into."
+      - tool: mem_log
+        purpose: "Log the promotion (probe question → step)."
+
+# ─────────────────────────────────────────────────────────────────────
+# NOTEBOOK protocols (notebook workspace mode)
+# Jupyter-first — the unit of work is a notebook in notebooks/, run
+# top-to-bottom; outputs are derived into outputs/.
+# ─────────────────────────────────────────────────────────────────────
+
+  notebook/notebook_workflow:
+    intent_class: execute
+    sub_intent: notebook_run
+    summary: "Author + run a notebook with cell-provenance discipline: one idea per cell, seed in cell 1, restart-and-run-all validity, outputs derived not hand-edited."
+    triggers:
+      - "start a notebook"
+      - "new notebook"
+      - "work in a notebook"
+      - "run this notebook"
+      - "run the notebook"
+      - "analysis notebook"
+      - "jupyter notebook"
+      - "notebook workflow"
+      - "restart and run all"
+    token_estimate: 1500
+    decomposition:
+      - protocol: notebook/notebook_workflow
+        purpose: "Scope the notebook, structure cells for provenance, restart-and-run-all, persist derived outputs, document + decide."
+      - tool: tool_notebook_exec
+        purpose: "Author + run notebook cells; validate with a clean-kernel run."
+      - tool: mem_log
+        purpose: "Log the notebook's headline finding for later synthesis."
+
+# ─────────────────────────────────────────────────────────────────────
+# PROGRAM protocols (multi_study workspace mode)
+# A research program — several sub-studies that share a codebook + prereg
+# and roll up into a cross-study synthesis / meta-analysis.
+# ─────────────────────────────────────────────────────────────────────
+
+  program/program_setup:
+    intent_class: plan
+    sub_intent: program_setup
+    summary: "Establish the program commons before any study runs: the shared codebook every study codes to, the program-level preregistration, and how the studies roll up."
+    triggers:
+      - "set up the program"
+      - "set up a program"
+      - "multi-study"
+      - "multi study"
+      - "research program"
+      - "shared codebook"
+      - "harmonise across studies"
+      - "harmonize across studies"
+      - "how do these studies combine"
+      - "program prereg"
+      - "roll up the studies"
+      - "cross-study"
+    token_estimate: 1700
+    decomposition:
+      - protocol: program/program_setup
+        purpose: "Define the shared codebook, frame the program prereg, plan the roll-up, scaffold the first study."
+      - tool: sys_file_write
+        purpose: "Write shared/codebook.md, shared/preregistration.md, roll_up/README.md."
+      - tool: sys_path
+        purpose: "Scaffold the first sub-study under studies/."
+      - tool: mem_log
+        purpose: "Record the program-setup decision (shared commons frozen)."
 
 # ─────────────────────────────────────────────────────────────────────
 # DOMAIN + METHODOLOGY protocols
