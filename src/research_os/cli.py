@@ -227,8 +227,14 @@ def cmd_init(args: argparse.Namespace) -> None:
     interactive = wizard.should_run_wizard(args)
 
     if interactive:
-        result = wizard.run_wizard(args)
-        if not wizard.show_summary_and_confirm(result):
+        try:
+            result = wizard.run_wizard(args)
+            if not wizard.show_summary_and_confirm(result):
+                print()
+                print(f"  {wizard._C.YELLOW}Cancelled — no changes made.{wizard._C.RESET}")
+                sys.exit(0)
+        except (KeyboardInterrupt, EOFError):
+            # Ctrl+C / Ctrl+D mid-wizard → clean exit, never a raw traceback.
             print()
             print(f"  {wizard._C.YELLOW}Cancelled — no changes made.{wizard._C.RESET}")
             sys.exit(0)
