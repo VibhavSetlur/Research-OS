@@ -187,13 +187,29 @@ def _check_slides(text: str) -> dict[str, Any]:
 def _check_poster(text: str) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
-    if not re.search(r"^#?title:|title:", text, re.I):
-        warnings.append("No title declared — posters need one headline sentence.")
-    sections = len(re.findall(r"^=\s+", text, re.M)) or len(re.findall(r"^#\s+", text, re.M))
+    # The scaffold authors posters with typst functions — #headline[...] and
+    # #block-section(title: "..."). Recognise those first; fall back to typst/
+    # markdown headings (= / #) for a hand-rolled poster. (The old check only
+    # counted = / # headings and so false-BLOCKED every scaffolded poster.)
+    headlines = (
+        len(re.findall(r"#headline\b", text))
+        + len(re.findall(r"#poster-headline\b", text))
+    )
+    block_sections = len(re.findall(r"#block-section\b", text))
+    heading_sections = (
+        len(re.findall(r"^=\s+", text, re.M)) or len(re.findall(r"^#\s+", text, re.M))
+    )
+    sections = block_sections or heading_sections
+    has_title_field = bool(re.search(r"^#?title:|title:", text, re.I))
+    if headlines < 1 and not has_title_field:
+        blockers.append(
+            "No headline — a poster needs one across-the-room-readable headline "
+            "sentence (#headline[...])."
+        )
     if sections < 3:
         blockers.append(
-            f"{sections} section(s) detected. A poster needs at least Background "
-            "/ Methods / Results / Implication."
+            f"{sections} content section(s) detected. A poster needs at least "
+            "Background / Methods / Results / Implication (#block-section(...))."
         )
     cites = len(re.findall(r"#cite\(<|\[@[^\]]+\]", text))
     if cites > 8:
@@ -202,6 +218,7 @@ def _check_poster(text: str) -> dict[str, Any]:
         "blockers": blockers,
         "warnings": warnings,
         "section_count": sections,
+        "headline_count": headlines,
         "citation_count": cites,
     }
 
@@ -544,7 +561,7 @@ _CANONICAL_SYNTHESIS_FILES = frozenset({
     "paper.typ", "paper.pdf", "paper.md", "paper.tex",
     "essay.typ", "essay.pdf",
     "slides.typ", "slides.pdf", "slides.html",
-    "poster.typ", "poster.pdf",
+    "poster.typ", "poster.pdf", "poster_qr.png",
     "handout.typ", "handout.pdf", "handout_qr.png",
     "grant.typ", "grant.pdf",
     "dashboard.html",
