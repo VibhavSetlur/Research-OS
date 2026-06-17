@@ -1,11 +1,16 @@
-# MAINTAINER-ONLY index. AI clients never load this file directly; they
-# route through `tool_route` (hybrid semantic + trigger) which reads
-# this server-side. The semantic path retrieves over the pre-built
-# embeddings in `_embeddings.npz`; this YAML supplies hierarchy +
-# decompositions + the trigger lists that feed the exact-match boost.
+# MAINTAINER-ONLY authoring source. This 100K YAML is NOT loaded at
+# runtime. `tool_route` + `sys_boot` read the compiled JSON sidecar
+# `_route_meta.json` (a comments-free mirror of protocols/shortcut_intents/
+# hierarchy, with pre-baked tier + workflow_shape, that parses ~300x faster)
+# plus the embeddings in `_embeddings.npz`. After editing this file you MUST
+# recompile the sidecar — `python scripts/build_embeddings.py` (or
+# `--route-meta-only`) — or preflight's "Compiled routing sidecar fresh"
+# gate fails. The YAML stays the single editable source of truth for trigger
+# phrases, decompositions, and intent classes; the sidecar is generated.
 #
 # Anyone editing this file is a maintainer or protocol author. AI
-# clients should treat this file as private implementation detail.
+# clients should treat both this file and the sidecar as private
+# implementation detail (they route through `tool_route`, never by reading).
 #
 # Hierarchical routing registry — single source of truth for `tool_route`
 # and `sys_boot`.

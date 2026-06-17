@@ -35,6 +35,11 @@ logger = logging.getLogger("research_os.tools.router")
 # router.py lives at src/research_os/tools/actions/router.py
 # protocols/ live at src/research_os/protocols/
 _INDEX_PATH = Path(__file__).parent.parent.parent / "protocols" / "_router_index.yaml"
+# Compiled runtime routing sidecar — fast JSON, no comments, with pre-baked
+# tier + workflow_shape. Routing loads THIS, never the 104K _router_index.yaml
+# (which stays the authoring source preflight validates). Built by
+# scripts/build_embeddings.py. The YAML remains a graceful dev fallback.
+_ROUTE_META_PATH = Path(__file__).parent.parent.parent / "protocols" / "_route_meta.json"
 _PROTOCOLS_DIR = Path(__file__).parent.parent.parent / "protocols"
 _ACTIVE_PLAN_FILE = "active_plan.json"
 
@@ -145,7 +150,18 @@ def _resolve_tier(
     cached = _TIER_CACHE.get(protocol_id)
     if cached:
         return cached
-    # Try the YAML first.
+    # Prefer the pre-baked tier from the compiled route-meta — no body read.
+    meta = primary_data or {}
+    if not meta:
+        try:
+            meta = (_load_index().get("protocols", {}) or {}).get(protocol_id, {}) or {}
+        except Exception:
+            meta = {}
+    baked = meta.get("tier")
+    if is_valid_tier(baked):
+        _TIER_CACHE[protocol_id] = baked
+        return baked
+    # Fallback (dev tree without a sidecar): read the protocol body YAML.
     try:
         rel = protocol_id if protocol_id.endswith(".yaml") else f"{protocol_id}.yaml"
         candidate = _PROTOCOLS_DIR / rel
@@ -157,13 +173,7 @@ def _resolve_tier(
                 return tier
     except Exception as exc:
         logger.debug("tier read for %s failed: %s", protocol_id, exc)
-    # Fallback: infer from router-index metadata.
-    meta = primary_data or {}
-    if not meta:
-        try:
-            meta = (_load_index().get("protocols", {}) or {}).get(protocol_id, {}) or {}
-        except Exception:
-            meta = {}
+    # Last resort: infer from router-index metadata.
     category = protocol_id.split("/")[0] if "/" in protocol_id else None
     tier = infer_tier(
         intent_class=meta.get("intent_class"),
@@ -193,8 +203,22 @@ _INDEX_CACHE: dict | None = None
 def _load_index() -> dict:
     global _INDEX_CACHE
     if _INDEX_CACHE is None:
-        with open(_INDEX_PATH) as f:
-            data = yaml.safe_load(f) or {}
+        data: dict | None = None
+        # Prefer the compiled JSON sidecar (fast parse, no 104K YAML, with
+        # pre-baked tier + workflow_shape). The big _router_index.yaml is
+        # authoring-only and is NOT loaded at runtime when the sidecar exists.
+        if _ROUTE_META_PATH.exists():
+            try:
+                data = json.loads(_ROUTE_META_PATH.read_text())
+            except Exception as exc:
+                logging.getLogger("research_os.router").debug(
+                    "route_meta load failed; falling back to YAML: %s", exc
+                )
+                data = None
+        if data is None:
+            # Graceful fallback for dev trees without a rebuilt sidecar.
+            with open(_INDEX_PATH) as f:
+                data = yaml.safe_load(f) or {}
         # Merge pack-contributed entries.
         try:
             from research_os.plugins.loader import pack_router_entries
@@ -248,6 +272,22 @@ def _protocol_workflow_shape(protocol_id: str) -> tuple[str, ...]:
     if cached is not None:
         return cached
     shape: tuple[str, ...] = ()
+    # Prefer the pre-baked workflow_shape from the compiled route-meta — the
+    # key is always present there (a list, possibly empty), so its presence is
+    # authoritative and no protocol body is opened at route time.
+    try:
+        meta = (_load_index().get("protocols", {}) or {}).get(protocol_id, {}) or {}
+    except Exception:
+        meta = {}
+    if "workflow_shape" in meta:
+        tags = meta.get("workflow_shape") or []
+        if isinstance(tags, list):
+            shape = tuple(str(t).strip().lower() for t in tags if t)
+        elif isinstance(tags, str):
+            shape = (tags.strip().lower(),)
+        _WORKFLOW_SHAPE_CACHE[protocol_id] = shape
+        return shape
+    # Fallback (dev tree without a sidecar): read the protocol body YAML.
     try:
         rel = protocol_id if protocol_id.endswith(".yaml") else f"{protocol_id}.yaml"
         candidate = _PROTOCOLS_DIR / rel

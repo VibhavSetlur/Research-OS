@@ -58,6 +58,10 @@ _PROTOCOLS_DIR = Path(__file__).resolve().parents[2] / "protocols"
 _EMBEDS_NPZ = _PROTOCOLS_DIR / "_embeddings.npz"
 _EMBEDS_META = _PROTOCOLS_DIR / "_embeddings_meta.json"
 _ROUTER_INDEX = _PROTOCOLS_DIR / "_router_index.yaml"
+# Compiled routing sidecar (see router.py) — preferred source for triggers +
+# intent_class at runtime; the big _router_index.yaml is the authoring-only
+# fallback for dev trees without a rebuilt sidecar.
+_ROUTE_META = _PROTOCOLS_DIR / "_route_meta.json"
 _EMBEDS_MODEL = "BAAI/bge-small-en-v1.5"
 _EMBEDS_DIM = 384
 
@@ -170,19 +174,29 @@ def _load_embeddings_bundle() -> dict[str, Any] | None:
     # don't pretend to be ambiguous when they share the synthesize parent.
     protocol_triggers: dict[str, list[str]] = {}
     protocol_intent_class: dict[str, str] = {}
-    if _ROUTER_INDEX.exists():
+    ri: dict | None = None
+    # Prefer the compiled JSON sidecar; fall back to the authoring YAML.
+    if _ROUTE_META.exists():
+        try:
+            ri = json.loads(_ROUTE_META.read_text())
+        except Exception as exc:  # pragma: no cover
+            logger.debug("route_meta load failed; trying YAML: %s", exc)
+            ri = None
+    if ri is None and _ROUTER_INDEX.exists():
         try:
             ri = yaml.safe_load(_ROUTER_INDEX.read_text()) or {}
-            for pid, entry in (ri.get("protocols", {}) or {}).items():
-                if not isinstance(entry, dict):
-                    continue
-                trigs = entry.get("triggers") or []
-                protocol_triggers[pid] = [t.lower() for t in trigs if isinstance(t, str)]
-                ic = entry.get("intent_class")
-                if isinstance(ic, str):
-                    protocol_intent_class[pid] = ic
         except Exception as exc:  # pragma: no cover
             logger.warning("Failed to load router metadata: %s", exc)
+            ri = None
+    if ri:
+        for pid, entry in (ri.get("protocols", {}) or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            trigs = entry.get("triggers") or []
+            protocol_triggers[pid] = [t.lower() for t in trigs if isinstance(t, str)]
+            ic = entry.get("intent_class")
+            if isinstance(ic, str):
+                protocol_intent_class[pid] = ic
 
     return {
         "meta": meta,

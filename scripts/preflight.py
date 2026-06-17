@@ -695,6 +695,78 @@ def check_embeddings_fresh():
     )
 
 
+def check_route_meta():
+    """The compiled runtime routing sidecar must be fresh + consistent.
+
+    Routing (tool_route + semantic.py) loads _route_meta.json at runtime, NOT
+    the 104K _router_index.yaml. A stale/inconsistent sidecar = silent
+    misroutes, so we re-derive it from the authoring index + protocol bodies
+    and compare, then assert per-protocol fields and embeddings parity.
+
+    Fix when this fails:
+        python scripts/build_embeddings.py --route-meta-only
+    """
+    import json
+
+    route_meta = PROTOCOLS_DIR / "_route_meta.json"
+    if not route_meta.exists():
+        return False, (
+            "missing _route_meta.json — run "
+            "`python scripts/build_embeddings.py --route-meta-only`"
+        )
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        be = __import__("build_embeddings")
+    except Exception as exc:
+        return False, f"failed to import scripts/build_embeddings.py: {exc}"
+    try:
+        on_disk = json.loads(route_meta.read_text())
+    except Exception as exc:
+        return False, f"could not parse _route_meta.json: {exc}"
+    # Freshness: re-derive the sidecar (index + body tier/shape) and compare.
+    expected = be._build_route_meta()
+    if on_disk.get("source_hash") != expected.get("source_hash"):
+        return False, (
+            "STALE — recompile: python scripts/build_embeddings.py "
+            "--route-meta-only "
+            f"(on-disk={str(on_disk.get('source_hash'))[:12]}…, "
+            f"now={str(expected.get('source_hash'))[:12]}…)"
+        )
+    bad: list[str] = []
+    for key in ("protocols", "shortcut_intents", "hierarchy"):
+        if key not in on_disk:
+            bad.append(f"missing top-level `{key}`")
+    protos = on_disk.get("protocols", {}) or {}
+    for pid, entry in protos.items():
+        if "workflow_shape" not in entry:
+            bad.append(f"{pid}: no baked workflow_shape")
+            break
+        if not entry.get("intent_class"):
+            bad.append(f"{pid}: no intent_class")
+            break
+    # Parity: every core routable protocol must have an embedding (else the
+    # semantic path can rank a protocol it then can't route to).
+    embeds_npz = PROTOCOLS_DIR / "_embeddings.npz"
+    if embeds_npz.exists():
+        import numpy as np
+
+        try:
+            emb_ids = {str(x) for x in np.load(embeds_npz, allow_pickle=True)["protocol_ids"]}
+            missing_emb = sorted(set(protos) - emb_ids)
+            if missing_emb:
+                bad.append(
+                    f"{len(missing_emb)} route_meta protocol(s) not embedded: "
+                    f"{missing_emb[:3]}"
+                )
+        except Exception as exc:
+            bad.append(f"could not read embeddings protocol_ids: {exc}")
+    return (not bad), (
+        f"{len(protos)} protocols compiled, fresh + embedded"
+        if not bad
+        else "; ".join(bad[:3])
+    )
+
+
 def check_scaffold_smoke():
     """Scaffold a temp workspace + verify the minimum files appear."""
     import tempfile
@@ -1141,6 +1213,7 @@ def main() -> int:
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
     tally.check("next_protocol_kind declared on every protocol", check_next_protocol_kind_present)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
+    tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
     tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)

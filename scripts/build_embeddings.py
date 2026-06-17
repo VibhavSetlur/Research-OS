@@ -49,9 +49,11 @@ PROTOCOLS_DIR = ROOT / "src" / "research_os" / "protocols"
 EMBEDS_NPZ = PROTOCOLS_DIR / "_embeddings.npz"
 EMBEDS_META = PROTOCOLS_DIR / "_embeddings_meta.json"
 ROUTER_INDEX = PROTOCOLS_DIR / "_router_index.yaml"
+ROUTE_META = PROTOCOLS_DIR / "_route_meta.json"
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
 SCHEMA_VERSION = "1"
+ROUTE_META_SCHEMA = "1"
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +210,91 @@ def _source_hash(protocol_docs: list[tuple[str, str]], tool_docs: list[tuple[str
 
 
 # ---------------------------------------------------------------------------
+# Compiled routing sidecar (_route_meta.json)
+# ---------------------------------------------------------------------------
+#
+# The router + semantic module read THIS at runtime, not the 104K
+# _router_index.yaml. It mirrors the index's protocols/shortcut_intents/
+# hierarchy as fast-parsing JSON with NO comments, and pre-bakes each
+# protocol's `tier` + `workflow_shape` so the router never opens protocol
+# body YAMLs at route time. _router_index.yaml stays the authoring source
+# (preflight validates it); this file is the runtime artefact.
+
+
+def _read_protocol_body(protocol_id: str) -> dict:
+    path = PROTOCOLS_DIR / f"{protocol_id}.yaml"
+    if not path.exists():
+        return {}
+    try:
+        return yaml.safe_load(path.read_text()) or {}
+    except yaml.YAMLError:
+        return {}
+
+
+def _route_meta_hash(meta: dict) -> str:
+    """Deterministic hash over the routing-relevant payload (excl. the hash)."""
+    h = hashlib.sha256()
+    h.update(ROUTE_META_SCHEMA.encode())
+    h.update(json.dumps(meta.get("protocols", {}), sort_keys=True).encode())
+    h.update(json.dumps(meta.get("shortcut_intents", {}), sort_keys=True).encode())
+    h.update(json.dumps(meta.get("hierarchy", {}), sort_keys=True).encode())
+    return h.hexdigest()
+
+
+def _build_route_meta() -> dict:
+    """Compile the compact runtime routing sidecar from the authoring index."""
+    sys.path.insert(0, str(ROOT / "src"))
+    from research_os.protocols._tiers import infer_tier, is_valid_tier
+
+    raw = yaml.safe_load(ROUTER_INDEX.read_text()) if ROUTER_INDEX.exists() else {}
+    raw = raw or {}
+    protocols = raw.get("protocols", {}) or {}
+    out_protocols: dict[str, dict] = {}
+    for pid, entry in protocols.items():
+        if not isinstance(entry, dict):
+            continue
+        body = _read_protocol_body(pid)
+        # tier: declared on the body, else inferred (the router's own fallback).
+        tier = body.get("tier")
+        if not is_valid_tier(tier):
+            category = pid.split("/")[0] if "/" in pid else None
+            tier = infer_tier(
+                intent_class=entry.get("intent_class"),
+                sub_intent=entry.get("sub_intent"),
+                category=category,
+                protocol_id=pid,
+            )
+        # workflow_shape from the body's scope_tags — always a list (maybe empty).
+        tags = (body.get("scope_tags") or {}).get("workflow_shape") or []
+        if isinstance(tags, str):
+            shape = [tags.strip().lower()]
+        elif isinstance(tags, list):
+            shape = [str(t).strip().lower() for t in tags if t]
+        else:
+            shape = []
+        merged = dict(entry)
+        if is_valid_tier(tier):
+            merged["tier"] = tier
+        merged["workflow_shape"] = shape
+        out_protocols[pid] = merged
+    meta = {
+        "schema_version": ROUTE_META_SCHEMA,
+        "protocols": out_protocols,
+        "shortcut_intents": raw.get("shortcut_intents", {}) or {},
+        "hierarchy": raw.get("hierarchy", {}) or {},
+    }
+    meta["source_hash"] = _route_meta_hash(meta)
+    return meta
+
+
+def _save_route_meta(meta: dict) -> None:
+    # Compact (no whitespace), deterministic (sorted keys) — a generated
+    # artefact like _embeddings.npz: regenerate, don't hand-edit. Compact
+    # form minimises both file size and json.loads time at route boot.
+    ROUTE_META.write_text(json.dumps(meta, separators=(",", ":"), sort_keys=True) + "\n")
+
+
+# ---------------------------------------------------------------------------
 # Embedding
 # ---------------------------------------------------------------------------
 
@@ -288,7 +375,24 @@ def main() -> int:
         action="store_true",
         help="Record build_at timestamp in the meta file (off by default for reproducible builds).",
     )
+    ap.add_argument(
+        "--route-meta-only",
+        action="store_true",
+        help="Only (re)compile protocols/_route_meta.json — no embeddings, no fastembed needed.",
+    )
     args = ap.parse_args()
+
+    # The compiled routing sidecar is pure YAML→JSON (no fastembed). Build it
+    # first so it's always fresh, and support a fastembed-free fast path.
+    if args.route_meta_only:
+        route_meta = _build_route_meta()
+        _save_route_meta(route_meta)
+        print(
+            f"Wrote {ROUTE_META.relative_to(ROOT)} "
+            f"({len(route_meta['protocols'])} protocols, "
+            f"{ROUTE_META.stat().st_size/1024:.1f} KiB)"
+        )
+        return 0
 
     print(f"Scanning protocols under {PROTOCOLS_DIR.relative_to(ROOT)} …")
     protocol_docs = _load_protocols()
@@ -327,6 +431,14 @@ def main() -> int:
     )
     tool_embeds = _embed([d for _, d in tool_docs]) if tool_docs else np.zeros(
         (0, 384), dtype=np.float32
+    )
+
+    print(f"Writing {ROUTE_META.relative_to(ROOT)} (compiled routing sidecar) …")
+    route_meta = _build_route_meta()
+    _save_route_meta(route_meta)
+    print(
+        f"  → {len(route_meta['protocols'])} protocols, "
+        f"{ROUTE_META.stat().st_size/1024:.1f} KiB"
     )
 
     print(f"Writing {EMBEDS_NPZ.relative_to(ROOT)} + {EMBEDS_META.relative_to(ROOT)} …")

@@ -335,14 +335,31 @@ def check_embeddings_fresh(
             "trigger-substring matching)",
             "Run the embeddings build step or `pip install research-os[semantic]`.",
         )
-    if embeddings.stat().st_mtime >= router_index.stat().st_mtime:
-        return ("pass", "Embeddings are at-or-ahead of the router index", None)
-    return (
-        "warn",
-        "Embeddings are STALE: router index has been edited since the last build",
-        "Rebuild embeddings: `python scripts/build_embeddings.py` "
-        "(see docs/RELEASING.md).",
-    )
+    # The compiled routing sidecar (_route_meta.json) is what routing actually
+    # loads at runtime — check it too.
+    route_meta = router_index.parent / "_route_meta.json"
+    if not route_meta.exists():
+        return (
+            "warn",
+            "Compiled routing sidecar (_route_meta.json) missing — routing will "
+            "fall back to parsing the full router index YAML",
+            "Build it: `python scripts/build_embeddings.py --route-meta-only`.",
+        )
+    idx_mtime = router_index.stat().st_mtime
+    if embeddings.stat().st_mtime < idx_mtime:
+        return (
+            "warn",
+            "Embeddings are STALE: router index has been edited since the last build",
+            "Rebuild embeddings: `python scripts/build_embeddings.py` "
+            "(see docs/RELEASING.md).",
+        )
+    if route_meta.stat().st_mtime < idx_mtime:
+        return (
+            "warn",
+            "Routing sidecar (_route_meta.json) is STALE vs the router index",
+            "Recompile: `python scripts/build_embeddings.py --route-meta-only`.",
+        )
+    return ("pass", "Embeddings + routing sidecar are at-or-ahead of the router index", None)
 
 
 def check_typst_on_path() -> CheckResult:
