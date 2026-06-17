@@ -767,6 +767,53 @@ def check_route_meta():
     )
 
 
+def check_routing_targets_resolve():
+    """Every next_protocol / on_failure / see_also target must be a real protocol.
+
+    A dangling pointer (a renamed or removed protocol) silently breaks the
+    pipeline chain or a 'see also' link with no error at runtime. Core targets
+    (category/name under a real protocols/ subdir) are validated; pack-
+    namespaced targets are skipped (their files live in the pack).
+    """
+    import yaml
+
+    core_dirs = {
+        p.name for p in PROTOCOLS_DIR.iterdir()
+        if p.is_dir() and not p.name.startswith("_") and p.name != "light"
+    }
+
+    def _resolves(ref) -> bool:
+        ref = (ref or "").split("#")[0].strip()
+        if not ref or ref.lower() in {"null", "none"} or "/" not in ref:
+            return True  # null / terminal / non-path — nothing to validate
+        cat = ref.split("/")[0]
+        if cat not in core_dirs:
+            return True  # pack-namespaced target — not ours to check
+        return (PROTOCOLS_DIR / f"{ref}.yaml").exists()
+
+    bad: list[str] = []
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if f.name.startswith("_") or "light" in f.parts:
+            continue
+        try:
+            data = yaml.safe_load(f.read_text()) or {}
+        except Exception:
+            continue
+        rel = f.relative_to(PROTOCOLS_DIR).with_suffix("").as_posix()
+        for field in ("next_protocol", "on_failure"):
+            v = data.get(field)
+            if isinstance(v, str) and not _resolves(v):
+                bad.append(f"{rel}: {field} → {v}")
+        for s in (data.get("see_also") or []):
+            if isinstance(s, str) and not _resolves(s):
+                bad.append(f"{rel}: see_also → {s}")
+    return (not bad), (
+        "all next_protocol / on_failure / see_also targets resolve"
+        if not bad
+        else f"{len(bad)} dangling target(s): {bad[:3]}"
+    )
+
+
 def check_scaffold_smoke():
     """Scaffold a temp workspace + verify the minimum files appear."""
     import tempfile
@@ -1212,6 +1259,7 @@ def main() -> int:
     tally.check("Router index mtime tracks protocols", check_router_index_bumped)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
     tally.check("next_protocol_kind declared on every protocol", check_next_protocol_kind_present)
+    tally.check("Routing targets resolve (next_protocol/on_failure/see_also)", check_routing_targets_resolve)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
