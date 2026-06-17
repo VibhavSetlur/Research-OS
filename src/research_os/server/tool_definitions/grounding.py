@@ -69,13 +69,13 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_verify": {
-        "short": "Verify one claim or all project claims. scope='claim'|'project'. Use when checking grounding.",
-        "description": "Unified verification tool. scope='claim' checks one claim against a verifications list (replaces tool_claim_verify). scope='project' sweeps every registered grounded claim in the project (replaces tool_grounding_verify). PROVENANCE-BOUND: scope='claim' no longer accepts supports:true on assertion alone — each verification's evidence.path is resolved under the project root and the cited token (evidence.cited_text / locator / anchor / expected / token) must actually be present in that file (verbatim, whitespace-normalized, or ±0.5% numeric match). A supporting verification whose source lacks the token is downgraded to needs_revision; a supporting verification with no checkable path/locator is kept but flagged unverifiable and the claim verdict becomes 'unverified' (never 'verified'). This makes verification check the substrate instead of self-grading.",
+        "short": "Verify claims OR that declared outputs exist. scope='claim'|'project'|'outputs'.",
+        "description": "Unified verification tool. scope='claim' checks one claim against a verifications list (replaces tool_claim_verify). scope='project' sweeps every registered grounded claim in the project (replaces tool_grounding_verify). scope='outputs' is the 'did the work actually land?' gate — it resolves the active (or named) protocol's declared expected_outputs against the filesystem (glob-aware) and reports each as present / empty / missing with a next_action telling you to regenerate (and bump a version) rather than log 'completed' over a missing or empty file; pass all_protocols=true to sweep every protocol in the execution log. PROVENANCE-BOUND (scope='claim'): supports:true is not accepted on assertion alone — each verification's evidence.path is resolved under the project root and the cited token (evidence.cited_text / locator / anchor / expected / token) must actually be present in that file (verbatim, whitespace-normalized, or ±0.5% numeric match). A supporting verification whose source lacks the token is downgraded to needs_revision; one with no checkable path/locator is kept but flagged unverifiable and the claim verdict becomes 'unverified' (never 'verified').",
         "category": "research",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "scope": {"type": "string", "enum": ["claim", "project"]},
+                "scope": {"type": "string", "enum": ["claim", "project", "outputs", "step"]},
                 "claim": {"type": "string"},
                 "verifications": {
                     "type": "array",
@@ -83,6 +83,9 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "decision_id": {"type": "string"},
                 "step_id": {"type": "string"},
+                "protocol_name": {"type": "string", "description": "scope='outputs' — which protocol's expected_outputs to check (defaults to the active / most-recently-logged protocol)."},
+                "all_protocols": {"type": "boolean", "description": "scope='outputs' — sweep every protocol in the execution log instead of just the active one."},
+                "min_bytes": {"type": "integer", "description": "scope='outputs' — a file smaller than this counts as empty (default 1)."},
             },
         },
     },
