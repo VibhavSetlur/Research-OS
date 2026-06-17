@@ -602,13 +602,13 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_path": {
-        "short": "Unified path dispatcher. operation='create'|'abandon'|'list'. Replaces sys_path_{create,abandon,list}.",
-        "description": "One entry for the three path-lifecycle tools. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all paths with status. In autopilot mode, operation='abandon' requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
+        "short": "Unified step/path dispatcher. operation='create'|'abandon'|'list'|'rename'. Also callable as sys_step.",
+        "description": "One entry for the analysis-step (a.k.a. 'path') lifecycle. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all steps with status. operation='rename' takes path_name + new_name and gives a generic step a meaningful human label — it keeps the NN_ step number, renames the folder, and re-points every downstream data/* symlink that pointed at it (so lineage stays intact). Callable as either sys_path or sys_step (alias). In autopilot mode, operation='abandon' requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "state",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "operation": {"type": "string", "enum": ["create", "abandon", "list"]},
+                "operation": {"type": "string", "enum": ["create", "abandon", "list", "rename"]},
                 "name": {"type": "string"},
                 "hypothesis": {"type": "string"},
                 "branch_of": {"type": "string"},
@@ -616,6 +616,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "allow_unfinalized_predecessor": {"type": "boolean"},
                 "override_rationale": {"type": "string"},
                 "path_name": {"type": "string"},
+                "new_name": {"type": "string", "description": "operation='rename' — the new human label for the step (the NN_ number is preserved)."},
                 "rationale": {"type": "string"},
                 "confirmed": {"type": "boolean", "description": "Required in autopilot mode for operation='abandon'. Researcher consent."},
             },

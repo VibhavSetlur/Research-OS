@@ -15,6 +15,10 @@ _ALIASES = {
     # Dot notation is handled generically by the dispatcher's dot→underscore
     # rewrite, no need to list here.
     "sys_state_summary": "sys_state_get",
+    # sys_step is the clearer name for what sys_path operates on (numbered
+    # analysis STEPS). Aliased rather than renamed so existing protocol
+    # decompositions + docs referencing sys_path keep working unchanged.
+    "sys_step": "sys_path",
     # Silent nickname mapping directly to mem_log with kind=decision injection.
     "tool_log_decision": "mem_log",
     "view_workspace_tree": "sys_workspace_tree",
