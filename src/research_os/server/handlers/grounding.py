@@ -313,7 +313,8 @@ def _handle_tool_verify(name, arguments, root):
     """Unified verify dispatcher.
 
     scope='claim'   → tool_claim_verify (claim + verifications list)
-    scope='project' → tool_grounding_verify (whole-project sweep)
+    scope='project' → tool_grounding_verify (whole-project grounding sweep)
+    scope='outputs' → verify_outputs (declared files exist + are non-empty)
     """
     scope = arguments.get("scope")
     if not scope:
@@ -325,8 +326,25 @@ def _handle_tool_verify(name, arguments, root):
         return _handle_tool_claim_verify(name, arguments, root)
     if scope == "project":
         return _handle_tool_grounding_verify(name, arguments, root)
+    if scope in ("outputs", "step"):
+        from research_os.tools.actions.research.grounding import verify_outputs
+
+        try:
+            min_bytes = int(arguments.get("min_bytes", 1))
+        except (TypeError, ValueError):
+            min_bytes = 1
+        res = verify_outputs(
+            root,
+            scope="project" if scope == "outputs" and arguments.get("all_protocols")
+            else ("step" if scope == "step" else "protocol"),
+            protocol_name=arguments.get("protocol_name"),
+            min_bytes=min_bytes,
+        )
+        if res.get("status") == "error":
+            return _text(_error(res.get("message", "verify_outputs failed")))
+        return _text(_success(res))
     return _text(_error(
-        f"Unknown verify scope '{scope}'. Use 'claim' or 'project'."
+        f"Unknown verify scope '{scope}'. Use 'claim', 'project', or 'outputs'."
     ))
 
 

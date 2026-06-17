@@ -38,13 +38,18 @@ def state_freshness_check(
         now = time.time()
         cutoff = stale_after_days * 86400
 
-        state_path = root / "workspace" / "state.json"
+        # The live state ledger is .os_state/state_ledger.json — the old
+        # workspace/state.json path never existed, so this staleness signal
+        # was permanently dead (state_age_days always None).
+        from research_os.project_ops import state_json_path
+
+        state_path = state_json_path(root)
         if state_path.exists():
             state_age = now - state_path.stat().st_mtime
             details["state_age_days"] = round(state_age / 86400, 1)
             if state_age > cutoff:
                 signals.append(
-                    f"state.json last updated "
+                    f"state ledger last updated "
                     f"{int(state_age / 86400)} days ago "
                     f"(threshold: {stale_after_days}). Reconfirm the "
                     "current path + autonomy before continuing."

@@ -136,11 +136,27 @@ def _materialise_template_imports(source: Path) -> None:
                     break
 
 
+# Fixed-format targets that MUST render to a single page — a page count
+# above this is a strong signal that content overflowed the canvas (the
+# user's "overlapping / overflowing" pain in posters + one-pagers).
+_SINGLE_PAGE_TARGETS = {"poster", "cover_letter"}
+
+
+def _target_kind(src: Path) -> str:
+    """Map a source filename back to its deliverable kind (paper/poster/…)."""
+    stem = src.stem.lower()
+    for kind, (rel_src, _rel_out) in _SYNTHESIS_DEFAULTS.items():
+        if Path(rel_src).stem.lower() == stem:
+            return kind
+    return stem
+
+
 def typst_compile(
     root: Path,
     source: str | None = None,
     output: str | None = None,
     biblio: str | None = None,
+    archive_prior: bool = True,
 ) -> dict[str, Any]:
     """Compile a Typst source file to PDF.
 
@@ -153,6 +169,9 @@ def typst_compile(
         workspace/citations.md exists, synthesises one at
         synthesis/biblio.yml so the AI's `#bibliography("biblio.yml")`
         call resolves.
+      archive_prior: when True (default), an existing good render is copied to
+        synthesis/archive/<name>_<timestamp>.pdf before being overwritten — so
+        a recompile never silently loses the previous deliverable.
     """
     src = _resolve_source(root, source)
     if not src.exists():
@@ -214,14 +233,34 @@ def typst_compile(
 
     _materialise_template_imports(src)
 
+    # Output versioning: archive the prior good render before overwriting it,
+    # so a recompile never silently discards the previous deliverable. We keep
+    # ONE canonical name (paper.pdf) and a timestamped history in archive/.
+    archived_to: str | None = None
+    if archive_prior and out_path.exists() and out_path.stat().st_size > 0:
+        try:
+            from datetime import datetime, timezone
+
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+            archive_dir = out_path.parent / "archive"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            dest = archive_dir / f"{out_path.stem}_{stamp}{out_path.suffix}"
+            shutil.copy2(out_path, dest)
+            archived_to = str(dest)
+        except Exception as exc:
+            logger.debug("prior-render archive skipped: %s", exc)
+
     res = compile_typst(src, out_path)
 
     page_count: int | None = None
     cite_count: int | None = None
+    layout_warnings: list[str] = []
     if res.get("status") == "success" and out_path.exists():
         try:
             data = out_path.read_bytes()
-            page_count = data.count(b"/Type /Page") or data.count(b"/Page\n") or None
+            # Count page objects (/Type /Page) without counting the page-tree
+            # node (/Type /Pages) — the old grep over-counted by one.
+            page_count = len(re.findall(rb"/Type\s*/Page(?![s])", data)) or None
         except OSError:
             page_count = None
         try:
@@ -229,14 +268,27 @@ def typst_compile(
             cite_count = len(re.findall(r"#cite\(<|\[@[^\]]+\]", typ_text))
         except OSError:
             cite_count = None
+        # Overflow signal: a single-page target that rendered to >1 page means
+        # content overflowed the canvas (poster columns, one-pager letter).
+        kind = _target_kind(src)
+        if kind in _SINGLE_PAGE_TARGETS and (page_count or 1) > 1:
+            layout_warnings.append(
+                f"{kind} rendered to {page_count} pages but must fit ONE — content "
+                "overflowed the canvas. Trim text / shrink figures / reduce font "
+                "size, then recompile. (Overlapping or clipped text usually shows "
+                "here.)"
+            )
 
+    status = res.get("status", "error")
     return {
-        "status": res.get("status", "error"),
+        "status": status,
         "pdf_path": str(out_path) if out_path.exists() else None,
         "typst_path": str(src),
         "biblio_path": str(biblio_path) if biblio_path and biblio_path.exists() else None,
         "page_count": page_count,
         "citation_count": cite_count,
+        "archived_prior_to": archived_to,
+        "layout_warnings": layout_warnings,
         "typst_warnings": res.get("warnings", []),
         "typst_errors": res.get("errors", []),
         "message": res.get("message"),

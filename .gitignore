@@ -1,6 +1,11 @@
 # Research OS — Git Ignore Rules
 TODO.md
 
+# Local audit / scratch artifacts (never part of a release)
+/AUDIT_*.md
+/.workflow_audit.mjs
+/*.mjs
+
 # Python
 __pycache__/
 *.pyc

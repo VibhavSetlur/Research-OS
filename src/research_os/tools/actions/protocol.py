@@ -263,15 +263,20 @@ _PROTOCOL_COMPLETION_BLOCK = {
     "name": "Complete & Log Protocol",
     "description": (
         "Final mandatory step.\n"
-        "1. Call sys_protocol_log with status='completed' and a one-line details summary.\n"
-        "   If the protocol BLOCKED on a gate, log status='failed' with the blocker count "
-        "   (the next session can resume cleanly from the same point).\n"
-        "2. Call sys_checkpoint_create with description='<protocol> completed' — a rollback target\n"
+        "1. Output check FIRST: call tool_verify(scope='outputs'). It confirms the files this\n"
+        "   protocol declared in expected_outputs actually exist AND are non-empty. If any\n"
+        "   come back missing or empty, do NOT proceed to log completed — go back and\n"
+        "   (re)generate the gap (bump a version if a prior good copy exists), then re-verify.\n"
+        "   A protocol with no expected_outputs passes this trivially.\n"
+        "2. Once the output check passes, call sys_protocol_log with status='completed' and a\n"
+        "   one-line details summary. If the protocol BLOCKED on a gate, log status='failed'\n"
+        "   with the blocker count (the next session resumes cleanly from the same point).\n"
+        "3. Call sys_checkpoint_create with description='<protocol> completed' — a rollback target\n"
         "   the researcher can return to if a downstream step regresses.\n"
-        "3. Call sys_protocol_next to find the pipeline-recommended next protocol. If the\n"
+        "4. Call sys_protocol_next to find the pipeline-recommended next protocol. If the\n"
         "   researcher's next message redirects, prefer tool_route on their message over\n"
         "   the pipeline pointer.\n"
-        "4. Briefly summarise to the researcher in ONE sentence: what changed + what's next.\n"
+        "5. Briefly summarise to the researcher in ONE sentence: what changed + what's next.\n"
         "   Skip the summary on shortcut-tool calls (sys_help, sys_protocol_list, etc.) — the\n"
         "   result is already the answer.\n"
         "\n"
@@ -1031,6 +1036,7 @@ def validate_protocol(name: str, root: Path | None = None) -> dict:
 
         checklist: list[dict] = []
         all_passed = True
+        empty_count = 0
 
         if root:
             for item in expected_outputs:
@@ -1044,6 +1050,7 @@ def validate_protocol(name: str, root: Path | None = None) -> dict:
                 if not path_str:
                     continue
 
+                non_empty = False
                 if "*" in path_str or "{" in path_str:
                     # Use glob — drop curly placeholders ({step_name}) since we
                     # only know step folders by pattern.
@@ -1052,10 +1059,36 @@ def validate_protocol(name: str, root: Path | None = None) -> dict:
                     )
                     matches = list(root.glob(expanded.lstrip("/")))
                     status = "pass" if matches else "fail"
+                    # A glob match can be a file OR a populated directory.
+                    non_empty = any(
+                        (m.is_file() and m.stat().st_size > 0)
+                        or (m.is_dir() and any(f.is_file() for f in m.rglob("*")))
+                        for m in matches
+                    )
                 else:
-                    status = "pass" if (root / path_str).exists() else "fail"
+                    p = root / path_str
+                    status = "pass" if p.exists() else "fail"
+                    if p.exists():
+                        non_empty = (
+                            p.stat().st_size > 0 if p.is_file()
+                            else any(f.is_file() for f in p.rglob("*"))
+                        )
 
-                checklist.append({"item": path_str, "status": status})
+                entry = {"item": path_str, "status": status, "non_empty": non_empty}
+                # Existing files that are empty are an advisory gap — the
+                # output-existence gate (tool_verify scope='outputs') treats
+                # them as a hard blocker, but validate_protocol stays
+                # existence-authoritative for back-compat.
+                if status == "pass" and not non_empty:
+                    empty_count += 1
+                    entry["next_action"] = (
+                        f"`{path_str}` exists but is empty — regenerate it."
+                    )
+                elif status == "fail":
+                    entry["next_action"] = (
+                        f"`{path_str}` is missing — re-run the step that produces it."
+                    )
+                checklist.append(entry)
                 if status == "fail":
                     all_passed = False
 
@@ -1063,6 +1096,8 @@ def validate_protocol(name: str, root: Path | None = None) -> dict:
             "protocol": name,
             "checklist": checklist,
             "all_passed": all_passed,
+            "all_present_nonempty": all_passed and empty_count == 0,
+            "empty_count": empty_count,
             "expected_count": len(expected_outputs),
             "next_protocol": data.get("next_protocol"),
         }

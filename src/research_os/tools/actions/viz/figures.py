@@ -111,13 +111,29 @@ def palette_for(kind: str, n: int = 8) -> list[str]:
     * ``"qualitative"`` — Okabe-Ito 8 (default; CVD-safe).
     * ``"sequential"``  — viridis sampled at ``n`` evenly-spaced points.
     * ``"diverging"``   — PuOr (purple → orange) sampled at ``n``.
-    * ``"accent"``      — the dashboard primary/gold/green/red set.
+    * ``"accent"``      — the 5 cohesive accent colours that
+      ``apply_research_os_style`` actually applies (RO_PALETTE['accent']),
+      so a figure coloured by hand matches one styled automatically.
+    * ``"diverging_emphasis"`` — RO_PALETTE oxblood/forest delta pair.
     """
     kind = (kind or "qualitative").lower()
+    try:
+        n = max(0, int(n))
+    except (TypeError, ValueError):
+        n = 8
+    if n == 0:
+        return []
     if kind == "qualitative":
         return list((OKABE_ITO * ((n + 7) // 8))[:n])
-    if kind == "accent":
-        return [ACCENT_PRIMARY, ACCENT_GOLD, ACCENT_GREEN, ACCENT_RED][:n]
+    if kind in ("accent", "diverging_emphasis"):
+        # Single source of truth: the palette apply_research_os_style sets as
+        # the matplotlib cycle. Cycle to fill n when more slots are requested.
+        from research_os.tools.actions.viz.style import RO_PALETTE
+
+        base = list(RO_PALETTE.get(kind) or RO_PALETTE["accent"])
+        if n <= len(base):
+            return base[:n]
+        return list((base * ((n + len(base) - 1) // len(base)))[:n])
     try:
         import matplotlib  # type: ignore
         import numpy as np  # type: ignore
@@ -245,6 +261,54 @@ def caption_synthesise(
 # ---------------------------------------------------------------------------
 
 
+def _svg_text_diagnostics(svg_text: str) -> dict[str, Any]:
+    """Heuristic legibility scan of an SVG: label collisions + default font.
+
+    Returns {collisions, dejavu, n_text}. Best-effort, never raises.
+    """
+    import re
+
+    texts: list[tuple[float, float, str]] = []
+    # Pattern 1: <text x="..." y="...">...</text> (Altair, manual SVG).
+    for m in re.finditer(
+        r"<text[^>]*?x=\"([\d.\-]+)\"[^>]*?y=\"([\d.\-]+)\"[^>]*?>([^<]{1,40})</text>",
+        svg_text,
+    ):
+        try:
+            texts.append((float(m.group(1)), float(m.group(2)), m.group(3).strip()))
+        except ValueError:
+            continue
+    # Pattern 2: matplotlib wraps text in <g transform="translate(X Y)"><text>.
+    mpl_pat = re.compile(
+        r"<g[^>]*?transform=\"translate\(([\d.\-]+)\s+([\d.\-]+)\)\"[^>]*?>"
+        r"\s*(?:<g[^>]*?>\s*)?"
+        r"<text[^>]*?>([^<]{1,40})</text>",
+        re.DOTALL,
+    )
+    for m in mpl_pat.finditer(svg_text):
+        try:
+            texts.append((float(m.group(1)), float(m.group(2)), m.group(3).strip()))
+        except ValueError:
+            continue
+    collisions = 0
+    for i in range(len(texts)):
+        for j in range(i + 1, len(texts)):
+            x1, y1, t1 = texts[i]
+            x2, y2, t2 = texts[j]
+            if not t1 or not t2:
+                continue
+            w1 = len(t1) * 5
+            w2 = len(t2) * 5
+            if abs(x1 - x2) < (w1 + w2) / 2 and abs(y1 - y2) < 8:
+                collisions += 1
+    # DejaVu is matplotlib's fallback font — its presence as the resolved
+    # family reads as "nobody set a publication font".
+    dejavu = bool(
+        re.search(r"font-family\s*[:=]\s*['\"]?[^;'\"}>]*DejaVu", svg_text, re.I)
+    )
+    return {"collisions": collisions, "dejavu": dejavu, "n_text": len(texts)}
+
+
 def audit_figure_quality(
     figure_path: str, root: Path,
 ) -> dict[str, Any]:
@@ -311,61 +375,48 @@ def audit_figure_quality(
             warnings.append(
                 "Pillow not installed; install with `pip install Pillow` for DPI checks."
             )
-
-    if suffix == ".svg":
-        try:
-            import re
-
-            txt = p.read_text(errors="ignore")
-            texts: list[tuple[float, float, str]] = []
-            # Pattern 1: <text x="..." y="...">...</text> (Altair, manual SVG)
-            for m in re.finditer(
-                r"<text[^>]*?x=\"([\d.\-]+)\"[^>]*?y=\"([\d.\-]+)\"[^>]*?>([^<]{1,40})</text>",
-                txt,
-            ):
-                try:
-                    texts.append(
-                        (float(m.group(1)), float(m.group(2)), m.group(3).strip())
-                    )
-                except ValueError:
-                    continue
-            # Pattern 2: matplotlib wraps every text in a <g
-            # transform="translate(X Y)" ...><text>...</text></g> with
-            # the text element itself having no x/y. Parse the translate
-            # so matplotlib SVGs actually get audited.
-            mpl_pat = re.compile(
-                r"<g[^>]*?transform=\"translate\(([\d.\-]+)\s+([\d.\-]+)\)\"[^>]*?>"
-                r"\s*(?:<g[^>]*?>\s*)?"
-                r"<text[^>]*?>([^<]{1,40})</text>",
-                re.DOTALL,
+        except Exception as exc:
+            # A corrupt / unreadable / zero-byte image must not crash the audit.
+            warnings.append(
+                f"Could not read `{p.name}` for DPI/size checks ({exc}) — "
+                "regenerate the figure; the file may be empty or corrupt."
             )
-            for m in mpl_pat.finditer(txt):
-                try:
-                    texts.append(
-                        (float(m.group(1)), float(m.group(2)), m.group(3).strip())
-                    )
-                except ValueError:
-                    continue
-            collisions = 0
-            for i in range(len(texts)):
-                for j in range(i + 1, len(texts)):
-                    x1, y1, t1 = texts[i]
-                    x2, y2, t2 = texts[j]
-                    if not t1 or not t2:
-                        continue
-                    w1 = len(t1) * 5
-                    w2 = len(t2) * 5
-                    if abs(x1 - x2) < (w1 + w2) / 2 and abs(y1 - y2) < 8:
-                        collisions += 1
-            if collisions:
+
+    # Legibility scan (text overlap + default font). Runs on a real SVG, OR
+    # on a PNG/JPG's sibling .svg when one exists — so the user's "overlapping
+    # text" pitfall is caught even in PNG-first projects that keep a vector
+    # companion. PNG-only with no vector data can't be machine-checked.
+    svg_to_scan: Path | None = None
+    if suffix == ".svg":
+        svg_to_scan = p
+    elif suffix in {".png", ".jpg", ".jpeg"}:
+        sib = p.with_suffix(".svg")
+        if sib.exists():
+            svg_to_scan = sib
+    if svg_to_scan is not None:
+        try:
+            diag = _svg_text_diagnostics(svg_to_scan.read_text(errors="ignore"))
+            where = "" if svg_to_scan == p else f" (companion {svg_to_scan.name})"
+            if diag["collisions"]:
                 warnings.append(
-                    f"SVG text-overlap heuristic found ~{collisions} potential "
-                    "label collisions — verify visually, consider ggrepel / "
-                    "matplotlib's adjustText / explicit jittered offsets."
+                    f"SVG text-overlap heuristic found ~{diag['collisions']} potential "
+                    f"label collisions{where} — verify visually; consider ggrepel / "
+                    "matplotlib adjustText / explicit jittered offsets."
                 )
-            report["svg_text_collisions_est"] = collisions
+            if diag["dejavu"]:
+                warnings.append(
+                    f"Figure uses the DejaVu default font{where} — set an explicit "
+                    "publication font (apply_research_os_style does this) so type "
+                    "reads consistently across figures."
+                )
+            report["svg_text_collisions_est"] = diag["collisions"]
+            report["uses_default_font"] = diag["dejavu"]
         except Exception as e:
-            logger.debug("SVG overlap heuristic skipped: %s", e)
+            logger.debug("SVG diagnostics skipped: %s", e)
+    elif suffix in {".png", ".jpg", ".jpeg"}:
+        # No vector companion → label overlap is not machine-checkable. Record
+        # it so the step gate / AI knows to eyeball the render (or save an SVG).
+        report["overlap_checked"] = False
 
     cap = p.with_suffix(".caption.md")
     summary = p.with_suffix(".summary.md")

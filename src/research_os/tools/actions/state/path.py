@@ -7,6 +7,7 @@ chronological backbone of the project — every meaningful analysis lives in one
 from __future__ import annotations
 
 import logging
+import os
 import re
 import shutil
 from datetime import datetime, timezone
@@ -96,6 +97,115 @@ def abandon_path(path_name: str, rationale: str, root: Path) -> dict[str, Any]:
         "renamed_to": dead_end_name,
         "rationale": rationale,
         "files_preserved": True,
+    }
+
+
+def _slugify_step_label(label: str) -> str:
+    """Turn a human label into a folder-safe slug (no number prefix)."""
+    s = re.sub(r"[^a-z0-9]+", "_", (label or "").strip().lower()).strip("_")
+    return s or "step"
+
+
+def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
+    """Rename a numbered step's human slug, keeping its ``NN_`` lineage number.
+
+    The user starts with generic step names and wants meaningful ones. This
+    renames ``workspace/NN_old`` → ``workspace/NN_<slug(new_label)>``,
+    re-points every downstream step's ABSOLUTE ``data/*`` symlink that targeted
+    the old folder, and updates state / manifest / mermaid / DAG. The number
+    prefix is preserved so step ordering + lineage are stable.
+    """
+    from research_os.project_ops import (
+        _update_manifest,
+        _update_workflow_mermaid,
+        load_state,
+        now_iso,
+        save_state,
+    )
+
+    workspace_dir = root / "workspace"
+    old_dir = workspace_dir / path_name
+    if not old_dir.exists() or not old_dir.is_dir():
+        return {"status": "error", "message": f"Path '{path_name}' not found in workspace/"}
+    if path_name.endswith("__DEAD_END"):
+        return {
+            "status": "error",
+            "message": "Cannot rename an abandoned step — restore it first.",
+        }
+    m = re.match(r"^(\d{2,3})_(.*)$", path_name)
+    if not m:
+        return {
+            "status": "error",
+            "message": f"'{path_name}' is not a numbered step (expected NN_slug).",
+        }
+    prefix = m.group(1)
+    new_name = f"{prefix}_{_slugify_step_label(new_label)}"
+    if new_name == path_name:
+        return {"status": "error", "message": "New name is identical to the current name."}
+    new_dir = workspace_dir / new_name
+    if new_dir.exists():
+        return {"status": "error", "message": f"Target '{new_name}' already exists."}
+
+    # project_ops writes step symlinks with .symlink_to(target.absolute()) — i.e.
+    # the ABSOLUTE (not symlink-resolved) path. Match that convention; .resolve()
+    # would dereference a symlinked project-root component and never match.
+    old_abs = str(old_dir.absolute())
+    old_dir.rename(new_dir)
+    new_abs = str(new_dir.absolute())
+
+    # Re-point absolute symlinks across the whole workspace that pointed into
+    # the old folder (downstream steps' data/input → this step's data/output).
+    repointed = 0
+    for link in workspace_dir.rglob("*"):
+        if not link.is_symlink():
+            continue
+        try:
+            target = os.readlink(link)
+        except OSError:
+            continue
+        # Require a path boundary so renaming `01_eda` does NOT clobber a
+        # sibling `01_eda_extra`'s links (prefix-match bug).
+        if target == old_abs or target.startswith(old_abs + os.sep):
+            new_target = new_abs + target[len(old_abs):]
+            try:
+                link.unlink()
+                link.symlink_to(new_target)
+                repointed += 1
+            except OSError:
+                continue
+
+    state = load_state(root)
+    paths = state.setdefault("paths", {})
+    if path_name in paths:
+        paths[new_name] = paths.pop(path_name)
+        paths[new_name]["renamed_from"] = path_name
+        paths[new_name]["renamed_at"] = now_iso()
+    if state.get("current_path") == path_name:
+        state["current_path"] = new_name
+    dead_ends = state.get("dead_ends", [])
+    if path_name in dead_ends:
+        dead_ends[dead_ends.index(path_name)] = new_name
+    save_state(root, state)
+
+    analysis_path = root / "workspace" / "analysis.md"
+    analysis_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(analysis_path, "a") as f:
+        f.write(f"\n## Renamed `{path_name}` → `{new_name}` ({now_iso()})\n\n")
+
+    _update_workflow_mermaid(root)
+    _update_manifest(root)
+    try:
+        workflow_dag(root)
+    except Exception:
+        # Best-effort DAG refresh — a render failure must not fail the rename
+        # (the folder + state + symlinks are already updated).
+        pass
+
+    return {
+        "status": "success",
+        "original_path": path_name,
+        "renamed_to": new_name,
+        "symlinks_repointed": repointed,
     }
 
 

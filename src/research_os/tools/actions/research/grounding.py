@@ -561,6 +561,232 @@ def _decisions_in_analysis_md(root: Path) -> list[dict[str, str]]:
     return out
 
 
+def _check_output(root: Path, item: Any, min_bytes: int) -> dict[str, Any] | None:
+    """Resolve one declared expected_output and check it exists + is non-empty.
+
+    Returns {path, status: present|empty|missing, bytes, next_action} or None
+    when the declaration carries no usable path.
+    """
+    if isinstance(item, dict):
+        path_str = (item.get("path") or "").strip()
+    elif isinstance(item, str):
+        # "path: human description" — split only when the left side looks like a
+        # path (no spaces) so a bare descriptive string isn't truncated.
+        if ":" in item and " " not in item.split(":", 1)[0]:
+            path_str = item.split(":", 1)[0].strip()
+        else:
+            path_str = item.strip()
+    else:
+        path_str = ""
+    if not path_str:
+        return None
+
+    # Many protocols annotate the path: "workspace/x.log (only on failures)" or
+    # "COLLABORATOR.md   top-level, share-safe". Strip a trailing parenthetical
+    # or a 2+-space-separated description so we resolve the bare path, and skip
+    # entries that are prose rather than a path.
+    path_str = re.split(r"\s{2,}|\s+\(", path_str, maxsplit=1)[0].strip()
+    if not path_str or path_str.startswith("("):
+        return None
+    if "/" not in path_str and "." not in path_str and "*" not in path_str:
+        return None  # descriptive prose, not a checkable path
+
+    def _size_of(m: Path) -> int:
+        if m.is_file():
+            return m.stat().st_size
+        if m.is_dir():
+            return sum(f.stat().st_size for f in m.rglob("*") if f.is_file())
+        return 0
+
+    if "*" in path_str or "{" in path_str:
+        expanded = path_str.replace("{step_number}", "??").replace("{step_name}", "*")
+        matches = [m for m in root.glob(expanded.lstrip("/"))]
+        if not matches:
+            return {
+                "path": path_str, "status": "missing", "bytes": 0,
+                "next_action": (
+                    f"MISSING: no file matches `{path_str}` — re-run the step "
+                    "that produces it before logging the protocol completed."
+                ),
+            }
+        # A match may be a file OR a populated directory (e.g. workspace/*/scripts).
+        total = sum(_size_of(m) for m in matches)
+        if total >= min_bytes:
+            return {
+                "path": path_str, "status": "present",
+                "bytes": total, "matches": len(matches), "next_action": None,
+            }
+        return {
+            "path": path_str, "status": "empty", "bytes": total, "matches": len(matches),
+            "next_action": (
+                f"EMPTY: {len(matches)} match(es) for `{path_str}` but they hold "
+                f"< {min_bytes}B — regenerate the content (bump a version if a "
+                "prior good copy exists)."
+            ),
+        }
+
+    p = root / path_str
+    if not p.exists():
+        return {
+            "path": path_str, "status": "missing", "bytes": 0,
+            "next_action": (
+                f"MISSING: `{path_str}` was never created — re-run the step that "
+                "produces it before logging the protocol completed."
+            ),
+        }
+    if p.is_file():
+        size = p.stat().st_size
+    else:
+        size = sum(f.stat().st_size for f in p.rglob("*") if f.is_file())
+    if size < min_bytes:
+        return {
+            "path": path_str, "status": "empty", "bytes": size,
+            "next_action": (
+                f"EMPTY ({size}B): `{path_str}` exists but has no real content — "
+                "regenerate it (bump a version if a prior good copy exists)."
+            ),
+        }
+    return {"path": path_str, "status": "present", "bytes": size, "next_action": None}
+
+
+def _logged_protocols(root: Path) -> list[str]:
+    """Distinct protocols seen in the execution log, oldest→newest."""
+    from research_os.tools.actions.protocol import PROTOCOL_LOG_FILE
+
+    log = root / ".os_state" / PROTOCOL_LOG_FILE
+    out: list[str] = []
+    if not log.exists():
+        return out
+    for line in log.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            e = json.loads(line)
+        except Exception:
+            continue
+        # The log writes 'protocol'; tolerate 'protocol_name' for safety.
+        name = e.get("protocol") or e.get("protocol_name")
+        if name:
+            if name in out:
+                out.remove(name)
+            out.append(name)
+    return out
+
+
+def _active_protocol(root: Path) -> str | None:
+    ap = root / ".os_state" / "active_plan.json"
+    if not ap.exists():
+        return None
+    try:
+        return (json.loads(ap.read_text()) or {}).get("primary_protocol")
+    except Exception:
+        return None
+
+
+def verify_outputs(
+    root: Path,
+    *,
+    scope: str = "protocol",
+    protocol_name: str | None = None,
+    min_bytes: int = 1,
+) -> dict[str, Any]:
+    """Verify declared ``expected_outputs`` exist AND are non-empty.
+
+    The "did the work actually land?" gate, distinct from claim grounding.
+    Every protocol declares ``expected_outputs``; this resolves each against
+    the filesystem (glob-aware) and returns a per-output verdict plus a
+    ``next_action`` telling the AI to regenerate (and bump a version) rather
+    than log ``completed`` over a missing or empty file.
+
+    scope:
+      * ``protocol`` (default) — check ``protocol_name`` (or the active /
+        most-recently-logged protocol).
+      * ``project``           — union of expected_outputs across every
+        protocol seen in the execution log.
+    """
+    from research_os.tools.actions.protocol import load_protocol
+
+    if scope not in {"protocol", "project", "step"}:
+        return {"status": "error", "message": f"unknown scope '{scope}'"}
+    # 'step' has no first-class log key yet → treated as a single-protocol check.
+    protos: list[str] = []
+    if protocol_name:
+        protos = [protocol_name]
+    elif scope == "project":
+        protos = _logged_protocols(root)
+        active = _active_protocol(root)
+        if active and active not in protos:
+            protos.append(active)
+    else:
+        active = _active_protocol(root)
+        if active:
+            protos = [active]
+        else:
+            logged = _logged_protocols(root)
+            protos = logged[-1:] if logged else []
+    protos = [p for p in protos if p]
+    if not protos:
+        return {
+            "status": "error",
+            "message": (
+                "no protocol to verify — pass protocol_name=, or run a protocol "
+                "first so it lands in the execution log / active_plan."
+            ),
+        }
+
+    items: list[dict[str, Any]] = []
+    seen_paths: set[str] = set()
+    checked_protos: list[str] = []
+    for pname in protos:
+        try:
+            data = load_protocol(pname)
+        except Exception:
+            continue
+        checked_protos.append(pname)
+        for raw in data.get("expected_outputs", []) or []:
+            res = _check_output(root, raw, min_bytes)
+            if res is None or res["path"] in seen_paths:
+                continue
+            seen_paths.add(res["path"])
+            items.append(res)
+
+    present = sum(1 for i in items if i["status"] == "present")
+    empty = sum(1 for i in items if i["status"] == "empty")
+    missing = sum(1 for i in items if i["status"] == "missing")
+    total = len(items)
+    all_passed = empty == 0 and missing == 0
+    if total == 0:
+        guidance = (
+            "No expected_outputs declared for the checked protocol(s) — nothing "
+            "to verify. (This is fine for advisory / no-output protocols.)"
+        )
+    elif all_passed:
+        guidance = (
+            f"All {total} declared output(s) present + non-empty. Safe to log "
+            "this protocol completed."
+        )
+    else:
+        guidance = (
+            f"{missing} missing + {empty} empty of {total} declared output(s). "
+            "DO NOT log this protocol 'completed' — regenerate the gaps (bump a "
+            "version where a prior good copy exists), then re-run "
+            "tool_verify(scope='outputs')."
+        )
+    return {
+        "status": "success",
+        "scope": scope,
+        "protocols_checked": checked_protos,
+        "total": total,
+        "present": present,
+        "empty": empty,
+        "missing": missing,
+        "all_passed": all_passed,
+        "items": items,
+        "guidance": guidance,
+    }
+
+
 def grounding_verify(root: Path) -> dict[str, Any]:
     """Check every analysis.md decision has a grounding record.
 

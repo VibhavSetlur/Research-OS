@@ -140,6 +140,25 @@ def test_tool_research_tool_free_not_gated(tmp_path):
     )
 
 
+def test_dotfile_prefix_not_confused_for_synthesis():
+    """A path starting with '.' must not be mangled into 'synthesis/'.
+
+    The old normalization used str.lstrip('./') which strips CHARACTERS, so
+    '.synthesis/x' became 'synthesis/x' and got falsely gated.
+    """
+    # A dotfile directory that merely contains 'synthesis' is NOT synthesis/.
+    assert not _requires_confirmation(
+        "sys_file_write", {"filepath": ".synthesis/x", "force": True}
+    )
+    # The real synthesis path is still gated, with or without a leading "./".
+    assert _requires_confirmation(
+        "sys_file_write", {"filepath": "./synthesis/paper.typ", "force": True}
+    )
+    assert _requires_confirmation(
+        "sys_file_write", {"filepath": "synthesis/paper.typ", "force": True}
+    )
+
+
 def test_unit_requires_confirmation_truth_table():
     """Sanity check the gate-decision helper directly (no config IO)."""
     assert _requires_confirmation("tool_package_install", {})

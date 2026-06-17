@@ -695,6 +695,127 @@ def check_embeddings_fresh():
     )
 
 
+def check_route_meta():
+    """The compiled runtime routing sidecar must be fresh + consistent.
+
+    Routing (tool_route + semantic.py) loads _route_meta.json at runtime, NOT
+    the 104K _router_index.yaml. A stale/inconsistent sidecar = silent
+    misroutes, so we re-derive it from the authoring index + protocol bodies
+    and compare, then assert per-protocol fields and embeddings parity.
+
+    Fix when this fails:
+        python scripts/build_embeddings.py --route-meta-only
+    """
+    import json
+
+    route_meta = PROTOCOLS_DIR / "_route_meta.json"
+    if not route_meta.exists():
+        return False, (
+            "missing _route_meta.json — run "
+            "`python scripts/build_embeddings.py --route-meta-only`"
+        )
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        be = __import__("build_embeddings")
+    except Exception as exc:
+        return False, f"failed to import scripts/build_embeddings.py: {exc}"
+    try:
+        on_disk = json.loads(route_meta.read_text())
+    except Exception as exc:
+        return False, f"could not parse _route_meta.json: {exc}"
+    # Freshness: re-derive the sidecar (index + body tier/shape) and compare.
+    expected = be._build_route_meta()
+    if on_disk.get("source_hash") != expected.get("source_hash"):
+        return False, (
+            "STALE — recompile: python scripts/build_embeddings.py "
+            "--route-meta-only "
+            f"(on-disk={str(on_disk.get('source_hash'))[:12]}…, "
+            f"now={str(expected.get('source_hash'))[:12]}…)"
+        )
+    bad: list[str] = []
+    for key in ("protocols", "shortcut_intents", "hierarchy"):
+        if key not in on_disk:
+            bad.append(f"missing top-level `{key}`")
+    protos = on_disk.get("protocols", {}) or {}
+    missing_shape = [pid for pid, e in protos.items() if "workflow_shape" not in e]
+    missing_ic = [pid for pid, e in protos.items() if not e.get("intent_class")]
+    if missing_shape:
+        bad.append(
+            f"{len(missing_shape)} protocol(s) missing baked workflow_shape: "
+            f"{missing_shape[:3]}"
+        )
+    if missing_ic:
+        bad.append(f"{len(missing_ic)} protocol(s) missing intent_class: {missing_ic[:3]}")
+    # Parity: every core routable protocol must have an embedding (else the
+    # semantic path can rank a protocol it then can't route to).
+    embeds_npz = PROTOCOLS_DIR / "_embeddings.npz"
+    if embeds_npz.exists():
+        import numpy as np
+
+        try:
+            emb_ids = {str(x) for x in np.load(embeds_npz, allow_pickle=True)["protocol_ids"]}
+            missing_emb = sorted(set(protos) - emb_ids)
+            if missing_emb:
+                bad.append(
+                    f"{len(missing_emb)} route_meta protocol(s) not embedded: "
+                    f"{missing_emb[:3]}"
+                )
+        except Exception as exc:
+            bad.append(f"could not read embeddings protocol_ids: {exc}")
+    return (not bad), (
+        f"{len(protos)} protocols compiled, fresh + embedded"
+        if not bad
+        else "; ".join(bad[:3])
+    )
+
+
+def check_routing_targets_resolve():
+    """Every next_protocol / on_failure / see_also target must be a real protocol.
+
+    A dangling pointer (a renamed or removed protocol) silently breaks the
+    pipeline chain or a 'see also' link with no error at runtime. Core targets
+    (category/name under a real protocols/ subdir) are validated; pack-
+    namespaced targets are skipped (their files live in the pack).
+    """
+    import yaml
+
+    core_dirs = {
+        p.name for p in PROTOCOLS_DIR.iterdir()
+        if p.is_dir() and not p.name.startswith("_") and p.name != "light"
+    }
+
+    def _resolves(ref) -> bool:
+        ref = (ref or "").split("#")[0].strip()
+        if not ref or ref.lower() in {"null", "none"} or "/" not in ref:
+            return True  # null / terminal / non-path — nothing to validate
+        cat = ref.split("/")[0]
+        if cat not in core_dirs:
+            return True  # pack-namespaced target — not ours to check
+        return (PROTOCOLS_DIR / f"{ref}.yaml").exists()
+
+    bad: list[str] = []
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if f.name.startswith("_") or "light" in f.parts:
+            continue
+        try:
+            data = yaml.safe_load(f.read_text()) or {}
+        except Exception:
+            continue
+        rel = f.relative_to(PROTOCOLS_DIR).with_suffix("").as_posix()
+        for field in ("next_protocol", "on_failure"):
+            v = data.get(field)
+            if isinstance(v, str) and not _resolves(v):
+                bad.append(f"{rel}: {field} → {v}")
+        for s in (data.get("see_also") or []):
+            if isinstance(s, str) and not _resolves(s):
+                bad.append(f"{rel}: see_also → {s}")
+    return (not bad), (
+        "all next_protocol / on_failure / see_also targets resolve"
+        if not bad
+        else f"{len(bad)} dangling target(s): {bad[:3]}"
+    )
+
+
 def check_scaffold_smoke():
     """Scaffold a temp workspace + verify the minimum files appear."""
     import tempfile
@@ -1140,7 +1261,9 @@ def main() -> int:
     tally.check("Router index mtime tracks protocols", check_router_index_bumped)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
     tally.check("next_protocol_kind declared on every protocol", check_next_protocol_kind_present)
+    tally.check("Routing targets resolve (next_protocol/on_failure/see_also)", check_routing_targets_resolve)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
+    tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
     tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)

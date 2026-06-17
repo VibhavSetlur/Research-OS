@@ -75,8 +75,12 @@ def _requires_confirmation(tool_name: str, arguments: dict) -> bool:
         filepath = str(args.get("filepath") or "")
         force = bool(args.get("force"))
         # Only gate writes that overwrite (force=true) inside synthesis/.
-        # Normalize leading "./" and treat both relative + absolute paths.
-        norm = filepath.lstrip("./").lstrip("/")
+        # Strip a leading "./" / "/" as a PREFIX — lstrip() strips characters,
+        # so it would also eat a legitimate leading "." (e.g. ".synthesis").
+        norm = filepath
+        for prefix in ("./", "/"):
+            while norm.startswith(prefix):
+                norm = norm[len(prefix):]
         return force and norm.startswith("synthesis/")
     if tool_name == "sys_path":
         return (args.get("operation") or "") == "abandon"

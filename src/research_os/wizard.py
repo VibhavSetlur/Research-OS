@@ -155,6 +155,28 @@ class WizardResult:
 # ---------------------------------------------------------------------------
 
 
+# Lightweight format checks for identity fields — re-prompt on obvious typos
+# rather than silently writing a malformed email / ORCID into the config.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dXx]$")
+
+
+def _prompt_validated(label: str, pattern: re.Pattern, example: str) -> str:
+    """Prompt for an optional value; re-ask on an obviously-malformed entry.
+
+    Blank always accepts (the field is optional). A non-blank value that fails
+    ``pattern`` triggers a one-line warning + re-prompt.
+    """
+    while True:
+        val = tui.text(label, default="", allow_empty=True).strip()
+        if not val or pattern.match(val):
+            return val
+        warn(
+            f"That doesn't look like a valid {label.split(' (')[0].lower()}",
+            f"expected e.g. {example} — re-enter or leave blank to skip",
+        )
+
+
 def should_run_wizard(args) -> bool:
     if getattr(args, "yes", False):
         return False
@@ -214,6 +236,16 @@ def run_wizard(args) -> WizardResult:
             create_dir_needed = not target_dir.exists()
         ok(f"Target: {target_dir}",
            "(will create)" if create_dir_needed else "(already exists)")
+
+    # Bail out NOW if the workspace already exists — BEFORE asking the rest of
+    # the wizard, so the researcher never fills everything out only to hit
+    # "already exists" at the end.
+    if (target_dir / ".os_state").exists() and not getattr(args, "force", False):
+        print()
+        fail(f"Workspace already exists: {target_dir}",
+             "Pass --force to re-scaffold (your data + config are preserved), "
+             "or choose a different location.")
+        raise SystemExit(1)
 
     # ── Step 2: Project name ────────────────────────────────────────────
     section(2, total, "Project name",
@@ -329,9 +361,13 @@ def run_wizard(args) -> WizardResult:
         )
         if skip_id:
             researcher_name = tui.text("Name", default="", allow_empty=True)
-            researcher_email = tui.text("Email", default="", allow_empty=True)
+            researcher_email = _prompt_validated(
+                "Email", _EMAIL_RE, "you@university.edu",
+            )
             researcher_institution = tui.text("Institution", default="", allow_empty=True)
-            researcher_orcid = tui.text("ORCID (optional)", default="", allow_empty=True)
+            researcher_orcid = _prompt_validated(
+                "ORCID (optional)", _ORCID_RE, "0000-0002-1825-0097",
+            )
             save_as_profile = tui.confirm(
                 "Save these as defaults for future `research-os init` runs? "
                 f"{_C.GREY}(stored at ~/.config/research-os/profile.yaml chmod 600){_C.RESET}",

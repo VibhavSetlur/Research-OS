@@ -176,10 +176,13 @@ merge AND document why in the commit message.
 
 | What | Where |
 |---|---|
-| MCP tool definitions + handlers | `src/research_os/server.py` |
-| Protocols (114) | `src/research_os/protocols/<category>/<name>.yaml` |
-| Router index (single source of triggers + decompositions) | `src/research_os/protocols/_router_index.yaml` |
-| Hierarchical router | `src/research_os/tools/actions/router.py` |
+| MCP tool definitions | `src/research_os/server/tool_definitions/*.py` (merged in `registry.py`) |
+| MCP tool handlers | `src/research_os/server/handlers/*.py` (merged in `handlers/__init__.py`) |
+| Tool aliases / removed-tool messages | `src/research_os/server/aliases.py` |
+| Protocols | `src/research_os/protocols/<category>/<name>.yaml` |
+| Router index (authoring source of triggers + decompositions) | `src/research_os/protocols/_router_index.yaml` |
+| Compiled routing sidecar (runtime; built from the index) | `src/research_os/protocols/_route_meta.json` |
+| Hierarchical router | `src/research_os/tools/actions/router.py` + `semantic.py` |
 | Protocol loader + pipeline ordering | `src/research_os/tools/actions/protocol.py` |
 | Tool action modules | `src/research_os/tools/actions/{audit,data,exec,memory,research,search,state,synthesis,viz}/` |
 | Wizard (`research-os init`) | `src/research_os/wizard.py` |
@@ -211,9 +214,11 @@ merge AND document why in the commit message.
 
 ## When working on tools
 
-* Add to `TOOL_DEFINITIONS` in `server.py` with `short` + `description` +
-  `category` + `inputSchema`.
-* Add a handler `_handle_<name>` and register it in `_HANDLERS`.
+* Add to `TOOL_DEFINITIONS` in the matching `server/tool_definitions/*.py`
+  module with `short` + `description` + `category` + `inputSchema`.
+* Add a handler `_handle_<name>` in the matching `server/handlers/*.py`
+  module and register it in that module's `HANDLERS` (merged into `_HANDLERS`
+  by `handlers/__init__.py`).
 * Reference the tool from at least one protocol's `decomposition` or
   a `shortcut_intents` entry — orphaned tools get removed.
 * Tool name format: `sys_X_Y` / `tool_X_Y` / `mem_X_Y` (underscores;
@@ -253,5 +258,5 @@ Workflow:
   Either omit the number, or `git grep` the number before bumping.
 * **Touching the `_PROTOCOL_COMPLETION_BLOCK` constant** in
   `tools/actions/protocol.py` — tests check the `id`, but a major
-  rewrite changes the AI's end-of-protocol behavior across all 88
-  protocols. Coordinate with a MINOR bump + CHANGELOG entry.
+  rewrite changes the AI's end-of-protocol behavior across every
+  protocol. Coordinate with a MINOR bump + CHANGELOG entry.

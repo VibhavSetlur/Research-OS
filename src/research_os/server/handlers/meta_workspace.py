@@ -504,8 +504,23 @@ def _handle_sys_where(name, arguments, root):
     return _text(_success(payload))
 
 
+def _handle_sys_path_rename(name, arguments, root):
+    from research_os.tools.actions.state.path import rename_path
+
+    new_label = arguments.get("new_name") or arguments.get("new_label")
+    if not arguments.get("path_name") or not new_label:
+        return _text(_error(
+            "operation='rename' requires path_name= and new_name= "
+            "(the new human label; the NN_ step number is preserved)."
+        ))
+    res = rename_path(arguments["path_name"], new_label, root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "rename failed")))
+
+
 def _handle_sys_path(name, arguments, root):
-    """Unified path dispatcher (create | abandon | list)."""
+    """Unified path dispatcher (create | abandon | list | rename)."""
     legacy = {
         "sys_path_create": "create",
         "sys_path_abandon": "abandon",
@@ -514,7 +529,7 @@ def _handle_sys_path(name, arguments, root):
     operation = arguments.get("operation") or legacy.get(name)
     if not operation:
         return _text(_error(
-            "sys_path requires operation='create'|'abandon'|'list'"
+            "sys_path requires operation='create'|'abandon'|'list'|'rename'"
         ))
     if operation == "create":
         return _handle_sys_path_create(name, arguments, root)
@@ -522,6 +537,8 @@ def _handle_sys_path(name, arguments, root):
         return _handle_sys_path_abandon(name, arguments, root)
     if operation == "list":
         return _handle_sys_path_list(name, arguments, root)
+    if operation == "rename":
+        return _handle_sys_path_rename(name, arguments, root)
     return _text(_error(f"Unknown sys_path operation '{operation}'"))
 
 

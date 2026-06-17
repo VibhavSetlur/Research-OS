@@ -134,19 +134,22 @@ steps:
   - id: name_the_statistical_test
     name: Name the statistical test the power calc will be for
     description: |
-      The test family must match what the actual analysis will run:
-        - continuous outcome, two groups → t-test / Welch / linear
-          model
-        - binary outcome, two groups → chi-square / Fisher / logistic
-        - count outcome → Poisson / negative-binomial GLM
-        - time-to-event → log-rank / Cox PH
-        - paired / clustered → paired / mixed-effects / GEE
-        - regression-adjusted → power for the covariate-adjusted
-          effect
+      The power calculation is only valid for the test the analysis will
+      ACTUALLY run, so fix the test family before sizing — by reasoning from
+      the design, not by reaching for a default. Three dimensions determine
+      it; state each for THIS study:
+        - the outcome's distributional family (what kind of variable is it,
+          and what does its conditional distribution look like?)
+        - the dependency structure (independent, paired, clustered,
+          repeated — what induces correlation between observations?)
+        - whether the estimand is marginal or adjusted (a raw group effect
+          vs an effect conditional on covariates the model will carry)
 
-      A power calc done with the wrong test family gives a
-      misleading N. Cite the source for the test family choice
-      (the field's reporting standard names it).
+      Name the test those dimensions imply for this design and cite the
+      source that justifies it (the field's reporting standard, a methods
+      text, or a comparable published analysis). A power calc done for the
+      wrong test family gives a misleading N — the justification is what
+      makes the chosen N defensible to a reviewer.
 
   - id: build_the_power_table_not_a_single_number
     name: Build the power TABLE (not a single number)

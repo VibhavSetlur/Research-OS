@@ -219,26 +219,29 @@ def test_state_freshness_fires_after_threshold(tmp_path):
     """v1.5.0 Theme 11: state_freshness_check detects state.json > threshold days."""
     from research_os.tools.actions.state.freshness import state_freshness_check
 
-    scaffold_minimal_workspace(tmp_path, "Test")
-    state = tmp_path / "workspace" / "state.json"
-    state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text('{"current_path": "main"}')
+    from research_os.project_ops import state_json_path
 
-    # Backdate state.json by 45 days.
+    scaffold_minimal_workspace(tmp_path, "Test")
+    state = state_json_path(tmp_path)  # the real ledger: .os_state/state_ledger.json
+    state.parent.mkdir(parents=True, exist_ok=True)
+    if not state.exists():
+        state.write_text('{"current_path": "main"}')
+
+    # Backdate the ledger by 45 days.
     old = time.time() - 45 * 86400
     os.utime(state, (old, old))
 
     res = state_freshness_check(tmp_path, stale_after_days=30)
     assert res["status"] == "success"
     assert res["is_stale"] is True, f"should be stale; got {res}"
-    assert any("state.json" in s.lower() for s in res["signals"])
+    assert any("state ledger" in s.lower() for s in res["signals"])
     assert res["prompt_for_ai"], "stale state must surface a prompt"
 
     # Fresh state (touch to now) should clear.
     now = time.time()
     os.utime(state, (now, now))
     res2 = state_freshness_check(tmp_path, stale_after_days=30)
-    assert res2["is_stale"] is False, f"fresh state.json should not be stale; got {res2}"
+    assert res2["is_stale"] is False, f"fresh ledger should not be stale; got {res2}"
 
 
 # ---------------------------------------------------------------------------

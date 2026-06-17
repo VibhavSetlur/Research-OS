@@ -276,9 +276,11 @@ def session_resume(root: Path) -> dict[str, Any]:
             pause_reason = "fresh_session"
         elif last_entry and last_entry.get("status") == "started":
             pause_reason = "mid_step"
-        elif last_entry and last_entry.get("protocol_name", "").endswith(
-            "dead_end_routing"
-        ):
+        elif last_entry and (
+            # The execution log writes the field as 'protocol'; tolerate the
+            # legacy 'protocol_name' so dead-end detection actually fires.
+            (last_entry.get("protocol") or last_entry.get("protocol_name") or "")
+        ).endswith("dead_end_routing"):
             pause_reason = "dead_end"
         elif latest_handoff:
             pause_reason = "ctx_exhaustion"
