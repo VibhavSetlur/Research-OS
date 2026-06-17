@@ -52,6 +52,61 @@ def _input_required_fields(schema: dict | None) -> list[str]:
     return []
 
 
+# ---------------------------------------------------------------------------
+# mode-scoped tool surface (context-bloat fix)
+# ---------------------------------------------------------------------------
+#
+# The full tool catalog is ~16K tokens; surfacing all of it every turn is
+# the single biggest per-turn context cost. A workspace runs in exactly one
+# `workspace.mode` (analysis | tool_build | exploration), and most of the
+# catalog is irrelevant to any one mode. Listing scoped to CORE + the active
+# mode's tool set cuts the surface dramatically.
+#
+# The mapping is by tool CATEGORY (not name) so it stays correct as the
+# catalog grows — a new analysis tool tagged category='research' is picked
+# up automatically. CORE categories are the cross-cutting plumbing every
+# mode needs (routing, files, state, config, the gradient on-ramps in
+# `interaction`, …). Each mode adds its own working categories on top.
+
+# Categories surfaced in EVERY mode — the plumbing + universal on-ramps.
+_CORE_CATEGORIES: frozenset[str] = frozenset({
+    "routing", "system", "protocol", "file", "state", "config",
+    "checkpoint", "workspace", "interaction", "environment", "memory",
+})
+
+# Mode → the EXTRA categories surfaced on top of CORE for that mode.
+_MODE_CATEGORIES: dict[str, frozenset[str]] = {
+    "analysis": frozenset({
+        "research", "methodology", "audit", "synthesis", "exec", "execution",
+        "data", "intake", "search", "viz", "path", "tasks", "scratch",
+    }),
+    "tool_build": frozenset({
+        # exec carries tool_git / tool_build; audit carries the scope='tool'
+        # gates; execution for ad-hoc shells; the rest is shared plumbing.
+        "exec", "execution", "audit", "search", "tasks", "scratch", "research",
+    }),
+    "exploration": frozenset({
+        # scratch-first quick work: sample data, search, run code, sketch.
+        "data", "intake", "search", "execution", "exec", "scratch", "viz",
+        "research",
+    }),
+}
+
+VALID_LISTING_MODES = ("analysis", "tool_build", "exploration")
+
+
+def _categories_for_mode(mode: str) -> frozenset[str]:
+    """Return CORE ∪ the mode's extra categories. Unknown mode ⇒ analysis."""
+    extra = _MODE_CATEGORIES.get(mode, _MODE_CATEGORIES["analysis"])
+    return _CORE_CATEGORIES | extra
+
+
+def _category_for_tool(tool_def: dict[str, Any]) -> str:
+    """The tool's declared category (lowercased); '' when absent."""
+    cat = (tool_def or {}).get("category")
+    return cat.lower() if isinstance(cat, str) else ""
+
+
 def _scope_for_tool(
     tool_name: str,
     tool_def: dict[str, Any],
@@ -87,6 +142,7 @@ def list_tools_flat(
     scope: str = "all",
     include_deprecated: bool = False,
     match_substring: str | None = None,
+    mode: str | None = None,
     pack_names: set[str] | None = None,
 ) -> list[dict]:
     """Flat tool catalog.
@@ -117,6 +173,14 @@ def list_tools_flat(
       match_substring:     When set, restrict to tools whose
                            ``name`` OR ``summary_first_line`` contains
                            the lowercased substring.
+      mode:     Optional workspace mode (``analysis`` | ``tool_build`` |
+                ``exploration``). When set, restrict the surface to CORE
+                categories + that mode's working categories — the
+                context-bloat fix. A tool whose ``scope`` matches an
+                explicitly-requested ``scope`` (a pack name) is kept even
+                if its category is outside the mode, so a declared-domain
+                pack stays visible. ``None`` (default) ⇒ no mode filter,
+                so back-compat behaviour is unchanged.
       pack_names:          Optional set of pack names. When omitted,
                            the function looks up live pack registrations.
     """
@@ -132,6 +196,21 @@ def list_tools_flat(
 
     needle = match_substring.lower().strip() if isinstance(match_substring, str) and match_substring.strip() else None
 
+    # Mode filter (None ⇒ off, full back-compat). When a mode is set, build
+    # the allowed-category set once; a tool passes if its category is in it,
+    # OR it belongs to an explicitly-requested pack scope (declared domain).
+    mode_norm = mode.strip().lower() if isinstance(mode, str) and mode.strip() else None
+    allowed_categories = _categories_for_mode(mode_norm) if mode_norm else None
+    requested_pack_scope = scope if (scope and scope not in ("all", "core")) else None
+
+    def _passes_mode(defn: dict[str, Any], tool_scope: str) -> bool:
+        if allowed_categories is None:
+            return True
+        if _category_for_tool(defn) in allowed_categories:
+            return True
+        # Keep declared-domain pack tools when the caller asked for that pack.
+        return bool(requested_pack_scope) and tool_scope == requested_pack_scope
+
     out: list[dict] = []
 
     # 1) Canonical tools. A few legacy names persist in TOOL_DEFINITIONS
@@ -146,6 +225,8 @@ def list_tools_flat(
             continue
         tool_scope = _scope_for_tool(name, defn, pack_names)
         if scope != "all" and tool_scope != scope:
+            continue
+        if not _passes_mode(defn, tool_scope):
             continue
         summary = _first_line(defn.get("short") or defn.get("description") or "")
         if needle and needle not in name.lower() and needle not in summary.lower():
@@ -180,6 +261,8 @@ def list_tools_flat(
             continue
         tool_scope = _scope_for_tool(target, target_def, pack_names)
         if scope != "all" and tool_scope != scope:
+            continue
+        if not _passes_mode(target_def, tool_scope):
             continue
         summary = _first_line(target_def.get("short") or target_def.get("description") or "")
         if needle and needle not in alias_name.lower() and needle not in summary.lower():

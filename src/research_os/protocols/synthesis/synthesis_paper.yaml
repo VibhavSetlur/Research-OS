@@ -1,13 +1,19 @@
 id: synthesis_paper
 tier: 'synthesize'
 name: Synthesis — Paper (IMRAD, AI-authored Typst → PDF)
-version: '2.4.3'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, humanities, qualitative, theory_math, engineering]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-09'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/manuscript_outline      # lock the narrative arc BEFORE drafting
+  - synthesis/journal_selection       # pick the venue the paper formats against
+  - synthesis/synthesis_title_workshop
+  - synthesis/synthesis_cover_letter
+  - synthesis/reviewer_response       # red-team the draft before submission
 description: |
   Guide the AI to author `synthesis/paper.typ` directly, section by
   section, as a publishable manuscript. Research-OS does not generate
@@ -84,21 +90,27 @@ design_principles: |
     the conversation.
 
 quality_standards: |
-  - abstract — 200-300 words; >=1 quantitative finding; structured for
-    journals/preprints, single-paragraph for conferences.
-  - introduction — 400-800 words; >=3 cited prior works framing the
-    question; ends with an explicit "in this study, we ..." pivot.
-  - methods — minimum 400 words; every workspace step's primary
-    method/tool named; implementation + version + parameters +
-    assumptions for non-trivial choices.
-  - results — minimum 400 words; >=1 inferential statistic per primary
-    finding; every focal figure referenced.
-  - discussion — minimum 500 words; Limitations paragraph present;
-    future-work direction named; every DISAGREES/EXTENDS verdict from
-    findings_vs_literature.md addressed in a paragraph.
-  - references — every cited key resolves in the bibliography.
-  - citations — minimum 8, capped per venue (journal ~40, conference
-    ~25, preprint flexible).
+  Length, section structure, and citation caps are VENUE-SPECIFIC —
+  read them off the target venue's author guidelines (pick_venue step),
+  not from a default. The roles below are timeless; the numbers are
+  whatever the venue specifies.
+  - abstract — carries >=1 quantitative finding; structured vs
+    single-paragraph form follows the venue (most journals/preprints
+    structure; most conferences run a single paragraph). Word band
+    from the venue's abstract limit.
+  - introduction — frames the question with the prior works the field
+    expects; ends with an explicit "in this study, we ..." pivot. How
+    many citations and how long is a function of the venue's norms.
+  - methods — every workspace step's primary method/tool named;
+    implementation + version + parameters + assumptions for non-trivial
+    choices so the work is reproducible. Depth scales with the venue.
+  - results — every primary finding carries the inferential statistic
+    the field reports for that design; every focal figure is referenced.
+  - discussion — a Limitations paragraph is present; a future-work
+    direction is named; every DISAGREES/EXTENDS verdict from
+    findings_vs_literature.md is addressed in a paragraph.
+  - references — every cited key resolves in the bibliography; the
+    citation count and any cap come from the venue, not a fixed number.
 
 steps:
   - id: verify_intent
@@ -112,9 +124,8 @@ steps:
       - List does NOT include `paper`: STOP. Ask the researcher
         "Your declared output_types is <list>; do you want me to add
         a paper, or skip and use one of <list>?". Do NOT scaffold
-        until they confirm. This is the fix for the failure
-        mode where the AI auto-creates papers for dashboard-only
-        projects.
+        until they confirm. A paper is never auto-created for a
+        project that asked only for a dashboard, slides, or a report.
 
   - id: inspect_workspace
     name: Inspect what's ready
@@ -140,11 +151,22 @@ steps:
   - id: author_sections
     name: Author each section in its own turn
     description: |
-      Recommended order is methods -> results -> discussion ->
-      introduction -> abstract. Each section is grounded in the
-      workspace artefact the plan named for it. In autopilot mode the
-      AI may proceed through sections automatically; each is still its
-      own focused authoring pass.
+      Author inside-out: the sections grounded directly in workspace
+      artefacts (methods, results) before the framing sections
+      (discussion, introduction, abstract) that depend on them. The
+      common default — methods, results, discussion, introduction,
+      abstract — exists because the abstract and introduction can only
+      be written once the contribution is locked; depart from it when
+      the venue or the argument calls for it. Each section is grounded
+      in the workspace artefact the plan named for it. In autopilot
+      mode the AI may proceed through sections automatically; each is
+      still its own focused authoring pass.
+
+      Note (unresolved across the library): some deliverables assemble
+      a full IMRAD manuscript here, while others draft individual
+      sections that a separate assembly stage stitches together. This
+      protocol authors the whole paper; the paper-vs-section assembly
+      split is a known structural seam, not settled here.
 
   - id: per_section_check
     name: Check after every section

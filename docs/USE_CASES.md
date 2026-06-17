@@ -11,15 +11,24 @@ picks the protocol. This page exists so you know what's possible.
 
 ## Common first prompts (start here)
 
-These are the highest-leverage first-turn prompts validated against five
+These are the highest-leverage first-turn prompts, validated against
 end-to-end scenarios. Each one routes cleanly; pick the row that matches
 what you actually have on disk, paste a one-line variant into the chat,
 and let the AI work.
+
+> **First, the mode.** If you're *building software* rather than
+> *analysing data*, init in **tool_build** mode and see the tool_build
+> rows below + [TOOL_BUILDER.md](TOOL_BUILDER.md). If you're just poking
+> around, **exploration** mode keeps gates light. Everything else assumes
+> the default **analysis** mode. See [By workspace mode](#by-workspace-mode).
 
 | What you arrived with | Try this first prompt | Routes to |
 |---|---|---|
 | Data + a specific hypothesis | "I dropped my <dataset> in inputs/ — I want to test whether <hypothesis>." | `guidance/project_startup` → `tool_intake_autofill` |
 | Data, no hypothesis yet | "I have <dataset> in inputs/ — explore it and help me find a hypothesis." | `methodology/exploratory_data_analysis` |
+| Brand-new, just want to look | "i have a csv, what do i do?" / "look at my data" / "make a chart" / "is my result significant?" | the router coaches from plain phrasing (EDA / a figure / a significance check) |
+| Building a tool / library / CLI (tool_build mode) | "spec out <the tool>, here's what it must do." / "implement the next feature." | `build/spec_and_design` → `build/implement_iteration` |
+| Quick scratch exploration (exploration mode) | "just poke at this data, nothing formal." | `guidance/casual_exploration` (scratch-first) |
 | A text corpus (humanities / lit) | "I have <N> texts in inputs/raw_data/ — test whether <stylistic claim>." (e.g. James's late-style vocabulary shift) | `humanities/method/digital_humanities_workflow` (auto-loads the humanities pack); see also `humanities/textual/distant_reading` + `humanities/method/close_reading` |
 | Interview transcripts | "I have <N> interview transcripts in inputs/raw_data/ — walk this through to a paper + dashboard." | `methodology/qualitative_research` → `methodology/coding_scheme_development` → `methodology/qualitative_quality_audit` |
 | Benchmark / engineering measurements | "Benchmark <variant A> vs <variant B> vs <variant C> across <input sizes>; quantify when A wins." | `methodology/method_comparison` (engineering pack auto-detects) |
@@ -39,6 +48,41 @@ A couple of fresh-agent tips that the validation surfaced:
 * **If you don't have data yet, just say so.** "Teach me about <method>
   before I use it" loads `methodology/methodological_consultation` and
   doesn't commit you to a project.
+
+---
+
+## By workspace mode
+
+The first fork is *what kind of project this is*, set at
+`research-os init` (`--workspace-mode`, or the wizard's "What are you
+building?" step) and stored as `workspace.mode` in
+`inputs/researcher_config.yaml`.
+
+| You're… | Mode | Say something like… | Routes to |
+|---|---|---|---|
+| Analysing data toward a finding / paper | **analysis** *(default)* | "fill the intake", "run an EDA", "draft the paper" | the analysis protocols below |
+| Building software you iterate on | **tool_build** | "spec out a fast FASTQ deduplicator", "implement the next feature", "write a benchmark vs the baseline", "cut a release" | `build/spec_and_design` · `build/implement_iteration` · `build/test_strategy` · `build/benchmark_vs_baseline` · `build/release_and_changelog` |
+| Poking around, no committed direction | **exploration** | "just poke at this", "smoke-test an idea in scratch" | `guidance/casual_exploration` (scratch-first; promote a probe to a numbered step only when it earns it) |
+
+**tool_build example.** You're writing a CLI that deduplicates FASTQ
+reads. `research-os init --workspace-mode tool_build` seeds the
+governance surface (`spec/`, `decisions/`, `eval/`, `milestones.md`) and
+an inner git repo. *"Spec it out — it must handle paired-end reads and
+beat `seqkit rmdup` on 10 GB inputs"* → `build/spec_and_design` records
+the acceptance criteria + interface contract + ADRs. *"Implement the
+parser"* → `build/implement_iteration` writes code in the inner repo,
+proves it with a test, runs the checks, commits. *"Benchmark it against
+seqkit"* → `build/benchmark_vs_baseline`. "Done" is a passing eval +
+green tests + a clean build, not a figure. Full walkthrough:
+[TOOL_BUILDER.md](TOOL_BUILDER.md).
+
+**exploration example.** You inherited a messy dataset and have no idea
+what's in it. `research-os init --workspace-mode exploration` makes
+`workspace/scratch/` the home base. *"Just poke at this — distributions,
+missingness, anything weird"* runs a quick look with light gates; nothing
+is promoted to a formal numbered step until you say *"okay, this one's
+worth doing properly"*. Good for the hour before you know whether there's
+a project here at all.
 
 ---
 
@@ -293,6 +337,7 @@ protocol's `next_protocol` advances forward.
 | **Theory / math proof** | `guidance/project_startup` → `theory_math/method/proof_strategy_selection` → `theory_math/proof/proof_verification_workflow` → `theory_math/output/theory_paper_structure` → `synthesis/synthesis_paper` (citation_style: amsplain) | `synthesis/paper.typ` (Theorem / Proof / References) |
 | **Close-reading humanities essay** | `guidance/project_startup` → `humanities/method/close_reading` → `synthesis/synthesis_paper` (citation_style: mla or chicago_author_date) | `synthesis/paper.typ` |
 | **Visualization-only deliverable** | `visualization/visualization_workflow` *(no full project pipeline)* | One figure or figure deck |
+| **Building a tool (tool_build mode)** | `build/spec_and_design` → `build/implement_iteration` *(loop)* → `build/test_strategy` → `build/benchmark_vs_baseline` → `build/release_and_changelog` | A tested, benchmarked tool in its own git repo (see [TOOL_BUILDER.md](TOOL_BUILDER.md)) |
 
 When the wrong recipe gets picked, say *"actually I meant <X>"* and the
 AI re-routes without losing the workspace.

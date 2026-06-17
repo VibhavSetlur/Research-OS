@@ -35,6 +35,28 @@ licenses:
 # ── This project ────────────────────────────────────────────────────────
 project_name: ""                 # blank → uses directory name
 
+# ── Workspace mode — what kind of work is this? ─────────────────────────
+# Changes the scaffold, which protocols route, and which audits apply.
+#   analysis    → linear numbered analysis steps (default; classic Research OS)
+#   tool_build  → building software / a tool you iterate on. Research OS
+#                 governs from above (spec + decisions + milestones + eval
+#                 harness); the tool itself lives in an inner git repo.
+#   exploration → scratch-first quick probes, light gates, promote-to-step.
+#   notebook    → Jupyter-first; a notebook / cell is the unit of work.
+#   multi_study → a portfolio of sub-studies with a shared codebook + roll-up.
+workspace:
+  mode: "analysis"        # analysis | tool_build | exploration | notebook | multi_study
+  inner_repo: ""          # tool_build only: inner project dir (blank → "project")
+  # tool_build only: the shell commands that define "done" for the inner
+  # repo. tool_build(operation=build|test|lint) runs these (cwd = inner
+  # repo) and tool_audit(scope='tool', dimension='build'|'tests') gates on
+  # them. Blank = the command isn't configured; that gate reports a clear
+  # "configure workspace.commands.<op>" message instead of running.
+  commands:
+    build: ""             # e.g. "make" | "cargo build" | "npm run build"
+    test: ""              # e.g. "pytest -q" | "cargo test" | "npm test"
+    lint: ""              # e.g. "ruff check ." | "cargo clippy" | "eslint ."
+
 # ── What you want to produce (blank = AI suggests; start exploratory) ───
 research_goal:
   output_types: []               # paper | abstract | poster | dashboard | report | exploratory

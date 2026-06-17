@@ -1,13 +1,16 @@
 id: uncertainty_visualization
 tier: 'synthesize'
 name: Uncertainty Visualization (intervals, fans, ensembles, posteriors)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/uncertainty_quantification    # the companion that fits the uncertainty this shows
+  - visualization/distribution_comparison      # shares the violin/raincloud/halfeye idioms
 description: |
   Point estimates without uncertainty mislead. A bar with no error,
   a forecast line with no fan, a prediction with no calibration —
@@ -102,8 +105,9 @@ steps:
           conventions.
 
         ENSEMBLE / SPAGHETTI — overlay all member curves with low
-          alpha. Add the median in bold. Works well when N members
-          ≤ ~30; above that, switch to fan + median.
+          alpha and the median in bold. Works while the members stay
+          individually distinguishable; once they overplot into an
+          indistinct band, switch to a fan + median.
 
         POSTERIOR DENSITY — solid curve with HDI (highest density
           interval) shaded; mark the posterior mean / median; add a

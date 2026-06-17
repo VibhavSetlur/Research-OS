@@ -35,10 +35,10 @@ Then scaffold a project, open it in your AI IDE, and start talking:
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                  # 7-step arrow-key wizard
+research-os init                  # arrow-key wizard
 ```
 
-See **[Use it](#use-it)** below for the full 4-step flow.
+See **[Use it](#use-it)** below for the full flow.
 
 ---
 
@@ -52,6 +52,26 @@ An MCP server that sits between your AI coding assistant and your research proje
 - **No lost context.** Decisions, hypotheses, dead-ends, and draft revisions are recorded as you go. Tomorrow's chat resumes exactly where today's ended.
 
 It works with the AI tools you already use — **Claude Code, Cursor, Claude Desktop, Antigravity, VS Code, Windsurf, OpenCode, Continue, Aider**. One install, one wizard, and the AI you already trust now produces work that's honest enough to publish.
+
+---
+
+## Three ways to work
+
+The wizard's first question — *"What are you building?"* — sets a
+**workspace mode** that reshapes the scaffold and how the AI works:
+
+- **analysis** *(default)* — data → results → paper. Numbered experiment
+  steps; "done" is grounded figures + conclusions. The classic flow the
+  rest of this README describes.
+- **tool_build** — you're building software (a CLI, a library, a service).
+  Research OS governs the build from above (spec / decisions / eval) while
+  the tool lives in its own git repo; "done" is **tests + build + eval
+  passing**, not figures. → [docs/TOOL_BUILDER.md](docs/TOOL_BUILDER.md)
+- **exploration** — scratch-first. Poke at the data with light gates;
+  promote a probe to a real step only when it earns it.
+
+Set it at init (`research-os init --workspace-mode <mode>`) or change it
+later in `inputs/researcher_config.yaml` (`workspace.mode`).
 
 ---
 
@@ -155,7 +175,7 @@ Upgrade:
 pip install --upgrade "research-os[all]"
 ```
 
-**2. Scaffold a project** — 7-step arrow-key wizard.
+**2. Scaffold a project** — arrow-key wizard.
 
 ```bash
 mkdir my-project && cd my-project
@@ -184,7 +204,7 @@ research-os doctor
 
 ## What's inside
 
-* **~150 MCP tools** in three namespaces — `sys_*` (system / workspace /
+* **MCP tools** in three namespaces — `sys_*` (system / workspace /
   files / state), `tool_*` (research work), `mem_*` (append-only memory).
   Family-level consolidation (`tool_audit`, `tool_search`,
   `tool_step`, `tool_lessons`, `mem_log`, etc.) dispatches by `scope` /
@@ -192,12 +212,12 @@ research-os doctor
   AI writes `paper.typ` / `slides.typ` / `poster.typ` / `dashboard.html`
   directly, with `tool_synthesize_plan` for inspection, `tool_synthesis_check`
   for validation, and `tool_typst_compile` for PDF rendering.
-* **100+ core protocols** + 36 in 5 bundled packs (humanities,
+* **Core protocols** + bundled domain packs (humanities,
   qualitative, theory_math, wet_lab, engineering) the AI picks from
   via `tool_route`. Every protocol carries
   `scope_tags: {domain, audience, workflow_shape}` and a `tier`
   annotation so the router can filter by context.
-* **6 in-tree adapter packs** — `slurm`, `nextflow`, `snakemake`,
+* **In-tree adapter packs** — `slurm`, `nextflow`, `snakemake`,
   `cytoscape`, `redcap`, `synapse` — bridge Research OS to common
   external systems via plugin hooks.
 * **MCP `instructions` field** shipped at handshake — compliant
@@ -207,7 +227,7 @@ research-os doctor
 * **Cheap-by-default token costs.** `sys_protocol_get` returns
   `format='summary'` (~3K chars vs ~12-25K for full YAML) — 5-10×
   cheaper per-turn load. `sys_active_tools(protocol_name)` returns a
-  scoped 13-18-tool shortlist instead of the full catalogue.
+  scoped tool shortlist instead of the full catalogue.
 * **Structured tool responses.** Every handler returns an envelope
   with `status` / `payload` / `audit_findings` /
   `next_recommended_call` / `tier_transition` / `tokens_estimate` /
@@ -255,6 +275,7 @@ system that won't let any of those things land in your final paper.
 | **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
 | **Wiring an IDE** | [docs/SETUP.md](docs/SETUP.md) — Claude Code, Cursor, VS Code, etc. |
 | **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |
+| **Building a tool, not analysing data** | [docs/TOOL_BUILDER.md](docs/TOOL_BUILDER.md) — tool_build mode: spec → implement → test → ship |
 | **Curious about a protocol** | [docs/PROTOCOLS.md](docs/PROTOCOLS.md) — every workflow with triggers + quality bars |
 | **Looking up a tool** | [docs/TOOLS.md](docs/TOOLS.md) — every MCP tool with examples |
 | **Upgrading from v1.x** | [CHANGELOG.md](CHANGELOG.md) — see the `[2.0.0]` section for the v1 → v2 surface map |

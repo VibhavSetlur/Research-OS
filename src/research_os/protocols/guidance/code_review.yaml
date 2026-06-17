@@ -1,12 +1,16 @@
 id: code_review
 tier: 'review'
 name: Code Review (analysis scripts)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
-  domain: [engineering]
-  audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  domain: [any]
+  audience: [researcher, naive_ai]
+  workflow_shape: [any]
+see_also:
+  - guidance/quick_paper_review        # distinct: reviews prose, not scripts
+  - audit/audit_and_validation         # distinct: checks the project's own outputs vs quality bars
 description: |
   Critically review the analysis scripts in a numbered step (or
   scripts a collaborator just dropped into `inputs/`) for correctness,

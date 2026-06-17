@@ -1,12 +1,17 @@
 id: evaluation_design
 tier: 'plan'
 name: Evaluation Design (split / CV / metric / test strategy)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering]
   audience: [auditor]
   workflow_shape: [systems_benchmark]
+see_also:
+  - methodology/method_comparison        # runs the head-to-head under this regime
+  - methodology/bootstrapping_design     # the resampling behind metric CIs
+  - methodology/power_analysis           # justifies the sample this regime runs on
 description: |
   Standalone design protocol for the EVALUATION REGIME — the
   split, the cross-validation strategy, the metric set, and the
@@ -110,20 +115,22 @@ steps:
       CV runs INSIDE the train side for hyperparameter tuning +
       uncertainty estimation. Never on the test side.
 
-      Pick CV strategy per the grouping:
-        - independent rows           → stratified k-fold (k=5 or 10)
-        - clustered by group         → group k-fold (k = #groups
-                                       when feasible; otherwise
-                                       leave-one-group-out)
+      Pick CV strategy per the grouping (the grouping forces the
+      scheme; the fold count is a separate decision below):
+        - independent rows           → stratified k-fold
+        - clustered by group         → group k-fold (folds respect
+                                       group boundaries; leave-one-
+                                       group-out when groups are few)
         - time-ordered               → expanding-window or
                                        rolling-origin CV (NOT
                                        random k-fold)
-        - small-n                    → repeated stratified k-fold
-                                       (5 × 10-fold reduces variance)
+        - small-n                    → repeated k-fold to average out
+                                       fold-assignment variance
 
-      Justify k from the sample size: small n favours larger k
-      (more folds → more training data per fold); large n
-      tolerates smaller k.
+      Justify the fold count from the sample size + variance budget:
+      fewer rows favour more folds (more training data per fold) but
+      raise per-fold variance; more rows tolerate fewer folds. State
+      the trade-off you made rather than copying a default k.
 
       Document hyperparameter search BUDGET (number of trials)
       and the inner-CV strategy that selects within that budget
@@ -134,32 +141,27 @@ steps:
   - id: pick_the_metric_set
     name: Pick the metric set (primary + secondary)
     description: |
-      Metrics map to DEPLOYMENT DECISIONS. Pick the PRIMARY
-      metric from:
+      The PRIMARY metric is whichever one tracks the DEPLOYMENT
+      DECISION the model's output drives — not a default for the task
+      family. Reason it out, don't look it up:
 
-        TASK → DEFAULT primary metric (but justify per project)
-          binary classification:    AUROC, Brier, calibration slope
-          binary with class
-            imbalance:              average precision (AUPR),
-                                    sensitivity at fixed specificity
-          multi-class classification: macro / weighted F1,
-                                       log-loss
-          regression:               RMSE / MAE (pick based on
-                                    outlier sensitivity), R²
-          survival:                 C-index, time-dependent AUC,
-                                    Brier@t, IPCW
-          ranking:                  NDCG@k, MAP@k, MRR
-          forecasting:              MAE, MAPE, sMAPE, MASE,
-                                    pinball loss for quantiles
-          counterfactual estimation: PEHE, policy-value gap
-          clustering quality:       silhouette, ARI, NMI (vs ground
-                                                          truth)
-          generation:               task-appropriate likelihood +
-                                    human eval rubric
+        - WHAT DECISION does the output feed (a threshold call? a
+          ranking? a calibrated probability fed to a downstream cost
+          model? a point forecast? a recovered treatment effect?)
+        - WHAT ERROR is most costly in that decision (false alarms vs
+          misses? large residuals vs many small ones? mis-calibration
+          vs mis-ranking?) — the metric must penalise THAT error.
+        - WHAT does the field report as canonical for this task on
+          this data shape? Surface it via tool_research_method and
+          cite the convention. Class imbalance, censoring, ranked
+          output, and quantile targets each shift the canonical
+          choice — name the property of THIS problem that forces the
+          metric, not the task label alone.
 
-      For each, the literature names the convention; cite it. The
-      metric set is NOT generic — it reflects this task on this
-      data in this deployment.
+      A metric chosen because "it's what people use for classification"
+      is a recipe; a metric chosen because it penalises the error the
+      deployment cannot afford is a scaffold. The metric set is NOT
+      generic — it reflects this task on this data in this deployment.
 
       Add SECONDARY metrics that the deployment cares about:
         - calibration (when probabilities feed downstream
@@ -176,9 +178,10 @@ steps:
       Point estimates of metrics are over-confident. Pick the
       uncertainty strategy:
 
-        - bootstrap on a fixed test set (~1000 resamples) →
-          gives 95% CI on the metric
-        - cross-validation variance (k folds → mean ± SD across
+        - bootstrap on a fixed test set → CI on the metric; set the
+          resample count by its Monte Carlo error (see
+          methodology/bootstrapping_design), not a fixed default
+        - cross-validation variance (folds → mean ± SD across
           folds) → gives a sense of stability; not strictly an
           uncertainty CI
         - repeated CV (multiple shuffles) → smoother variance
@@ -192,19 +195,25 @@ steps:
     name: Design the statistical test for comparing variants
     description: |
       When two or more variants are compared on the SAME test set
-      / SAME CV folds:
+      / SAME CV folds, the test must RESPECT the split structure —
+      ignoring within-fold or within-item dependence underestimates
+      the variance and manufactures significance. Pick the paired
+      test that matches the comparison's dependence structure and
+      cite it:
         - paired test on metric differences PER FOLD (or per
           bootstrap resample)
-        - for AUROC: DeLong's test (the field's convention)
-        - for binary outcomes per item: McNemar's test
+        - paired tests exist for specific metrics (e.g. DeLong for
+          AUROC, McNemar for per-item binary outcomes) — name the one
+          the field reports for THIS metric and cite the source
         - for clustered data: cluster-bootstrap on the difference
-        - corrected resampled t-test (Nadeau-Bengio) when using
-          repeated random splits — naive t-test underestimates
-          variance
+        - for repeated random splits: a correction that accounts for
+          train/test overlap across splits (e.g. Nadeau-Bengio's
+          corrected resampled t-test) — the naive t-test
+          underestimates variance here
 
       For N variants pairwise: name the multiple-comparison
-      correction (Bonferroni / Holm / Benjamini-Hochberg —
-      whichever the field uses).
+      correction the field uses and cite it (see
+      methodology/multiple_comparisons).
 
       Save to workspace/<step>/outputs/reports/comparison_test.md.
 

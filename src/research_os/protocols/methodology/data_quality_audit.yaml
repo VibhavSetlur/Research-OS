@@ -1,12 +1,17 @@
 id: data_quality_audit
 tier: 'plan'
 name: Data Quality Audit (standalone QC pass)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [naive_ai, auditor]
   workflow_shape: [experiment_pipeline]
+see_also:
+  - methodology/exploratory_data_analysis  # the hypothesis-generating pass on clean-enough data
+  - methodology/data_ethics_review         # the ethical/legal counterpart to this cleanliness pass
+  - methodology/missing_data_strategy      # where flagged missingness gets a handling plan
 description: |
   Standalone data quality audit — for the case where the researcher
   wants to know what is in (or wrong with) a dataset BEFORE deciding
@@ -124,8 +129,10 @@ steps:
 
       For each categorical column:
         - level count + a top-K table
-        - low-frequency levels (< 1% of rows) — often typos, codings,
-          or rare-category drop targets
+        - low-frequency levels — often typos, codings, or
+          rare-category drop targets; what counts as "rare" depends on
+          the column's role downstream, so flag the long tail rather
+          than applying a fixed frequency cutoff
         - levels not in the data dictionary's enumerated values
 
   - id: duplicate_and_near_duplicate_check

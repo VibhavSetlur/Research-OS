@@ -108,10 +108,17 @@ class TestDownloadLiterature:
     @patch("urllib.request.urlretrieve")
     def test_success(self, mock_retrieve, mock_unpaywall, tmp_path):
         mock_unpaywall.return_value = {"is_oa": True, "reason": "OA"}
-        mock_retrieve.return_value = (
-            str(tmp_path / "inputs/literature/paper.pdf"),
-            None,
-        )
+
+        # A real urlretrieve writes the fetched bytes to disk. The
+        # download path now validates the %PDF- magic header, so the mock
+        # must write a genuine PDF (not just return a path) — exactly the
+        # integrity guarantee being tested elsewhere.
+        def _write_pdf(url, out_path):
+            from pathlib import Path as _P
+            _P(out_path).write_bytes(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\nbody\n")
+            return str(out_path), None
+
+        mock_retrieve.side_effect = _write_pdf
         res = download_literature("https://example.com/paper.pdf", "paper.pdf", tmp_path)
         assert res["status"] == "success"
         assert (tmp_path / "inputs" / "literature").exists()

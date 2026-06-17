@@ -1,20 +1,20 @@
 id: synthesis_handout
 tier: 'synthesize'
 name: Synthesis — Printable Handout / One-Pager (redirect)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-16'
 description: |
-  Redirect stub. The handout / one-pager content was consolidated
-  into `synthesis/printable.yaml` parametrized by `format='handout'`.
+  Redirect stub. The handout / one-pager content lives in
+  `synthesis/printable.yaml` parametrized by `format='handout'`.
   Loading this name continues to work (loader follows redirect_to);
   the deprecation is logged to `.os_state/deprecations.log` so the
-  project can audit usage before the next major (when stubs are
-  removed). Use `synthesis/printable` directly going forward.
+  project can audit usage. Use `synthesis/printable` directly going
+  forward.
 
 redirect_to: synthesis/printable
 redirect_params:

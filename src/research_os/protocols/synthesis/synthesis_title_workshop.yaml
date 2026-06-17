@@ -1,12 +1,16 @@
 id: synthesis_title_workshop
 tier: 'synthesize'
 name: Synthesis — Title Workshop (the single most-read sentence)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative, humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper
+  - synthesis/synthesis_abstract
 description: |
   Generate, iterate, and pick a title for a paper / abstract /
   preprint / poster / grant / dissertation. The title is the
@@ -32,10 +36,14 @@ prerequisites:
     paper draft / discussion / conclusion to title from).
 
 quality_bar:
-  alternatives_generated_at_least_six: true
-  every_alternative_at_most_140_chars: true     # Twitter still cuts off
-  every_alternative_passes_substring_test: true   # see step
-  shortlist_of_three_voted_on: true
+  several_alternatives_across_archetypes: true   # expand the option space
+                                                 # before converging
+  every_alternative_fits_share_preview: true     # titles get truncated in
+                                                 # citation lists and social
+                                                 # cards; keep them short
+  every_alternative_passes_substring_test: true  # see step
+  shortlist_voted_on_across_archetypes: true     # compare styles, don't
+                                                 # collapse on one early
   winning_title_field_search_terms_aligned: true
 
 editorial_voice:
@@ -130,17 +138,19 @@ steps:
       Save to workspace/scratch/title_search_terms.md.
 
   - id: generate_alternatives
-    name: Generate ≥6 title alternatives (across archetypes)
+    name: Generate title alternatives (across archetypes)
     description: |
-      Generate AT LEAST 6 candidate titles, deliberately spanning
-      the archetypes above. The point is to expand the option
-      space, not to converge prematurely.
+      Generate several candidate titles, deliberately spanning the
+      archetypes above. The point is to expand the option space, not to
+      converge prematurely — enough candidates that more than one
+      archetype is genuinely represented.
 
       For each candidate:
         - the title text
         - the archetype it uses
-        - the char count (target ≤140; ≤100 ideal for journals
-          that truncate aggressively)
+        - the char count (shorter is safer — citation strings and
+          search results truncate; check how the target venue displays
+          titles)
         - the search terms from the inventory it includes
         - one-sentence why it works (or why it doesn't)
 
@@ -174,11 +184,11 @@ steps:
       front-load the substance.
 
   - id: shortlist_three
-    name: Shortlist three (across archetypes)
+    name: Shortlist a few (across archetypes)
     description: |
-      Pick THREE candidates for a final vote — at least two
-      different archetypes among them. This prevents the workshop
-      from collapsing on one style and surfaces the trade-offs.
+      Pick a small shortlist for a final vote — spanning at least two
+      different archetypes. This prevents the workshop from collapsing
+      on one style and surfaces the trade-offs.
 
       Present to the researcher:
         Option A (finding-first):   "<title A>"  — pros / cons

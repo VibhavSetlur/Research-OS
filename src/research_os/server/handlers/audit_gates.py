@@ -18,6 +18,7 @@ __all__ = [
     "_handle_tool_project_tier_strictness",
     "_handle_tool_dry_run",
     "_handle_tool_step_complete",
+    "_handle_tool_finalize_project",
 ]
 
 def _handle_tool_state_freshness_check(name, arguments, root):
@@ -198,6 +199,43 @@ def _handle_tool_step_complete(name, arguments, root):
     return _text(merged)
 
 
+def _handle_tool_finalize_project(name, arguments, root):
+    """Server-enforced ship gate — the one gate that can REFUSE 'done'.
+
+    operation='check' (default) reports blockers without refusing.
+    operation='finalize' enforces: a non-empty blocker set returns a hard
+    error unless a verifiable researcher override clears it.
+    """
+    from research_os.tools.actions.audit.ship_gate import finalize_project
+
+    res = finalize_project(
+        root,
+        operation=str(arguments.get("operation") or "check"),
+        override=bool(arguments.get("override", False)),
+        override_rationale=str(arguments.get("override_rationale", "")),
+    )
+    status = res.get("status")
+    # 'clear' / 'overridden' → success envelope (deliverable may ship).
+    # 'check'+'blocked' → success envelope (advisory report; not a refusal).
+    # 'finalize'+'blocked' → hard error: this is the refusal of 'done'.
+    # 'error' → bad override / bad operation → error envelope.
+    if status == "blocked" and res.get("operation") == "finalize":
+        return _text(_error(
+            what="ship_gate_blocked",
+            why=res.get("message", "unresolved ship blockers"),
+            next_action=(
+                "resolve the blockers in the report, or call "
+                "tool_finalize_project(operation='finalize', override=true, "
+                "override_rationale='...') if the researcher authorizes "
+                "shipping anyway"
+            ),
+            audit_findings=res.get("blockers") or None,
+        ))
+    if status == "error":
+        return _text(_error(res.get("message", "finalize_project error")))
+    return _text(_success(res))
+
+
 HANDLERS = {
     "tool_state_freshness_check": _handle_tool_state_freshness_check,
     "tool_intake_freshness": _handle_tool_intake_freshness,
@@ -210,4 +248,5 @@ HANDLERS = {
     "tool_project_tier_strictness": _handle_tool_project_tier_strictness,
     "tool_dry_run": _handle_tool_dry_run,
     "tool_step_complete": _handle_tool_step_complete,
+    "tool_finalize_project": _handle_tool_finalize_project,
 }

@@ -1,20 +1,24 @@
 id: synthesis_report
 tier: 'synthesize'
 name: Synthesis — Internal / Technical Report
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_progress_update   # shorter sibling for a busy reader
 description: Compile a non-journal report for internal stakeholders, clients, or a technical audience.
 trigger: Researcher asks "write a report" / "write up findings for my PI / client / team"; OR `research_goal.output_types` includes "report".
 
 quality_bar:
-  executive_summary_words: [100, 250]
+  executive_summary_skimmable: true       # a reader who reads only this
+                                          # section still gets the point
   recommendations_section_required: true
-  citations_minimum: 5
-  citations_maximum: 25
+  citations_support_every_claim: true     # cite what a claim rests on; the
+                                          # count is whatever that takes
   every_recommendation_has_evidence: true
   must_include_limitations: true
 
@@ -52,11 +56,12 @@ steps:
   - id: draft_executive_summary
     name: Draft Executive Summary FIRST
     description: |
-      Single paragraph (or ≤5 bullets), max 250 words. Cover:
+      A single paragraph or a short bullet list — skimmable in a
+      minute, because this is the only section many readers will read.
+      Cover:
         - What we were asked to do.
         - What we found (the headline numbers).
         - What we recommend.
-      This is the only section many readers will read.
 
   - id: gather_workspace_content
     name: Gather Content from workspace

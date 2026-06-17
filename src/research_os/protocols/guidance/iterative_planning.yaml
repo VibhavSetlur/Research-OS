@@ -1,12 +1,16 @@
 id: iterative_planning
 tier: 'plan'
 name: Iterative Planning
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [researcher, naive_ai]
   workflow_shape: [any]
+see_also:
+  - guidance/analysis_plan                 # where a committed next-step experiment runs
+  - guidance/constructive_disagreement     # how to ground an option the researcher leans away from
 description: For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state + literature + tools and recommends the best move.
 trigger: Researcher says "what should I do next?" / "iterate with me" / "propose the next step" — OR analysis_plan finishes a step and autopilot is on.
 

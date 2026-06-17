@@ -1,6 +1,6 @@
 // IEEE conference — IEEEtran-style two-column, Times Roman.
 
-#import "common.typ": author-block, abstract-block, default-figure-show
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
 
 #let ieee_conf(
   title: "Untitled",
@@ -32,3 +32,11 @@
 
   columns(2, gutter: 0.6cm, body)
 }
+
+
+// Uniform venue-agnostic entry point. `conf` (re-exported from common.typ)
+// normalises the config; `template` maps it onto ieee_conf above so a
+// venue-independent author file can write
+//   #import "_typst_templates/ieee_conf.typ": template, conf
+//   #show: template.with(conf(..))
+#let template = make-template(ieee_conf)

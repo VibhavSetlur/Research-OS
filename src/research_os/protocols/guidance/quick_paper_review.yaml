@@ -1,12 +1,16 @@
 id: quick_paper_review
 tier: 'review'
 name: Quick Paper Review
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
-  audience: [researcher]
+  audience: [researcher, naive_ai]
   workflow_shape: [any]
+see_also:
+  - guidance/code_review                # distinct: reviews scripts, not prose
+  - guidance/peer_review_response       # distinct: drafting YOUR reply to reviewers of YOUR paper
 description: |
   Fast (20-40 minute) critical appraisal of someone else's paper. NOT a full
   systematic review. Outputs a one-page review brief: TLDR, three strengths,
@@ -55,9 +59,10 @@ steps:
     name: Spot-check Headline Stats
     description: |
       For the headline result, ask whether the reported numbers pass simple
-      sniff tests: degrees of freedom plausible, effect size in expected
-      range, multiple-comparison correction if N tests > 5, confidence
-      intervals overlap with claimed contrast.
+      sniff tests: degrees of freedom plausible, effect size in the range
+      the field's prior work would predict, multiple-comparison correction
+      present when the paper runs a family of tests, confidence intervals
+      consistent with the claimed contrast.
       Do NOT run a re-analysis — this is appraisal, not replication. Flag
       anything off as a concern, not a verdict.
 

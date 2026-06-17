@@ -1,12 +1,16 @@
 id: chat_handoff
 tier: 'finalize'
 name: Chat / Session Handoff
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
   audience: [naive_ai]
   workflow_shape: [any]
+see_also:
+  - guidance/session_resume          # the protocol that reads this handoff back in
+  - guidance/collaboration_handoff   # distinct: AI-to-AI handoff vs packaging for a human
 description: |
   Produce a fully-formed handoff brief so the project can be picked up by
   a different chat, a different AI model, or a different person — without

@@ -1,13 +1,13 @@
 id: writing_core
 tier: 'synthesize'
 name: Writing — Core Rules
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative, theory_math]
-  audience: [auditor]
-  workflow_shape: [proof]
-last_reviewed: '2026-06-04'
+  domain: [any]
+  audience: [researcher, auditor]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
 description: |
   Universal writing rules. Loaded implicitly by every writing/* and
   synthesis/* protocol. The single source of truth for voice, claim
@@ -139,10 +139,18 @@ rules:
       ["is associated with", "is correlated with", "suggests",
        "is consistent with", "would be expected under"]
   number_formatting:
-    p_values: "3 decimals (p = 0.042); 'p < 0.001' for very small."
-    confidence_intervals: "Always report a 95% CI alongside the point
-                           estimate (12.3, 95% CI 10.1–14.5)."
-    scientific_notation: "For |x| < 1e-3 or > 1e5 (e.g. 3.2e-5)."
+    p_values: "Report to the precision the field's reporting standard
+               uses, and floor very small values rather than printing
+               spurious digits (e.g. 'p < 0.001'). Be consistent
+               within a document."
+    interval_estimates: "Report an interval estimate alongside the point
+                         estimate (e.g. '12.3 (95% CI 10.1–14.5)'). The
+                         coverage level (95%, 90%, credible vs.
+                         confidence) follows the field's convention —
+                         state which it is."
+    scientific_notation: "Use it for magnitudes outside the range the
+                          reader reads comfortably as decimals (very
+                          small or very large), consistently."
     units: "Always include where applicable ('1.2 mg/dL', '12.5 °C',
             '0.85 AUROC', '423 patients')."
     significant_figures: "Match the precision of the underlying

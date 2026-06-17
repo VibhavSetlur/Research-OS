@@ -1,12 +1,17 @@
 id: data_ethics_review
 tier: 'plan'
 name: Data Ethics Review (IRB / privacy / consent / fairness)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor, maintainer]
   workflow_shape: [any]
+see_also:
+  - methodology/data_management_plan     # sharing/access decisions feed the DMP
+  - methodology/data_quality_audit       # the cleanliness counterpart to this ethics pass
+  - methodology/fairness_audit           # the deep dive when decisions are made about people
 description: |
   Walk an ethics review of the data + analysis. Covers IRB / REC
   scope, informed-consent status, privacy + de-identification,
@@ -119,10 +124,13 @@ steps:
           email, phone, etc. — the HIPAA Safe Harbor 18 list is
           the floor)
         - QUASI-IDENTIFIERS audited for re-identification risk
-          (the combination of birth date + ZIP + sex re-identifies
-          ~87% of the US population)
+          (a small combination such as birth date + ZIP + sex can
+          re-identify a large fraction of a population — cite the
+          re-identification study for the population at hand rather
+          than quoting a single figure)
         - k-ANONYMITY estimated (every quasi-identifier
-          combination shared by ≥k individuals)
+          combination shared by ≥k individuals); the acceptable k is
+          a context + regulatory decision, cite the source
         - DATE-SHIFTING when retained date columns could
           re-identify (the date of a rare diagnosis is itself
           identifying)

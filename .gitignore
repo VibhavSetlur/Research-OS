@@ -9,6 +9,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+# ...but the build/ PROTOCOL family is real source, not a packaging artifact.
+!src/research_os/protocols/build/
 .pytest_cache/
 .benchmarks/
 .mypy_cache/

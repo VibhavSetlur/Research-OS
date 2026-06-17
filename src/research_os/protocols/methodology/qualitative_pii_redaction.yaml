@@ -1,13 +1,16 @@
 id: qualitative_pii_redaction
 tier: 'plan'
 name: Qualitative PII Redaction (HIPAA / IRB / GDPR-safe transcripts before coding)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative, humanities, engineering]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline, interview_study]
-last_reviewed: '2026-06-05'
+  workflow_shape: [interview_study, experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/qualitative_research        # consumes the redacted transcripts this produces
+  - methodology/qualitative_quality_audit   # the late quote-level anonymisation defence-in-depth check
 description: |
   Run BEFORE `qualitative_research` opens transcripts for coding.
   Strips direct + quasi-identifiers from interview / focus-group
@@ -87,7 +90,8 @@ quality_bar:
   every_raw_transcript_has_a_redacted_counterpart: true
   pseudonym_map_is_gitignored_AND_outside_inputs_raw_data: true
   redaction_ledger_is_deterministic_re_runnable: true
-  ner_recall_audited_on_a_held_out_sample: 0.95     # target; sample ≥ 5% of corpus
+  zero_raw_pii_false_negatives_on_held_out_sample: true   # the hard safety gate
+  ner_recall_audited_against_project_declared_floor: true  # floor set by the IRB/policy, cited in pii_policy.md
 
 steps:
   - id: create_step
@@ -178,10 +182,8 @@ steps:
   - id: detect_and_redact
     name: Detect + redact each transcript
     description: |
-      For each transcript in `inputs/raw_data/`, run a presidio /
-      spaCy NER + regex pipeline via `tool_python_exec` (a dedicated
-      first-class MCP wrapper is planned but not yet shipped; see
-      the project board). Reference invocation:
+      For each transcript in `inputs/raw_data/`, run a detection +
+      redaction pass via `tool_python_exec`. Reference invocation:
 
         tool_python_exec script="scripts/qual_pii_redact.py"
             args="--transcript inputs/raw_data/<file>
@@ -190,25 +192,26 @@ steps:
                   --output-dir inputs/raw_data_redacted/
                   --ledger-dir workspace/<step>/outputs/reports/"
 
-      The pipeline:
+      The pass needs three detection layers, whatever libraries
+      implement them (a NER toolkit such as Presidio / spaCy is the
+      common choice; pick the maintained one the field trusts and pin
+      its version):
 
-        - Microsoft Presidio for named-entity detection (PERSON,
-          PHONE, EMAIL, LOCATION, DATE_TIME, US_SSN, MEDICAL_LICENSE,
+        - NAMED-ENTITY detection for the direct identifiers (PERSON,
+          PHONE, EMAIL, LOCATION, DATE_TIME, SSN, MEDICAL_LICENSE,
           IP_ADDRESS, URL).
-        - spaCy `en_core_web_lg` for fallback NER + relation hints
-          (employer / institution detection).
-        - Regex sweep for HIPAA-specific patterns Presidio under-
-          catches: medical record numbers, vehicle plates, device
-          serials.
-        - Conservative threshold: when entity_score < 0.85, EMIT a
-          ledger row with `requires_review: true` and leave a
-          `[REVIEW: <span>]` marker in the redacted transcript.
-          The researcher resolves these in `manual_review`.
+        - RELATION / context NER for quasi-identifiers a flat entity
+          tagger misses (employer / institution / role).
+        - A REGEX sweep for the structured HIPAA patterns entity
+          taggers under-catch (medical record numbers, vehicle plates,
+          device serials).
 
-      Until the dedicated first-class MCP wrapper ships, the
-      fallback IS `tool_python_exec` running an inline presidio
-      script — same pipeline; the dedicated tool is purely a
-      packaging upgrade.
+      Conservative review threshold: when a span's detection confidence
+      is below the policy-declared cutoff, EMIT a ledger row with
+      `requires_review: true` and leave a `[REVIEW: <span>]` marker for
+      the researcher to resolve in `manual_review`. The cutoff is set in
+      pii_policy.md to favour recall (a missed identifier is a breach; a
+      false positive is only lost context).
 
       OUTPUTS per transcript:
         - inputs/raw_data_redacted/<file>     # coding-safe copy
@@ -245,9 +248,11 @@ steps:
       `workspace/<step>/outputs/reports/redaction_audit.md`:
 
         ## Sample size: <N> lines (X% of corpus)
-        ## False negatives: <count>  (target: 0)
+        ## False negatives: <count>  (HARD GATE: must be 0)
         ## False positives: <count>  (target: minimise)
-        ## NER recall on sample: <fraction>  (target: ≥ 0.95)
+        ## NER recall on sample: <fraction>  (against the recall floor
+           the IRB/policy declares in pii_policy.md — cite it, don't
+           assume a number)
 
       GATE: if false_negatives > 0, BLOCK. Iterate on the policy
       (tighten generalisation rules) or the pseudonym map (add the

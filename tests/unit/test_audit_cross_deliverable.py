@@ -390,3 +390,52 @@ def test_handler_override_shape_documented(rationale_supplied: bool):
     # Sanity: the override field name we will register matches what the
     # rest of the audit family uses (override_X_gate or override_X).
     assert any(k.startswith("override_") for k in expected_keys)
+
+
+# ---------------------------------------------------------------------------
+# Typst paper discovery — the canonical authored deliverable is paper.typ,
+# whose figures use the #figure(image("…")) form.
+# ---------------------------------------------------------------------------
+
+
+def test_discovers_typst_paper_and_aligns_figures(tmp_path: Path):
+    """A .typ paper is discovered as the 'paper' deliverable, and its
+    #figure(image("…")) figure aligns with a markdown deliverable's
+    ![](…) of the same stem."""
+    paper = tmp_path / "synthesis" / "paper.typ"
+    paper.parent.mkdir(parents=True, exist_ok=True)
+    paper.write_text(
+        "#show: template.with(conf(abstract: [x]))\n\n"
+        "= Findings\n\n"
+        "Subjects with treatment showed a 42% improvement in outcomes.\n\n"
+        "#figure(image(\"outputs/fig1.png\"), caption: [F1]) <fig:a>\n\n"
+        "We cite @smith2020.\n"
+        + _REF_FOOTER
+    )
+    _make_slides(tmp_path)  # markdown deliverable embedding fig1
+    r = figures_consistent(tmp_path)
+    # The Typst #figure(image(...)) figure is parsed (fig1 present in the
+    # paper's figure set) and aligns with the slides' ![](fig1.png).
+    assert r["pass"], r["details"]
+    paper_figs = r["details"]["figures_per_deliverable"].get("paper", [])
+    assert "fig1" in paper_figs
+
+
+def test_typst_paper_figure_missing_elsewhere_flagged(tmp_path: Path):
+    """A figure embedded in the .typ paper but absent from slides is
+    flagged — proving the Typst figure extractor actually feeds the
+    consistency check."""
+    paper = tmp_path / "synthesis" / "paper.typ"
+    paper.parent.mkdir(parents=True, exist_ok=True)
+    paper.write_text(
+        "#show: template.with(conf(abstract: [x]))\n\n"
+        "= Findings\n\n"
+        "#figure(image(\"outputs/fig1.png\"), caption: [F1])\n\n"
+        "#figure(image(\"outputs/fig2.png\"), caption: [F2])\n"
+        + _REF_FOOTER
+    )
+    _make_slides(tmp_path, body="# Slides\n\n![](outputs/fig1.png)\n\n")
+    r = figures_consistent(tmp_path)
+    assert not r["pass"]
+    missing = r["details"]["paper_figures_missing_elsewhere"]
+    assert any(m["figure_stem"] == "fig2" for m in missing)

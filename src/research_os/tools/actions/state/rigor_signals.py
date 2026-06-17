@@ -61,7 +61,10 @@ def _score_citations(root: Path) -> tuple[int, dict[str, Any]]:
         score += min(10, entry_count // 2)
         info["citations_md_entries"] = entry_count
     pdf_dir = root / "inputs" / "literature"
-    pdf_count = len(list(pdf_dir.glob("*.pdf"))) if pdf_dir.is_dir() else 0
+    # Count only magic-validated PDFs so a folder of renamed error pages
+    # can't inflate the grounding-richness signal.
+    from research_os.tools.actions.search.literature import count_valid_pdfs
+    pdf_count = count_valid_pdfs(pdf_dir)
     info["project_pdf_count"] = pdf_count
     score += min(10, pdf_count)
     return min(20, score), info

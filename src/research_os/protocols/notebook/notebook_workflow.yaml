@@ -1,0 +1,170 @@
+id: notebook_workflow
+tier: 'execute'
+name: Notebook Workflow (the cell as the unit of work)
+version: '3.0.0'
+schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher, naive_ai]
+  workflow_shape: [notebook, cell_provenance]
+last_reviewed: '2026-06-16'
+see_also:
+  - guidance/analysis_plan                      # the numbered-step loop notebook mode parallels
+  - reproducibility/reproducibility              # the restart-and-run-all discipline, formalised
+  - visualization/figure_guidelines             # standards for figures a notebook emits
+description: |
+  The home loop of a notebook (Jupyter-first) workspace. The unit of work
+  is a NOTEBOOK in notebooks/, run top-to-bottom; outputs are derived into
+  outputs/. This protocol scaffolds the discipline that keeps a notebook
+  trustworthy — because the same interactivity that makes notebooks great
+  for analysis is exactly what makes them easy to get wrong (out-of-order
+  execution, hidden state, hand-edited outputs).
+
+  This is a SCAFFOLD for notebook hygiene, not a script. The judgement it
+  scaffolds is "how do I structure THIS notebook so a reader can trust it
+  ran top-to-bottom and reproduce every output?" — which is the central
+  provenance problem of notebook-driven work. It does not prescribe a cell
+  sequence; it names the invariants (restart-and-run-all validity, cell as
+  the provenance unit, derived-not-edited outputs) and lets the analysis
+  itself dictate the cells.
+
+  Distinct from:
+    - `guidance/analysis_plan` — the numbered-step + atomic-script loop of
+      analysis mode; this is the notebook-native equivalent where the
+      notebook (not a script DAG) is the unit.
+    - `methodology/exploratory_data_analysis` — a method (scoped EDA);
+      this is a workflow discipline that any notebook follows.
+trigger: |
+  First protocol in notebook mode, or whenever the researcher says
+  "start a notebook", "work in a notebook", "run this notebook", "new
+  analysis notebook", or a workspace with workspace.mode=notebook begins a
+  piece of work.
+prerequisites:
+  - workspace.mode is notebook (sys_boot reports workspace_mode), OR the researcher has explicitly asked to work in a Jupyter notebook
+  - notebooks/ exists (the notebook scaffold seeds it)
+
+steps:
+  - id: orient_notebook
+    name: Orient on the notebook surface
+    description: |
+      If you haven't called sys_boot this session, do so once — it reports
+      workspace_mode + autonomy. In notebook mode the unit of work is a
+      notebook in notebooks/; working data lives in data/, derived outputs
+      in outputs/, immutable source data in inputs/raw_data/.
+
+      Read what already exists before adding a notebook: the notebooks/
+      listing and what each appears to do, so you extend the project rather
+      than duplicate a notebook. Notebooks are named for what they do, in
+      reading order (01_explore, 02_clean, 03_model).
+
+  - id: scope_the_notebook
+    name: Scope the notebook (one coherent narrative)
+    description: |
+      State in 1-2 sentences what THIS notebook is for. A notebook should
+      be ONE coherent narrative end-to-end (explore this dataset; fit this
+      model; produce these figures) — not a dumping ground for unrelated
+      analyses. When the work spans clearly separable concerns, that's two
+      notebooks, ordered.
+
+      Identify its inputs (which files in data/ or inputs/raw_data/ it
+      reads) and what it owes outputs/ (the figures / tables / exports it
+      will emit). A notebook with no derived outputs is usually a probe —
+      consider exploration tooling instead.
+
+      AUTONOMY GATE:
+        manual / supervised → present the scope + planned notebook;
+          confirm before building it.
+        autopilot → state the scope and proceed.
+
+  - id: structure_cells
+    name: Structure the notebook so cells are the provenance unit
+    description: |
+      Build the notebook so it is honest about how it ran. The invariants:
+
+        - FIRST CELL sets the contract: imports, the RNG seed (explicitly,
+          so randomness is reproducible), and a print of library versions
+          to stderr/stdout. A reader should see the environment up top.
+        - ONE COHERENT IDEA PER CELL: load, then clean, then transform,
+          then fit, then visualise — each a cell (or a tight group) a
+          reader can follow and re-run in isolation. Avoid the
+          mega-cell that hides a whole pipeline.
+        - DATA FLOWS FORWARD: a cell reads what an earlier cell produced;
+          it does not depend on a value typed into a now-deleted cell.
+          Hidden state from out-of-order execution is the cardinal
+          notebook sin.
+
+      Use tool_notebook_exec to author + run cells. Read inputs from
+      data/ (copy/load immutable source from inputs/raw_data/ into data/
+      first; never mutate inputs/). The cell structure IS the provenance
+      record — make it legible.
+
+  - id: restart_and_run_all
+    name: Validate with restart-and-run-all
+    description: |
+      The only valid state for a notebook is one that runs top-to-bottom
+      from a clean kernel. Before trusting ANY result:
+        - restart the kernel and run all cells in order (tool_notebook_exec
+          executes the notebook fresh);
+        - confirm it completes without error and the outputs match what
+          you saw interactively.
+
+      A notebook that only works out-of-order does not work. If
+      restart-and-run-all fails or produces different numbers, the
+      interactive result was an artefact of hidden state — fix the cell
+      order / dependencies and re-validate. This is the notebook-mode
+      equivalent of the reproducibility gate; treat a failure as a real
+      blocker, not noise.
+
+  - id: persist_outputs
+    name: Persist outputs as derived artefacts (never hand-edited)
+    description: |
+      Write the notebook's figures / tables / exports to outputs/ from
+      WITHIN the notebook — so every artefact is regenerable by re-running
+      the notebook that produced it. The rule: outputs/ is derived, never
+      hand-edited. If an output is wrong, fix the cell and re-run; do not
+      patch the file.
+
+      Figures follow the project's figure standards (see
+      visualization/figure_guidelines for DPI / colour / captions). Pair a
+      figure with a one-line caption of what it shows. Name outputs so a
+      reader can trace each back to the notebook + cell that made it.
+
+  - id: document_and_decide
+    name: Document the finding + decide what's next
+    description: |
+      Close the notebook with a short markdown summary cell: the headline
+      finding (numbers + units, from data actually computed in the
+      notebook — not invented), the key outputs it produced, and the
+      honest limitations. mem_log a one-line "notebook <name> done:
+      <headline>" so a later session / synthesis can find it.
+
+      Then decide:
+        - Continue → the next notebook in the sequence (a new coherent
+          narrative), back to scope_the_notebook.
+        - Synthesize → when the notebooks collectively answer the
+          question, promote into a paper / report / dashboard via the
+          synthesis tools (gated on research_goal.output_types — only
+          produce the deliverable the researcher asked for).
+        - Stop → the question is answered; nothing more owed.
+
+      AUTONOMY GATE:
+        manual / supervised → present the finding + options; wait.
+        autopilot → log the finding; proceed to the next notebook or to
+          synthesis per the researcher's stated output goal.
+
+expected_outputs:
+  - notebooks/*.ipynb  (top-to-bottom-runnable)
+  - outputs/  (derived figures / tables / exports)
+
+quality_bar: |
+  - The notebook passes restart-and-run-all from a clean kernel — no
+    hidden-state dependence.
+  - The first cell sets the seed + prints versions; cells are one idea
+    each; data flows forward.
+  - Every output in outputs/ is derived (regenerable), never hand-edited.
+  - Findings come from data actually computed in the notebook — no
+    hallucinated numbers.
+
+next_protocol: null
+next_protocol_kind: terminal
+on_failure: guidance/scope_clarification

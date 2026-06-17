@@ -1,12 +1,15 @@
 id: synthesis_progress_update
 tier: 'synthesize'
 name: Synthesis — Progress Update (PI / advisor / lab / weekly)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
-  audience: [naive_ai, auditor]
-  workflow_shape: [experiment_pipeline, linear_essay]
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_report        # when the update outgrows two minutes
 description: |
   Compile a short progress update — the kind a researcher sends their
   PI / advisor on a Friday afternoon, posts to the lab Slack before a

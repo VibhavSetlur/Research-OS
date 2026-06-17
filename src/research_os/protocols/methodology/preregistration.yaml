@@ -1,12 +1,17 @@
 id: preregistration
 tier: 'plan'
 name: Pre-registration & Statistical Analysis Plan
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/power_analysis          # the sample-size calc the SAP freezes
+  - methodology/missing_data_strategy   # the missing-data rule the SAP must name
+  - methodology/multiple_comparisons    # the multiplicity rule the SAP must name
 description: |
   Freeze the Statistical Analysis Plan (SAP) BEFORE data analysis so
   the project has a clean confirmatory-vs-exploratory split when the
@@ -51,10 +56,16 @@ steps:
         target_n=<int>
         power_assumption="..."
         sensitivity=[...]
-        multiplicity="Benjamini-Hochberg over the primary endpoint family"
+        multiplicity="<the correction + the family it applies over>"
         inclusion=[...]
         exclusion=[...]
-        missing_data="MICE with m=20 imputations"
+        missing_data="<the handling rule + its missingness assumption>"
+
+      Each field carries a COMMITMENT, not a placeholder — the
+      multiplicity correction, the missing-data rule, and the estimator
+      for each endpoint are decided per project (route to
+      methodology/multiple_comparisons and methodology/missing_data_strategy
+      to settle them) and CITED, not copied from a default.
 
       Snapshots workspace/methods.md + active hypotheses into
       workspace/.preregistration/prereg_<iso>.{md,yaml}, content-hashed

@@ -396,6 +396,7 @@ def check_protocols_referenced_tools_resolve():
         "tool_name",        # field inside tool_external_tool_instructions
         "tool_discovery",   # protocol name (methodology/tool_discovery)
         "tool_list",        # word appearing in prose ("tool list")
+        "tool_build",       # workspace.mode name (build/* protocols, scope_tags)
     }
     refs: dict[str, set[str]] = {}
     # Match a tool name, but reject the match if the very next char is `*`
@@ -1080,6 +1081,32 @@ def check_no_version_chatter():
     return True, f"clean across {len(files)} files"
 
 
+def check_coherence():
+    """Researcher-facing prose names no removed tools; counts not hand-written.
+
+    Guards docs/ + templates/ + README against teaching a fresh AI a tool
+    name that errors on call, and against hand-written tool/protocol
+    counts that rot as the catalog grows.
+    """
+    import importlib.util
+
+    lint_path = REPO_ROOT / "scripts" / "lint_coherence.py"
+    if not lint_path.exists():
+        return False, f"missing: {lint_path}"
+    spec = importlib.util.spec_from_file_location("_lint_coherence", lint_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    hard, warn = mod.run()
+    if hard:
+        sample = "; ".join(
+            f"{f.relative_to(REPO_ROOT)}:{ln}" for f, ln, _ in hard[:3]
+        )
+        return False, f"{len(hard)} removed-tool ref(s) in prose: {sample}"
+    if warn:
+        return True, f"clean (no removed tools); {len(warn)} deprecation/count warning(s)"
+    return True, "clean across docs + templates"
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -1116,6 +1143,7 @@ def main() -> int:
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
+    tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)
     tally.check("Docs/code consistency (tool names, scripts/, xrefs)", check_docs_code_consistency)
     tally.check("TOOLS.md vs TOOL_DEFINITIONS round-trip", check_tools_md_roundtrip)
     tally.check("CITATION.cff cff-version valid", check_citation_cff_valid)

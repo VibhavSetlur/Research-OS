@@ -6,6 +6,103 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.0.0] — Workspace modes, real rigor, and a system built for every researcher (2026-06-16)
+
+MAJOR release. Research OS now fits the *shape* of your work — classic
+linear analysis, iterative tool/software building, lightweight exploration,
+notebook-driven analysis, or a multi-study program — instead of assuming one
+shape. Alongside the modes it turns several "advertised but unenforced"
+rigor promises into enforced ones, overhauls routing for both beginners and
+deep-critic PIs, and improves every protocol.
+
+### Added — Workspace modes
+
+- **`workspace.mode`** in `researcher_config.yaml` (+ `research-os init
+  --workspace-mode`, and a wizard "What are you building?" step):
+  `analysis` (default, unchanged) · `tool_build` · `exploration` ·
+  `notebook` · `multi_study`. A `SCAFFOLD_PROFILES` registry scaffolds each
+  shape; state, router, and audits dispatch on the active mode.
+- **`tool_build` mode** — Research OS governs an inner project from above:
+  `spec/` + `decisions/` (ADRs) + `eval/` (the harness that defines "done")
+  + `milestones.md` + `governance.md`, with the tool itself in an inner dir
+  that gets its OWN `git init`. "Done" = tests + build + eval pass.
+- **`build/` protocol family** — `spec_and_design` → `implement_iteration`
+  (loop) → `test_strategy` → `benchmark_vs_baseline` → `release_and_changelog`.
+  Plus `exploration/` (triage → loop → promote-to-step) and `notebook/` +
+  `program/` orienting protocols.
+- **`tool_git`** (inner-repo version control; commits stamped with the RO
+  step for provenance), **`tool_build`** (configured build/test/lint
+  runner), and **`tool_audit(scope='tool', dimension=tests|git_hygiene|build)`**.
+
+### Added — Rigor that is actually enforced
+
+- **`tool_finalize_project`** — a server ship-gate that HARD-BLOCKS "done"
+  on unresolved audit blockers, cited-but-invalid PDFs, ungrounded numbers,
+  or stub sections, unless a logged researcher override clears it.
+- **PDF integrity** — literature downloads are validated by the `%PDF-`
+  magic header; a renamed 403/HTML page is deleted + recorded, never counted
+  as a paper. Every PDF count uses magic validation, not `glob("*.pdf")`.
+- **Substrate-checked grounding** — `tool_verify` now checks a claim against
+  its cited file (a number is "verified" only if the source actually
+  contains it; self-asserted support becomes "unverified").
+
+### Added — Beginner ↔ PI gradient
+
+- **`tool_explain`** — a layered, grounded tutor (intuition → mechanics →
+  caveats → when-not-to-use → reading list) for any skill level.
+- **`tool_deliverable_chooser`** — an `output_types`-gated "I'm done, what
+  now?" on-ramp.
+- **Mode-scoped tool listing** — the per-turn catalog shrinks from 151 to
+  ~113–128 tools.
+- **Router overhaul** — beginner-vocabulary layer ("i have a csv what do i
+  do", "make a chart", "is my result significant"), a confidence-margin gate
+  that asks instead of confidently misrouting, capped reckless single-word
+  triggers, mode-aware routing bias, and `workflow_shape` as a routing signal.
+
+### Improved
+
+- **Every protocol** swept for doctrine compliance: hardcoded thresholds /
+  method menus / canned step sequences replaced with "name-the-dimension +
+  cite-the-source" scaffolds; scope-tag mislabels fixed; `see_also`
+  cross-links added.
+- Typst deliverables compile across all 12 venues (uniform `template`/`conf`).
+- Audits read the real `synthesis/paper.typ` (dual Typst + Markdown), so the
+  rigor gates no longer silently no-op.
+- New researcher docs: `TOOL_BUILDER.md`, a beginner on-ramp in `START.md`,
+  workspace modes documented across the guides.
+- New `scripts/lint_coherence.py` preflight gate: docs/templates can no
+  longer reference a removed tool or hand-write a tool/protocol count.
+
+### Fixed
+
+- All 7 IDE rule templates + docs purged of removed-tool references
+  (`tool_plan_*`, `tool_synthesize`/`dashboard`/`figure`, `tool_grounding_*`).
+- `synthesis_check` no longer reports success on a message-less error.
+- 11 broken documentation cross-references.
+
+### Behaviour changes that may affect existing projects (why this is MAJOR)
+
+- A project with placeholder/HTML files named `*.pdf` will see them no
+  longer counted as literature — the literature gate may newly fire (add a
+  real PDF, or override with a rationale).
+- `tool_finalize_project` can refuse to finalize a project with unresolved
+  blockers; previously every blocker was advisory.
+- `tool_verify` returns `unverified` for self-asserted claims that do not
+  resolve to a cited source.
+- New field `workspace.mode` defaults to `analysis`; existing projects keep
+  classic behaviour with no change.
+
+### Migration
+
+- Analysis projects upgrade with no changes (mode defaults to `analysis`,
+  byte-identical scaffold). Re-run `research-os init --refresh` to pick up
+  the updated `AGENTS.md` / IDE rules.
+- The planned tool-cluster consolidations (merging the SLURM / exec / route
+  families; `sys_path` → `sys_step`) are deferred to 3.1.0 and will ship with
+  aliases so no call site breaks.
+
+---
+
 ## [2.4.4] — figure + dashboard style polish (2026-06-10)
 
 PATCH release. Lifts the visual quality of both the figures AI produces

@@ -67,6 +67,70 @@ def _check_unpaywall(url: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# PDF integrity
+# ---------------------------------------------------------------------------
+
+
+# A real PDF always begins with the "%PDF-" magic header (per the PDF
+# spec, the first line is "%PDF-<major>.<minor>"). A renamed 403 page,
+# a paywall interstitial, or an HTML error returned with a 200 status
+# do NOT — they typically begin with "<!DOCTYPE", "<html", or JSON.
+# Validating the magic bytes is the difference between "we have the
+# paper" and "we have a file named like the paper". Some servers prefix
+# a UTF-8 BOM or a few stray whitespace/newline bytes before the header,
+# so we scan a small leading window rather than requiring byte-0.
+_PDF_MAGIC = b"%PDF-"
+_PDF_MAGIC_SCAN_BYTES = 1024
+
+
+def is_valid_pdf(path: Path) -> bool:
+    """Return True only if ``path`` is a real PDF (magic-byte validated).
+
+    This is the single source of truth for "is this actually a PDF?".
+    Every gate / counter that claims to count *downloaded papers* must
+    route through this helper rather than counting by ``.pdf`` extension
+    — a renamed HTML/403/JSON error page has a ``.pdf`` name but is not
+    a paper.
+
+    Non-PDF literature formats (.epub/.djvu/.ps) are out of scope for
+    magic-byte validation here and return False; callers that genuinely
+    accept those formats should check extension separately. In practice
+    the download path only ever writes ``.pdf`` for fetched-from-URL
+    papers, so this is the right default for the count sites.
+    """
+    try:
+        if not path.is_file():
+            return False
+        with open(path, "rb") as fh:
+            head = fh.read(_PDF_MAGIC_SCAN_BYTES)
+    except OSError:
+        return False
+    if not head:
+        return False
+    # Fast path: header at byte 0. Tolerant path: header within a small
+    # leading window (BOM / stray whitespace before "%PDF-").
+    if head.startswith(_PDF_MAGIC):
+        return True
+    return _PDF_MAGIC in head[:64]
+
+
+def count_valid_pdfs(directory: Path) -> int:
+    """Count only magic-validated PDFs in ``directory`` (non-recursive).
+
+    Replacement for ``sum(1 for _ in dir.glob('*.pdf'))`` at gate sites.
+    A directory full of renamed error pages now counts as zero papers,
+    which is the honest answer.
+    """
+    if not directory.is_dir():
+        return 0
+    return sum(
+        1
+        for f in directory.glob("*.pdf")
+        if f.is_file() and is_valid_pdf(f)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -317,6 +381,59 @@ def download_literature(
                     pass
             return {"status": "error",
                     "message": f"Download failed: {e}"}
+
+        # PDF integrity gate. urlretrieve writes ANY bytes the server
+        # returned — including a 200-OK HTML paywall page, a JSON error
+        # body, or a soft-403 interstitial. If the fetched file is named
+        # *.pdf but does NOT begin with the %PDF- magic header, it is not
+        # a paper. Delete the fake file (so no downstream counter is
+        # fooled by its extension) and record a structured failure.
+        if safe_name.lower().endswith(".pdf") and not is_valid_pdf(out_path):
+            # Capture a short prefix of what we actually got, to aid
+            # debugging (HTML doctype, JSON error, etc.) — bounded so the
+            # failure record stays small.
+            sniff = ""
+            try:
+                with open(out_path, "rb") as fh:
+                    sniff = fh.read(120).decode("utf-8", "replace").strip()
+            except OSError:
+                sniff = ""
+            try:
+                out_path.unlink()
+            except OSError:
+                # If we can't remove it, at least don't claim success.
+                pass
+            if record_failure:
+                try:
+                    record_failure(
+                        root,
+                        tool="tool_literature_download",
+                        target=url,
+                        reason="not_a_pdf",
+                        error_text=(
+                            "fetched bytes are not a PDF (no %PDF- magic "
+                            f"header); leading bytes: {sniff!r}"
+                        ),
+                        # Not permanent: a transient interstitial / rate
+                        # limit can resolve on retry. Paywall/403/404 are
+                        # caught above and marked permanent there.
+                        permanent=False,
+                    )
+                except Exception:
+                    # Best-effort enrichment of the error envelope; fall
+                    # through to the generic not-a-PDF error below.
+                    pass
+            return {
+                "status": "error",
+                "not_a_pdf": True,
+                "message": (
+                    "Downloaded file is not a valid PDF (missing %PDF- "
+                    "magic header) — likely an HTML error page, paywall "
+                    "interstitial, or JSON error returned with a 200 "
+                    "status. The fake file was deleted; no .pdf was kept. "
+                    f"Leading bytes: {sniff!r}"
+                ),
+            }
 
         # Write sidecar metadata.
         meta = dict(metadata or {})

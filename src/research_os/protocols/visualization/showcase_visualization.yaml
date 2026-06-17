@@ -1,13 +1,17 @@
 id: showcase_visualization
 tier: 'synthesize'
 name: Showcase Visualization (the visual IS the contribution)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative, humanities]
+  domain: [any]
   audience: [naive_ai, auditor, maintainer]
-  workflow_shape: [linear_essay]
-last_reviewed: '2026-06-02'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/interactive_dashboard_design   # when the showcase artefact is interactive
+  - visualization/color_accessibility_audit        # the design review's grayscale/CVD pass
+  - visualization/animation_design                 # motion-driven showcase pieces
 description: |
   Most viz protocols treat the figure as a SUPPORT for a written
   claim. THIS protocol is for the inverse: HCI / UI research, data
@@ -199,15 +203,16 @@ steps:
       No accidental palettes. Document the choice + reference.
 
   - id: implement_and_iterate
-    name: Implement + iterate (5+ rounds expected)
+    name: Implement + iterate until the 3-second read lands
     description: |
-      First-draft showcase visualizations are bad. Plan for:
-        - DRAFT 1 — get the data on the page in the chosen form.
-        - DRAFT 2 — add the headline annotation + colour intent.
-        - DRAFT 3 — typography pass.
-        - DRAFT 4 — review with a non-author; ask "what do you
-          see in 3 seconds?".
-        - DRAFT 5+ — iterate on what they saw vs what you intended.
+      First-draft showcase visualizations are bad; plan to iterate
+      until the viewer's 3-second read matches the intended one. A
+      typical pass sequence (not a fixed quota): get the data on the
+      page in the chosen form → add the headline annotation + colour
+      intent → typography pass → show a non-author and ask "what do
+      you see in 3 seconds?" → iterate on the gap between what they
+      saw and what you intended. Stop when the gap closes, not at a
+      round number.
 
       Persist every draft to workspace/<step>/iterations/draft_<n>/
       with a one-line note on what changed.
@@ -276,7 +281,7 @@ quality_bar:
   stack_choice_matches_form_and_author_skill: true
   typography_pair_chosen_with_hierarchy: true
   palette_intentional_with_reference: true
-  at_least_three_drafts_with_change_notes: true
+  iterated_with_change_notes_until_three_second_read_lands: true
   external_design_review_logged: true
   accessibility_audit_passed: true
   reproducible_source_and_data_shipped: true

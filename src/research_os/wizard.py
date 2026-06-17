@@ -137,6 +137,9 @@ class WizardResult:
     api_keys: dict[str, str] = field(default_factory=dict)
     # Model tier — written into researcher_config.yaml as model_profile.
     model_profile: str = "medium"
+    # Workspace mode — written into researcher_config.yaml as workspace.mode.
+    #   analysis (default) | tool_build | exploration
+    workspace_mode: str = "analysis"
     # Researcher identity, written into researcher_config.yaml AND
     # (when researcher opts in) ~/.config/research-os/profile.yaml so
     # the next `research-os init` pre-fills these without asking.
@@ -222,6 +225,18 @@ def run_wizard(args) -> WizardResult:
         default_name = target_dir.name.replace("-", " ").replace("_", " ").title()
         project_name = tui.text("Project name", default=default_name)
         ok(f"Name: {project_name}")
+
+    # ── What are you building? (workspace mode) ─────────────────────────
+    # Set early — it shapes the whole scaffold. Honors --workspace-mode if
+    # already passed on the command line; mixed/unsure → analysis.
+    workspace_mode = _ask_workspace_mode(getattr(args, "workspace_mode", None))
+    ok({
+        "analysis":    "Mode: analysis (linear analysis steps)",
+        "tool_build":  "Mode: tool_build (governed software build)",
+        "exploration": "Mode: exploration (scratch-first probes)",
+        "notebook":    "Mode: notebook (Jupyter-first)",
+        "multi_study": "Mode: multi_study (program / portfolio)",
+    }.get(workspace_mode, f"Mode: {workspace_mode}"))
 
     # ── Step 3: Research details (optional, menu-driven) ────────────────
     section(3, total, "Research details (optional)",
@@ -352,6 +367,7 @@ def run_wizard(args) -> WizardResult:
         pending_attachments=pending_attachments,
         api_keys=api_keys,
         model_profile=model_profile,
+        workspace_mode=workspace_mode,
         researcher_name=researcher_name,
         researcher_email=researcher_email,
         researcher_institution=researcher_institution,
@@ -363,6 +379,36 @@ def run_wizard(args) -> WizardResult:
 # ---------------------------------------------------------------------------
 # Step 3 helpers
 # ---------------------------------------------------------------------------
+
+
+VALID_WORKSPACE_MODES = (
+    "analysis", "tool_build", "exploration", "notebook", "multi_study",
+)
+
+
+def _ask_workspace_mode(preset: str | None = None) -> str:
+    """Ask 'What are you building?' → workspace mode.
+
+    Honors a value already passed on the command line (``--workspace-mode``).
+    Mixed / unsure maps implicitly to ``analysis``. Returns one of
+    ``analysis | tool_build | exploration | notebook | multi_study``.
+    """
+    if isinstance(preset, str) and preset.strip() in VALID_WORKSPACE_MODES:
+        return preset.strip()
+    pick = tui.select_one(
+        "What are you building?",
+        [
+            ("analysis",    "Analysis pipeline (data → results → paper)"),
+            ("tool_build",  "A tool / software I iterate on"),
+            ("exploration", "Quick exploration (scratch-first probes)"),
+            ("notebook",    "A Jupyter notebook project"),
+            ("multi_study", "A multi-study program (portfolio + meta-analysis)"),
+        ],
+        default_index=0,
+        help_line="Shapes the scaffold + how the AI works. Change later in "
+                  "researcher_config.yaml (workspace.mode).",
+    )
+    return pick if pick in VALID_WORKSPACE_MODES else "analysis"
 
 
 def _ask_domain() -> str:

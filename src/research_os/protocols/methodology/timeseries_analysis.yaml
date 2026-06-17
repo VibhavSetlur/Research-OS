@@ -1,18 +1,21 @@
 id: timeseries_analysis
 tier: 'plan'
 name: Time-Series Analysis
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
   audience: [researcher]
-  workflow_shape: [systems_benchmark]
+  workflow_shape: [experiment_pipeline]
+see_also:
+  - methodology/methodology_selection         # grounds the method-family choice
+  - methodology/uncertainty_quantification     # calibrated forecast intervals
 description: |
   First-class protocol for analyses where time order matters:
   trend / seasonality / structural break detection, autocorrelation
   modeling, intervention analysis, forecasting, and time-respecting
-  evaluation. Parallels `causal_inference_deep` and `machine_learning`
-  for its domain.
+  evaluation.
 
   Many "standard" methodology choices (cross-validation, residual
   diagnostics, train/test splits) need time-aware variants here.
@@ -96,10 +99,14 @@ steps:
       If the chosen method assumes stationarity (ARMA / SARIMA /
       most non-state-space classical methods):
         - Visually inspect (level + variance over time).
-        - Apply ADF + KPSS (their disagreement tells a story —
-          "trend-stationary" vs "difference-stationary").
-        - Difference (d=1 or d=2) OR detrend OR transform (log,
-          Box-Cox) as appropriate.
+        - Apply the field's stationarity tests; pair a test with a
+          null of stationarity against one with a null of a unit root
+          (e.g. KPSS vs ADF) — their disagreement distinguishes
+          "trend-stationary" from "difference-stationary".
+        - Difference to the order the diagnostics support, OR detrend,
+          OR transform (log, Box-Cox) as appropriate. Over-differencing
+          injects spurious negative autocorrelation — choose the
+          minimal order, don't default to one.
         - For seasonal data, seasonal-difference if SARIMA.
 
       Document the differencing decision and any transforms in the
@@ -126,8 +133,11 @@ steps:
     name: Fit + residual diagnostics
     description: |
       After fitting:
-        - Residuals should look like white noise (ACF flat,
-          Ljung-Box p > 0.05).
+        - Residuals should be indistinguishable from white noise —
+          a flat ACF and a portmanteau test (e.g. Ljung-Box) that
+          fails to reject independence at the field's chosen level.
+          Residual autocorrelation means the model left structure on
+          the table.
         - For state-space models, also examine smoothed states
           and the Kalman gain.
         - For Bayesian / state-space models, posterior predictive
@@ -148,18 +158,22 @@ steps:
         - Comparison baseline: Naive (random walk) + seasonal
           naive are the floor every model must beat.
 
-      Report the metrics for at least three horizons (1-step,
-      mid, h-step) — a model that wins at 1-step often loses at
-      long horizons.
+      Report the metrics across the horizons the decision actually
+      uses (short, mid, and the longest horizon that matters) — a
+      model that wins at 1-step often loses at long horizons, so a
+      single-horizon number can mislead.
 
   - id: forecast_intervals
     name: Forecast intervals + scenarios
     description: |
       The point forecast is rarely the most useful thing:
-        - Always include a 90% / 95% interval.
-        - For decision-supporting forecasts, present 2-3 scenarios
-          (low / central / high) so the consumer reasons about
-          uncertainty.
+        - Always accompany the point forecast with a prediction
+          interval at the nominal level the decision needs, and
+          verify its empirical coverage on held-out data — a stated
+          interval that under-covers is worse than none.
+        - For decision-supporting forecasts, present a small set of
+          scenarios (e.g. low / central / high) so the consumer
+          reasons about uncertainty rather than anchoring on a number.
         - For long-horizon forecasts, the interval will dominate
           the point — visualising the interval (fan chart) is the
           honest representation.

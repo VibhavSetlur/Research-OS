@@ -1,21 +1,29 @@
 id: synthesis_abstract
 tier: 'synthesize'
 name: Synthesis — Abstract (venue-tailored)
-version: '2.3.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
-  audience: [researcher]
+  audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper
+  - synthesis/synthesis_title_workshop
 description: Generate a structured / unstructured abstract tuned to the target venue.
 trigger: Researcher asks for "an abstract", OR `research_goal.output_types` includes "abstract", OR called from synthesis_paper.
 
 quality_bar:
-  causal_language_check: required
-  citation_count_max: 3
+  causal_language_check: required        # the abstract is the most-copied claim
+  citations_minimal: true               # abstracts rarely cite; an anchor or two
+                                        # at most, within the venue's allowance
   every_number_has_unit: true
 
 venue_profile:
+  # Word targets below are illustrative of common conventions. The
+  # target venue's OWN stated abstract limit always overrides them —
+  # read it off the author guidelines and use that.
   journal:
     style: structured
     sections: [Background, Methods, Results, Conclusion]
@@ -67,14 +75,14 @@ steps:
       Author `synthesis/abstract.typ` directly (or `synthesis/abstract.md`
       when the venue requires markdown). Apply the venue's section
       structure (structured for journals/preprints, unstructured for
-      conferences). Cite ≤3 verified references only when an anchor is
-      essential.
+      conferences). Cite a verified reference only when an anchor is
+      essential — abstracts rarely cite.
 
       QUALITY CHECK:
-        - Word count inside venue.word_target.
+        - Word count inside the venue's stated abstract limit.
         - For structured: every required section heading present.
         - At least one quantitative finding with unit.
-        - No causal language unless design supports it.
+        - No causal language unless the design supports it.
         - No banned phrases.
 
   - id: validate

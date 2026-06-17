@@ -1,45 +1,37 @@
 id: pick_tool_stack
 tier: 'plan'
-name: Pick Tool Stack (language + library matrix per analysis sub-task)
-version: '2.0.0'
+name: Pick Tool Stack (language + library per analysis sub-task)
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-04'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/methodology_selection   # settles the METHOD; this settles the implementation language/library
+  - methodology/mixed_language_orchestration  # when one step must mix languages
 description: |
   Sister protocol to `visualization/figure_guidelines`'s `pick_library`
   step — but for the ANALYSIS side, not the figure side. Asks the AI to
-  pick the language + library combo per sub-task based on the domain +
-  the method, NOT to default-to-Python because Python is what it knows
-  best.
+  pick the language + library combo per sub-task by reasoning over the
+  domain + the method + the field's current practice, NOT to default-to-
+  Python because Python is what it knows best.
+
+  Distinct from `methodology_selection` (which settles WHICH method to
+  use); this protocol settles HOW to implement an already-chosen method.
 
   Doctrine
   --------
   Research-OS is deliberately language-agnostic. `python_exec`,
   `r_exec`, `julia_exec`, `bash_exec` all exist. The AI's job is to
-  match the implementation to the field practice, not to commit to one
-  language for the whole project.
-
-  Field practice in the biological / clinical sciences:
-    - Bulk RNA-seq DE testing → R Bioconductor (DESeq2, edgeR, limma).
-      Python alternatives (pydeseq2, anndata) work but are not where
-      the field validates findings.
-    - Single-cell RNA-seq → Python scanpy IS field practice now;
-      Seurat (R) is the alternative. Pick scanpy unless the upstream
-      pipeline is R-only.
-    - Survival analysis (Cox PH, Kaplan-Meier) → R `survival` /
-      `survminer` is field standard; lifelines (Python) is fine but
-      reviewers expect R output for clinical papers.
-    - Network analysis (WGCNA, PPI) → R for WGCNA; Python for PPI
-      (networkx / pyvis) unless integrating with Cytoscape.
-    - Genomic alignment / variant calling → tools (bwa, samtools,
-      GATK) are command-line C/Java; wrap in bash + capture stderr.
-    - Geospatial → Python geopandas / rasterio.
-    - Statistical psychometrics → R (psych, lavaan).
-    - Time-series forecasting → Python (statsmodels, prophet) OR R
-      (forecast); judge by audience.
+  match the implementation to current field practice, surfaced from the
+  literature for THIS method in THIS domain via `tool_research_tool` —
+  not to copy a language/library default from training memory. The
+  canonical implementation of a method drifts across subfields and
+  decades; the protocol therefore names the QUESTION ("where does this
+  field validate findings for this method?") and demands the answer be
+  grounded, never hard-codes the answer.
 
 trigger: |
   Use when:
@@ -54,10 +46,11 @@ trigger: |
 
   Do NOT use when:
     - The project's methodology_selection has already pinned a
-      specific package (e.g. "use DESeq2") — proceed to write the
-      R script directly.
+      specific package for this method — proceed to write the script
+      directly in that language.
     - The step is glue / reporting / data-shuffling with no
-      method-specific tool dependency — Python is fine.
+      method-specific tool dependency — any language the project
+      already uses is fine.
 
 prerequisites:
   - The step's method has been settled (via methodology_selection or
@@ -67,44 +60,49 @@ prerequisites:
 
 steps:
   - id: enumerate_language_candidates
-    name: List the candidate languages for this method
+    name: Enumerate candidate implementations for this method
     description: |
-      For the method picked in `pick_method`, name the 1-3 languages
-      where it has a maintained, field-validated implementation.
-      Example: "differential expression on bulk RNA-seq" →
-      [R: DESeq2, edgeR, limma | Python: pydeseq2 | Julia: none].
-      For each candidate, name the canonical library.
+      For the method already settled (via methodology_selection or
+      inherited from analysis_plan), name the languages where it has a
+      maintained, field-validated implementation, and the canonical
+      library in each. Do NOT enumerate from memory — surface the
+      candidates from the literature for THIS method in THIS domain:
 
-      Capture the candidates in the step's scratch/stack_plan.md.
+        tool_research_tool query="<method> <domain> implementation library"
+
+      Capture the candidate set (language + library + a one-line note on
+      maturity / maintenance) in the step's scratch/stack_plan.md. The
+      goal is the list a domain reviewer would recognise, not the list
+      the AI is most fluent in.
 
   - id: query_field_practice
-    name: Query field practice (literature signal)
+    name: Break the tie on field practice (literature signal)
     description: |
-      For the top-2 candidates, run a quick literature check:
-        tool_search query="<method> <domain> <library>" max_results=5
-      Or for non-biomedical fields:
-        tool_search query="<method> <domain> <library>"
+      For the top candidates, score on which implementation appears in
+      the methods sections of recent papers in THIS domain — the one a
+      reviewer expects to see, not the one the AI types fastest. Pull
+      that signal directly:
 
-      Score: which library appears in the methods section of recent
-      papers in this domain? The winning library is the one a reviewer
-      will expect to see, not the one the AI is most fluent in.
+        tool_research_tool query="<method> <domain> <library>"
 
       If the literature doesn't break the tie, document that in
-      stack_plan.md and pick the library with the better
-      reproducibility story (active maintenance, semver discipline,
-      Docker image available).
+      stack_plan.md and prefer the implementation with the better
+      reproducibility story (active maintenance, version discipline, a
+      pinnable environment) — and cite the basis for that judgement.
 
   - id: check_env_compatibility
     name: Check env compatibility before committing
     description: |
       sys_env(operation='snapshot', scope='step', step_id='<NN_slug>')
-      Confirm the chosen language is installed in the project env. If
-      R Bioconductor isn't installed but DESeq2 is the right call,
-      surface the install requirement:
+      Confirm the chosen language + library is installed in the project
+      env. If the field-practice choice isn't installed but a
+      lower-fidelity alternative is, do NOT silently fall back —
+      surface the install requirement instead:
         - Update environment/environment.yml or DESCRIPTION.
         - Note the install command in stack_plan.md.
-        - Don't silently fall back to a Python equivalent — that's how
-          projects end up with non-field-standard analyses.
+        - Falling back to a more-convenient equivalent because it was
+          already installed is how projects end up with
+          non-field-standard analyses a reviewer flags.
 
   - id: decide_on_mixing
     name: Decide whether to mix languages within the step

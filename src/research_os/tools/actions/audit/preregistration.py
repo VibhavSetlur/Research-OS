@@ -25,7 +25,7 @@ Workflow
 3. Before synthesis, call ``tool_preregister_diff`` which:
      * loads the most recent frozen SAP;
      * compares to the current methods.md + hypothesis tracker +
-       paper.md;
+       the synthesis paper;
      * lists deviations (added/removed hypotheses, changed analysis
        plan, post-hoc exclusions);
      * writes ``workspace/logs/preregistration_diff.md`` which the
@@ -41,6 +41,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from research_os.tools.actions.audit._paper import resolve_paper_path
 
 logger = logging.getLogger("research_os.audit.preregistration")
 
@@ -387,7 +389,7 @@ def diff_preregistration(root: Path) -> dict[str, Any]:
     methods_removed = sum(1 for ln in methods_diff if ln.startswith("-") and not ln.startswith("---"))
 
     # Paper outcome mention check.
-    paper = root / "synthesis" / "paper.md"
+    paper = root / resolve_paper_path(root)
     paper_text = paper.read_text() if paper.exists() else ""
     paper_lower = paper_text.lower()
     primary_outcomes = (prereg.get("primary_outcomes") or "").lower()

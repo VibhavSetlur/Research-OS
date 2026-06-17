@@ -1,7 +1,7 @@
 // Nature journal — 3-column, sans-serif body, abstract in a top panel.
 // Title is enforced ≤ 140 characters at compile (paragraph error).
 
-#import "common.typ": author-block, abstract-block, default-figure-show
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
 
 #let nature(
   title: "Untitled",
@@ -46,3 +46,11 @@
 
   columns(2, gutter: 0.7cm, body)
 }
+
+
+// Uniform venue-agnostic entry point. `conf` (re-exported from common.typ)
+// normalises the config; `template` maps it onto nature above so a
+// venue-independent author file can write
+//   #import "_typst_templates/nature.typ": template, conf
+//   #show: template.with(conf(..))
+#let template = make-template(nature)

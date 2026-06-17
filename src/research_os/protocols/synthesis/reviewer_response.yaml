@@ -1,13 +1,17 @@
 id: reviewer_response
 tier: 'review'
 name: Synthesis — Pre-submission Reviewer Simulation + Rebuttal Scaffold
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-05'
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper            # the draft this red-teams
+  - audit/pre_submission_checklist       # the linear successor gate
+  - synthesis/defense_prep               # the spoken-defense analogue
 description: |
   Run a 7-persona adversarial self-review against the FINISHED paper
   BEFORE submission, then draft + audit per-comment rebuttals so the

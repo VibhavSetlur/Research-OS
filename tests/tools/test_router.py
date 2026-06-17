@@ -776,3 +776,245 @@ def test_plan_turn_recommends_chat_split_when_long(tmp_path):
     assert res["status"] == "success"
     assert res["chat_split_recommended"] is True
     assert res["chat_split_reason"]
+
+
+# ===========================================================================
+# v3.0.0 ROUTER OVERHAUL — adversarial route fixtures
+# ===========================================================================
+#
+# These lock in the v3.0.0 routing improvements:
+#   * beginner / plain-English phrasings route to the right protocol
+#   * mode-aware bias (tool_build boosts build/*)
+#   * the confidence-margin gate asks instead of misrouting on genuine
+#     cross-class ties
+#   * reckless single-word triggers no longer hijack unrelated prompts
+#   * expert phrasings still route
+#
+# Beginner + reckless tests run on the HYBRID path (semantic if present)
+# because that's what production uses. The cross-class margin gate is
+# exercised deterministically with the semantic path forced off (the
+# CI-without-fastembed scenario) so the assertions don't depend on the
+# embedding bundle being present + freshly regenerated.
+
+import yaml as _yaml  # noqa: E402
+
+
+def _set_workspace_mode(root, mode):
+    """Write workspace.mode into the scaffolded researcher_config."""
+    cfg_path = root / "inputs" / "researcher_config.yaml"
+    cfg = _yaml.safe_load(cfg_path.read_text()) or {}
+    ws = cfg.get("workspace") or {}
+    ws["mode"] = mode
+    cfg["workspace"] = ws
+    cfg_path.write_text(_yaml.dump(cfg, sort_keys=False))
+
+
+# (prompt, expected_primary_protocol) — beginner / plain-English phrasings.
+_BEGINNER_FIXTURE = [
+    ("i have a csv what do i do",   "guidance/project_startup"),
+    ("look at my data",            "methodology/exploratory_data_analysis"),
+    ("make a chart",               {"visualization/figure_guidelines",
+                                    "visualization/visualization_workflow"}),
+    ("make a graph",               {"visualization/figure_guidelines",
+                                    "visualization/visualization_workflow"}),
+    ("clean my data",             "methodology/data_quality_audit"),
+    ("is my result significant",  "methodology/methodology_selection"),
+    ("help me write this up",     "synthesis/synthesis_paper"),
+    ("what stats should i use",   "methodology/methodology_selection"),
+]
+
+
+def test_router_beginner_phrasings(tmp_path):
+    """Novice plain-English prompts route to the right protocol."""
+    scaffold_minimal_workspace(tmp_path, "Beginner")
+    for prompt, expected in _BEGINNER_FIXTURE:
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        primary = res.get("primary_protocol")
+        if isinstance(expected, set):
+            assert primary in expected, (
+                f"{prompt!r} routed to {primary!r}, expected one of {expected}"
+            )
+        else:
+            assert primary == expected, (
+                f"{prompt!r} routed to {primary!r}, expected {expected!r}"
+            )
+        # A confident beginner route shouldn't pester with ask_user.
+        assert res.get("ask_user") is None, prompt
+
+
+# (prompt, expected_build_protocol) — exercised in tool_build mode.
+_BUILD_MODE_FIXTURE = [
+    ("add a feature",                "build/implement_iteration"),
+    ("fix the bug",                  "build/implement_iteration"),
+    ("refactor this",                "build/implement_iteration"),
+    ("write tests",                  "build/test_strategy"),
+    ("cut a release",                "build/release_and_changelog"),
+    ("implement the next increment", "build/implement_iteration"),
+]
+
+
+def test_router_tool_build_mode_routes_build_protocols(tmp_path):
+    """In tool_build mode, build-shaped prompts hit the build/* protocols."""
+    scaffold_minimal_workspace(tmp_path, "Build Mode")
+    _set_workspace_mode(tmp_path, "tool_build")
+    for prompt, expected in _BUILD_MODE_FIXTURE:
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        assert res.get("primary_protocol") == expected, (
+            f"[tool_build] {prompt!r} routed to {res.get('primary_protocol')!r}, "
+            f"expected {expected!r}"
+        )
+
+
+def test_router_mode_bias_is_thumb_not_override(tmp_path):
+    """An explicit cross-mode intent still routes correctly in tool_build mode.
+
+    The build boost is a tie-breaker, not a winner-flipper: "write the
+    paper" must still land on synthesis/synthesis_paper even when the
+    workspace is in tool_build mode.
+    """
+    scaffold_minimal_workspace(tmp_path, "Build Mode Crossover")
+    _set_workspace_mode(tmp_path, "tool_build")
+    res = route_request("write the paper for a journal", tmp_path, persist_plan=False)
+    assert res["status"] == "success"
+    assert res.get("primary_protocol") == "synthesis/synthesis_paper"
+
+
+def test_router_analysis_mode_unchanged_by_overhaul(tmp_path):
+    """analysis mode keeps today's behaviour for canonical prompts."""
+    scaffold_minimal_workspace(tmp_path, "Analysis Mode")
+    _set_workspace_mode(tmp_path, "analysis")
+    pairs = [
+        ("fill the intake", "guidance/project_startup"),
+        ("draft the paper for a journal", "synthesis/synthesis_paper"),
+        ("preregister this study before data lands",
+         "methodology/preregistration"),
+    ]
+    for prompt, expected in pairs:
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        assert res.get("primary_protocol") == expected, (
+            f"[analysis] {prompt!r} -> {res.get('primary_protocol')!r}, "
+            f"expected {expected!r}"
+        )
+
+
+# Genuinely-ambiguous prompts that mix two DIFFERENT intent_classes with
+# equal trigger weight. The confidence-margin gate must ask rather than
+# silently pick one. Exercised on the trigger path (semantic forced off)
+# so the result is deterministic regardless of the embedding bundle.
+_CROSS_CLASS_AMBIGUOUS = [
+    "forecast the grant",            # methodology(timeseries) vs synthesize(grant)
+    "ablation for the poster",       # methodology(ablation)  vs synthesize(poster)
+    "fairness and the dashboard",    # methodology(fairness)  vs synthesize(dashboard)
+    "simulation and reproducibility",  # methodology vs audit_wrap
+]
+
+
+def test_router_cross_class_margin_gate_asks(tmp_path, monkeypatch):
+    """Near-tied cross-class prompts return a non-null ask_user, no primary."""
+    from research_os.tools.actions import semantic
+    monkeypatch.setattr(semantic, "semantic_available", lambda: False)
+    scaffold_minimal_workspace(tmp_path, "Margin Gate")
+    for prompt in _CROSS_CLASS_AMBIGUOUS:
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        assert res.get("ask_user") is not None, (
+            f"{prompt!r} should be ambiguous (ask_user), got primary="
+            f"{res.get('primary_protocol')!r}"
+        )
+        assert res.get("primary_protocol") is None, prompt
+        # The two candidates should be named so the AI can ask crisply.
+        assert len(res.get("ambiguous_alternatives", [])) == 2, prompt
+
+
+def test_router_margin_gate_names_both_candidates(tmp_path, monkeypatch):
+    """The ask_user text names both near-tied candidates."""
+    from research_os.tools.actions import semantic
+    monkeypatch.setattr(semantic, "semantic_available", lambda: False)
+    scaffold_minimal_workspace(tmp_path, "Margin Names")
+    res = route_request("forecast the grant", tmp_path, persist_plan=False)
+    alts = res.get("ambiguous_alternatives", [])
+    assert len(alts) == 2
+    for cand in alts:
+        assert cand in res["ask_user"], (
+            f"candidate {cand!r} missing from ask_user text"
+        )
+
+
+def test_router_does_not_over_trigger_on_dominant_match(tmp_path, monkeypatch):
+    """A clearly-dominant trigger match routes silently (no ask_user).
+
+    The margin gate must NOT fire when the top match dwarfs the runner-up
+    — e.g. a multi-word trigger beating a stray single word.
+    """
+    from research_os.tools.actions import semantic
+    monkeypatch.setattr(semantic, "semantic_available", lambda: False)
+    scaffold_minimal_workspace(tmp_path, "Dominant")
+    res = route_request("preregister this study before data lands",
+                        tmp_path, persist_plan=False)
+    assert res["status"] == "success"
+    assert res.get("primary_protocol") == "methodology/preregistration"
+    assert res.get("ask_user") is None
+
+
+# Reckless single-word triggers must no longer hijack unrelated prompts.
+# Each prompt previously misrouted to the protocol named in the comment.
+_RECKLESS_REGRESSION = [
+    # prompt, protocol it must NOT route to
+    ("set alpha to 0.05 for the test",     "methodology/inter_rater_reliability"),
+    ("map the gene names to symbols",      "visualization/geospatial_visualization"),
+    ("open the data file and look at it",  "guidance/session_boot"),
+]
+
+
+def test_router_reckless_single_word_triggers_capped(tmp_path, monkeypatch):
+    """Bare common-word triggers no longer grab unrelated prompts.
+
+    Run on the trigger path (semantic off) so we assert on the trigger
+    layer specifically — the layer the audit flagged.
+    """
+    from research_os.tools.actions import semantic
+    monkeypatch.setattr(semantic, "semantic_available", lambda: False)
+    scaffold_minimal_workspace(tmp_path, "Reckless")
+    for prompt, must_not in _RECKLESS_REGRESSION:
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        assert res.get("primary_protocol") != must_not, (
+            f"{prompt!r} still misroutes to {must_not!r}"
+        )
+
+
+def test_router_data_sharing_agreement_routes_to_ethics(tmp_path):
+    """'data sharing agreement' must reach data_ethics_review, not IRR.
+
+    Regression for the removed bare 'agreement' trigger that used to
+    compete with the (correct) multi-word 'data sharing agreement'.
+    """
+    scaffold_minimal_workspace(tmp_path, "Agreement")
+    res = route_request("we signed a data sharing agreement", tmp_path,
+                        persist_plan=False)
+    assert res["status"] == "success"
+    assert res.get("primary_protocol") == "methodology/data_ethics_review"
+
+
+def test_router_expert_phrasings_still_route(tmp_path):
+    """A spread of expert prompts must keep routing post-overhaul."""
+    scaffold_minimal_workspace(tmp_path, "Expert")
+    pairs = [
+        ("schoenfeld residual test for proportional hazards",
+         "methodology/cox_ph_diagnostics"),
+        ("benjamini-hochberg correction",
+         "methodology/multiple_comparisons"),
+        ("prisma systematic review", "literature/systematic_review"),
+        ("difference-in-differences design",
+         "methodology/causal_inference_deep"),
+    ]
+    for prompt, expected in pairs:
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        assert res.get("primary_protocol") == expected, (
+            f"expert {prompt!r} -> {res.get('primary_protocol')!r}, "
+            f"expected {expected!r}"
+        )

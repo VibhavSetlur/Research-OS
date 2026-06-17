@@ -282,10 +282,10 @@ with:
 * `status` — `live` (default and visible), `alias` (back-compat
   pointer to a consolidated tool), or `deprecated` (callable but
   flagged in `.os_state/deprecations.log`).
-* `pack` — `core` (123 tools) or one of `humanities`, `qualitative`,
-  `theory_math`, `wet_lab`, `engineering`, `slurm`, `snakemake`,
-  `nextflow`, `cytoscape`, `redcap`, `synapse` (23 tools across 11
-  packs).
+* `pack` — `core` (the always-on tools) or one of `humanities`,
+  `qualitative`, `theory_math`, `wet_lab`, `engineering`, `slurm`,
+  `snakemake`, `nextflow`, `cytoscape`, `redcap`, `synapse` (each
+  pack contributes its own domain tools).
 
 `list_tools` returns only `status='live'`. Aliases + deprecated names
 are still callable but never advertised. When you need a tool you
@@ -301,15 +301,15 @@ tool scoped shortlist for that protocol.
 | Audit | `tool_audit` | `scope` + `dimension` | 23 per-dimension `tool_audit_*` |
 | Audit ledger | `tool_audit_findings` | `operation` (`query` / `diff` / `explain`) | `tool_audit_findings_query` + `tool_audit_findings_diff` |
 | Audit master | `tool_audit_quality_full` | — | (standalone aggregator) |
-| Synthesis check | `tool_synthesis_check` | `mode` + auto-detected `file` | `tool_section_substantiveness` + dashboard checks |
-| Synthesis compile | `tool_typst_compile` | (generic .typ → .pdf) | `tool_paper_compile_typst` (paper-specific markdown→typst) |
+| Synthesis check | `tool_synthesis_check` | `mode` + auto-detected `file` | removed `tool_section_substantiveness` + dashboard checks |
+| Synthesis compile | `tool_typst_compile` | (generic .typ → .pdf) | removed `tool_paper_compile_typst` (paper-specific markdown→typst) |
 | Search | `tool_search` | `operation` | 7 `tool_search_*` |
 | Reviewer | `tool_reviewer` | `operation` (`response`/`rebuttal`/`compile`) | 4 `tool_reviewer_*` |
 | Step lifecycle | `tool_step` | `operation` | `tool_step_iterate`, `tool_step_iterations_list`, `tool_step_revision_options`, `tool_step_env_lock` |
 | Step pipeline | `tool_step_pipeline` | `operation` | 4 `tool_step_pipeline_*` |
 | Lessons + reliability | `tool_lessons` | `operation` | 5 lesson/dead-end/failure tools |
-| Memory append | `mem_log` | `kind` | `mem_methods_log`, `mem_decision_log`, `mem_hypothesis_log`, `mem_analysis_log` |
-| Plan | `tool_plan` | `operation` | `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` |
+| Memory append | `mem_log` | `kind` | hard-removed `mem_methods_append`, `mem_decision_log`, `mem_hypothesis_update`, `mem_analysis_log` |
+| Plan | `tool_plan` | `operation` | hard-removed `tool_plan_turn`, `tool_plan_advance`, `tool_plan_clear` |
 | Config | `sys_config` | `operation` | `sys_config_get`, `sys_config_set`, `sys_config_validate` |
 | Checkpoint | `sys_checkpoint_*` | (3 tools, lifecycle-distinct) | (unchanged) |
 
@@ -317,10 +317,9 @@ The synthesis surface in v2.3.0 is **AI-direct authoring**: the AI
 writes `synthesis/paper.typ` / `slides.typ` / `poster.typ` / `essay.typ`
 / `dashboard.html` directly following the matching protocol; tools
 validate (`tool_synthesis_check`) and compile (`tool_typst_compile`).
-The legacy auto-generators (`tool_synthesize`, `tool_dashboard`,
-`tool_slides_create`, `tool_poster_create`, `tool_humanities_essay_scaffold`,
-`tool_paper_compile_typst`) are in `_REMOVED_TOOLS` with redirect
-messages.
+The legacy auto-generators are all removed (now in `_REMOVED_TOOLS`
+with redirect messages): removed `tool_synthesize` / `tool_dashboard` / `tool_slides_create`,
+plus removed `tool_poster_create` / `tool_humanities_essay_scaffold` / `tool_paper_compile_typst`.
 
 Every legacy name still works via `_ALIASES` + `_ALIAS_PARAM_INJECTION`
 through the v2.0.x patch line. Phase 14 hard-removed 24 explicit
@@ -419,7 +418,7 @@ prior knowledge.
 | Call `sys_state_get + sys_config_get + sys_protocol_history` separately | `sys_boot` returns all of them in one call |
 | Pass `format='full'` to `sys_protocol_get` when summary suffices | Summary is ~300 tokens; full is 1.5-3K. In v2.0, `summary` is the default — only pass `format='full'` when you actually need the entire YAML |
 | Ignore `tool_route`'s `recommended_action` and synthesize your own call | `recommended_action` is a literal next-call string — use it verbatim |
-| Call legacy `tool_audit_completeness` / `tool_dashboard_create` etc. | Aliases work, but the canonical `tool_audit(scope='step', dimension='completeness')` / `tool_dashboard(operation='create')` are what `sys_help` + `sys_active_tools` recommend |
+| Call legacy `tool_audit_step_completeness` etc. | Aliases work, but the canonical `tool_audit(scope='step', dimension='completeness')` is what `sys_help` + `sys_active_tools` recommend |
 | One-shot 400-line scripts | `tool_plan_step` forces atomic sub-tasks; `pipeline.yaml` for >2-script steps |
 | Invent citations | Synthesis tools VERIFY every citation against Crossref / Semantic Scholar / PubMed / arXiv |
 | Pick a method from training memory | `tool_research_method` is mandatory before any method commit |
@@ -528,13 +527,13 @@ final paper actually does need a Fig 2 the researcher catches it
 there.
 
 If the dashboard content gate (placeholder text, stub captions) is
-the blocker rather than the warnings-panel gate, the dashboard takes
-a separate kwarg:
+the blocker rather than the warnings-panel gate, the synthesis-scope
+audit takes a separate kwarg:
 
 ```python
-tool_dashboard(
-    operation="create",
-    audience="executive",
+tool_audit(
+    scope="synthesis",
+    dimension="dashboard_content",
     override_dashboard_content_gate=True,
     override_rationale="board update at 16:00; placeholder captions on Fig 4-5 acknowledged",
 )
@@ -616,7 +615,7 @@ tool_audit(
 )
 ```
 
-Similarly, a `tool_writing_discussion` validate step that BLOCKS on
+Similarly, a `tool_discussion_coverage_audit` step that BLOCKS on
 the discussion-coverage gate for a theory paper with no DISAGREES
 verdicts:
 
@@ -632,51 +631,33 @@ tool_discussion_coverage_audit(
 The AI authors figure embeds inline as Typst `#figure(...)` blocks
 when writing `paper.typ`, with stable label syntax `<fig:slug>` and
 references via `@fig:slug`. No autoembed pass needed; when the AI
-needs to add another figure, it edits the .typ source. When the
-researcher has hand-tuned Pandoc
-`\ref{fig:foo}` / `@fig:foo` cross-references in `synthesis/paper.typ`
-that should not be re-pointed, pass `override_xref_rewrite=true`:
-
-```python
-tool_paper_figures_autoembed(
-    mode="append_to_section",
-    override_xref_rewrite=True,
-)
-```
-
-The flip is local (no `override_rationale` required) because no
-quality gate is bypassed — the rewrite is a convenience pass, not a
-deny. The auto-embed log still records that the rewrite was skipped.
+needs to add another figure, it edits the .typ source directly. There
+is no separate cross-reference rewrite step to override — placement
+and labels are whatever the AI types into the source.
 
 ### 7. Unresolved BLOCK findings in the audit ledger
 
-`tool_synthesize` also gates on
+Active BLOCK findings live in
 `workspace/logs/.audit_findings.jsonl` — the append-only ledger every
-Phase-4 audit writes to via `write_audit_outputs`. The gate uses
+Phase-4 audit writes to via `write_audit_outputs`. The ledger uses
 latest-snapshot semantics: a BLOCK finding emitted on an earlier audit
 run but absent from the most recent rerun for the same audit is treated
-as resolved. Only currently-active BLOCKs stop synthesis.
+as resolved. Resolve the currently-active BLOCKs before authoring or
+compiling the deliverable.
 
-If the researcher has explicitly authorised compiling with active BLOCK
-findings on record (e.g. they accept a known prose-quality blocker for
-a WIP review pass), bypass with rationale:
+List and triage them straight from the ledger:
 
 ```python
-tool_synthesize(
-    output_type="paper",
-    override_unresolved_blocks=True,
-    override_rationale="reviewer wants the draft tonight; prose blockers known + queued for tomorrow",
-)
+tool_audit_findings(operation="query", severity="block")
 ```
 
-The bypass appends to `workspace/logs/override_log.md` with the active
-blocker ids so the pre-submission audit can re-surface them. Use
+Use
 `tool_audit_findings(operation='query', severity='block')` to list the
 current active blockers and
 `tool_audit_findings(operation='diff', timestamp_a=..., timestamp_b=...)`
 to confirm a fix actually resolved a finding between two audit runs.
 
-When a `tool_synthesize` BLOCK error surfaces a finding id (the error
+When a synthesis-scope BLOCK error surfaces a finding id (the error
 payload includes `next_recommended_call` pointing at it), follow up
 with
 `tool_audit_findings(operation='explain', id='<finding_id>')` to get
@@ -730,7 +711,7 @@ Other policies:
 Each bypass appends one bullet:
 
 ```
-- 2026-06-05T17:42:11Z · `tool_synthesize` · gate=quality_full · 3pm preview for PI · {"output_type": "paper", "section": "abstract", "blocker_count": 4}
+- 2026-06-05T17:42:11Z · `tool_audit` · gate=quality_full · 3pm preview for PI · {"output_type": "paper", "section": "abstract", "blocker_count": 4}
 ```
 
 `audit/pre_submission_checklist` reads this file and lists every
@@ -791,8 +772,8 @@ project into one of seven entry archetypes (DATA-READY / ANALYSES-READY
 MIXED) and routes to the right downstream protocol without forcing
 redundant intake.
 
-Record a PROVENANCE CEILING in `docs/entry_record.md` so downstream
-audits know what was reasoned vs imported.
+Record a PROVENANCE CEILING in `entry_record.md` (in the project's
+`docs/` folder) so downstream audits know what was reasoned vs imported.
 
 ---
 
@@ -973,7 +954,7 @@ catalogue.
 
 ## Trust boundary + known caveats (read once)
 
-Before you call `tool_python_exec` or `tool_shell_exec` on the user's
+Before you call `tool_python_exec` or `tool_bash_exec` on the user's
 behalf, you should know what those calls actually can and cannot do
 on the host machine. The full threat model lives in
 [SECURITY.md](SECURITY.md); the short version:

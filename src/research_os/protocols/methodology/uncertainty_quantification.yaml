@@ -1,13 +1,16 @@
 id: uncertainty_quantification
 tier: 'plan'
 name: Uncertainty Quantification + Calibration (predictive models)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
-  audience: [auditor]
+  audience: [researcher, auditor]
   workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/fairness_audit    # subgroup calibration / calibration-within-groups
+  - methodology/machine_learning  # the predictive model whose outputs this calibrates
 description: |
   Predictive models report point estimates by default. Calibrated
   uncertainty — "the model is 80% confident, and over many such
@@ -60,10 +63,12 @@ editorial_voice:
     - "Use a PROPER scoring rule for evaluation. Brier (regression /
        classification), log-loss, CRPS (regression). Accuracy is not
        proper. Improper scoring rules can be gamed."
-    - "Conformal prediction gives marginal coverage guarantees under
-       exchangeability. It is the most defensible UQ for downstream
-       decision-making in modern ML. But it does not guarantee
-       conditional coverage (per subgroup) without additional work."
+    - "Conformal prediction gives distribution-free MARGINAL coverage
+       under exchangeability — a strong, assumption-light guarantee
+       when it holds. But marginal coverage is not conditional
+       coverage: a method can cover 90% overall while badly
+       under-covering a subgroup. Exchangeability also breaks under
+       distribution shift. Name these limits when you rely on it."
 
 steps:
   - id: clarify_uncertainty_target
@@ -91,51 +96,54 @@ steps:
   - id: pick_method_per_model_class
     name: Pick the UQ method that fits the model
     description: |
-      Reason through method-by-model:
+      The method follows from a few stable dimensions, not from a
+      lookup of model-class → method. Reason through:
+        - what is uncertain (the aleatoric/epistemic split from the
+          previous step) — post-hoc recalibration touches one, model-
+          level methods (ensembles, Bayesian posteriors) touch both
+        - the model's native output (a probability already? a point?
+          a score?) — whether recalibration suffices or a UQ-bearing
+          model is needed
+        - the assumptions each method buys: a distributional /
+          residual prior, exchangeability, or none
+        - the compute budget and how much the downstream decision
+          can pay for it (a k× ensemble vs. a single recalibration)
 
-        LOGISTIC REGRESSION / GLMs — usually well-calibrated out of
-          the box; Platt scaling or isotonic regression for
-          fine-tuning.
-
-        TREE / RANDOM FOREST / GBM — out-of-bag prediction +
-          isotonic regression / sigmoid calibration. xgboost +
-          isotonic via sklearn CalibratedClassifierCV.
-
-        NEURAL NETWORKS — temperature scaling (Guo et al. 2017) is
-          the cheap default; matrix / vector scaling for finer
-          control. MC Dropout (Gal & Ghahramani 2016) for epistemic.
-          Deep ensembles (Lakshminarayanan et al. 2017) — stronger
-          but k× compute. Bayesian neural nets (Laplace, SVI) for
-          full posterior but heavy.
-
-        REGRESSION (any model) — quantile regression for predictive
-          intervals; deep ensembles + Gaussian heads;
-          calibrated regression (Kuleshov et al. 2018) via isotonic.
-
-        ANY MODEL — split or full conformal prediction (Vovk et al.
-          2005; Angelopoulos & Bates 2023 tutorial) for distribution-
-          free coverage. Often the most defensible choice when no
-          prior on residuals is justifiable.
+      Then ground the candidates in the literature for THIS model
+      and use. The field names methods worth knowing as examples —
+      Platt scaling and isotonic regression for post-hoc
+      recalibration; temperature / matrix / vector scaling for
+      neural nets (Guo et al. 2017); MC Dropout (Gal & Ghahramani
+      2016) and deep ensembles (Lakshminarayanan et al. 2017) for
+      epistemic uncertainty; quantile regression and calibrated
+      regression (Kuleshov et al. 2018) for intervals; conformal
+      prediction (Vovk et al. 2005; Angelopoulos & Bates 2023) for
+      distribution-free marginal coverage when no residual prior is
+      justifiable. Which wins for this model is a literature
+      question, not a memory one.
 
       Document choice + computational cost + assumptions.
 
   - id: calibrate_or_post_hoc_correct
     name: Calibrate (in-training or post-hoc)
     description: |
-      Implement via tool_python_exec:
-        - sklearn.calibration.CalibratedClassifierCV (Platt / isotonic)
-        - netcal (Python) for temperature / matrix / vector / beta
-        - mapie (Python) for conformal classification + regression
-        - laplace-torch for Laplace approximation
-        - sklearn-quantile or quantile-forest for quantile regression
-        - R: caret + isoreg, conformalInference, lqr
+      Implement the chosen method via tool_python_exec, surfacing the
+      implementing library from the project's runtime with
+      tool_research_tool rather than reaching for a remembered package
+      — mature implementations of recalibration, conformal prediction,
+      and quantile/Bayesian UQ exist in both the Python and R
+      ecosystems, and the right one depends on what the model is
+      already built in.
 
-      Fit on a CALIBRATION split distinct from training + test. If
-      data is scarce, use cross-conformal or jackknife+ variants.
+      Fit the calibrator on a split distinct from BOTH training and
+      test — calibrating on training data leaks; calibrating on the
+      test set invalidates the evaluation. When data is scarce, use a
+      cross-fitted / jackknife+ variant so no example calibrates and
+      evaluates itself.
 
-      Persist the fitted calibration (weights, isotonic mapping,
-      temperature, conformal quantile) so deployment uses the same
-      transform.
+      Persist the fitted calibration object (weights, isotonic mapping,
+      temperature, conformal quantile) so deployment applies the exact
+      same transform that was evaluated.
 
   - id: evaluate_calibration_and_sharpness
     name: Evaluate calibration + sharpness on held-out data

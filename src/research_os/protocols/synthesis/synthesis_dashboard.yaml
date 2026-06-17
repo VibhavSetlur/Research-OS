@@ -1,13 +1,17 @@
 id: synthesis_dashboard
 tier: 'synthesize'
 name: Synthesis — Dashboard (custom, story-driven, self-contained HTML)
-version: '2.4.4'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-10'
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/interactive_dashboard_design   # multi-page interactive variant
+  - synthesis/synthesis_paper                     # the linear argument the dashboard skims
+  - synthesis/synthesis_lay_summary               # non-expert sibling deliverable
 description: |
   Guide the AI to author `synthesis/dashboard.html` as a **custom,
   story-driven, single-file HTML** that summarises the project's
@@ -81,17 +85,18 @@ design_principles: |
     decision, or argument — not by step number. The reader navigates
     by *what was learned* (e.g. "What lifted accuracy", "What we
     tried and ruled out", "Where the ceiling sits"), not by chronology.
-  - **First viewport = headline.** The top ~600px of the page must
-    deliver the project's single most important finding plus 3-6
+  - **First viewport = headline.** The first screenful must deliver
+    the project's single most important finding plus a handful of
     headline metrics. A reader who never scrolls still gets the point.
   - **Show the path, not just the destination.** If the project
     tested multiple candidates / variants / branches, surface a
     comparison view — adopted vs rejected, with the deciding metric
     visible. Don't just present the winner in isolation.
   - **Curate, don't dump.** Embed the figures and tables that *move
-    the argument*, not all of them. A dashboard with 23 figures is
-    a directory listing. A dashboard with 5-8 carefully chosen
-    figures is a research artefact.
+    the argument*, not all of them. A dashboard that reproduces every
+    figure in the workspace is a directory listing; one whose figures
+    were each chosen because they carry a claim is a research artefact.
+    Curation is the curator's judgement, not a fixed count.
   - **Self-contained.** Single .html file. Zero `http://` /
     `https://` script or stylesheet references. Figures embedded
     inline (base64) OR via relative path to a sibling figures/
@@ -120,7 +125,9 @@ required_structure: |
          "Top-line", "Bottom line".
     3. Findings sections — organised by hypothesis / argument /
        decision. Each section delivers ONE claim with the figures
-       and tables that support it. Typical span: 3-6 such sections.
+       and tables that support it. As many as the project has claims
+       worth a section, no more — a dashboard that needs a scrollbar
+       per finding has stopped curating.
     4. Comparison / evolution view (when multiple candidates tested)
        — adopted vs rejected, scorecard, ablation, before/after.
        Skip if the project tested a single approach.
@@ -128,7 +135,8 @@ required_structure: |
        for full detail. Not a duplicate of methods.md.
     6. Limitations + open questions — what the dashboard CANNOT
        claim, what the next investigation should answer.
-    7. References + how to cite — ≤12 citations; link to paper if
+    7. References + how to cite — a short citation list (a dashboard
+       is a skim surface, not a bibliography); link to paper if
        available; data + code availability line.
 
   Sections MAY include filters, search, or mode toggles (e.g.
@@ -206,10 +214,11 @@ steps:
       `conclusions.md` per active step, and any
       `synthesis/synthesis_spec.yaml#findings`. Distil to:
         - ONE headline finding (the hero claim, as a sentence)
-        - 3-6 findings sections, each tied to ONE supported claim /
-          decision / comparison
-        - which figures + tables ground each section (max 1-2 per
-          section; the dashboard is curated, not exhaustive)
+        - one findings section per supported claim / decision /
+          comparison worth its own block
+        - which figures + tables ground each section (keep it to the
+          one or two that carry the claim; the dashboard is curated,
+          not exhaustive)
         - whether a comparison / scorecard view is warranted
       In plan-mode, present this outline as a numbered list and ask
       for revisions. In autopilot, write the outline to

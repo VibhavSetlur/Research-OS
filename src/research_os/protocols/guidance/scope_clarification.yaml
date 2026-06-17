@@ -1,12 +1,17 @@
 id: scope_clarification
 tier: 'intake'
 name: Scope Clarification (vague intent → workable scope)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
-  domain: [biology, wet_lab]
-  audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  domain: [any]
+  audience: [naive_ai]
+  workflow_shape: [any]
+see_also:
+  - guidance/session_boot                       # the router sends level-0 / wide-tie asks here
+  - methodology/methodological_consultation     # route here when intent is UNFORMED (teach-me)
+  - methodology/exploratory_data_analysis       # route here when the ask is hypothesis-generating
 description: |
   Convert a vague, broad, or cross-disciplinary research ask into a
   workable scope BEFORE picking a protocol. Use this when:

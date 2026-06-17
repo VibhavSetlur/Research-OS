@@ -101,7 +101,7 @@ before running a heavy pipeline.
 
 **End-of-step bundling.** Instead of calling `tool_path_finalize`,
 `tool_audit(scope="step", dimension="completeness")`, `tool_audit(scope="step", dimension="literature")`, and
-`tool_step_revision_options` separately, call
+`tool_step(operation="revision_options")` separately, call
 `tool_step_complete(step_id=…)` — it bundles all four into one
 result. Reduces 4 tool calls to 1; matters most on small models.
 
@@ -109,8 +109,8 @@ result. Reduces 4 tool calls to 1; matters most on small models.
 == 'coaching'`: don't auto-execute. Surface the protocol's
 `pedagogical_prelude` (if present) as a question first. When a gate
 fires, explain WHY it exists before offering the fix. Run
-`tool_mistake_replay` at session start to surface recurring patterns
-from the researcher's reliability + override logs.
+`tool_lessons(operation="mistake_replay")` at session start to surface
+recurring patterns from the researcher's reliability + override logs.
 
 **Never load `_router_index.yaml` directly.** That file is a maintainer
 artifact — the routing logic reads it server-side. For routing, call
@@ -132,11 +132,40 @@ genuinely cross-disciplinary / open-ended ask, load
 hands back to `tool_route` with a workable prompt.
 
 Append-only logs (`methods.md`, `analysis.md`, `citations.md`) only via
-`mem_*`. Numbers go in `mem_decision_log` / `mem_methods_append` /
-`mem_hypothesis_update` so the audit trail is intact. Every decision
-must cite its grounding via `tool_grounding_register` (which
-inputs/context/papers informed it) — otherwise `tool_grounding_verify`
-flags it before synthesis.
+`mem_*`. Numbers go in `mem_log(kind="decision")` /
+`mem_log(kind="methods")` / `mem_log(kind="hypothesis")` so the audit
+trail is intact. Every decision must cite its grounding via
+`tool_ground(mode="explicit")` (which inputs/context/papers informed
+it) — otherwise `tool_verify(scope="project")` flags it before
+synthesis.
+
+---
+
+## Workspace modes
+
+`sys_boot` reports `workspace_mode` (set at `research-os init
+--workspace-mode <m>`, or the wizard; changeable via
+`inputs/researcher_config.yaml :: workspace.mode`). It shapes what "a
+unit of work" and "done" mean — let it steer routing:
+
+* **analysis** (default) — the classic numbered-step model. A unit of
+  work is an experiment step under `workspace/NN_*`; "done" is figures +
+  tables + grounded conclusions (`guidance/analysis_plan`).
+* **tool_build** — Research OS governs a software build from above
+  (`spec/`, `decisions/`, `eval/`, `milestones.md`, `governance.md`); the
+  tool lives in an inner git repo (`workspace.inner_repo`). A unit of
+  work is a **commit / iteration in the inner repo**, and "done" is
+  **tests / build / eval passing, not figures**. Route to the `build/*`
+  protocols: `build/spec_and_design` (what + definition of done) →
+  `build/implement_iteration` (the inner loop; loops per increment) →
+  `build/test_strategy`, `build/benchmark_vs_baseline`,
+  `build/release_and_changelog`. Drive the inner repo with `tool_git`;
+  run the configured `workspace.commands` (build / test / lint) with
+  `tool_build(operation="build"|"test"|"lint")`; gate "done" with
+  `tool_audit(scope="tool", dimension="build"|"tests")`. Use
+  `tool_bash_exec` for anything else, and `tool_task` for long builds.
+* **exploration** — scratch-first. `workspace/scratch/` is home base;
+  gates are light; promote a probe to a numbered step only when it earns it.
 
 ---
 
@@ -152,15 +181,15 @@ flags it before synthesis.
 | Researcher pivoted mid-plan | `tool_plan(operation="clear")`, then re-`tool_route` |
 | Vague / cross-disciplinary ask | `guidance/scope_clarification` (narrow before routing) |
 | Step naming | `guidance/analysis_plan` |
-| Deliberate iteration (recolour fig, tighten cutoff) | `tool_step_iterate` (snapshot first), then re-run |
-| Are outputs in sync with their scripts? | `tool_audit_version_coherence` |
+| Deliberate iteration (recolour fig, tighten cutoff) | `tool_step(operation="iterate")` (snapshot first), then re-run |
+| Are outputs in sync with their scripts? | `tool_audit(scope="project", dimension="version_coherence")` |
 | Synthesis quality bars | the `synthesis/*` protocol you're running |
 | New file mid-flow | `tool_context_intake` |
 | Broken workspace | `tool_workspace_repair` |
 | Quick smoke tests | `workspace/scratch/` + `tool_scratch_*` |
 | Recovery | `sys_checkpoint_list` → `sys_checkpoint_rollback` |
 | End of session | `sys_session_handoff` |
-| Change autonomy | `sys_config_set key=interaction.autonomy_level value=…` |
+| Change autonomy | `sys_config(operation="set", key=interaction.autonomy_level, value=…)` |
 | Cold start (no prior context) | `sys_help` then `sys_help(topic='routing')` |
 | What did a tool do? | `sys_tool_describe(tool_name)` |
 | Bypass a quality gate (researcher-authorised) | `sys_help(topic='overrides')` |
@@ -179,10 +208,10 @@ flags it before synthesis.
 4. **Never commit a method or library from training memory alone.**
    Run `tool_research_method` / `tool_research_tool` first; register
    the citation as the decision's grounding.
-5. **Never delete in `workspace/`.** Use `sys_path_abandon` — it
-   renames to `__DEAD_END`, preserves files.
-6. **Never block on a long job.** Use `tool_task_run` (local) or
-   `tool_slurm_submit` (cluster); poll status.
+5. **Never delete in `workspace/`.** Use `sys_path(operation="abandon")`
+   — it renames to `__DEAD_END`, preserves files.
+6. **Never block on a long job.** Use `tool_task(operation="run")`
+   (local) or `tool_slurm_submit` (cluster); poll status.
 7. **Never pick step slugs from training memory** — derive from the
    step's actual goal (`guidance/analysis_plan`).
 8. **Never use judgemental language** about the source researcher in
@@ -205,18 +234,20 @@ flags it before synthesis.
     yourself** in matplotlib / ggplot2 / Altair / plotly / d3 per
     `visualization/figure_guidelines`. Research-OS does NOT ship a
     parametric chart-builder. `tool_figure_palette` returns CVD-safe
-    colours; `tool_audit_figure_full` checks DPI + sidecars +
-    label-overlap. For visualisation types that benefit from reader
+    colours; `tool_audit(scope="step", dimension="figure_full")` checks
+    DPI + sidecars + label-overlap. For visualisation types that benefit from reader
     exploration (networks, multi-panel dashboards, large hierarchies),
     ship an interactive `<slug>.html` companion (Plotly / D3 / Altair).
     **Before declaring a step done, the AI MUST `sys_file_read` every
     figure it produced** — catches legend-over-plot, missing axis
     labels, palette regressions, snake_case-leaking-into-label bugs
     that no JSON audit catches. Every number in `synthesis/paper.typ`
-    must trace to a workspace output — `tool_audit_claims` flags
+    must trace to a workspace output —
+    `tool_audit(scope="project", dimension="claims")` flags
     hallucinations.
 11. **Multi-script steps need a `pipeline.yaml`** — defined via
-    `tool_step_pipeline_define`, run via `tool_step_pipeline_run`.
+    `tool_step_pipeline(operation="define")`, run via
+    `tool_step_pipeline(operation="run")`.
     The runner topologically orders + content-hash-caches; one
     monolithic script that produces outputs in MULTIPLE categories
     (figures + tables + reports) is BLOCKED by
@@ -224,11 +255,12 @@ flags it before synthesis.
 12. **Iterate vs. fix.** A bug fix bumps `_v<n>` on the affected
     script and re-runs. A deliberate design iteration (recolour a
     figure, tighten a cutoff, swap a model) must call
-    `tool_step_iterate(step_id, rationale=…)` FIRST so the prior
-    scripts + outputs + captions + conclusion are snapshotted into
-    `.versions/v<n>/` as a coordinated unit. `tool_audit_version_coherence`
-    flags any output whose `.prov.json` points at a script that is
-    no longer the highest version on disk.
+    `tool_step(operation="iterate", step_id=…, rationale=…)` FIRST so the
+    prior scripts + outputs + captions + conclusion are snapshotted into
+    `.versions/v<n>/` as a coordinated unit.
+    `tool_audit(scope="project", dimension="version_coherence")` flags any
+    output whose `.prov.json` points at a script that is no longer the
+    highest version on disk.
 
 ---
 

@@ -1,12 +1,17 @@
 id: causal_inference_deep
 tier: 'plan'
 name: Causal Inference (observational)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+see_also:
+  - methodology/methodology_selection    # confirms the question is causal first
+  - methodology/bayesian_analysis        # a parallel first-class analysis frame
+  - methodology/uncertainty_quantification  # confounding sensitivity is an uncertainty sweep
 description: |
   Reasoning scaffold for causal inference from observational data.
   Names the decisions a defensible causal analysis must reason through
@@ -29,8 +34,8 @@ editorial_voice:
        the DAG. A causal estimate without a documented DAG is not a
        causal estimate."
     - "Identification names what the estimate IS. Backdoor /
-       frontdoor / IV / DiD / RDD / synthetic control / front-door
-       / negative controls — each rests on different assumptions.
+       frontdoor / IV / DiD / RDD / synthetic control /
+       negative controls — each rests on different assumptions.
        The choice follows from the DAG + the data; the field's
        literature names which strategy is conventional for this
        kind of question."

@@ -1,16 +1,25 @@
 id: replication_study
 tier: 'plan'
 name: Replication Study (Direct + Conceptual)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/reproduction_attempt   # regenerate the AUTHORS' result; this asks whether the FINDING holds in new data
+  - methodology/preregistration        # freeze the replication criterion before seeing the new estimate
 description: |
   Re-execute a previously published analysis with explicit comparison to
   the original outcome. Distinguishes direct replication (same data + same
   method) from conceptual replication (same construct, new data or method).
+
+  Distinct from `reproduction_attempt`, which reruns the AUTHORS' own
+  pipeline to ask whether their RESULT regenerates; this asks whether the
+  FINDING holds when re-tested (often on new data or a new
+  operationalisation).
 trigger: |
   Researcher says "replicate", "reproduce <paper>", "does X hold in our
   data", "we want to check finding Y". Inputs/literature/ should contain the
@@ -65,9 +74,10 @@ steps:
   - id: rerun_analysis
     name: Re-run Analytic Model
     description: |
-      Implement the exact original specification first. If the paper used
-      Stata or SAS and we're in Python, document the translation in
-      mem_log context="replication translation". Save fitted model
+      Implement the exact original specification first. If the original
+      ran in a different runtime than the replication, document every
+      translation decision via mem_log context="replication translation"
+      — each one is a potential source of divergence. Save fitted model
       + standard errors to outputs/data/.
 
   - id: compare_to_original
@@ -81,12 +91,15 @@ steps:
   - id: sensitivity
     name: Sensitivity Around Original Specification
     description: |
-      One pre-specified deviation each from:
-        - Inclusion (broader / stricter)
-        - Specification (add/remove one covariate, change link)
-        - Estimator (robust SE, alternative ML estimator)
-      Show whether the conclusion is fragile. Save to
-      outputs/reports/sensitivity.md.
+      Probe whether the verdict survives reasonable perturbations of the
+      original specification. The dimensions worth perturbing for a
+      replication are the ones that could plausibly flip the conclusion —
+      typically the inclusion/exclusion boundary, the analytic
+      specification (covariate set, link, functional form), and the
+      estimator (SE family, alternative estimator). Pre-specify which
+      perturbations you'll run and WHY each one matters for this finding,
+      rather than running a fixed quota. Show whether the conclusion is
+      fragile. Save to outputs/reports/sensitivity.md.
 
   - id: report
     name: Per-step Conclusions

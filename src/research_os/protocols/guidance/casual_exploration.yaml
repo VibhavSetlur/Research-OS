@@ -1,12 +1,16 @@
 id: casual_exploration
 tier: 'plan'
 name: Casual Exploration
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
-  audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  audience: [researcher, naive_ai]
+  workflow_shape: [any]
+see_also:
+  - guidance/analysis_plan                    # where a promoted exploration graduates to
+  - methodology/exploratory_data_analysis     # distinct: pre-registered EDA vs a casual sandbox
 description: |
   Lightweight mode for "I just want to poke at this." Skips reproducibility
   formalisation, hypothesis registration, and publication-grade synthesis.

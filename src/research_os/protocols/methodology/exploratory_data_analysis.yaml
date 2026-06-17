@@ -1,12 +1,17 @@
 id: exploratory_data_analysis
 tier: 'plan'
 name: Exploratory Data Analysis (EDA + hypothesis generation)
-version: '2.0.0'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+see_also:
+  - methodology/data_quality_audit       # the deeper QC pass when the data itself is suspect
+  - methodology/preregistration          # locks the confirmatory SAP a generated hypothesis needs
+  - methodology/methodology_selection    # picks the method once a hypothesis is in hand
 description: |
   Real EDA workflow — open-ended, hypothesis-GENERATING, NOT a
   hypothesis-confirming step inside `analysis_plan`. The point is to

@@ -1,12 +1,16 @@
 id: writing_conclusions
 tier: 'synthesize'
 name: Writing — Conclusions (per step)
-version: '2.4.2'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - guidance/analysis_plan             # calls this protocol's document_conclusions step
+  - writing/writing_core               # the grounding + voice rules every finding obeys
 description: |
   How to write per-step `workspace/<step>/conclusions.md`. Called by
   analysis_plan's `document_conclusions` step. Conclusions are the
@@ -28,10 +32,15 @@ template: |
   Every finding cites at least one figure OR table OR scalar output
   produced by this step. A finding with no cited evidence is rejected.
 
-  ## Statistical summary
-  | Metric | Value | 95% CI | p-value | Source |
+  ## Quantitative summary
+  | Metric | Value | Uncertainty | Test / evidence | Source |
   |---|---|---|---|---|
-  | {metric} | {value} | [{lo}, {hi}] | {p} | {table_or_figure_or_output_file} |
+  | {metric} | {value} | {interval estimate, coverage level stated} | {test name + statistic, or the form of evidence for non-statistical steps} | {table_or_figure_or_output_file} |
+
+  Use the columns the step's evidence actually has — a statistical
+  step carries an interval and a test; a proof step carries the lemma
+  it rests on; a qualitative step carries the coded evidence. Drop
+  columns that don't apply rather than filling them with "n/a".
 
   ## Figures + tables produced
   | Artefact | File | Caption summary |

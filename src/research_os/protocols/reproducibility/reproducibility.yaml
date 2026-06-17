@@ -1,12 +1,16 @@
 id: reproducibility
 tier: 'finalize'
 name: Reproducibility
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - audit/provenance_completeness   # the per-output sidecars this re-run audit verifies against
+  - audit/audit_and_validation      # the master quality audit that follows the snapshot
 description: Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability.
 trigger: After all planned experiments are complete. Before audit_and_validation.
 

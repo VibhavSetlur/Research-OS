@@ -1,12 +1,16 @@
 id: writing_results
 tier: 'synthesize'
 name: Writing — Results (data with discipline)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - writing/writing_core               # number-format + grounding rules this section obeys
+  - writing/writing_discussion         # interprets what this section reports
 description: |
   Draft the Results section. Results writing is its own skill: report
   what the data show, refer correctly to figures and tables, format
@@ -124,11 +128,17 @@ steps:
       Ask (or infer):
         "Structure? by_aim | by_dataset | by_analysis_type |
          by_outcome."
-      Defaults:
-        target_venue ∈ {clinical_trial, BMJ, JAMA, NEJM} → by_outcome
-        ML/stats methods journals                        → by_analysis_type
-        most cohort/observational studies                → by_aim
-        multi-cohort papers                              → by_dataset
+      Choose the organisation that matches how the target venue's
+      readers expect results laid out and how the study is framed:
+        - reporting-guideline-driven trials tend to lead with the
+          primary outcome (by_outcome)
+        - methods-paper venues tend to walk descriptives → primary →
+          secondary → sensitivity (by_analysis_type)
+        - hypothesis-driven studies often mirror the order of their
+          Aims (by_aim)
+        - multi-cohort papers report one block per dataset (by_dataset)
+      The mapping is a starting point, not a rule — name the venue's
+      actual expectation when it's known.
 
   - id: assemble_the_evidence_table
     name: Assemble the evidence table (the data behind the section)
@@ -159,10 +169,10 @@ steps:
         - missingness counts (the missingness is data; report it)
 
       Keep it tight — most papers blow paragraph budget on
-      descriptives. Three to five sentences max for a journal;
-      one paragraph for a thesis chapter. For papers with a real
-      Table 1, the Results prose just references the table:
-      "Sample characteristics are shown in Table 1."
+      descriptives. A few sentences for a journal; a paragraph for a
+      thesis chapter. For papers with a real Table 1, the Results
+      prose just references the table: "Sample characteristics are
+      shown in Table 1."
 
   - id: draft_primary_results
     name: Draft the primary results (organised per structure)
@@ -233,15 +243,17 @@ steps:
   - id: number_format_pass
     name: Number-format pass (field's convention)
     description: |
-      Walk every statistic:
-        - p-values formatted per writing_core (3 decimals; "p < 0.001"
-          for very small)
-        - CIs reported as (point, 95% CI lo-hi)
-        - effect sizes paired with CIs (not just SEs)
+      Walk every statistic, applying the field's reporting convention
+      (writing_core carries the mechanical rules):
+        - p-values to the precision the field uses, very small values
+          floored rather than printed with spurious digits
+        - point estimates paired with an interval estimate (state the
+          coverage level), not a bare standard error
         - significant figures match the precision of the measurement
           (no spurious precision)
         - units always present
-        - scientific notation for |x| < 1e-3 or > 1e5
+        - scientific notation for magnitudes outside the comfortable
+          decimal range
 
       Inconsistent formatting reads as careless; reviewers will
       flag it. The protocol's job is to surface it before the

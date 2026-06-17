@@ -1,12 +1,16 @@
 id: figure_narrative_arc
 tier: 'synthesize'
 name: Figure Narrative Arc (ordering figures across paper / talk / poster)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - visualization/visualization_workflow       # build any missing arc-position figure
+  - visualization/multi_panel_composition      # merge a cut figure into a panel of a kept one
 description: |
   Choose and ORDER the figures that appear in a paper / talk / poster
   / dashboard. The choice of WHICH figures and the order they appear
@@ -48,11 +52,19 @@ editorial_voice:
        it makes — the reader must already see WHY before they see
        WHAT."
     - "Different deliverables have different figure budgets and
-       arcs. A paper has 4-6 figures and an IMRAD arc; a talk has
-       8-12 figures and a story arc; a poster has 2-4 figures and
-       a billboard arc. Pick the arc per deliverable."
+       arcs — a journal paper runs an IMRAD-shaped arc, a talk a
+       story arc, a poster a billboard arc. The budget is set by the
+       TARGET VENUE (the journal's figure limit, the talk's time, the
+       poster's column count), not a generic number. The
+       destination_profile below carries typical ranges; verify them
+       against the actual venue before treating them as the bound."
 
 destination_profile:
+  # figure_budget ranges are typical venue defaults, not hard limits.
+  # The binding number is the target venue's actual figure cap / time
+  # / column count — confirm it in select_destination and override
+  # the range when the venue says otherwise. The arc beats are the
+  # durable part; the counts are a starting estimate.
   paper_journal:
     figure_budget: [4, 6]
     arc: [Setup, Validation, Primary_result, Mechanism_or_subgroup, Synthesis]

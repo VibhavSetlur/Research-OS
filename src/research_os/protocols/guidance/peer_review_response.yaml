@@ -1,12 +1,16 @@
 id: peer_review_response
 tier: 'review'
 name: Peer Review — Respond to Reviewers
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
-  domain: [biology, wet_lab, humanities]
-  audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  domain: [any]
+  audience: [researcher, naive_ai]
+  workflow_shape: [any]
+see_also:
+  - guidance/revise_and_resubmit   # the full R&R cycle this reply-drafting step plugs into
+  - guidance/analysis_plan         # where new experiments demanded by reviewers run
 description: |
   Process a peer-review report against the submitted paper. Produces
   `synthesis/response_to_reviewers.md` with per-comment status

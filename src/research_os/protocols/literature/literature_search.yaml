@@ -1,57 +1,83 @@
 id: literature_search
 tier: 'ground'
 name: Literature Search
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
-  workflow_shape: [systems_benchmark]
-last_reviewed: '2026-06-04'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - literature/evidence_synthesis     # grades + tabulates the corpus this search produces
+  - literature/systematic_review      # when the project IS a review, not a background pass
 description: |
-  Systematic search across 2-4 academic databases. Produces a
-  deduplicated citation list and a PRISMA-style accounting. Flags
-  suspected predatory / problematic venues and walks the
+  Multi-database literature search across several academic providers.
+  Produces a deduplicated citation list and a PRISMA-style accounting.
+  Flags suspected predatory / problematic venues and walks the
   forward-citation graph for the seminal hits so the literature pass
   doesn't miss the recent extensions.
+
+  Grounding standard: a paper does not count toward the corpus until
+  its full text (PDF) has been downloaded and its metadata validated.
+  An abstract pulled from a search API is a lead, not a citation —
+  claims sourced to a paper must rest on its actual content, not the
+  search snippet.
 trigger: After methodology_selection — provides the body of literature that grounds the eventual paper.
 
 steps:
   - id: build_search_strings
     name: Build Search Strings
     description: |
-      Identify 2-4 concepts from the research question. For each concept list:
-        - The "official" term (MeSH for biomedical, ACM CCS for CS, etc.).
-        - 2-3 synonyms / variants.
-      Combine with AND across concepts, OR within a concept. Example:
-        PubMed:   ("Myocardial Infarction"[Mesh] OR "heart attack"[tiab])
-                  AND ("Telemedicine"[Mesh] OR "telehealth"[tiab])
-                  AND (2018:2025[dp])
-        S2/CR:    ("myocardial infarction" OR "heart attack")
-                  AND ("telemedicine" OR "telehealth")
+      Decompose the research question into its core concepts. For each
+      concept, list:
+        - The controlled-vocabulary term the field uses (the indexing
+          thesaurus the target databases expose — e.g. a MeSH term for
+          biomedical, the field's subject-classification scheme for CS).
+        - The synonyms / spelling variants a relevant paper might use
+          instead.
+      Combine with AND across concepts, OR within a concept. Add a
+      date-range clause only when the question is time-bounded — and
+      justify the boundary from the field's pace, not a round number.
       Write the strings to workspace/logs/search_strings.log.
 
   - id: execute_searches
     name: Execute Searches (multi-source)
     description: |
-      Call AT LEAST two providers, choose based on domain:
-        Biomedical/health → tool_search + tool_search
-        ML / CS / physics → tool_search + tool_search
-        General / cross-domain → tool_search + tool_search
-      Each call: limit=5-10. Aim for 20-40 raw hits combined.
+      Query MORE THAN ONE provider — a single database's coverage is
+      always partial, and the partiality is field-specific. Choose
+      providers by which ones index this field's venues authoritatively
+      (name the choice in the log). Set each call's result limit and the
+      target raw-hit count to the breadth of the question: a narrow,
+      well-defined question saturates quickly; a broad or emerging topic
+      needs wider nets. Stop widening when new queries stop returning
+      new relevant papers (saturation), not at a fixed count.
 
   - id: deduplicate_and_filter
     name: Deduplicate + Filter
     description: |
       Deduplicate by (in order): exact DOI match, then case-insensitive title +
-      first-author last-name match. Apply quality filters:
-        - Drop entries older than 10 years unless they're the seminal reference.
-        - Drop entries without an author list or year.
-        - Prefer peer-reviewed > preprint > grey literature.
+      first-author last-name match. Then filter on quality dimensions,
+      reasoning about each rather than applying a fixed cutoff:
+        - Recency vs. seminality — recent work for the current state,
+          older work for the foundations the field still cites. The
+          age boundary is field-specific; a fast-moving subfield and a
+          slow one warrant different windows.
+        - Completeness — entries with no author list or year cannot be
+          verified; drop or flag them.
+        - Evidence standing — peer-reviewed, preprint, and grey
+          literature carry different weight; record the standing rather
+          than silently mixing them.
 
   - id: download_and_index
     name: Download Key Papers & Build Index
     description: |
+      Download the full text of every paper the corpus will actually
+      cite. A search snippet is a lead; the citation is earned only once
+      the PDF is on disk and its metadata (title, authors, year, DOI)
+      has been validated against the file. Claims downstream rest on the
+      paper's content, never on the abstract the search API returned.
+
       Two scopes are available:
 
       A) **Project literature** (papers grounding the WHOLE research question):
@@ -100,12 +126,11 @@ steps:
     description: |
       A keyword search returns papers MATCHING terms; it misses the
       recent papers that CITE the seminal references but use new
-      vocabulary. Walk one level of forward citations on the 2-3
-      most-included hits:
+      vocabulary. Walk one level of forward citations on the
+      most-included seed hits (the ones the corpus already leans on):
 
         tool_search mode="forward_citations"
                                      paper_id="<seed paper>"
-                                     limit=10
 
       Score the returned papers on relevance to the research
       question; include any whose abstract clearly extends or

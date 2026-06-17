@@ -1,12 +1,15 @@
 id: writing_analysis_log
 tier: 'plan'
 name: Writing — Analysis Log
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [naive_ai]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - writing/writing_conclusions        # the per-step finding artefact this log summarises
 description: |
   Format for structured entries appended to `workspace/analysis.md` —
   the project-wide narrative log a fresh AI session reads top-to-bottom

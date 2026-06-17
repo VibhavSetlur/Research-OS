@@ -1,13 +1,17 @@
 id: visualization_workflow
 tier: 'synthesize'
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '2.4.4'
+version: '3.0.0'
 schema_version: '2.0'
-last_reviewed: '2026-06-10'
+last_reviewed: '2026-06-16'
 scope_tags:
-  domain: [biology, wet_lab, engineering]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [experiment_pipeline]
+  workflow_shape: [any]
+see_also:
+  - visualization/figure_guidelines       # the style-and-rules reference this workflow consults
+  - visualization/figure_critique          # reviewer-style critique of one built figure
+  - visualization/figure_narrative_arc     # order the deck once the figures exist
 description: |
   Workflow protocol for when a researcher wants FIGURES — one, a few, or a
   full deck — without committing to the full analysis_plan loop. Handles

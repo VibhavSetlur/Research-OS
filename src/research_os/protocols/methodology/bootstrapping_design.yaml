@@ -1,13 +1,16 @@
 id: bootstrapping_design
 tier: 'plan'
 name: Bootstrap / Resampling Design
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/uncertainty_quantification  # the bootstrap is one UQ route among several
+  - methodology/evaluation_design        # CIs on model metrics come from here
 description: |
   Bootstrap and resampling methods are the workhorse for non-parametric
   inference when analytic standard errors are wrong, unknown, or rest on
@@ -53,11 +56,13 @@ editorial_voice:
        BCa (bias-corrected accelerated) handles skew + bias. t-bootstrap
        requires a variance estimate but has better coverage for
        small N. Document the choice."
-    - "Resample count is a coverage decision, not a vibes call.
-       Conventional B≥1000 for CIs is a starting point; for tail-area
-       p-values, B should be set so the Monte Carlo error on the
-       p-value is small relative to the threshold (e.g. B≥10000 for
-       p≈0.01)."
+    - "Resample count B is a Monte Carlo precision decision, not a
+       vibes call and not a fixed convention. Set B so the Monte Carlo
+       error on the reported quantity (interval endpoint or tail-area
+       p-value) is small relative to what the decision needs — a
+       tail-area p-value near a decision boundary demands a much larger
+       B than a wide central interval. Verify with a B-sensitivity
+       check rather than copying a default."
     - "Permutation tests are not bootstraps. Permutation tests
        exchange labels under the null; bootstraps sample with
        replacement from the empirical distribution. They answer
@@ -74,7 +79,10 @@ steps:
           longitudinal (subject-level + time-level)?
         - TARGET STATISTIC — mean / median / ratio / regression
           coefficient / AUC / Brier / RMSE / quantile / custom?
-        - SAMPLE SIZE — small N (< 30) changes interval recommendations.
+        - SAMPLE SIZE — small N shifts the interval-method recommendation
+          (studentised / BCa tend to out-cover percentile when N is
+          small); name the regime the field treats as "small" for this
+          statistic rather than a fixed cutoff.
         - ASYMPTOTIC ALTERNATIVE — is an analytic SE / CI available?
           Why is bootstrap preferred (small N, skew, unknown
           distribution, complex statistic)?
@@ -148,18 +156,24 @@ steps:
   - id: pick_b
     name: Decide the number of resamples B
     description: |
-      For CIs: B ≥ 1000 is conventional but check Monte Carlo error
-      on the interval endpoints. Run a B-sensitivity check (e.g.
-      B = 1000, 2000, 5000 — does the interval stabilise?).
+      B is set by the Monte Carlo error you can tolerate, not by a
+      convention. Run a B-sensitivity check across an increasing
+      sequence of B and stop when the reported quantity stabilises
+      within the precision the decision needs.
 
-      For p-values: B should be large enough that the Monte Carlo
-      standard error on the p-value is << the threshold.
-      Rule of thumb: at α=0.01, B ≥ 10000; at α=0.05, B ≥ 1000.
+      For interval endpoints: increase B until the endpoints stop
+      moving relative to the interval width.
 
-      For BCa with jackknife acceleration: an extra B-leaveone-out
-      adds cost; budget accordingly.
+      For p-values: the closer the p-value is to the decision
+      boundary, the smaller its Monte Carlo standard error must be —
+      so a p-value near a stringent threshold needs a much larger B
+      than a wide central interval. Cite the source for the
+      Monte-Carlo-error rule you adopt.
 
-      Document the chosen B + the Monte Carlo error.
+      For BCa with jackknife acceleration: the extra leave-one-out
+      pass adds cost; budget accordingly.
+
+      Document the chosen B + the Monte Carlo error + how it was set.
 
   - id: implementation_and_reproducibility
     name: Implement + ensure reproducibility

@@ -1,13 +1,16 @@
 id: session_boot
 tier: 'intake'
 name: Session Boot
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [theory_math]
+  domain: [any]
   audience: [naive_ai]
-  workflow_shape: [experiment_pipeline, proof]
-last_reviewed: '2026-06-04'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - guidance/session_resume        # branch here on a paused / handed-off session
+  - guidance/scope_clarification   # branch here when the first message is too vague to route
 description: |
   Mandatory boot sequence on the FIRST TURN of every session. Every
   turn is triggered by a researcher message — the AI never acts before

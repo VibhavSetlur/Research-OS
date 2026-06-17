@@ -1,14 +1,18 @@
 id: tool_discovery
 tier: 'plan'
 name: Tool / Library Discovery
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
+last_reviewed: '2026-06-16'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
 description: Find the right Python / R / Julia library for a specific task and verify it can be installed.
 trigger: AI needs a library for a task but is uncertain which one to use.
+
+see_also:
+  - methodology/methodology_selection   # the method choice that this library implements
 
 steps:
   - id: formulate_query
@@ -24,19 +28,29 @@ steps:
   - id: search_and_collect
     name: Search & Collect Candidates
     description: |
-      tool_search query=<query>   limit=8
+      tool_search query=<query>
       For each promising hit, capture:
         - Library name
         - Official documentation URL
         - GitHub repo URL
-        - Last commit date (≤ 12 months = active; >24 months = avoid)
-        - Star count (rough community signal; >500 = mature, >2000 = standard)
+        - Maintenance signals: recency of the last release/commit relative
+          to the library's own cadence, open-vs-closed issue ratio, whether
+          the maintainers respond. "Recent" is relative — a stable, finished
+          library can be quiet without being abandoned.
+        - Community signals: stars / downloads / dependents as a ROUGH
+          proxy for adoption, read against the niche's size. A 200-star
+          library can be the standard in a small subfield; a 5k-star one
+          can be a toy. Do not pick on star count alone.
+        - Whether the field's own literature / reviews name this library
+          as the canonical implementation for the task.
 
   - id: short_list
-    name: Pick 1-3 Candidates
+    name: Short-list the strongest candidates
     description: |
-      Filter on: maintenance status, documentation quality (has tutorial / API ref),
-      license compatibility, and dependency footprint.
+      Narrow to the few worth installing. Filter on: maintenance health,
+      documentation quality (tutorial / API ref / worked examples), license
+      compatibility with the project, dependency footprint, and whether the
+      task's literature endorses it. Record why each rejected candidate lost.
 
   - id: test_install
     name: Test Installation

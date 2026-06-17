@@ -1,19 +1,22 @@
 id: bayesian_analysis
 tier: 'plan'
 name: Bayesian Analysis Workflow
-version: '2.0.0'
-last_reviewed: '2026-06-02'
+version: '3.0.0'
+last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
   workflow_shape: [any]
+see_also:
+  - methodology/causal_inference_deep    # both are first-class analysis frames
+  - methodology/uncertainty_quantification  # posteriors are an uncertainty story
+  - methodology/preregistration          # priors are frozen pre-data when prereg'd
 description: |
   A first-class Bayesian workflow following Gelman et al.'s Bayesian
   Workflow paper (2020): prior elicitation → simulation-based
   calibration → posterior fitting → diagnostics → posterior
-  predictive checks → sensitivity to prior. Parallel in stature to
-  `causal_inference_deep` and `machine_learning`; routed when the
+  predictive checks → sensitivity to prior. Routed when the
   analytical goal is naturally Bayesian (genuine prior knowledge,
   small samples, hierarchical structure, decision-theoretic
   reporting).
@@ -38,10 +41,12 @@ editorial_voice:
        part. Most of the protocol is BEFORE fitting (prior elicitation,
        prior predictive checks) and AFTER fitting (posterior
        diagnostics, posterior predictive checks, sensitivity)."
-    - "Report posteriors honestly — mean / median + 94% HDI (or 95% CI)
+    - "Report posteriors honestly — a point summary (mean or median)
+       + an interval (highest-density or equal-tailed credible interval)
        + the ROPE (Region of Practical Equivalence) when applicable.
-       Bayes factors are interpretable but not always the right
-       summary."
+       State the interval mass + type and cite the convention the field
+       reports at; do not default to one width. Bayes factors are
+       interpretable but not always the right summary."
     - "Sensitivity to the prior is mandatory. Run at least one
        alternative prior; show the posteriors overlay."
 
@@ -51,10 +56,14 @@ steps:
     description: |
       Before any data touches a model:
         - For each parameter, write down the prior + a one-sentence
-          rationale. Weakly informative ("normally distributed,
-          centered at 0, SD = 2") is the default; informative priors
-          require explicit justification (a prior meta-analysis, a
-          domain conventional value, a regulatory threshold).
+          rationale. A weakly-informative prior (one that constrains the
+          parameter to a scientifically plausible range without
+          encoding a specific belief) is the conservative default; its
+          scale should be justified from the units + plausible
+          magnitude of the parameter, not copied as a fixed value.
+          Informative priors require explicit justification (a prior
+          meta-analysis, a domain conventional value, a regulatory
+          threshold).
         - Document priors in the methods record alongside the model
           spec. The pre-registration should freeze them BEFORE data
           inspection if the project is preregistered.
@@ -78,9 +87,12 @@ steps:
       When the model is non-trivial, run simulation-based
       calibration: draw a parameter from the prior, simulate data
       under it, fit the model, check whether the parameter falls
-      where the posterior expects. Repeat ~1000 times; the
-      coverage should match the nominal level. Catches bugs in
-      the model code BEFORE you can mistake them for real findings.
+      where the posterior expects. Repeat enough times that the rank
+      histogram's deviation from uniform is distinguishable from
+      Monte Carlo noise — the replicate count is a precision decision,
+      cite the SBC reference (Talts et al. 2018) for the diagnostic.
+      Catches bugs in the model code BEFORE you can mistake them for
+      real findings.
 
   - id: fit
     name: Fit the posterior
@@ -181,17 +193,20 @@ steps:
       For each inferential quantity:
         - Point estimate (posterior mean OR median — pick one and
           stick with it).
-        - 94% HDI (highest density interval) is the Kruschke
-          convention; 95% CrI (equal-tailed credible interval) is
-          common too. Pick one + state it.
+        - An interval: a highest-density interval (HDI) or an
+          equal-tailed credible interval. Pick one + state its mass +
+          type, and cite the convention the field reports at (Kruschke
+          popularised the HDI; equal-tailed credible intervals are
+          common too). Do not default to a fixed width.
         - When a Region of Practical Equivalence (ROPE) is
           defined, report the % of posterior inside ROPE.
         - Bayes factor only when the model comparison is genuinely
           model-vs-model; the inference / decision rule should
           drive whether BF is the right summary.
 
-      The viz library's `a `posterior`` chart per the guidance in visualization/figure_guidelines renders
-      the posterior with HDI + optional ROPE band.
+      Render the posterior with the interval band + optional ROPE band
+      via an AI-authored plotting script per the guidance in
+      visualization/figure_guidelines.
 
   - id: decision_or_conclusion
     name: Decision / inferential summary

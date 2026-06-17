@@ -1,13 +1,16 @@
 id: inter_rater_reliability
 tier: 'plan'
 name: Inter-rater Reliability (IRR) — design + computation + reporting
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative]
+  domain: [any]
   audience: [auditor]
-  workflow_shape: [interview_study]
-last_reviewed: '2026-06-02'
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/coding_scheme_development   # the codebook the raters apply
+  - methodology/qualitative_quality_audit   # consumes the IRR gate
 description: |
   When more than one rater applies categorical (or ordinal, or
   continuous) judgements to the same data — coding qualitative
@@ -61,11 +64,11 @@ editorial_voice:
        (do the codes capture what they claim to capture?) is a
        separate question — typically argued via theoretical
        grounding + audit by a domain expert."
-    - "Prevalence matters. When one category dominates (>80%),
-       kappa shrinks even with high observed agreement (the kappa
-       paradox). Report observed agreement, prevalence-adjusted
-       kappa (PABAK), and the marginal distribution alongside
-       kappa."
+    - "Prevalence matters. When one category dominates the marginal
+       distribution, kappa shrinks even with high observed agreement
+       (the kappa paradox). Report observed agreement, a
+       prevalence-adjusted statistic (e.g. PABAK), and the marginal
+       distribution alongside kappa."
 
 steps:
   - id: characterize_rating_task
@@ -127,9 +130,12 @@ steps:
     description: |
       IRR is computed on a SAMPLE of the corpus (typically the full
       corpus is too large for double-coding). Decide:
-        - SAMPLE SIZE — Hallgren (2012) recommends ≥20% of the
-          corpus or ≥30-50 units, whichever is larger. Higher for
-          rare categories (need enough cases per cell).
+        - SAMPLE SIZE — large enough that the agreement estimate's
+          CI is tight, and large enough to populate the rarest
+          category's cells. The methods literature on IRR sample
+          size (e.g. Hallgren 2012) gives field-appropriate rules of
+          thumb — cite the one you adopt rather than guessing. Rare
+          categories drive the requirement up.
         - SAMPLING METHOD — random vs stratified by participant /
           time / category. Stratification helps rare categories.
         - INDEPENDENCE — raters must not see each other's codes
@@ -142,32 +148,33 @@ steps:
   - id: pick_threshold
     name: Pick the acceptable threshold + field justification
     description: |
-      State the threshold the project will defend + WHY:
+      State the threshold the project will defend + WHY, and commit
+      to it BEFORE running. Lowering the threshold after seeing the
+      result is a researcher degree of freedom.
 
-        Common field heuristics (cite the source you adopt):
-          Landis & Koch 1977 — κ < 0 (poor), 0-0.20 (slight),
-            0.21-0.40 (fair), 0.41-0.60 (moderate),
-            0.61-0.80 (substantial), 0.81-1.00 (almost perfect).
-          McHugh 2012 — argues clinical use requires ≥ 0.80.
-          Krippendorff 2004 — α ≥ 0.80 for confirmatory use;
-            α ≥ 0.667 acceptable for tentative conclusions.
+      The acceptable agreement level is field-specific — there is no
+      universal cut. Interpretive scales exist (e.g. the Landis &
+      Koch verbal labels; Krippendorff's confirmatory-vs-tentative
+      bands; field-specific arguments that clinical use needs a
+      higher bar). Cite whichever scale governs THIS field and the
+      published study or methods paper that adopts it; do not import
+      a number because it is familiar.
 
-      The threshold is NOT a vibes call. State the field convention
-      (cite a methodology paper or a published study in the same
-      area) and commit to it BEFORE running. Lowering the threshold
-      after seeing the result is a researcher degree of freedom.
-
-      Research-OS defaults (single source of truth — every other
-      protocol that references κ should cite this protocol):
-        - LIGHT gate (exploratory / formative work): κ >= 0.60
-          (fair-to-moderate floor; documents IRR was measured).
-        - NORMAL gate (default for thematic / codebook coding):
-          κ >= 0.70 (Landis & Koch 'substantial' floor; this is the
-          BLOCKER threshold in qualitative_quality_audit).
-        - STRICT gate (clinical / confirmatory work): κ >= 0.80
-          (McHugh 2012; Krippendorff confirmatory α).
-      Pack-side `per_code_kappa_minimum` defaults follow the NORMAL
-      gate (0.70); override only with a documented rationale.
+      The qualitative audit pack exposes the threshold as a TIERED
+      gate so the chosen cut is explicit and auditable:
+        - LIGHT gate — exploratory / formative work, where the bar
+          documents that IRR was measured at all.
+        - NORMAL gate — the default for thematic / codebook coding;
+          its cut is the BLOCKER threshold in
+          qualitative_quality_audit and the pack-side
+          `per_code_kappa_minimum` default.
+        - STRICT gate — clinical / confirmatory work, where the cut
+          rises to the confirmatory level the field's methods
+          literature names.
+      Set each gate's numeric cut from the cited field convention,
+      not from this protocol; record the citation alongside the
+      number. Override the pack default only with a documented
+      rationale.
 
   - id: compute_agreement
     name: Compute agreement on the IRR sample
@@ -242,9 +249,9 @@ quality_bar:
   remediation_plan_followed_if_threshold_not_met: true
   no_post_hoc_threshold_lowering: true
 
-# Back-edge to methodology/coding_scheme_development removed to
-# break a 2-cycle; re-enter coding_scheme_development via the
-# dispatcher when remediation requires another codebook iteration.
+# Re-enter coding_scheme_development via the dispatcher when
+# remediation requires another codebook iteration (no back-edge
+# here, to keep the graph acyclic).
 next_protocol: null
 next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing

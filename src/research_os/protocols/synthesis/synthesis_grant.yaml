@@ -1,13 +1,16 @@
 id: synthesis_grant
 tier: 'synthesize'
 name: Synthesis — Grant Proposal (AI-authored, funder-tailored)
-version: '2.3.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [biology, wet_lab, qualitative, theory_math, engineering, humanities]
+  domain: [any]
   audience: [auditor]
   workflow_shape: [any]
-last_reviewed: '2026-06-08'
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_lay_summary   # most funders require a lay-summary section
+  - synthesis/synthesis_paper
 description: |
   Guide the AI to author `synthesis/grant.typ` directly as a grant
   proposal narrative tuned to the target funder (NIH / NSF / Wellcome
@@ -26,8 +29,14 @@ prerequisites:
   - workspace/methods.md + workspace/citations.md exist
   - ≥1 completed analysis step with substantive findings (for
     preliminary data section)
-  - inputs/literature_index.yaml or workspace/citations.md has ≥15
-    verified entries
+  - inputs/literature_index.yaml or workspace/citations.md carries
+    enough verified prior work to ground every Aim's significance and
+    rigour claims — a thin bibliography reads as an unscoped proposal
+  - "Researcher's `research_goal.output_types`
+    (inputs/researcher_config.yaml) includes `grant`. If it doesn't,
+    tool_synthesis_scaffold returns status=ask — confirm with the
+    researcher before scaffolding. Empty output_types is treated as
+    'open'."
 
 design_principles: |
   - The reviewer reads Specific Aims first and decides whether to
@@ -45,17 +54,27 @@ design_principles: |
     relevant), authentication of key resources.
 
 quality_standards: |
-  - specific_aims_words — <=500 (1 page)
-  - significance_words — >=400
-  - innovation_words — >=300
-  - approach_words — >=1500
+  Section lengths and the citation count are bounded by the funder's
+  page budget, not by fixed word counts — fill the page the funder
+  allows, and cut to fit it. The structural invariants below hold for
+  every funder.
+  - specific_aims — fits the funder's Aims/summary page limit (often
+    one page); this is the page the reviewer reads first.
+  - significance / innovation / approach — each substantive enough to
+    carry its argument within the funder's page budget; the Approach is
+    the longest because it bears the experimental detail.
   - preliminary_data — link to >=1 workspace artefact per Aim
-  - rigour_section — present (especially NIH)
-  - citations — 15-60 (verified)
+  - rigour_section — present wherever the funder requires it (NIH always)
+  - citations — verified; enough to ground every Aim, within any cap
+    the funder states
   - every_aim_has_milestones — yes
   - every_aim_has_pitfalls_and_alternatives — yes
 
 funder_guidance: |
+  Page limits, required sections, and citation styles below are
+  illustrative of each funder's structure. They change between funding
+  cycles — always read the CURRENT solicitation / NOFO / call text and
+  follow that. Treat the lines below as a map of the shape, not the law.
   - nih_r01 — 1pg Specific Aims + 12pg Research Strategy
     (Significance / Innovation / Approach); Vancouver style; Sex as
     a Biological Variable required; Authentication of Key Resources.
@@ -79,9 +98,10 @@ steps:
   - id: aims_first
     name: Aims first
     description: |
-      Author the <=500-word Specific Aims (or 1pg summary
-      equivalent). Cite <=5 high-impact references. This is the
-      page the reviewer reads.
+      Author the Specific Aims to the funder's page limit (its
+      one-page summary, where that's the form). Cite only the few
+      high-impact references the page needs. This is the page the
+      reviewer reads first and uses to decide whether to keep reading.
 
   - id: preliminary_data
     name: Gather preliminary data

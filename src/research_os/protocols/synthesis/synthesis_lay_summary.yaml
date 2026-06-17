@@ -1,12 +1,16 @@
 id: synthesis_lay_summary
 tier: 'synthesize'
 name: Synthesis — Lay Summary (public / press / outreach)
-version: '2.4.3'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
-  audience: [auditor, maintainer]
-  workflow_shape: [systems_benchmark]
+  audience: [auditor]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper        # the technical version the lay summary links to
+  - synthesis/synthesis_dashboard    # the "teaching" audience profile is a sibling surface
 description: |
   Compile a plain-language summary of the project for a NON-EXPERT
   audience — funder lay-summary section, press release, university
@@ -45,12 +49,18 @@ prerequisites:
     trip the gate."
 
 quality_bar:
-  reading_grade_level_maximum: 9        # roughly US 9th grade
+  reading_grade_within_audience_ceiling: true   # the outlet/funder sets the
+                                                # ceiling; cite it (some funders
+                                                # state a max grade explicitly).
+                                                # When none is stated, target the
+                                                # least-expert reader in the
+                                                # audience.
   jargon_terms_explained_inline: true
-  word_count_band_by_audience: true     # see audience_profile below
-  causal_language_audited: true         # the audience over-reads causal claims
-  contact_line_present: true            # who to ask + where to go for more
-  pronoun_voice_consistent: true        # pick "we" or third-person, stay
+  word_count_within_audience_limit: true        # the outlet's stated limit;
+                                                # see audience_profile below
+  causal_language_audited: true                 # the audience over-reads causal claims
+  contact_line_present: true                    # who to ask + where to go for more
+  pronoun_voice_consistent: true                # pick "we" or third-person, stay
   no_acronyms_unless_unpacked: true
 
 audience_profile:
@@ -192,8 +202,9 @@ steps:
       into `synthesis/lay_summary.md` (or .typ for a press-kit one-pager
       that compiles via tool_typst_compile). Apply the audience
       profile's tone. Replace each occurrence of a jargon term with the
-      translation map's alternative. Keep the reading grade level under
-      the quality_bar floor.
+      translation map's alternative. Keep the reading grade level within
+      the audience's ceiling (the outlet's stated max, or the
+      least-expert reader when none is stated).
 
       For press_release: write the headline as the FINDING, not the
       topic. "Vaccine cuts hospital admissions in half in over-65s"

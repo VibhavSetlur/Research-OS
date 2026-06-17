@@ -1,12 +1,16 @@
 id: methodological_consultation
 tier: 'plan'
 name: Methodological Consultation (teach / explain / advise — no project commit)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/methodology_selection       # when the consult leads to committing a method
+  - methodology/method_comparison           # when the ask is an empirical X-vs-Y
 description: |
   Lightweight protocol for the case where the researcher wants to
   REASON ABOUT methodology — explain a method, compare two methods,
@@ -79,9 +83,9 @@ steps:
   - id: ground_in_literature_first
     name: Ground in the literature BEFORE explaining
     description: |
-      Even for methods the AI knows well, a literature pass:
-        tool_research_method query="<method> tutorial" limit=5
-        tool_research_method query="<method> failure modes" limit=5
+      Even for methods the AI knows well, run a short literature pass:
+        tool_research_method query="<method> tutorial"
+        tool_research_method query="<method> failure modes"
         tool_search query="<method> when does it fail"
 
       Surfaces the field's current canonical teaching reference and
@@ -116,8 +120,8 @@ steps:
       Explain HOW the method actually works:
         - the inputs it consumes + the assumptions on those inputs
         - the OBJECTIVE it optimises or the QUANTITY it estimates
-        - the algorithm in 3-5 numbered steps (one paragraph each,
-          not pseudocode unless asked)
+        - the algorithm as a short numbered sequence (one paragraph
+          each, not pseudocode unless asked)
         - the outputs it produces + how to read them
         - the canonical implementation in the languages the
           researcher works in (cite the library, not as a default
@@ -174,7 +178,7 @@ steps:
     name: Layer 5 — Reading list + next step
     description: |
       Close every consultation with:
-        - a SHORT reading list (3-5 references): one foundational,
+        - a SHORT reading list spanning the bases: one foundational,
           one recent tutorial / best-practice, one critique /
           failure-modes paper, optionally one applied paper in the
           researcher's subfield

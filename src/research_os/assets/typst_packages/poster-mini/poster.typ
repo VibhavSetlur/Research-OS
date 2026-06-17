@@ -226,3 +226,73 @@
     footer
   }
 }
+
+// ---------------------------------------------------------------------------
+// Uniform scaffold-facing entry point.
+//
+// The venue-independent poster scaffold imports a small, stable surface:
+//
+//   #import "_typst_templates/poster.typ": poster, headline, block-section
+//   #show: poster.with(title: [..], authors: [..], affiliation: [..], size: "36x48")
+//   #headline[..]
+//   #block-section(title: "Background")[..]
+//
+// These are thin convenience wrappers over the poster-* helpers above; a
+// researcher who needs finer control can drop down to poster-page /
+// poster-header / poster-block / poster-headline directly.
+// ---------------------------------------------------------------------------
+
+// Parse a "WxH" size string (inches) into a (width, height) pair. Falls back
+// to 36x48 for unrecognised input.
+#let _parse-poster-size(size) = {
+  let parts = if type(size) == str { size.split("x") } else { () }
+  if parts.len() == 2 {
+    let w = float(parts.at(0).trim())
+    let h = float(parts.at(1).trim())
+    (w * 1in, h * 1in)
+  } else {
+    (36in, 48in)
+  }
+}
+
+// Show-rule entry: sets the poster page geometry + header from a compact
+// keyword surface, then flows the body in columns.
+#let poster(
+  title: "Untitled",
+  authors: "",
+  affiliation: "",
+  subtitle: "",
+  size: "36x48",
+  columns-n: 3,
+  palette: palette-light,
+  funding: "",
+  contact: "",
+  body,
+) = {
+  let dims = _parse-poster-size(size)
+  poster-page(
+    width: dims.at(0),
+    height: dims.at(1),
+    columns-n: columns-n,
+    palette: palette,
+    header: poster-header(
+      title: title,
+      subtitle: subtitle,
+      authors: authors,
+      affiliation: affiliation,
+      palette: palette,
+    ),
+    footer: if funding != "" or contact != "" {
+      poster-footer(funding: funding, contact: contact, palette: palette)
+    } else { none },
+    body,
+  )
+}
+
+// Plain-English centrepiece headline — alias for poster-headline.
+#let headline(body, palette: palette-light) = poster-headline(body, palette: palette)
+
+// Titled coloured panel — alias for poster-block.
+#let block-section(title: "", body, palette: palette-light) = {
+  poster-block(title: title, body, palette: palette)
+}

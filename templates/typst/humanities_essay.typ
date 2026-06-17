@@ -14,7 +14,7 @@
 //     chicago_thesis.typ).
 //   - Page numbers bottom-centre (MLA / Chicago default for essays).
 
-#import "common.typ": author-block, abstract-block, default-figure-show
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
 
 #let humanities_essay(
   title: "Untitled",
@@ -91,3 +91,11 @@
 
   body
 }
+
+
+// Uniform venue-agnostic entry point. `conf` (re-exported from common.typ)
+// normalises the config; `template` maps it onto humanities_essay above so a
+// venue-independent author file can write
+//   #import "_typst_templates/humanities_essay.typ": template, conf
+//   #show: template.with(conf(..))
+#let template = make-template(humanities_essay)

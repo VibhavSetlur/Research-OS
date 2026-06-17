@@ -32,6 +32,30 @@ back.
 > web search (Crossref / Semantic Scholar / PubMed / Firecrawl /
 > SerpAPI), all optional. Public endpoints work without keys.
 
+### Workspace modes — what "a unit of work" means
+
+The wizard's first question, *"What are you building?"*, sets a
+**workspace mode** (stored as `workspace.mode` in
+`inputs/researcher_config.yaml`). It changes the scaffold and what the
+router treats as a unit of work and as "done":
+
+| Mode | A unit of work | "Done" | Scaffold highlights |
+|---|---|---|---|
+| **analysis** *(default)* | a numbered experiment step (`workspace/NN_*`) | grounded figures + tables + conclusions | `workspace/`, `synthesis/`, `docs/` |
+| **tool_build** | a commit / iteration in the inner repo | tests + build + eval pass | `spec/`, `decisions/`, `eval/`, `milestones.md`, `governance.md`, an inner git repo |
+| **exploration** | a throw-away probe in `workspace/scratch/` | you learned what you needed | scratch-first, light gates |
+
+`sys_boot` reports the active mode as `workspace_mode`, and the router
+uses it: in **tool_build** it favours the `build/*` arc
+(`spec_and_design` → `implement_iteration` loop → `test_strategy` /
+`benchmark_vs_baseline` → `release_and_changelog`) and the git/build
+tools (`tool_git`, `tool_build`, `tool_audit(scope='tool')`). Building
+software rather than analysing data? Read
+[TOOL_BUILDER.md](TOOL_BUILDER.md) — the rest of this guide assumes
+analysis mode unless noted. Set the mode at init
+(`research-os init --workspace-mode <mode>`) or change it later in the
+config.
+
 ---
 
 ## 2. The session pattern (how the AI is supposed to use Research OS)
@@ -67,8 +91,8 @@ of a session**, the AI fires these calls back-to-back:
      • sys_protocol_get format='summary' (DEFAULT, ~300 tokens) →
        format='step' + step_id=<id> when ready to execute
 4. sys_active_tools(protocol_name=<from-step-2>)
-                                       # 13-18-tool scoped shortlist for
-                                       # the protocol's working surface
+                                       # scoped tool shortlist for the
+                                       # protocol's working surface
 ```
 
 On subsequent turns of the same session, `sys_boot`'s payload is still
@@ -278,8 +302,8 @@ execution log) say "not done yet".
 |---|---------------------------------------|---|
 | 1 | `guidance/session_boot`               | first protocol logged |
 | 2 | `guidance/project_startup`            | `intake.md` filled + research question confirmed |
-| 3 | `domain/domain_analysis`              | `docs/domain_summary.md` exists |
-| 4 | `domain/research_design`              | `docs/research_design.md` exists |
+| 3 | `domain/domain_analysis`              | `domain_summary.md` written to the project's `docs/` |
+| 4 | `domain/research_design`              | `research_design.md` written to the project's `docs/` |
 | 5 | `methodology/methodology_selection`   | `workspace/methods.md` substantive |
 | 6 | `literature/literature_search`        | `inputs/literature_index.yaml` + `citations.md` exist |
 | 7 | `guidance/analysis_plan`              | at least one `workspace/NN/conclusions.md` non-empty |
@@ -301,6 +325,14 @@ You do NOT have to follow this in order. Off-pipeline entry points:
 - **Power analysis only** → `methodology/power_analysis`
 - **Reproduce a published paper** → `methodology/reproduction_attempt`
 - **Lay summary / press release** → `synthesis/synthesis_lay_summary`
+- **Building a tool, not analysing data** → init in **tool_build** mode;
+  the pipeline above doesn't apply. → [TOOL_BUILDER.md](TOOL_BUILDER.md)
+
+This 10-stage pipeline is the **analysis** mode shape. In **tool_build**
+mode the equivalent arc is `build/spec_and_design` →
+`build/implement_iteration` (loop) → `build/test_strategy` /
+`build/benchmark_vs_baseline` → `build/release_and_changelog`, and
+"done" is tests + build + eval, not figures.
 
 For the full role × goal × output map, see [USE_CASES.md](USE_CASES.md).
 
@@ -308,97 +340,31 @@ For the full role × goal × output map, see [USE_CASES.md](USE_CASES.md).
 
 ## 6. The on-demand protocol surface
 
-For per-protocol triggers + quality bars, see
-[PROTOCOLS.md](PROTOCOLS.md). All core protocols carry `tier:` +
-`scope_tags` (since v2.0.0). High-level inventory:
+You never memorise this list — `tool_route` picks the protocol from your
+words. This section is the map of *what kinds of work exist*, so you can
+recognise a category. The authoritative, always-current catalogue (every
+protocol, its triggers, its quality bars) is
+[PROTOCOLS.md](PROTOCOLS.md); at runtime, `tool_route` and
+`sys_help(topic='categories')` reflect exactly what's installed.
 
-**Guidance (19)** — session + flow control. `session_boot` /
-`session_resume` / `chat_handoff` / `collaboration_handoff` /
-`autopilot` / `casual_exploration` / `quick_paper_review` /
-`code_review` / `peer_review_response` / `project_startup` /
-`analysis_plan` / `iterative_planning` / `dead_end_routing` /
-`hypothesis_tracking` / `glossary_update` / `mid_pipeline_entry` /
-`constructive_disagreement` / `scope_clarification` /
-`revise_and_resubmit`.
+All core protocols carry a `tier:` + `scope_tags` so the router can
+filter by domain / audience / workflow shape.
 
-**Domain + methodology (45)** — 2 in `domain/`
-(`domain_analysis`, `research_design`) + 43 in `methodology/`:
-`methodology_selection` / `deep_domain_research` / `preregistration` /
-`tool_discovery` + per-method: `causal_inference_deep` /
-`machine_learning` / `clinical_trials` / `meta_analysis` /
-`survey_psychometrics` / `qualitative_research` / `simulation_studies`
-/ `replication_study` / `ablation_study` / `pilot_study` /
-`mixed_methods` / `bayesian_analysis` / `timeseries_analysis` +
-design / workflow: `exploratory_data_analysis` / `method_comparison` /
-`data_quality_audit` / `power_analysis` / `evaluation_design` /
-`hyperparameter_search_design` / `data_ethics_review` /
-`reproduction_attempt` / `methodological_consultation` +
-language/tool-stack doctrine: `pick_tool_stack` (R vs Python per
-sub-task — bulk RNA-seq → R Bioconductor, scRNA-seq → Python scanpy,
-Cox PH → R survival, WGCNA → R, geospatial → Python geopandas,
-psychometrics → R psych/lavaan; persists to
-`workspace/<step>/scratch/stack_plan.md`) / `mixed_language_orchestration`
-(Python↔R↔Bash composition) + the cross-cutting protocols
-`qualitative_pii_redaction`, `bootstrapping_design`,
-`cox_ph_diagnostics`, `data_management_plan`, `fairness_audit`,
-`inter_rater_reliability`, `interview_guide_design`,
-`mcp_ecosystem_integration`, `missing_data_strategy`,
-`multiple_comparisons`, `survey_design`, `uncertainty_quantification`,
-`coding_scheme_development`, `qualitative_quality_audit`,
-`external_tool_setup`.
-
-**Literature (5)** — `literature_search` (with forward-citation walk +
-predatory-venue check) / `systematic_review` / `evidence_synthesis` /
-`comparative_paper_review` / `literature_per_step` (per-step search →
-download → cite → write `findings_vs_literature.md` with
-`AGREES \| DISAGREES \| EXTENDS \| DEFERRED \| IMPORTED_AS_CITED`
-verdicts; gated by `tool_audit(scope='step', dimension='literature')`
-before `tool_path_finalize`).
-
-**Writing (10)** — `writing_core` (universal rules) + per-section:
-`writing_methods` / `writing_results` / `writing_discussion` /
-`writing_limitations` / `writing_conclusions` / `writing_citations` /
-`writing_readme` / `writing_analysis_log` / `writing_data_availability`
-(end matter — data / code / CRediT / funding / COI / ack).
-
-**Visualization (14)** — `figure_guidelines` (style + rules) /
-`visualization_workflow` (build / polish) / `figure_critique` /
-`multi_panel_composition` / `figure_narrative_arc` /
-`color_accessibility_audit` / `interactive_figure_design` /
-`interactive_dashboard_design` / `animation_design` /
-`distribution_comparison` / `geospatial_visualization` /
-`network_visualization` / `showcase_visualization` /
-`uncertainty_visualization`.
-
-**Synthesis (20)** — `synthesis_paper` / `synthesis_abstract` /
-`synthesis_poster` (with QR + single-headline test) /
-`synthesis_dashboard` (Playwright-tested) / `synthesis_grant` /
-`synthesis_report` / `synthesis_null_findings` (anti-file-drawer) /
-`synthesis_slides` (talks) / `synthesis_lay_summary` (outreach) /
-`synthesis_progress_update` (PI / advisor) / `synthesis_handout`
-(printable + QR) / `synthesis_from_inputs` (no in-RO analysis) /
-`synthesis_cover_letter` / `synthesis_title_workshop` /
-`manuscript_outline` / `journal_selection` / `defense_prep` /
-`printable` / `humanities_essay_structure` / `reviewer_response`.
-
-**Audit + reproducibility (4)** — `audit/audit_and_validation` (master
-quality audit, `tool_audit_quality_full`) /
-`audit/pre_submission_checklist` (final GREEN/YELLOW/RED gate) /
-`audit/provenance_completeness` (per-output `.prov.json` sidecar
-check) / `reproducibility/reproducibility` (env snapshot + Dockerfile
-+ seed verification).
-
-**Pack-loaded protocols (+36)** — installed packs add protocols under
-`humanities/` (archival, citation, method, output, textual; 12
-protocols), `qualitative/` (coding, method, output, validity; 8
-protocols), and `theory_math/` (conjecture, formal, method, output,
-proof; 16 protocols). Run `sys_packs_installed` to see which packs
-are active; `tool_protocols_list(pack='theory_math')` to filter the
-catalogue.
+| Category | What it covers |
+|---|---|
+| **Guidance** | Session + flow control: boot, resume, handoff, planning, dead-end routing, hypothesis tracking, scope clarification, quick paper review, code review, mid-pipeline entry, constructive disagreement. |
+| **Domain + methodology** | Pick the study design + the analysis method, grounded in literature: EDA, method comparison, power analysis, evaluation + sweep design, preregistration, per-method deep dives (causal, ML, clinical trials, meta-analysis, survey psychometrics, Bayesian, time-series, simulation), plus tool-stack / mixed-language doctrine and cross-cutting audits (fairness, IRR, missing data, multiple comparisons, UQ). |
+| **Literature** | Search (forward-citation walk + predatory-venue check), systematic review, evidence synthesis (GRADE), comparative review, per-step grounding (`findings_vs_literature.md`). |
+| **Writing** | Per-section drafting under universal rules: methods, results, discussion, limitations, conclusions, citations, README, analysis log, end matter (data / code / CRediT / funding / COI). |
+| **Visualization** | Figure guidelines + build / polish, critique, multi-panel composition, narrative ordering, colour-accessibility audit, interactive + animated + uncertainty + geospatial + network variants. |
+| **Synthesis** | The deliverables: paper, abstract, poster, dashboard, slides, grant, report, null-findings companion, lay summary, progress update, handout, cover letter, title workshop, manuscript outline, journal selection, defense prep. |
+| **Audit + reproducibility** | Master quality audit, the final GREEN/YELLOW/RED pre-submission gate, provenance-completeness check, environment snapshot + seed verification. |
+| **build/\*** *(tool_build mode)* | The software-building arc: `spec_and_design` → `implement_iteration` (loop) → `test_strategy` / `benchmark_vs_baseline` → `release_and_changelog`. See [TOOL_BUILDER.md](TOOL_BUILDER.md). |
+| **Pack-loaded** | Installed domain packs add their own protocols under `humanities/`, `qualitative/`, and `theory_math/`. Run `sys_packs_installed` to see which are active; `tool_protocols_list(pack=…)` to filter the catalogue. |
 
 ---
 
-## 7. MCP tools (144 live)
+## 7. MCP tools
 
 > All names use underscores. Dot notation + legacy names are
 > auto-rewritten. Full catalogue (alphabetical, with aliases) at
@@ -507,8 +473,8 @@ sensible defaults applied silently. The file is reserved for fields a
 produce, how they want the AI to behave. Domain / research question /
 hypotheses are NOT here — those are AI-inferred via
 `tool_intake_autofill` and written to `inputs/intake.md` +
-`docs/research_overview.md` (with hypotheses also tracked in
-`.os_state/state.json`).
+`research_overview.md` (in the project's `docs/`), with hypotheses also
+tracked in `.os_state/state.json`.
 
 Fields are ordered most → least important:
 
@@ -636,8 +602,9 @@ an `intake_autofill` pass.
 
 Skip `tool_research_tool` (or run it to confirm no library fits). Run
 `tool_research_method` for published precedent. Document with
-`mem_methods_append implementation="custom"` and `mem_decision_log`
-explaining why off-the-shelf was inadequate. Prototype in
+`mem_log(kind='methods', implementation='custom')` and
+`mem_log(kind='decision')` explaining why off-the-shelf was
+inadequate. Prototype in
 `workspace/scratch/`; promote into a numbered step when it works.
 
 ### Branching
@@ -653,8 +620,8 @@ confidence-gated.
 
 `mem_hypothesis_add` for each (auto-assigned `H1, H2, …` or you pick
 the ID). Every experiment step declares which hypothesis IDs it
-touches via `mem_hypothesis_update status=testing|supported|refuted|
-inconclusive evidence=<one-line>`.
+touches via `mem_log(kind='hypothesis',
+status=testing|supported|refuted|inconclusive, evidence='<one-line>')`.
 
 ### Mid-flow context
 
@@ -791,7 +758,7 @@ src/research_os/
 ├── data/typst/                  # 11 Typst venue templates (Nature, Science, …)
 ├── inputs/                      # paper + paste intake helpers
 ├── plugins/                     # domain-pack loader + pack_api surface
-├── protocols/                   # 117 YAML protocols + _router_index.yaml + _tiers.py
+├── protocols/                   # YAML protocols + _router_index.yaml + _tiers.py
 │   ├── audit/        (3)        # audit_and_validation, pre_submission_checklist, provenance_completeness
 │   ├── domain/       (2)
 │   ├── guidance/    (19)        # autopilot, code_review, mid_pipeline_entry, scope_clarification, …
@@ -884,9 +851,9 @@ you there fastest.
 | **Log-log benchmark scaling plot** (runtime vs n, fitted exponent + CI) | Systems / algorithms benchmark; engineering pack | `methodology/method_comparison` (including the engineering / systems-benchmark addendum) → `visualization/figure_guidelines` → `visualization/uncertainty_visualization` (the CI on the exponent is the headline) |
 
 For every recipe, the AI also pairs `tool_audit(scope='step',
-dimension='figure_full')` and auto-synthesises a `<figure>.caption.md`
-+ `<figure>.summary.md` sidecar via
-`tool_figure(operation='caption_synthesise')`. Skipping the sidecar
+dimension='figure_full')` and authors a `<figure>.caption.md`
++ `<figure>.summary.md` sidecar directly when the figure is created
+(see `visualization/figure_guidelines`). Skipping the sidecar
 blocks at the per-step completeness audit, so don't.
 
 Two general principles the stack enforces:
@@ -927,7 +894,7 @@ Two general principles the stack enforces:
 | `Protocol not found` | `sys_protocol_list` (or `tool_protocols_list` for filterable catalogue). |
 | "Unknown tool" error | The dispatcher accepts `sys_state_get` / `sys.state.get` / legacy v1.x names via `_ALIASES`. If a name is in `_REMOVED_TOOLS` (Phase 14a), the error names the canonical v2 entry point. If still failing, "Call `tool_tools_list` and tell me what's available." |
 | AI calls deprecated tool names | Harmless — `_ALIASES` dispatches old names through the v2.0.x runway. `tool_deprecations_summary` aggregates `.os_state/deprecations.log` for a sweep before v2.1.0. |
-| `BLOCK: unresolved audit findings` from `tool_synthesize` | Run `tool_audit_findings(operation='query', severity='block')` to list active blockers; fix them or pass `override_unresolved_blocks=true` + `override_rationale='...'`. |
+| `BLOCK: unresolved audit findings` from `tool_audit(scope='synthesis')` | Run `tool_audit_findings(operation='query', severity='block')` to list active blockers; fix them or pass `override_rationale='...'`. |
 
 For more: [FAQ.md](FAQ.md).
 

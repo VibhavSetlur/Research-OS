@@ -149,7 +149,7 @@ def _load_protocol(rel_path: str) -> dict:
 
 def test_figure_guidelines_protocol_bumped():
     data = _load_protocol("visualization/figure_guidelines.yaml")
-    assert data["version"] == "2.4.4"
+    assert data["version"] == "3.0.0"
 
 
 def test_figure_guidelines_carries_style_preset_block():
@@ -174,7 +174,7 @@ def test_figure_guidelines_view_loop_is_mandatory():
 
 def test_visualization_workflow_protocol_bumped():
     data = _load_protocol("visualization/visualization_workflow.yaml")
-    assert data["version"] == "2.4.4"
+    assert data["version"] == "3.0.0"
 
 
 def test_visualization_workflow_has_verify_step():
@@ -187,7 +187,7 @@ def test_visualization_workflow_has_verify_step():
 
 def test_synthesis_dashboard_protocol_bumped():
     data = _load_protocol("synthesis/synthesis_dashboard.yaml")
-    assert data["version"] == "2.4.4"
+    assert data["version"] == "3.0.0"
 
 
 def test_synthesis_dashboard_references_style_helper():
@@ -222,16 +222,23 @@ def test_synthesis_scaffold_dashboard_round_trips(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("file_rel,pattern,expected", [
-    ("pyproject.toml", "version = \"2.4.4\"", True),
-    ("CITATION.cff", "version: 2.4.4", True),
-    ("src/research_os/__init__.py", "__version__ = \"2.4.4\"", True),
-])
-def test_version_files_coherent(file_rel: str, pattern: str, expected: bool):
-    body = (REPO_ROOT / file_rel).read_text()
-    assert (pattern in body) is expected, (
-        f"{file_rel} should{'' if expected else ' not'} contain {pattern!r}"
-    )
+def test_version_files_coherent():
+    """pyproject / CITATION / __init__ must all carry the canonical version.
+
+    Reads research_os.__version__ as the single source of truth so this
+    never needs a per-release edit (CLAUDE.md: all three must agree).
+    """
+    import research_os
+
+    v = research_os.__version__
+    checks = {
+        "pyproject.toml": f'version = "{v}"',
+        "CITATION.cff": f"version: {v}",
+        "src/research_os/__init__.py": f'__version__ = "{v}"',
+    }
+    for file_rel, pattern in checks.items():
+        body = (REPO_ROOT / file_rel).read_text()
+        assert pattern in body, f"{file_rel} should contain {pattern!r}"
 
 
 def test_changelog_has_244_entry():

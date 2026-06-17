@@ -1,7 +1,7 @@
 // Generic thesis — single-column, TOC + chapter-style headings, generous
 // margins (binding edge wide).
 
-#import "common.typ": author-block, abstract-block, default-figure-show
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
 
 #let generic_thesis(
   title: "Untitled",
@@ -50,3 +50,11 @@
 
   body
 }
+
+
+// Uniform venue-agnostic entry point. `conf` (re-exported from common.typ)
+// normalises the config; `template` maps it onto generic_thesis above so a
+// venue-independent author file can write
+//   #import "_typst_templates/generic_thesis.typ": template, conf
+//   #show: template.with(conf(..))
+#let template = make-template(generic_thesis)

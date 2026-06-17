@@ -36,6 +36,9 @@ __all__ = [
     "_handle_tool_audit_evalue",
     "_handle_tool_audit_quality_full",
     "_handle_tool_audit_coherence",
+    "_handle_tool_audit_tool_tests",
+    "_handle_tool_audit_tool_git_hygiene",
+    "_handle_tool_audit_tool_build",
 ]
 
 def _handle_tool_audit(name, arguments, root):
@@ -60,7 +63,7 @@ def _handle_tool_audit(name, arguments, root):
     if not scope or not dimension:
         return _text(_error(
             "tool_audit requires scope= and dimension=. "
-            "Valid scopes: step | project | synthesis | active_gates. "
+            "Valid scopes: step | project | synthesis | tool | active_gates. "
             "See docs/V2_MIGRATION_TABLE.md for the full dimension list. "
             "Use sys_help(topic='gates') for the full gate vocabulary."
         ))
@@ -688,6 +691,33 @@ def _handle_tool_audit_coherence(name, arguments, root):
         root,
         paper_path=str(arguments.get("paper_path") or "synthesis/paper.md"),
     ))
+
+
+# ── scope='tool' audit family (tool_build mode) ──────────────────────
+# The tool_build analog of the analysis figure/literature/completeness
+# gates. Each is mode-aware: a clean no-op (status='success', applicable=
+# false) when workspace.mode != 'tool_build', so wiring them into the
+# shared dispatch never fires them on classic analysis projects.
+
+
+def _handle_tool_audit_tool_tests(name, arguments, root):
+    from research_os.tools.actions.audit.tool_build_audit import audit_tool_tests
+
+    return _text(_success(audit_tool_tests(root)))
+
+
+def _handle_tool_audit_tool_git_hygiene(name, arguments, root):
+    from research_os.tools.actions.audit.tool_build_audit import (
+        audit_tool_git_hygiene,
+    )
+
+    return _text(_success(audit_tool_git_hygiene(root)))
+
+
+def _handle_tool_audit_tool_build(name, arguments, root):
+    from research_os.tools.actions.audit.tool_build_audit import audit_tool_build
+
+    return _text(_success(audit_tool_build(root)))
 
 
 HANDLERS = {

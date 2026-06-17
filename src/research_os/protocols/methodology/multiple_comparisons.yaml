@@ -1,13 +1,16 @@
 id: multiple_comparisons
 tier: 'plan'
 name: Multiple Comparisons / Multiplicity Strategy
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [auditor]
-  workflow_shape: [systems_benchmark]
-last_reviewed: '2026-06-02'
+  workflow_shape: [experiment_pipeline]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/preregistration             # the multiplicity rule belongs in the SAP
+  - methodology/missing_data_strategy        # both shape the analysis plan
 description: |
   When a study tests more than one hypothesis on the same data, the
   chance of a false positive grows. The fix is not always Bonferroni
@@ -111,9 +114,9 @@ steps:
 
         FDR (False Discovery Rate) — expected proportion of false
           positives among the rejected nulls.
-          Appropriate when the family is large (k >> 10) and the
-          downstream use tolerates some false positives. Standard in
-          genomics, neuroimaging, large-scale screening.
+          Appropriate when the family is large and the downstream
+          use tolerates some false positives in exchange for power.
+          Standard in genomics, neuroimaging, large-scale screening.
 
         PER-COMPARISON — no correction. Appropriate ONLY for explicitly
           exploratory / hypothesis-generating analyses where the
@@ -171,8 +174,9 @@ steps:
           FWER without spending alpha on the secondary set.
 
         PATTERN C — alpha-splitting.
-          Allocate alpha across families (e.g. 0.04 primary +
-          0.01 secondary). Pre-specify the split.
+          Allocate the total alpha across families (a larger share
+          to the primary family, the remainder to the secondary).
+          Pre-specify the split + its rationale.
 
       Exploratory comparisons (post-hoc, not pre-registered) are
       reported separately as "hypothesis-generating" and NOT part

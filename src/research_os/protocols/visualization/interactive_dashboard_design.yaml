@@ -1,13 +1,17 @@
 id: interactive_dashboard_design
 tier: 'synthesize'
 name: Interactive Dashboard Design (showcase-tier, beyond static HTML)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [humanities, engineering]
-  audience: [maintainer]
-  workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-04'
+  domain: [any]
+  audience: [maintainer, auditor]
+  workflow_shape: [any]
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_dashboard             # the single-file offline HTML tier this builds beyond
+  - visualization/interactive_figure_design   # per-figure interactivity, not dashboard-scale
+  - visualization/color_accessibility_audit    # WCAG contrast check on the dashboard palette
 description: |
   `synthesis_dashboard` produces a single-file offline HTML — the
   workhorse "email this to my advisor" deliverable. THIS protocol is
@@ -150,7 +154,7 @@ steps:
       Framework takes 3 days to learn but ships polished").
 
   - id: design_the_interactive_vocabulary
-    name: Design the interactive vocabulary (2-3 idioms, not more)
+    name: Design the interactive vocabulary (smallest set that answers the questions)
     description: |
       For each question in step 1, pick the SINGLE interactive
       idiom that answers it. Common idioms + when they fit:
@@ -177,8 +181,10 @@ steps:
           Best for tutorials + explainers (look at Distill.pub for
           the standard).
 
-      Avoid adding 6+ idioms. Each idiom is a learning cost for
-      the user; pick the smallest set that answers the questions.
+      Each idiom is a learning cost for the user, so resist bolting
+      on idioms that don't map to a listed question — pick the
+      smallest set that answers them and justify any beyond the
+      obvious one or two.
 
   - id: data_layer
     name: Design the data layer (versioned, queryable, reproducible)
@@ -206,7 +212,8 @@ steps:
           visualization/color_accessibility_audit)
         - copy is hand-written for the audience (no chart titles
           like "fig 1")
-        - transitions are subtle (200-400ms, ease-in-out, NOT bouncy)
+        - transitions are subtle and quick (ease-in-out, NOT bouncy
+          or slow enough to make the user wait)
         - empty states + loading states are designed (a blank
           chart on first paint reads as broken)
         - default view is informative (no "select a filter to begin")
@@ -274,7 +281,7 @@ expected_outputs:
 quality_bar:
   audience_deployment_device_explicit: true
   stack_choice_rationalised_against_skillset_and_audience: true
-  interactive_vocabulary_capped_at_3_idioms: true
+  interactive_vocabulary_is_smallest_set_that_answers_questions: true
   data_layer_is_versioned_snapshot_with_hash: true
   polish_pass_completed_typography_palette_copy_transitions: true
   accessibility_audit_passed_or_routed: true

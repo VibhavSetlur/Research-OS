@@ -1,7 +1,7 @@
 // Generic two-column journal fallback. The default if researcher_config
 // doesn't pick a venue. Clean, conservative, prints well.
 
-#import "common.typ": author-block, abstract-block, default-figure-show
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
 
 #let generic_two_column(
   title: "Untitled",
@@ -31,3 +31,11 @@
 
   columns(2, gutter: 0.7cm, body)
 }
+
+
+// Uniform venue-agnostic entry point. `conf` (re-exported from common.typ)
+// normalises the config; `template` maps it onto generic_two_column above so a
+// venue-independent author file can write
+//   #import "_typst_templates/generic_two_column.typ": template, conf
+//   #show: template.with(conf(..))
+#let template = make-template(generic_two_column)

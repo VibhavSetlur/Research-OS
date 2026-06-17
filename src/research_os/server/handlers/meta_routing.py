@@ -93,12 +93,42 @@ def _handle_tool_protocols_list(name, arguments, root):
 
 
 def _handle_tool_tools_list(name, arguments, root):
-    from research_os.tools.actions.listers import list_tools_flat
+    from research_os.tools.actions.listers import (
+        VALID_LISTING_MODES,
+        list_tools_flat,
+    )
 
     try:
         scope = arguments.get("scope") or "all"
         include_deprecated = bool(arguments.get("include_deprecated", False))
         match = arguments.get("match_substring")
+        # mode-scoped surface (context-bloat fix). 'auto' resolves the
+        # active workspace mode from config; an explicit mode is passed
+        # through; omitted/empty ⇒ no mode filter (back-compat).
+        raw_mode = arguments.get("mode")
+        resolved_mode = None
+        if isinstance(raw_mode, str) and raw_mode.strip():
+            m = raw_mode.strip().lower()
+            if m == "auto":
+                try:
+                    from research_os.tools.actions.state.config import (
+                        get_workspace_mode,
+                    )
+                    resolved_mode = get_workspace_mode(root)
+                except Exception:
+                    resolved_mode = None
+            elif m in VALID_LISTING_MODES:
+                resolved_mode = m
+            else:
+                return _text(_error(
+                    what=f"Unknown mode '{raw_mode}'",
+                    why="mode must be 'auto' or one of "
+                        f"{', '.join(VALID_LISTING_MODES)}",
+                    next_action=(
+                        "call tool_tools_list with mode='auto' (resolve from "
+                        "config) or a valid mode name, or omit mode entirely."
+                    ),
+                ))
         tools = list_tools_flat(
             TOOL_DEFINITIONS,
             aliases=_ALIASES,
@@ -106,6 +136,7 @@ def _handle_tool_tools_list(name, arguments, root):
             scope=scope,
             include_deprecated=include_deprecated,
             match_substring=match if isinstance(match, str) and match else None,
+            mode=resolved_mode,
         )
         return _text(_success({
             "tools": tools,
@@ -114,6 +145,7 @@ def _handle_tool_tools_list(name, arguments, root):
                 "scope": scope,
                 "include_deprecated": include_deprecated,
                 "match_substring": match or None,
+                "mode": resolved_mode,
             },
         }))
     except Exception as e:

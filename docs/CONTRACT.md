@@ -41,9 +41,9 @@ Three name prefixes are public:
   `sys_tool_describe`, `sys_packs_installed`, `sys_help`, `sys_path`,
   `sys_config`, `sys_env`, `sys_active_tools`.
 * `tool_*` — workflow tools (routing, audits, synthesis, viz, search,
-  exec, pack-contributed). Examples: `tool_route`, `tool_synthesize`,
+  exec, pack-contributed). Examples: `tool_route`, `tool_synthesis_check`,
   `tool_audit`, `tool_audit_quality_full`, `tool_audit_findings`,
-  `tool_plan`, `tool_data`, `tool_dashboard`, `tool_figure`,
+  `tool_plan`, `tool_data`, `tool_typst_compile`, `tool_figure_palette`,
   `tool_search`, `tool_lessons`, `tool_step`, `tool_step_pipeline`,
   `tool_protocols_list`, `tool_tools_list`, `tool_<pack>_*` for
   pack-contributed tools.
@@ -74,8 +74,9 @@ Every tool definition carries two MAJOR-stable metadata fields:
 
 The canonical, machine-readable list is whatever
 `sys_tool_describe`, `tool_tools_list`, and the MCP `tools/list`
-handshake return for the running server. As of v2.0.0 that's
-**144 live tools** (121 core + 23 across 11 packs).
+handshake return for the running server — a core set plus
+pack-contributed tools across the 11 packs above. Query the running
+server rather than relying on a hand-maintained count.
 
 ### A.2 Audit-finding JSON schema
 
@@ -96,6 +97,7 @@ sections are stable in v2:
 * `researcher`
 * `licenses`
 * `project_name`
+* `workspace`
 * `research_goal`
 * `interaction`
 * `gate_strictness`

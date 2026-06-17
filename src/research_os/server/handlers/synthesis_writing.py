@@ -59,8 +59,8 @@ def _handle_tool_synthesis_check(name, arguments, root):
         file=arguments.get("file"),
         mode=arguments.get("mode", "all"),
     )
-    if res.get("status") == "error" and "message" in res:
-        return _text(_error(res["message"]))
+    if res.get("status") == "error":
+        return _text(_error(res.get("message", "synthesis_check failed")))
     return _text(_success(res))
 
 

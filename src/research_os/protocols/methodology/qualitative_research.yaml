@@ -1,12 +1,17 @@
 id: qualitative_research
 tier: 'plan'
 name: Qualitative Research (COREQ / SRQR)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]
   audience: [auditor]
   workflow_shape: [interview_study]
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/qualitative_pii_redaction  # run BEFORE coding when transcripts carry PII
+  - methodology/qualitative_quality_audit  # COREQ/SRQR enforcement gate after the analysis
+  - methodology/interview_guide_design     # builds the topic guide this protocol fields
 description: |
   Interview / focus-group / ethnographic studies with thematic, framework,
   grounded theory, or content analysis. Enforces COREQ (interviews/focus
@@ -67,10 +72,12 @@ steps:
     description: |
       Write outputs/reports/interview_protocol.md covering:
         - Population + sampling strategy (purposive | snowball | theoretical)
-        - Sample-size justification (data saturation target or fixed N)
+        - Sample-size justification (data-saturation target or fixed N,
+          justified — not a rule of thumb)
         - Setting (in-person | video | phone | field)
         - Interviewer role + reflexivity statement
-        - Topic guide (semi-structured questions; ≥ 5, ≤ 25)
+        - Topic guide — semi-structured questions sized to the research
+          question and the interview length the design allows
         - Recording + transcription approach
         - Member-checking plan, if any
       Cite the COREQ or SRQR item that each section addresses.
@@ -154,7 +161,8 @@ steps:
   - id: report
     name: Per-step Conclusions
     description: |
-      conclusions.md captures: 3-7 themes, their relationships (consider a
+      conclusions.md captures: the themes (however many the data
+      supports — see theme_synthesis), their relationships (consider a
       thematic map figure), implications for the research question, what
       surprised you, and where the analysis was thin.
 

@@ -92,6 +92,228 @@ LAZY_DIRS = (
 )
 
 
+# ---------------------------------------------------------------------------
+# Scaffold profiles — one per workspace.mode.
+#
+# A *profile* is the directory contract the scaffold builds for a given
+# kind of work. ``analysis`` reproduces today's behaviour BYTE-IDENTICALLY
+# (it literally reuses the module constants above); the others tailor the
+# surface to how that work actually flows.
+#
+# Mode-agnostic safety invariants stay constant across every profile:
+# ``.os_state`` (state), ``inputs/{raw_data,literature,context}`` (immutable
+# inputs), ``docs`` (overview/glossary), ``environment`` (reproducibility),
+# and ``workspace/scratch`` (the AI sandbox). Profiles only choose how the
+# *work surface* between inputs and outputs is shaped.
+#
+#   analysis    → the classic linear numbered-step model. workspace/NN_* +
+#                 synthesis/. UNCHANGED.
+#   tool_build  → Research OS sits ABOVE as a governance layer: spec/ (what
+#                 we're building + design), decisions/ (ADRs), eval/ (the
+#                 benchmark / eval harness that defines "done"), plus
+#                 milestones.md / governance.md / CHANGELOG.md. The actual
+#                 tool lives in an INNER project dir that gets its own
+#                 git init (see scaffold_minimal_workspace).
+#   exploration → scratch-first. workspace/scratch is the home base; gates
+#                 are light; promote a probe to a numbered step when it
+#                 earns it. Everything heavyweight stays lazy.
+# ---------------------------------------------------------------------------
+
+_TOOL_BUILD_TOP_LEVEL_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "spec",
+    "decisions",
+    "eval",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+_TOOL_BUILD_EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "spec",
+    "decisions",
+    "eval",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+_EXPLORATION_TOP_LEVEL_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "synthesis",
+    "environment",
+)
+
+# Exploration is deliberately minimal: scratch is the home base, the
+# numbered-step + log surface materialises only once a probe is promoted.
+_EXPLORATION_EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "workspace",
+    "workspace/scratch",
+    "environment",
+)
+
+_EXPLORATION_LAZY_DIRS = (
+    "workspace/logs",
+    "synthesis",
+)
+
+# ── notebook ────────────────────────────────────────────────────────────
+# A Jupyter-first layout: the unit of work is a notebook in ``notebooks/``,
+# not a numbered analysis step. ``data/`` holds inputs the notebooks read,
+# ``outputs/`` holds what they emit (figures / tables / exports). The
+# mode-agnostic safety dirs (.os_state, inputs/*, docs, environment,
+# workspace/scratch) hold as in every profile. workspace/logs stays eager
+# so audit/override trails have a home; synthesis is lazy (a notebook
+# project still writes a paper/report eventually, but not at cold init).
+_NOTEBOOK_TOP_LEVEL_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "notebooks",
+    "data",
+    "outputs",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "synthesis",
+    "environment",
+)
+
+_NOTEBOOK_EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "notebooks",
+    "data",
+    "outputs",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+_NOTEBOOK_LAZY_DIRS = (
+    "synthesis",
+)
+
+# ── multi_study (program) ───────────────────────────────────────────────
+# A portfolio / program layout. ``studies/`` holds each sub-study (every
+# child is itself a small project surface the researcher fills in). ``shared/``
+# is the program-wide commons: the codebook, the preregistration, the
+# governing protocol every study inherits. ``roll_up/`` is where cross-study
+# synthesis + meta-analysis live. The classic numbered-step ``workspace/``
+# surface stays minimal here — the unit of work is a STUDY, not a step;
+# heavyweight per-study analysis happens inside each ``studies/<child>/``.
+_MULTI_STUDY_TOP_LEVEL_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "studies",
+    "shared",
+    "roll_up",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "synthesis",
+    "environment",
+)
+
+_MULTI_STUDY_EAGER_DIRS = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "studies",
+    "shared",
+    "roll_up",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+_MULTI_STUDY_LAZY_DIRS = (
+    "synthesis",
+)
+
+SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
+    # analysis == today's behaviour, byte-identical (reuses the constants).
+    "analysis": {
+        "top_level_dirs": TOP_LEVEL_DIRS,
+        "eager_dirs": EAGER_DIRS,
+        "lazy_dirs": LAZY_DIRS,
+    },
+    "tool_build": {
+        "top_level_dirs": _TOOL_BUILD_TOP_LEVEL_DIRS,
+        "eager_dirs": _TOOL_BUILD_EAGER_DIRS,
+        "lazy_dirs": (),
+    },
+    "exploration": {
+        "top_level_dirs": _EXPLORATION_TOP_LEVEL_DIRS,
+        "eager_dirs": _EXPLORATION_EAGER_DIRS,
+        "lazy_dirs": _EXPLORATION_LAZY_DIRS,
+    },
+    "notebook": {
+        "top_level_dirs": _NOTEBOOK_TOP_LEVEL_DIRS,
+        "eager_dirs": _NOTEBOOK_EAGER_DIRS,
+        "lazy_dirs": _NOTEBOOK_LAZY_DIRS,
+    },
+    "multi_study": {
+        "top_level_dirs": _MULTI_STUDY_TOP_LEVEL_DIRS,
+        "eager_dirs": _MULTI_STUDY_EAGER_DIRS,
+        "lazy_dirs": _MULTI_STUDY_LAZY_DIRS,
+    },
+}
+
+
+def _resolve_scaffold_profile(mode: str | None) -> tuple[str, dict[str, tuple[str, ...]]]:
+    """Return ``(mode, profile)`` for *mode*, defaulting to ``analysis``.
+
+    Any unknown / blank mode collapses to ``analysis`` so a malformed
+    config builds the classic workspace rather than failing.
+    """
+    resolved = mode if mode in SCAFFOLD_PROFILES else "analysis"
+    return resolved, SCAFFOLD_PROFILES[resolved]
+
+
 def _has_user_inputs(root: Path) -> bool:
     """True iff the researcher has dropped real files into inputs/.
 
@@ -542,6 +764,570 @@ def _update_manifest(root: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_inner_repo_name(config_overrides: dict | None) -> str:
+    """Pick the tool_build inner project dir name; blank → ``project``.
+
+    Reads ``config_overrides['workspace']['inner_repo']`` if the wizard
+    captured one. Sanitised to a single traversal-safe path segment.
+    """
+    raw = ""
+    ws = (config_overrides or {}).get("workspace")
+    if isinstance(ws, dict):
+        raw = ws.get("inner_repo") or ""
+    name = (raw or "").strip().strip("/").replace("..", "").strip()
+    name = name.split("/")[0] if name else ""
+    return name or "project"
+
+
+def _seed_mode_extras(
+    root: Path,
+    project_name: str,
+    mode: str,
+    config_overrides: dict | None = None,
+) -> str:
+    """Seed the mode-specific surface (governance / scratch / onboarding).
+
+    Returns the inner-repo dir name for ``tool_build`` (so the caller can
+    ``git init`` it), or ``""`` for the other modes. A no-op for
+    ``analysis`` — that mode's files are written entirely by the existing
+    generic scaffold path, keeping its surface byte-identical to today.
+
+    Mode-specific GETTING_STARTED.md + README.md are seeded HERE so the
+    generic ``_write_getting_started`` / ``_write_project_root_readme``
+    (which skip when the file already exists) leave them intact.
+    """
+    if mode == "analysis":
+        return ""
+
+    def _write_if_missing(path: Path, body: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_text(body)
+
+    if mode == "exploration":
+        # Scratch-first. Point the researcher at workspace/scratch as the
+        # home base, with a clear path to promote a probe into a real step.
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (exploration mode)
+
+This is a Research OS workspace in **exploration mode** — scratch-first,
+light gates. The home base is `workspace/scratch/`: poke at the data,
+run quick probes, throw things away freely.
+
+## 1. Drop your files
+
+| Where | What goes here |
+|---|---|
+| `inputs/raw_data/`  | Data files (CSV, Parquet, FASTQ, NIfTI, JSON, Excel, ...) |
+| `inputs/literature/`| PDFs of papers you want the AI to know about |
+| `inputs/context/`   | Notes, drafts, prior reports — anything text |
+
+`inputs/` is **immutable** — the AI reads it but never modifies it.
+
+## 2. Probe in scratch
+
+`workspace/scratch/` is the sandbox. Quick EDA, a smoke model, a sanity
+plot — none of it has to be rigorous yet. Try:
+
+```
+poke at the data
+quick look at <column> vs <column>
+is there any signal in <hypothesis>?
+```
+
+## 3. Promote what earns it
+
+When a probe turns into something worth keeping, promote it to a proper
+numbered step (`workspace/01_<slug>/`) — that's where gates, provenance,
+and synthesis kick in:
+
+```
+promote this to a real step
+```
+
+The numbered-step + synthesis surface stays out of your way until then.
+
+## More
+
+* AI rules: `AGENTS.md`
+* Config: `inputs/researcher_config.yaml` (`workspace.mode: exploration`)
+""",
+        )
+        _write_if_missing(
+            root / "README.md",
+            f"""# {project_name}
+
+> A Research OS workspace in **exploration mode** — scratch-first quick
+> probes with light gates and a promote-to-step path.
+
+## What's in this folder
+
+| Folder | Purpose |
+|---|---|
+| `inputs/` | Immutable data, literature, context the probes read. |
+| `workspace/scratch/` | The home base — quick throw-away probes. |
+| `workspace/NN_slug/` | Promoted steps (appear once a probe earns it). |
+| `docs/` | Glossary + overview. |
+| `environment/` | Reproducibility surface. |
+
+See `GETTING_STARTED.md` for the workflow.
+""",
+        )
+        return ""
+
+    if mode == "notebook":
+        # Jupyter-first. The notebook is the unit of work; seed a starter
+        # notebook + getting-started so a fresh researcher opens
+        # notebooks/ and starts running cells immediately.
+        nb_readme = (
+            "# `notebooks/`\n\n"
+            "The unit of work in this project is a **notebook**, not a "
+            "numbered analysis step. Each notebook is a self-contained, "
+            "top-to-bottom-runnable narrative: read from `../data/`, write "
+            "figures / tables / exports to `../outputs/`.\n\n"
+            "Discipline that keeps a notebook trustworthy:\n\n"
+            "* **Restart-and-run-all is the only valid state.** A notebook "
+            "  that only works out-of-order is a notebook that doesn't work. "
+            "  Re-run top-to-bottom before you trust a result.\n"
+            "* **Cells are the provenance unit.** One coherent idea per cell; "
+            "  set the RNG seed in the first cell; print library versions so "
+            "  the run is reproducible.\n"
+            "* **Outputs are derived, never hand-edited.** Anything in "
+            "  `../outputs/` should be regenerable by re-running the notebook "
+            "  that produced it.\n\n"
+            "Name notebooks by what they do, ordered for reading: "
+            "`01_explore.ipynb`, `02_clean.ipynb`, `03_model.ipynb`. Run "
+            "cells with `tool_notebook_exec`; promote a notebook's result "
+            "into a paper/report via the synthesis tools when it's ready.\n"
+        )
+        _write_if_missing(root / "notebooks" / "README.md", nb_readme)
+        _write_if_missing(
+            root / "data" / "README.md",
+            "# `data/`\n\n"
+            "Working data the notebooks read + the derived data they write. "
+            "Immutable source data still lives in `../inputs/raw_data/` (the "
+            "AI never modifies it); copy or load from there into here, and "
+            "treat anything here as regenerable from a notebook run.\n",
+        )
+        _write_if_missing(
+            root / "outputs" / "README.md",
+            "# `outputs/`\n\n"
+            "Figures, tables, and exports the notebooks emit. Everything "
+            "here is **derived** — regenerable by re-running the notebook "
+            "that wrote it. Don't hand-edit; fix the cell and re-run.\n",
+        )
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (notebook mode)
+
+This is a Research OS workspace in **notebook mode** — Jupyter-first. The
+unit of work is a notebook in `notebooks/`, not a numbered analysis step.
+
+## 1. Drop your files
+
+| Where | What goes here |
+|---|---|
+| `inputs/raw_data/`  | Immutable source data (CSV, Parquet, FASTQ, ...) |
+| `inputs/literature/`| PDFs of papers the AI should know about |
+| `inputs/context/`   | Notes, drafts, prior reports |
+| `data/`             | Working + derived data the notebooks read/write |
+
+`inputs/` is immutable — the AI reads it but never modifies it.
+
+## 2. Work in notebooks
+
+`notebooks/` is the home base. Each notebook is a top-to-bottom-runnable
+narrative; outputs land in `outputs/`. Try:
+
+```
+start a notebook for exploring <dataset>
+run this notebook
+clean up cell 3 and re-run from there
+```
+
+The cell-as-unit discipline (restart-and-run-all, seed in cell 1, derived
+outputs only) is what keeps the work reproducible — see
+`notebooks/README.md`.
+
+## 3. Synthesize when ready
+
+When a notebook's result is worth keeping, promote it into a paper /
+report / dashboard via the synthesis tools.
+
+## More
+
+* AI rules: `AGENTS.md`
+* Config: `inputs/researcher_config.yaml` (`workspace.mode: notebook`)
+""",
+        )
+        _write_if_missing(
+            root / "README.md",
+            f"""# {project_name}
+
+> A Research OS workspace in **notebook mode** — Jupyter-first. The unit of
+> work is a notebook in `notebooks/`; outputs are derived into `outputs/`.
+
+## What's in this folder
+
+| Folder | Purpose |
+|---|---|
+| `notebooks/` | The unit of work — runnable, ordered notebooks. |
+| `data/` | Working + derived data the notebooks read/write. |
+| `outputs/` | Figures / tables / exports (derived, regenerable). |
+| `inputs/` | Immutable source data, literature, context. |
+| `synthesis/` | Paper / report (appears once you synthesize). |
+| `environment/` | Reproducibility surface. |
+
+See `GETTING_STARTED.md` for the workflow.
+""",
+        )
+        return ""
+
+    if mode == "multi_study":
+        # Program / portfolio. Seed the program governance commons so a
+        # fresh researcher understands the study → shared → roll-up model.
+        _write_if_missing(
+            root / "studies" / "README.md",
+            "# `studies/` — the sub-studies in this program\n\n"
+            "Each sub-study is a **child** of the program: one folder per "
+            "study (`studies/<slug>/`), each its own coherent piece of work "
+            "with its own question, data, analysis, and conclusion. A study "
+            "is the unit of work in multi_study mode — not a numbered step.\n\n"
+            "Every study inherits the program commons in `../shared/` (the "
+            "codebook, the preregistration, the governing protocol). Keep "
+            "study-specific deviations from the shared codebook documented "
+            "inside that study so the roll-up can account for them.\n\n"
+            "When you start a new study, create `studies/<slug>/` and treat "
+            "it as a small project surface; the cross-study synthesis happens "
+            "in `../roll_up/`.\n",
+        )
+        _write_if_missing(
+            root / "shared" / "README.md",
+            "# `shared/` — the program commons every study inherits\n\n"
+            "The single source of truth shared across all sub-studies. "
+            "Keeping these here (rather than copied into each study) is what "
+            "makes the program coherent and the roll-up valid.\n\n"
+            "* `codebook.md` — the shared variable definitions / coding "
+            "  scheme. Every study codes to THIS unless it documents a "
+            "  deviation. Divergent codebooks make a meta-analysis "
+            "  meaningless.\n"
+            "* `preregistration.md` — the program-level prereg: the "
+            "  hypotheses + analysis commitments that span studies, frozen "
+            "  before the studies run.\n"
+            "* `protocol.md` — the governing protocol each study follows "
+            "  (inclusion criteria, shared measures, common QC).\n",
+        )
+        _write_if_missing(
+            root / "shared" / "codebook.md",
+            "# Shared codebook\n\n"
+            "Program-wide variable definitions + coding scheme. Every study "
+            "codes to this. Document any per-study deviation inside that "
+            "study, not here.\n\n"
+            "| Variable | Definition | Values / coding | Source |\n"
+            "|---|---|---|---|\n",
+        )
+        _write_if_missing(
+            root / "shared" / "preregistration.md",
+            "# Program preregistration\n\n"
+            "_The hypotheses + analysis commitments that span the studies in "
+            "this program, frozen before the studies run. Per-study prereg "
+            "(if any) lives inside each study._\n\n"
+            "## Program hypotheses\n\n"
+            "_What the program as a whole predicts, across studies._\n\n"
+            "## Cross-study analysis plan\n\n"
+            "_How results will be pooled / compared in `roll_up/` (fixed vs "
+            "random effects, heterogeneity handling, moderators), decided "
+            "before seeing study results._\n",
+        )
+        _write_if_missing(
+            root / "roll_up" / "README.md",
+            "# `roll_up/` — cross-study synthesis + meta-analysis\n\n"
+            "Where the program becomes more than its studies. This is the "
+            "ONLY place that reads ACROSS `../studies/` to produce a "
+            "program-level claim:\n\n"
+            "* the meta-analysis / pooled estimate across studies,\n"
+            "* the heterogeneity story (why studies agree or differ),\n"
+            "* the cross-study narrative the program reports.\n\n"
+            "A roll-up is only valid when the studies share a codebook + "
+            "prereg (see `../shared/`). If a study deviated, account for the "
+            "deviation here rather than quietly pooling over it.\n",
+        )
+        _write_if_missing(
+            root / "governance.md",
+            f"# Governance — {project_name} (program / multi_study)\n\n"
+            "This is a **multi_study** Research OS workspace — a research "
+            "**program**, not a single analysis. The program model:\n\n"
+            "* `studies/<slug>/` — each sub-study, a child of the program. "
+            "  The unit of work is a STUDY; heavyweight analysis happens "
+            "  inside each study.\n"
+            "* `shared/` — the commons every study inherits: the codebook, "
+            "  the preregistration, the governing protocol. Coherence across "
+            "  studies is what makes the program's roll-up valid.\n"
+            "* `roll_up/` — cross-study synthesis + meta-analysis: the one "
+            "  place that reads across studies to make a program-level "
+            "  claim.\n\n"
+            "Mode-agnostic safety holds: `inputs/` is immutable, all "
+            "workspace writes go through the tools, nothing escapes the "
+            "project root. Run `program/program_setup` to reason about the "
+            "shared codebook + prereg + how the studies roll up.\n",
+        )
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (multi_study mode)
+
+This is a Research OS workspace in **multi_study mode** — a research
+**program**: several sub-studies that share a codebook + prereg and roll
+up into a cross-study synthesis.
+
+## The program layout
+
+| Path | What it's for |
+|---|---|
+| `studies/<slug>/` | Each sub-study — a child of the program. |
+| `shared/codebook.md` | Variable definitions every study codes to. |
+| `shared/preregistration.md` | Program-level hypotheses + pooling plan. |
+| `shared/protocol.md` | The governing protocol each study follows. |
+| `roll_up/` | Cross-study synthesis + meta-analysis. |
+| `governance.md` | How the program model fits together. |
+
+## Typical flow
+
+1. Set up the commons first: the shared codebook + preregistration in
+   `shared/`. Coherence here is what makes the roll-up valid.
+2. Start each sub-study under `studies/<slug>/`; it inherits the commons.
+3. When studies have results, do the cross-study synthesis in `roll_up/`.
+
+Start by running `program/program_setup` — it reasons about the shared
+codebook, the prereg, and how the studies will roll up.
+
+## More
+
+* AI rules: `AGENTS.md`
+* Config: `inputs/researcher_config.yaml` (`workspace.mode: multi_study`)
+""",
+        )
+        _write_if_missing(
+            root / "README.md",
+            f"""# {project_name}
+
+> A Research OS workspace in **multi_study mode** — a research program of
+> sub-studies that share a codebook + prereg and roll up into a cross-study
+> synthesis.
+
+## What's in this folder
+
+| Path | Purpose |
+|---|---|
+| `studies/` | Each sub-study — a child of the program. |
+| `shared/` | The commons every study inherits (codebook / prereg / protocol). |
+| `roll_up/` | Cross-study synthesis + meta-analysis. |
+| `governance.md` | How the program model fits together. |
+| `inputs/` | Immutable data / literature / context. |
+
+See `GETTING_STARTED.md` for the workflow.
+""",
+        )
+        return ""
+
+    # ── tool_build ──────────────────────────────────────────────────────
+    inner = _resolve_inner_repo_name(config_overrides)
+
+    # spec/ — requirements + design.
+    _write_if_missing(
+        root / "spec" / "README.md",
+        "# `spec/` — what we're building\n\n"
+        "The governance source of truth for this tool: requirements,\n"
+        "design, and interface contracts. Research OS reads these to keep\n"
+        "the build honest against intent.\n\n"
+        "* `requirements.md` — what the tool must do (functional +\n"
+        "  non-functional). Start here.\n"
+        "* `design.md` — how it's built: architecture, key modules, the\n"
+        "  data + control flow, trade-offs considered.\n\n"
+        "Keep these current as the design moves — a decision that changes\n"
+        "the design should land both here AND as an ADR in `decisions/`.\n",
+    )
+    _write_if_missing(
+        root / "spec" / "requirements.md",
+        f"# {project_name} — requirements\n\n"
+        "## Problem\n\n"
+        "_What problem does this tool solve, and for whom?_\n\n"
+        "## Functional requirements\n\n"
+        "- [ ] _The tool must…_\n\n"
+        "## Non-functional requirements\n\n"
+        "- [ ] _Performance / reliability / portability constraints…_\n\n"
+        "## Out of scope\n\n"
+        "_What this tool deliberately does NOT do._\n",
+    )
+    _write_if_missing(
+        root / "spec" / "design.md",
+        f"# {project_name} — design\n\n"
+        "## Architecture\n\n"
+        "_High-level shape: modules, boundaries, the main flow._\n\n"
+        "## Key decisions\n\n"
+        "_Summarise the load-bearing choices; the full record lives in_\n"
+        "`decisions/` _as ADRs._\n\n"
+        "## Open questions\n\n"
+        "_What's still unresolved._\n",
+    )
+
+    # decisions/ — Architecture Decision Records.
+    _write_if_missing(
+        root / "decisions" / "README.md",
+        "# `decisions/` — Architecture Decision Records (ADRs)\n\n"
+        "One Markdown file per significant decision, numbered in order:\n"
+        "`0001-<slug>.md`, `0002-<slug>.md`, … Each records the context,\n"
+        "the decision taken, and the consequences — so a future\n"
+        "contributor (or a fresh AI session) understands WHY the tool is\n"
+        "shaped the way it is, not just how.\n\n"
+        "Template per ADR:\n\n"
+        "```\n"
+        "# <NNNN>. <Title>\n\n"
+        "Status: proposed | accepted | superseded\n\n"
+        "## Context\nWhat forces are at play?\n\n"
+        "## Decision\nWhat we chose.\n\n"
+        "## Consequences\nWhat becomes easier / harder as a result.\n"
+        "```\n",
+    )
+
+    # eval/ — the benchmark / eval harness that defines "done".
+    _write_if_missing(
+        root / "eval" / "README.md",
+        "# `eval/` — how we know the tool works\n\n"
+        "In tool_build mode, **\"done\" is defined by tests / build / eval,\n"
+        "not by figures.** This folder holds the harness that decides\n"
+        "whether the inner tool meets `spec/requirements.md`:\n\n"
+        "* benchmark datasets / fixtures the tool is scored against,\n"
+        "* the eval scripts that run it and report pass / fail,\n"
+        "* expected-output baselines to diff against.\n\n"
+        "Wire the inner project's own test suite up too — the eval here\n"
+        "governs from above (acceptance), the inner tests guard from\n"
+        "within (units / integration).\n",
+    )
+
+    # milestones.md — the build roadmap.
+    _write_if_missing(
+        root / "milestones.md",
+        f"# {project_name} — milestones\n\n"
+        "The build roadmap. Each milestone is a coherent, shippable\n"
+        "increment with a clear acceptance bar (a passing eval / test, a\n"
+        "working build), not a calendar date.\n\n"
+        "| # | Milestone | Acceptance (eval / test / build) | Status |\n"
+        "|---|---|---|---|\n"
+        "| 1 | _First runnable skeleton_ | _builds + smoke eval passes_ | todo |\n",
+    )
+
+    # governance.md — the load-bearing explainer for tool_build mode.
+    _write_if_missing(
+        root / "governance.md",
+        f"# Governance — {project_name}\n\n"
+        "This is a **tool_build** Research OS workspace. Research OS does\n"
+        "NOT contain the tool; it **governs the build from above**.\n\n"
+        f"* The actual tool lives in `{inner}/` — its own git repository.\n"
+        "  Commit your code there; it has its own history independent of\n"
+        "  this governance layer.\n"
+        "* This outer workspace holds the governance surface:\n"
+        "  * `spec/` — what we're building + the design.\n"
+        "  * `decisions/` — ADRs: why the tool is shaped this way.\n"
+        "  * `eval/` — the harness that defines \"done\" (tests / build /\n"
+        "    benchmarks), since this mode is judged by passing checks,\n"
+        "    not by figures.\n"
+        "  * `milestones.md` — the roadmap of shippable increments.\n"
+        "  * `CHANGELOG.md` — what changed, milestone by milestone.\n\n"
+        "Mode-agnostic safety holds here too: `inputs/` is immutable, all\n"
+        "workspace writes go through the tools, and nothing escapes the\n"
+        "project root.\n",
+    )
+
+    # CHANGELOG.md — milestone-by-milestone history.
+    _write_if_missing(
+        root / "CHANGELOG.md",
+        f"# Changelog — {project_name}\n\n"
+        "All notable changes to the tool, grouped by milestone. Newest on\n"
+        "top.\n\n"
+        "## [Unreleased]\n\n"
+        "- _Initial scaffold._\n",
+    )
+
+    # The inner project dir + a README that orients a builder opening it
+    # cold. The dir itself is git-init'd by the caller.
+    _write_if_missing(
+        root / inner / "README.md",
+        f"# {project_name}\n\n"
+        "This is the **inner project** — the actual tool. It is its own\n"
+        "git repository, governed from above by a Research OS workspace in\n"
+        f"the parent directory (see `../governance.md`).\n\n"
+        "* What it must do → `../spec/requirements.md`\n"
+        "* How it's built → `../spec/design.md`\n"
+        "* Why it's shaped this way → `../decisions/`\n"
+        "* How we know it works → `../eval/`\n\n"
+        "Build here. Commit here. Keep the spec + ADRs + eval in the parent\n"
+        "current as the design moves.\n",
+    )
+
+    # Onboarding files tuned for tool_build (seeded before the generic
+    # writers so they win).
+    _write_if_missing(
+        root / "GETTING_STARTED.md",
+        f"""# Getting started with **{project_name}** (tool_build mode)
+
+This is a Research OS workspace in **tool_build mode**. Research OS
+governs the build from above; the tool itself lives in `{inner}/` —
+its own git repo. "Done" here means tests / build / eval pass, not
+figures.
+
+## The governance layer (this folder)
+
+| Path | What it's for |
+|---|---|
+| `spec/requirements.md` | What the tool must do. Start here. |
+| `spec/design.md` | How it's built. |
+| `decisions/` | ADRs — why it's shaped this way. |
+| `eval/` | The harness that defines "done". |
+| `milestones.md` | Roadmap of shippable increments. |
+| `governance.md` | How the whole thing fits together. |
+| `{inner}/` | **The actual tool** — its own git repository. |
+
+## Typical loop
+
+1. Sharpen `spec/requirements.md` and `spec/design.md`.
+2. Record load-bearing choices as ADRs in `decisions/`.
+3. Build in `{inner}/`; commit there.
+4. Add / run eval in `eval/`; a milestone is done when its checks pass.
+5. Note the change in `CHANGELOG.md`; move to the next milestone.
+
+## More
+
+* AI rules: `AGENTS.md`
+* Config: `inputs/researcher_config.yaml` (`workspace.mode: tool_build`)
+""",
+    )
+    _write_if_missing(
+        root / "README.md",
+        f"""# {project_name}
+
+> A Research OS workspace in **tool_build mode** — Research OS governs the
+> build (spec + decisions + eval + milestones); the tool itself lives in
+> `{inner}/` as its own git repository.
+
+## What's in this folder
+
+| Path | Purpose |
+|---|---|
+| `spec/` | Requirements + design — what we're building. |
+| `decisions/` | Architecture Decision Records (ADRs). |
+| `eval/` | The harness that defines "done" (tests / build / benchmarks). |
+| `milestones.md` | Roadmap of shippable increments. |
+| `governance.md` | How the governance layer + inner repo fit together. |
+| `{inner}/` | The actual tool — its own git repo. |
+| `inputs/` | Immutable data / literature / context. |
+
+See `GETTING_STARTED.md` for the build loop.
+""",
+    )
+    return inner
+
+
 def scaffold_minimal_workspace(
     root: Path,
     project_name: str,
@@ -549,6 +1335,7 @@ def scaffold_minimal_workspace(
     git_init: bool = False,
     ide_flags: list[str] | None = None,
     copy_agents: bool = True,
+    mode: str | None = None,
 ) -> None:
     """Create the workspace directory tree.
 
@@ -557,9 +1344,29 @@ def scaffold_minimal_workspace(
     pre-create synthesis outputs (paper.md, abstract.md), per-experiment
     folders, or pre-filled docs. Those get written by the protocols that own
     them, when (and only when) they're needed.
+
+    The ``mode`` selects a scaffold profile (see ``SCAFFOLD_PROFILES``).
+    When ``None`` the mode is read from the config the wizard captured (via
+    ``config_overrides['workspace']['mode']``), falling back to ``analysis``
+    — the classic linear-step workspace, whose surface is byte-identical to
+    every prior release.
     """
     config_overrides = config_overrides or {}
     ide_flags = ide_flags or list(("cursor", "claude", "antigravity", "opencode", "vscode"))
+
+    # Resolve the workspace mode + its scaffold profile. The wizard threads
+    # the chosen mode through config_overrides['workspace']['mode']; an
+    # explicit ``mode`` argument wins for direct callers. Anything unknown
+    # (or absent) collapses to ``analysis`` so old/odd inputs behave classic.
+    if mode is None:
+        ws_over = config_overrides.get("workspace")
+        if isinstance(ws_over, dict):
+            mode = ws_over.get("mode")
+    mode, profile = _resolve_scaffold_profile(mode)
+    eager_dirs = profile["eager_dirs"]
+    top_level_dirs = profile["top_level_dirs"]
+    lazy_dirs = profile["lazy_dirs"]
+
     root.mkdir(parents=True, exist_ok=True)
 
     # 1. Eager skeleton — only the directories that are GUARANTEED to be
@@ -567,7 +1374,7 @@ def scaffold_minimal_workspace(
     #    environment/, inputs/raw_data/, inputs/literature/, inputs/context/)
     #    are deferred to first-write via ``ensure_lazy_dir`` so a fresh
     #    project surface has no orphan .gitkeep folders.
-    for rel in EAGER_DIRS:
+    for rel in eager_dirs:
         d = root / rel
         d.mkdir(parents=True, exist_ok=True)
 
@@ -690,12 +1497,15 @@ def scaffold_minimal_workspace(
     # 5a-b. workspace/logs/ — append-only audit/search/override trail.
     #       Ships with a README so researchers know what lands here
     #       and can grep across audit reports without first finding
-    #       out the folder exists.
-    logs_dir = root / "workspace" / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    logs_readme = logs_dir / "README.md"
-    if not logs_readme.exists():
-        logs_readme.write_text(
+    #       out the folder exists. Eager in analysis / tool_build; deferred
+    #       in exploration (scratch-first), where it's created on first
+    #       audit/override write.
+    if "workspace/logs" in eager_dirs:
+        logs_dir = root / "workspace" / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        logs_readme = logs_dir / "README.md"
+        if not logs_readme.exists():
+            logs_readme.write_text(
             "# `workspace/logs/` — audit + activity trail\n\n"
             "Aggregated logs that every step (and every audit tool)\n"
             "appends to. Files here are append-only and machine-written;\n"
@@ -713,7 +1523,7 @@ def scaffold_minimal_workspace(
             "* `notifications.log` — `sys_notify` messages.\n"
             "* `version_coherence.md` — drift between scripts and the\n"
             "  outputs that cite them (from `tool_audit_version_coherence`).\n"
-        )
+            )
 
     # 5b. workspace/scratch/ — AI sandbox. Gitignored.
     scratch_dir = root / "workspace" / "scratch"
@@ -733,9 +1543,16 @@ def scaffold_minimal_workspace(
             "`tool_scratch(operation='list')`, `tool_scratch(operation='clear')`.\n"
         )
 
-    # 6. researcher_config.yaml — source of truth for AI behaviour.
+    # 6. researcher_config.yaml — source of truth for AI behaviour. Stamp
+    #    the resolved workspace mode into the config so the file on disk
+    #    matches the scaffold that was built (analysis leaves the template
+    #    default untouched, so its config stays byte-identical to today).
     from research_os.tools.actions.state.config import init_config
 
+    if mode != "analysis":
+        ws_over = dict(config_overrides.get("workspace") or {})
+        ws_over.setdefault("mode", mode)
+        config_overrides["workspace"] = ws_over
     init_config(root, overrides=config_overrides)
 
     # 7. .os_state symlink inside workspace/ for scripts that resolve relative.
@@ -788,12 +1605,16 @@ def scaffold_minimal_workspace(
         if not rp.exists():
             rp.write_text(body)
 
+    # 8b. Mode-specific governance / scratch seeds. No-op for analysis,
+    #     so the classic surface is untouched.
+    inner_repo_name = _seed_mode_extras(root, project_name, mode, config_overrides)
+
     # 9. Manifest + state.
     manifest = {
         "schema_version": "2.0",
         "project": {"title": project_name},
         "created_at": now_iso(),
-        "top_level_directories": list(TOP_LEVEL_DIRS),
+        "top_level_directories": list(top_level_dirs),
         "active_path": "main",
         "paths": {"main": {"status": "active"}},
     }
@@ -801,6 +1622,7 @@ def scaffold_minimal_workspace(
 
     state = default_state()
     state["project_name"] = project_name
+    state["workspace_mode"] = mode
     # Persist wizard-captured research metadata to state (it used to live in
     # researcher_config.yaml, but that's now reserved for fields a researcher
     # actively chooses). regenerate_intake reads these on subsequent calls.
@@ -850,12 +1672,29 @@ def scaffold_minimal_workspace(
         # Open-science manifests are best-effort; never block scaffold.
         pass
     _update_manifest(root)
-    _prune_stale_gitkeeps(root)
+    _prune_stale_gitkeeps(root, top_level_dirs=top_level_dirs, lazy_dirs=lazy_dirs)
     if git_init and not (root / ".git").exists():
         try:
             subprocess.run(["git", "init"], cwd=root, capture_output=True)
         except Exception:
             pass
+
+    # tool_build: the actual tool lives in an INNER project dir that gets
+    # its OWN git repo — Research OS (the outer workspace) governs it from
+    # above. The inner repo is ALWAYS initialised (independent of the outer
+    # git_init flag) so a fresh tool_build project has a working tree the
+    # builder can commit into from the first turn.
+    if mode == "tool_build" and inner_repo_name:
+        inner = root / inner_repo_name
+        if not (inner / ".git").exists():
+            try:
+                inner.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init"], cwd=inner, capture_output=True)
+            except Exception:
+                # Best-effort: if git is missing or init fails, the scaffold
+                # is still usable — the builder can `git init` the inner repo
+                # later. Don't fail the whole project creation over it.
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -1224,7 +2063,11 @@ reads as a finished research project, not an in-progress AI workspace.
 
 
 
-def _prune_stale_gitkeeps(root: Path) -> None:
+def _prune_stale_gitkeeps(
+    root: Path,
+    top_level_dirs: tuple[str, ...] = TOP_LEVEL_DIRS,
+    lazy_dirs: tuple[str, ...] = LAZY_DIRS,
+) -> None:
     """Remove .gitkeep from any project directory that now has real content.
 
     With the eager/lazy split we no longer create .gitkeep on a cold
@@ -1234,8 +2077,12 @@ def _prune_stale_gitkeeps(root: Path) -> None:
     honest. The pass also removes .gitkeep from any empty LAZY_DIR a
     legacy code path may have created — those dirs should not exist at
     all unless populated.
+
+    ``top_level_dirs`` / ``lazy_dirs`` default to the analysis-mode
+    constants so existing callers are unaffected; the scaffold passes the
+    active profile's contract for non-analysis modes.
     """
-    for rel in TOP_LEVEL_DIRS:
+    for rel in top_level_dirs:
         d = root / rel
         if not d.is_dir():
             continue
@@ -1250,7 +2097,7 @@ def _prune_stale_gitkeeps(root: Path) -> None:
                 pass
             continue
         # Empty + .gitkeep'd lazy dir → drop both the marker and the dir.
-        if rel in LAZY_DIRS:
+        if rel in lazy_dirs:
             try:
                 keep.unlink()
                 d.rmdir()

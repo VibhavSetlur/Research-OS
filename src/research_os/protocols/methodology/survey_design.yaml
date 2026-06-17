@@ -1,18 +1,22 @@
 id: survey_design
 tier: 'plan'
 name: Survey / Questionnaire Design (instrument development)
-version: '2.0.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
-  domain: [qualitative]
+  domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline, interview_study]
-last_reviewed: '2026-06-02'
+last_reviewed: '2026-06-16'
+see_also:
+  - methodology/survey_psychometrics   # analyses the instrument this protocol builds
+  - methodology/preregistration        # the frozen instrument is the pre-registered measure
 description: |
-  survey_psychometrics analyses a survey that already exists. THIS
-  protocol scaffolds the design BEFORE data is collected — instrument
-  construction, item drafting, response-format choice, cognitive
-  testing, pilot psychometrics, and translation when relevant.
+  Distinct from survey_psychometrics, which analyses a survey that
+  already exists. THIS protocol scaffolds the design BEFORE data is
+  collected — instrument construction, item drafting, response-format
+  choice, cognitive testing, pilot psychometrics, and translation when
+  relevant.
 
   A survey with poorly-drafted items produces noisy data that no
   amount of clever analysis can rescue. The reasoning the protocol
@@ -44,25 +48,25 @@ prerequisites:
 
 editorial_voice:
   rules:
-    - "Use a validated instrument when one fits. A new instrument
-       takes 6-12 months to develop properly. Adapting / translating
-       an existing one is usually faster AND yields more comparable
-       results. Justify why a new instrument is needed before
-       drafting one."
+    - "Use a validated instrument when one fits. Building a new
+       instrument properly is a major undertaking; adapting /
+       translating an existing one is usually faster AND yields more
+       comparable results. Justify why a new instrument is needed
+       before drafting one."
     - "Construct definition is the foundation. An item can only
        be 'good' relative to a defined construct. Vague constructs
        ('engagement') produce vague items; sharpened constructs
        ('cognitive engagement during asynchronous video lessons')
        constrain item drafting."
-    - "Cognitive interviewing is non-negotiable for new items.
-       5-10 cognitive interviews catch ~80% of comprehension
-       failures. Skipping this step yields items participants
-       misunderstand."
-    - "Response format encodes the construct. A 5-point Likert
-       constrains discrimination; a 7- or 11-point allows finer
-       gradations but increases cognitive load; a slider gives
-       interval-level data but requires more interpretation. Pick
-       deliberately."
+    - "Cognitive interviewing is non-negotiable for new items. It
+       is the step that catches comprehension failures before they
+       become noise in the data; skipping it yields items
+       participants misunderstand."
+    - "Response format encodes the construct. The number of
+       categories, whether a neutral option exists, ordered vs.
+       continuous — each trades discrimination against cognitive
+       load and changes the measurement level. Pick deliberately and
+       cite the format's evidence base for this construct."
 
 steps:
   - id: confirm_no_existing_instrument
@@ -105,18 +109,21 @@ steps:
   - id: draft_items
     name: Draft items per construct
     description: |
-      For each construct (or facet), draft 2-3x the number of items
-      you expect to retain (item attrition during cognitive testing
-      and pilot factor analysis is typical).
+      For each construct (or facet), draft a surplus pool — more items
+      than you expect to retain, because attrition during cognitive
+      testing and pilot factor analysis is the norm. Size the surplus
+      to the construct's breadth and the field's culling conventions.
 
       Item-writing principles:
         - one idea per item (no double-barrelled)
         - simple sentence structure, plain language at the population's
           reading level (Flesch-Kincaid; consider screen-reader users)
         - avoid loaded / leading wording
-        - balance positive + negative wording (BUT: negation increases
-          comprehension errors — many psychometricians now advise
-          all-positive with reverse-scored content avoided)
+        - decide on negative / reverse-scored wording deliberately:
+          negation reliably increases comprehension errors, so a
+          mix of positive and negative items trades method-factor
+          control against measurement noise — cite the field's
+          current position rather than defaulting either way
         - avoid jargon, acronyms, regionalisms
         - culturally appropriate references (foods, holidays,
           institutions) where the survey will be deployed
@@ -128,16 +135,18 @@ steps:
   - id: pick_response_format
     name: Pick the response format(s) per item
     description: |
-      Reason through the choice — examples of common formats:
+      Reason through the choice — examples of common formats and the
+      trade-off each carries:
 
-        LIKERT (ordered categories): 5-point + neutral (most common)
-          vs 7-point (finer) vs 6-point forced-choice (no neutral —
-          forces discrimination, risk of frustration).
+        LIKERT (ordered categories): the number of points and the
+          presence/absence of a neutral midpoint trade discrimination
+          against cognitive load and against the forced-choice vs.
+          opt-out decision. Cite the field's evidence for the count.
         VISUAL ANALOG SCALE / SLIDER: continuous; harder to administer
           on paper; easier in digital.
-        FREQUENCY: never / rarely / sometimes / often / always —
-          beware that frequency words mean different things to
-          different respondents (Bradburn et al. 2004).
+        FREQUENCY: vague frequency words (rarely / often / …) mean
+          different things to different respondents (Bradburn et al.
+          2004) — a known measurement hazard.
         BEHAVIORAL FREQUENCY: numeric count over a time frame ("how
           many days last week did you…") — more interpretable than
           vague frequency words.
@@ -148,14 +157,16 @@ steps:
           can't capture. Code separately.
 
       Match format to the construct's nature. Document the choice
-      per item / per construct.
+      per item / per construct and cite the format's evidence base.
 
   - id: cognitive_interview
-    name: Cognitive interview the item pool (5-10 participants)
+    name: Cognitive interview the item pool
     description: |
-      Recruit 5-10 participants representative of the target
-      population (more if subgroups differ — recruit per subgroup).
-      For each item, probe:
+      Recruit participants representative of the target population,
+      enough to surface the recurring comprehension failures (more
+      when subgroups differ — recruit per subgroup; cite the field's
+      convention for cognitive-interview sample size). For each item,
+      probe:
         - COMPREHENSION — "What does this question mean to you?"
         - RETRIEVAL — "How did you arrive at your answer?"
         - JUDGEMENT — "How did you decide between [option A] and
@@ -179,22 +190,25 @@ steps:
 
       Write workspace/.survey/item_pool_v2.md with a change log.
 
-      Iterate cognitive testing if changes are substantial (typically
-      one more round of 3-5 interviews on the revised items).
+      Iterate cognitive testing if changes are substantial — a further
+      round on the revised items, sized to the remaining uncertainty.
 
   - id: pilot_for_psychometrics
     name: Pilot for preliminary psychometrics
     description: |
-      Field the revised instrument to a pilot sample. Pilot N depends
-      on the planned analysis:
-        - exploratory factor analysis: typically ≥5-10 per item
-          (Costello & Osborne 2005 — but more is better; cite the
-          field convention)
-        - confirmatory factor analysis: typically ≥200 (Boomsma
-          & Hoogland 2001; varies by model complexity)
-        - simple item analysis: ≥30 may suffice for initial culling
+      Field the revised instrument to a pilot sample. Pilot N is
+      dictated by the planned psychometric analysis, not chosen as a
+      round number — derive it and cite the source for the rule used:
+        - exploratory factor analysis: N scales with item count +
+          communalities (e.g. Costello & Osborne 2005; MacCallum et
+          al. 1999) — cite the convention you apply.
+        - confirmatory factor analysis: N scales with model
+          complexity (e.g. Boomsma & Hoogland 2001) — cite the rule.
+        - simple item analysis for initial culling needs less than a
+          full factor model — state the floor and its source.
 
-      Document the pilot recruitment + sample composition.
+      Document the pilot recruitment + sample composition and the
+      N-justification.
 
       Hand off to methodology/survey_psychometrics for the actual
       factor analysis / reliability / item response theory work on
@@ -205,18 +219,20 @@ steps:
     name: Translation + cultural adaptation (when applicable)
     description: |
       If the instrument will be used in a language other than the
-      drafting language, follow a structured process:
-        - forward translation by ≥2 independent translators
-        - reconciliation by a third
+      drafting language, follow a structured cross-cultural adaptation
+      process rather than a single translation. The canonical stages
+      the guidelines name:
+        - independent forward translation (multiple translators)
+        - reconciliation
         - back-translation to the source language
         - committee review of discrepancies
         - cognitive interviews in the target language
         - separate psychometric validation in the target population
 
-      Reference: WHO / Beaton et al. (2000) Guidelines for the
-      Process of Cross-Cultural Adaptation. Surface mismatches
-      between the source and target as cultural items to revise,
-      not just translate.
+      Follow the protocol the field endorses for this and cite it
+      (e.g. WHO / Beaton et al. 2000, Guidelines for the Process of
+      Cross-Cultural Adaptation). Surface mismatches between source
+      and target as cultural items to revise, not just translate.
 
   - id: log_and_route
     name: Log the instrument + route to analysis or preregistration
@@ -240,7 +256,7 @@ expected_outputs:
 quality_bar:
   existing_instrument_search_documented: true
   construct_definitions_with_citation: true
-  item_pool_2x_planned_final_size_before_culling: true
+  item_pool_oversized_before_culling: true
   cognitive_interviewing_completed_for_new_items: true
   response_format_choice_rationalised: true
   pilot_sample_sized_for_planned_psychometric_analysis: true

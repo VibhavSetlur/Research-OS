@@ -1,13 +1,16 @@
 id: humanities_essay_structure
 tier: 'synthesize'
 name: Humanities Essay Structure (interpretive, non-IMRAD, AI-authored Typst)
-version: '2.3.0'
+version: '3.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [humanities]
   audience: [auditor]
   workflow_shape: [linear_essay]
-last_reviewed: '2026-06-08'
+last_reviewed: '2026-06-16'
+see_also:
+  - synthesis/synthesis_paper          # IMRAD sibling; this is the non-IMRAD form
+  - synthesis/journal_selection
 description: |
   Guide the AI to author `synthesis/essay.typ` directly as a
   humanities essay — literary criticism, history of ideas,
@@ -18,7 +21,8 @@ description: |
   The interpretive shape humanities reviewers expect:
     1. Introduction + thesis (load-bearing sentence)
     2. Contextual framing (seat the argument in the field)
-    3. Close readings (the evidentiary core — 3–5)
+    3. Close readings (the evidentiary core — enough passages to carry
+       the thesis; a single reading is an observation, not an argument)
     4. Critical conversation (where you sit vs the secondary critics)
     5. Counter-argument + reply (steelmanned objection)
     6. Conclusion + stakes (why this reading matters beyond the text)
@@ -41,9 +45,11 @@ prerequisites:
     notes exists (humanities/textual/close_reading produces this).
   - A working thesis sentence — even a one-line scratch claim is
     enough; the protocol refines it.
-  - At least three primary-source passages identified for close
-    reading. Below three this is a note, not an essay.
-  - inputs/literature_index.yaml has ≥5 secondary-critic entries.
+  - Enough primary-source passages identified for close reading that
+    the thesis rests on a pattern, not a single instance — a lone
+    passage is a note, not an essay.
+  - inputs/literature_index.yaml carries enough secondary-critic
+    entries to situate the argument in its critical conversation.
 
 design_principles: |
   - The thesis is one sentence. Evaluative ("Milton's Satan is
@@ -68,11 +74,11 @@ design_principles: |
 quality_standards: |
   - thesis_one_sentence_falsifiable — yes
   - contextual_framing_present — yes
-  - close_readings — 3-5; each quotes its passage; each links a
-    formal feature to the thesis
-  - critical_conversation — >=5 named secondary critics, each with
-    your relation to their position (extends / qualifies / contests
-    / ignores-and-replaces)
+  - close_readings — enough passages to carry the thesis; each quotes
+    its passage and links a formal feature to the thesis
+  - critical_conversation — the secondary critics the field expects
+    engaged, each with your relation to their position (extends /
+    qualifies / contests / ignores-and-replaces)
   - counter_argument_steelmanned — yes; reply present
   - conclusion_names_stakes — yes
   - apparatus — footnotes (not parenthetical), block quotes for
@@ -83,8 +89,8 @@ steps:
     name: Lock the thesis sentence
     description: |
       Write the one-sentence thesis in workspace/.outline/thesis.md
-      with rationale + the 3-5 passages you'll read closely. Test
-      it (falsifiable? non-obvious? supported by the apparatus?).
+      with rationale + the passages you'll read closely. Test it
+      (falsifiable? non-obvious? supported by the apparatus?).
 
   - id: scaffold
     name: Scaffold essay.typ
@@ -102,8 +108,8 @@ steps:
   - id: critical_conversation
     name: Draft the critical conversation
     description: |
-      3-7 named critics + your relation to each (extends / qualifies
-      / contests / ignores-and-replaces).
+      The named critics the field expects engaged + your relation to
+      each (extends / qualifies / contests / ignores-and-replaces).
 
   - id: counter_argument
     name: Draft the counter-argument and reply

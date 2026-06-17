@@ -17,6 +17,13 @@ import re
 from pathlib import Path
 from typing import Any
 
+from research_os.tools.actions.audit._paper import (
+    has_references,
+    is_typst,
+    resolve_paper_path,
+    section_body,
+)
+
 
 PAPER_SECTIONS = ("abstract", "introduction", "methods", "results", "discussion", "references")
 
@@ -75,12 +82,42 @@ CLICHES: tuple[tuple[str, str], ...] = (
 # ---------------------------------------------------------------------------
 
 
-def _section_text(paper_text: str, section: str) -> str:
-    m = re.search(
-        rf"^##\s+{section}\s*\n(.+?)(?=^##\s|\Z)",
-        paper_text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
-    )
-    return (m.group(1) if m else "").strip()
+def _typst_abstract(paper_text: str) -> str:
+    """Pull the abstract out of a Typst ``conf(abstract: [ … ])`` block.
+
+    Typst sets the abstract inside the template config rather than as a
+    ``= Abstract`` heading, so the generic heading-based extractor can't
+    see it. Capture from ``abstract: [`` to the matching ``]`` by depth.
+    """
+    m = re.search(r"abstract\s*:\s*\[", paper_text, re.IGNORECASE)
+    if not m:
+        return ""
+    i = m.end()
+    depth = 1
+    start = i
+    while i < len(paper_text) and depth:
+        ch = paper_text[i]
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                break
+        i += 1
+    return paper_text[start:i].strip()
+
+
+def _section_text(paper_text: str, section: str, typst: bool = False) -> str:
+    """Return a named IMRAD section's body for Markdown or Typst.
+
+    Markdown sections are ``## <name>``; Typst sections are ``= <name>``
+    (matched at any depth by :func:`section_body`). The Typst abstract is
+    a special case — it lives in the template ``conf`` block, not under a
+    heading — so it is extracted separately.
+    """
+    if typst and section.lower() == "abstract":
+        return _typst_abstract(paper_text)
+    return section_body(paper_text, section, typst)
 
 
 def _step_dirs(root: Path) -> list[Path]:
@@ -271,14 +308,16 @@ def audit_results(text: str, root: Path) -> dict[str, Any]:
     }
 
 
-def audit_discussion(text: str, root: Path) -> dict[str, Any]:
+def audit_discussion(text: str, root: Path, typst: bool = False) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
     if not text:
         blockers.append("Discussion missing entirely.")
         return {"blockers": blockers, "warnings": warnings}
-    # Limitations paragraph: heading OR ≥3 hedging phrases.
-    has_limits_heading = bool(re.search(r"^###?\s+limit", text, re.M | re.I))
+    # Limitations paragraph: heading OR ≥3 hedging phrases. Sub-headings
+    # are ``###``/``####`` in Markdown, ``==``/``===`` in Typst.
+    limit_heading_re = r"^==+\s+limit" if typst else r"^###?\s+limit"
+    has_limits_heading = bool(re.search(limit_heading_re, text, re.M | re.I))
     hedging = sum(1 for h in (
         "limitation", "caveat", "however,", "we cannot",
         "may not", "should not", "is limited", "unable to",
@@ -315,13 +354,27 @@ def audit_discussion(text: str, root: Path) -> dict[str, Any]:
     }
 
 
-def audit_references_present(text: str) -> dict[str, Any]:
-    """Every cited key must appear in the References section."""
+def audit_references_present(text: str, typst: bool = False) -> dict[str, Any]:
+    """Every cited key must resolve to a bibliography entry.
+
+    Markdown drafts inline the bibliography under a ``## References``
+    heading, so each cited ``@key`` must appear there. Typst drafts point
+    at an external ``#bibliography("biblio.yml")`` file the auditor can't
+    read inline, so the cited-vs-listed reconciliation is skipped — only
+    the presence of a bibliography directive is required.
+    """
     blockers: list[str] = []
     warnings: list[str] = []
     if not text:
         return {"blockers": blockers, "warnings": warnings}
     cited = set(re.findall(r"@([A-Za-z][\w:.-]+)", text))
+    if typst:
+        if cited and not has_references(text, typst):
+            blockers.append(
+                f"{len(cited)} citation(s) present but no "
+                "`#bibliography(...)` directive found."
+            )
+        return {"blockers": blockers, "warnings": warnings}
     refs_section_match = re.search(
         r"^##\s+references\s*\n(.+?)(?=^##\s|\Z)",
         text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
@@ -377,19 +430,22 @@ def audit_cliches(paper_path: str, root: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def section_substantiveness(root: Path, paper_path: str = "synthesis/paper.md") -> dict[str, Any]:
+def section_substantiveness(root: Path, paper_path: str | None = None) -> dict[str, Any]:
+    if paper_path is None:
+        paper_path = resolve_paper_path(root)
     p = root / paper_path
     if not p.exists():
         return {"status": "error", "message": f"{paper_path} not found.", "blockers": [], "warnings": []}
     text = p.read_text(encoding="utf-8", errors="replace")
+    typst = is_typst(paper_path)
 
     sub_reports = {
-        "abstract":     audit_abstract(_section_text(text, "abstract")),
-        "introduction": audit_introduction(_section_text(text, "introduction")),
-        "methods":      audit_methods(_section_text(text, "methods"), root),
-        "results":      audit_results(_section_text(text, "results"), root),
-        "discussion":   audit_discussion(_section_text(text, "discussion"), root),
-        "references":   audit_references_present(text),
+        "abstract":     audit_abstract(_section_text(text, "abstract", typst)),
+        "introduction": audit_introduction(_section_text(text, "introduction", typst)),
+        "methods":      audit_methods(_section_text(text, "methods", typst), root),
+        "results":      audit_results(_section_text(text, "results", typst), root),
+        "discussion":   audit_discussion(_section_text(text, "discussion", typst), root, typst),
+        "references":   audit_references_present(text, typst),
     }
     cliche = audit_cliches(paper_path, root)
 

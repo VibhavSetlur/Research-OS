@@ -6,17 +6,17 @@ from typing import Any
 
 AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_audit": {
-        "short": "Unified per-dimension audit. scope=step|project|synthesis|active_gates; dimension picks the gate.",
+        "short": "Unified per-dimension audit. scope=step|project|synthesis|tool|active_gates; dimension picks the gate.",
         "do_not": "Set override_* params only when researcher explicitly authorizes. Without a substantive override_rationale (>=20 chars, multi-word), the override is rejected.",
-        "description": "Unified audit dispatcher. Pick (scope, dimension): scope='step' for per-step gates (completeness, literature, code_quality, evalue, figure, figure_full, figure_interactivity, power, assumptions, reproducibility); scope='project' for project-wide gates (citations, claims, cliches, coherence, cross_deliverable, prose, version_coherence); scope='synthesis' for synthesis-side gates (all, dashboard_content, figure_coverage, reviewer_responses); scope='active_gates' (no dimension required) returns the live armed-gate state on this project — which audit gates have emitted findings in the cross-audit ledger, with per-gate counts by severity, so the AI can see what's actively enforced without grepping audit code. Per-dimension kwargs are accepted on the same call (e.g. step_id, paper_path, filepath, target_path, override_no_pdfs, override_rationale, ...). Output schema matches the legacy per-dimension tool for the chosen (scope, dimension). Use tool_audit_quality_full to run all primary gates in one shot. Use tool_audit_findings to read the cross-audit findings ledger after one or more audits have written to it. Use sys_help(topic='gates') for the full gate vocabulary.",
+        "description": "Unified audit dispatcher. Pick (scope, dimension): scope='step' for per-step gates (completeness, literature, code_quality, evalue, figure, figure_full, figure_interactivity, power, assumptions, reproducibility); scope='project' for project-wide gates (citations, claims, cliches, coherence, cross_deliverable, prose, version_coherence); scope='synthesis' for synthesis-side gates (all, dashboard_content, figure_coverage, reviewer_responses); scope='tool' for tool_build-mode gates (tests, git_hygiene, build) — the analog of the figure/literature gates, mode-aware (a no-op outside workspace.mode='tool_build'); scope='active_gates' (no dimension required) returns the live armed-gate state on this project — which audit gates have emitted findings in the cross-audit ledger, with per-gate counts by severity, so the AI can see what's actively enforced without grepping audit code. Per-dimension kwargs are accepted on the same call (e.g. step_id, paper_path, filepath, target_path, override_no_pdfs, override_rationale, ...). Output schema matches the legacy per-dimension tool for the chosen (scope, dimension). Use tool_audit_quality_full to run all primary gates in one shot. Use tool_audit_findings to read the cross-audit findings ledger after one or more audits have written to it. Use sys_help(topic='gates') for the full gate vocabulary.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "scope": {
                     "type": "string",
-                    "enum": ["step", "project", "synthesis", "active_gates"],
-                    "description": "Audit scope. step = per-step gate. project = project-wide gate (paper / repo / citations). synthesis = synthesis-side gate (paper / dashboard / reviewer responses). active_gates = introspect which gates are armed on this project (no dimension required).",
+                    "enum": ["step", "project", "synthesis", "tool", "active_gates"],
+                    "description": "Audit scope. step = per-step gate. project = project-wide gate (paper / repo / citations). synthesis = synthesis-side gate (paper / dashboard / reviewer responses). tool = tool_build-mode gate (tests / git_hygiene / build; no-op outside tool_build). active_gates = introspect which gates are armed on this project (no dimension required).",
                 },
                 "dimension": {
                     "type": "string",
@@ -233,6 +233,32 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "override_rationale": {"type": "string"},
             },
             "required": ["step_id"],
+            "additionalProperties": False,
+        },
+    },
+    "tool_finalize_project": {
+        "short": "Server-enforced ship gate. operation='check'|'finalize'. The one gate that can REFUSE 'done'.",
+        "do_not": "Set override=true only when the researcher explicitly authorizes shipping despite blockers. Without a substantive override_rationale (>=20 chars, multi-word) the override is rejected.",
+        "then": "If clear, deliverable may ship. If blocked, resolve the listed blockers OR obtain a researcher override.",
+        "description": "The single final pre-ship gate that can actually refuse to mark a deliverable done — every other gate is advisory. Aggregates BLOCK-severity findings across the whole project: (1) unresolved audit blockers in the cross-audit ledger, (2) cited-but-invalid PDFs (files named *.pdf that fail the %PDF- magic check — renamed 403/HTML/paywall pages), (3) ungrounded numeric claims in the resolved deliverable (numbers appearing in no workspace output), and (4) stub/placeholder deliverable sections (TODO/TBD/FIXME/lorem ipsum/<placeholder>/authoring comments). operation='check' (default) is report-only: it lists blockers without refusing. operation='finalize' enforces: any unresolved blocker returns a hard error (refusing 'done') unless override=true + a substantive override_rationale clears it (logged to workspace/logs/override_log.md). Writes workspace/logs/ship_gate.md. Reference this as the LAST step before shipping a paper/dashboard/poster.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["check", "finalize"],
+                    "description": "check = report-only (advisory). finalize = enforce; blockers refuse 'done' unless overridden.",
+                },
+                "override": {
+                    "type": "boolean",
+                    "description": "operation='finalize' — ship despite blockers. Requires a substantive override_rationale. Only set when the researcher explicitly authorizes.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "Required when override=true. >=20 chars, multi-word, non-placeholder. Logged to workspace/logs/override_log.md.",
+                },
+            },
             "additionalProperties": False,
         },
     },

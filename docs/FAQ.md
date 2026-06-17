@@ -35,7 +35,7 @@ Other v2.0.0 highlights:
   (`tool_typst_compile`); the auto-generators that produced rigid
   output were retired.
 * **`research-os doctor`** — 20+ install + workspace health checks.
-* **`tier:` + `scope_tags`** on every protocol (117/117) — wires the
+* **`tier:` + `scope_tags`** on every protocol — wires the
   router to filter candidates by project lifecycle and applicability.
 * **New discovery tools** — `tool_protocols_list` + `tool_tools_list`
   return flat filterable catalogues.
@@ -109,7 +109,7 @@ endpoints (Crossref, PubMed, arXiv) automatically and only enables the
 paid / rate-limited search backend when its key is present. No restart
 needed — the server re-reads the file each session.
 
-### Do I have to read all 114 protocols to know which to use?
+### Do I have to read every protocol to know which to use?
 
 No. You never browse protocols. You speak in plain English; `tool_route`
 maps your message to the right protocol. As of v1.2.0 it tries
@@ -152,8 +152,9 @@ Yes. After `research-os init`, drop your data / PDFs / notes anywhere in
 
 `tool_intake_autofill` reads everything, classifies the domain, extracts
 your research question + hypotheses from context notes, and writes them
-into `inputs/intake.md` + `docs/research_overview.md` (with the
-hypothesis ledger persisted to `.os_state/state.json`). Domain / research
+into `inputs/intake.md` + the project's `docs/` folder (as
+`research_overview.md`), with the hypothesis ledger persisted to
+`.os_state/state.json`. Domain / research
 question / hypotheses are intentionally NOT in `researcher_config.yaml`
 — that file is reserved for fields a researcher actively chooses.
 
@@ -201,10 +202,10 @@ Multiple active paths coexist (e.g. `02_logistic_baseline` AND
 `03_random_forest`). Use `tool_branch_recommendation` if you're not
 sure whether to branch or extend the current path.
 
-(The legacy `sys_path_create` / `sys_path_abandon` / `sys_path_list`
-names were hard-removed in v2.0.0 — call `sys_path(operation=...)`
-with the matching `operation`. The `_REMOVED_TOOLS` error envelope
-names the canonical entry point if a stale caller hits the old name.)
+(The legacy `sys_path_create` / `sys_path_abandon` / `sys_path_list` names were hard-removed
+in v2.0.0 — call `sys_path(operation=...)` with the matching
+`operation`. The `_REMOVED_TOOLS` error envelope names the canonical
+entry point if a stale caller hits the old name.)
 
 ### How do I track multiple hypotheses?
 
@@ -361,7 +362,7 @@ restores. Research OS auto-snapshots at every protocol boundary.
 ### The AI is hallucinating tool names that don't exist.
 
 The dispatcher accepts three forms (`sys_state_get`, `sys.state.get`,
-legacy `sys_guidance_get`) and rewrites them to canonical underscore form.
+legacy `sys_state_summary`) and rewrites them to canonical underscore form.
 If the AI still hits "Unknown tool", ask: "Call `sys_protocol_list` and
 tell me what's actually available." All tool names are listed.
 
@@ -481,7 +482,7 @@ tool_audit_findings(
 as blockers on the AI's synthesis file; the AI fixes the source
 .typ / .html before compiling.
 
-### Where did tool_synthesize / tool_dashboard / tool_slides_create / tool_poster_create go?
+### Where did tool_synthesize / tool_dashboard / tool_slides_create / tool_poster_create go? (removed)
 
 Retired in v2.3.0. The auto-generators produced rigid, low-quality
 output (the dashboard was a 3MB monolithic HTML; the paper was a
@@ -572,7 +573,7 @@ silent breakage on your end.
   version released on or after 2026-06-01, or wrap the adapter call
   in a try/except on `KeyError`.
 * **Path containment is enforced for `sys_file_*` only.** Tools that
-  shell out (e.g. `tool_python_exec`, `tool_shell_exec`) can still
+  shell out (e.g. `tool_python_exec`, `tool_bash_exec`) can still
   read/write outside the project root. Workaround: prefer
   `sys_file_*` for I/O the AI initiates; reserve shell-outs for
   user-driven work.
