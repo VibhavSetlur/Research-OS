@@ -6,6 +6,81 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.1.0] — Index-free routing, output integrity, and figure/deliverable consistency (2026-06-17)
+
+MINOR release. Backwards-compatible: every existing tool keeps its name + schema
+(new capability is added via new operations/scopes and a new alias). Driven by a
+fresh 11-area discovery audit of the 3.0.0 codebase.
+
+### Added
+
+- **Compiled routing sidecar (`_route_meta.json`).** Routing no longer parses the
+  104K `_router_index.yaml` at runtime. `build_embeddings.py` compiles a compact,
+  comments-free JSON mirror (protocols/shortcut_intents/hierarchy + pre-baked
+  `tier` + `workflow_shape`) that `router.py` and `semantic.py` share via a single
+  load. It parses ~300× faster (~0.42 ms vs ~126 ms) and removes the per-route
+  protocol-body reads. The YAML stays the authoring source; `--route-meta-only`
+  rebuilds the sidecar without fastembed. New preflight gate validates the sidecar
+  is fresh + consistent + embeddings-parity-checked.
+- **`tool_verify(scope='outputs')`** — the "did the work actually land?" gate.
+  Resolves a protocol's declared `expected_outputs` against the filesystem
+  (glob-aware) and reports each present / empty / missing with a `next_action`.
+  The injected protocol-completion step now requires it before logging
+  `completed`, so the system refuses to call a missing or empty file "done".
+  `docs/VERSIONING.md` documents the in-project versioning convention.
+- **`sys_path(operation='rename')`** — give a generic analysis step a meaningful
+  label. Keeps the `NN_` lineage number, renames the folder, and re-points every
+  downstream `data/*` symlink that targeted it. **`sys_step`** is now an alias for
+  `sys_path` (the clearer name for numbered steps).
+- **Routing-targets preflight gate** — every `next_protocol` / `on_failure` /
+  `see_also` must point at a real protocol (dangling links were previously silent).
+
+### Improved
+
+- **Figures.** `tool_figure_palette('accent')` now returns the exact `RO_PALETTE`
+  colours `apply_research_os_style` applies (a hand-coloured figure matches an
+  auto-styled one); adds `diverging_emphasis`. `audit_figure_quality` runs its
+  text-overlap + default-font (DejaVu) legibility scan on a PNG's sibling SVG too,
+  and a corrupt/empty image now warns instead of crashing the audit.
+- **Synthesis deliverables.** `tool_typst_compile` archives the prior render to
+  `synthesis/archive/<name>_<timestamp>.pdf` before overwriting (no silent
+  clobber), flags single-page-target overflow (poster/cover-letter rendered to
+  >1 page = content overflowed — where overlapping text shows up), and counts
+  pages without the off-by-one `/Type /Pages` miscount. The poster check no longer
+  false-blocks scaffold-authored posters (`#headline` / `#block-section`).
+- **Wizard.** Ctrl+C/Ctrl+D mid-wizard exits cleanly instead of a traceback; the
+  "already exists" check moved to the start (no more filling out the whole wizard
+  to be rejected at the end); email + ORCID inputs are format-validated.
+- **Doctrine.** `power_analysis` replaced its data-shape→test-family menu with
+  scaffold form (name the dimensions that fix the test, justify the choice).
+
+### Fixed
+
+- `state_freshness_check` read `workspace/state.json` — a file that never exists —
+  so the staleness signal was permanently dead; now reads the real ledger.
+- `get_dag_path` / `add_dag_node` stopped persisting the constant
+  `execution_dag_path` back into the ledger every call (write churn + schema noise).
+- Dead-end pause detection read `protocol_name` but the execution log writes
+  `protocol` — the signal was silently dead.
+- Autopilot gate used `str.lstrip('./')` (strips characters), so `.synthesis/x`
+  was mangled into `synthesis/x` and falsely gated; now strips the prefix properly.
+- Maintainer docs (CLAUDE.md) pointed at the long-gone `src/research_os/server.py`
+  monolith — repointed to the `server/` package; dropped stale protocol counts.
+
+### Bumped
+
+- `version` → 3.1.0 (pyproject / `__init__` / CITATION); router index counter → 27.
+
+### Deferred (tracked for a future release)
+
+- Tool-cluster consolidation (SLURM 4→1) — aliased, low user-visible benefit.
+- A first-class renamable BRANCH object + retro-organization of loose work
+  (higher-risk state-schema change beyond the step rename shipped here).
+- Deeper audit-gate hardening (claims-gate-on-by-default, ship-gate
+  rerun-resolution) — behavior-changing, staged separately.
+
+---
+
 ## [3.0.0] — Workspace modes, real rigor, and a system built for every researcher (2026-06-16)
 
 MAJOR release. Research OS now fits the *shape* of your work — classic
