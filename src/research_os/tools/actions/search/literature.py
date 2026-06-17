@@ -420,6 +420,8 @@ def download_literature(
                         permanent=False,
                     )
                 except Exception:
+                    # Best-effort enrichment of the error envelope; fall
+                    # through to the generic not-a-PDF error below.
                     pass
             return {
                 "status": "error",

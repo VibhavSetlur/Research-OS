@@ -122,6 +122,7 @@ def _current_branch(repo: Path) -> str | None:
         if res.returncode == 0:
             return res.stdout.strip()
     except Exception:
+        # No git / not a repo yet → no branch to report.
         pass
     return None
 
@@ -132,6 +133,7 @@ def _head_sha(repo: Path) -> str | None:
         if res.returncode == 0:
             return res.stdout.strip()
     except Exception:
+        # No git / no commits yet → no HEAD sha to report.
         pass
     return None
 

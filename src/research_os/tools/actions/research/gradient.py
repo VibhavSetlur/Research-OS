@@ -244,6 +244,7 @@ def _count_artifacts(root: Path) -> dict[str, int]:
                 if conc.exists() and conc.stat().st_size > 50:
                     counts["steps_with_conclusions"] += 1
             except OSError:
+                # Unreadable path → just don't count it.
                 pass
             fig_dir = ed / "outputs" / "figures"
             if fig_dir.exists():
@@ -254,6 +255,7 @@ def _count_artifacts(root: Path) -> dict[str, int]:
                         {".png", ".jpg", ".jpeg", ".pdf", ".svg", ".tiff"}
                     )
                 except OSError:
+                    # Unreadable figures dir → leave the count as-is.
                     pass
             tab_dir = ed / "outputs" / "tables"
             if tab_dir.exists():
@@ -263,6 +265,7 @@ def _count_artifacts(root: Path) -> dict[str, int]:
                         if f.suffix.lower() in {".csv", ".tsv", ".md", ".html"}
                     )
                 except OSError:
+                    # Unreadable tables dir → leave the count as-is.
                     pass
     except Exception:
         logger.debug("deliverable_chooser: path walk failed", exc_info=True)
@@ -275,6 +278,7 @@ def _count_artifacts(root: Path) -> dict[str, int]:
                 if ln.strip().startswith(("- ", "* ", "["))
             )
         except OSError:
+            # Unreadable citations file → leave citations at 0.
             pass
     return counts
 

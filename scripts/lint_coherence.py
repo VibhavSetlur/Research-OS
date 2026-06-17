@@ -89,6 +89,8 @@ def _load_maps() -> tuple[set[str], set[str], set[str]]:
         from research_os.server.tool_definitions import TOOL_DEFINITIONS
         canonical = set(TOOL_DEFINITIONS.keys())
     except Exception:
+        # Best-effort: if the package can't be imported (e.g. running the
+        # linter outside the env), fall back to the curated sets below.
         pass
     try:
         from research_os.server import aliases as a
@@ -96,6 +98,8 @@ def _load_maps() -> tuple[set[str], set[str], set[str]]:
         deprecated |= set(a._ALIASES.keys())
         deprecated |= set(getattr(a, "_DEPRECATED_ALIASES", {}).keys())
     except Exception:
+        # Best-effort: alias maps are optional; absence just means the
+        # linter won't warn on deprecated names this run.
         pass
     # A name that is both canonical and aliased (rare) counts as canonical.
     deprecated -= canonical

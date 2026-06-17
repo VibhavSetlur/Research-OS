@@ -1691,6 +1691,9 @@ def scaffold_minimal_workspace(
                 inner.mkdir(parents=True, exist_ok=True)
                 subprocess.run(["git", "init"], cwd=inner, capture_output=True)
             except Exception:
+                # Best-effort: if git is missing or init fails, the scaffold
+                # is still usable — the builder can `git init` the inner repo
+                # later. Don't fail the whole project creation over it.
                 pass
 
 
