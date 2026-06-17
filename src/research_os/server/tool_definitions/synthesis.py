@@ -13,14 +13,15 @@ from typing import Any
 SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_figure_palette": {
         "short": "Return a colour-blind-safe palette (Okabe-Ito / viridis / PuOr / accent).",
-        "description": "Returns a palette suitable for paper figures: qualitative (Okabe-Ito, 8 hues, CVD-safe), sequential (viridis, monotonic luminance), diverging (PuOr, perceptually balanced), or accent (single primary + gold/green/red). Call when authoring a plotting script. Does NOT modify any file.",
+        "description": "Returns a palette suitable for paper figures: qualitative (Okabe-Ito, 8 hues, CVD-safe), sequential (viridis, monotonic luminance), diverging (PuOr, perceptually balanced), accent (the 5 cohesive RO_PALETTE colours that apply_research_os_style applies — so a hand-coloured figure matches an auto-styled one), or diverging_emphasis (the oxblood/forest delta pair). Call when authoring a plotting script. Does NOT modify any file.",
         "category": "viz",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "kind": {
                     "type": "string",
-                    "description": "qualitative (default) | sequential | diverging | accent.",
+                    "enum": ["qualitative", "sequential", "diverging", "accent", "diverging_emphasis"],
+                    "description": "qualitative (default) | sequential | diverging | accent | diverging_emphasis.",
                 },
                 "n": {
                     "type": "number",
