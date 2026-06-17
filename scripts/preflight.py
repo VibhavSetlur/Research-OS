@@ -737,13 +737,15 @@ def check_route_meta():
         if key not in on_disk:
             bad.append(f"missing top-level `{key}`")
     protos = on_disk.get("protocols", {}) or {}
-    for pid, entry in protos.items():
-        if "workflow_shape" not in entry:
-            bad.append(f"{pid}: no baked workflow_shape")
-            break
-        if not entry.get("intent_class"):
-            bad.append(f"{pid}: no intent_class")
-            break
+    missing_shape = [pid for pid, e in protos.items() if "workflow_shape" not in e]
+    missing_ic = [pid for pid, e in protos.items() if not e.get("intent_class")]
+    if missing_shape:
+        bad.append(
+            f"{len(missing_shape)} protocol(s) missing baked workflow_shape: "
+            f"{missing_shape[:3]}"
+        )
+    if missing_ic:
+        bad.append(f"{len(missing_ic)} protocol(s) missing intent_class: {missing_ic[:3]}")
     # Parity: every core routable protocol must have an embedding (else the
     # semantic path can rank a protocol it then can't route to).
     embeds_npz = PROTOCOLS_DIR / "_embeddings.npz"

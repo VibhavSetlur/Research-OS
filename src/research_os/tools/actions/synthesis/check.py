@@ -202,9 +202,12 @@ def _check_poster(text: str) -> dict[str, Any]:
     sections = block_sections or heading_sections
     has_title_field = bool(re.search(r"^#?title:|title:", text, re.I))
     if headlines < 1 and not has_title_field:
-        blockers.append(
-            "No headline — a poster needs one across-the-room-readable headline "
-            "sentence (#headline[...])."
+        # WARN, not BLOCK: a hand-rolled poster may carry its headline as a
+        # large heading or a template title arg we can't see. The structural
+        # requirement (>=3 sections, below) stays a blocker.
+        warnings.append(
+            "No #headline[...] detected — a Better-Poster reads best with one "
+            "across-the-room-readable headline sentence. Confirm one is present."
         )
     if sections < 3:
         blockers.append(

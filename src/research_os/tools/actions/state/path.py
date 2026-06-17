@@ -127,6 +127,11 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
     old_dir = workspace_dir / path_name
     if not old_dir.exists() or not old_dir.is_dir():
         return {"status": "error", "message": f"Path '{path_name}' not found in workspace/"}
+    if path_name.endswith("__DEAD_END"):
+        return {
+            "status": "error",
+            "message": "Cannot rename an abandoned step — restore it first.",
+        }
     m = re.match(r"^(\d{2,3})_(.*)$", path_name)
     if not m:
         return {
@@ -141,9 +146,12 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
     if new_dir.exists():
         return {"status": "error", "message": f"Target '{new_name}' already exists."}
 
-    old_abs = str(old_dir.resolve())
+    # project_ops writes step symlinks with .symlink_to(target.absolute()) — i.e.
+    # the ABSOLUTE (not symlink-resolved) path. Match that convention; .resolve()
+    # would dereference a symlinked project-root component and never match.
+    old_abs = str(old_dir.absolute())
     old_dir.rename(new_dir)
-    new_abs = str(new_dir.resolve())
+    new_abs = str(new_dir.absolute())
 
     # Re-point absolute symlinks across the whole workspace that pointed into
     # the old folder (downstream steps' data/input → this step's data/output).
@@ -155,7 +163,9 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
             target = os.readlink(link)
         except OSError:
             continue
-        if target.startswith(old_abs):
+        # Require a path boundary so renaming `01_eda` does NOT clobber a
+        # sibling `01_eda_extra`'s links (prefix-match bug).
+        if target == old_abs or target.startswith(old_abs + os.sep):
             new_target = new_abs + target[len(old_abs):]
             try:
                 link.unlink()

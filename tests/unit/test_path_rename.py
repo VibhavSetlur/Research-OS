@@ -45,6 +45,30 @@ def test_rename_keeps_number_and_repoints_downstream(tmp_path):
     assert res["symlinks_repointed"] >= 1
 
 
+def test_rename_does_not_clobber_prefix_sibling(tmp_path):
+    root = _project(tmp_path)
+    ws = root / "workspace"
+    # Two steps whose names share a prefix: 01_eda vs 01_eda_extra.
+    (ws / "01_eda" / "data" / "output").mkdir(parents=True)
+    (ws / "01_eda_extra" / "data" / "output").mkdir(parents=True)
+    # A downstream link points (absolutely) into the LONGER-named sibling.
+    dlink = ws / "02_next" / "data"
+    dlink.mkdir(parents=True)
+    (dlink / "input").symlink_to((ws / "01_eda_extra" / "data" / "output").absolute())
+
+    rename_path("01_eda", "cleaned", root)
+    # The sibling's link must be untouched (prefix-match bug would clobber it).
+    assert "01_eda_extra" in os.readlink(dlink / "input")
+    assert (dlink / "input").resolve().exists()
+
+
+def test_rename_rejects_dead_end(tmp_path):
+    root = _project(tmp_path)
+    (root / "workspace" / "01_x__DEAD_END").mkdir(parents=True)
+    res = rename_path("01_x__DEAD_END", "y", root)
+    assert res["status"] == "error" and "abandoned" in res["message"].lower()
+
+
 def test_rename_rejects_unnumbered(tmp_path):
     root = _project(tmp_path)
     (root / "workspace" / "loose_dir").mkdir(parents=True)

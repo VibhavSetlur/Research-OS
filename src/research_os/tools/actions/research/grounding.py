@@ -581,6 +581,23 @@ def _check_output(root: Path, item: Any, min_bytes: int) -> dict[str, Any] | Non
     if not path_str:
         return None
 
+    # Many protocols annotate the path: "workspace/x.log (only on failures)" or
+    # "COLLABORATOR.md   top-level, share-safe". Strip a trailing parenthetical
+    # or a 2+-space-separated description so we resolve the bare path, and skip
+    # entries that are prose rather than a path.
+    path_str = re.split(r"\s{2,}|\s+\(", path_str, maxsplit=1)[0].strip()
+    if not path_str or path_str.startswith("("):
+        return None
+    if "/" not in path_str and "." not in path_str and "*" not in path_str:
+        return None  # descriptive prose, not a checkable path
+
+    def _size_of(m: Path) -> int:
+        if m.is_file():
+            return m.stat().st_size
+        if m.is_dir():
+            return sum(f.stat().st_size for f in m.rglob("*") if f.is_file())
+        return 0
+
     if "*" in path_str or "{" in path_str:
         expanded = path_str.replace("{step_number}", "??").replace("{step_name}", "*")
         matches = [m for m in root.glob(expanded.lstrip("/"))]
@@ -592,17 +609,17 @@ def _check_output(root: Path, item: Any, min_bytes: int) -> dict[str, Any] | Non
                     "that produces it before logging the protocol completed."
                 ),
             }
-        nonempty = [m for m in matches if m.is_file() and m.stat().st_size >= min_bytes]
-        if nonempty:
+        # A match may be a file OR a populated directory (e.g. workspace/*/scripts).
+        total = sum(_size_of(m) for m in matches)
+        if total >= min_bytes:
             return {
                 "path": path_str, "status": "present",
-                "bytes": sum(m.stat().st_size for m in nonempty),
-                "matches": len(matches), "next_action": None,
+                "bytes": total, "matches": len(matches), "next_action": None,
             }
         return {
-            "path": path_str, "status": "empty", "bytes": 0, "matches": len(matches),
+            "path": path_str, "status": "empty", "bytes": total, "matches": len(matches),
             "next_action": (
-                f"EMPTY: {len(matches)} match(es) for `{path_str}` but all are "
+                f"EMPTY: {len(matches)} match(es) for `{path_str}` but they hold "
                 f"< {min_bytes}B — regenerate the content (bump a version if a "
                 "prior good copy exists)."
             ),

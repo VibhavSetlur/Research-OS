@@ -158,7 +158,7 @@ class WizardResult:
 # Lightweight format checks for identity fields — re-prompt on obvious typos
 # rather than silently writing a malformed email / ORCID into the config.
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$")
+_ORCID_RE = re.compile(r"^\d{4}-\d{4}-\d{4}-\d{3}[\dXx]$")
 
 
 def _prompt_validated(label: str, pattern: re.Pattern, example: str) -> str:

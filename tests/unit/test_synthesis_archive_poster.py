@@ -29,10 +29,14 @@ def test_check_poster_recognises_scaffold_functions():
     assert res["section_count"] >= 3
 
 
-def test_check_poster_blocks_when_no_headline_or_sections():
+def test_check_poster_blocks_on_missing_sections_warns_on_headline():
     res = _check_poster("just some prose with no structure")
-    assert any("headline" in b.lower() for b in res["blockers"])
+    # Too few sections is a structural BLOCKER.
     assert any("section" in b.lower() for b in res["blockers"])
+    # Missing headline is a WARNING (a hand-rolled poster may carry it elsewhere),
+    # not a false hard block.
+    assert any("headline" in w.lower() for w in res["warnings"])
+    assert not any("headline" in b.lower() for b in res["blockers"])
 
 
 def test_target_kind_maps_filenames():

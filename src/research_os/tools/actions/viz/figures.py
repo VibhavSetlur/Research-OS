@@ -117,6 +117,12 @@ def palette_for(kind: str, n: int = 8) -> list[str]:
     * ``"diverging_emphasis"`` — RO_PALETTE oxblood/forest delta pair.
     """
     kind = (kind or "qualitative").lower()
+    try:
+        n = max(0, int(n))
+    except (TypeError, ValueError):
+        n = 8
+    if n == 0:
+        return []
     if kind == "qualitative":
         return list((OKABE_ITO * ((n + 7) // 8))[:n])
     if kind in ("accent", "diverging_emphasis"):

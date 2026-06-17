@@ -263,16 +263,16 @@ _PROTOCOL_COMPLETION_BLOCK = {
     "name": "Complete & Log Protocol",
     "description": (
         "Final mandatory step.\n"
-        "1. Call sys_protocol_log with status='completed' and a one-line details summary.\n"
-        "   If the protocol BLOCKED on a gate, log status='failed' with the blocker count "
-        "   (the next session can resume cleanly from the same point).\n"
-        "2. Call sys_checkpoint_create with description='<protocol> completed' — a rollback target\n"
-        "   the researcher can return to if a downstream step regresses.\n"
-        "3. Output check: call tool_verify(scope='outputs'). It confirms the files this\n"
+        "1. Output check FIRST: call tool_verify(scope='outputs'). It confirms the files this\n"
         "   protocol declared in expected_outputs actually exist AND are non-empty. If any\n"
-        "   come back missing or empty, DO NOT log status='completed' — go back and\n"
+        "   come back missing or empty, do NOT proceed to log completed — go back and\n"
         "   (re)generate the gap (bump a version if a prior good copy exists), then re-verify.\n"
         "   A protocol with no expected_outputs passes this trivially.\n"
+        "2. Once the output check passes, call sys_protocol_log with status='completed' and a\n"
+        "   one-line details summary. If the protocol BLOCKED on a gate, log status='failed'\n"
+        "   with the blocker count (the next session resumes cleanly from the same point).\n"
+        "3. Call sys_checkpoint_create with description='<protocol> completed' — a rollback target\n"
+        "   the researcher can return to if a downstream step regresses.\n"
         "4. Call sys_protocol_next to find the pipeline-recommended next protocol. If the\n"
         "   researcher's next message redirects, prefer tool_route on their message over\n"
         "   the pipeline pointer.\n"
@@ -1059,8 +1059,11 @@ def validate_protocol(name: str, root: Path | None = None) -> dict:
                     )
                     matches = list(root.glob(expanded.lstrip("/")))
                     status = "pass" if matches else "fail"
+                    # A glob match can be a file OR a populated directory.
                     non_empty = any(
-                        m.is_file() and m.stat().st_size > 0 for m in matches
+                        (m.is_file() and m.stat().st_size > 0)
+                        or (m.is_dir() and any(f.is_file() for f in m.rglob("*")))
+                        for m in matches
                     )
                 else:
                     p = root / path_str

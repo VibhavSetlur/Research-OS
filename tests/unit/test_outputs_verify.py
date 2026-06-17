@@ -40,6 +40,34 @@ def test_check_output_glob_missing(tmp_path):
     assert res["status"] == "missing"
 
 
+def test_check_output_strips_parenthetical_annotation(tmp_path):
+    # Real protocols annotate paths, e.g. "x.log (only on failures)" — the bare
+    # path must still resolve (was reported missing before the fix).
+    _w(tmp_path / "workspace" / "logs" / "x.log", "real content")
+    res = _check_output(tmp_path, "workspace/logs/x.log (only on failures)", 1)
+    assert res["status"] == "present"
+
+
+def test_check_output_strips_two_space_annotation(tmp_path):
+    _w(tmp_path / "COLLABORATOR.md", "hi")
+    res = _check_output(tmp_path, "COLLABORATOR.md   top-level, share-safe", 1)
+    assert res["status"] == "present"
+
+
+def test_check_output_glob_matches_populated_directory(tmp_path):
+    # A glob can resolve to a populated DIRECTORY (workspace/*/scripts) — that's
+    # present, not empty (was a false hard blocker before the fix).
+    _w(tmp_path / "workspace" / "01_eda" / "scripts" / "run.py", "code here")
+    res = _check_output(tmp_path, "workspace/*/scripts", 1)
+    assert res["status"] == "present"
+    assert res["bytes"] > 0
+
+
+def test_check_output_skips_pure_prose(tmp_path):
+    assert _check_output(tmp_path, "(entries appended to methods.md)", 1) is None
+    assert _check_output(tmp_path, "see the limitations section", 1) is None
+
+
 def test_check_output_min_bytes(tmp_path):
     _w(tmp_path / "workspace" / "a.txt", "ab")  # 2 bytes
     assert _check_output(tmp_path, "workspace/a.txt", 200)["status"] == "empty"

@@ -329,12 +329,16 @@ def _handle_tool_verify(name, arguments, root):
     if scope in ("outputs", "step"):
         from research_os.tools.actions.research.grounding import verify_outputs
 
+        try:
+            min_bytes = int(arguments.get("min_bytes", 1))
+        except (TypeError, ValueError):
+            min_bytes = 1
         res = verify_outputs(
             root,
             scope="project" if scope == "outputs" and arguments.get("all_protocols")
             else ("step" if scope == "step" else "protocol"),
             protocol_name=arguments.get("protocol_name"),
-            min_bytes=int(arguments.get("min_bytes", 1)),
+            min_bytes=min_bytes,
         )
         if res.get("status") == "error":
             return _text(_error(res.get("message", "verify_outputs failed")))
