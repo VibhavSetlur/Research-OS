@@ -120,16 +120,20 @@ def test_audit_synthesis_default_denies_zero_pdfs(tmp_path):
 def test_state_freshness_detects_stale_state(tmp_path):
     from research_os.tools.actions.state.freshness import state_freshness_check
 
+    from research_os.project_ops import state_json_path
+
     root = _scaffold(tmp_path)
-    state_path = root / "workspace" / "state.json"
-    state_path.write_text(json.dumps({"current_path": "main"}))
+    state_path = state_json_path(root)  # real ledger: .os_state/state_ledger.json
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    if not state_path.exists():
+        state_path.write_text(json.dumps({"current_path": "main"}))
     old_ts = time.time() - 45 * 86400  # 45 days old
     os.utime(state_path, (old_ts, old_ts))
 
     res = state_freshness_check(root, stale_after_days=30)
     assert res["status"] == "success"
     assert res["is_stale"] is True
-    assert any("state.json" in s for s in res["signals"])
+    assert any("state ledger" in s.lower() for s in res["signals"])
     assert res["prompt_for_ai"]
 
 

@@ -401,19 +401,15 @@ class ResearchLedger:
         return out
 
     def get_dag_path(self) -> Path:
-        """Get or create the execution DAG file path."""
-        state = self._load()
-        dag_path_str = state.get("execution_dag_path")
-        if dag_path_str:
-            return Path(dag_path_str)
+        """Return the execution DAG file path (fixed, beside the ledger).
 
+        The path is a constant — .os_state/execution_dag.json — so we DON'T
+        persist it back into the ledger (that just churned the state file and
+        re-introduced the execution_dag_path key _migrate drops).
+        """
         dag_path = self._path.parent / "execution_dag.json"
-        state["execution_dag_path"] = str(dag_path)
-        self._save(state)
-
         if not dag_path.exists():
             self._init_dag(dag_path)
-
         return dag_path
 
     def _init_dag(self, dag_path: Path) -> None:
@@ -506,7 +502,7 @@ class ResearchLedger:
         dag["last_updated"] = now
         self._save_to_path(dag_path, dag)
 
-        state["execution_dag_path"] = str(dag_path)
+        # Don't persist execution_dag_path (a constant) — just stamp updated_at.
         state["updated_at"] = now
         self._save(state)
 
