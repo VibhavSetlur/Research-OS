@@ -1,8 +1,6 @@
 """tool_verify(scope='outputs') — declared outputs exist + are non-empty."""
 from __future__ import annotations
 
-import pytest
-
 from research_os.tools.actions.research import grounding
 from research_os.tools.actions.research.grounding import _check_output, verify_outputs
 

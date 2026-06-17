@@ -197,6 +197,8 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
     try:
         workflow_dag(root)
     except Exception:
+        # Best-effort DAG refresh — a render failure must not fail the rename
+        # (the folder + state + symlinks are already updated).
         pass
 
     return {
