@@ -1213,6 +1213,23 @@ def finalize_path(
                 "executive / teaching views will fall back to the technical text."
             )
 
+    # plan.md is a LIVING document: the AI should reconcile plan-vs-actual at
+    # finalize. Nudge if the "Progress & deviations from plan" section was
+    # never filled (still the unfilled seed) — this is the step AIs skip most.
+    plan_path = exp_dir / "plan.md"
+    if plan_path.exists():
+        try:
+            prog = _section(plan_path.read_text(), "Progress & deviations from plan")
+        except OSError:
+            prog = "filled"  # unreadable → don't nag
+        if (not prog) or prog.startswith(("*(", "_(")):
+            warnings.append(
+                "plan.md > Progress & deviations from plan is unfilled — "
+                "reconcile what you planned against what you actually did "
+                "(method swaps, dropped/added analyses, or 'went to plan') so "
+                "plan.md records the step, not just the intent."
+            )
+
     # ---- 7. Per-step → project-scope file refresh.
     #         Finalize touches workspace/methods.md, analysis.md, and
     #         citations.md idempotently. Without this, a step's work

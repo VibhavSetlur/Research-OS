@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.2.0'
+version: '3.2.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -522,14 +522,11 @@ steps:
       Bump _v<n> on every meaningful re-run; do NOT silently overwrite.
 
   - id: document_conclusions
-    name: Document Conclusions for This Step
+    name: Document Conclusions + Reconcile the Plan
     description: |
-      Two files matter, with deliberately different audiences:
+      Three files close out the step, with deliberately different roles:
 
       **conclusions.md** — the THOROUGH record (statistical + reproducible):
-        ## Plain-language summary
-          - 2-3 sentences a non-statistician could follow. Surfaces in
-            the dashboard's executive and teaching audience views.
         ## Findings
           - 2-5 quantitative bullets (numbers + units; effect sizes
             preferred over p-values; 95% CI where applicable).
@@ -545,15 +542,30 @@ steps:
             ("no detectable difference" beats "no effect" when underpowered).
         ## Decision
           - proceed | branch (new experiment, why) | dead-end (call dead_end_routing).
+            Record the lineage: how the previous step led here, and — if this
+            step was iterated — what changed across versions.
         ## Next steps
           - 2-3 concrete candidate experiments with brief rationale.
+      (NB 3.2: conclusions.md no longer carries a Plain-language summary —
+      that lives in README's `## In plain English`, below.)
+
+      **plan.md** — UPDATE IT NOW (do not leave it as the pre-step draft):
+        Fill `## Progress & deviations from plan` — reconcile what you
+        PLANNED against what you ACTUALLY did: a method swap, a dropped
+        sub-analysis, an added robustness check, or "went exactly to plan".
+        plan.md should end as a true record of the step, so a reader can
+        trace intent → reality. This is the step the AI most often skips —
+        don't. Keep `inputs/research_plan.md`'s iteration log in sync if
+        this step changed the overall arc.
 
       **README.md** — the 60-SECOND overview (non-experts):
-        The finalize step (below) rewrites this from conclusions.md +
-        decisions + outputs. DO NOT manually rewrite it. If you want
-        the dashboard to surface a particular plain-English summary,
-        write it in context/notes.md under "## Plain-language summary"
-        — finalize promotes it into the README and the appendix.
+        `## In plain English` IS the canonical plain-language summary
+        (2-3 sentences a non-statistician could follow; the dashboard's
+        executive + teaching views surface it). Author it here directly,
+        OR write it in context/notes.md under "## Plain-language summary"
+        and finalize will promote it. The finalize step (below) backfills
+        the remaining stub sections from conclusions.md + decisions +
+        outputs — don't hand-rewrite those.
 
       Also: mem_log entry="<step_id> done: <one-line summary>".
 
