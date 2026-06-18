@@ -1269,9 +1269,27 @@ def finalize_path(
         except OSError as e:
             logger.debug("methods.md append skipped: %s", e)
 
+    # 7c-lit. Mirror this step's papers (literature/ + context/) into the
+    #         project corpus of record at literature/steps/<step_id>/, then
+    #         (7c) regenerate citations from the union of all indexes.
+    try:
+        agg = _aggregate_step_literature_to_corpus(exp_dir, root, path_name)
+        if agg:
+            project_updates.append(
+                f"literature/steps/{path_name}/ ← {len(agg)} paper(s) mirrored to corpus"
+            )
+        # Also mirror the project-wide inputs/literature into literature/inputs/.
+        inp_agg = _mirror_inputs_literature_to_corpus(root)
+        if inp_agg:
+            project_updates.append(
+                f"literature/inputs/ ← {len(inp_agg)} project paper(s) mirrored"
+            )
+    except Exception as e:
+        logger.debug("literature corpus aggregation skipped: %s", e)
+
     # 7c. workspace/citations.md — regenerate from the union of
-    #     inputs/literature_index.yaml + every per-step literature
-    #     .meta.yaml sidecar. Idempotent (full rewrite).
+    #     inputs/literature_index.yaml + the project corpus + every per-step
+    #     literature .meta.yaml sidecar. Idempotent (full rewrite).
     try:
         from research_os.project_ops import generate_citations_md
         citations_path = generate_citations_md(root)
@@ -1689,6 +1707,88 @@ def _downstream_consumers(workspace: Path, path_name: str) -> list[str]:
         except OSError:
             continue
     return consumers
+
+
+_LIT_EXTS = {".pdf", ".epub"}
+_LIT_SIDECAR_EXTS = (".meta.yaml", ".meta.json")
+
+
+def _aggregate_step_literature_to_corpus(
+    exp_dir: Path, root: Path, step_id: str,
+) -> list[str]:
+    """Mirror a step's papers into the project corpus at literature/steps/<id>/.
+
+    Pulls PDFs/EPUBs (+ their .meta sidecars) from the step's ``literature/``
+    AND ``context/`` folders — so a paper the user dropped into a step's
+    context/ also lands in the corpus of record. Prefers symlinks (cheap,
+    no duplication); falls back to copy on filesystems without symlink
+    support. Idempotent. Returns a list of change descriptions.
+    """
+    changes: list[str] = []
+    corpus_step = root / "literature" / "steps" / step_id
+    sources = [exp_dir / "literature", exp_dir / "context"]
+    for src in sources:
+        if not src.is_dir():
+            continue
+        for pdf in sorted(src.iterdir()):
+            if not pdf.is_file() or pdf.suffix.lower() not in _LIT_EXTS:
+                continue
+            corpus_step.mkdir(parents=True, exist_ok=True)
+            files = [pdf]
+            for ext in _LIT_SIDECAR_EXTS:
+                side = pdf.with_name(pdf.name + ext)
+                if side.exists():
+                    files.append(side)
+            for f in files:
+                target = corpus_step / f.name
+                if target.exists() or target.is_symlink():
+                    continue
+                try:
+                    target.symlink_to(f.absolute())
+                except OSError:
+                    try:
+                        shutil.copy2(f, target)
+                    except OSError:
+                        continue
+                if f is pdf:
+                    changes.append(f"literature/steps/{step_id}/{f.name}")
+    return changes
+
+
+def _mirror_inputs_literature_to_corpus(root: Path) -> list[str]:
+    """Mirror inputs/literature/ PDFs (+ sidecars) into literature/inputs/.
+
+    Keeps the project corpus of record complete: the project-wide papers
+    plus the per-step ones. Symlinks where possible; idempotent.
+    """
+    changes: list[str] = []
+    src = root / "inputs" / "literature"
+    if not src.is_dir():
+        return changes
+    dest = root / "literature" / "inputs"
+    for pdf in sorted(src.iterdir()):
+        if not pdf.is_file() or pdf.suffix.lower() not in _LIT_EXTS:
+            continue
+        dest.mkdir(parents=True, exist_ok=True)
+        files = [pdf]
+        for ext in _LIT_SIDECAR_EXTS:
+            side = pdf.with_name(pdf.name + ext)
+            if side.exists():
+                files.append(side)
+        for f in files:
+            target = dest / f.name
+            if target.exists() or target.is_symlink():
+                continue
+            try:
+                target.symlink_to(f.absolute())
+            except OSError:
+                try:
+                    shutil.copy2(f, target)
+                except OSError:
+                    continue
+            if f is pdf:
+                changes.append(f"literature/inputs/{f.name}")
+    return changes
 
 
 # Substrings that mark an unfilled seed stub in README.md / conclusions.md.

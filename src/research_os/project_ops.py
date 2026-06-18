@@ -168,6 +168,7 @@ TOP_LEVEL_DIRS = (
     "inputs/raw_data",
     "inputs/literature",
     "inputs/context",
+    "literature",        # project-wide corpus of record (aggregated from every step)
     "workspace",
     "workspace/logs",
     "workspace/scratch",
@@ -188,6 +189,7 @@ EAGER_DIRS = (
     "inputs/raw_data",
     "inputs/literature",
     "inputs/context",
+    "literature",
     "workspace",
     "workspace/logs",
     "workspace/scratch",
@@ -1731,10 +1733,15 @@ def scaffold_minimal_workspace(
         ),
         "literature": (
             "# `inputs/literature/`\n\n"
-            "PDFs / EPUBs of papers + theses + protocols. The AI extracts "
-            "citations and quotes from here when grounding methodology "
-            "(`tool_research_method`) and when assembling the bibliography "
-            "(`tool_citations_verify`, `mem_citations_generate`).\n"
+            "PDFs / EPUBs of papers + theses + protocols available to EVERY "
+            "step. The AI extracts citations + quotes from here when grounding "
+            "methodology (`tool_research_method`) and assembling the "
+            "bibliography (`tool_citations_verify`, `mem_citations_generate`). "
+            "Empty? Ask the AI to **ground the project** — a quick deep-"
+            "research pass (`tool_literature_search_and_save` on your research "
+            "question, run across a few sub-topics) downloads the foundational "
+            "papers — PDF + provenance sidecar — here. Everything here is also "
+            "mirrored into the project corpus at `literature/inputs/`.\n"
         ),
         "context": (
             "# `inputs/context/`\n\n"
@@ -1748,6 +1755,28 @@ def scaffold_minimal_workspace(
         rp = root / "inputs" / sub / "README.md"
         if not rp.exists():
             rp.write_text(body)
+
+    # 8a-lit. Project-root literature/ — the corpus of record. Every paper
+    #         used ANYWHERE (inputs/literature, a step's literature/, or a
+    #         step's context/) is aggregated here at step finalization, so
+    #         the project has one auditable bibliography substrate.
+    lit_root_readme = root / "literature" / "README.md"
+    if not lit_root_readme.exists():
+        lit_root_readme.parent.mkdir(parents=True, exist_ok=True)
+        lit_root_readme.write_text(
+            "# `literature/` — project corpus of record\n\n"
+            "The single aggregated corpus of every paper used across the "
+            "project. **Auto-managed** — `tool_path_finalize` mirrors each "
+            "step's PDFs (+ their `.meta.yaml` provenance sidecars) here at "
+            "step completion; you don't write to it by hand.\n\n"
+            "- `inputs/` — papers from `inputs/literature/` (project-wide).\n"
+            "- `steps/<NN_slug>/` — papers a step pulled into its own "
+            "`literature/` or `context/` folder.\n\n"
+            "Each step also keeps a `literature/findings_vs_literature.md` "
+            "debate (its claims vs. the sources, with citation keys that "
+            "resolve here). `workspace/citations.md` is generated from this "
+            "corpus + the per-step indexes.\n"
+        )
 
     # 8b. Mode-specific governance / scratch seeds. No-op for analysis,
     #     so the classic surface is untouched.
@@ -3506,6 +3535,37 @@ def generate_citations_md(root: Path) -> str:
                 entries[key] = meta
         except Exception:
             pass
+
+    # 1b. Project corpus of record (literature/steps/<id>/) — aggregated by
+    #     tool_path_finalize. Catches papers pulled into a step's context/
+    #     folder, which the per-step literature/ scan below would miss.
+    corpus_steps = root / "literature" / "steps"
+    if corpus_steps.is_dir() and yaml:
+        for step_sub in sorted(corpus_steps.iterdir()):
+            if not step_sub.is_dir():
+                continue
+            for pdf in sorted(step_sub.iterdir()):
+                if not pdf.is_file() or pdf.suffix.lower() not in {".pdf", ".epub"}:
+                    continue
+                for ext in (".meta.yaml", ".meta.json"):
+                    side = pdf.with_name(pdf.name + ext)
+                    if not side.exists():
+                        continue
+                    try:
+                        if ext == ".meta.yaml":
+                            meta = yaml.safe_load(side.read_text()) or {}
+                        else:
+                            meta = json.loads(side.read_text())
+                    except Exception:
+                        meta = {}
+                    key = meta.get("citation_key") or re.sub(
+                        r"[\s-]+", "_", pdf.stem).lower()
+                    meta = dict(meta)
+                    meta["citation_key"] = key
+                    meta["filename"] = pdf.name
+                    meta.setdefault("scope", f"corpus:{step_sub.name}")
+                    entries.setdefault(key, meta)
+                    break
 
     # 2. Per-step literature indexes + sidecars + conclusions.md
     # "References to ground" sections.
