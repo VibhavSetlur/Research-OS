@@ -55,12 +55,12 @@ def test_run_pipeline_executes_real_script(tmp_path: Path):
             {"id": "make_input",
              "script": "scripts/make_input.py",
              "inputs": [],
-             "outputs": ["data/output/a.txt"],
+             "outputs": ["data/next_step_output/a.txt"],
              "params": {"seed": 1}},
             {"id": "transform",
              "script": "scripts/transform.py",
-             "inputs": ["data/output/a.txt"],
-             "outputs": ["data/output/b.txt"],
+             "inputs": ["data/next_step_output/a.txt"],
+             "outputs": ["data/next_step_output/b.txt"],
              "params": {"factor": 2}},
         ],
     }
@@ -72,14 +72,14 @@ def test_run_pipeline_executes_real_script(tmp_path: Path):
     (sd / "make_input.py").write_text(
         '"""Make input."""\n'
         "from pathlib import Path\n"
-        "Path('data/output').mkdir(parents=True, exist_ok=True)\n"
-        "Path('data/output/a.txt').write_text('hello')\n"
+        "Path('data/next_step_output').mkdir(parents=True, exist_ok=True)\n"
+        "Path('data/next_step_output/a.txt').write_text('hello')\n"
     )
     (sd / "transform.py").write_text(
         '"""Transform input."""\n'
         "from pathlib import Path\n"
-        "Path('data/output/b.txt').write_text(\n"
-        "    Path('data/output/a.txt').read_text().upper()\n"
+        "Path('data/next_step_output/b.txt').write_text(\n"
+        "    Path('data/next_step_output/a.txt').read_text().upper()\n"
         ")\n"
     )
 
@@ -87,7 +87,7 @@ def test_run_pipeline_executes_real_script(tmp_path: Path):
     assert r["status"] == "success", r
     assert r["nodes_total"] == 2
     assert r["nodes_failed"] == 0
-    assert (tmp_path / "workspace" / "01_baseline" / "data" / "output" / "b.txt").exists()
+    assert (tmp_path / "workspace" / "01_baseline" / "data" / "next_step_output" / "b.txt").exists()
 
 
 def test_pipeline_caches_on_rerun(tmp_path: Path):

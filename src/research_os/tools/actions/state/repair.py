@@ -95,10 +95,20 @@ def workspace_repair(root: Path, *, dry_run: bool = False) -> dict[str, Any]:
             except OSError as e:
                 actions.append(f"could not recreate symlink: {e}")
 
-    # 5. Per-experiment subdirs (if folder exists but a key subdir is missing)
+    # 5. Per-experiment subdirs (if folder exists but a key subdir is missing).
+    #    The data/* subdirs come in two flavours: the 3.2 names and the
+    #    pre-3.2 legacy names. We only flag a data subdir as missing when
+    #    NEITHER the 3.2 name NOR its legacy alias is present, so repairing a
+    #    pre-3.2 project doesn't sprinkle empty 3.2 dirs next to the old ones.
     workspace = root / "workspace"
-    expected_subs = {"scripts", "data/input", "data/output", "outputs/reports",
+    expected_subs = {"scripts", "outputs/reports",
                      "outputs/figures", "outputs/tables", "environment"}
+    # data subdir → its legacy alias (None = no alias / always expected).
+    data_subs = {
+        "data/past_step_input": "data/input",
+        "data/next_step_output": "data/output",
+        "data/share": None,
+    }
     if workspace.exists():
         for exp in workspace.iterdir():
             if not (exp.is_dir() and exp.name[:2].isdigit()):
@@ -106,6 +116,17 @@ def workspace_repair(root: Path, *, dry_run: bool = False) -> dict[str, Any]:
             for sub in expected_subs:
                 d = exp / sub
                 if not d.exists():
+                    issues.append(f"missing {exp.name}/{sub}")
+                    if not dry_run:
+                        d.mkdir(parents=True, exist_ok=True)
+                        actions.append(f"recreated {exp.name}/{sub}")
+            for sub, legacy in data_subs.items():
+                d = exp / sub
+                alias = (exp / legacy) if legacy else None
+                present = d.exists() or d.is_symlink() or (
+                    alias is not None and (alias.exists() or alias.is_symlink())
+                )
+                if not present:
                     issues.append(f"missing {exp.name}/{sub}")
                     if not dry_run:
                         d.mkdir(parents=True, exist_ok=True)

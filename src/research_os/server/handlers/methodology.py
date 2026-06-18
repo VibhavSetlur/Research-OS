@@ -315,7 +315,7 @@ def _handle_tool_sensitivity_define(name, arguments, root):
         estimate_column=arguments.get("estimate_column", "estimate"),
         ci_columns=tuple(arguments.get("ci_columns", ["ci_lo", "ci_hi"])),
         grid=arguments.get("grid"),
-        output_csv=arguments.get("output_csv", "data/output/grid_results.csv"),
+        output_csv=arguments.get("output_csv", "data/next_step_output/grid_results.csv"),
     )
     if res.get("status") in {"success", "exists"}:
         return _text(_success(res))

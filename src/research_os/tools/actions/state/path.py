@@ -252,14 +252,16 @@ def workflow_dag(
                 "full_id": pid,
             }
 
-        # Derive edges from data/input symlinks: each step's
-        # data/input may be a symlink to either inputs/raw_data or
-        # another step's data/output.
+        # Derive edges from the per-step input symlink: each step's
+        # data/past_step_input (legacy: data/input) may be a symlink to
+        # inputs/raw_data or another step's data/next_step_output.
+        from research_os.project_ops import step_input_link
+
         edges: list[tuple[str, str]] = []
         for s in steps:
             step_path = Path(s["experiment_dir"])
-            data_in = step_path / "data" / "input"
-            if not data_in.exists():
+            data_in = step_input_link(step_path)
+            if not data_in.exists() and not data_in.is_symlink():
                 continue
             # Could be a single symlink or a directory of symlinks; check both.
             link_targets: list[Path] = []
@@ -980,8 +982,10 @@ def finalize_path(
         changes.append("context/README.md → narrative inventory + summary")
 
     # ---- 2. Data folder + downstream consumer map ----
+    from research_os.project_ops import step_output_dir
     consumers = _downstream_consumers(workspace, path_name)
-    out_dir = exp_dir / "data" / "output"
+    out_dir = step_output_dir(exp_dir)
+    out_rel = out_dir.name  # next_step_output (or legacy output)
     out_files = []
     if out_dir.exists():
         for f in sorted(out_dir.iterdir()):
@@ -990,7 +994,7 @@ def finalize_path(
             if f.is_file():
                 out_files.append(f.name)
     out_body = (
-        f"# `{path_name}/data/output` — artefacts\n\n"
+        f"# `{path_name}/data/{out_rel}` — artefacts\n\n"
     )
     if out_files:
         out_body += "Persisted files:\n\n" + "\n".join(
@@ -1004,15 +1008,16 @@ def finalize_path(
         )
     if consumers:
         out_body += "\n## Downstream consumers\n\n" + "\n".join(
-            f"- `{c}` reads this folder via `data/input` symlink." for c in consumers
+            f"- `{c}` reads this folder via `data/past_step_input` symlink."
+            for c in consumers
         ) + "\n"
     else:
         out_body += (
             "\nNo downstream step currently consumes these outputs.\n"
         )
-    (out_dir / "README.md").parent.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "README.md").write_text(out_body)
-    changes.append("data/output/README.md → artefacts + consumer map")
+    changes.append(f"data/{out_rel}/README.md → artefacts + consumer map")
 
     # ---- 3. Outputs inventory + step README finalize ----
     inv = _figure_table_inventory(exp_dir)
@@ -1526,14 +1531,19 @@ def finalize_path(
 
 
 def _downstream_consumers(workspace: Path, path_name: str) -> list[str]:
-    """Steps whose data/input symlink resolves under <path_name>/data/output."""
-    self_out = (workspace / path_name / "data" / "output").resolve()
+    """Steps whose input symlink resolves under <path_name>'s output dir.
+
+    Tolerant of the pre-3.2 names (data/input → data/output) and the 3.2
+    names (data/past_step_input → data/next_step_output).
+    """
+    from research_os.project_ops import step_input_link, step_output_dir
+    self_out = step_output_dir(workspace / path_name).resolve()
     consumers: list[str] = []
     for p in sorted(workspace.iterdir()):
         if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)) or p.name == path_name:
             continue
-        inp = p / "data" / "input"
-        if not inp.exists():
+        inp = step_input_link(p)
+        if not inp.exists() and not inp.is_symlink():
             continue
         try:
             if inp.is_symlink() and inp.resolve() == self_out:
@@ -1773,28 +1783,33 @@ def _headline_from_findings(conclusions: str) -> str:
 def _input_inventory_for_readme(exp_dir: Path) -> str:
     """Best-effort inventory of this step's inputs for the README.
 
-    Scans `data/input/` symlinks (each one usually points at the prior
-    step's `data/output/<file>`) and falls back to listing files
-    referenced from the cleaning pipeline script(s) when no symlinks
+    Scans the step's input symlink (3.2 `data/past_step_input/`, legacy
+    `data/input/`) — each usually points at the prior step's output dir —
+    and falls back to raw_data references in pipeline.yaml when no symlinks
     exist yet.
     """
-    inp_dir = exp_dir / "data" / "input"
+    from research_os.project_ops import step_input_link
+    inp_dir = step_input_link(exp_dir)
+    rel = inp_dir.name  # past_step_input (or legacy input)
     items: list[str] = []
     if inp_dir.is_dir():
         for entry in sorted(inp_dir.iterdir()):
-            if entry.name in {"README.md", "_input_readme.md", ".gitkeep"}:
+            if entry.name in {
+                "README.md", "_input_readme.md",
+                "_past_step_input_readme.md", ".gitkeep",
+            }:
                 continue
             if entry.is_symlink():
                 try:
                     target = entry.resolve()
                     items.append(
-                        f"- `data/input/{entry.name}` → "
+                        f"- `data/{rel}/{entry.name}` → "
                         f"`{target.relative_to(exp_dir.parent.parent)}`"
                     )
                     continue
                 except (OSError, ValueError):
                     pass
-            items.append(f"- `data/input/{entry.name}`")
+            items.append(f"- `data/{rel}/{entry.name}`")
     # Also surface raw_data references found in pipeline.yaml so the
     # very-first step (no symlinks yet) doesn't read as "no inputs".
     pipeline_yaml = exp_dir / "pipeline.yaml"

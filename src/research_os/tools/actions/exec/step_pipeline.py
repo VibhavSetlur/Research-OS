@@ -30,33 +30,33 @@ example::
     nodes:
       - id: ingest
         script: scripts/01_ingest_v1.py
-        inputs: ["data/input/raw.csv"]
-        outputs: ["data/output/loaded.parquet"]
+        inputs: ["data/past_step_input/raw.csv"]
+        outputs: ["data/next_step_output/loaded.parquet"]
       - id: validate
         script: scripts/02_validate_v1.py
-        inputs: ["data/output/loaded.parquet"]
-        outputs: ["data/output/validated.parquet",
+        inputs: ["data/next_step_output/loaded.parquet"]
+        outputs: ["data/next_step_output/validated.parquet",
                   "outputs/reports/02_data_quality.md"]
         params: {schema: schemas/cohort.yaml}
       - id: clean
         script: scripts/03_clean_v1.py
-        inputs: ["data/output/validated.parquet"]
-        outputs: ["data/output/clean.parquet"]
+        inputs: ["data/next_step_output/validated.parquet"]
+        outputs: ["data/next_step_output/clean.parquet"]
       - id: fit
         script: scripts/04_fit_v1.py
-        inputs: ["data/output/clean.parquet"]
-        outputs: ["data/output/model.pkl",
-                  "data/output/residuals.csv"]
+        inputs: ["data/next_step_output/clean.parquet"]
+        outputs: ["data/next_step_output/model.pkl",
+                  "data/next_step_output/residuals.csv"]
         params: {seed: 42, alpha: 0.05}
       - id: diagnose
         script: scripts/05_diagnose_v1.py
-        inputs: ["data/output/residuals.csv", "data/output/model.pkl"]
+        inputs: ["data/next_step_output/residuals.csv", "data/next_step_output/model.pkl"]
         outputs: ["outputs/figures/03_residuals.png",
                   "outputs/figures/03_qq.png",
                   "outputs/figures/03_calibration.png"]
       - id: report
         script: scripts/06_report_v1.py
-        inputs: ["outputs/figures/03_residuals.png", "data/output/model.pkl"]
+        inputs: ["outputs/figures/03_residuals.png", "data/next_step_output/model.pkl"]
         outputs: ["outputs/reports/03_results.md"]
 
 Why this matters for "national-lab" rigour
@@ -224,34 +224,34 @@ def _topo_order(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
 _DEFAULT_TEMPLATE_NODES = [
     {"id": "ingest",
      "purpose": "Load raw inputs, validate schema, freeze a versioned snapshot.",
-     "inputs":  ["data/input/<raw>"],
-     "outputs": ["data/output/loaded.parquet"]},
+     "inputs":  ["data/past_step_input/<raw>"],
+     "outputs": ["data/next_step_output/loaded.parquet"]},
     {"id": "clean",
      "purpose": "Apply documented transforms; log every drop / impute.",
-     "inputs":  ["data/output/loaded.parquet"],
-     "outputs": ["data/output/clean.parquet"]},
+     "inputs":  ["data/next_step_output/loaded.parquet"],
+     "outputs": ["data/next_step_output/clean.parquet"]},
     {"id": "validate",
      "purpose": "Schema check, range check, missingness report.",
-     "inputs":  ["data/output/clean.parquet"],
+     "inputs":  ["data/next_step_output/clean.parquet"],
      "outputs": ["outputs/reports/<NN>_data_quality.md"]},
     {"id": "fit",
      "purpose": "Estimate the primary model. RNG seed mandatory.",
-     "inputs":  ["data/output/clean.parquet"],
-     "outputs": ["data/output/model.pkl",
-                 "data/output/residuals.csv",
-                 "data/output/coefficients.csv"]},
+     "inputs":  ["data/next_step_output/clean.parquet"],
+     "outputs": ["data/next_step_output/model.pkl",
+                 "data/next_step_output/residuals.csv",
+                 "data/next_step_output/coefficients.csv"]},
     {"id": "diagnose",
      "purpose": "Residual diagnostics, calibration, robustness.",
-     "inputs":  ["data/output/residuals.csv", "data/output/model.pkl"],
+     "inputs":  ["data/next_step_output/residuals.csv", "data/next_step_output/model.pkl"],
      "outputs": ["outputs/figures/<NN>_residual_diagnostics.png",
                  "outputs/figures/<NN>_calibration.png"]},
     {"id": "visualize",
      "purpose": "Publication-grade figures — AI writes the script (matplotlib / ggplot2 / Altair / d3); load visualization/figure_guidelines for the chart-chooser + palette + pre-publish self-review checklist.",
-     "inputs":  ["data/output/model.pkl", "data/output/coefficients.csv"],
+     "inputs":  ["data/next_step_output/model.pkl", "data/next_step_output/coefficients.csv"],
      "outputs": ["outputs/figures/<NN>_focal.png"]},
     {"id": "report",
      "purpose": "Assemble a markdown report; numbers must trace to outputs.",
-     "inputs":  ["outputs/figures/<NN>_focal.png", "data/output/coefficients.csv"],
+     "inputs":  ["outputs/figures/<NN>_focal.png", "data/next_step_output/coefficients.csv"],
      "outputs": ["outputs/reports/<NN>_results.md"]},
 ]
 

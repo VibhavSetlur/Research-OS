@@ -155,7 +155,9 @@ def _gather_output_corpus(workspace: Path) -> str:
             continue
         if step.name.endswith("__DEAD_END"):
             continue
-        for sub in ("outputs/reports", "outputs/tables", "data/output"):
+        # Scan both the 3.2 output dir name and the pre-3.2 legacy name.
+        for sub in ("outputs/reports", "outputs/tables",
+                    "data/next_step_output", "data/output"):
             d = step / sub
             if not d.exists():
                 continue

@@ -432,7 +432,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "project-global env' or a list of bespoke requirements, (b) "
             "`literature/README.md` either points at the global corpus + the "
             "step's decision log or lists the step-specific sources + the "
-            "decisions they informed, (c) `data/output/README.md` lists every "
+            "decisions they informed, (c) `data/next_step_output/README.md` lists every "
             "persisted artefact and which downstream step consumes it, (d) "
             "`outputs/README.md` enumerates produced figures / tables / "
             "reports, and (e) any stub sections in the step's main `README.md` "
@@ -588,7 +588,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_workflow_dag": {
         "short": "Build a DAG of numbered steps + their data dependencies; write docs/workflow_dag.mermaid.",
-        "description": "Walks each numbered step's data/input symlinks to derive cross-step dependencies, then writes docs/workflow_dag.mermaid with colour-coded nodes (active / completed / dead_end). Pass render_png=true to also emit a PNG (requires mmdc — npm install -g @mermaid-js/mermaid-cli). Auto-refreshed by sys_path(operation='create') and sys_path(operation='abandon') so the DAG stays in sync without manual calls.",
+        "description": "Walks each numbered step's data/past_step_input symlinks to derive cross-step dependencies, then writes docs/workflow_dag.mermaid with colour-coded nodes (active / completed / dead_end). Pass render_png=true to also emit a PNG (requires mmdc — npm install -g @mermaid-js/mermaid-cli). Auto-refreshed by sys_path(operation='create') and sys_path(operation='abandon') so the DAG stays in sync without manual calls.",
         "category": "state",
         "inputSchema": {
             "type": "object",

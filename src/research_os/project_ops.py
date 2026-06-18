@@ -32,8 +32,9 @@ from research_os.state.state_ledger import ResearchLedger
 from research_os.utils.common import find_project_root, now_iso
 
 EXPERIMENT_SUBDIRS = (
-    "data/input",
-    "data/output",
+    "data/past_step_input",   # symlink → the previous step's data/next_step_output
+    "data/next_step_output",  # this step's outputs; the next step consumes them
+    "data/share",             # curated datasets packaged to hand to a collaborator
     "scripts",
     "literature",        # per-step PDFs; populated by tool_literature_download(step_id=…)
     "context",           # per-step prose notes, methodology rationale, hand-overs
@@ -42,6 +43,37 @@ EXPERIMENT_SUBDIRS = (
     "outputs/tables",
     "environment",
 )
+
+# 3.2 renamed the per-step data folders (data/input → data/past_step_input,
+# data/output → data/next_step_output) and added data/share. Reading code
+# must keep working on pre-3.2 projects that still carry the old names, so
+# the two resolvers below return the 3.2 path when present and otherwise
+# fall back to the legacy name.
+
+
+def _present(p: Path) -> bool:
+    """True if a path exists OR is a (possibly broken) symlink."""
+    return p.is_symlink() or p.exists()
+
+
+def step_input_link(exp_dir: Path) -> Path:
+    """The step's upstream-input link (3.2 ``data/past_step_input``, else
+    the legacy ``data/input``). Returns the 3.2 path when neither exists."""
+    new = exp_dir / "data" / "past_step_input"
+    legacy = exp_dir / "data" / "input"
+    if _present(new) or not _present(legacy):
+        return new
+    return legacy
+
+
+def step_output_dir(exp_dir: Path) -> Path:
+    """The step's output dir (3.2 ``data/next_step_output``, else the legacy
+    ``data/output``). Returns the 3.2 path when neither exists."""
+    new = exp_dir / "data" / "next_step_output"
+    legacy = exp_dir / "data" / "output"
+    if _present(new) or not _present(legacy):
+        return new
+    return legacy
 # NOTE: no `outputs/dashboards` here on purpose. Dashboards are a *project-level*
 # synthesis output (synthesis/dashboard.html), not a per-step artifact.
 #
@@ -1615,7 +1647,7 @@ def scaffold_minimal_workspace(
             "Drop datasets here — CSV, Parquet, FASTQ, NIfTI, .h5, .xlsx, "
             "VCF, JSON, whatever your project consumes. The AI reads files "
             "from here but **never modifies them**; derived data lives under "
-            "`workspace/<NN_slug>/data/output/`.\n"
+            "`workspace/<NN_slug>/data/next_step_output/`.\n"
         ),
         "literature": (
             "# `inputs/literature/`\n\n"
@@ -2086,7 +2118,7 @@ A clean research workspace they can read without any Research-OS context:
 * `synthesis/REPORT.md` / `synthesis/paper.md` — the narrative deliverable.
 * `workspace/NN_*/conclusions.md` — the per-step reasoning chain.
 * `workspace/NN_*/scripts/` — the actual analysis code (reproducible).
-* `workspace/NN_*/data/output/` — derived artefacts each step persisted.
+* `workspace/NN_*/data/next_step_output/` — derived artefacts each step persisted.
 * `docs/` — research question, glossary, workflow diagram.
 
 The AI-side configuration is intentionally excluded, so the share
@@ -2200,8 +2232,8 @@ cd workspace/01_<slug>
 python scripts/01_<slug>_v1.py
 ```
 
-Each step's `data/input/` is symlinked from the project's `inputs/raw_data/`
-or from the previous step's `data/output/`. Outputs land under
+Each step's `data/past_step_input/` is symlinked from the project's `inputs/raw_data/`
+or from the previous step's `data/next_step_output/`. Outputs land under
 `workspace/<step>/outputs/{{figures,tables,reports}}`.
 
 ## Working on this project with an AI
@@ -2758,45 +2790,66 @@ def _seed_step_subfolder_readmes(
             path.write_text(body)
 
     upstream_hint = (
-        f"data/input → previous step's data/output (step {next_num - 1:02d})."
+        f"data/past_step_input → previous step's data/next_step_output "
+        f"(step {next_num - 1:02d})."
         if next_num > 1 and not from_step
-        else "data/input → inputs/raw_data (this is the ingest step)."
+        else "data/past_step_input → inputs/raw_data (this is the ingest step)."
         if next_num == 1
-        else f"data/input copied from `{from_step}`."
+        else f"data/past_step_input → `{from_step}`'s data/next_step_output."
     )
 
-    # Top-level data/ — explains the symlink + how downstream steps consume it.
+    # Top-level data/ — explains the four data folders + how steps consume them.
     _write_if_missing(
         exp_dir / "data" / "README.md",
         f"# `{branch_id}` — data\n\n"
-        "Two subfolders, both managed by the harness:\n\n"
-        "- **`input/`** — usually a symlink. Source of truth for this step's "
-        f"raw or pre-processed inputs. Default: {upstream_hint}\n"
-        "- **`output/`** — write CSV/parquet/pickle artefacts here. "
-        "Downstream steps' `data/input/` will symlink to this folder, so "
-        "name files for reuse (e.g. `tidy_survey.csv`, `composites.csv`).\n\n"
+        "Four subfolders, all managed by the harness:\n\n"
+        "- **`project_inputs/`** — symlink to the project's "
+        "`inputs/raw_data/`. The original data, always reachable even if "
+        "the upstream step produced nothing.\n"
+        "- **`past_step_input/`** — usually a symlink to the previous step's "
+        f"`data/next_step_output/`. This step's working inputs. Default: "
+        f"{upstream_hint}\n"
+        "- **`next_step_output/`** — write CSV/parquet/pickle artefacts the "
+        "NEXT step needs here. Downstream steps' `data/past_step_input/` "
+        "symlinks to this folder, so name files for reuse "
+        "(e.g. `tidy_survey.csv`, `composites.csv`).\n"
+        "- **`share/`** — *optional*. A curated, self-contained dataset you "
+        "package to hand to a collaborator or a new workflow (data + a small "
+        "read-me/script). Distinct from `next_step_output/` (which feeds the "
+        "next step); `share/` is for export.\n\n"
         "When this step is complete `tool_path_finalize` rewrites this file "
         "with the actual filename → downstream-step consumer mapping derived "
         "from the workflow DAG.\n",
     )
+    pi_path = exp_dir / "data" / "past_step_input"
     _write_if_missing(
-        exp_dir / "data" / "input" / "README.md"
-        if (exp_dir / "data" / "input").is_dir() and not (exp_dir / "data" / "input").is_symlink()
-        else exp_dir / "data" / "_input_readme.md",
-        f"# `{branch_id}/data/input` — usage\n\n"
+        pi_path / "README.md"
+        if pi_path.is_dir() and not pi_path.is_symlink()
+        else exp_dir / "data" / "_past_step_input_readme.md",
+        f"# `{branch_id}/data/past_step_input` — usage\n\n"
         f"Default wiring: {upstream_hint}\n\n"
         "Replace the symlink with a directory only if this step has bespoke "
         "inputs that aren't a clean function of the previous step's outputs. "
         "Document any divergence in `analysis.md` (`mem_log(kind='decision')`).\n",
     )
     _write_if_missing(
-        exp_dir / "data" / "output" / "README.md",
-        f"# `{branch_id}/data/output` — usage\n\n"
-        "Persist analytic artefacts (CSV, parquet, pickle, JSON) here so "
-        "downstream steps and the synthesis dashboard can consume them.\n\n"
+        exp_dir / "data" / "next_step_output" / "README.md",
+        f"# `{branch_id}/data/next_step_output` — usage\n\n"
+        "Persist analytic artefacts (CSV, parquet, pickle, JSON) here so the "
+        "next step and the synthesis dashboard can consume them.\n\n"
         "Each saved file should be reproducible from `scripts/` alone — no "
         "ad-hoc REPL edits. After `tool_path_finalize` runs, this README is "
         "rewritten to list every persisted artefact with its consumer step.\n",
+    )
+    _write_if_missing(
+        exp_dir / "data" / "share" / "README.md",
+        f"# `{branch_id}/data/share` — export\n\n"
+        "Optional. Drop a curated, self-contained dataset here when you want "
+        "to hand it to a collaborator or seed a new workflow — the data plus "
+        "a short read-me (and a script if it needs regenerating). This is an "
+        "EXPORT surface, separate from `next_step_output/` (which feeds the "
+        "next analysis step). Iterate on it freely; nothing downstream "
+        "depends on it.\n",
     )
 
     # environment/, literature/, context/ are LAZY — created by tools on
@@ -2845,7 +2898,7 @@ def _seed_step_subfolder_readmes(
         f"Place runnable analysis scripts here (preferred name: "
         f"`{branch_id}_v1.py`). Bump the suffix when the analysis materially "
         "changes; the dashboard surfaces the latest version. Each script must "
-        "be re-runnable end-to-end with only `data/input/` and the documented "
+        "be re-runnable end-to-end with only `data/past_step_input/` and the documented "
         "environment as inputs.\n",
     )
 
@@ -3015,7 +3068,7 @@ def create_numbered_experiment(
 
     check_write_permitted(exp_dir)
 
-    # `from_step` ONLY wires data/input from the named step's output —
+    # `from_step` ONLY wires data/past_step_input from the named step's output —
     # nothing else. A naive `shutil.copytree` would duplicate
     # outputs/figures/tables/reports/scripts, bloating the workspace,
     # breaking per-step provenance (the new step's outputs/ would
@@ -3027,9 +3080,9 @@ def create_numbered_experiment(
         (exp_dir / sub).mkdir(parents=True, exist_ok=True)
     # ALWAYS expose the project's inputs/raw_data/ via a
     # `data/project_inputs` symlink so an analysis step can reach the
-    # original data when its `data/input` (which prefers the upstream
-    # step's data/output/) is empty — a common pitfall where step 02
-    # inherits step 01's empty data/output.
+    # original data when its `data/past_step_input` (which prefers the
+    # upstream step's data/next_step_output/) is empty — a common pitfall
+    # where step 02 inherits step 01's empty data/next_step_output.
     raw_inputs = root / "inputs" / "raw_data"
     raw_inputs.mkdir(parents=True, exist_ok=True)
     project_inputs_link = exp_dir / "data" / "project_inputs"
@@ -3038,55 +3091,46 @@ def create_numbered_experiment(
             project_inputs_link.symlink_to(raw_inputs.absolute())
         except OSError:
             pass
-    if from_step:
-        src_step_output = workspace / from_step / "data" / "output"
-        src_step_output.mkdir(parents=True, exist_ok=True)
-        data_input = exp_dir / "data" / "input"
+    # Wire data/past_step_input → the upstream step's output dir (resolved
+    # tolerantly so a step created in a pre-3.2 project still links to that
+    # step's legacy data/output). data_input is the new step's input link.
+    data_input = exp_dir / "data" / "past_step_input"
+
+    def _link_upstream(upstream_dir: Path) -> None:
+        out_dir = step_output_dir(upstream_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
         try:
             data_input.rmdir()
-            data_input.symlink_to(src_step_output.absolute())
+            data_input.symlink_to(out_dir.absolute())
+        except OSError:
+            pass
+
+    if from_step:
+        _link_upstream(workspace / from_step)
+    elif parent_id:
+        # Branch steps draw from their parent's output.
+        _link_upstream(workspace / parent_id)
+    elif next_num == 1:
+        raw_dir = root / "inputs" / "raw_data"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            data_input.rmdir()
+            data_input.symlink_to(raw_dir.absolute())
         except OSError:
             pass
     else:
-        # Wire data/input/ — branch steps draw from their parent's output;
-        # non-branch steps draw from the prior numbered step's output (or
-        # raw_data for step 01).
-        data_input = exp_dir / "data" / "input"
-        if parent_id:
-            parent_output = workspace / parent_id / "data" / "output"
-            parent_output.mkdir(parents=True, exist_ok=True)
-            try:
-                data_input.rmdir()
-                data_input.symlink_to(parent_output.absolute())
-            except OSError:
-                pass
-        elif next_num == 1:
-            raw_dir = root / "inputs" / "raw_data"
-            raw_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                data_input.rmdir()
-                data_input.symlink_to(raw_dir.absolute())
-            except OSError:
-                pass
-        else:
-            prev_num = next_num - 1
-            # Prefer main-path predecessors over branch siblings when both exist.
-            prev_dirs = sorted(
-                p for p in workspace.iterdir()
-                if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
-                and _extract_path_lineage(p.name) is None
-            ) or sorted(
-                p for p in workspace.iterdir()
-                if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
-            )
-            if prev_dirs:
-                prev_output = prev_dirs[0] / "data" / "output"
-                prev_output.mkdir(parents=True, exist_ok=True)
-                try:
-                    data_input.rmdir()
-                    data_input.symlink_to(prev_output.absolute())
-                except OSError:
-                    pass
+        prev_num = next_num - 1
+        # Prefer main-path predecessors over branch siblings when both exist.
+        prev_dirs = sorted(
+            p for p in workspace.iterdir()
+            if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
+            and _extract_path_lineage(p.name) is None
+        ) or sorted(
+            p for p in workspace.iterdir()
+            if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
+        )
+        if prev_dirs:
+            _link_upstream(prev_dirs[0])
 
     # README — the OVERVIEW reader: short, easy to read, no statistical jargon.
     # `conclusions.md` is the thorough version with method details.

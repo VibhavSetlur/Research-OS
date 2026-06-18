@@ -16,7 +16,7 @@ The analyst writes a "grid spec" YAML next to their analysis script::
     base_script: scripts/04_fit_v1.py
     estimate_column: estimate        # name of the column the script writes
     ci_columns: [ci_lo, ci_hi]       # 95% CI columns
-    output_csv: data/output/grid_results.csv
+    output_csv: data/next_step_output/grid_results.csv
     grid:
       covariates:
         - ["age", "sex"]
@@ -98,7 +98,7 @@ def define_sensitivity(
     estimate_column: str = "estimate",
     ci_columns: tuple[str, str] = ("ci_lo", "ci_hi"),
     grid: dict[str, list[Any]] | None = None,
-    output_csv: str = "data/output/grid_results.csv",
+    output_csv: str = "data/next_step_output/grid_results.csv",
 ) -> dict[str, Any]:
     """Author ``workspace/<step>/sensitivity.yaml``.
 
@@ -230,7 +230,7 @@ def run_sensitivity(
         return {"status": "error",
                 "message": f"base_script not found: {spec['base_script']}"}
 
-    output_csv = sd / spec.get("output_csv", "data/output/grid_results.csv")
+    output_csv = sd / spec.get("output_csv", "data/next_step_output/grid_results.csv")
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     # Clear stale rows so we get a clean run.
     if output_csv.exists():

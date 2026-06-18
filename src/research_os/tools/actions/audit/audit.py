@@ -1761,7 +1761,7 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
     sidecars), this audit now ALSO requires:
 
     * Per-output provenance sidecars (``<file>.prov.json``) for any
-      file under ``outputs/`` or ``data/output/``. Coverage below 50%
+      file under ``outputs/`` or ``data/next_step_output/``. Coverage below 50%
       is a blocker.
     * If the step has more than 2 scripts, a ``pipeline.yaml``
       declaring the sub-task DAG. (Reviewable, cacheable, re-runnable.)

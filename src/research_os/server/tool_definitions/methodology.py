@@ -186,7 +186,7 @@ METHODOLOGY_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "estimate_column": {"type": "string", "description": "operation='define' — name of the estimate column emitted by base_script (default 'estimate')."},
                 "ci_columns": {"type": "array", "items": {"type": "string"}, "description": "operation='define' — names of the two CI columns emitted by base_script (default ['ci_lo', 'ci_hi'])."},
                 "grid": {"type": "object", "description": "operation='define' — dict mapping spec key → list of values; the runner fans out the Cartesian product."},
-                "output_csv": {"type": "string", "description": "operation='define' — path for the collected one-row-per-spec CSV (default 'data/output/grid_results.csv')."},
+                "output_csv": {"type": "string", "description": "operation='define' — path for the collected one-row-per-spec CSV (default 'data/next_step_output/grid_results.csv')."},
                 # operation='run' kwargs
                 "max_specs": {"type": "number", "description": "operation='run' — cap for testing; default = all combos."},
                 "render_figure": {"type": "boolean", "description": "operation='run' — render the specification-curve PNG (default true)."},

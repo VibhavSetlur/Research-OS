@@ -570,9 +570,9 @@ def test_from_step_does_not_copy_outputs(tmp_path):
     assert not (bb / "outputs" / "figures" / "marker.png").exists()
     assert not (bb / "scripts" / "marker.py").exists()
     # But data/input MUST be wired to alpha's data/output.
-    link = bb / "data" / "input"
+    link = bb / "data" / "past_step_input"
     assert link.is_symlink()
-    assert link.resolve() == (aa / "data" / "output").resolve()
+    assert link.resolve() == (aa / "data" / "next_step_output").resolve()
 
 
 def test_intake_biology_domain_recognised(tmp_path):
