@@ -715,12 +715,10 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
                 pid = p.get("path_id")
                 missing_focal = False
                 missing_caps = 0
-                missing_sums = 0
                 try:
                     inv = step_figure_inventory(pid, root)
                     missing_focal = bool(inv.get("missing_focal_figure"))
                     missing_caps = len(inv.get("missing_captions", []))
-                    missing_sums = len(inv.get("missing_summaries", []))
                 except Exception:
                     pass
                 paths_summary.append({
@@ -728,7 +726,6 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
                     "status": p.get("status"),
                     "missing_focal_figure": missing_focal,
                     "missing_captions": missing_caps,
-                    "missing_summaries": missing_sums,
                 })
         except Exception:
             paths_summary = []

@@ -5,7 +5,7 @@ These tests pin three things:
 1. The legacy markdown report at ``workspace/logs/code_quality.md`` is
    produced byte-for-byte the same as before the AuditBase migration —
    snapshot-style regression against a fixed fixture.
-2. The new JSON companion at ``workspace/code_quality_audit.json`` is
+2. The new JSON companion at ``workspace/logs/audits/code_quality_audit.json`` is
    schema-valid against ``audit_finding.schema.json``.
 3. The append-only JSONL ledger at ``workspace/logs/.audit_findings.jsonl``
    gains one line per finding on every run (idempotency: re-running adds
@@ -129,7 +129,7 @@ def test_json_companion_is_schema_valid(fixture_workspace: Path):
     write_audit_outputs(findings, "code_quality", fixture_workspace)
 
     json_path = (
-        fixture_workspace / "workspace" / "code_quality_audit.json"
+        fixture_workspace / "workspace" / "logs" / "audits" / "code_quality_audit.json"
     )
     assert json_path.exists()
     arr = json.loads(json_path.read_text())

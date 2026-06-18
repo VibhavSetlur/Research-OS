@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.0.0'
+version: '3.2.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -256,8 +256,15 @@ steps:
         Genomics         :  deseq2_de  /  gsea_pathway  /  variant_call_strelka
         Audit            :  power_recheck  /  calibration_curve  /  sensitivity_unmeasured
 
-      Creates workspace/NN_<slug>/{scripts,literature,data/{input,output},outputs/{reports,figures,tables},environment}
-      and sets it as current_path. NN is auto-assigned (next free number).
+      Creates workspace/NN_<slug>/ with README.md (plain-English overview),
+      conclusions.md (the deep report), plan.md (the pre-step plan — see the
+      next step), and the subfolders {scripts, literature, context,
+      data/{project_inputs, past_step_input, next_step_output, share},
+      outputs/{figures, tables, reports}, environment}. Sets it as
+      current_path. NN is auto-assigned (next free number, continuous across
+      paths). No step_summary.yaml or pipeline.yaml is created at this point
+      — step_summary.yaml is retired, and pipeline.yaml only appears if you
+      call tool_step_pipeline(operation='define').
 
       WHEN TO SUGGEST A NEW STEP (proactive — surface to researcher,
       don't just decide on your own unless autopilot):
@@ -286,6 +293,38 @@ steps:
       `<NN>_<slug>_<subtask>_v<n>.<ext>` for atomic sub-tasks. Sub-task
       names follow the SAME naming rules (descriptive, lowercase,
       underscore-joined).
+
+  - id: draft_step_plan
+    name: Draft the Step Plan BEFORE Writing Any Code
+    description: |
+      The scaffold created `workspace/<NN_slug>/plan.md`. Fill it in NOW,
+      before any scripts / figures — this is co-scientist iterative
+      planning: the plan is where the step's design is reasoned and agreed
+      BEFORE the work, not reconstructed after it.
+
+      Carry the thread forward. Open the plan with what you already know:
+        - the previous step's outcome + the project's findings-to-date
+          (read the prior `conclusions.md` + `inputs/research_plan.md`)
+        - what THIS step will do: the question, the data, the method(s),
+          the artefact(s) it will produce
+        - why this step, why now (how it advances the hypotheses)
+        - the open decisions you want the researcher to weigh in on
+
+      Then keep `inputs/research_plan.md` (the whole-project arc) in sync —
+      append a line to its iteration log if this step changes the plan.
+
+      AUTONOMY GATE (read interaction.autonomy_level):
+        - manual / supervised → PRESENT plan.md's "What this step will do"
+          + "Open questions" to the researcher and WAIT. Iterate
+          (propose → critique → refine) until the design is agreed, THEN
+          proceed to write scripts. This back-and-forth is the point.
+        - autopilot → still WRITE plan.md (it is the record of your
+          reasoning + the lineage from the last step), note the decisions
+          you made under "Open questions", and proceed without pausing.
+
+      A plan.md that just restates the slug is not a plan. If the step is
+      genuinely trivial (rote data plumbing), one honest sentence per
+      section is fine — but write it.
 
   - id: write_atomic_scripts
     name: Write Atomic Versioned Scripts AS A SUB-TASK DAG

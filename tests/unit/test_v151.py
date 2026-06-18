@@ -174,7 +174,10 @@ def test_promote_to_step_creates_numbered_step(tmp_path):
     assert res["step_id"].startswith("01_")
     step_dir = root / res["step_dir"]
     assert (step_dir / "conclusions.md").exists()
-    assert (step_dir / "step_summary.yaml").exists()
+    # step_summary.yaml was retired in 3.2; the literature-exempt flag for
+    # a promoted scratch probe lives as a marker in conclusions.md.
+    assert not (step_dir / "step_summary.yaml").exists()
+    assert "literature_required=false" in (step_dir / "conclusions.md").read_text()
     assert (step_dir / "outputs" / "figures" / "fig_quicklook.png").exists()
     prov = step_dir / "outputs" / "figures" / "fig_quicklook.png.prov.json"
     assert prov.exists()

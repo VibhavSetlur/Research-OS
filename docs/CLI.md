@@ -189,7 +189,7 @@ inside a workspace) the workspace itself. Modelled on `brew doctor` /
 | --------------------------- | -------------------------------------------------------------------------------------- |
 | `optional_deps`             | If `synthesis.interactive_figures` is enabled, `pyvis` must be importable.             |
 | `mcp_configs_wired`         | Each declared IDE has its primary MCP config file.                                     |
-| `workspace_integrity`       | No orphan figures, no stale `step_summary.yaml`, no unresolved BLOCK gates in the audit ledger. |
+| `workspace_integrity`       | No orphan figures, no unresolved BLOCK gates in the audit ledger. |
 | `disk_space`                | Workspace size under 5 GB (warns above).                                               |
 | `git_clean`                 | Working tree clean (skipped when the workspace isn't a git repo).                      |
 | `gitignore_covers_state`    | `.gitignore` mentions `.os_state/` and either `workspace/cache/` or `workspace/scratch/`. |

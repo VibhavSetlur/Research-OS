@@ -301,8 +301,8 @@ def external_tool_instructions(
             f"1. Open {url}",
             "2. Upload the inputs listed below.",
             "3. Run the tool with the parameters listed below.",
-            "4. Download outputs and place them in `data/output/` of this step.",
-            "5. Reply to the AI: \"worksheet done, outputs in data/output/\".",
+            "4. Download outputs and place them in `data/next_step_output/` of this step.",
+            "5. Reply to the AI: \"worksheet done, outputs in data/next_step_output/\".",
         ]
 
         body = (

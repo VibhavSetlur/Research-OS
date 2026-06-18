@@ -49,15 +49,8 @@ _AUTO_SECTION_TOP_MARKER = "<!-- ro:discussion_from_verdicts -->"
 
 
 def _step_dirs(root: Path) -> list[Path]:
-    workspace = root / "workspace"
-    if not workspace.is_dir():
-        return []
-    return sorted(
-        p for p in workspace.iterdir()
-        if p.is_dir()
-        and re.match(r"^\d{2,}_", p.name)
-        and not p.name.endswith("__DEAD_END")
-    )
+    from research_os.project_ops import discover_step_dirs
+    return discover_step_dirs(root / "workspace", include_dead=False)
 
 
 def _collect_verdicts(root: Path) -> list[dict[str, Any]]:

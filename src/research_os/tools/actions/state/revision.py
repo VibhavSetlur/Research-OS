@@ -49,13 +49,13 @@ def step_revision_options(
 
     conc_text = conc.read_text() if conc.exists() else ""
 
-    # Placeholder still present?
+    # Placeholder still present? (markers from the conclusions.md seed)
     placeholders = [
-        "*(2-3 sentences",
-        "*(method name",
-        "*(the single most important",
-        "*(proceed | branch | dead-end)*",
-        "*(list inputs used)*",
+        "*(2-5 quantitative bullets",
+        "*(Dataset shape",
+        "*(What this step cannot conclude",
+        "*(proceed | branch | dead-end",
+        "*(2-3 candidates with rationale)*",
     ]
     found_placeholders = sum(1 for m in placeholders if m in conc_text)
     if found_placeholders:
@@ -191,7 +191,7 @@ def step_revision_options(
         for p in workspace.iterdir():
             if p.is_dir() and p.name[:2].isdigit() and (p / "conclusions.md").exists():
                 txt = (p / "conclusions.md").read_text(errors="ignore")
-                if "*(2-3 sentences" not in txt:
+                if "*(2-5 quantitative bullets" not in txt:
                     n_finalized += 1
     handoff_recommended = n_finalized >= 5
 

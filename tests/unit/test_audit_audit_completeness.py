@@ -6,7 +6,7 @@ Covers:
 * ``StepCompletenessAudit.run()`` emits one ``AuditFinding`` per
   per-step blocker + warning, with severity mapped block→block and
   warn→warn.
-* The JSON companion at ``workspace/step_completeness_audit.json`` is
+* The JSON companion at ``workspace/logs/audits/step_completeness_audit.json`` is
   schema-valid and round-trips through ``validate_finding``.
 * ``workspace/logs/.audit_findings.jsonl`` gains one new line per
   finding on each run (append-only ledger).
@@ -41,11 +41,11 @@ from research_os.tools.actions.audit.audit import (
 
 
 def _make_blocked_step(tmp_path, step_name: str = "02_eda"):
-    """Build a step that BLOCKS on the missing-summary-sidecar rule.
+    """Build a step that BLOCKS on the missing-caption-sidecar rule.
 
-    Configured to mirror the existing test_audit_missing_summary_md_now_blocks
-    fixture: conclusions present + figure + caption present + scripts +
-    stack_plan present, but no .summary.md.
+    conclusions present + focal figure + scripts + stack_plan present,
+    but the figure has no ``.caption.md`` (the only sidecar still gated in
+    3.2 — the plain-English ``.summary.md`` was retired).
     """
     scaffold_minimal_workspace(tmp_path, "Test")
     step = tmp_path / "workspace" / step_name
@@ -62,10 +62,10 @@ def _make_blocked_step(tmp_path, step_name: str = "02_eda"):
     )
     figs = step / "outputs" / "figures"
     figs.mkdir(parents=True)
-    fig = figs / "01_dist.png"
+    num = step_name.split("_", 1)[0]
+    fig = figs / f"{num}_dist.png"
     fig.write_bytes(b"\x89PNG\r\n")
-    (figs / "01_dist.caption.md").write_text("**Figure 1.** distribution\n")
-    # Intentionally no .summary.md — should BLOCK.
+    # Intentionally no .caption.md — should BLOCK on caption_sidecar.
     return step
 
 
@@ -94,7 +94,7 @@ def test_legacy_markdown_report_unchanged_by_phase4_wrapper(tmp_path):
     assert legacy_text.startswith("# Step Completeness Audit\n")
     assert "## ❌ `02_eda`" in legacy_text
     assert "**BLOCKERS:**" in legacy_text
-    assert "missing plain-English summary sidecar" in legacy_text
+    assert "missing caption sidecar" in legacy_text
 
     # Snapshot the bytes, then run the Phase-4 wrapper, then re-read +
     # confirm the legacy markdown is byte-identical. The Phase-4 wrapper
@@ -124,15 +124,15 @@ def test_run_returns_findings_with_block_severity_for_blockers(tmp_path):
     blocks = [f for f in findings if f.severity == "block"]
     assert len(blocks) >= 1, f"expected at least one block, got {findings}"
 
-    summary_findings = [
-        f for f in blocks if f.dimension == "summary_sidecar"
+    caption_findings = [
+        f for f in blocks if f.dimension == "caption_sidecar"
     ]
-    assert len(summary_findings) == 1
-    f = summary_findings[0]
+    assert len(caption_findings) == 1
+    f = caption_findings[0]
     assert f.audit_name == "step_completeness"
     assert f.severity == "block"
-    assert "summary" in f.suggested_fix.lower()
-    # Override kwarg is set for missing summary sidecar — bypassable via
+    assert "caption" in f.suggested_fix.lower()
+    # Override kwarg is set for missing caption sidecar — bypassable via
     # the documented override_completeness_gate flag.
     assert f.override_kwarg == "override_completeness_gate"
     # Evidence path points at the figures directory of the offending step.
@@ -159,7 +159,7 @@ def test_run_returns_empty_when_workspace_missing(tmp_path):
 
 def test_json_companion_is_schema_valid(tmp_path):
     """write_audit_outputs(findings, "step_completeness", root) produces
-    a workspace/step_completeness_audit.json file containing an array
+    a workspace/logs/audits/step_completeness_audit.json file containing an array
     of finding objects, each of which round-trips through
     validate_finding without raising.
     """
@@ -169,7 +169,7 @@ def test_json_companion_is_schema_valid(tmp_path):
 
     write_audit_outputs(findings, "step_completeness", tmp_path)
 
-    json_path = tmp_path / "workspace" / "step_completeness_audit.json"
+    json_path = tmp_path / "workspace" / "logs" / "audits" / "step_completeness_audit.json"
     assert json_path.exists()
     payload = json.loads(json_path.read_text())
     assert isinstance(payload, list)
@@ -243,15 +243,13 @@ def test_finding_ids_are_stable_across_runs(tmp_path):
 def test_clean_step_produces_no_findings(tmp_path):
     """A step that meets every completeness rule yields zero findings.
 
-    Adds the missing .summary.md to the otherwise-blocked fixture so
-    the only previously-blocking rule passes. (Other rules — e.g.
-    provenance coverage — may still warn on a real workspace, but the
-    minimal fixture below has no scripted outputs so the provenance
-    check is skipped entirely.)
+    Adds the missing .caption.md to the otherwise-blocked fixture so
+    the only blocking rule passes. (Other rules — e.g. provenance
+    coverage — may still WARN, but those are not block-severity.)
     """
     step = _make_blocked_step(tmp_path, "02_eda")
-    (step / "outputs" / "figures" / "01_dist.summary.md").write_text(
-        "**What it shows.** Distribution of values.\n"
+    (step / "outputs" / "figures" / "02_dist.caption.md").write_text(
+        "**Figure 1.** Distribution of values.\n"
     )
 
     findings = StepCompletenessAudit().run(tmp_path, step_id="02_eda")
@@ -285,8 +283,8 @@ def test_server_handler_writes_all_three_artefacts(tmp_path):
     # the response body is non-empty + the artefacts landed.
     assert res
 
-    md = tmp_path / "workspace" / "step_completeness_audit.md"
-    js = tmp_path / "workspace" / "step_completeness_audit.json"
+    md = tmp_path / "workspace" / "logs" / "audits" / "step_completeness_audit.md"
+    js = tmp_path / "workspace" / "logs" / "audits" / "step_completeness_audit.json"
     jl = tmp_path / "workspace" / "logs" / ".audit_findings.jsonl"
     legacy_md = tmp_path / "workspace" / "logs" / "step_completeness.md"
 
@@ -317,10 +315,6 @@ def test_server_handler_writes_all_three_artefacts(tmp_path):
         (
             "2 figure(s) missing caption sidecar: 01_a.png, 01_b.png",
             "caption_sidecar",
-        ),
-        (
-            "1 figure(s) missing plain-English summary sidecar (.summary.md).",
-            "summary_sidecar",
         ),
         (
             "02_eda: no scratch/stack_plan.md — language + library choice "

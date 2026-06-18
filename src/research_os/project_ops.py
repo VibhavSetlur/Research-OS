@@ -32,8 +32,9 @@ from research_os.state.state_ledger import ResearchLedger
 from research_os.utils.common import find_project_root, now_iso
 
 EXPERIMENT_SUBDIRS = (
-    "data/input",
-    "data/output",
+    "data/past_step_input",   # symlink → the previous step's data/next_step_output
+    "data/next_step_output",  # this step's outputs; the next step consumes them
+    "data/share",             # curated datasets packaged to hand to a collaborator
     "scripts",
     "literature",        # per-step PDFs; populated by tool_literature_download(step_id=…)
     "context",           # per-step prose notes, methodology rationale, hand-overs
@@ -42,6 +43,114 @@ EXPERIMENT_SUBDIRS = (
     "outputs/tables",
     "environment",
 )
+
+# 3.2 renamed the per-step data folders (data/input → data/past_step_input,
+# data/output → data/next_step_output) and added data/share. Reading code
+# must keep working on pre-3.2 projects that still carry the old names, so
+# the two resolvers below return the 3.2 path when present and otherwise
+# fall back to the legacy name.
+
+
+def _present(p: Path) -> bool:
+    """True if a path exists OR is a (possibly broken) symlink."""
+    return p.is_symlink() or p.exists()
+
+
+def step_input_link(exp_dir: Path) -> Path:
+    """The step's upstream-input link (3.2 ``data/past_step_input``, else
+    the legacy ``data/input``). Returns the 3.2 path when neither exists."""
+    new = exp_dir / "data" / "past_step_input"
+    legacy = exp_dir / "data" / "input"
+    if _present(new) or not _present(legacy):
+        return new
+    return legacy
+
+
+def step_output_dir(exp_dir: Path) -> Path:
+    """The step's output dir (3.2 ``data/next_step_output``, else the legacy
+    ``data/output``). Returns the 3.2 path when neither exists."""
+    new = exp_dir / "data" / "next_step_output"
+    legacy = exp_dir / "data" / "output"
+    if _present(new) or not _present(legacy):
+        return new
+    return legacy
+
+
+# ---------------------------------------------------------------------------
+# Step discovery — flat steps + steps grouped into PATH containers.
+#
+# 3.2 lets the researcher consolidate a run of steps that explored one
+# direction into a descriptive container folder, e.g.
+# ``workspace/attitude_pilot_PATH_1/03_eda``. Step numbering stays
+# CONTINUOUS across containers (path 2 picks up at step 06, never resets),
+# so the lineage is preserved and steps can be moved without renumbering.
+# Every code path that enumerates steps MUST go through ``discover_step_dirs``
+# so a grouped step is never silently invisible.
+# ---------------------------------------------------------------------------
+
+_STEP_DIR_RE = re.compile(r"^\d{2,3}_")
+#: A PATH container folder: ``<descriptive_slug>_PATH_<k>``.
+_PATH_CONTAINER_RE = re.compile(r"^.+_PATH_\d+$")
+
+
+def is_path_container(name: str) -> bool:
+    """True if *name* is a ``<slug>_PATH_<k>`` container folder name."""
+    return bool(_PATH_CONTAINER_RE.match(name))
+
+
+def _step_sort_key(d: Path) -> tuple[int, str]:
+    try:
+        return (int(d.name.split("_", 1)[0]), d.name)
+    except ValueError:
+        return (0, d.name)
+
+
+def discover_step_dirs(workspace: Path, *, include_dead: bool = True) -> list[Path]:
+    """Every numbered step directory, sorted by step number.
+
+    Finds steps both directly under ``workspace/`` AND one level deep inside
+    ``<slug>_PATH_<k>/`` container folders. ``include_dead=False`` skips
+    ``__DEAD_END`` steps.
+    """
+    steps: list[Path] = []
+    if not workspace.exists():
+        return steps
+    for p in workspace.iterdir():
+        if not p.is_dir():
+            continue
+        if _STEP_DIR_RE.match(p.name):
+            if include_dead or not p.name.endswith("__DEAD_END"):
+                steps.append(p)
+        elif is_path_container(p.name):
+            for c in sorted(p.iterdir()):
+                if c.is_dir() and _STEP_DIR_RE.match(c.name):
+                    if include_dead or not c.name.endswith("__DEAD_END"):
+                        steps.append(c)
+    return sorted(steps, key=_step_sort_key)
+
+
+def resolve_step_dir(workspace: Path, step_id: str) -> Path | None:
+    """Locate a step folder by id, whether flat or inside a PATH container.
+
+    Tolerates the ``__DEAD_END`` variant. Returns ``None`` if not found.
+    """
+    direct = workspace / step_id
+    if direct.is_dir():
+        return direct
+    dead = workspace / f"{step_id}__DEAD_END"
+    if dead.is_dir():
+        return dead
+    for p in workspace.iterdir():
+        if p.is_dir() and is_path_container(p.name):
+            cand = p / step_id
+            if cand.is_dir():
+                return cand
+            cand_dead = p / f"{step_id}__DEAD_END"
+            if cand_dead.is_dir():
+                return cand_dead
+    return None
+
+
 # NOTE: no `outputs/dashboards` here on purpose. Dashboards are a *project-level*
 # synthesis output (synthesis/dashboard.html), not a per-step artifact.
 #
@@ -59,6 +168,7 @@ TOP_LEVEL_DIRS = (
     "inputs/raw_data",
     "inputs/literature",
     "inputs/context",
+    "literature",        # project-wide corpus of record (aggregated from every step)
     "workspace",
     "workspace/logs",
     "workspace/scratch",
@@ -79,6 +189,7 @@ EAGER_DIRS = (
     "inputs/raw_data",
     "inputs/literature",
     "inputs/context",
+    "literature",
     "workspace",
     "workspace/logs",
     "workspace/scratch",
@@ -736,18 +847,21 @@ def _update_manifest(root: Path) -> None:
     workspace = root / "workspace"
     paths_info: dict[str, Any] = {}
     if workspace.exists():
-        for p in sorted(workspace.iterdir()):
-            if p.is_dir() and re.match(r"^\d{2,3}_", p.name):
-                scripts: list[str] = []
-                scripts_dir = p / "scripts"
-                if scripts_dir.exists():
-                    scripts = [f.name for f in sorted(scripts_dir.iterdir()) if f.is_file()]
-                paths_info[p.name] = {
-                    "status": "dead_end" if "__DEAD_END" in p.name else "active",
-                    "has_readme": (p / "README.md").exists(),
-                    "has_conclusions": (p / "conclusions.md").exists(),
-                    "scripts": scripts,
-                }
+        for p in discover_step_dirs(workspace):
+            scripts: list[str] = []
+            scripts_dir = p / "scripts"
+            if scripts_dir.exists():
+                scripts = [f.name for f in sorted(scripts_dir.iterdir()) if f.is_file()]
+            info = {
+                "status": "dead_end" if "__DEAD_END" in p.name else "active",
+                "has_readme": (p / "README.md").exists(),
+                "has_conclusions": (p / "conclusions.md").exists(),
+                "scripts": scripts,
+            }
+            # Record the PATH container when the step is grouped under one.
+            if p.parent != workspace and is_path_container(p.parent.name):
+                info["path_container"] = p.parent.name
+            paths_info[p.name] = info
     manifest = read_json(manifest_path(root), {})
     manifest["paths"] = paths_info
     manifest["updated_at"] = now_iso()
@@ -1575,6 +1689,38 @@ def scaffold_minimal_workspace(
             "intake** — `tool_intake_autofill` rewrites this file.\n"
         )
 
+    # 8-rp. inputs/research_plan.md — the OVERALL project plan the AI and
+    #       researcher iterate on (co-scientist style). Distinct from each
+    #       step's `plan.md` (that plans one step); this frames the whole
+    #       arc: question, hypotheses, the planned sequence of steps, and a
+    #       living iteration log. Seeded once, then refined collaboratively.
+    research_plan = root / "inputs" / "research_plan.md"
+    if not research_plan.exists():
+        research_plan.write_text(
+            "# Research plan\n\n"
+            "> **What this file is.** The living plan for the *whole* "
+            "project — the AI and the researcher iterate on it together "
+            "(propose → critique → refine). Each analysis step also gets its "
+            "own `workspace/<NN_slug>/plan.md`; this file is the arc those "
+            "steps fit into. Ask the AI to **draft the research plan** to "
+            "fill it in (optionally grounded by a quick literature scan).\n\n"
+            "## Research question\n"
+            "*(The one question this project answers. Pull from "
+            "`inputs/researcher_config.yaml` once set.)*\n\n"
+            "## Hypotheses\n"
+            "*(H1, H2, … — the testable claims. Register each with "
+            "`mem_hypothesis_add`.)*\n\n"
+            "## Planned sequence of steps\n"
+            "*(The arc: step 1 → step 2 → … Each line: a goal + which "
+            "hypothesis it targets. Numbering is continuous across paths.)*\n\n"
+            "## Open questions / decisions\n"
+            "*(Scope, design, and trade-off calls the researcher wants to "
+            "weigh in on before the work proceeds.)*\n\n"
+            "## Iteration log\n"
+            "*(Append-only: each round of plan refinement — what changed and "
+            "why — so the project's direction is itself traceable.)*\n"
+        )
+
     # 8a. Seed each input sub-folder with a one-paragraph README so an
     #     empty folder isn't a dead end for a fresh researcher.
     _SEEDED_INPUT_READMES = {
@@ -1583,14 +1729,19 @@ def scaffold_minimal_workspace(
             "Drop datasets here — CSV, Parquet, FASTQ, NIfTI, .h5, .xlsx, "
             "VCF, JSON, whatever your project consumes. The AI reads files "
             "from here but **never modifies them**; derived data lives under "
-            "`workspace/<NN_slug>/data/output/`.\n"
+            "`workspace/<NN_slug>/data/next_step_output/`.\n"
         ),
         "literature": (
             "# `inputs/literature/`\n\n"
-            "PDFs / EPUBs of papers + theses + protocols. The AI extracts "
-            "citations and quotes from here when grounding methodology "
-            "(`tool_research_method`) and when assembling the bibliography "
-            "(`tool_citations_verify`, `mem_citations_generate`).\n"
+            "PDFs / EPUBs of papers + theses + protocols available to EVERY "
+            "step. The AI extracts citations + quotes from here when grounding "
+            "methodology (`tool_research_method`) and assembling the "
+            "bibliography (`tool_citations_verify`, `mem_citations_generate`). "
+            "Empty? Ask the AI to **ground the project** — a quick deep-"
+            "research pass (`tool_literature_search_and_save` on your research "
+            "question, run across a few sub-topics) downloads the foundational "
+            "papers — PDF + provenance sidecar — here. Everything here is also "
+            "mirrored into the project corpus at `literature/inputs/`.\n"
         ),
         "context": (
             "# `inputs/context/`\n\n"
@@ -1604,6 +1755,28 @@ def scaffold_minimal_workspace(
         rp = root / "inputs" / sub / "README.md"
         if not rp.exists():
             rp.write_text(body)
+
+    # 8a-lit. Project-root literature/ — the corpus of record. Every paper
+    #         used ANYWHERE (inputs/literature, a step's literature/, or a
+    #         step's context/) is aggregated here at step finalization, so
+    #         the project has one auditable bibliography substrate.
+    lit_root_readme = root / "literature" / "README.md"
+    if not lit_root_readme.exists():
+        lit_root_readme.parent.mkdir(parents=True, exist_ok=True)
+        lit_root_readme.write_text(
+            "# `literature/` — project corpus of record\n\n"
+            "The single aggregated corpus of every paper used across the "
+            "project. **Auto-managed** — `tool_path_finalize` mirrors each "
+            "step's PDFs (+ their `.meta.yaml` provenance sidecars) here at "
+            "step completion; you don't write to it by hand.\n\n"
+            "- `inputs/` — papers from `inputs/literature/` (project-wide).\n"
+            "- `steps/<NN_slug>/` — papers a step pulled into its own "
+            "`literature/` or `context/` folder.\n\n"
+            "Each step also keeps a `literature/findings_vs_literature.md` "
+            "debate (its claims vs. the sources, with citation keys that "
+            "resolve here). `workspace/citations.md` is generated from this "
+            "corpus + the per-step indexes.\n"
+        )
 
     # 8b. Mode-specific governance / scratch seeds. No-op for analysis,
     #     so the classic surface is untouched.
@@ -2054,7 +2227,7 @@ A clean research workspace they can read without any Research-OS context:
 * `synthesis/REPORT.md` / `synthesis/paper.md` — the narrative deliverable.
 * `workspace/NN_*/conclusions.md` — the per-step reasoning chain.
 * `workspace/NN_*/scripts/` — the actual analysis code (reproducible).
-* `workspace/NN_*/data/output/` — derived artefacts each step persisted.
+* `workspace/NN_*/data/next_step_output/` — derived artefacts each step persisted.
 * `docs/` — research question, glossary, workflow diagram.
 
 The AI-side configuration is intentionally excluded, so the share
@@ -2168,8 +2341,8 @@ cd workspace/01_<slug>
 python scripts/01_<slug>_v1.py
 ```
 
-Each step's `data/input/` is symlinked from the project's `inputs/raw_data/`
-or from the previous step's `data/output/`. Outputs land under
+Each step's `data/past_step_input/` is symlinked from the project's `inputs/raw_data/`
+or from the previous step's `data/next_step_output/`. Outputs land under
 `workspace/<step>/outputs/{{figures,tables,reports}}`.
 
 ## Working on this project with an AI
@@ -2726,45 +2899,66 @@ def _seed_step_subfolder_readmes(
             path.write_text(body)
 
     upstream_hint = (
-        f"data/input → previous step's data/output (step {next_num - 1:02d})."
+        f"data/past_step_input → previous step's data/next_step_output "
+        f"(step {next_num - 1:02d})."
         if next_num > 1 and not from_step
-        else "data/input → inputs/raw_data (this is the ingest step)."
+        else "data/past_step_input → inputs/raw_data (this is the ingest step)."
         if next_num == 1
-        else f"data/input copied from `{from_step}`."
+        else f"data/past_step_input → `{from_step}`'s data/next_step_output."
     )
 
-    # Top-level data/ — explains the symlink + how downstream steps consume it.
+    # Top-level data/ — explains the four data folders + how steps consume them.
     _write_if_missing(
         exp_dir / "data" / "README.md",
         f"# `{branch_id}` — data\n\n"
-        "Two subfolders, both managed by the harness:\n\n"
-        "- **`input/`** — usually a symlink. Source of truth for this step's "
-        f"raw or pre-processed inputs. Default: {upstream_hint}\n"
-        "- **`output/`** — write CSV/parquet/pickle artefacts here. "
-        "Downstream steps' `data/input/` will symlink to this folder, so "
-        "name files for reuse (e.g. `tidy_survey.csv`, `composites.csv`).\n\n"
+        "Four subfolders, all managed by the harness:\n\n"
+        "- **`project_inputs/`** — symlink to the project's "
+        "`inputs/raw_data/`. The original data, always reachable even if "
+        "the upstream step produced nothing.\n"
+        "- **`past_step_input/`** — usually a symlink to the previous step's "
+        f"`data/next_step_output/`. This step's working inputs. Default: "
+        f"{upstream_hint}\n"
+        "- **`next_step_output/`** — write CSV/parquet/pickle artefacts the "
+        "NEXT step needs here. Downstream steps' `data/past_step_input/` "
+        "symlinks to this folder, so name files for reuse "
+        "(e.g. `tidy_survey.csv`, `composites.csv`).\n"
+        "- **`share/`** — *optional*. A curated, self-contained dataset you "
+        "package to hand to a collaborator or a new workflow (data + a small "
+        "read-me/script). Distinct from `next_step_output/` (which feeds the "
+        "next step); `share/` is for export.\n\n"
         "When this step is complete `tool_path_finalize` rewrites this file "
         "with the actual filename → downstream-step consumer mapping derived "
         "from the workflow DAG.\n",
     )
+    pi_path = exp_dir / "data" / "past_step_input"
     _write_if_missing(
-        exp_dir / "data" / "input" / "README.md"
-        if (exp_dir / "data" / "input").is_dir() and not (exp_dir / "data" / "input").is_symlink()
-        else exp_dir / "data" / "_input_readme.md",
-        f"# `{branch_id}/data/input` — usage\n\n"
+        pi_path / "README.md"
+        if pi_path.is_dir() and not pi_path.is_symlink()
+        else exp_dir / "data" / "_past_step_input_readme.md",
+        f"# `{branch_id}/data/past_step_input` — usage\n\n"
         f"Default wiring: {upstream_hint}\n\n"
         "Replace the symlink with a directory only if this step has bespoke "
         "inputs that aren't a clean function of the previous step's outputs. "
         "Document any divergence in `analysis.md` (`mem_log(kind='decision')`).\n",
     )
     _write_if_missing(
-        exp_dir / "data" / "output" / "README.md",
-        f"# `{branch_id}/data/output` — usage\n\n"
-        "Persist analytic artefacts (CSV, parquet, pickle, JSON) here so "
-        "downstream steps and the synthesis dashboard can consume them.\n\n"
+        exp_dir / "data" / "next_step_output" / "README.md",
+        f"# `{branch_id}/data/next_step_output` — usage\n\n"
+        "Persist analytic artefacts (CSV, parquet, pickle, JSON) here so the "
+        "next step and the synthesis dashboard can consume them.\n\n"
         "Each saved file should be reproducible from `scripts/` alone — no "
         "ad-hoc REPL edits. After `tool_path_finalize` runs, this README is "
         "rewritten to list every persisted artefact with its consumer step.\n",
+    )
+    _write_if_missing(
+        exp_dir / "data" / "share" / "README.md",
+        f"# `{branch_id}/data/share` — export\n\n"
+        "Optional. Drop a curated, self-contained dataset here when you want "
+        "to hand it to a collaborator or seed a new workflow — the data plus "
+        "a short read-me (and a script if it needs regenerating). This is an "
+        "EXPORT surface, separate from `next_step_output/` (which feeds the "
+        "next analysis step). Iterate on it freely; nothing downstream "
+        "depends on it.\n",
     )
 
     # environment/, literature/, context/ are LAZY — created by tools on
@@ -2784,17 +2978,22 @@ def _seed_step_subfolder_readmes(
     _write_if_missing(
         exp_dir / "outputs" / "README.md",
         f"# `{branch_id}` — outputs\n\n"
-        "- **`reports/`** — Markdown narratives (`*.md`) summarising results "
-        "for humans. Reports go DEEPER than `conclusions.md`: choices, "
-        "reasoning, comparison of options, AI thoughts, tables embedded.\n"
-        "- **`figures/`** — `.png` plots. Each figure SHOULD have a "
-        "sibling `<name>.caption.md` describing what the reader is looking at "
-        "in plain language. SVG companions are opt-in "
-        "(`researcher_config.figures.svg_allowed: true`). Interactive `.html` "
-        "figures are appropriate for networks, large multi-panel dashboards, "
-        "or any view where reader exploration adds value.\n"
-        "- **`tables/`** — CSV / TSV tables. Each table SHOULD have a "
-        "sibling `<name>.caption.md` for the same reason.\n\n"
+        "- **`figures/`** — `.png` plots (the analysis outputs). Each figure "
+        "ships exactly three siblings: the image, a `<name>.prov.json` "
+        "provenance record, and a `<name>.caption.md` (the technical "
+        "caption the synthesis embeds). The plain-English interpretation "
+        "lives inline in `conclusions.md` next to the embed. SVG companions "
+        "are opt-in (`researcher_config.figures.svg_allowed: true`); "
+        "interactive `.html` figures suit networks / large multi-panels.\n"
+        "- **`tables/`** — CSV / TSV tables (analysis outputs). Each table "
+        "SHOULD have a sibling `<name>.caption.md`.\n"
+        "- **`reports/`** — *optional* snapshot presentation artefacts you "
+        "build at a point in time to PRESENT — a one-off dashboard for a "
+        "committee, a slide for a journal club, a diagram for a "
+        "collaboration review. These are NOT analysis-script outputs and NOT "
+        "where findings live (findings → `conclusions.md`). Keeping them "
+        "here avoids cluttering `synthesis/`. Header each with its date + "
+        "intended audience.\n\n"
         "Follow `figure_guidelines` (DPI ≥150 screen / ≥300 print, colour-blind "
         "safe palette, axis units). The AI MUST `sys_file_read` each figure "
         "before declaring the step done (catches legend-over-plot, missing "
@@ -2808,7 +3007,7 @@ def _seed_step_subfolder_readmes(
         f"Place runnable analysis scripts here (preferred name: "
         f"`{branch_id}_v1.py`). Bump the suffix when the analysis materially "
         "changes; the dashboard surfaces the latest version. Each script must "
-        "be re-runnable end-to-end with only `data/input/` and the documented "
+        "be re-runnable end-to-end with only `data/past_step_input/` and the documented "
         "environment as inputs.\n",
     )
 
@@ -2830,12 +3029,23 @@ def _max_path_lineage(workspace: Path) -> int:
     best = 0
     if not workspace.exists():
         return 0
-    for p in workspace.iterdir():
-        if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)):
-            continue
+    for p in discover_step_dirs(workspace):
         k = _extract_path_lineage(p.name)
         if k is not None and k > best:
             best = k
+    return best
+
+
+def _max_path_container_seq(workspace: Path) -> int:
+    """Largest existing ``_PATH_<k>`` container sequence number."""
+    best = 0
+    if not workspace.exists():
+        return 0
+    for p in workspace.iterdir():
+        if p.is_dir() and is_path_container(p.name):
+            m = re.search(r"_PATH_(\d+)$", p.name)
+            if m:
+                best = max(best, int(m.group(1)))
     return best
 
 
@@ -2886,12 +3096,12 @@ def create_numbered_experiment(
     # exercise multi-step scaffolding without going through the full
     # finalize workflow, and by ``sys_path(operation='create')`` when the researcher
     # explicitly authorises bypass (logged to workspace/logs/override_log.md).
+    all_step_dirs = discover_step_dirs(workspace)
     existing_main_steps = sorted(
-        p for p in workspace.iterdir()
-        if p.is_dir()
-        and re.match(r"^\d{2,3}_", p.name)
-        and _extract_path_lineage(p.name) is None
-        and not p.name.endswith("__DEAD_END")
+        (p for p in all_step_dirs
+         if _extract_path_lineage(p.name) is None
+         and not p.name.endswith("__DEAD_END")),
+        key=_step_sort_key,
     )
     if enforce_predecessor_finalized and existing_main_steps and not branch_of:
         prev = existing_main_steps[-1]
@@ -2901,15 +3111,16 @@ def create_numbered_experiment(
             r_txt = prev_readme.read_text()
             c_txt = prev_conc.read_text()
             placeholder_markers_readme = (
+                "*(2-3 sentences a colleague",
                 "*(list inputs used)*",
                 "*(name the method;",
                 "*(the single most important result",
-                "*(proceed | branch | dead-end)*",
+                "*(proceed | branch | dead-end",
             )
             placeholder_markers_conc = (
-                "*(2-3 sentences",
-                "*(method name",
-                "*(the single most important",
+                "*(2-5 quantitative bullets",
+                "*(Dataset shape",
+                "*(What this step cannot conclude",
             )
             unfilled_readme = sum(m in r_txt for m in placeholder_markers_readme)
             unfilled_conc = sum(m in c_txt for m in placeholder_markers_conc)
@@ -2928,13 +3139,15 @@ def create_numbered_experiment(
                     "into the conclusions stubs before re-trying."
                 )
 
+    # Numbering is CONTINUOUS across the whole workspace — flat steps AND
+    # steps grouped into PATH containers — so a new step never collides with
+    # or re-uses a grouped step's number.
     max_num = 0
-    for p in workspace.iterdir():
-        if p.is_dir() and re.match(r"^\d{2,3}_", p.name):
-            try:
-                max_num = max(max_num, int(p.name.split("_", 1)[0]))
-            except ValueError:
-                pass
+    for p in all_step_dirs:
+        try:
+            max_num = max(max_num, int(p.name.split("_", 1)[0]))
+        except ValueError:
+            pass
     next_num = max_num + 1
     slug = slugify(name, "experiment")
 
@@ -2950,16 +3163,12 @@ def create_numbered_experiment(
         candidates = [branch_of, branch_of.removesuffix("__DEAD_END")]
         parent_dir: Path | None = None
         for cand in candidates:
-            cand_dir = workspace / cand
-            if cand_dir.is_dir():
-                parent_dir = cand_dir
-                parent_id = cand
-                break
-            # Tolerate when only the dead-end variant exists on disk.
-            cand_dead = workspace / f"{cand}__DEAD_END"
-            if cand_dead.is_dir():
-                parent_dir = cand_dead
-                parent_id = cand_dead.name
+            # resolve_step_dir finds the step whether it is flat or grouped
+            # under a PATH container, and tolerates the dead-end variant.
+            found = resolve_step_dir(workspace, cand)
+            if found is not None:
+                parent_dir = found
+                parent_id = found.name
                 break
         if parent_dir is None:
             raise ValueError(f"branch_of step '{branch_of}' not found in workspace/")
@@ -2977,7 +3186,7 @@ def create_numbered_experiment(
 
     check_write_permitted(exp_dir)
 
-    # `from_step` ONLY wires data/input from the named step's output —
+    # `from_step` ONLY wires data/past_step_input from the named step's output —
     # nothing else. A naive `shutil.copytree` would duplicate
     # outputs/figures/tables/reports/scripts, bloating the workspace,
     # breaking per-step provenance (the new step's outputs/ would
@@ -2989,9 +3198,9 @@ def create_numbered_experiment(
         (exp_dir / sub).mkdir(parents=True, exist_ok=True)
     # ALWAYS expose the project's inputs/raw_data/ via a
     # `data/project_inputs` symlink so an analysis step can reach the
-    # original data when its `data/input` (which prefers the upstream
-    # step's data/output/) is empty — a common pitfall where step 02
-    # inherits step 01's empty data/output.
+    # original data when its `data/past_step_input` (which prefers the
+    # upstream step's data/next_step_output/) is empty — a common pitfall
+    # where step 02 inherits step 01's empty data/next_step_output.
     raw_inputs = root / "inputs" / "raw_data"
     raw_inputs.mkdir(parents=True, exist_ok=True)
     project_inputs_link = exp_dir / "data" / "project_inputs"
@@ -3000,55 +3209,49 @@ def create_numbered_experiment(
             project_inputs_link.symlink_to(raw_inputs.absolute())
         except OSError:
             pass
-    if from_step:
-        src_step_output = workspace / from_step / "data" / "output"
-        src_step_output.mkdir(parents=True, exist_ok=True)
-        data_input = exp_dir / "data" / "input"
+    # Wire data/past_step_input → the upstream step's output dir (resolved
+    # tolerantly so a step created in a pre-3.2 project still links to that
+    # step's legacy data/output). data_input is the new step's input link.
+    data_input = exp_dir / "data" / "past_step_input"
+
+    def _link_upstream(upstream_dir: Path) -> None:
+        out_dir = step_output_dir(upstream_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
         try:
             data_input.rmdir()
-            data_input.symlink_to(src_step_output.absolute())
+            data_input.symlink_to(out_dir.absolute())
+        except OSError:
+            pass
+
+    if from_step:
+        _link_upstream(resolve_step_dir(workspace, from_step) or (workspace / from_step))
+    elif parent_id:
+        # Branch steps draw from their parent's output (resolved above,
+        # whether the parent is flat or grouped under a PATH container).
+        _link_upstream(parent_dir)
+    elif next_num == 1:
+        raw_dir = root / "inputs" / "raw_data"
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            data_input.rmdir()
+            data_input.symlink_to(raw_dir.absolute())
         except OSError:
             pass
     else:
-        # Wire data/input/ — branch steps draw from their parent's output;
-        # non-branch steps draw from the prior numbered step's output (or
-        # raw_data for step 01).
-        data_input = exp_dir / "data" / "input"
-        if parent_id:
-            parent_output = workspace / parent_id / "data" / "output"
-            parent_output.mkdir(parents=True, exist_ok=True)
-            try:
-                data_input.rmdir()
-                data_input.symlink_to(parent_output.absolute())
-            except OSError:
-                pass
-        elif next_num == 1:
-            raw_dir = root / "inputs" / "raw_data"
-            raw_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                data_input.rmdir()
-                data_input.symlink_to(raw_dir.absolute())
-            except OSError:
-                pass
-        else:
-            prev_num = next_num - 1
-            # Prefer main-path predecessors over branch siblings when both exist.
-            prev_dirs = sorted(
-                p for p in workspace.iterdir()
-                if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
-                and _extract_path_lineage(p.name) is None
-            ) or sorted(
-                p for p in workspace.iterdir()
-                if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
-            )
-            if prev_dirs:
-                prev_output = prev_dirs[0] / "data" / "output"
-                prev_output.mkdir(parents=True, exist_ok=True)
-                try:
-                    data_input.rmdir()
-                    data_input.symlink_to(prev_output.absolute())
-                except OSError:
-                    pass
+        prev_num = next_num - 1
+        # Prefer main-path predecessors over branch siblings when both exist.
+        # discover_step_dirs spans flat steps + PATH-grouped steps.
+        prev_candidates = [
+            p for p in all_step_dirs
+            if re.match(rf"^{prev_num:02d}_", p.name)
+        ]
+        prev_dirs = sorted(
+            (p for p in prev_candidates
+             if _extract_path_lineage(p.name) is None),
+            key=_step_sort_key,
+        ) or sorted(prev_candidates, key=_step_sort_key)
+        if prev_dirs:
+            _link_upstream(prev_dirs[0])
 
     # README — the OVERVIEW reader: short, easy to read, no statistical jargon.
     # `conclusions.md` is the thorough version with method details.
@@ -3061,43 +3264,43 @@ def create_numbered_experiment(
         "the sections below from what was actually produced.\n\n"
         f"## Goal\n{hypothesis or name}\n\n"
         "## In plain English\n"
-        "*(One paragraph. Imagine you're explaining this step to a colleague "
-        "from a different field. What is being asked? Why does it matter? "
-        "What did we find?)*\n\n"
+        "*(2-3 sentences a colleague from another field could follow: what "
+        "was tested, what was found, and the strength of the evidence. This "
+        "is the canonical plain-language summary — the synthesis dashboard's "
+        "executive / teaching views surface it verbatim.)*\n\n"
         "## Input data\n- *(list inputs used)*\n\n"
         "## Methods (one line each)\n- *(name the method; full justification "
-        "lives in `conclusions.md` and `literature/key_papers.md`)*\n\n"
+        "lives in `conclusions.md` and `literature/findings_vs_literature.md`)*\n\n"
         "## Headline finding\n- *(the single most important result — "
         "researchers should be able to quote this sentence verbatim)*\n\n"
-        "## Outputs\n- *(figures / tables / reports produced)*\n\n"
+        "## Outputs\n- *(figures / tables produced)*\n\n"
         "## Decision\n- *(proceed | branch | dead-end)*\n\n"
         "## Read next\n"
+        "- [`plan.md`](./plan.md) — the pre-step plan: prior context, this "
+        "step's design, and open questions.\n"
         "- [`conclusions.md`](./conclusions.md) — full statistical results, "
-        "limitations, decisions.\n"
+        "limitations, decisions, and step-to-step tracking.\n"
         "- [`outputs/figures/`](./outputs/figures/) — every figure has a "
-        "sibling `.caption.md` (technical) and `.summary.md` (plain English).\n"
-        "- [`literature/key_papers.md`](./literature/key_papers.md) — the "
-        "sources that anchor each decision.\n"
-        "- [`context/notes.md`](./context/notes.md) — narrative "
-        "rationale + hand-overs.\n"
+        "sibling `.caption.md` (technical) the synthesis embeds.\n"
+        "- [`literature/findings_vs_literature.md`](./literature/findings_vs_literature.md)"
+        " — how this step's findings sit against the literature.\n"
     )
     # conclusions.md — the THOROUGH reader: full statistical detail, edge
     # cases, sensitivity checks, every limitation. Targets the same audience
     # as a journal Methods + Results + Discussion section.
     (exp_dir / "conclusions.md").write_text(
         f"# {branch_id} — Conclusions\n*Created: {now_iso()}*\n\n"
-        "> **What this file is.** The full statistical record of the step. "
-        "Method, assumption checks, every effect size, every limitation. "
-        "If `README.md` is the elevator pitch, this is the full paper.\n\n"
-        "## Plain-language summary\n"
-        "*(2-3 sentences. What was tested, what was found, and the strength "
-        "of the evidence — in language an undergraduate could follow. The "
-        "dashboard's executive/teaching views surface this verbatim.)*\n\n"
+        "> **What this file is.** The deep report for this step: the full "
+        "statistical record PLUS the thought-process tracking. Method, "
+        "assumption checks, every effect size, every limitation, and how "
+        "this step's decision evolved — both across the step's own "
+        "iterations and from the previous step to this one. The plain-"
+        "language summary lives in `README.md` (`## In plain English`); do "
+        "not duplicate it here.\n\n"
         "## Findings\n"
         "*(2-5 quantitative bullets with numbers + units + 95% CI where "
         "applicable. Lead with effect sizes, not p-values. Plain frequencies "
-        "preferred over percentages for risk communication — see the "
-        "statistical glossary in `synthesis/dashboard.html`.)*\n\n"
+        "preferred over percentages for risk communication.)*\n\n"
         "## Hypothesis evidence\n"
         "*(For each hypothesis touched: H<id> status + one-line evidence + "
         "the figure / table the verdict rests on.)*\n\n"
@@ -3113,8 +3316,45 @@ def create_numbered_experiment(
         "*(What this step cannot conclude, and why — sample size, design "
         "constraints, measurement bias, etc. Honest framing: \"no detectable "
         "difference\" beats \"no effect\" when underpowered.)*\n\n"
-        "## Decision\n*(proceed | branch | dead-end)*\n\n"
+        "## Decision\n"
+        "*(proceed | branch | dead-end. Record the reasoning AND the "
+        "lineage: how the previous step led here, and — if this step was "
+        "iterated — what changed from the prior version and why. This is "
+        "the full thought-process trail a future reader reconstructs the "
+        "project from.)*\n\n"
         "## Next steps\n*(2-3 candidates with rationale)*\n"
+    )
+
+    # plan.md — the PRE-STEP plan (co-scientist style). Written at step
+    # creation, BEFORE any scripts / figures: it carries forward the prior
+    # step's outcome + the project's findings-to-date, lays out this step's
+    # design, and poses the open question(s) the researcher iterates on
+    # before work begins. Under autopilot the AI still fills it in (it is
+    # the record of the AI's reasoning), but does not pause for sign-off.
+    (exp_dir / "plan.md").write_text(
+        f"# {branch_id} — Plan\n*Created: {now_iso()}*\n\n"
+        "> **What this file is.** The plan for this step, written BEFORE the "
+        "work. Iterate on it with the researcher (propose → critique → "
+        "refine) until the design is agreed, THEN build the scripts / "
+        "figures. The overall-project counterpart is "
+        "`inputs/research_plan.md`.\n\n"
+        "## Where we are\n"
+        "*(Recap the previous step's outcome + the project's findings so far "
+        "— the context this step builds on. For step 01, summarise the "
+        "research question + inputs instead.)*\n\n"
+        "## What this step will do\n"
+        f"*(The goal for `{branch_id}`: the question it answers, the data it "
+        "uses, the method(s) it will apply, and the artefact(s) it will "
+        "produce.)*\n\n"
+        "## Why this step, why now\n"
+        "*(How it advances the hypotheses / research question, and why it is "
+        "the right next move versus the alternatives.)*\n\n"
+        "## Open questions for the researcher\n"
+        "*(The decisions you want the researcher to weigh in on before you "
+        "start — design choices, scope, trade-offs. Under autopilot, note "
+        "the choice you made and proceed.)*\n\n"
+        "## Anticipated next steps\n"
+        "*(Where this likely leads — so the plan carries forward.)*\n"
     )
 
     _seed_step_subfolder_readmes(exp_dir, root, branch_id, next_num, from_step)
@@ -3296,13 +3536,42 @@ def generate_citations_md(root: Path) -> str:
         except Exception:
             pass
 
+    # 1b. Project corpus of record (literature/steps/<id>/) — aggregated by
+    #     tool_path_finalize. Catches papers pulled into a step's context/
+    #     folder, which the per-step literature/ scan below would miss.
+    corpus_steps = root / "literature" / "steps"
+    if corpus_steps.is_dir() and yaml:
+        for step_sub in sorted(corpus_steps.iterdir()):
+            if not step_sub.is_dir():
+                continue
+            for pdf in sorted(step_sub.iterdir()):
+                if not pdf.is_file() or pdf.suffix.lower() not in {".pdf", ".epub"}:
+                    continue
+                for ext in (".meta.yaml", ".meta.json"):
+                    side = pdf.with_name(pdf.name + ext)
+                    if not side.exists():
+                        continue
+                    try:
+                        if ext == ".meta.yaml":
+                            meta = yaml.safe_load(side.read_text()) or {}
+                        else:
+                            meta = json.loads(side.read_text())
+                    except Exception:
+                        meta = {}
+                    key = meta.get("citation_key") or re.sub(
+                        r"[\s-]+", "_", pdf.stem).lower()
+                    meta = dict(meta)
+                    meta["citation_key"] = key
+                    meta["filename"] = pdf.name
+                    meta.setdefault("scope", f"corpus:{step_sub.name}")
+                    entries.setdefault(key, meta)
+                    break
+
     # 2. Per-step literature indexes + sidecars + conclusions.md
     # "References to ground" sections.
     workspace = root / "workspace"
     if workspace.exists():
-        for step_dir in sorted(workspace.iterdir()):
-            if not (step_dir.is_dir() and re.match(r"^\d{2,3}_", step_dir.name)):
-                continue
+        for step_dir in discover_step_dirs(workspace):
             # 2a. Scrape `## References to ground` from each step's
             # conclusions.md so prose-cited refs (the AI's most common
             # pattern) make it into the project bibliography without

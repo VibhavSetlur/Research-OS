@@ -184,15 +184,13 @@ runtime:
   long_running_threshold_seconds: 60
 
 # ── Figure defaults ────────────────────────────────────────────────────
-# What sidecars / companions the AI ships with every figure. Auto-
-# generated .summary.md stubs tended to leak into papers as placeholder
-# captions; SVG companions doubled disk and audit noise. The opinionated
-# default is: one .png + one .caption.md, with interpretation integrated
-# into conclusions.md. Opt in below per project when the editorial
-# pipeline actually consumes the extras.
+# What companions the AI ships with every figure. SVG companions double
+# disk and audit noise. The opinionated default is: one .png + one
+# .prov.json + one .caption.md, with the plain-English interpretation
+# integrated into conclusions.md next to the embed. Opt in below per
+# project when the editorial pipeline actually consumes the extras.
 figures:
   svg_allowed: false             # ship .svg next to .png? off by default
-  summary_sidecar: false         # auto-emit .summary.md sidecars? off by default
   interactive_html_allowed: true # interactive .html companions allowed for networks / multi-panels
 
 # ── Synthesis ──────────────────────────────────────────────────────────

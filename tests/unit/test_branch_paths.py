@@ -49,8 +49,8 @@ def test_branch_off_main_step_gets_path_1_suffix(tmp_path):
     # data/input of the branch step should symlink to the PARENT's output,
     # not to step 02's output as a sibling. Here those happen to be the
     # same because branch_of=02 IS the parent — verify the symlink target.
-    branch_input = tmp_path / "workspace" / "03_glmm_path_1" / "data" / "input"
-    parent_output = tmp_path / "workspace" / "02_logistic" / "data" / "output"
+    branch_input = tmp_path / "workspace" / "03_glmm_path_1" / "data" / "past_step_input"
+    parent_output = tmp_path / "workspace" / "02_logistic" / "data" / "next_step_output"
     assert branch_input.is_symlink()
     assert branch_input.resolve() == parent_output.resolve()
 

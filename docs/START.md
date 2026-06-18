@@ -190,7 +190,7 @@ research-os doctor --workspace-only   # skip install checks (CI use)
 The doctor checks: python version, conda env, version consistency
 across `pyproject.toml` / `__init__.py` / `CITATION.cff`, pack
 registration, embeddings freshness, typst / chromium on PATH, IDE MCP
-wiring, orphan figures, stale `step_summary.yaml`, unresolved BLOCK
+wiring, orphan figures, unresolved BLOCK
 gates, disk usage, git cleanliness, and `.gitignore` coverage. Exits
 `0` (all pass), `1` (warnings only), or `2` (failures present).
 

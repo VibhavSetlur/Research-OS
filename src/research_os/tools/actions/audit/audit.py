@@ -233,7 +233,7 @@ def audit_synthesis(
             gate_blockers.append(
                 f"Paper is {total_words} words — minimum publishable bar is "
                 f"{MIN_BAR['total']}. Expand the {', '.join(short_sections)} "
-                "section(s); each per-step `step_summary.yaml` has structured "
+                "section(s); each per-step `conclusions.md` has structured "
                 "material to draw from."
             )
         if n_available and coverage < 0.8:
@@ -251,9 +251,9 @@ def audit_synthesis(
             if sec != "abstract":
                 gate_blockers.append(
                     f"{sec.title()} is {section_word_counts[sec]} words — "
-                    f"min {MIN_BAR[sec]}. Pull more from "
-                    "`workspace/<step>/step_summary.yaml` and the per-step "
-                    "`## Findings` blocks."
+                    f"min {MIN_BAR[sec]}. Pull more from the per-step "
+                    "`workspace/<step>/conclusions.md` `## Findings` / "
+                    "`## Methods` blocks."
                 )
 
         # Pre-initialise the aggregation fields so the report dict
@@ -1116,7 +1116,7 @@ def audit_quality_full(
 # dict shape that ``tool_synthesize`` + the dashboard parse. ``AuditMaster``
 # is additive: it repackages the same blocker / warning set as structured
 # :class:`AuditFinding` objects so the ``write_audit_outputs`` writer can
-# fan them out to ``workspace/audit_master_audit.{md,json}`` + the
+# fan them out to ``workspace/logs/audit_master_audit.{md,json}`` + the
 # ``workspace/logs/.audit_findings.jsonl`` cross-audit ledger. The markdown
 # is NEVER replaced — a snapshot test pins its format.
 # ---------------------------------------------------------------------------
@@ -1256,7 +1256,7 @@ class AuditMaster(AuditBase):
     Subclasses :class:`AuditBase`; emits the same blocker / warning set
     as the aggregator, repackaged as :class:`AuditFinding` objects so
     the ``write_audit_outputs`` writer can fan them to
-    ``workspace/audit_master_audit.{md,json}`` + the
+    ``workspace/logs/audit_master_audit.{md,json}`` + the
     ``workspace/logs/.audit_findings.jsonl`` ledger.
 
     The markdown at ``workspace/logs/audit_master.md`` is NOT replaced
@@ -1757,11 +1757,11 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
     """Score one step's completeness — used both for finalize gates and
     server-enforced anti-one-shot guards.
 
-    Beyond the v1 checks (conclusions stub, focal figure, caption +
-    summary sidecars), this audit now ALSO requires:
+    Beyond the v1 checks (conclusions stub, focal figure, caption
+    sidecars), this audit now ALSO requires:
 
     * Per-output provenance sidecars (``<file>.prov.json``) for any
-      file under ``outputs/`` or ``data/output/``. Coverage below 50%
+      file under ``outputs/`` or ``data/next_step_output/``. Coverage below 50%
       is a blocker.
     * If the step has more than 2 scripts, a ``pipeline.yaml``
       declaring the sub-task DAG. (Reviewable, cacheable, re-runnable.)
@@ -1834,30 +1834,22 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
             "to alphabetical first match."
         )
 
-    # 3. Every figure must have caption + summary sidecars.
+    # 3. Every figure must have a caption sidecar (the plain-English
+    #    interpretation now lives inline in conclusions.md next to the
+    #    embed, so the separate .summary.md sidecar was retired in 3.2).
     if figures and figs_dir.exists():
         missing_caps = []
-        missing_sums = []
         for name in figures:
             base = figs_dir / name
             if not base.with_suffix(".caption.md").exists():
                 missing_caps.append(name)
-            if not base.with_suffix(".summary.md").exists():
-                missing_sums.append(name)
         if missing_caps:
             blockers.append(
                 f"{len(missing_caps)} figure(s) missing caption sidecar: "
                 + ", ".join(missing_caps[:5])
                 + ("…" if len(missing_caps) > 5 else "")
             )
-        if missing_sums:
-            blockers.append(
-                f"{len(missing_sums)} figure(s) missing plain-English summary "
-                "sidecar (.summary.md). Call tool_figure_caption_synthesise "
-                "or rerun tool_path_finalize."
-            )
         info["missing_captions"] = missing_caps
-        info["missing_summaries"] = missing_sums
 
     # 4. Scripts/ should have at least one runnable file.
     scripts_dir = step_dir / "scripts"
@@ -2067,7 +2059,7 @@ def audit_step_completeness(
 
       * conclusions.md exists with non-stub Findings + Decision sections.
       * At least one focal PNG/SVG under outputs/figures/.
-      * Every figure has a sibling .caption.md AND .summary.md.
+      * Every figure has a sibling .caption.md.
       * scripts/ has at least one runnable file.
 
     Returns ``status="error"`` and a ``blockers`` list when *any* active
@@ -2199,8 +2191,6 @@ _DIMENSION_MATCHERS: tuple[tuple[str, str], ...] = (
     ("findings section is still a stub", "findings_stub"),
     ("decision section is still a stub", "decision_stub"),
     ("missing caption sidecar", "caption_sidecar"),
-    ("missing plain-english summary", "summary_sidecar"),
-    ("missing .summary.md", "summary_sidecar"),
     ("no scratch/stack_plan.md", "stack_plan"),
     ("stack_plan", "stack_plan"),
     ("outputs span", "mega_script"),
@@ -2209,6 +2199,7 @@ _DIMENSION_MATCHERS: tuple[tuple[str, str], ...] = (
     ("no figure produced", "focal_artefact"),
     # Warning patterns
     ("plain-language summary still a stub", "plain_language_summary"),
+    ("in plain english is still a stub", "plain_language_summary"),
     ("no figure starts with the step number prefix", "focal_artefact"),
     ("no script files under scripts", "scripts"),
     ("numeric findings", "tables"),
@@ -2237,7 +2228,6 @@ _COMPLETENESS_OVERRIDE_KWARGS: dict[str, str] = {
     "decision_stub": "override_completeness_gate",
     "focal_artefact": "override_completeness_gate",
     "caption_sidecar": "override_completeness_gate",
-    "summary_sidecar": "override_completeness_gate",
     "mega_script": "override_completeness_gate",
 }
 
@@ -2258,9 +2248,7 @@ def _completeness_evidence_paths(step_id: str, dimension: str) -> list[str]:
         "plain_language_summary",
     ):
         return [f"{base}/conclusions.md"]
-    if dimension == "focal_artefact":
-        return [f"{base}/outputs/figures/"]
-    if dimension in ("caption_sidecar", "summary_sidecar"):
+    if dimension in ("focal_artefact", "caption_sidecar"):
         return [f"{base}/outputs/figures/"]
     if dimension == "stack_plan":
         return [f"{base}/scratch/stack_plan.md"]

@@ -519,8 +519,27 @@ def _handle_sys_path_rename(name, arguments, root):
     return _text(_error(res.get("message", "rename failed")))
 
 
+def _handle_sys_path_group(name, arguments, root):
+    from research_os.tools.actions.state.path import group_paths
+
+    container_name = arguments.get("name") or arguments.get("path_name")
+    steps = arguments.get("steps") or arguments.get("step_ids")
+    if not container_name or not steps:
+        return _text(_error(
+            "operation='group' requires name=<descriptive container label> "
+            "and steps=[<path_id>, …] — the flat steps to consolidate into a "
+            "workspace/<name>_PATH_<k>/ folder (numbering is preserved)."
+        ))
+    if isinstance(steps, str):
+        steps = [s.strip() for s in steps.split(",") if s.strip()]
+    res = group_paths(container_name, list(steps), root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "group failed")))
+
+
 def _handle_sys_path(name, arguments, root):
-    """Unified path dispatcher (create | abandon | list | rename)."""
+    """Unified path dispatcher (create | abandon | list | rename | group)."""
     legacy = {
         "sys_path_create": "create",
         "sys_path_abandon": "abandon",
@@ -529,7 +548,7 @@ def _handle_sys_path(name, arguments, root):
     operation = arguments.get("operation") or legacy.get(name)
     if not operation:
         return _text(_error(
-            "sys_path requires operation='create'|'abandon'|'list'|'rename'"
+            "sys_path requires operation='create'|'abandon'|'list'|'rename'|'group'"
         ))
     if operation == "create":
         return _handle_sys_path_create(name, arguments, root)
@@ -539,6 +558,8 @@ def _handle_sys_path(name, arguments, root):
         return _handle_sys_path_list(name, arguments, root)
     if operation == "rename":
         return _handle_sys_path_rename(name, arguments, root)
+    if operation == "group":
+        return _handle_sys_path_group(name, arguments, root)
     return _text(_error(f"Unknown sys_path operation '{operation}'"))
 
 

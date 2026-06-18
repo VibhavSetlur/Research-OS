@@ -432,7 +432,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "project-global env' or a list of bespoke requirements, (b) "
             "`literature/README.md` either points at the global corpus + the "
             "step's decision log or lists the step-specific sources + the "
-            "decisions they informed, (c) `data/output/README.md` lists every "
+            "decisions they informed, (c) `data/next_step_output/README.md` lists every "
             "persisted artefact and which downstream step consumes it, (d) "
             "`outputs/README.md` enumerates produced figures / tables / "
             "reports, and (e) any stub sections in the step's main `README.md` "
@@ -588,7 +588,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "tool_workflow_dag": {
         "short": "Build a DAG of numbered steps + their data dependencies; write docs/workflow_dag.mermaid.",
-        "description": "Walks each numbered step's data/input symlinks to derive cross-step dependencies, then writes docs/workflow_dag.mermaid with colour-coded nodes (active / completed / dead_end). Pass render_png=true to also emit a PNG (requires mmdc — npm install -g @mermaid-js/mermaid-cli). Auto-refreshed by sys_path(operation='create') and sys_path(operation='abandon') so the DAG stays in sync without manual calls.",
+        "description": "Walks each numbered step's data/past_step_input symlinks to derive cross-step dependencies, then writes docs/workflow_dag.mermaid with colour-coded nodes (active / completed / dead_end). Pass render_png=true to also emit a PNG (requires mmdc — npm install -g @mermaid-js/mermaid-cli). Auto-refreshed by sys_path(operation='create') and sys_path(operation='abandon') so the DAG stays in sync without manual calls.",
         "category": "state",
         "inputSchema": {
             "type": "object",
@@ -602,14 +602,14 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_path": {
-        "short": "Unified step/path dispatcher. operation='create'|'abandon'|'list'|'rename'. Also callable as sys_step.",
-        "description": "One entry for the analysis-step (a.k.a. 'path') lifecycle. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all steps with status. operation='rename' takes path_name + new_name and gives a generic step a meaningful human label — it keeps the NN_ step number, renames the folder, and re-points every downstream data/* symlink that pointed at it (so lineage stays intact). Callable as either sys_path or sys_step (alias). In autopilot mode, operation='abandon' requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
+        "short": "Unified step/path dispatcher. operation='create'|'abandon'|'list'|'rename'|'group'. Also callable as sys_step.",
+        "description": "One entry for the analysis-step (a.k.a. 'path') lifecycle. operation='create' (was sys_path_create) takes name + hypothesis + branch_of. operation='abandon' (was sys_path_abandon) takes path_name + rationale. operation='list' (was sys_path_list) returns all steps with status (including steps grouped under PATH containers, each tagged with path_container). operation='rename' takes path_name + new_name and gives a generic step a meaningful human label — it keeps the NN_ step number, renames the folder, and re-points every downstream data/* symlink. operation='group' takes name=<descriptive label> + steps=[<path_id>, …] and CONSOLIDATES those flat steps into a workspace/<name>_PATH_<k>/ container folder (the 3.2 way to organise a direction you explored) — it moves the step folders, re-points every absolute data/* symlink, and preserves step numbering (continuous across the project; path 2 keeps going at step 06, never resets). Callable as either sys_path or sys_step (alias). In autopilot mode, operation='abandon' requires confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "state",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "operation": {"type": "string", "enum": ["create", "abandon", "list", "rename"]},
-                "name": {"type": "string"},
+                "operation": {"type": "string", "enum": ["create", "abandon", "list", "rename", "group"]},
+                "name": {"type": "string", "description": "operation='create' — step slug. operation='group' — the descriptive container label (becomes <slug>_PATH_<k>)."},
                 "hypothesis": {"type": "string"},
                 "branch_of": {"type": "string"},
                 "from_step": {"type": "string"},
@@ -617,6 +617,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "override_rationale": {"type": "string"},
                 "path_name": {"type": "string"},
                 "new_name": {"type": "string", "description": "operation='rename' — the new human label for the step (the NN_ number is preserved)."},
+                "steps": {"type": "array", "items": {"type": "string"}, "description": "operation='group' — the path_ids of the flat steps to move into the new PATH container."},
                 "rationale": {"type": "string"},
                 "confirmed": {"type": "boolean", "description": "Required in autopilot mode for operation='abandon'. Researcher consent."},
             },

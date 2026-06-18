@@ -609,9 +609,8 @@ def _handle_tool_audit_claims(name, arguments, root):
     target_path = arguments.get("target_path")
     tolerance = float(arguments.get("tolerance", 0.01))
 
-    # Legacy procedural call produces synthesis/claim_index.json and
-    # workspace/logs/claim_grounding.md and is the source of truth for
-    # the response body that callers consume.
+    # Legacy procedural call produces workspace/logs/claim_grounding.md
+    # and is the source of truth for the response body callers consume.
     result = audit_claims(root, target_path=target_path, tolerance=tolerance)
 
     # AuditBase fan-out: emit structured AuditFindings to the

@@ -104,8 +104,8 @@ def audit_numeric_grounding(
                                     continue
                         except OSError:
                             continue
-            # Also pull from conclusions.md + step_summary.yaml.
-            for fname in ("conclusions.md", "step_summary.yaml"):
+            # Also pull from conclusions.md (the per-step source of truth).
+            for fname in ("conclusions.md",):
                 p = step / fname
                 if p.exists():
                     try:

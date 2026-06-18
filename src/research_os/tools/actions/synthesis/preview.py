@@ -41,21 +41,27 @@ WORDS_PER_PAGE_BY_VENUE = {
 
 
 def _step_dirs(root: Path) -> list[Path]:
-    workspace = root / "workspace"
-    if not workspace.exists():
-        return []
-    return sorted(
-        d for d in workspace.iterdir()
-        if d.is_dir() and d.name[:2].isdigit() and not d.name.endswith("__DEAD_END")
-    )
+    from research_os.project_ops import discover_step_dirs
+    return discover_step_dirs(root / "workspace", include_dead=False)
 
 
 def _per_step_conclusions(root: Path) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for d in _step_dirs(root):
         conc = d / "conclusions.md"
-        summary = d / "step_summary.yaml"
-        flit = d / "outputs" / "reports" / "findings_vs_literature.md"
+        flit = d / "literature" / "findings_vs_literature.md"
+        # conclusions.md is the methods source of truth (step_summary.yaml
+        # was retired in 3.2). A step "has methods" when its conclusions.md
+        # carries a non-stub Methods section.
+        has_methods = False
+        if conc.exists():
+            ctxt = conc.read_text(encoding="utf-8", errors="replace")
+            mm = re.search(
+                r"^##\s+Methods.*?\n(.*?)(?=^##\s|\Z)",
+                ctxt, re.MULTILINE | re.DOTALL,
+            )
+            body = (mm.group(1).strip() if mm else "")
+            has_methods = bool(body) and not body.startswith(("*(", "_("))
         entry: dict[str, Any] = {
             "step_id": d.name,
             "has_conclusions": conc.exists() and conc.stat().st_size > 100,
@@ -63,7 +69,7 @@ def _per_step_conclusions(root: Path) -> list[dict[str, Any]]:
                 len(conc.read_text(encoding="utf-8", errors="replace").split())
                 if conc.exists() else 0
             ),
-            "has_step_summary": summary.exists(),
+            "has_methods": has_methods,
             "has_findings_vs_literature": flit.exists(),
             "verdicts": [],
         }
@@ -109,14 +115,15 @@ def _detect_gaps(steps: list[dict[str, Any]], target: str) -> list[dict[str, str
                 "substantive conclusions.md; Results will under-cover those steps."
             ),
         })
-    n_with_summary = sum(1 for s in steps if s["has_step_summary"])
-    if n_with_summary < len(steps):
+    n_with_methods = sum(1 for s in steps if s["has_methods"])
+    if n_with_methods < len(steps):
         gaps.append({
             "section": "methods",
-            "gap_type": "missing_step_summary",
+            "gap_type": "missing_step_methods",
             "description": (
-                f"{len(steps) - n_with_summary} of {len(steps)} step(s) lack "
-                "step_summary.yaml; Methods will be thin on those steps."
+                f"{len(steps) - n_with_methods} of {len(steps)} step(s) lack "
+                "a Methods section in conclusions.md; Methods will be thin "
+                "on those steps."
             ),
         })
     has_disagree = any("disagrees" in s["verdicts"] for s in steps)
@@ -216,7 +223,7 @@ def synthesis_preview(
 
     # Steps drawn from per section (just lists by step_id).
     steps_per_section = {
-        "methods": [s["step_id"] for s in steps if s["has_step_summary"]],
+        "methods": [s["step_id"] for s in steps if s["has_methods"]],
         "results": [s["step_id"] for s in steps if s["has_conclusions"]],
         "discussion": [s["step_id"] for s in steps if s["verdicts"]],
     }

@@ -209,6 +209,133 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
     }
 
 
+def group_paths(
+    name: str,
+    step_ids: list[str],
+    root: Path,
+) -> dict[str, Any]:
+    """Consolidate a set of steps into a ``<slug>_PATH_<k>/`` container.
+
+    The 3.2 way to organise a run of steps that explored one direction:
+    instead of suffixing each folder, MOVE them into a descriptive
+    container — ``workspace/attitude_pilot_PATH_1/03_eda`` etc. Step
+    numbering is preserved (continuous across the workspace), every
+    absolute ``data/*`` symlink that pointed into a moved step is
+    re-pointed, and state / manifest / mermaid / DAG are refreshed.
+
+    Steps already inside a container, dead-ends, and unknown ids are
+    rejected up front so the move is all-or-nothing.
+    """
+    from research_os.project_ops import (
+        _max_path_container_seq,
+        _update_manifest,
+        _update_workflow_mermaid,
+        is_path_container,
+        load_state,
+        now_iso,
+        save_state,
+        slugify,
+    )
+
+    workspace = root / "workspace"
+    if not workspace.exists():
+        return {"status": "error", "message": "workspace/ not found"}
+    if not step_ids:
+        return {"status": "error", "message": "No steps given to group."}
+
+    # Resolve every step to a FLAT folder directly under workspace/.
+    moves: list[tuple[str, Path]] = []
+    for sid in step_ids:
+        d = workspace / sid
+        if not d.is_dir():
+            return {
+                "status": "error",
+                "message": (
+                    f"Step '{sid}' is not a flat step directly under "
+                    "workspace/ (already grouped, dead-ended, or unknown). "
+                    "Group flat steps only."
+                ),
+            }
+        if not re.match(r"^\d{2,3}_", sid):
+            return {"status": "error", "message": f"'{sid}' is not a numbered step."}
+        moves.append((sid, d))
+
+    seq = _max_path_container_seq(workspace) + 1
+    container_name = f"{slugify(name, 'path')}_PATH_{seq}"
+    container = workspace / container_name
+    if container.exists():
+        return {"status": "error", "message": f"Container '{container_name}' already exists."}
+    container.mkdir(parents=True)
+
+    # Move each step into the container, recording (old_abs, new_abs) for
+    # symlink re-pointing. project_ops writes symlinks with .absolute() (not
+    # resolved), so match that exact string form.
+    remap: list[tuple[str, str]] = []
+    for sid, old_dir in moves:
+        old_abs = str(old_dir.absolute())
+        new_dir = container / sid
+        old_dir.rename(new_dir)
+        remap.append((old_abs, str(new_dir.absolute())))
+
+    # Re-point every absolute symlink across the workspace that pointed into
+    # a moved folder (intra-group + downstream data/past_step_input links).
+    repointed = 0
+    for link in workspace.rglob("*"):
+        if not link.is_symlink():
+            continue
+        try:
+            target = os.readlink(link)
+        except OSError:
+            continue
+        for old_abs, new_abs in remap:
+            if target == old_abs or target.startswith(old_abs + os.sep):
+                new_target = new_abs + target[len(old_abs):]
+                try:
+                    link.unlink()
+                    link.symlink_to(new_target)
+                    repointed += 1
+                except OSError:
+                    pass
+                break
+
+    # State: stamp the container on each grouped path; fix experiment_dir.
+    state = load_state(root)
+    paths = state.setdefault("paths", {})
+    for sid, _ in moves:
+        if sid in paths:
+            paths[sid]["path_container"] = container_name
+            paths[sid]["experiment_dir"] = f"workspace/{container_name}/{sid}"
+            paths[sid]["grouped_at"] = now_iso()
+    save_state(root, state)
+
+    # Container README so the folder explains itself.
+    (container / "README.md").write_text(
+        f"# `{container_name}` — grouped path\n\n"
+        f"A consolidated analytical path: the steps below were grouped here "
+        f"on {now_iso()} because they explore one direction. Step numbering "
+        "stays continuous with the rest of the project (it is NOT reset), so "
+        "these steps can be moved or merged without renumbering.\n\n"
+        + "\n".join(f"- `{sid}`" for sid, _ in moves) + "\n"
+    )
+
+    _update_workflow_mermaid(root)
+    _update_manifest(root)
+    try:
+        workflow_dag(root)
+    except Exception:
+        pass
+
+    # Keep is_path_container importable-but-used (defensive sanity check).
+    assert is_path_container(container_name)
+
+    return {
+        "status": "success",
+        "container": container_name,
+        "grouped_steps": [sid for sid, _ in moves],
+        "symlinks_repointed": repointed,
+    }
+
+
 def workflow_dag(
     root: Path,
     *,
@@ -252,14 +379,16 @@ def workflow_dag(
                 "full_id": pid,
             }
 
-        # Derive edges from data/input symlinks: each step's
-        # data/input may be a symlink to either inputs/raw_data or
-        # another step's data/output.
+        # Derive edges from the per-step input symlink: each step's
+        # data/past_step_input (legacy: data/input) may be a symlink to
+        # inputs/raw_data or another step's data/next_step_output.
+        from research_os.project_ops import step_input_link
+
         edges: list[tuple[str, str]] = []
         for s in steps:
             step_path = Path(s["experiment_dir"])
-            data_in = step_path / "data" / "input"
-            if not data_in.exists():
+            data_in = step_input_link(step_path)
+            if not data_in.exists() and not data_in.is_symlink():
                 continue
             # Could be a single symlink or a directory of symlinks; check both.
             link_targets: list[Path] = []
@@ -377,23 +506,6 @@ def workflow_dag(
                         "indicates a focal figure named after the step "
                         "number; ⚠ flags an outstanding artefact.\n"
                     )
-                # Also write a plain-English summary sibling for the dashboard.
-                sumf = target.with_suffix(".summary.md")
-                if not sumf.exists():
-                    sumf.write_text(
-                        "**What it shows.** The full path of the analysis: "
-                        "every numbered step, what depends on what, and how "
-                        "far along each one is.\n\n"
-                        "**How to read it.** Start at the top, follow the "
-                        "arrows. Green = done. Amber = in progress. Red = "
-                        "abandoned but kept on the record. Each box lists "
-                        "the hypotheses that step tested and its headline "
-                        "result.\n\n"
-                        "**Why it matters.** Lets a reader trust that the "
-                        "conclusion didn't appear out of nowhere — every "
-                        "step is traceable to its inputs and to the next "
-                        "step that consumed its output.\n"
-                    )
             except Exception as e:
                 logger.debug("workflow figure copy to synthesis/figures failed: %s", e)
 
@@ -448,9 +560,8 @@ def _collect_step_metadata(workspace: Path, root: Path) -> dict[str, dict[str, A
         step_to_hyps = {}
         h_statements = {}
 
-    for p in workspace.iterdir():
-        if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)):
-            continue
+    from research_os.project_ops import discover_step_dirs
+    for p in discover_step_dirs(workspace):
         info: dict[str, Any] = {
             "hypotheses": sorted(step_to_hyps.get(p.name, set())),
             "h_statements": h_statements,
@@ -739,10 +850,12 @@ _REPORT_EXTS = {".md", ".txt", ".html", ".rst"}
 def _figure_table_inventory(exp_dir: Path) -> dict[str, list[str]]:
     """Inventory of REAL artefacts under outputs/{figures,tables,reports}.
 
-    Filter by extension so caption / summary / prov sidecars don't
-    pollute the figure list — without this, READMEs would report a step
-    with 16 figures when it actually had 4 figures plus 12 metadata
-    files for them.
+    Filter by extension so caption / prov sidecars don't pollute the
+    figure list — without this, READMEs would report a step with 12
+    figures when it actually had 4 figures plus 8 metadata files for them.
+    ``reports/`` holds optional snapshot presentation artefacts (a
+    one-off dashboard / slide / diagram), NOT analysis-script outputs and
+    NOT where findings live (those are in conclusions.md).
     """
     bucket_exts = {
         "figures": _FIGURE_EXTS,
@@ -793,13 +906,11 @@ def finalize_path(
       * `context/README.md`: if folder has only the seed template → notes
         nothing prose-specific was needed. If `notes.md` was filled in,
         surfaces the plain-language summary into the step README.
-      * `data/README.md` + `data/output/README.md`: lists every artefact
-        actually written + which downstream step (per workflow DAG) reads it.
-      * For every figure missing a `.summary.md` plain-language sidecar,
-        invokes the caption synthesiser so the dashboard / paper can
-        embed an accessible description alongside the technical caption.
+      * `data/README.md` + `data/next_step_output/README.md`: lists every
+        artefact actually written + which downstream step (per workflow
+        DAG) reads it.
     """
-    from research_os.project_ops import load_state
+    from research_os.project_ops import load_state, resolve_step_dir
 
     workspace = root / "workspace"
     if not workspace.exists():
@@ -808,14 +919,15 @@ def finalize_path(
     if path_name is None:
         state = load_state(root)
         path_name = state.get("current_path")
-        if not path_name or not (workspace / path_name).is_dir():
+        if not path_name or resolve_step_dir(workspace, path_name) is None:
             return {
                 "status": "error",
                 "message": "No path_name given and current_path is unset.",
             }
 
-    exp_dir = workspace / path_name
-    if not exp_dir.is_dir():
+    # Resolve whether the step is flat or grouped under a PATH container.
+    exp_dir = resolve_step_dir(workspace, path_name)
+    if exp_dir is None or not exp_dir.is_dir():
         return {"status": "error", "message": f"Path '{path_name}' not found"}
 
     changes: list[str] = []
@@ -997,8 +1109,10 @@ def finalize_path(
         changes.append("context/README.md → narrative inventory + summary")
 
     # ---- 2. Data folder + downstream consumer map ----
+    from research_os.project_ops import step_output_dir
     consumers = _downstream_consumers(workspace, path_name)
-    out_dir = exp_dir / "data" / "output"
+    out_dir = step_output_dir(exp_dir)
+    out_rel = out_dir.name  # next_step_output (or legacy output)
     out_files = []
     if out_dir.exists():
         for f in sorted(out_dir.iterdir()):
@@ -1007,7 +1121,7 @@ def finalize_path(
             if f.is_file():
                 out_files.append(f.name)
     out_body = (
-        f"# `{path_name}/data/output` — artefacts\n\n"
+        f"# `{path_name}/data/{out_rel}` — artefacts\n\n"
     )
     if out_files:
         out_body += "Persisted files:\n\n" + "\n".join(
@@ -1021,15 +1135,16 @@ def finalize_path(
         )
     if consumers:
         out_body += "\n## Downstream consumers\n\n" + "\n".join(
-            f"- `{c}` reads this folder via `data/input` symlink." for c in consumers
+            f"- `{c}` reads this folder via `data/past_step_input` symlink."
+            for c in consumers
         ) + "\n"
     else:
         out_body += (
             "\nNo downstream step currently consumes these outputs.\n"
         )
-    (out_dir / "README.md").parent.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "README.md").write_text(out_body)
-    changes.append("data/output/README.md → artefacts + consumer map")
+    changes.append(f"data/{out_rel}/README.md → artefacts + consumer map")
 
     # ---- 3. Outputs inventory + step README finalize ----
     inv = _figure_table_inventory(exp_dir)
@@ -1066,17 +1181,14 @@ def finalize_path(
             step_readme.write_text(new_readme)
             changes.append("README.md → stub sections populated")
 
-    # ---- 5. Figure summary sidecars are RETIRED ----
-    # Captions + interpretation now integrate into `conclusions.md` next
-    # to the inline `![](outputs/figures/<slug>.png)` embed. The
-    # `.summary.md` sidecar regime trained the AI to ship stub captions
-    # ("Auto-drafted caption: regenerate from analysis context") that
-    # leaked into the synthesis paper as placeholder rows. The
-    # `<slug>.caption.md` next to each figure stays (technical metadata:
-    # dpi, units, palette) but the AI is expected to author it
-    # deliberately, not derive it after the fact. Opt back in via
-    # `researcher_config.figures.summary_sidecar=true`.
-    summaries_written: list[str] = []
+    # ---- 5. Figure summary sidecars are REMOVED (3.2) ----
+    # Each figure ships exactly three sidecars: the image, a
+    # `<slug>.prov.json` provenance record, and a `<slug>.caption.md`
+    # the synthesis pipeline embeds. The plain-English interpretation
+    # now lives inline in `conclusions.md` next to the
+    # `![](outputs/figures/<slug>.png)` embed — the old `.summary.md`
+    # sidecar regime trained the AI to ship stub captions that leaked
+    # into the synthesis paper as placeholder rows.
 
     # ---- 6. Stub detection — surface as warnings so the AI knows
     #         what's still empty before walking off the step. We do NOT
@@ -1092,11 +1204,13 @@ def finalize_path(
                     f"conclusions.md > {hdr} is still a stub — fill it before "
                     "the next step or before synthesis (gate will block there)."
                 )
-        if _is_stub_section(conc_text_now, "Plain-language summary"):
+    # The plain-language summary now lives in README.md (## In plain English);
+    # conclusions.md no longer carries it. Warn if the README's is still a stub.
+    if step_readme.exists():
+        if _is_stub_section(step_readme.read_text(), "In plain English"):
             warnings.append(
-                "conclusions.md > Plain-language summary is still a stub — "
-                "the dashboard's executive / teaching views will fall back to "
-                "the technical text."
+                "README.md > In plain English is still a stub — the dashboard's "
+                "executive / teaching views will fall back to the technical text."
             )
 
     # ---- 7. Per-step → project-scope file refresh.
@@ -1155,9 +1269,27 @@ def finalize_path(
         except OSError as e:
             logger.debug("methods.md append skipped: %s", e)
 
+    # 7c-lit. Mirror this step's papers (literature/ + context/) into the
+    #         project corpus of record at literature/steps/<step_id>/, then
+    #         (7c) regenerate citations from the union of all indexes.
+    try:
+        agg = _aggregate_step_literature_to_corpus(exp_dir, root, path_name)
+        if agg:
+            project_updates.append(
+                f"literature/steps/{path_name}/ ← {len(agg)} paper(s) mirrored to corpus"
+            )
+        # Also mirror the project-wide inputs/literature into literature/inputs/.
+        inp_agg = _mirror_inputs_literature_to_corpus(root)
+        if inp_agg:
+            project_updates.append(
+                f"literature/inputs/ ← {len(inp_agg)} project paper(s) mirrored"
+            )
+    except Exception as e:
+        logger.debug("literature corpus aggregation skipped: %s", e)
+
     # 7c. workspace/citations.md — regenerate from the union of
-    #     inputs/literature_index.yaml + every per-step literature
-    #     .meta.yaml sidecar. Idempotent (full rewrite).
+    #     inputs/literature_index.yaml + the project corpus + every per-step
+    #     literature .meta.yaml sidecar. Idempotent (full rewrite).
     try:
         from research_os.project_ops import generate_citations_md
         citations_path = generate_citations_md(root)
@@ -1473,86 +1605,20 @@ def finalize_path(
                 for w in fwarn:
                     warnings.append(f"figure `{fig_name}` warning: {w}")
 
-    # 7f. Emit step_summary.yaml — structured machine-readable mirror
-    #     of conclusions.md the synthesis pipeline consumes
-    #     deterministically (no NLP parsing required to compose the
-    #     paper / abstract / dashboard).
+    # 7f. step_summary.yaml is REMOVED (3.2). It was a derived mirror of
+    #     conclusions.md that cluttered every step folder and drifted from
+    #     its source. All readers (synthesis, audits, rigor signals) parse
+    #     conclusions.md directly now. Migration: delete a stale copy left
+    #     by a pre-3.2 release so the folder converges to the new layout.
     try:
-        if conc_path.exists():
-            conc_text = conc_path.read_text()
-            # Prefer the explicit `## Headline finding` block when the AI
-            # wrote one; fall back to first-bullet-from-Findings extraction.
-            explicit_headline = (_section(conc_text, "Headline finding") or "").strip()
-            headline_for_summary = (
-                explicit_headline
-                or _headline_from_findings(conc_text)
-                or ""
+        _stale_summary = exp_dir / "step_summary.yaml"
+        if _stale_summary.exists():
+            _stale_summary.unlink()
+            project_updates.append(
+                "workspace/<step>/step_summary.yaml removed (derived mirror retired)"
             )
-            summary_payload: dict[str, Any] = {
-                "step_id": path_name,
-                "finalized_at": datetime.now(timezone.utc).isoformat(),
-                "headline": headline_for_summary,
-                "methods_block": (_section(conc_text, "Methods (full detail)") or _section(conc_text, "Methods") or "").strip(),
-                "plain_language_summary": (_section(conc_text, "Plain-language summary") or _section(conc_text, "Plain-English summary") or "").strip(),
-                "findings": _bullet_lines(_section(conc_text, "Findings")),
-                "decision": (_section(conc_text, "Decision") or "").strip(),
-                "limitations": _bullet_lines(_section(conc_text, "Limitations")),
-                "references_to_ground": _bullet_lines(_section(conc_text, "References to ground")),
-                "figures": [
-                    {
-                        "name": fig_name,
-                        "path": f"workspace/{path_name}/outputs/figures/{fig_name}",
-                        "caption_path": f"workspace/{path_name}/outputs/figures/{Path(fig_name).stem}.caption.md",
-                        "summary_path": f"workspace/{path_name}/outputs/figures/{Path(fig_name).stem}.summary.md",
-                        "audit": figure_audit.get(fig_name, {}),
-                    }
-                    for fig_name in inv["figures"]
-                ],
-                "tables": [
-                    f"workspace/{path_name}/outputs/tables/{t}" for t in inv["tables"]
-                ],
-                "reports": [
-                    f"workspace/{path_name}/outputs/reports/{r}" for r in inv["reports"]
-                ],
-                "warnings": list(warnings),
-            }
-            try:
-                import yaml as _yaml
-
-                # Mark the file as derived + scheduled-for-removal so
-                # readers (rigor_signals / quick_mode / cli_doctor /
-                # step_literature) and human reviewers know not to edit
-                # it by hand. The audit flagged the editable scaffold
-                # version as the YAML-stub anti-pattern; this writer
-                # has always been the derived mirror, but the file name
-                # was indistinguishable on disk, so projects ended up
-                # with both editable and derived copies named the same.
-                _STEP_SUMMARY_HEADER = (
-                    "# step_summary.yaml — DERIVED from conclusions.md\n"
-                    "# AUTO-GENERATED by tool_path_finalize; do NOT edit "
-                    "by hand.\n"
-                    "# Slated for removal once readers (synthesis, audits) "
-                    "migrate to parsing conclusions.md directly. New code "
-                    "should read conclusions.md, not this sidecar.\n"
-                    "# Source of truth: conclusions.md in the same folder.\n"
-                    "\n"
-                )
-                summary_payload["_derived_from"] = "conclusions.md"
-                (exp_dir / "step_summary.yaml").write_text(
-                    _STEP_SUMMARY_HEADER
-                    + _yaml.dump(
-                        summary_payload,
-                        sort_keys=False,
-                        default_flow_style=False,
-                    )
-                )
-                project_updates.append(
-                    "workspace/<step>/step_summary.yaml ← derived from conclusions.md"
-                )
-            except Exception as e:
-                logger.debug("step_summary.yaml emit skipped: %s", e)
-    except Exception as e:
-        logger.debug("step_summary build skipped: %s", e)
+    except OSError as e:
+        logger.debug("stale step_summary.yaml cleanup skipped: %s", e)
 
     # 7g. Per-step retrospective — append "Anticipated reviewer
     #     questions" section to conclusions.md so the AI's own self-
@@ -1606,19 +1672,29 @@ def finalize_path(
             len(out_files) + len(inv["figures"]) + len(inv["tables"]) + len(inv["reports"])
         ),
         "plain_english_summary_present": bool(plain_summary_from_context),
-        "figure_summaries_synthesised": summaries_written,
     }
 
 
 def _downstream_consumers(workspace: Path, path_name: str) -> list[str]:
-    """Steps whose data/input symlink resolves under <path_name>/data/output."""
-    self_out = (workspace / path_name / "data" / "output").resolve()
+    """Steps whose input symlink resolves under <path_name>'s output dir.
+
+    Tolerant of the pre-3.2 names (data/input → data/output) and the 3.2
+    names (data/past_step_input → data/next_step_output).
+    """
+    from research_os.project_ops import (
+        discover_step_dirs,
+        resolve_step_dir,
+        step_input_link,
+        step_output_dir,
+    )
+    self_dir = resolve_step_dir(workspace, path_name) or (workspace / path_name)
+    self_out = step_output_dir(self_dir).resolve()
     consumers: list[str] = []
-    for p in sorted(workspace.iterdir()):
-        if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)) or p.name == path_name:
+    for p in discover_step_dirs(workspace):
+        if p.name == path_name:
             continue
-        inp = p / "data" / "input"
-        if not inp.exists():
+        inp = step_input_link(p)
+        if not inp.exists() and not inp.is_symlink():
             continue
         try:
             if inp.is_symlink() and inp.resolve() == self_out:
@@ -1633,15 +1709,101 @@ def _downstream_consumers(workspace: Path, path_name: str) -> list[str]:
     return consumers
 
 
+_LIT_EXTS = {".pdf", ".epub"}
+_LIT_SIDECAR_EXTS = (".meta.yaml", ".meta.json")
+
+
+def _aggregate_step_literature_to_corpus(
+    exp_dir: Path, root: Path, step_id: str,
+) -> list[str]:
+    """Mirror a step's papers into the project corpus at literature/steps/<id>/.
+
+    Pulls PDFs/EPUBs (+ their .meta sidecars) from the step's ``literature/``
+    AND ``context/`` folders — so a paper the user dropped into a step's
+    context/ also lands in the corpus of record. Prefers symlinks (cheap,
+    no duplication); falls back to copy on filesystems without symlink
+    support. Idempotent. Returns a list of change descriptions.
+    """
+    changes: list[str] = []
+    corpus_step = root / "literature" / "steps" / step_id
+    sources = [exp_dir / "literature", exp_dir / "context"]
+    for src in sources:
+        if not src.is_dir():
+            continue
+        for pdf in sorted(src.iterdir()):
+            if not pdf.is_file() or pdf.suffix.lower() not in _LIT_EXTS:
+                continue
+            corpus_step.mkdir(parents=True, exist_ok=True)
+            files = [pdf]
+            for ext in _LIT_SIDECAR_EXTS:
+                side = pdf.with_name(pdf.name + ext)
+                if side.exists():
+                    files.append(side)
+            for f in files:
+                target = corpus_step / f.name
+                if target.exists() or target.is_symlink():
+                    continue
+                try:
+                    target.symlink_to(f.absolute())
+                except OSError:
+                    try:
+                        shutil.copy2(f, target)
+                    except OSError:
+                        continue
+                if f is pdf:
+                    changes.append(f"literature/steps/{step_id}/{f.name}")
+    return changes
+
+
+def _mirror_inputs_literature_to_corpus(root: Path) -> list[str]:
+    """Mirror inputs/literature/ PDFs (+ sidecars) into literature/inputs/.
+
+    Keeps the project corpus of record complete: the project-wide papers
+    plus the per-step ones. Symlinks where possible; idempotent.
+    """
+    changes: list[str] = []
+    src = root / "inputs" / "literature"
+    if not src.is_dir():
+        return changes
+    dest = root / "literature" / "inputs"
+    for pdf in sorted(src.iterdir()):
+        if not pdf.is_file() or pdf.suffix.lower() not in _LIT_EXTS:
+            continue
+        dest.mkdir(parents=True, exist_ok=True)
+        files = [pdf]
+        for ext in _LIT_SIDECAR_EXTS:
+            side = pdf.with_name(pdf.name + ext)
+            if side.exists():
+                files.append(side)
+        for f in files:
+            target = dest / f.name
+            if target.exists() or target.is_symlink():
+                continue
+            try:
+                target.symlink_to(f.absolute())
+            except OSError:
+                try:
+                    shutil.copy2(f, target)
+                except OSError:
+                    continue
+            if f is pdf:
+                changes.append(f"literature/inputs/{f.name}")
+    return changes
+
+
+# Substrings that mark an unfilled seed stub in README.md / conclusions.md.
+# Keep these in sync with the seeds in project_ops.create_numbered_experiment.
 _STUB_MARKERS = (
-    "*(list inputs used)*",
-    "*(list methods/models)*",
-    "*(describe expected outputs)*",
-    "*(proceed | branch | dead-end)*",
-    "*(One paragraph. Imagine",
-    "*(the single most important result",
-    "*(name the method;",
-    "*(figures / tables / reports produced)*",
+    # README.md stubs
+    "*(2-3 sentences a colleague",          # In plain English
+    "*(list inputs used)*",                 # Input data
+    "*(name the method;",                   # Methods (one line each)
+    "*(the single most important result",   # Headline finding
+    "*(figures / tables produced)*",        # Outputs
+    "*(proceed | branch | dead-end",        # Decision (README + conclusions)
+    # conclusions.md stubs
+    "*(2-5 quantitative bullets",           # Findings
+    "*(2-3 candidates with rationale)*",    # Next steps
 )
 
 
@@ -1854,28 +2016,33 @@ def _headline_from_findings(conclusions: str) -> str:
 def _input_inventory_for_readme(exp_dir: Path) -> str:
     """Best-effort inventory of this step's inputs for the README.
 
-    Scans `data/input/` symlinks (each one usually points at the prior
-    step's `data/output/<file>`) and falls back to listing files
-    referenced from the cleaning pipeline script(s) when no symlinks
+    Scans the step's input symlink (3.2 `data/past_step_input/`, legacy
+    `data/input/`) — each usually points at the prior step's output dir —
+    and falls back to raw_data references in pipeline.yaml when no symlinks
     exist yet.
     """
-    inp_dir = exp_dir / "data" / "input"
+    from research_os.project_ops import step_input_link
+    inp_dir = step_input_link(exp_dir)
+    rel = inp_dir.name  # past_step_input (or legacy input)
     items: list[str] = []
     if inp_dir.is_dir():
         for entry in sorted(inp_dir.iterdir()):
-            if entry.name in {"README.md", "_input_readme.md", ".gitkeep"}:
+            if entry.name in {
+                "README.md", "_input_readme.md",
+                "_past_step_input_readme.md", ".gitkeep",
+            }:
                 continue
             if entry.is_symlink():
                 try:
                     target = entry.resolve()
                     items.append(
-                        f"- `data/input/{entry.name}` → "
+                        f"- `data/{rel}/{entry.name}` → "
                         f"`{target.relative_to(exp_dir.parent.parent)}`"
                     )
                     continue
                 except (OSError, ValueError):
                     pass
-            items.append(f"- `data/input/{entry.name}`")
+            items.append(f"- `data/{rel}/{entry.name}`")
     # Also surface raw_data references found in pipeline.yaml so the
     # very-first step (no symlinks yet) doesn't read as "no inputs".
     pipeline_yaml = exp_dir / "pipeline.yaml"
@@ -1978,15 +2145,19 @@ def _finalize_step_readme(
 
 
 def list_paths(root: Path) -> dict[str, Any]:
-    """List every numbered experiment path with status and metadata."""
+    """List every numbered experiment path with status and metadata.
+
+    Spans flat steps AND steps grouped under ``<slug>_PATH_<k>/`` container
+    folders (3.2), so a grouped step is never invisible to the DAG / router
+    / audits that read this.
+    """
+    from research_os.project_ops import discover_step_dirs, is_path_container
     workspace_dir = root / "workspace"
     paths: list[dict[str, Any]] = []
     if not workspace_dir.exists():
         return {"status": "success", "paths": paths, "paths_count": 0}
 
-    for p in sorted(workspace_dir.iterdir()):
-        if not p.is_dir():
-            continue
+    for p in discover_step_dirs(workspace_dir):
         m = re.match(r"^(\d{2,3})_(.+?)(__DEAD_END)?$", p.name)
         if not m:
             continue
@@ -2007,16 +2178,17 @@ def list_paths(root: Path) -> dict[str, Any]:
             )
             status = "completed" if (has_conclusions and has_outputs) else "active"
 
-        paths.append(
-            {
-                "path_id": p.name,
-                "number": number,
-                "name": name,
-                "status": status,
-                "experiment_dir": str(p.absolute()),
-                "has_readme": (p / "README.md").exists(),
-                "has_conclusions": (p / "conclusions.md").exists(),
-            }
-        )
+        entry: dict[str, Any] = {
+            "path_id": p.name,
+            "number": number,
+            "name": name,
+            "status": status,
+            "experiment_dir": str(p.absolute()),
+            "has_readme": (p / "README.md").exists(),
+            "has_conclusions": (p / "conclusions.md").exists(),
+        }
+        if p.parent != workspace_dir and is_path_container(p.parent.name):
+            entry["path_container"] = p.parent.name
+        paths.append(entry)
 
     return {"status": "success", "paths": paths, "paths_count": len(paths)}

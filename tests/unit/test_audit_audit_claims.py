@@ -142,10 +142,13 @@ def test_claim_grounding_audit_emits_block_findings_per_ungrounded(
         assert d["ro_version"]
         assert d["generated_at"].endswith("Z")
 
-    # The info summary references the index file too, so reviewers can
-    # find the structured claim listing from the ledger.
+    # The info summary references the markdown report so reviewers can
+    # find the structured claim listing from the ledger. (The legacy
+    # synthesis/claim_index.json sidecar is no longer written.)
     summary = infos[0]
-    assert any(p.endswith("claim_index.json") for p in summary.evidence_paths)
+    assert any(
+        p.endswith("claim_grounding.md") for p in summary.evidence_paths
+    )
 
 
 def test_claim_grounding_audit_json_companion_schema_valid(tmp_path: Path):
@@ -156,7 +159,7 @@ def test_claim_grounding_audit_json_companion_schema_valid(tmp_path: Path):
     paths = write_audit_outputs(findings, "claim_grounding", root)
 
     assert paths["json"] == (
-        root / "workspace" / "claim_grounding_audit.json"
+        root / "workspace" / "logs" / "audits" / "claim_grounding_audit.json"
     )
     arr = json.loads(paths["json"].read_text())
     assert isinstance(arr, list)

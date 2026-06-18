@@ -625,7 +625,13 @@ _CANONICAL_SYNTHESIS_DIRS = frozenset({
 _CANONICAL_WORKSPACE_FILES = frozenset({
     "analysis.md",
     "methods.md",
+    "tools.md",
     "citations.md",
+    # The single project-end meta-review (written only at ship/finalize).
+    "audit.md",
+    # Research-OS generates this workflow diagram at workspace root.
+    "workflow.mermaid",
+    "workflow.png",
     "researcher_certifications.yaml",
 })
 

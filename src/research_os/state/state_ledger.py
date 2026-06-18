@@ -126,12 +126,12 @@ class ResearchLedger:
             "updated_at": now,
             "pipeline_stage": "init",
             "workspace_mode": "analysis",
+            "domain": "",
             "step": 0,
             "current_path": "main",
             "checkpoints": {},
             "active_hypotheses": [],
             "dead_ends": [],
-            "loaded_data": [],
             "errors": [],
             "resumable_from": None,
             "last_checkpoint": now,
@@ -183,6 +183,7 @@ class ResearchLedger:
         for vestigial in (
             "token_budget", "knowledge_graph_path", "data_scale_profile",
             "execution_dag_path", "checkpoint_history", "rollback_history",
+            "loaded_data",  # 3.2: never read; dir provenance lives on disk
         ):
             if vestigial in state:
                 state.pop(vestigial)
@@ -309,12 +310,11 @@ class ResearchLedger:
         return state
 
     def add_loaded_data(self, data_path: str) -> dict:
-        state = self._load()
-        if data_path not in state.get("loaded_data", []):
-            state.setdefault("loaded_data", []).append(data_path)
-            state["updated_at"] = datetime.now(timezone.utc).isoformat()
-            self._save(state)
-        return state
+        """Deprecated no-op (3.2). The ``loaded_data`` ledger field was never
+        read — loaded-data provenance lives on disk (data/* symlinks +
+        .prov.json). Retained as a no-op so any stray caller doesn't break.
+        """
+        return self._load()
 
     def save_ctm(self, ctm_data: dict) -> dict:
         """Save a Context Transfer Memorandum.

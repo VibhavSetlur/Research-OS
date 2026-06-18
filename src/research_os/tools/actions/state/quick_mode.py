@@ -157,7 +157,12 @@ def promote_to_step(
             json.dumps(prov, indent=2)
         )
         # Minimal conclusions.md.
+        # The marker comment makes the step literature-exempt (a promoted
+        # scratch probe doesn't owe the per-step literature loop). The
+        # step-literature gate reads this marker from conclusions.md;
+        # delete the line to opt the step back into the literature loop.
         (step_dir / "conclusions.md").write_text(
+            "<!-- research-os: literature_required=false -->\n\n"
             f"## Findings\n\n"
             f"Promoted from scratch artifact `{src.name}`. "
             f"Rationale: {rationale or '(none provided)'}\n\n"
@@ -165,22 +170,6 @@ def promote_to_step(
             f"{next_num:02d}_{slug} for proper audit + synthesis "
             "inclusion.\n"
         )
-        # Minimal step_summary.yaml.
-        try:
-            import yaml  # type: ignore
-            summary = {
-                "step_id": f"{next_num:02d}_{slug}",
-                "promoted_from_scratch": True,
-                "scratch_source": str(src.relative_to(root)),
-                "literature_required": False,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-            }
-            (step_dir / "step_summary.yaml").write_text(yaml.safe_dump(summary, sort_keys=False))
-        except Exception:
-            # YAML library missing or write failed — the step still
-            # has conclusions.md + .prov.json, so the audit can
-            # surface the promotion without the summary file.
-            pass
         return {
             "status": "success",
             "step_id": f"{next_num:02d}_{slug}",
@@ -190,9 +179,9 @@ def promote_to_step(
                 dest.with_suffix(dest.suffix + ".prov.json").relative_to(root)
             ),
             "note": (
-                "Step is marked literature_required=false by default; "
-                "edit step_summary.yaml if the promoted finding needs "
-                "the literature loop."
+                "Step is literature-exempt by default (marker in "
+                "conclusions.md); delete the marker line if the promoted "
+                "finding needs the per-step literature loop."
             ),
         }
     except Exception as e:

@@ -139,8 +139,8 @@ def test_write_audit_outputs_writes_all_three(project_root):
     js = paths["json"]
     jl = paths["jsonl"]
     assert md.exists() and js.exists() and jl.exists()
-    assert md == project_root / "workspace" / "completeness_audit.md"
-    assert js == project_root / "workspace" / "completeness_audit.json"
+    assert md == project_root / "workspace" / "logs" / "audits" / "completeness_audit.md"
+    assert js == project_root / "workspace" / "logs" / "audits" / "completeness_audit.json"
     assert jl == project_root / "workspace" / "logs" / ".audit_findings.jsonl"
 
     # Markdown is grouped by severity (block first).
@@ -185,8 +185,8 @@ def test_write_audit_outputs_idempotent_md_json_appending_jsonl(project_root):
     first = _findings_pair()
     write_audit_outputs(first, "completeness", project_root)
     jl = project_root / "workspace" / "logs" / ".audit_findings.jsonl"
-    js = project_root / "workspace" / "completeness_audit.json"
-    md = project_root / "workspace" / "completeness_audit.md"
+    js = project_root / "workspace" / "logs" / "audits" / "completeness_audit.json"
+    md = project_root / "workspace" / "logs" / "audits" / "completeness_audit.md"
 
     first_md = md.read_text()
     first_json = json.loads(js.read_text())

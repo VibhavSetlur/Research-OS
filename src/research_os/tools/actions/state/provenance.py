@@ -336,8 +336,9 @@ def step_provenance_inventory(step_dir: Path, root: Path) -> dict[str, Any]:
     Used by ``tool_audit_step_completeness`` to gate synthesis on
     provenance coverage.
     """
+    from research_os.project_ops import step_output_dir
     out_dir = step_dir / "outputs"
-    data_out = step_dir / "data" / "output"
+    data_out = step_output_dir(step_dir)
     targets = []
     sidecar_suffixes = (".prov.json", ".caption.md", ".summary.md")
     for base in (out_dir, data_out):

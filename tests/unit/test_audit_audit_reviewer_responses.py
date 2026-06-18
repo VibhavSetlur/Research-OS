@@ -8,7 +8,7 @@ Three invariants the migration must preserve:
    regression in ``test_reviewer.py`` keep passing.
 
 2. The v2 JSON companion at
-   ``workspace/audit_reviewer_responses_audit.json`` is schema-valid
+   ``workspace/logs/audits/audit_reviewer_responses_audit.json`` is schema-valid
    and re-parses into ``AuditFinding`` objects.
 
 3. The ``.audit_findings.jsonl`` ledger at ``workspace/logs/`` grows
@@ -134,7 +134,7 @@ def test_v2_json_companion_is_schema_valid(project: Path) -> None:
     _write_rebuttal(project, "stat_handwave", _PROBLEM_REBUTTAL)
     audit_reviewer_responses(project)
 
-    json_path = project / "workspace" / "audit_reviewer_responses_audit.json"
+    json_path = project / "workspace" / "logs" / "audits" / "audit_reviewer_responses_audit.json"
     assert json_path.exists(), "v2 JSON companion not written"
 
     payload = json.loads(json_path.read_text())
@@ -153,7 +153,7 @@ def test_v2_md_companion_written(project: Path) -> None:
     """The v2 markdown companion is also written next to the JSON."""
     _write_rebuttal(project, "stat_clean", _CLEAN_REBUTTAL)
     audit_reviewer_responses(project)
-    md_path = project / "workspace" / "audit_reviewer_responses_audit.md"
+    md_path = project / "workspace" / "logs" / "audits" / "audit_reviewer_responses_audit.md"
     assert md_path.exists()
     assert "audit_reviewer_responses audit" in md_path.read_text()
 
@@ -161,7 +161,7 @@ def test_v2_md_companion_written(project: Path) -> None:
 def test_v2_outputs_written_even_with_no_rebuttals(project: Path) -> None:
     """Empty-rebuttals case still writes the v2 artefacts (empty list)."""
     audit_reviewer_responses(project)
-    json_path = project / "workspace" / "audit_reviewer_responses_audit.json"
+    json_path = project / "workspace" / "logs" / "audits" / "audit_reviewer_responses_audit.json"
     assert json_path.exists()
     assert json.loads(json_path.read_text()) == []
 

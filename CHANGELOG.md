@@ -6,6 +6,87 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.0] — Workspace declutter: clean step layout, iterative planning, grounded literature (2026-06-18)
+
+MINOR release. Backwards-compatible: every existing tool keeps its name + schema,
+and pre-3.2 projects keep working (reading code tolerates the old per-step data
+names + the retired sidecars). Driven by an end-to-end audit of a real generated
+project — the overhaul makes a project folder show only what a researcher needs
+to read, and makes planning + literature + paths first-class.
+
+### Added
+
+- **Per-step `plan.md` (co-scientist iterative planning).** Every numbered step is
+  created with a `plan.md` written BEFORE any code: prior-step recap + the step's
+  design + the open questions for the researcher to iterate on (propose → critique
+  → refine, then build). Wired into the `analysis_plan` protocol (new
+  `draft_step_plan` step) and surfaced under the README's "Read next".
+- **`inputs/research_plan.md` (whole-project plan).** A living plan — question,
+  hypotheses, planned step sequence, iteration log — that the AI + researcher
+  refine together; the arc each step's `plan.md` fits into. Read by
+  `iterative_planning`.
+- **Project-root `literature/` corpus of record.** Every paper used anywhere is
+  auto-aggregated at step finalize: `inputs/literature/` → `literature/inputs/`,
+  and each step's papers (from its `literature/` AND `context/` folders) →
+  `literature/steps/<NN_slug>/` — PDF + `.meta` provenance sidecar, symlinked.
+  `citations.md` folds the corpus in, so a paper dropped into a step's `context/`
+  still reaches the bibliography.
+- **PATH-container grouping — `sys_path(operation='group', name=, steps=[…])`.**
+  Consolidate a run of steps that explored one direction into a descriptive
+  `workspace/<slug>_PATH_<k>/` folder instead of suffixing names. Moves the
+  folders, re-points every absolute `data/*` symlink, and preserves **continuous**
+  step numbering (path 2 keeps going at step 06, never resets). New shared
+  `discover_step_dirs` / `resolve_step_dir` helpers keep grouped steps visible to
+  the DAG, manifest, citations, numbering, synthesis, literature + rigor.
+- **`data/share/`** per step — a curated dataset you package to hand to a
+  collaborator, separate from the next-step pipeline.
+- **`workspace/audit.md` — single project-end meta-review.** At the ship gate,
+  `tool_finalize_project` writes one human-facing audit: per-step concerns grouped
+  by step, each with evidence path(s), a sha256 content hash of the evidence, and
+  the suggested fix. The per-gate machine detail stays in `workspace/logs/audits/`.
+- **`docs/GLOSSARY.md`** — the project-structure vocabulary, including the 3.2
+  concepts.
+
+### Improved
+
+- **Clean step root.** A step now holds `README.md` (plain-English overview, the
+  canonical plain-language summary), `conclusions.md` (the deep report — findings,
+  decision WITH step-to-step + version lineage), and `plan.md`. No more
+  `step_summary.yaml` (derived mirror, retired) and no auto-created `pipeline.yaml`
+  (only when you use `tool_step_pipeline`).
+- **Clearer per-step data folders.** `data/input` → `data/past_step_input`,
+  `data/output` → `data/next_step_output` (producer/consumer semantics);
+  `project_inputs` kept. Reading code resolves either flavour, so pre-3.2 projects
+  keep working.
+- **Figures ship three sidecars, not four.** `.png` (+ `.svg`/`.html` on request) +
+  `.prov.json` + `.caption.md`. The plain-English interpretation lives inline in
+  `conclusions.md`; the `.summary.md` sidecar regime is removed.
+- **`outputs/reports/` repurposed** to optional *snapshot presentation* artefacts
+  (a one-off dashboard/slide/diagram), not findings narratives — findings live in
+  `conclusions.md`.
+- **Workspace declutter.** Per-gate audit `.md`/`.json` moved from `workspace/`
+  root into `workspace/logs/audits/`; `tools.md`, `audit.md`, and
+  `workflow.mermaid` recognised as canonical workspace files by the hygiene gate.
+
+### Fixed
+
+- **No project-root `outputs/` in analysis mode.** `deep_domain_research` now writes
+  its pipeline survey to `docs/`, not a stray `outputs/reports/`.
+- **`synthesis/claim_index.json` no longer written** — it was write-only
+  infrastructure that cluttered the synthesis folder; structured findings are the
+  source of truth.
+- **`workflow.mermaid` / `tools.md`** are no longer flagged as workspace clutter.
+
+### Removed
+
+- The derived `step_summary.yaml` sidecar, the per-figure `.summary.md` sidecar,
+  `synthesis/claim_index.json`, and the dead `loaded_data` state field. Stale
+  copies left by a pre-3.2 release are cleaned at finalize / on state migration.
+  Synthesis, audits, rigor signals, and preview all parse `conclusions.md`
+  directly now.
+
+---
+
 ## [3.1.0] — Index-free routing, output integrity, and figure/deliverable consistency (2026-06-17)
 
 MINOR release. Backwards-compatible: every existing tool keeps its name + schema

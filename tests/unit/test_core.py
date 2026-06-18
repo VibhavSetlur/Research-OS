@@ -61,10 +61,13 @@ def test_path_create_creates_full_subtree():
         assert exp.exists()
         # Per-step subdirs — note: NO outputs/dashboards (dashboards are
         # synthesis-level, not per-step).
-        for sub in ("scripts", "literature", "data/input", "data/output",
+        for sub in ("scripts", "literature",
+                    "data/past_step_input", "data/next_step_output", "data/share",
                     "outputs/reports", "outputs/figures", "outputs/tables",
                     "environment"):
             assert (exp / sub).exists(), sub
+        # plan.md is written at step creation (pre-step planning).
+        assert (exp / "plan.md").exists()
         # Confirm no per-step dashboards folder.
         assert not (exp / "outputs" / "dashboards").exists(), \
             "outputs/dashboards should not be created per-step"
