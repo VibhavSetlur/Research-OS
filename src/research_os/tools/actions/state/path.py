@@ -209,6 +209,133 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
     }
 
 
+def group_paths(
+    name: str,
+    step_ids: list[str],
+    root: Path,
+) -> dict[str, Any]:
+    """Consolidate a set of steps into a ``<slug>_PATH_<k>/`` container.
+
+    The 3.2 way to organise a run of steps that explored one direction:
+    instead of suffixing each folder, MOVE them into a descriptive
+    container — ``workspace/attitude_pilot_PATH_1/03_eda`` etc. Step
+    numbering is preserved (continuous across the workspace), every
+    absolute ``data/*`` symlink that pointed into a moved step is
+    re-pointed, and state / manifest / mermaid / DAG are refreshed.
+
+    Steps already inside a container, dead-ends, and unknown ids are
+    rejected up front so the move is all-or-nothing.
+    """
+    from research_os.project_ops import (
+        _max_path_container_seq,
+        _update_manifest,
+        _update_workflow_mermaid,
+        is_path_container,
+        load_state,
+        now_iso,
+        save_state,
+        slugify,
+    )
+
+    workspace = root / "workspace"
+    if not workspace.exists():
+        return {"status": "error", "message": "workspace/ not found"}
+    if not step_ids:
+        return {"status": "error", "message": "No steps given to group."}
+
+    # Resolve every step to a FLAT folder directly under workspace/.
+    moves: list[tuple[str, Path]] = []
+    for sid in step_ids:
+        d = workspace / sid
+        if not d.is_dir():
+            return {
+                "status": "error",
+                "message": (
+                    f"Step '{sid}' is not a flat step directly under "
+                    "workspace/ (already grouped, dead-ended, or unknown). "
+                    "Group flat steps only."
+                ),
+            }
+        if not re.match(r"^\d{2,3}_", sid):
+            return {"status": "error", "message": f"'{sid}' is not a numbered step."}
+        moves.append((sid, d))
+
+    seq = _max_path_container_seq(workspace) + 1
+    container_name = f"{slugify(name, 'path')}_PATH_{seq}"
+    container = workspace / container_name
+    if container.exists():
+        return {"status": "error", "message": f"Container '{container_name}' already exists."}
+    container.mkdir(parents=True)
+
+    # Move each step into the container, recording (old_abs, new_abs) for
+    # symlink re-pointing. project_ops writes symlinks with .absolute() (not
+    # resolved), so match that exact string form.
+    remap: list[tuple[str, str]] = []
+    for sid, old_dir in moves:
+        old_abs = str(old_dir.absolute())
+        new_dir = container / sid
+        old_dir.rename(new_dir)
+        remap.append((old_abs, str(new_dir.absolute())))
+
+    # Re-point every absolute symlink across the workspace that pointed into
+    # a moved folder (intra-group + downstream data/past_step_input links).
+    repointed = 0
+    for link in workspace.rglob("*"):
+        if not link.is_symlink():
+            continue
+        try:
+            target = os.readlink(link)
+        except OSError:
+            continue
+        for old_abs, new_abs in remap:
+            if target == old_abs or target.startswith(old_abs + os.sep):
+                new_target = new_abs + target[len(old_abs):]
+                try:
+                    link.unlink()
+                    link.symlink_to(new_target)
+                    repointed += 1
+                except OSError:
+                    pass
+                break
+
+    # State: stamp the container on each grouped path; fix experiment_dir.
+    state = load_state(root)
+    paths = state.setdefault("paths", {})
+    for sid, _ in moves:
+        if sid in paths:
+            paths[sid]["path_container"] = container_name
+            paths[sid]["experiment_dir"] = f"workspace/{container_name}/{sid}"
+            paths[sid]["grouped_at"] = now_iso()
+    save_state(root, state)
+
+    # Container README so the folder explains itself.
+    (container / "README.md").write_text(
+        f"# `{container_name}` — grouped path\n\n"
+        f"A consolidated analytical path: the steps below were grouped here "
+        f"on {now_iso()} because they explore one direction. Step numbering "
+        "stays continuous with the rest of the project (it is NOT reset), so "
+        "these steps can be moved or merged without renumbering.\n\n"
+        + "\n".join(f"- `{sid}`" for sid, _ in moves) + "\n"
+    )
+
+    _update_workflow_mermaid(root)
+    _update_manifest(root)
+    try:
+        workflow_dag(root)
+    except Exception:
+        pass
+
+    # Keep is_path_container importable-but-used (defensive sanity check).
+    assert is_path_container(container_name)
+
+    return {
+        "status": "success",
+        "container": container_name,
+        "grouped_steps": [sid for sid, _ in moves],
+        "symlinks_repointed": repointed,
+    }
+
+
 def workflow_dag(
     root: Path,
     *,
@@ -433,9 +560,8 @@ def _collect_step_metadata(workspace: Path, root: Path) -> dict[str, dict[str, A
         step_to_hyps = {}
         h_statements = {}
 
-    for p in workspace.iterdir():
-        if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)):
-            continue
+    from research_os.project_ops import discover_step_dirs
+    for p in discover_step_dirs(workspace):
         info: dict[str, Any] = {
             "hypotheses": sorted(step_to_hyps.get(p.name, set())),
             "h_statements": h_statements,
@@ -784,7 +910,7 @@ def finalize_path(
         artefact actually written + which downstream step (per workflow
         DAG) reads it.
     """
-    from research_os.project_ops import load_state
+    from research_os.project_ops import load_state, resolve_step_dir
 
     workspace = root / "workspace"
     if not workspace.exists():
@@ -793,14 +919,15 @@ def finalize_path(
     if path_name is None:
         state = load_state(root)
         path_name = state.get("current_path")
-        if not path_name or not (workspace / path_name).is_dir():
+        if not path_name or resolve_step_dir(workspace, path_name) is None:
             return {
                 "status": "error",
                 "message": "No path_name given and current_path is unset.",
             }
 
-    exp_dir = workspace / path_name
-    if not exp_dir.is_dir():
+    # Resolve whether the step is flat or grouped under a PATH container.
+    exp_dir = resolve_step_dir(workspace, path_name)
+    if exp_dir is None or not exp_dir.is_dir():
         return {"status": "error", "message": f"Path '{path_name}' not found"}
 
     changes: list[str] = []
@@ -1536,11 +1663,17 @@ def _downstream_consumers(workspace: Path, path_name: str) -> list[str]:
     Tolerant of the pre-3.2 names (data/input → data/output) and the 3.2
     names (data/past_step_input → data/next_step_output).
     """
-    from research_os.project_ops import step_input_link, step_output_dir
-    self_out = step_output_dir(workspace / path_name).resolve()
+    from research_os.project_ops import (
+        discover_step_dirs,
+        resolve_step_dir,
+        step_input_link,
+        step_output_dir,
+    )
+    self_dir = resolve_step_dir(workspace, path_name) or (workspace / path_name)
+    self_out = step_output_dir(self_dir).resolve()
     consumers: list[str] = []
-    for p in sorted(workspace.iterdir()):
-        if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)) or p.name == path_name:
+    for p in discover_step_dirs(workspace):
+        if p.name == path_name:
             continue
         inp = step_input_link(p)
         if not inp.exists() and not inp.is_symlink():
@@ -1912,15 +2045,19 @@ def _finalize_step_readme(
 
 
 def list_paths(root: Path) -> dict[str, Any]:
-    """List every numbered experiment path with status and metadata."""
+    """List every numbered experiment path with status and metadata.
+
+    Spans flat steps AND steps grouped under ``<slug>_PATH_<k>/`` container
+    folders (3.2), so a grouped step is never invisible to the DAG / router
+    / audits that read this.
+    """
+    from research_os.project_ops import discover_step_dirs, is_path_container
     workspace_dir = root / "workspace"
     paths: list[dict[str, Any]] = []
     if not workspace_dir.exists():
         return {"status": "success", "paths": paths, "paths_count": 0}
 
-    for p in sorted(workspace_dir.iterdir()):
-        if not p.is_dir():
-            continue
+    for p in discover_step_dirs(workspace_dir):
         m = re.match(r"^(\d{2,3})_(.+?)(__DEAD_END)?$", p.name)
         if not m:
             continue
@@ -1941,16 +2078,17 @@ def list_paths(root: Path) -> dict[str, Any]:
             )
             status = "completed" if (has_conclusions and has_outputs) else "active"
 
-        paths.append(
-            {
-                "path_id": p.name,
-                "number": number,
-                "name": name,
-                "status": status,
-                "experiment_dir": str(p.absolute()),
-                "has_readme": (p / "README.md").exists(),
-                "has_conclusions": (p / "conclusions.md").exists(),
-            }
-        )
+        entry: dict[str, Any] = {
+            "path_id": p.name,
+            "number": number,
+            "name": name,
+            "status": status,
+            "experiment_dir": str(p.absolute()),
+            "has_readme": (p / "README.md").exists(),
+            "has_conclusions": (p / "conclusions.md").exists(),
+        }
+        if p.parent != workspace_dir and is_path_container(p.parent.name):
+            entry["path_container"] = p.parent.name
+        paths.append(entry)
 
     return {"status": "success", "paths": paths, "paths_count": len(paths)}

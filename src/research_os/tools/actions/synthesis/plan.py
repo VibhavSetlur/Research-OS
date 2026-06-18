@@ -20,18 +20,14 @@ def synthesize_plan(root: Path) -> dict[str, Any]:
     citations_path = root / "workspace" / "citations.md"
     analysis_path = root / "workspace" / "analysis.md"
 
+    from research_os.project_ops import discover_step_dirs
     conclusions: list[str] = []
     workspace_dir = root / "workspace"
     if workspace_dir.exists():
-        for exp_dir in sorted(workspace_dir.iterdir()):
-            if (
-                exp_dir.is_dir()
-                and exp_dir.name[:2].isdigit()
-                and not exp_dir.name.endswith("__DEAD_END")
-            ):
-                conc = exp_dir / "conclusions.md"
-                if conc.exists() and len(conc.read_text()) > 100:
-                    conclusions.append(exp_dir.name)
+        for exp_dir in discover_step_dirs(workspace_dir, include_dead=False):
+            conc = exp_dir / "conclusions.md"
+            if conc.exists() and len(conc.read_text()) > 100:
+                conclusions.append(exp_dir.name)
 
     citations_present = (
         citations_path.exists() and citations_path.stat().st_size > 100

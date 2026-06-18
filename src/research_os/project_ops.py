@@ -74,6 +74,83 @@ def step_output_dir(exp_dir: Path) -> Path:
     if _present(new) or not _present(legacy):
         return new
     return legacy
+
+
+# ---------------------------------------------------------------------------
+# Step discovery — flat steps + steps grouped into PATH containers.
+#
+# 3.2 lets the researcher consolidate a run of steps that explored one
+# direction into a descriptive container folder, e.g.
+# ``workspace/attitude_pilot_PATH_1/03_eda``. Step numbering stays
+# CONTINUOUS across containers (path 2 picks up at step 06, never resets),
+# so the lineage is preserved and steps can be moved without renumbering.
+# Every code path that enumerates steps MUST go through ``discover_step_dirs``
+# so a grouped step is never silently invisible.
+# ---------------------------------------------------------------------------
+
+_STEP_DIR_RE = re.compile(r"^\d{2,3}_")
+#: A PATH container folder: ``<descriptive_slug>_PATH_<k>``.
+_PATH_CONTAINER_RE = re.compile(r"^.+_PATH_\d+$")
+
+
+def is_path_container(name: str) -> bool:
+    """True if *name* is a ``<slug>_PATH_<k>`` container folder name."""
+    return bool(_PATH_CONTAINER_RE.match(name))
+
+
+def _step_sort_key(d: Path) -> tuple[int, str]:
+    try:
+        return (int(d.name.split("_", 1)[0]), d.name)
+    except ValueError:
+        return (0, d.name)
+
+
+def discover_step_dirs(workspace: Path, *, include_dead: bool = True) -> list[Path]:
+    """Every numbered step directory, sorted by step number.
+
+    Finds steps both directly under ``workspace/`` AND one level deep inside
+    ``<slug>_PATH_<k>/`` container folders. ``include_dead=False`` skips
+    ``__DEAD_END`` steps.
+    """
+    steps: list[Path] = []
+    if not workspace.exists():
+        return steps
+    for p in workspace.iterdir():
+        if not p.is_dir():
+            continue
+        if _STEP_DIR_RE.match(p.name):
+            if include_dead or not p.name.endswith("__DEAD_END"):
+                steps.append(p)
+        elif is_path_container(p.name):
+            for c in sorted(p.iterdir()):
+                if c.is_dir() and _STEP_DIR_RE.match(c.name):
+                    if include_dead or not c.name.endswith("__DEAD_END"):
+                        steps.append(c)
+    return sorted(steps, key=_step_sort_key)
+
+
+def resolve_step_dir(workspace: Path, step_id: str) -> Path | None:
+    """Locate a step folder by id, whether flat or inside a PATH container.
+
+    Tolerates the ``__DEAD_END`` variant. Returns ``None`` if not found.
+    """
+    direct = workspace / step_id
+    if direct.is_dir():
+        return direct
+    dead = workspace / f"{step_id}__DEAD_END"
+    if dead.is_dir():
+        return dead
+    for p in workspace.iterdir():
+        if p.is_dir() and is_path_container(p.name):
+            cand = p / step_id
+            if cand.is_dir():
+                return cand
+            cand_dead = p / f"{step_id}__DEAD_END"
+            if cand_dead.is_dir():
+                return cand_dead
+    return None
+
+
 # NOTE: no `outputs/dashboards` here on purpose. Dashboards are a *project-level*
 # synthesis output (synthesis/dashboard.html), not a per-step artifact.
 #
@@ -768,18 +845,21 @@ def _update_manifest(root: Path) -> None:
     workspace = root / "workspace"
     paths_info: dict[str, Any] = {}
     if workspace.exists():
-        for p in sorted(workspace.iterdir()):
-            if p.is_dir() and re.match(r"^\d{2,3}_", p.name):
-                scripts: list[str] = []
-                scripts_dir = p / "scripts"
-                if scripts_dir.exists():
-                    scripts = [f.name for f in sorted(scripts_dir.iterdir()) if f.is_file()]
-                paths_info[p.name] = {
-                    "status": "dead_end" if "__DEAD_END" in p.name else "active",
-                    "has_readme": (p / "README.md").exists(),
-                    "has_conclusions": (p / "conclusions.md").exists(),
-                    "scripts": scripts,
-                }
+        for p in discover_step_dirs(workspace):
+            scripts: list[str] = []
+            scripts_dir = p / "scripts"
+            if scripts_dir.exists():
+                scripts = [f.name for f in sorted(scripts_dir.iterdir()) if f.is_file()]
+            info = {
+                "status": "dead_end" if "__DEAD_END" in p.name else "active",
+                "has_readme": (p / "README.md").exists(),
+                "has_conclusions": (p / "conclusions.md").exists(),
+                "scripts": scripts,
+            }
+            # Record the PATH container when the step is grouped under one.
+            if p.parent != workspace and is_path_container(p.parent.name):
+                info["path_container"] = p.parent.name
+            paths_info[p.name] = info
     manifest = read_json(manifest_path(root), {})
     manifest["paths"] = paths_info
     manifest["updated_at"] = now_iso()
@@ -2920,12 +3000,23 @@ def _max_path_lineage(workspace: Path) -> int:
     best = 0
     if not workspace.exists():
         return 0
-    for p in workspace.iterdir():
-        if not (p.is_dir() and re.match(r"^\d{2,3}_", p.name)):
-            continue
+    for p in discover_step_dirs(workspace):
         k = _extract_path_lineage(p.name)
         if k is not None and k > best:
             best = k
+    return best
+
+
+def _max_path_container_seq(workspace: Path) -> int:
+    """Largest existing ``_PATH_<k>`` container sequence number."""
+    best = 0
+    if not workspace.exists():
+        return 0
+    for p in workspace.iterdir():
+        if p.is_dir() and is_path_container(p.name):
+            m = re.search(r"_PATH_(\d+)$", p.name)
+            if m:
+                best = max(best, int(m.group(1)))
     return best
 
 
@@ -2976,12 +3067,12 @@ def create_numbered_experiment(
     # exercise multi-step scaffolding without going through the full
     # finalize workflow, and by ``sys_path(operation='create')`` when the researcher
     # explicitly authorises bypass (logged to workspace/logs/override_log.md).
+    all_step_dirs = discover_step_dirs(workspace)
     existing_main_steps = sorted(
-        p for p in workspace.iterdir()
-        if p.is_dir()
-        and re.match(r"^\d{2,3}_", p.name)
-        and _extract_path_lineage(p.name) is None
-        and not p.name.endswith("__DEAD_END")
+        (p for p in all_step_dirs
+         if _extract_path_lineage(p.name) is None
+         and not p.name.endswith("__DEAD_END")),
+        key=_step_sort_key,
     )
     if enforce_predecessor_finalized and existing_main_steps and not branch_of:
         prev = existing_main_steps[-1]
@@ -3019,13 +3110,15 @@ def create_numbered_experiment(
                     "into the conclusions stubs before re-trying."
                 )
 
+    # Numbering is CONTINUOUS across the whole workspace — flat steps AND
+    # steps grouped into PATH containers — so a new step never collides with
+    # or re-uses a grouped step's number.
     max_num = 0
-    for p in workspace.iterdir():
-        if p.is_dir() and re.match(r"^\d{2,3}_", p.name):
-            try:
-                max_num = max(max_num, int(p.name.split("_", 1)[0]))
-            except ValueError:
-                pass
+    for p in all_step_dirs:
+        try:
+            max_num = max(max_num, int(p.name.split("_", 1)[0]))
+        except ValueError:
+            pass
     next_num = max_num + 1
     slug = slugify(name, "experiment")
 
@@ -3041,16 +3134,12 @@ def create_numbered_experiment(
         candidates = [branch_of, branch_of.removesuffix("__DEAD_END")]
         parent_dir: Path | None = None
         for cand in candidates:
-            cand_dir = workspace / cand
-            if cand_dir.is_dir():
-                parent_dir = cand_dir
-                parent_id = cand
-                break
-            # Tolerate when only the dead-end variant exists on disk.
-            cand_dead = workspace / f"{cand}__DEAD_END"
-            if cand_dead.is_dir():
-                parent_dir = cand_dead
-                parent_id = cand_dead.name
+            # resolve_step_dir finds the step whether it is flat or grouped
+            # under a PATH container, and tolerates the dead-end variant.
+            found = resolve_step_dir(workspace, cand)
+            if found is not None:
+                parent_dir = found
+                parent_id = found.name
                 break
         if parent_dir is None:
             raise ValueError(f"branch_of step '{branch_of}' not found in workspace/")
@@ -3106,10 +3195,11 @@ def create_numbered_experiment(
             pass
 
     if from_step:
-        _link_upstream(workspace / from_step)
+        _link_upstream(resolve_step_dir(workspace, from_step) or (workspace / from_step))
     elif parent_id:
-        # Branch steps draw from their parent's output.
-        _link_upstream(workspace / parent_id)
+        # Branch steps draw from their parent's output (resolved above,
+        # whether the parent is flat or grouped under a PATH container).
+        _link_upstream(parent_dir)
     elif next_num == 1:
         raw_dir = root / "inputs" / "raw_data"
         raw_dir.mkdir(parents=True, exist_ok=True)
@@ -3121,14 +3211,16 @@ def create_numbered_experiment(
     else:
         prev_num = next_num - 1
         # Prefer main-path predecessors over branch siblings when both exist.
+        # discover_step_dirs spans flat steps + PATH-grouped steps.
+        prev_candidates = [
+            p for p in all_step_dirs
+            if re.match(rf"^{prev_num:02d}_", p.name)
+        ]
         prev_dirs = sorted(
-            p for p in workspace.iterdir()
-            if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
-            and _extract_path_lineage(p.name) is None
-        ) or sorted(
-            p for p in workspace.iterdir()
-            if p.is_dir() and re.match(rf"^{prev_num:02d}_", p.name)
-        )
+            (p for p in prev_candidates
+             if _extract_path_lineage(p.name) is None),
+            key=_step_sort_key,
+        ) or sorted(prev_candidates, key=_step_sort_key)
         if prev_dirs:
             _link_upstream(prev_dirs[0])
 
@@ -3419,9 +3511,7 @@ def generate_citations_md(root: Path) -> str:
     # "References to ground" sections.
     workspace = root / "workspace"
     if workspace.exists():
-        for step_dir in sorted(workspace.iterdir()):
-            if not (step_dir.is_dir() and re.match(r"^\d{2,3}_", step_dir.name)):
-                continue
+        for step_dir in discover_step_dirs(workspace):
             # 2a. Scrape `## References to ground` from each step's
             # conclusions.md so prose-cited refs (the AI's most common
             # pattern) make it into the project bibliography without

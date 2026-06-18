@@ -41,13 +41,8 @@ WORDS_PER_PAGE_BY_VENUE = {
 
 
 def _step_dirs(root: Path) -> list[Path]:
-    workspace = root / "workspace"
-    if not workspace.exists():
-        return []
-    return sorted(
-        d for d in workspace.iterdir()
-        if d.is_dir() and d.name[:2].isdigit() and not d.name.endswith("__DEAD_END")
-    )
+    from research_os.project_ops import discover_step_dirs
+    return discover_step_dirs(root / "workspace", include_dead=False)
 
 
 def _per_step_conclusions(root: Path) -> list[dict[str, Any]]:

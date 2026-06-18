@@ -106,9 +106,8 @@ def _score_scripts(root: Path) -> tuple[int, dict[str, Any]]:
     total_lines = 0
     comment_lines = 0
     scripts_scanned = 0
-    for step_dir in workspace.iterdir():
-        if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
-            continue
+    from research_os.project_ops import discover_step_dirs
+    for step_dir in discover_step_dirs(workspace):
         scripts = step_dir / "scripts"
         if not scripts.is_dir():
             continue
@@ -172,9 +171,8 @@ def _score_prior_step_summaries(root: Path) -> tuple[int, dict[str, Any]]:
     summaries = 0
     substantive = 0
     has_literature = 0
-    for step_dir in workspace.iterdir():
-        if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
-            continue
+    from research_os.project_ops import discover_step_dirs
+    for step_dir in discover_step_dirs(workspace):
         conc = step_dir / "conclusions.md"
         if not conc.exists():
             continue

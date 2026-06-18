@@ -96,14 +96,9 @@ def _literature_exempt(step_dir: Path) -> bool:
 
 
 def _step_dirs(root: Path) -> list[Path]:
-    """Numbered workspace step directories, sorted."""
-    workspace = root / "workspace"
-    if not workspace.exists():
-        return []
-    return sorted(
-        p for p in workspace.iterdir()
-        if p.is_dir() and re.match(r"^\d{2,}_", p.name)
-    )
+    """Numbered workspace step directories (flat + PATH-grouped), sorted."""
+    from research_os.project_ops import discover_step_dirs
+    return discover_step_dirs(root / "workspace")
 
 
 def _audit_one_step(step_dir: Path) -> dict[str, Any]:
