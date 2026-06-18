@@ -44,6 +44,64 @@ def test_finalize_nudges_when_plan_not_updated(tmp_path):
     ), f"expected a plan.md reconcile nudge; got {res.get('warnings')}"
 
 
+def test_next_step_blocked_when_plan_is_unfilled_seed(tmp_path):
+    """The predecessor gate must refuse to scaffold step N+1 when step N's
+    plan.md is still the raw seed — the exact failure seen in the
+    reaction-similarity project (all steps shipped an untouched plan.md
+    yet still advanced)."""
+    import pytest
+
+    scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+    sid = create_numbered_experiment(
+        tmp_path, "eda", enforce_predecessor_finalized=False,
+    )["path_id"]
+    step = tmp_path / "workspace" / sid
+    # Fill README + conclusions so ONLY plan.md is the blocker — proving the
+    # gate now inspects plan.md specifically.
+    (step / "README.md").write_text(
+        "# Experiment\n## In plain English\nWe did a real thing.\n"
+        "## Input data\n- data.csv\n## Methods (one line each)\n- a method\n"
+        "## Headline finding\n- a real headline\n## Decision\n- proceed\n"
+    )
+    (step / "conclusions.md").write_text(
+        "## Findings\n- a real finding.\n## Decision\nPROCEED.\n"
+    )
+    # plan.md left as the unfilled seed.
+    with pytest.raises(ValueError, match="plan.md"):
+        create_numbered_experiment(
+            tmp_path, "model", enforce_predecessor_finalized=True,
+        )
+
+
+def test_next_step_allowed_when_plan_filled(tmp_path):
+    """A genuinely-written plan.md lets the next step scaffold."""
+    scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+    sid = create_numbered_experiment(
+        tmp_path, "eda", enforce_predecessor_finalized=False,
+    )["path_id"]
+    step = tmp_path / "workspace" / sid
+    (step / "README.md").write_text(
+        "# Experiment\n## In plain English\nWe did a real thing.\n"
+        "## Input data\n- data.csv\n## Methods (one line each)\n- a method\n"
+        "## Headline finding\n- a real headline\n## Decision\n- proceed\n"
+    )
+    (step / "conclusions.md").write_text(
+        "## Findings\n- a real finding.\n## Decision\nPROCEED.\n"
+    )
+    (step / "plan.md").write_text(
+        "# Plan\n## Where we are\nFirst step on the BERDL data.\n"
+        "## What this step will do\nProfile the molecules table.\n"
+        "## Why this step, why now\nWe need the shape before modelling.\n"
+        "## Open questions for the researcher\nWhich cutoff?\n"
+        "## Progress & deviations from plan\nWent to plan.\n"
+        "## Anticipated next steps\nSimilarity characterization.\n"
+    )
+    res = create_numbered_experiment(
+        tmp_path, "model", enforce_predecessor_finalized=True,
+    )
+    assert res["path_id"].endswith("_model")
+
+
 def test_finalize_quiet_when_plan_reconciled(tmp_path):
     step, sid = _step(tmp_path)
     plan = (step / "plan.md").read_text()

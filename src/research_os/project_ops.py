@@ -3107,9 +3107,12 @@ def create_numbered_experiment(
         prev = existing_main_steps[-1]
         prev_readme = prev / "README.md"
         prev_conc = prev / "conclusions.md"
+        prev_plan = prev / "plan.md"
         if prev_readme.exists() and prev_conc.exists():
             r_txt = prev_readme.read_text()
             c_txt = prev_conc.read_text()
+            # plan.md is optional on pre-3.2 steps; only gate when present.
+            p_txt = prev_plan.read_text() if prev_plan.exists() else ""
             placeholder_markers_readme = (
                 "*(2-3 sentences a colleague",
                 "*(list inputs used)*",
@@ -3122,21 +3125,51 @@ def create_numbered_experiment(
                 "*(Dataset shape",
                 "*(What this step cannot conclude",
             )
+            # plan.md seed sections (see the plan.md writer below). A plan
+            # that was genuinely written before the work fills the design
+            # core; a plan that was SKIPPED leaves these raw. Field-proof:
+            # every step of the reaction-similarity project shipped all six
+            # of these untouched yet still advanced — because the
+            # predecessor gate never inspected plan.md. It does now.
+            placeholder_markers_plan = (
+                "*(Recap the previous step's outcome",       # Where we are
+                "*(The goal for",                            # What this step will do
+                "*(How it advances",                         # Why this step, why now
+                "*(The decisions you want",                  # Open questions
+                "*(Update this AS YOU WORK",                 # Progress & deviations
+                "*(Where this likely leads",                 # Anticipated next steps
+            )
             unfilled_readme = sum(m in r_txt for m in placeholder_markers_readme)
             unfilled_conc = sum(m in c_txt for m in placeholder_markers_conc)
-            if unfilled_readme >= 3 or unfilled_conc >= 2:
+            unfilled_plan = sum(m in p_txt for m in placeholder_markers_plan)
+            plan_skipped = bool(p_txt) and unfilled_plan >= 4
+            if unfilled_readme >= 3 or unfilled_conc >= 2 or plan_skipped:
+                bits = []
+                if unfilled_readme >= 3:
+                    bits.append(f"README has {unfilled_readme} unfilled stubs")
+                if unfilled_conc >= 2:
+                    bits.append(f"conclusions.md has {unfilled_conc}")
+                if plan_skipped:
+                    bits.append(
+                        f"plan.md is still the unfilled seed "
+                        f"({unfilled_plan}/6 sections untouched)"
+                    )
                 raise ValueError(
                     f"Cannot scaffold the next step: previous step "
                     f"`{prev.name}` is still in placeholder form "
-                    f"(README has {unfilled_readme} unfilled stubs, "
-                    f"conclusions.md has {unfilled_conc}). Call "
-                    f"`tool_path_finalize` on `{prev.name}` first to "
-                    "lock its findings into workspace/analysis.md + "
-                    "methods.md + tools.md + citations.md. If this is a "
-                    "data-plumbing step that legitimately has nothing "
-                    "to conclude, the AI should explicitly write 'No "
-                    "substantive findings — see step purpose in README' "
-                    "into the conclusions stubs before re-trying."
+                    f"({'; '.join(bits)}). Fill the step's README "
+                    "(`## In plain English`, `## Decision`), conclusions.md "
+                    "(`## Findings`, `## Decision`), and plan.md (the design + "
+                    "`## Progress & deviations from plan` reconcile), then call "
+                    f"`tool_path_finalize` on `{prev.name}` to lock its "
+                    "findings into workspace/analysis.md + methods.md + "
+                    "tools.md + citations.md. If this is a data-plumbing step "
+                    "that legitimately has nothing to conclude, write 'No "
+                    "substantive findings — see step purpose in README' into "
+                    "the stubs before re-trying. To override deliberately, "
+                    "call `sys_path(operation='create', "
+                    "allow_unfinalized_predecessor=true, override_rationale=…)` "
+                    "(logged to workspace/logs/override_log.md)."
                 )
 
     # Numbering is CONTINUOUS across the whole workspace — flat steps AND

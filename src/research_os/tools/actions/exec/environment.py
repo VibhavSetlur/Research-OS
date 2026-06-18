@@ -121,6 +121,127 @@ def _detect_languages_in_use(root: Path) -> set[str]:
     return detected
 
 
+# Top-level import names we never pin as a project dependency.
+_STDLIB_MODULES = set(getattr(sys, "stdlib_module_names", set())) | {
+    "__future__", "__main__",
+}
+# The Research-OS server stack runs in the SAME interpreter as the MCP
+# server, so a naive `pip freeze` dumps research_os + mcp + fastembed +
+# firecrawl + semanticscholar + … into every project's requirements.txt
+# (exactly what shipped in the reaction-similarity project). A research
+# project's requirements describe the PROJECT's analysis deps, never the
+# server orchestrating it — so research_os is always excluded.
+_RESEARCH_OS_IMPORT_NAMES = {"research_os"}
+_RESEARCH_OS_DIST_NAMES = {"research-os", "research_os"}
+
+
+def _norm_dist(name: str) -> str:
+    """PEP 503 normalised distribution name (lowercase, runs of -_. → -)."""
+    import re
+    return re.sub(r"[-_.]+", "-", (name or "").strip().lower())
+
+
+def _scan_python_imports(root: Path) -> set[str]:
+    """Top-level module names imported by the project's OWN Python sources.
+
+    Regex-based (never executes code), so it survives half-written
+    scripts. Scans ``workspace/**/*.py``, root ``scripts/**/*.py``, and the
+    code cells of any ``*.ipynb`` under those trees.
+    """
+    import json as _json
+    import re
+
+    pat = re.compile(
+        r"^[ \t]*(?:import[ \t]+([a-zA-Z0-9_.]+)"
+        r"|from[ \t]+([a-zA-Z0-9_.]+)[ \t]+import)",
+        re.M,
+    )
+    mods: set[str] = set()
+
+    def _harvest(text: str) -> None:
+        for m in pat.finditer(text):
+            raw = m.group(1) or m.group(2) or ""
+            top = raw.split(".", 1)[0].strip()
+            if top:
+                mods.add(top)
+
+    for base in (root / "workspace", root / "scripts"):
+        if not base.exists():
+            continue
+        for p in base.rglob("*.py"):
+            try:
+                _harvest(p.read_text(errors="ignore"))
+            except OSError:
+                pass
+        for p in base.rglob("*.ipynb"):
+            try:
+                nb = _json.loads(p.read_text(errors="ignore"))
+            except (OSError, ValueError):
+                continue
+            for cell in nb.get("cells", []):
+                if cell.get("cell_type") != "code":
+                    continue
+                src = cell.get("source", "")
+                _harvest("".join(src) if isinstance(src, list) else str(src))
+    return mods
+
+
+def _project_python_requirements(root: Path) -> str:
+    """requirements.txt built from the project's OWN imports.
+
+    Each distribution the project's scripts import is pinned to the
+    version installed when the snapshot ran. The Research-OS server stack
+    is excluded (it ships with the MCP server, not the project). Local
+    modules and as-yet-uninstalled imports are skipped — you can't pin
+    what isn't on disk.
+    """
+    from importlib import metadata as im
+
+    installed: dict[str, str] = {}
+    try:
+        for dist in im.distributions():
+            nm = (dist.metadata["Name"] or "").strip()
+            if nm:
+                installed[_norm_dist(nm)] = dist.version
+    except Exception:  # pragma: no cover - importlib edge cases
+        pass
+
+    try:
+        mod_to_dists = im.packages_distributions()
+    except Exception:  # pragma: no cover
+        mod_to_dists = {}
+
+    project_dists: set[str] = set()
+    for mod in _scan_python_imports(root):
+        if mod in _STDLIB_MODULES or mod in _RESEARCH_OS_IMPORT_NAMES:
+            continue
+        for d in mod_to_dists.get(mod, []):
+            if _norm_dist(d) not in _RESEARCH_OS_DIST_NAMES:
+                project_dists.add(d)
+
+    lines = []
+    for d in sorted(project_dists, key=str.lower):
+        ver = installed.get(_norm_dist(d))
+        lines.append(f"{d}=={ver}" if ver else d)
+
+    header = [
+        "# Project Python dependencies.",
+        "#",
+        "# The packages THIS project's scripts import, pinned to the",
+        "# versions installed when sys_env_snapshot last ran. Regenerate",
+        "# after adding imports. The Research-OS server stack (research_os,",
+        "# mcp, fastembed, …) is intentionally excluded — it ships with the",
+        "# MCP server, not with your analysis.",
+    ]
+    if not lines:
+        header += [
+            "#",
+            "# No third-party imports detected yet — this fills in as your",
+            "# analysis scripts start importing packages.",
+        ]
+    return "\n".join(header + [""] + lines).rstrip() + "\n"
+
+
 def _domain_package_recommendations(
     domain_hints: list[str], in_use: set[str],
 ) -> dict[str, list[str]]:
@@ -339,20 +460,21 @@ def env_snapshot(
         session["detected_languages"] = sorted(in_use)
 
         # ── Python ────────────────────────────────────────────────
+        # Import-driven, NOT `pip freeze`: the MCP server runs in this
+        # interpreter, so a raw freeze leaks research_os + its server
+        # stack into the project's requirements.txt. Pin only what the
+        # project's own scripts import.
         if "python" in in_use:
             try:
-                res = subprocess.run(
-                    [sys.executable, "-m", "pip", "freeze"],
-                    capture_output=True, text=True, timeout=60,
+                (env_dir / "requirements.txt").write_text(
+                    _project_python_requirements(root)
                 )
-                if res.returncode == 0:
-                    (env_dir / "requirements.txt").write_text(res.stdout)
-                    session["languages"].append({
-                        "name": "python",
-                        "version": sys.version.split()[0],
-                        "manager": "pip",
-                        "file": "requirements.txt",
-                    })
+                session["languages"].append({
+                    "name": "python",
+                    "version": sys.version.split()[0],
+                    "manager": "pip",
+                    "file": "requirements.txt",
+                })
             except Exception as e:
                 logger.warning(f"Python snapshot failed: {e}")
 
@@ -570,21 +692,13 @@ def step_env_lock(
         (env_dir / "python_version.txt").write_text(py_version + "\n")
         artifacts.append("python_version.txt")
 
-        # pip freeze
-        res = subprocess.run(
-            [sys.executable, "-m", "pip", "freeze"],
-            capture_output=True,
-            text=True,
-            timeout=60,
+        # Import-driven requirements (same rationale as env_snapshot: the
+        # MCP server shares this interpreter, so a raw `pip freeze` would
+        # archive research_os + its server stack into the step lock).
+        (env_dir / "requirements.txt").write_text(
+            _project_python_requirements(root)
         )
-        if res.returncode == 0:
-            (env_dir / "requirements.txt").write_text(res.stdout)
-            artifacts.append("requirements.txt")
-        else:
-            return {
-                "status": "error",
-                "message": f"pip freeze failed: {res.stderr.strip()}",
-            }
+        artifacts.append("requirements.txt")
 
         session: dict[str, Any] = {
             "step_id": step_dir.name,
