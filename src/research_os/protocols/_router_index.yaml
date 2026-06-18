@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 27
+version: 28
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -918,7 +918,9 @@ protocols:
     summary: "Freeze SAP + hypotheses BEFORE data analysis; diff at synthesis."
     triggers: ["preregister", "pre-register", "prereg", "freeze the plan",
                "lock the analysis plan", "registered report", "sap",
-               "freeze the methods", "lock the methods"]
+               "freeze the methods", "lock the methods",
+               "lock in my hypotheses", "lock in the analysis",
+               "before i look at the data", "before peeking at the data"]
     shortcut_tool: tool_preregister
 
   methodology/data_management_plan:
@@ -927,7 +929,8 @@ protocols:
     summary: "Funder-compliant Data Management Plan (NIH DMSP, NSF, Wellcome, ERC) with FAIR alignment."
     triggers: ["dmp", "data management plan", "data sharing plan",
                "dmsp", "fair plan", "data management",
-               "data sharing requirement"]
+               "data sharing requirement", "where my data lives",
+               "register my data", "data plan for the funder"]
 
   methodology/external_tool_setup:
     intent_class: methodology
@@ -1048,7 +1051,9 @@ protocols:
     triggers: ["inter-rater", "inter-coder", "irr", "kappa",
                "krippendorff", "krippendorff alpha", "icc",
                "annotation reliability", "rater agreement",
-               "inter-rater agreement", "coder agreement"]
+               "inter-rater agreement", "coder agreement",
+               "annotators", "annotator", "coders disagree",
+               "raters disagree", "disagree on the labels"]
 
   methodology/survey_design:
     intent_class: methodology
@@ -1070,7 +1075,9 @@ protocols:
     intent_class: methodology
     sub_intent: replication
     summary: "Direct or conceptual replication of a published analysis."
-    triggers: ["replicate", "replication", "reproduce paper", "does x hold"]
+    triggers: ["replicate", "replication", "reproduce paper", "does x hold",
+               "does the result hold", "result hold on my data",
+               "does the original result hold"]
 
   methodology/ablation_study:
     intent_class: methodology
@@ -1342,7 +1349,8 @@ protocols:
     triggers: ["where should i submit", "journal selection",
                "target journal", "target venue", "venue selection",
                "is this nature material", "pick a journal", "fit the journal",
-               "conference deadline", "journal fit"]
+               "conference deadline", "journal fit", "what journal",
+               "which journal", "journal to aim for"]
 
   synthesis/defense_prep:
     intent_class: synthesize
@@ -1363,7 +1371,8 @@ protocols:
               # canonical IMRAD write-up.
               "help me write this up", "write this up", "write it all up",
               "write up my results", "write up the results",
-              "write up my findings", "help me write up"]
+              "write up my findings", "help me write up",
+              "manuscript draft", "into a manuscript", "draft the manuscript"]
     shortcut_tool: tool_synthesize_plan
     decomposition:
       - tool: tool_synthesize_plan
@@ -1561,7 +1570,9 @@ protocols:
     sub_intent: repro
     summary: "Snapshot env + verify everything reruns clean."
     triggers: ["reproducibility", "reproducible", "rerun from scratch",
-              "snapshot environment"]
+              "snapshot environment", "rerun my pipeline",
+              "rerun my whole pipeline", "someone else can rerun",
+              "so others can reproduce"]
     shortcut_tool: tool_audit_reproducibility
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2111,6 +2122,9 @@ protocols:
       - "what should the limitations cover"
       - "the reviewer complained about limitations"
       - "draft limitations"
+      - "cannot conclude"
+      - "what the study cannot conclude"
+      - "what my study cannot conclude"
     token_estimate: 1300
     decomposition:
       - protocol: writing/writing_limitations
@@ -2312,6 +2326,10 @@ protocols:
       - "design the grid"
       - "random search vs bayesian opt"
       - "compute budget for tuning"
+      - "tune the model"
+      - "tune the hyperparameters"
+      - "without overfitting"
+      - "avoid overfitting"
     token_estimate: 1500
     decomposition:
       - protocol: methodology/hyperparameter_search_design

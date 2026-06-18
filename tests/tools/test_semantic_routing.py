@@ -127,6 +127,85 @@ def test_expected_protocol_always_in_top3():
     )
 
 
+# Harder, real-world PARAPHRASE / jargon prompts — the queries that don't
+# contain a protocol's exact trigger phrase (the misfires users actually hit).
+# 3.2.3 lifted top-1 here from 52% → 88% via targeted trigger coverage. This
+# fixture is the permanent guard: routing quality on paraphrases must not
+# regress below the budget. A handful of genuinely-ambiguous near-synonym
+# pairs (dashboard deliverable vs viz design, casual vs formal exploration,
+# reviewer-response deliverable vs the peer-review-response protocol) are
+# expected to sometimes land on the sibling — hence the top-3 floor.
+HARD_FIXTURE: list[tuple[str, str]] = [
+    ("lock in my hypotheses and analysis before I peek at the data", "methodology/preregistration"),
+    ("the reviewer says I tested too many things so my p-values are inflated", "methodology/multiple_comparisons"),
+    ("my two annotators keep disagreeing on the labels", "methodology/inter_rater_reliability"),
+    ("make sure someone else can rerun my whole pipeline and get the same numbers", "reproducibility/reproducibility"),
+    ("wrapping up for the day, I'll continue tomorrow", "guidance/chat_handoff"),
+    ("what journal should I aim for", "synthesis/journal_selection"),
+    ("knit everything into a manuscript draft", "synthesis/synthesis_paper"),
+    ("how many participants do I need to detect the effect", "methodology/power_analysis"),
+    ("my dataset has a lot of empty cells and gaps", "methodology/missing_data_strategy"),
+    ("draft the part about what my study cannot conclude", "writing/writing_limitations"),
+    ("the colours in my plot are not colourblind safe", "visualization/color_accessibility_audit"),
+    ("set up a new project, I have some data and a question", "guidance/project_startup"),
+    ("add a definition for a domain term to the glossary", "guidance/glossary_update"),
+    ("this approach isn't working, abandon it and move on", "guidance/dead_end_routing"),
+    ("summarize my findings for a general audience", "synthesis/synthesis_lay_summary"),
+    ("check my code for bugs and style", "guidance/code_review"),
+    ("is this relationship causal or just correlation", "methodology/causal_inference_deep"),
+    ("the data has timestamps, predict future values", "methodology/timeseries_analysis"),
+    ("register where my data lives for the funder", "methodology/data_management_plan"),
+    ("does the original paper's result hold on my data", "methodology/replication_study"),
+    ("tune the model honestly without overfitting", "methodology/hyperparameter_search_design"),
+    ("fit a survival model and check its assumptions", "methodology/cox_ph_diagnostics"),
+    ("how well calibrated are my model's probabilities", "methodology/uncertainty_quantification"),
+    ("respond to the reviewers point by point", "guidance/peer_review_response"),
+    ("forecast next quarter from the historical series", "methodology/timeseries_analysis"),
+]
+
+
+def test_hard_paraphrase_top1_budget():
+    """Paraphrase / jargon prompts (no exact trigger) must route top-1 at
+    >= 80%. This is the 3.2.3 accuracy guard — the queries users actually
+    misfire on. Regressions here mean trigger coverage or doc composition
+    drifted."""
+    if not semantic.semantic_available():
+        import pytest
+        pytest.skip("semantic routing unavailable")
+    semantic.reset_caches()
+    ok = 0
+    misses: list[tuple[str, str, list[str]]] = []
+    for prompt, expected in HARD_FIXTURE:
+        ids = [m.id for m in semantic.top_k_protocols(prompt, k=3)]
+        if ids and ids[0] == expected:
+            ok += 1
+        else:
+            misses.append((prompt, expected, ids))
+    threshold = int(len(HARD_FIXTURE) * 0.80)
+    assert ok >= threshold, (
+        f"hard-paraphrase top-1 {ok}/{len(HARD_FIXTURE)} below {threshold}. "
+        f"Misses: {misses}"
+    )
+
+
+def test_hard_paraphrase_top3_budget():
+    """On the hard set the expected protocol must appear in the top-3 for
+    >= 90% of prompts (the soft floor — near-synonym siblings allowed)."""
+    if not semantic.semantic_available():
+        import pytest
+        pytest.skip("semantic routing unavailable")
+    semantic.reset_caches()
+    in_top3 = 0
+    for prompt, expected in HARD_FIXTURE:
+        ids = [m.id for m in semantic.top_k_protocols(prompt, k=3)]
+        if expected in ids:
+            in_top3 += 1
+    threshold = int(len(HARD_FIXTURE) * 0.90)
+    assert in_top3 >= threshold, (
+        f"hard-paraphrase top-3 {in_top3}/{len(HARD_FIXTURE)} below {threshold}."
+    )
+
+
 def test_nothing_floor_works():
     """Gibberish prompts must not return HIGH-confidence routes.
 
