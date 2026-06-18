@@ -31,7 +31,7 @@ Tools use underscores (`sys_state_get`, `tool_data`, `mem_log`). Dot
 notation and legacy names auto-rewrite. Need the full description of a
 tool? `sys_tool_describe(tool_name)`.
 
-Never write to `inputs/raw_data/` or `inputs/literature/` (immutable).
+Treat `inputs/raw_data/` + `inputs/literature/` as source-of-truth: edit only with `force=true` + researcher OK (soft guard). `inputs/context/` is a free drop-zone. `.os_state/` is never hand-edited.
 All workspace I/O goes through `sys_file_*` so provenance is captured.
 
 **Workspace modes.** `sys_boot` reports `workspace_mode` (analysis /

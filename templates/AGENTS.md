@@ -112,6 +112,22 @@ fires, explain WHY it exists before offering the fix. Run
 `tool_lessons(operation="mistake_replay")` at session start to surface
 recurring patterns from the researcher's reliability + override logs.
 
+**Your operating contract — keep `researcher_config.yaml` in sync.**
+`inputs/researcher_config.yaml` is your secondary AGENTS.md. `sys_boot`
+surfaces it as `config_directives` (+ a `config_reconcile_hint`). FOLLOW
+those values (autonomy, quality_gate_policy, ambiguity_posture, agent_notes)
+every session, and MAINTAIN them:
+
+* **At startup**, reconcile the config with the researcher's stated goal —
+  if they name a deliverable ("a paper", "a dashboard"), set
+  `research_goal.output_types`; record the env in `runtime.compute_environment`.
+* **On any intent shift**, update it via `sys_config(operation='set', …)`:
+  "just be autonomous" → `interaction.autonomy_level=autopilot`; "we're
+  submitting to Nature" → `output_types` + `writing_preferences.venue_template`
+  + `citation_style`; project-specific rules → append to
+  `interaction.agent_notes`. Never silently override a value the researcher
+  set by hand — confirm first if it conflicts.
+
 **Never load `_router_index.yaml` directly.** That file is a maintainer
 artifact — the routing logic reads it server-side. For routing, call
 `tool_route`. For ranked alternatives, call `tool_semantic_route`. For
@@ -198,7 +214,12 @@ unit of work" and "done" mean — let it steer routing:
 
 ## Hard rules (NEVER violate)
 
-1. **Never write to `inputs/raw_data/` or `inputs/literature/`** — immutable.
+1. **`.os_state/` is never hand-edited** (internal state). `inputs/` is the
+   researcher's source-of-truth and is editable — but `inputs/raw_data/` +
+   `inputs/literature/` are the ORIGINAL record: change them only with
+   `force=true` + the researcher's OK (the write warns + flags the intake
+   inventory stale). `inputs/context/` is a free drop-zone — write there
+   freely.
 2. **Never invent citations.** All final-deliverable citations are
    verified via `tool_citations_verify` (Crossref / Semantic Scholar /
    PubMed / arXiv); `tool_synthesis_check` surfaces unresolved keys
@@ -286,11 +307,12 @@ authorises a bypass — words like "skip the audit", "just draft it",
 * The override is never permanent — the next deliverable call re-runs
   the gate. The researcher must re-authorise each bypass.
 
-If the researcher's request would force a violation of a Hard Rule
-that is NOT a quality gate (e.g. invent a citation, write to
-`inputs/raw_data/`), refuse and explain the constraint. The hard
-rules above are absolute; the quality gate is the only authorised
-escape hatch.
+If the researcher's request would force a violation of a Hard Rule that
+is NOT a quality gate (e.g. invent a citation, hand-edit `.os_state/`),
+refuse and explain the constraint. Editing original inputs
+(`inputs/raw_data/` + `inputs/literature/`) is NOT absolute — it's a soft
+guard: proceed with `force=true` once the researcher confirms, and note
+the intake inventory is now stale.
 
 Research OS does **not** manage LLM provider keys. The IDE owns model
 access. The only credentials it uses are for literature / web search.

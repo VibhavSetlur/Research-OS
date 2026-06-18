@@ -814,11 +814,58 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             "handoff_hint": handoff_hint,
             "n_finalized_steps": n_finalized,
             "freshness": freshness,
+            # The behavioural contract from researcher_config, surfaced
+            # compactly so the AI FOLLOWS it every session AND keeps it in
+            # sync (a secondary AGENTS.md). See config_reconcile_hint.
+            "config_directives": {
+                "autonomy": (cfg.get("interaction") or {}).get("autonomy_level", "supervised"),
+                "quality_gate_policy": (cfg.get("interaction") or {}).get("quality_gate_policy", "enforce"),
+                "ambiguity_posture": (cfg.get("interaction") or {}).get("ambiguity_posture", "ask_when_uncertain"),
+                "agent_notes": (cfg.get("interaction") or {}).get("agent_notes", ""),
+                "output_types": (cfg.get("research_goal") or {}).get("output_types", []),
+                "target_venue": (cfg.get("research_goal") or {}).get("target_venue", ""),
+                "citation_style": (cfg.get("writing_preferences") or {}).get("citation_style", ""),
+                "compute_environment": (cfg.get("runtime") or {}).get("compute_environment", ""),
+            },
+            "config_reconcile_hint": _config_reconcile_hint(cfg),
             "advice": _boot_advice(pause, active_plan, state, cfg),
         }
     except Exception as e:
         logger.exception("sys_boot failed")
         return {"status": "error", "message": str(e)}
+
+
+def _config_reconcile_hint(cfg: dict) -> str:
+    """One-line nudge: researcher_config is the AI's operating contract;
+    keep the behaviour-shaping fields in sync with what the researcher
+    asks, and fill the blanks that matter for downstream gates."""
+    inter = cfg.get("interaction") or {}
+    goal = cfg.get("research_goal") or {}
+    runtime = cfg.get("runtime") or {}
+    gaps: list[str] = []
+    if not (goal.get("output_types") or []):
+        gaps.append(
+            "research_goal.output_types is blank (exploratory — no auto "
+            "paper/dashboard); set it the moment the researcher names a "
+            "deliverable"
+        )
+    if not (runtime.get("compute_environment") or "").strip():
+        gaps.append(
+            "runtime.compute_environment is blank — record the env "
+            "(conda/module/docker) so reproduction is right"
+        )
+    base = (
+        "researcher_config is your operating contract: FOLLOW "
+        f"autonomy='{inter.get('autonomy_level', 'supervised')}', "
+        f"quality_gate_policy='{inter.get('quality_gate_policy', 'enforce')}', "
+        f"ambiguity_posture='{inter.get('ambiguity_posture', 'ask_when_uncertain')}'. "
+        "When the researcher changes intent (\"be autonomous\", \"we're "
+        "writing a paper\", \"use Vancouver\"), UPDATE it via "
+        "sys_config(operation='set')."
+    )
+    if gaps:
+        base += " Gaps to fill from the conversation: " + "; ".join(gaps) + "."
+    return base
 
 
 def _classify_pause(entries: list[dict], root: Path) -> str:

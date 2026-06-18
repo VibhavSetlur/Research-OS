@@ -35,7 +35,7 @@ continue an in-flight plan via `tool_plan(operation="advance")`).
 Tools use underscores: `sys_state_get`, `tool_data`,
 `mem_log`. Dot notation + legacy aliases auto-rewrite.
 
-Never write to `inputs/raw_data/` or `inputs/literature/` (immutable).
+Treat `inputs/raw_data/` + `inputs/literature/` as source-of-truth: edit only with `force=true` + researcher OK (soft guard). `inputs/context/` is a free drop-zone. `.os_state/` is never hand-edited.
 All workspace I/O goes through MCP tools.
 
 **Workspace modes.** `sys_boot` reports `workspace_mode`. It shapes what

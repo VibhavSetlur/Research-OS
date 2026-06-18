@@ -57,13 +57,23 @@ workspace:
     test: ""              # e.g. "pytest -q" | "cargo test" | "npm test"
     lint: ""              # e.g. "ruff check ." | "cargo clippy" | "eslint ."
 
-# ── What you want to produce (blank = AI suggests; start exploratory) ───
+# ── What you want to produce ────────────────────────────────────────────
+# Blank output_types = EXPLORATORY: the AI will NOT auto-build a paper /
+# dashboard / poster you didn't ask for (synthesis gates on this). You
+# don't have to decide up front. The AI fills this in from your goal —
+# say "we're submitting to Nature" and it sets output_types + target_venue
+# + writing_preferences.* and keeps them in sync as the goal shifts.
 research_goal:
   output_types: []               # paper | abstract | poster | dashboard | report | exploratory
   target_venue: ""               # journal | conference | preprint | dissertation | report
   poster_dimensions: "36x48"
 
-# ── How the AI should behave ────────────────────────────────────────────
+# ── How the AI should behave — the AI's operating contract ──────────────
+# Treat this block as a secondary AGENTS.md. The AI READS it every session
+# (via sys_boot) and FOLLOWS it, and it KEEPS IT IN SYNC with what you ask:
+# say "just be autonomous" → it sets autonomy_level: autopilot; "ask before
+# big moves" → supervised; "teach me as we go" → coaching. It never
+# silently overrides a value you set by hand.
 interaction:
   autonomy_level: "supervised"   # manual | supervised | autopilot | coaching
   # coaching → AI doesn't auto-execute; surfaces pedagogical preludes,
@@ -85,6 +95,13 @@ interaction:
   #   ask_when_uncertain → default; AI asks a one-line follow-up
   #   take_best_default  → AI proceeds, surfaces the chosen default for review
   ambiguity_posture: "ask_when_uncertain"
+
+  # Free-form, project-specific directives the AI records + obeys — the
+  # "how to act on THIS project" notes that don't fit a knob above (e.g.
+  # "always segregate transport reactions", "prefer DRFP over structural
+  # fingerprints", "never touch the prod DB"). The AI appends here as it
+  # learns your preferences; edit by hand any time.
+  agent_notes: ""
 
 # ── Audit strictness ───────────────────────────────────────────────────
 # How hard audits enforce gates. "light" downgrades most blockers to
@@ -179,9 +196,16 @@ ai:
   model_profile: "medium"         # small | medium | large
 
 # ── Compute environment ─────────────────────────────────────────────────
+# The AI fills these from how you actually run things and consults them
+# before launching work: which env to activate, whether a job counts as
+# "long-running", whether to offer a Slurm submission. Keep accurate so
+# reproduction + scheduling decisions are right. (Project deps live in
+# environment/requirements.txt — import-driven, NOT the research-os stack.)
 runtime:
   shared_server: false           # set true on HPC / shared boxes
   long_running_threshold_seconds: 60
+  compute_environment: ""        # e.g. "conda env: myproj" / "module load cuda/12" / "docker: myimg"
+  package_manager: ""            # pip | conda | uv | poetry  (blank → AI infers)
 
 # ── Figure defaults ────────────────────────────────────────────────────
 # What companions the AI ships with every figure. SVG companions double
