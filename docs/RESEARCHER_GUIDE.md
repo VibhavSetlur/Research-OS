@@ -852,9 +852,11 @@ you there fastest.
 
 For every recipe, the AI also pairs `tool_audit(scope='step',
 dimension='figure_full')` and authors a `<figure>.caption.md`
-+ `<figure>.summary.md` sidecar directly when the figure is created
-(see `visualization/figure_guidelines`). Skipping the sidecar
-blocks at the per-step completeness audit, so don't.
+sidecar directly when the figure is created (see
+`visualization/figure_guidelines`). Skipping the caption blocks at the
+per-step completeness audit, so don't. (The plain-English interpretation
+lives inline in `conclusions.md` next to the embed — the separate
+`.summary.md` sidecar was retired in 3.2.)
 
 Two general principles the stack enforces:
 

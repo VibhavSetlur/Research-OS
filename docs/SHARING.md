@@ -72,7 +72,7 @@ A clean research workspace they can read without any Research-OS context:
 * `synthesis/REPORT.md` / `synthesis/paper.typ` — the narrative deliverable.
 * `workspace/NN_*/conclusions.md` — the per-step reasoning chain.
 * `workspace/NN_*/scripts/` — the actual analysis code (reproducible).
-* `workspace/NN_*/data/output/` — derived artefacts each step persisted.
+* `workspace/NN_*/data/next_step_output/` — derived artefacts each step persisted.
 * `docs/` — research question, glossary, workflow diagram.
 
 The AI-side configuration is intentionally excluded, so the share
