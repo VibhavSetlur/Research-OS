@@ -828,11 +828,50 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
                 "compute_environment": (cfg.get("runtime") or {}).get("compute_environment", ""),
             },
             "config_reconcile_hint": _config_reconcile_hint(cfg),
+            # Live drop-zone awareness + glossary nudge (peek only — the
+            # marker is consumed by tool_route so each drop surfaces once).
+            "new_context": _boot_new_context(root),
+            "glossary_unfilled": _boot_glossary_unfilled(root, n_finalized),
             "advice": _boot_advice(pause, active_plan, state, cfg),
         }
     except Exception as e:
         logger.exception("sys_boot failed")
         return {"status": "error", "message": str(e)}
+
+
+def _boot_new_context(root: Path) -> dict:
+    """sys_boot peek at the context drop-zone (does NOT consume the marker
+    — tool_route consumes it so each drop surfaces once on the next prompt)."""
+    try:
+        from research_os.tools.actions.state.context_watch import detect_new_context
+
+        nc = detect_new_context(root, update_marker=False)
+        return {
+            "new_files": nc.get("new_files", []),
+            "changed_files": nc.get("changed_files", []),
+            "hint": nc.get("hint", ""),
+        }
+    except Exception:
+        return {"new_files": [], "changed_files": [], "hint": ""}
+
+
+def _boot_glossary_unfilled(root: Path, n_finalized: int) -> dict:
+    """Nudge to populate docs/glossary.md once the project has substance
+    (≥1 finalized step) but the glossary is still header-only."""
+    try:
+        from research_os.tools.actions.state.context_watch import glossary_unfilled
+
+        empty = glossary_unfilled(root)
+    except Exception:
+        empty = False
+    hint = ""
+    if empty and n_finalized >= 1:
+        hint = (
+            "docs/glossary.md is empty — add the domain terms you've used "
+            "(term | definition | source) so a non-expert reader (and the "
+            "synthesis) can follow the work."
+        )
+    return {"empty": bool(empty), "nudge": bool(hint), "hint": hint}
 
 
 def _config_reconcile_hint(cfg: dict) -> str:

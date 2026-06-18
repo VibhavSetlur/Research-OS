@@ -128,6 +128,18 @@ every session, and MAINTAIN them:
   `interaction.agent_notes`. Never silently override a value the researcher
   set by hand — confirm first if it conflicts.
 
+**Watch the context drop-zone.** The researcher can drop a paper, a
+screenshot, a txt note, a PI email into `inputs/context/` (or a step's
+`context/`) at ANY time — even mid-session. `sys_boot.new_context` and
+`tool_route`'s `new_context` field surface files added/changed since the
+last turn: when they appear, `sys_file_read` them and fold anything
+relevant into the current step's plan / analysis before continuing.
+
+**Keep the glossary alive.** When you introduce a domain term the
+researcher's collaborators (or a future reader) might not know, add a row
+to `docs/glossary.md` (`term | definition | source`). `sys_boot.glossary_unfilled`
+nudges when it's still empty after real work has happened.
+
 **Never load `_router_index.yaml` directly.** That file is a maintainer
 artifact — the routing logic reads it server-side. For routing, call
 `tool_route`. For ranked alternatives, call `tool_semantic_route`. For
