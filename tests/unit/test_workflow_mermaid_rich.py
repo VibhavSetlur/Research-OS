@@ -60,3 +60,28 @@ def test_mermaid_empty_project_is_safe(tmp_path):
     mer = _build_workflow_mermaid(tmp_path)
     assert mer.startswith("graph TD")
     assert "No analysis steps yet" in mer
+
+
+def test_hybrid_software_component_in_dag(tmp_path):
+    """3.2.2 hybrid: an inner software component (build manifest / .git)
+    appears in the DAG with an 'informs' edge from the latest step."""
+    from research_os.project_ops import detect_software_components
+
+    scaffold_minimal_workspace(tmp_path, "Hybrid", ide_flags=[], copy_agents=False)
+    (tmp_path / "KBUtilLib").mkdir()
+    (tmp_path / "KBUtilLib" / "pyproject.toml").write_text("[project]\nname='k'\n")
+    s1 = create_numbered_experiment(
+        tmp_path, "method spec", enforce_predecessor_finalized=False
+    )["path_id"]
+    _fill(tmp_path / "workspace" / s1, "Spec the clustering method")
+
+    comps = detect_software_components(tmp_path)
+    assert any(c["name"] == "KBUtilLib" and c["kind"] == "python" for c in comps)
+    # RO scaffold dirs are never flagged as software.
+    names = {c["name"] for c in comps}
+    assert "workspace" not in names and "inputs" not in names and "docs" not in names
+
+    mer = _build_workflow_mermaid(tmp_path)
+    assert 'subgraph software_component["Software"]' in mer
+    assert "KBUtilLib" in mer
+    assert f"{s1.replace('-', '_')} -. informs .-> sw_KBUtilLib" in mer

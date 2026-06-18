@@ -417,7 +417,62 @@ SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "eager_dirs": _MULTI_STUDY_EAGER_DIRS,
         "lazy_dirs": _MULTI_STUDY_LAZY_DIRS,
     },
+    # hybrid (research + software) reuses the analysis layout — the
+    # software lives in its own inner repo / package, detected by
+    # detect_software_components() and surfaced in the workflow DAG +
+    # sys_boot rather than scaffolded as a fixed folder.
+    "hybrid": {
+        "top_level_dirs": TOP_LEVEL_DIRS,
+        "eager_dirs": EAGER_DIRS,
+        "lazy_dirs": LAZY_DIRS,
+    },
 }
+
+# Files whose presence in a directory marks it as a software component.
+_SOFTWARE_MARKERS = {
+    "pyproject.toml": "python", "setup.py": "python", "setup.cfg": "python",
+    "Cargo.toml": "rust", "package.json": "node", "go.mod": "go",
+    "DESCRIPTION": "r", "pom.xml": "java", "build.gradle": "java",
+}
+# Top-level dirs that are Research-OS scaffolding, never software components.
+_NON_SOFTWARE_DIRS = {
+    "workspace", "inputs", ".os_state", "environment", "docs", "synthesis",
+    "literature", "reports", "scripts", "spec", "decisions", "eval",
+}
+
+
+def detect_software_components(root: Path) -> list[dict[str, str]]:
+    """Find inner software components in a (hybrid) project.
+
+    A child directory counts as a software component when it carries a
+    build manifest (pyproject.toml / Cargo.toml / package.json / …) or its
+    own ``.git``. Research-OS scaffold dirs are excluded. This is what makes
+    a research+software project legible — e.g. KBUtilLib living beside the
+    analysis steps. Best-effort; never raises.
+    """
+    root = Path(root)
+    found: dict[str, dict[str, str]] = {}
+    try:
+        children = sorted(p for p in root.iterdir() if p.is_dir())
+    except OSError:
+        return []
+    for child in children:
+        if child.name in _NON_SOFTWARE_DIRS or child.name.startswith("."):
+            continue
+        kind: str | None = None
+        for marker, k in _SOFTWARE_MARKERS.items():
+            if (child / marker).exists():
+                kind = k
+                break
+        if kind is None and (child / ".git").exists():
+            kind = "repo"
+        if kind is not None:
+            found[child.name] = {
+                "path": child.name,
+                "name": child.name,
+                "kind": kind,
+            }
+    return list(found.values())
 
 
 def _resolve_scaffold_profile(mode: str | None) -> tuple[str, dict[str, tuple[str, ...]]]:
@@ -3619,6 +3674,7 @@ def _build_workflow_mermaid(root: Path) -> str:
         "    classDef dead_end fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-dasharray: 5 5",
         "    classDef planned fill:#e2e3e5,stroke:#6c757d,color:#333",
         "    classDef source fill:#e7f1ff,stroke:#0d6efd,color:#084298",
+        "    classDef software fill:#f0e7ff,stroke:#6f42c1,color:#3d1a78",
     ]
     if consumes_raw:
         lines.append('    raw[("inputs/raw_data")]:::source')
@@ -3650,7 +3706,27 @@ def _build_workflow_mermaid(root: Path) -> str:
     for src, dst in sorted(edges):
         lines.append(f"    {_safe(src)} --> {_safe(dst)}")
 
-    if not info:
+    # Software components (hybrid research+software projects): show the code
+    # deliverable as its own subgraph + a dashed "informs" link from the
+    # latest research step (the analysis feeds the implementation).
+    try:
+        components = detect_software_components(root)
+    except Exception:
+        components = []
+    if components:
+        lines.append('    subgraph software_component["Software"]')
+        for c in components:
+            cid = "sw_" + re.sub(r"[^A-Za-z0-9_]", "_", c["name"])
+            lines.append(f'        {cid}["{c["name"]}<br/><i>{c["kind"]}</i>"]:::software')
+        lines.append("    end")
+        all_nums = sorted(info, key=lambda p: info[p]["num"]) if info else []
+        anchor = main_sorted[-1] if main_sorted else (all_nums[-1] if all_nums else None)
+        if anchor:
+            for c in components:
+                cid = "sw_" + re.sub(r"[^A-Za-z0-9_]", "_", c["name"])
+                lines.append(f"    {_safe(anchor)} -. informs .-> {cid}")
+
+    if not info and not components:
         lines.append('    empty["No analysis steps yet"]:::planned')
 
     return "\n".join(lines)

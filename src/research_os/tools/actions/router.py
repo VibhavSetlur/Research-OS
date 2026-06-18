@@ -832,6 +832,10 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             # marker is consumed by tool_route so each drop surfaces once).
             "new_context": _boot_new_context(root),
             "glossary_unfilled": _boot_glossary_unfilled(root, n_finalized),
+            # Hybrid (research + software): inner code components, so the AI
+            # governs the research in workspace/ AND the code via tool_git /
+            # tool_build on the inner repo.
+            "software_components": _boot_software_components(root),
             "advice": _boot_advice(pause, active_plan, state, cfg),
         }
     except Exception as e:
@@ -853,6 +857,16 @@ def _boot_new_context(root: Path) -> dict:
         }
     except Exception:
         return {"new_files": [], "changed_files": [], "hint": ""}
+
+
+def _boot_software_components(root: Path) -> list:
+    """Inner software components (hybrid projects) — empty for pure analysis."""
+    try:
+        from research_os.project_ops import detect_software_components
+
+        return detect_software_components(root)
+    except Exception:
+        return []
 
 
 def _boot_glossary_unfilled(root: Path, n_finalized: int) -> dict:

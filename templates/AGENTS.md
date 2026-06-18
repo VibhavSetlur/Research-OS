@@ -194,6 +194,14 @@ unit of work" and "done" mean — let it steer routing:
   `tool_bash_exec` for anything else, and `tool_task` for long builds.
 * **exploration** — scratch-first. `workspace/scratch/` is home base;
   gates are light; promote a probe to a numbered step only when it earns it.
+* **hybrid** — research + software. Routes + scaffolds like **analysis**
+  (numbered research steps), but the project ALSO ships code: `sys_boot`
+  reports `software_components` (inner repos / packages it detected), and
+  the workflow DAG shows each as a `Software` node the research "informs".
+  Govern BOTH sides — the research in `workspace/NN_*` steps (figures +
+  conclusions), and the code in the inner repo via `tool_git` + `tool_build`
+  + `tool_audit(scope="tool")`. The reaction-similarity shape: characterise
+  a method across steps, then implement it as a library.
 
 ---
 

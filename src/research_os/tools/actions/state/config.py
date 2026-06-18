@@ -430,6 +430,11 @@ def get_interaction_policy(root: Path) -> dict[str, str]:
 
 VALID_WORKSPACE_MODES = (
     "analysis", "tool_build", "exploration", "notebook", "multi_study",
+    # hybrid = a research project that ALSO ships software. Routes + scaffolds
+    # like analysis (numbered research steps) AND surfaces the inner software
+    # component(s) — the reaction-similarity shape: characterise a method in
+    # workspace/ steps, then implement it as a library in an inner repo.
+    "hybrid",
 )
 
 

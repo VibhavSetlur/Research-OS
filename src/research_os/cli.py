@@ -1373,7 +1373,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Add a research question (repeatable). Builds a list.")
     p_init.add_argument("--workspace-mode", dest="workspace_mode",
                         choices=["analysis", "tool_build", "exploration",
-                                 "notebook", "multi_study"],
+                                 "notebook", "multi_study", "hybrid"],
                         default=None,
                         help="What kind of work this is. "
                              "analysis (default) = linear analysis steps; "
@@ -1381,7 +1381,9 @@ def build_parser() -> argparse.ArgumentParser:
                              "exploration = scratch-first probes; "
                              "notebook = Jupyter-first notebook project; "
                              "multi_study = multi-study program (portfolio "
-                             "+ cross-study meta-analysis).")
+                             "+ cross-study meta-analysis); "
+                             "hybrid = research + software (analysis steps "
+                             "plus an inner software component).")
     _ide_arg = p_init.add_argument(
         "--ide", default="all",
         help="IDE(s) to wire up: 'all' or a comma-separated list. "

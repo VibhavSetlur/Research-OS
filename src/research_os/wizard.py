@@ -264,6 +264,7 @@ def run_wizard(args) -> WizardResult:
     workspace_mode = _ask_workspace_mode(getattr(args, "workspace_mode", None))
     ok({
         "analysis":    "Mode: analysis (linear analysis steps)",
+        "hybrid":      "Mode: hybrid (research + software component)",
         "tool_build":  "Mode: tool_build (governed software build)",
         "exploration": "Mode: exploration (scratch-first probes)",
         "notebook":    "Mode: notebook (Jupyter-first)",
@@ -419,6 +420,7 @@ def run_wizard(args) -> WizardResult:
 
 VALID_WORKSPACE_MODES = (
     "analysis", "tool_build", "exploration", "notebook", "multi_study",
+    "hybrid",
 )
 
 
@@ -435,6 +437,7 @@ def _ask_workspace_mode(preset: str | None = None) -> str:
         "What are you building?",
         [
             ("analysis",    "Analysis pipeline (data → results → paper)"),
+            ("hybrid",      "Research + software (analysis steps + a code component)"),
             ("tool_build",  "A tool / software I iterate on"),
             ("exploration", "Quick exploration (scratch-first probes)"),
             ("notebook",    "A Jupyter notebook project"),
