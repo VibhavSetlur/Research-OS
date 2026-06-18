@@ -38,11 +38,16 @@ EXPERIMENT_SUBDIRS = (
     "scripts",
     "literature",        # per-step PDFs; populated by tool_literature_download(step_id=…)
     "context",           # per-step prose notes, methodology rationale, hand-overs
-    "outputs/reports",
     "outputs/figures",
     "outputs/tables",
     "environment",
 )
+# outputs/reports/ is NOT pre-created: when every step ships an empty
+# reports/ it becomes a magnet for misplaced analysis artefacts (the
+# reaction-similarity project dumped manifest.json / profile.md /
+# method_spec.md there). reports/ is for *optional* point-in-time
+# PRESENTATION artefacts (a one-off dashboard / slide); tools + the AI
+# create it on demand. The finalize inventory tolerates its absence.
 
 # 3.2 renamed the per-step data folders (data/input → data/past_step_input,
 # data/output → data/next_step_output) and added data/share. Reading code
@@ -1827,20 +1832,22 @@ def scaffold_minimal_workspace(
     _write_getting_started(root, project_name)
     _write_project_root_readme(root, project_name, state)
     _write_sharing_scripts(root, project_name)
-    # Open-science scaffolding: CITATION.cff + codemeta.json at project
-    # root so every Research OS project is citable + machine-readable
-    # from day one. Pulls author identity from researcher_config block.
+    # Open-science scaffolding: CITATION.cff at project root so every
+    # Research OS project is citable from day one. Pulls author identity
+    # from the researcher_config block. codemeta.json + ro-crate-metadata
+    # are NO LONGER emitted at scaffold — they shipped as root clutter with
+    # placeholder "Anonymous Researcher" content nobody asked for. They are
+    # generated on demand by `sys_export_ro_crate` / the share-archive
+    # export, which is when a machine-readable manifest is actually needed.
     try:
         from research_os.tools.actions.state.citation import (
             emit_project_citation_cff,
         )
-        from research_os.tools.actions.state.ro_crate import build_codemeta
 
         researcher_block = ((config_overrides or {}).get("researcher")
                             or {})
         emit_project_citation_cff(root, project_name=project_name,
                                   researcher=researcher_block)
-        build_codemeta(root)
     except Exception:
         # Open-science manifests are best-effort; never block scaffold.
         pass
@@ -2987,13 +2994,14 @@ def _seed_step_subfolder_readmes(
         "interactive `.html` figures suit networks / large multi-panels.\n"
         "- **`tables/`** — CSV / TSV tables (analysis outputs). Each table "
         "SHOULD have a sibling `<name>.caption.md`.\n"
-        "- **`reports/`** — *optional* snapshot presentation artefacts you "
-        "build at a point in time to PRESENT — a one-off dashboard for a "
-        "committee, a slide for a journal club, a diagram for a "
-        "collaboration review. These are NOT analysis-script outputs and NOT "
-        "where findings live (findings → `conclusions.md`). Keeping them "
-        "here avoids cluttering `synthesis/`. Header each with its date + "
-        "intended audience.\n\n"
+        "- **`reports/`** — *optional, created on demand* (not pre-made). For "
+        "point-in-time PRESENTATION artefacts you build to SHOW someone — a "
+        "one-off dashboard for a committee, a slide for a journal club. These "
+        "are NOT analysis-script outputs (those are `figures/` + `tables/`), "
+        "NOT intermediate data (that's `data/next_step_output/`), and NOT "
+        "where findings live (findings → `conclusions.md`). Only `mkdir` this "
+        "when you genuinely build a presentation artefact; header each with "
+        "its date + intended audience.\n\n"
         "Follow `figure_guidelines` (DPI ≥150 screen / ≥300 print, colour-blind "
         "safe palette, axis units). The AI MUST `sys_file_read` each figure "
         "before declaring the step done (catches legend-over-plot, missing "
