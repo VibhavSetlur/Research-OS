@@ -98,6 +98,22 @@ On **subsequent turns** of the same session, skip `sys_boot` (its
 payload is still in context) and go straight to `tool_route` — or
 continue an in-flight `active_plan` via `tool_plan(operation="advance")`.
 
+**Token economy (read once, apply always).** Context is finite; spend it
+on reasoning, not re-reading. The defaults:
+
+* **Load summary-first.** `sys_protocol_get format='summary'` (~300 tokens),
+  then `format='step' step_id=<id>` only for the step you're about to run.
+  Reach for `format='full'` only when a step genuinely needs the whole YAML.
+* **Don't re-read.** `sys_boot`/`tool_route` payloads, files you just wrote,
+  and protocols already in context stay in context — don't re-fetch them.
+* **Search, don't dump.** Find protocols with `tool_route` /
+  `tool_semantic_route`, tools with `sys_semantic_tool_search` — never load
+  `_router_index.yaml` or the full tool catalog to "look around".
+* **Read the slice you need.** For big files, read the relevant range, not
+  the whole thing. Prefer the dedicated tool over a raw shell dump.
+* **Small models:** set `ai.model_profile=small` once; it makes loads `lean`
+  and prefers `shortcut_tool` over full decomposition.
+
 Use `sys_protocol_get format='summary'` — never `format='full'` just to
 list steps. Use `sys_tool_describe(name)` instead of re-listing all tools.
 Use `sys_active_tools(protocol_name)` to scope your working tool set
