@@ -153,15 +153,38 @@ def _handle_sys_file_write(name, arguments, root):
     root_resolved = Path(root).resolve()
     rel = str(p.relative_to(root_resolved))
 
-    # Central write-permission gate (inputs/, .os_state/) — was previously
-    # bypassed for sys_file_write; only project_ops used check_write_permitted.
+    # Central write-permission gate. As of 3.2.2 only `.os_state/` is
+    # hard-locked (internal state, never hand-edited).
     try:
         check_write_permitted(p, root=root_resolved)
     except WriteProtectedError as exc:
-        # Literature-index updates inside inputs/literature/ are the one
-        # documented mutation allowed under the immutable input tree.
-        if not rel.endswith("literature_index.yaml"):
-            return _text(_error(str(exc)))
+        return _text(_error(str(exc)))
+
+    # inputs/ is the researcher's source-of-truth — writable. But the two
+    # ORIGINAL trees (raw_data, literature) get a SOFT guard: a deliberate
+    # force=true + a confirm-with-researcher warning, so the AI never
+    # silently rewrites primary data / provenance. literature_index.yaml
+    # (the AI-maintained citation ledger) is the documented exception.
+    soft_warning = None
+    is_original_input = (
+        rel.startswith(("inputs/raw_data/", "inputs/literature/"))
+        and not rel.endswith("literature_index.yaml")
+    )
+    if is_original_input and not force:
+        return _text(_error(
+            f"`{rel}` is original input data — your project's source-of-truth. "
+            "Editing it changes provenance and staleness the intake SHA-256 "
+            "inventory. Confirm with the researcher, then pass force=true. "
+            "(To ADD new inputs, prefer the wizard / tool_context_intake; for "
+            "free-form context notes, write under inputs/context/ — no force "
+            "needed.)"
+        ))
+    if is_original_input and force:
+        soft_warning = (
+            f"Modified original input `{rel}` — provenance changed. Confirm "
+            "the researcher approved this; the intake inventory is now stale "
+            "(re-run mem_intake_regenerate)."
+        )
     if rel.startswith("synthesis/") and p.exists() and not force:
         return _text(_error("synthesis/ files exist: pass force=true to overwrite."))
 
@@ -169,7 +192,10 @@ def _handle_sys_file_write(name, arguments, root):
     p.write_text(arguments["content"])
     if rel.startswith("workspace/"):
         _update_manifest(root)
-    return _text(_success({"written": True, "checksum": compute_file_hash(p)}))
+    payload = {"written": True, "checksum": compute_file_hash(p)}
+    if soft_warning:
+        payload["warning"] = soft_warning
+    return _text(_success(payload))
 
 
 def _handle_sys_file_list(name, arguments, root):

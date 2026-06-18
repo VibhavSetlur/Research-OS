@@ -3493,6 +3493,161 @@ def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
     analysis_path.write_text(content[:start] + new_block + content[end:])
 
 
+def _step_purpose(exp_dir: Path, fallback: str) -> str:
+    """A short (<=46 char) one-liner for a workflow node, taken from the
+    step's README ``## Goal`` (skipping the unfilled stub). Falls back to
+    the step name."""
+    readme = exp_dir / "README.md"
+    if readme.exists():
+        try:
+            txt = readme.read_text()
+        except OSError:
+            txt = ""
+        m = re.search(r"^##\s+Goal\s*\n+(.+)", txt, re.M)
+        if m:
+            line = re.sub(r"\s+", " ", m.group(1).strip().lstrip("-* ").strip())
+            if line and not line.startswith(("*(", "_(")):
+                return line[:46]
+    return re.sub(r"\s+", " ", fallback)[:46]
+
+
+def _build_workflow_mermaid(root: Path) -> str:
+    """Build a realistic workflow DAG (graph TD) for the project.
+
+    Unlike the old `init --> every step` fan-out, this derives REAL
+    data-dependency edges from each step's ``data/past_step_input``
+    symlinks (→ another step's ``data/next_step_output`` or
+    ``inputs/raw_data``), labels nodes with status + a one-line purpose,
+    styles dead-ends, groups branch paths (``*_PATH_k``) into subgraphs,
+    and falls back to a sequential chain for main-path steps whose inputs
+    aren't symlinked yet. Shared by ``workspace/workflow.mermaid`` and
+    ``docs/workflow_dag.mermaid`` so the two never drift.
+    """
+    from research_os.tools.actions.state.path import list_paths
+
+    workspace = root / "workspace"
+    try:
+        steps = list_paths(root).get("paths", []) or []
+    except Exception:
+        steps = []
+
+    def _num(pid: str) -> int:
+        m = re.match(r"^(\d+)", pid)
+        return int(m.group(1)) if m else 0
+
+    def _safe(pid: str) -> str:
+        return re.sub(r"[^A-Za-z0-9_]", "_", pid)
+
+    info: dict[str, dict[str, Any]] = {}
+    for s in steps:
+        pid = s["path_id"]
+        exp = root / s.get("experiment_dir", f"workspace/{pid}")
+        info[pid] = {
+            "status": s.get("status", "active"),
+            "lineage": _extract_path_lineage(pid),
+            "purpose": _step_purpose(exp, s.get("name") or pid),
+            "exp": exp,
+            "num": _num(pid),
+            "short": pid.replace("__DEAD_END", ""),
+        }
+
+    # ── edges from data symlinks ──────────────────────────────────────
+    try:
+        ws_resolved = workspace.resolve()
+        raw_resolved = (root / "inputs" / "raw_data").resolve()
+    except OSError:
+        ws_resolved, raw_resolved = workspace, root / "inputs" / "raw_data"
+    edges: set[tuple[str, str]] = set()
+    consumes_raw: set[str] = set()
+    for pid, meta in info.items():
+        din = step_input_link(meta["exp"])
+        targets: list[Path] = []
+        if din.is_symlink():
+            try:
+                targets.append(din.resolve())
+            except OSError:
+                pass
+        elif din.is_dir():
+            for ch in din.iterdir():
+                if ch.is_symlink():
+                    try:
+                        targets.append(ch.resolve())
+                    except OSError:
+                        pass
+        for t in targets:
+            try:
+                rel = t.relative_to(ws_resolved)
+            except (ValueError, OSError):
+                try:
+                    t.relative_to(raw_resolved)
+                    consumes_raw.add(pid)
+                except (ValueError, OSError):
+                    pass
+                continue
+            anc = next((p for p in rel.parts if re.match(r"^\d{2,3}_", p)), None)
+            if anc and anc in info and anc != pid:
+                edges.add((anc, pid))
+
+    # ── fallback sequential chain for un-wired main-path steps ────────
+    main_sorted = sorted(
+        (p for p in info if info[p]["lineage"] is None), key=lambda p: info[p]["num"]
+    )
+    have_in = {dst for _, dst in edges}
+    prev: str | None = None
+    for pid in main_sorted:
+        if prev and pid not in have_in and (prev, pid) not in edges:
+            edges.add((prev, pid))
+            have_in.add(pid)
+        prev = pid
+    if main_sorted and main_sorted[0] not in have_in:
+        consumes_raw.add(main_sorted[0])
+
+    # ── assemble ──────────────────────────────────────────────────────
+    css_for = {"completed": "completed", "active": "active", "dead_end": "dead_end"}
+    lines = [
+        "graph TD",
+        "    classDef active fill:#fff3cd,stroke:#856404,color:#333",
+        "    classDef completed fill:#d4edda,stroke:#28a745,color:#155724",
+        "    classDef dead_end fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-dasharray: 5 5",
+        "    classDef planned fill:#e2e3e5,stroke:#6c757d,color:#333",
+        "    classDef source fill:#e7f1ff,stroke:#0d6efd,color:#084298",
+    ]
+    if consumes_raw:
+        lines.append('    raw[("inputs/raw_data")]:::source')
+
+    def _node_line(pid: str, indent: str = "    ") -> str:
+        meta = info[pid]
+        css = css_for.get(meta["status"], "planned")
+        label = meta["short"]
+        purpose = meta["purpose"]
+        if purpose and purpose.lower() not in (label.lower(), ""):
+            label = f"{label}<br/><i>{purpose}</i>"
+        return f'{indent}{_safe(pid)}["{label}"]:::{css}'
+
+    # group branch lineages into subgraphs; main path stays ungrouped.
+    lineages = sorted({m["lineage"] for m in info.values() if m["lineage"] is not None})
+    for pid in main_sorted:
+        lines.append(_node_line(pid))
+    for k in lineages:
+        members = sorted(
+            (p for p in info if info[p]["lineage"] == k), key=lambda p: info[p]["num"]
+        )
+        lines.append(f'    subgraph path_{k}["Path {k} — alternative approach"]')
+        for pid in members:
+            lines.append(_node_line(pid, indent="        "))
+        lines.append("    end")
+
+    for pid in consumes_raw:
+        lines.append(f"    raw --> {_safe(pid)}")
+    for src, dst in sorted(edges):
+        lines.append(f"    {_safe(src)} --> {_safe(dst)}")
+
+    if not info:
+        lines.append('    empty["No analysis steps yet"]:::planned')
+
+    return "\n".join(lines)
+
+
 def _update_workflow_mermaid(root: Path) -> None:
     """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG.
 
@@ -3510,29 +3665,10 @@ def _update_workflow_mermaid(root: Path) -> None:
         # is exactly what we want.
         return
     try:
-        from research_os.tools.actions.state.path import list_paths
-
-        paths = list_paths(root).get("paths", []) or []
+        text = _build_workflow_mermaid(root)
     except Exception:
-        paths = []
-
-    lines = ["graph TD", "    init[Initialise Project]:::complete"]
-    for p in paths:
-        pid = re.sub(r"[^a-zA-Z0-9_]", "_", p["path_id"])
-        label = p.get("name") or p["path_id"]
-        status = p.get("status", "active")
-        css = {"completed": "complete", "active": "running", "dead_end": "failed"}.get(status, "planned")
-        lines.append(f"    {pid}[{label}]:::{css}")
-        lines.append(f"    init --> {pid}")
-    lines.extend(
-        [
-            "    classDef complete fill:#d4edda,stroke:#28a745",
-            "    classDef running  fill:#fff3cd,stroke:#ffc107",
-            "    classDef failed   fill:#f8d7da,stroke:#dc3545,stroke-dasharray: 5 5",
-            "    classDef planned  fill:#e2e3e5,stroke:#6c757d",
-        ]
-    )
-    text = "\n".join(lines)
+        # Never let a diagram refresh break step create/finalize.
+        return
     mermaid_path = root / "workspace" / "workflow.mermaid"
     mermaid_path.write_text(text + "\n")
     _update_analysis_mermaid_block(root, text)
