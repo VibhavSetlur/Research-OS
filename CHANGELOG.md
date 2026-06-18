@@ -6,6 +6,43 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.4] — leaner per-session context (2026-06-18)
+
+Efficiency release. `AGENTS.md` is loaded into context every session and had
+grown to 372 lines; this trims the always-on footprint without losing any
+operating rule — deep detail now lives in `sys_help` topics, loaded on demand.
+
+### Improved
+
+- **`AGENTS.md` slimmed 372 → ~160 lines (-57%).** Rewritten as a lean
+  always-on CORE — session loop, token economy, operating contract, all 12
+  hard rules (one line each), workspace modes, quick-lookup table — that
+  delegates deep detail to `sys_help` topics (`routing`, `overrides`,
+  `iteration`, `recovery`, category orientation) which already existed and
+  largely duplicated AGENTS. Every safety-critical rule + concept preserved.
+- **`templates/CLAUDE.md` slimmed 47 → ~21 lines** — it duplicated the boot
+  loop + modes now in AGENTS.md; reduced to the Claude-Code-specific
+  essentials + a pointer to AGENTS.md.
+- **`sys_boot` payload trimmed** — `config_reconcile_hint` no longer re-lists
+  values already structured in `config_directives` (boot ~535 → ~494 tokens).
+
+### Added
+
+- **`tests/unit/test_agents_md_lean.py`** — a guard that keeps `AGENTS.md`
+  ≤ 200 lines AND verifies the critical anchors (session loop, hard rules,
+  token economy, operating contract, `sys_help` pointer) are never dropped in
+  the name of brevity. Institutionalises the "keep it short" constraint so it
+  can't silently bloat back.
+
+### Note
+
+- The largest per-session context cost is the MCP **tool catalog** (~14.5K
+  tokens of tool descriptions). Those are deliberately left intact — they
+  drive tool-selection accuracy, and trimming them would trade correctness
+  for marginal savings. Flagged for a future, carefully-measured pass.
+
+---
+
 ## [3.2.3] — routing accuracy on real-world phrasing (2026-06-18)
 
 Optimization release: make routing land the right protocol on the queries

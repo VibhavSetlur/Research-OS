@@ -892,7 +892,6 @@ def _config_reconcile_hint(cfg: dict) -> str:
     """One-line nudge: researcher_config is the AI's operating contract;
     keep the behaviour-shaping fields in sync with what the researcher
     asks, and fill the blanks that matter for downstream gates."""
-    inter = cfg.get("interaction") or {}
     goal = cfg.get("research_goal") or {}
     runtime = cfg.get("runtime") or {}
     gaps: list[str] = []
@@ -907,17 +906,14 @@ def _config_reconcile_hint(cfg: dict) -> str:
             "runtime.compute_environment is blank — record the env "
             "(conda/module/docker) so reproduction is right"
         )
+    # Keep this terse — the actual values live in config_directives; no need
+    # to re-list them here and pay for it on every boot.
     base = (
-        "researcher_config is your operating contract: FOLLOW "
-        f"autonomy='{inter.get('autonomy_level', 'supervised')}', "
-        f"quality_gate_policy='{inter.get('quality_gate_policy', 'enforce')}', "
-        f"ambiguity_posture='{inter.get('ambiguity_posture', 'ask_when_uncertain')}'. "
-        "When the researcher changes intent (\"be autonomous\", \"we're "
-        "writing a paper\", \"use Vancouver\"), UPDATE it via "
-        "sys_config(operation='set')."
+        "Follow config_directives; update via sys_config(operation='set') when "
+        "intent shifts (autonomy / output / citation style / compute env)."
     )
     if gaps:
-        base += " Gaps to fill from the conversation: " + "; ".join(gaps) + "."
+        base += " Fill from the conversation: " + "; ".join(gaps) + "."
     return base
 
 
