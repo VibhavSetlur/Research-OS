@@ -221,6 +221,105 @@ def _write_report(root: Path, agg: dict[str, Any]) -> str:
     return str(out.relative_to(root))
 
 
+_STEP_IN_PATH_RE = re.compile(r"workspace/(?:[^/]+_PATH_\d+/)?(\d{2,3}_[^/]+)")
+
+
+def write_final_audit(root: Path) -> str:
+    """Write the single project-end meta-review at ``workspace/audit.md``.
+
+    This is the one human-facing audit artefact (the per-gate
+    ``logs/audits/*`` files are machine detail). It aggregates the
+    cross-audit findings ledger into a reviewer's report: per-step
+    warnings + concerns, each with its evidence path(s), a content hash
+    of the evidence (so a reader can tell if the file changed since the
+    finding), and the suggested fix. Written only at project end (when the
+    researcher signals the last step / runs the ship gate), so it never
+    clutters the workspace mid-run.
+    """
+    from datetime import datetime, timezone
+
+    from research_os import __version__
+    from research_os.project_ops import compute_file_hash
+    from research_os.tools.actions.audit.findings_query import (
+        _findings_jsonl_path,
+        _load_jsonl_lines,
+    )
+
+    jsonl = _findings_jsonl_path(root)
+    lines = _load_jsonl_lines(jsonl) if jsonl.exists() else []
+    # Dedup by stable id, last occurrence wins (ledger is chronological).
+    latest: dict[str, dict[str, Any]] = {}
+    for f in lines:
+        fid = f.get("id")
+        if fid:
+            latest[fid] = f
+    findings = list(latest.values())
+
+    # Group by step (derived from evidence paths); else "project".
+    by_step: dict[str, list[dict[str, Any]]] = {}
+    for f in findings:
+        step = "project"
+        for ev in (f.get("evidence_paths") or []):
+            m = _STEP_IN_PATH_RE.search(str(ev))
+            if m:
+                step = m.group(1)
+                break
+        by_step.setdefault(step, []).append(f)
+
+    sev_rank = {"block": 0, "warn": 1, "info": 2}
+    n_block = sum(1 for f in findings if f.get("severity") == "block")
+    n_warn = sum(1 for f in findings if f.get("severity") == "warn")
+
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    out_lines = [
+        "# Project audit — meta-review",
+        "",
+        f"*Generated {stamp} · Research-OS v{__version__}. The single "
+        "human-facing audit: per-step concerns with evidence, content "
+        "hashes, and suggested fixes. The per-gate machine detail lives in "
+        "`workspace/logs/audits/`.*",
+        "",
+        f"- **Concerns (block):** {n_block}",
+        f"- **Warnings:** {n_warn}",
+        f"- **Total findings:** {len(findings)}",
+        "",
+    ]
+    if not findings:
+        out_lines.append(
+            "No outstanding audit findings recorded. Run the per-step / "
+            "synthesis audits before relying on this — an empty ledger can "
+            "also mean the audits were never run.\n"
+        )
+    else:
+        # Steps first (numeric order), then project-level.
+        def _step_key(s: str) -> tuple[int, str]:
+            m = re.match(r"^(\d{2,3})_", s)
+            return (int(m.group(1)) if m else 9999, s)
+
+        for step in sorted(by_step, key=_step_key):
+            fs = sorted(
+                by_step[step],
+                key=lambda f: sev_rank.get(f.get("severity"), 3),
+            )
+            out_lines.append(f"## `{step}`")
+            out_lines.append("")
+            for f in fs:
+                sev = f.get("severity", "info").upper()
+                dim = f.get("dimension", "?")
+                fix = (f.get("suggested_fix") or "").strip()
+                out_lines.append(f"- **[{sev}·{dim}]** {fix}")
+                for ev in (f.get("evidence_paths") or [])[:4]:
+                    h = compute_file_hash(root / ev)
+                    short = h[:12] if h != "error" else "missing"
+                    out_lines.append(f"    - evidence: `{ev}` · sha256 `{short}`")
+            out_lines.append("")
+
+    audit_md = root / "workspace" / "audit.md"
+    audit_md.parent.mkdir(parents=True, exist_ok=True)
+    audit_md.write_text("\n".join(out_lines) + "\n")
+    return str(audit_md.relative_to(root))
+
+
 def finalize_project(
     root: Path,
     *,
@@ -261,6 +360,14 @@ def finalize_project(
 
     agg = _collect_blockers(root)
     report_path = _write_report(root, agg)
+    # The project-end meta-review: a single human-facing workspace/audit.md
+    # (per-step concerns + evidence hashes + suggested fixes). The ship gate
+    # IS the "this is the last step" moment, so generate it here.
+    try:
+        final_audit_path = write_final_audit(root)
+    except Exception:  # pragma: no cover - never let the meta-review break the gate
+        logger.exception("write_final_audit failed")
+        final_audit_path = None
     base = {
         "operation": op,
         "n_blockers": agg["n_blockers"],
@@ -268,6 +375,7 @@ def finalize_project(
         "blockers": agg["blockers"],
         "deliverable": agg["deliverable"],
         "report_path": report_path,
+        "audit_md": final_audit_path,
     }
 
     if agg["n_blockers"] == 0:
@@ -353,4 +461,4 @@ def finalize_project(
     }
 
 
-__all__ = ["finalize_project"]
+__all__ = ["finalize_project", "write_final_audit"]
