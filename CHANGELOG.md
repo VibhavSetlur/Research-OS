@@ -6,6 +6,26 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.1] — plan.md is a living document (2026-06-18)
+
+PATCH. Fixes a gap in 3.2.0: the AI was told to *write* a step's `plan.md`
+before the work but never prompted to *update / reconcile* it as the step ran.
+
+### Fixed
+
+- **`plan.md` is now a LIVING plan.** Its seed reframes it as written-then-kept-
+  current and adds a `## Progress & deviations from plan` section. The
+  `analysis_plan` protocol's `document_conclusions` step now explicitly instructs
+  the AI to reconcile plan-vs-actual (method swaps, dropped/added analyses, or
+  "went to plan") and keep `inputs/research_plan.md`'s iteration log in sync, and
+  `tool_path_finalize` nudges when that section was left unfilled.
+- **Protocol caught up with 3.2.0.** `document_conclusions` no longer tells the AI
+  to write a `## Plain-language summary` into `conclusions.md` (3.2.0 moved that to
+  the README's `## In plain English`); the step now points there + lists the
+  current `conclusions.md` sections.
+
+---
+
 ## [3.2.0] — Workspace declutter: clean step layout, iterative planning, grounded literature (2026-06-18)
 
 MINOR release. Backwards-compatible: every existing tool keeps its name + schema,
