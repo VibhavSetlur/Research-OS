@@ -1,4 +1,4 @@
-"""Figure utilities — palette lookup, caption sidecars, quality audit, style.
+"""Figure utilities — palette lookup, quality audit, style.
 
 Research-OS is a **guidance system**, not a chart library. The AI writes
 its own visualization scripts (matplotlib / ggplot2 / Altair / d3 / …);
@@ -15,11 +15,10 @@ about that script, and this module provides:
   imports once at the top of the plotting script and the FIRST render
   already sits in the Research-OS visual identity — no v2 needed for
   spacing in most cases.
-* ``caption_synthesise`` — write a plain-English ``<name>.summary.md``
-  next to a figure when the AI hasn't yet drafted one in its own voice.
-* ``audit_figure_quality`` — DPI + dimensions + sidecar presence + SVG
-  companion + SVG label-overlap heuristic. Surfaces warnings + blockers
-  consumed by ``tool_path_finalize`` / ``tool_audit_step_completeness``.
+* ``audit_figure_quality`` — DPI + dimensions + caption-sidecar presence
+  + SVG companion + SVG label-overlap heuristic. Surfaces warnings +
+  blockers consumed by ``tool_path_finalize`` /
+  ``tool_audit_step_completeness``.
 * ``step_figure_inventory`` — used by the completeness gate.
 
 The dashboard test-suite scaffold (``generate_dashboard_test_suite`` /
@@ -30,7 +29,6 @@ needed.
 
 from research_os.tools.actions.viz.figures import (
     audit_figure_quality,
-    caption_synthesise,
     palette_for,
     step_figure_inventory,
 )
@@ -60,7 +58,6 @@ __all__ = [
     "apply_research_os_style",
     "apply_suptitle",
     "audit_figure_quality",
-    "caption_synthesise",
     "label_bars_above",
     "label_diverging_bars",
     "palette_for",

@@ -21,7 +21,7 @@ Two scopes:
   optional dep coverage.
 * **Workspace checks** (only when invoked inside a workspace, OR always
   unless ``--workspace-only`` flips the inverse): MCP config wiring,
-  orphan figures, stale step_summary, unresolved BLOCK gates in the
+  orphan figures, unresolved BLOCK gates in the
   audit ledger, disk usage, git cleanliness, .gitignore coverage.
 
 The module exposes one entry-point (`cmd_doctor`) plus a thin public
@@ -716,7 +716,7 @@ def check_typst_compiles_fixture() -> CheckResult:
 
 
 def check_workspace_integrity(*, workspace: Path | None = None) -> CheckResult:
-    """Look for orphan figures, stale step_summary, unresolved BLOCK gates.
+    """Look for orphan figures, unresolved BLOCK gates.
 
     None of these are catastrophic on their own — a workspace that's
     mid-pipeline naturally accumulates partial state — so we collect
@@ -741,18 +741,8 @@ def check_workspace_integrity(*, workspace: Path | None = None) -> CheckResult:
                     findings.append("(+ more orphan figures…)")
                     break
 
-    # Stale step_summary: a step_summary.yaml older than the script.py
-    # in the same directory.
-    if (workspace / "workspace").exists():
-        for summary in (workspace / "workspace").rglob("step_summary.yaml"):
-            script = summary.parent / "script.py"
-            try:
-                if script.exists() and script.stat().st_mtime > summary.stat().st_mtime:
-                    findings.append(
-                        f"stale step_summary: {summary.relative_to(workspace)}"
-                    )
-            except OSError:
-                continue
+    # (step_summary.yaml was retired in 3.2 — conclusions.md is the source
+    # of truth, so there is no derived sidecar to go stale anymore.)
 
     # Unresolved BLOCK gates in the audit ledger.
     audit_log = workspace / ".audit_findings.jsonl"

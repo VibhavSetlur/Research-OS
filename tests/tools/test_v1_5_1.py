@@ -243,7 +243,8 @@ def test_promote_to_step_wraps_scratch_in_provenance(tmp_path):
     step_path = tmp_path / res["step_dir"]
     assert step_path.is_dir()
     assert (step_path / "conclusions.md").exists()
-    assert (step_path / "step_summary.yaml").exists()
+    # step_summary.yaml retired in 3.2 — conclusions.md is the source of truth.
+    assert not (step_path / "step_summary.yaml").exists()
     prov = tmp_path / res["provenance_file"]
     assert prov.exists()
     # Original scratch still there (copy, not move).

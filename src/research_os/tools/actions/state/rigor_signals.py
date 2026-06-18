@@ -145,37 +145,48 @@ def _score_scripts(root: Path) -> tuple[int, dict[str, Any]]:
 
 
 def _score_prior_step_summaries(root: Path) -> tuple[int, dict[str, Any]]:
-    """Score 0-15 based on quality of prior step_summary.yaml files."""
+    """Score 0-15 on the quality of prior steps' conclusions.md.
+
+    step_summary.yaml was retired in 3.2; conclusions.md is the source of
+    truth. A step counts as *substantive* when its Findings or Decision
+    section has real content (≥50 non-stub chars) and as *grounded* when it
+    carries a literature/findings_vs_literature.md verdict file.
+    """
+    import re as _re
+
     workspace = root / "workspace"
     if not workspace.is_dir():
         return 0, {"summaries_scanned": 0}
-    try:
-        import yaml  # type: ignore
-    except Exception:
-        return 0, {"yaml_unavailable": True}
+
+    def _section(text: str, header: str) -> str:
+        m = _re.search(
+            rf"^##\s+{_re.escape(header)}\s*\n(.*?)(?=^##\s|\Z)",
+            text, _re.MULTILINE | _re.DOTALL,
+        )
+        body = (m.group(1).strip() if m else "")
+        # A stub section (only an italic placeholder) doesn't count.
+        if body.startswith("*(") or body.startswith("_("):
+            return ""
+        return body
+
     summaries = 0
     substantive = 0
     has_literature = 0
     for step_dir in workspace.iterdir():
         if not (step_dir.is_dir() and step_dir.name[:2].isdigit()):
             continue
-        ss_path = step_dir / "step_summary.yaml"
-        if not ss_path.exists():
+        conc = step_dir / "conclusions.md"
+        if not conc.exists():
             continue
         summaries += 1
         try:
-            ss = yaml.safe_load(ss_path.read_text()) or {}
-        except Exception:
+            txt = conc.read_text()
+        except OSError:
             continue
-        if isinstance(ss, dict):
-            if (
-                len(str(ss.get("findings", ""))) >= 50
-                or len(str(ss.get("decision", ""))) >= 50
-            ):
-                substantive += 1
-            lit = ss.get("literature") or {}
-            if isinstance(lit, dict) and lit.get("claims_grounded", 0) > 0:
-                has_literature += 1
+        if len(_section(txt, "Findings")) >= 50 or len(_section(txt, "Decision")) >= 50:
+            substantive += 1
+        if (step_dir / "literature" / "findings_vs_literature.md").exists():
+            has_literature += 1
     if summaries == 0:
         return 0, {"summaries_scanned": 0}
     sub_ratio = substantive / summaries

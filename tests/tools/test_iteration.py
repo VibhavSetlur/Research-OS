@@ -946,9 +946,10 @@ def test_step_revision_options_clean_step_passes(tmp_path):
     )
 
 
-def test_finalize_emits_step_summary_yaml(tmp_path):
-    """v1.3.3: finalize writes workspace/<step>/step_summary.yaml with
-    structured fields synthesis can consume deterministically."""
+def test_finalize_does_not_emit_step_summary_yaml(tmp_path):
+    """3.2: the derived step_summary.yaml sidecar was retired — finalize
+    leaves conclusions.md as the single per-step source of truth and does
+    NOT write a step_summary.yaml."""
     from research_os.project_ops import (
         create_numbered_experiment, scaffold_minimal_workspace,
     )
@@ -969,16 +970,13 @@ def test_finalize_emits_step_summary_yaml(tmp_path):
         "## References to ground\n- Love MI, et al. 2014.\n"
     )
     finalize_path(step["path_id"], tmp_path)
-    summary_yaml = step_dir / "step_summary.yaml"
-    assert summary_yaml.exists(), "step_summary.yaml should be written at finalize"
-    import yaml
-    summary = yaml.safe_load(summary_yaml.read_text())
-    assert summary["step_id"] == step["path_id"]
-    assert "Test headline" in summary["headline"]
-    assert "DESeq2" in summary["methods_block"]
-    assert summary["findings"] == ["Finding A.", "Finding B."]
-    assert summary["decision"].startswith("PROCEED")
-    assert summary["limitations"] == ["Small n."]
+    assert not (step_dir / "step_summary.yaml").exists(), (
+        "step_summary.yaml must NOT be written in 3.2"
+    )
+    # conclusions.md remains the source of truth and is left intact.
+    conc = (step_dir / "conclusions.md").read_text()
+    assert "Test headline" in conc
+    assert "DESeq2" in conc
 
 
 def test_finalize_appends_anticipated_reviewer_questions(tmp_path):

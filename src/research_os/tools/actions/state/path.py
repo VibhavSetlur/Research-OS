@@ -377,23 +377,6 @@ def workflow_dag(
                         "indicates a focal figure named after the step "
                         "number; ⚠ flags an outstanding artefact.\n"
                     )
-                # Also write a plain-English summary sibling for the dashboard.
-                sumf = target.with_suffix(".summary.md")
-                if not sumf.exists():
-                    sumf.write_text(
-                        "**What it shows.** The full path of the analysis: "
-                        "every numbered step, what depends on what, and how "
-                        "far along each one is.\n\n"
-                        "**How to read it.** Start at the top, follow the "
-                        "arrows. Green = done. Amber = in progress. Red = "
-                        "abandoned but kept on the record. Each box lists "
-                        "the hypotheses that step tested and its headline "
-                        "result.\n\n"
-                        "**Why it matters.** Lets a reader trust that the "
-                        "conclusion didn't appear out of nowhere — every "
-                        "step is traceable to its inputs and to the next "
-                        "step that consumed its output.\n"
-                    )
             except Exception as e:
                 logger.debug("workflow figure copy to synthesis/figures failed: %s", e)
 
@@ -793,11 +776,9 @@ def finalize_path(
       * `context/README.md`: if folder has only the seed template → notes
         nothing prose-specific was needed. If `notes.md` was filled in,
         surfaces the plain-language summary into the step README.
-      * `data/README.md` + `data/output/README.md`: lists every artefact
-        actually written + which downstream step (per workflow DAG) reads it.
-      * For every figure missing a `.summary.md` plain-language sidecar,
-        invokes the caption synthesiser so the dashboard / paper can
-        embed an accessible description alongside the technical caption.
+      * `data/README.md` + `data/next_step_output/README.md`: lists every
+        artefact actually written + which downstream step (per workflow
+        DAG) reads it.
     """
     from research_os.project_ops import load_state
 
@@ -1066,17 +1047,14 @@ def finalize_path(
             step_readme.write_text(new_readme)
             changes.append("README.md → stub sections populated")
 
-    # ---- 5. Figure summary sidecars are RETIRED ----
-    # Captions + interpretation now integrate into `conclusions.md` next
-    # to the inline `![](outputs/figures/<slug>.png)` embed. The
-    # `.summary.md` sidecar regime trained the AI to ship stub captions
-    # ("Auto-drafted caption: regenerate from analysis context") that
-    # leaked into the synthesis paper as placeholder rows. The
-    # `<slug>.caption.md` next to each figure stays (technical metadata:
-    # dpi, units, palette) but the AI is expected to author it
-    # deliberately, not derive it after the fact. Opt back in via
-    # `researcher_config.figures.summary_sidecar=true`.
-    summaries_written: list[str] = []
+    # ---- 5. Figure summary sidecars are REMOVED (3.2) ----
+    # Each figure ships exactly three sidecars: the image, a
+    # `<slug>.prov.json` provenance record, and a `<slug>.caption.md`
+    # the synthesis pipeline embeds. The plain-English interpretation
+    # now lives inline in `conclusions.md` next to the
+    # `![](outputs/figures/<slug>.png)` embed — the old `.summary.md`
+    # sidecar regime trained the AI to ship stub captions that leaked
+    # into the synthesis paper as placeholder rows.
 
     # ---- 6. Stub detection — surface as warnings so the AI knows
     #         what's still empty before walking off the step. We do NOT
@@ -1473,86 +1451,20 @@ def finalize_path(
                 for w in fwarn:
                     warnings.append(f"figure `{fig_name}` warning: {w}")
 
-    # 7f. Emit step_summary.yaml — structured machine-readable mirror
-    #     of conclusions.md the synthesis pipeline consumes
-    #     deterministically (no NLP parsing required to compose the
-    #     paper / abstract / dashboard).
+    # 7f. step_summary.yaml is REMOVED (3.2). It was a derived mirror of
+    #     conclusions.md that cluttered every step folder and drifted from
+    #     its source. All readers (synthesis, audits, rigor signals) parse
+    #     conclusions.md directly now. Migration: delete a stale copy left
+    #     by a pre-3.2 release so the folder converges to the new layout.
     try:
-        if conc_path.exists():
-            conc_text = conc_path.read_text()
-            # Prefer the explicit `## Headline finding` block when the AI
-            # wrote one; fall back to first-bullet-from-Findings extraction.
-            explicit_headline = (_section(conc_text, "Headline finding") or "").strip()
-            headline_for_summary = (
-                explicit_headline
-                or _headline_from_findings(conc_text)
-                or ""
+        _stale_summary = exp_dir / "step_summary.yaml"
+        if _stale_summary.exists():
+            _stale_summary.unlink()
+            project_updates.append(
+                "workspace/<step>/step_summary.yaml removed (derived mirror retired)"
             )
-            summary_payload: dict[str, Any] = {
-                "step_id": path_name,
-                "finalized_at": datetime.now(timezone.utc).isoformat(),
-                "headline": headline_for_summary,
-                "methods_block": (_section(conc_text, "Methods (full detail)") or _section(conc_text, "Methods") or "").strip(),
-                "plain_language_summary": (_section(conc_text, "Plain-language summary") or _section(conc_text, "Plain-English summary") or "").strip(),
-                "findings": _bullet_lines(_section(conc_text, "Findings")),
-                "decision": (_section(conc_text, "Decision") or "").strip(),
-                "limitations": _bullet_lines(_section(conc_text, "Limitations")),
-                "references_to_ground": _bullet_lines(_section(conc_text, "References to ground")),
-                "figures": [
-                    {
-                        "name": fig_name,
-                        "path": f"workspace/{path_name}/outputs/figures/{fig_name}",
-                        "caption_path": f"workspace/{path_name}/outputs/figures/{Path(fig_name).stem}.caption.md",
-                        "summary_path": f"workspace/{path_name}/outputs/figures/{Path(fig_name).stem}.summary.md",
-                        "audit": figure_audit.get(fig_name, {}),
-                    }
-                    for fig_name in inv["figures"]
-                ],
-                "tables": [
-                    f"workspace/{path_name}/outputs/tables/{t}" for t in inv["tables"]
-                ],
-                "reports": [
-                    f"workspace/{path_name}/outputs/reports/{r}" for r in inv["reports"]
-                ],
-                "warnings": list(warnings),
-            }
-            try:
-                import yaml as _yaml
-
-                # Mark the file as derived + scheduled-for-removal so
-                # readers (rigor_signals / quick_mode / cli_doctor /
-                # step_literature) and human reviewers know not to edit
-                # it by hand. The audit flagged the editable scaffold
-                # version as the YAML-stub anti-pattern; this writer
-                # has always been the derived mirror, but the file name
-                # was indistinguishable on disk, so projects ended up
-                # with both editable and derived copies named the same.
-                _STEP_SUMMARY_HEADER = (
-                    "# step_summary.yaml — DERIVED from conclusions.md\n"
-                    "# AUTO-GENERATED by tool_path_finalize; do NOT edit "
-                    "by hand.\n"
-                    "# Slated for removal once readers (synthesis, audits) "
-                    "migrate to parsing conclusions.md directly. New code "
-                    "should read conclusions.md, not this sidecar.\n"
-                    "# Source of truth: conclusions.md in the same folder.\n"
-                    "\n"
-                )
-                summary_payload["_derived_from"] = "conclusions.md"
-                (exp_dir / "step_summary.yaml").write_text(
-                    _STEP_SUMMARY_HEADER
-                    + _yaml.dump(
-                        summary_payload,
-                        sort_keys=False,
-                        default_flow_style=False,
-                    )
-                )
-                project_updates.append(
-                    "workspace/<step>/step_summary.yaml ← derived from conclusions.md"
-                )
-            except Exception as e:
-                logger.debug("step_summary.yaml emit skipped: %s", e)
-    except Exception as e:
-        logger.debug("step_summary build skipped: %s", e)
+    except OSError as e:
+        logger.debug("stale step_summary.yaml cleanup skipped: %s", e)
 
     # 7g. Per-step retrospective — append "Anticipated reviewer
     #     questions" section to conclusions.md so the AI's own self-
@@ -1606,7 +1518,6 @@ def finalize_path(
             len(out_files) + len(inv["figures"]) + len(inv["tables"]) + len(inv["reports"])
         ),
         "plain_english_summary_present": bool(plain_summary_from_context),
-        "figure_summaries_synthesised": summaries_written,
     }
 
 

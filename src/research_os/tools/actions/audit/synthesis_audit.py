@@ -147,7 +147,7 @@ def findings_from_synthesis_result(
                     f"Paper is missing the `## {sec.title()}` IMRAD "
                     f"section. Add a top-level `## {sec.title()}` "
                     "header and fill it from the per-step "
-                    "`conclusions.md` / `step_summary.yaml` material."
+                    "`conclusions.md` material."
                 ),
             )
         )

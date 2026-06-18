@@ -55,7 +55,12 @@ _DISCUSSION_PATTERN = re.compile(
 
 
 def _load_step_summary(step_dir: Path) -> dict[str, Any]:
-    """Parse step_summary.yaml; return {} on missing/invalid."""
+    """Parse a legacy step_summary.yaml; return {} on missing/invalid.
+
+    step_summary.yaml was retired in 3.2 (its content lives in
+    conclusions.md). This loader is kept only so pre-3.2 projects that
+    still carry the sidecar keep working.
+    """
     ss_path = step_dir / "step_summary.yaml"
     if not ss_path.exists():
         return {}
@@ -64,6 +69,30 @@ def _load_step_summary(step_dir: Path) -> dict[str, Any]:
         return yaml.safe_load(ss_path.read_text()) or {}
     except Exception:
         return {}
+
+
+_LIT_EXEMPT_MARKER = re.compile(
+    r"<!--\s*research-os:\s*literature_required\s*=\s*false\s*-->",
+    re.IGNORECASE,
+)
+
+
+def _literature_exempt(step_dir: Path) -> bool:
+    """True iff the step opts out of the per-step literature loop.
+
+    Honours (in order): the ``<!-- research-os: literature_required=false
+    -->`` marker at the top of conclusions.md (the 3.2 mechanism, written
+    e.g. by promote_to_step), and the legacy
+    ``step_summary.yaml.literature_required: false`` for pre-3.2 projects.
+    """
+    conc = step_dir / "conclusions.md"
+    if conc.exists():
+        try:
+            if _LIT_EXEMPT_MARKER.search(conc.read_text()):
+                return True
+        except OSError:
+            pass
+    return _load_step_summary(step_dir).get("literature_required") is False
 
 
 def _step_dirs(root: Path) -> list[Path]:
@@ -84,8 +113,7 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
     warnings: list[str] = []
     info: dict[str, Any] = {"step_id": step_id}
 
-    summary = _load_step_summary(step_dir)
-    if summary.get("literature_required") is False:
+    if _literature_exempt(step_dir):
         info["skipped"] = "literature_required: false (data-engineering step)"
         return {"blockers": [], "warnings": [], "info": info}
 
@@ -200,23 +228,29 @@ def _audit_one_step(step_dir: Path) -> dict[str, Any]:
             "step_summary.yaml.literature_deferred + override the gate."
         )
 
+    # Legacy step_summary.yaml.literature roll-up (pre-3.2). step_summary
+    # is retired, so the structured roll-up is only honoured when a legacy
+    # sidecar still exists; new projects ground via findings_vs_literature.md
+    # + the grounding ledger (checked below), not a YAML roll-up.
+    summary = _load_step_summary(step_dir)
     lit_block = summary.get("literature", {}) if isinstance(summary, dict) else {}
     lit_deferred = summary.get("literature_deferred", []) if isinstance(summary, dict) else []
     info["step_summary_literature"] = lit_block
     info["literature_deferred"] = lit_deferred
 
-    if not lit_block:
-        warnings.append(
-            f"{step_id}: step_summary.yaml has no `literature:` block. "
-            "research/literature_per_step writes it; missing block means "
-            "synthesis can't roll up grounding stats."
-        )
-    elif lit_block.get("claims_grounded", 0) == 0 and not lit_deferred:
-        warnings.append(
-            f"{step_id}: step_summary.yaml.literature.claims_grounded == 0 "
-            "but no literature_deferred reasons recorded. Document why no "
-            "claim could be grounded."
-        )
+    if summary:
+        if not lit_block:
+            warnings.append(
+                f"{step_id}: step_summary.yaml has no `literature:` block. "
+                "research/literature_per_step writes it; missing block means "
+                "synthesis can't roll up grounding stats."
+            )
+        elif lit_block.get("claims_grounded", 0) == 0 and not lit_deferred:
+            warnings.append(
+                f"{step_id}: step_summary.yaml.literature.claims_grounded == 0 "
+                "but no literature_deferred reasons recorded. Document why no "
+                "claim could be grounded."
+            )
 
     grounding_jsonl = step_dir.parent.parent / "workspace" / ".grounding" / "grounding.jsonl"
     if grounding_jsonl.exists():

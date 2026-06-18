@@ -180,9 +180,9 @@ def test_style_rcparams_uses_cream_background():
 
 def test_viz_package_exports_style_surface():
     """The new style helpers are exported alongside the existing
-    palette_for / audit_figure_quality / caption_synthesise /
-    step_figure_inventory so the AI's plotting script can import the
-    whole figure surface from one place."""
+    palette_for / audit_figure_quality / step_figure_inventory so the
+    AI's plotting script can import the whole figure surface from one
+    place."""
     from research_os.tools.actions import viz
     for sym in (
         "apply_research_os_style", "RO_PALETTE", "RO_BG", "RO_FG",
@@ -190,7 +190,7 @@ def test_viz_package_exports_style_surface():
         "label_bars_above", "label_diverging_bars",
         "polish_axes", "apply_suptitle",
         "palette_for", "audit_figure_quality",
-        "caption_synthesise", "step_figure_inventory",
+        "step_figure_inventory",
     ):
         assert hasattr(viz, sym), f"viz package missing export {sym!r}"
     # All listed in __all__ so `from ... import *` picks them up.

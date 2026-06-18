@@ -301,8 +301,8 @@ def iterate_step(
             dest = archive / dest_rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
-            # Also copy sidecars if present (caption, summary, prov).
-            for sidecar_suffix in (".caption.md", ".summary.md", ".prov.json"):
+            # Also copy sidecars if present (caption, prov).
+            for sidecar_suffix in (".caption.md", ".prov.json"):
                 sidecar = src.with_name(src.stem + sidecar_suffix)
                 if sidecar.exists():
                     shutil.copy2(sidecar, dest.with_name(src.stem + sidecar_suffix))

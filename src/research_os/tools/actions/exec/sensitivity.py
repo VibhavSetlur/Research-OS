@@ -400,19 +400,6 @@ def _render_specification_curve(
         "finding holds across most specifications; a fragile one flips "
         "sign or loses significance under a handful.\n"
     )
-    summ = out_png.with_suffix(".summary.md")
-    summ.write_text(
-        "**What it shows.** How much the headline result depends on the "
-        "specific choices the analyst made (which covariates, which "
-        "exclusion rules, which model family).\n\n"
-        "**How to read it.** Each dot is one version of the analysis. "
-        "Bars are the uncertainty around that version's estimate. The "
-        "grid below shows which choices were used for each dot.\n\n"
-        "**Why it matters.** A finding that survives every reasonable "
-        "specification is far more trustworthy than one that needs a "
-        "specific recipe to appear.\n"
-    )
-
     # Provenance for the figure.
     try:
         from research_os.tools.actions.state.provenance import (

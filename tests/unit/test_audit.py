@@ -315,43 +315,11 @@ def test_audit_synthesis_blocks_on_step_literature_deferred(tmp_path):
     assert any("literature_deferred" in b for b in res["report"]["gate_blockers"])
 
 
-def test_caption_synthesise_extracts_prose_findings_when_no_bullets(tmp_path):
-    """v1.4.0: figures.py caption_synthesise must pull a 'Why it matters'
-    sentence from prose Findings when no bullets exist (same fix as
-    v1.3.4 path._bullet_lines, ported to figures.caption_synthesise)."""
-    from research_os.tools.actions.viz.figures import caption_synthesise
-
-    step = tmp_path / "workspace" / "07_cox_ph"
-    step.mkdir(parents=True)
-    (step / "conclusions.md").write_text(
-        "## Findings\n\n"
-        "APOE hazard ratio is 1.8 (95% CI 1.2-2.7, p=0.004) for the "
-        "AD-vs-control contrast. The signal is consistent across the "
-        "ROSMAP and Mayo cohorts.\n"
-    )
-    figs = step / "outputs" / "figures"
-    figs.mkdir(parents=True)
-    fig = figs / "01_apoe_km_curve.png"
-    fig.write_bytes(b"\x89PNG\r\n")
-    (figs / "01_apoe_km_curve.caption.md").write_text(
-        "**Figure 1.** Kaplan-Meier survival curves for APOE carriers.\n"
-    )
-    res = caption_synthesise(
-        figure_path=str(fig.relative_to(tmp_path)),
-        root=tmp_path,
-    )
-    assert res["status"] == "success"
-    summary_path = tmp_path / res["summary_path"]
-    text = summary_path.read_text()
-    assert "**Why it matters.**" in text, (
-        f"summary should pull a prose sentence; got:\n{text}"
-    )
-
-
-def test_audit_missing_summary_md_now_blocks(tmp_path):
-    """v1.4.0: audit_step_completeness changed missing .summary.md from
-    WARN to BLOCK to match the visualization_workflow.yaml protocol
-    doctrine."""
+def test_audit_missing_summary_md_does_not_block_in_v32(tmp_path):
+    """3.2: the figure ``.summary.md`` sidecar was retired — its
+    interpretation now lives inline in conclusions.md next to the embed.
+    A figure with a caption but no summary sidecar must NOT block; only
+    a missing ``.caption.md`` blocks."""
     from research_os.tools.actions.audit.audit import audit_step_completeness
     from research_os.project_ops import scaffold_minimal_workspace
 
@@ -360,20 +328,22 @@ def test_audit_missing_summary_md_now_blocks(tmp_path):
     step.mkdir(parents=True)
     (step / "scripts").mkdir()
     (step / "scripts" / "01_eda.py").write_text("import pandas as pd\n")
+    (step / "scratch").mkdir()
+    (step / "scratch" / "stack_plan.md").write_text("Python + pandas.\n")
     (step / "conclusions.md").write_text(
         "## Findings\n\nDetailed prose findings " + ("more text " * 30)
         + "\n\n## Decision\n\nProceed to step 3.\n"
     )
     figs = step / "outputs" / "figures"
     figs.mkdir(parents=True)
-    fig = figs / "01_dist.png"
+    fig = figs / "02_dist.png"
     fig.write_bytes(b"\x89PNG\r\n")
-    (figs / "01_dist.caption.md").write_text("**Figure 1.** distribution\n")
-    # Intentionally no .summary.md
+    (figs / "02_dist.caption.md").write_text("**Figure 1.** distribution\n")
+    # Intentionally no .summary.md — that is now the normal, passing state.
     res = audit_step_completeness(tmp_path, step_id="02_eda")
     blockers = res.get("steps", [{}])[0].get("blockers", [])
-    assert any("summary" in b.lower() for b in blockers), (
-        f"missing .summary.md must be a BLOCKER in v1.4.0; got {blockers}"
+    assert not any("summary" in b.lower() for b in blockers), (
+        f"missing .summary.md must NOT block in 3.2; got {blockers}"
     )
 
 
