@@ -1,7 +1,7 @@
 id: iterative_planning
 tier: 'plan'
 name: Iterative Planning
-version: '3.0.0'
+version: '3.2.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
