@@ -1373,7 +1373,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Add a research question (repeatable). Builds a list.")
     p_init.add_argument("--workspace-mode", dest="workspace_mode",
                         choices=["analysis", "tool_build", "exploration",
-                                 "notebook", "multi_study"],
+                                 "notebook", "multi_study", "hybrid"],
                         default=None,
                         help="What kind of work this is. "
                              "analysis (default) = linear analysis steps; "
@@ -1381,7 +1381,16 @@ def build_parser() -> argparse.ArgumentParser:
                              "exploration = scratch-first probes; "
                              "notebook = Jupyter-first notebook project; "
                              "multi_study = multi-study program (portfolio "
-                             "+ cross-study meta-analysis).")
+                             "+ cross-study meta-analysis); "
+                             "hybrid = research + software (analysis steps "
+                             "plus an inner software component).")
+    p_init.add_argument("--mcp-scope", dest="mcp_scope",
+                        choices=["workspace", "global"], default="workspace",
+                        help="Where to register the MCP server. workspace "
+                             "(default) = per-project config files. global = "
+                             "also print the user-scope install command so "
+                             "research-os is available in every project. "
+                             "Either way, RESTART your IDE afterwards.")
     _ide_arg = p_init.add_argument(
         "--ide", default="all",
         help="IDE(s) to wire up: 'all' or a comma-separated list. "

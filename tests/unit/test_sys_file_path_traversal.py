@@ -116,6 +116,9 @@ class TestSysFileWrite:
         assert "protect" in msg or "read-only" in msg
 
     def test_inputs_raw_data_blocked(self, tmp_path):
+        # 3.2.2: original inputs are SOFT-guarded — a plain write (no force)
+        # is still refused, but with a "pass force=true" hint, not a hard
+        # write-protection error.
         root = _make_project(tmp_path)
         resp = _handle_sys_file_write(
             "sys_file_write",
@@ -124,6 +127,34 @@ class TestSysFileWrite:
         )
         body = _payload(resp)
         assert body["status"] == "error"
+        assert "force=true" in (body.get("error") or "")
+
+    def test_inputs_raw_data_allowed_with_force(self, tmp_path):
+        # 3.2.2: force=true lets the AI edit original inputs (with a warning).
+        root = _make_project(tmp_path)
+        resp = _handle_sys_file_write(
+            "sys_file_write",
+            {"filepath": "inputs/raw_data/x.csv", "content": "a,b\n1,2",
+             "force": True},
+            root,
+        )
+        body = _payload(resp)
+        assert body["status"] == "success"
+        assert (root / "inputs" / "raw_data" / "x.csv").read_text() == "a,b\n1,2"
+        warning = (body.get("data") or {}).get("warning") or body.get("warning") or ""
+        assert "provenance" in warning.lower()
+
+    def test_inputs_context_allowed_freely(self, tmp_path):
+        # 3.2.2: inputs/context is a free drop-zone — no force needed.
+        root = _make_project(tmp_path)
+        resp = _handle_sys_file_write(
+            "sys_file_write",
+            {"filepath": "inputs/context/note.md", "content": "a thought"},
+            root,
+        )
+        body = _payload(resp)
+        assert body["status"] == "success"
+        assert (root / "inputs" / "context" / "note.md").read_text() == "a thought"
 
     def test_workspace_allowed(self, tmp_path):
         root = _make_project(tmp_path)

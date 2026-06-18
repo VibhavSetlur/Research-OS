@@ -24,24 +24,33 @@ class ResearchOSError(Exception):
 class WriteProtectedError(ResearchOSError):
     """Raised when a tool attempts to write to a protected directory.
 
-    Currently enforced for:
-      - inputs/        (immutable original data)
-      - .os_state/     (internal OS state, should not be manually modified)
+    Hard-locked (only ``.os_state/`` as of 3.2.2):
+      - .os_state/     internal OS state — never hand-edited.
+
+    NOTE: ``inputs/`` is **no longer** a hard-locked tree. It is the
+    researcher's source-of-truth and the AI may legitimately maintain it
+    (add context files, fix the intake, keep researcher_config.yaml in
+    sync). The two ORIGINAL input trees — ``inputs/raw_data/`` and
+    ``inputs/literature/`` — are *soft*-guarded at the sys_file_write
+    layer (deliberate ``force=true`` + a confirm-with-researcher warning),
+    NOT blocked here.
     """
 
     def __init__(self, path: "Path | str", message: str = ""):
         self.path = str(path)
         default = (
             f"Write protection violation: '{self.path}' is read-only. "
-            "The `inputs/` directory contains immutable original data "
-            "and must never be modified by tools. Write to `workspace/` instead."
+            "`.os_state/` holds internal Research-OS state and must never be "
+            "edited by hand. Write to `workspace/` instead."
         )
         super().__init__(message or default)
 
 
 # ── Guard helpers ─────────────────────────────────────────────────────────────
 
-PROTECTED_DIRECTORIES = {"inputs", ".os_state"}
+# Only .os_state is hard-locked. inputs/ relaxed to a soft guard in 3.2.2
+# (see WriteProtectedError docstring + meta_workspace._handle_sys_file_write).
+PROTECTED_DIRECTORIES = {".os_state"}
 
 
 def check_write_permitted(

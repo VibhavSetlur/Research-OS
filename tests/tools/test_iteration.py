@@ -830,6 +830,13 @@ def test_finalize_env_snapshot_uses_project_scope(tmp_path):
     (step_dir / "outputs" / "figures").mkdir(parents=True, exist_ok=True)
     (step_dir / "outputs" / "figures" / "01_fake.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     (step_dir / "outputs" / "figures" / "01_fake.caption.md").write_text("caption.")
+    # A real analysis script that imports a third-party package the test
+    # env has installed (yaml = PyYAML). The import-driven snapshot must
+    # pin it; it must NOT leak the research_os server stack.
+    (step_dir / "scripts").mkdir(parents=True, exist_ok=True)
+    (step_dir / "scripts" / "01a_run.py").write_text(
+        "import yaml\nimport json\nprint(yaml.__name__)\n"
+    )
     conc = step_dir / "conclusions.md"
     conc.write_text(
         "# Conclusions\n## Decision\nPROCEED.\n## Findings\n- All good.\n"
@@ -837,16 +844,23 @@ def test_finalize_env_snapshot_uses_project_scope(tmp_path):
     finalize_path(step["path_id"], tmp_path)
     proj_req = tmp_path / "environment" / "requirements.txt"
     text = proj_req.read_text()
-    # Post-snapshot, the file should have at least one non-comment
-    # package line (e.g. 'pytest==X.Y' or similar).
-    has_package = any(
-        ln.strip() and not ln.strip().startswith("#")
+    pkg_lines = [
+        ln.strip().lower()
         for ln in text.splitlines()
+        if ln.strip() and not ln.strip().startswith("#")
+    ]
+    # The project's actual import is pinned…
+    assert any(ln.startswith("pyyaml==") for ln in pkg_lines), (
+        "import-driven requirements.txt should pin the project's own imports "
+        f"(expected PyYAML from `import yaml`); got:\n{text}"
     )
-    assert has_package, (
-        "project environment/requirements.txt should have pinned packages "
-        "after finalize, not stay as the comment-only template"
-    )
+    # …and the Research-OS server stack is excluded (the bug this fixes).
+    assert not any(
+        ln.startswith(("research_os", "research-os", "mcp==", "fastembed"))
+        for ln in pkg_lines
+    ), f"requirements.txt must NOT contain the research_os server stack; got {pkg_lines}"
+    # stdlib imports are never pinned.
+    assert not any(ln.startswith("json==") for ln in pkg_lines)
 
 
 def test_tools_md_filters_stdlib(tmp_path):

@@ -46,6 +46,24 @@ Need to confirm which project the server resolved for THIS request?
 Call `sys_active_project` — it returns the resolved root + how it
 was resolved (env var / cwd walk / fallback).
 
+**Setting up a new project (when the researcher asks).** Do NOT run
+`research-os init` blindly with defaults. INTERVIEW first — ask the few
+questions that change the scaffold + how you'll work, in one short batch:
+
+* the **research question / goal** (and whether it's research, software,
+  or **hybrid** — research + a code deliverable);
+* the **domain**;
+* what they want to **produce** (paper / dashboard / poster / report, or
+  "just exploring") → `research_goal.output_types`;
+* how **autonomous** you should be → `interaction.autonomy_level`;
+* the **compute environment** (laptop / HPC / which conda env) →
+  `runtime.compute_environment`.
+
+Fold the answers into `inputs/researcher_config.yaml` (your operating
+contract). THEN scaffold. After MCP is wired, **tell the researcher to
+restart their IDE / session** — the `research-os` tools will not appear in
+the current session until they reload.
+
 ---
 
 ## Every session — boot in two MCP calls (first turn only)
@@ -112,6 +130,34 @@ fires, explain WHY it exists before offering the fix. Run
 `tool_lessons(operation="mistake_replay")` at session start to surface
 recurring patterns from the researcher's reliability + override logs.
 
+**Your operating contract — keep `researcher_config.yaml` in sync.**
+`inputs/researcher_config.yaml` is your secondary AGENTS.md. `sys_boot`
+surfaces it as `config_directives` (+ a `config_reconcile_hint`). FOLLOW
+those values (autonomy, quality_gate_policy, ambiguity_posture, agent_notes)
+every session, and MAINTAIN them:
+
+* **At startup**, reconcile the config with the researcher's stated goal —
+  if they name a deliverable ("a paper", "a dashboard"), set
+  `research_goal.output_types`; record the env in `runtime.compute_environment`.
+* **On any intent shift**, update it via `sys_config(operation='set', …)`:
+  "just be autonomous" → `interaction.autonomy_level=autopilot`; "we're
+  submitting to Nature" → `output_types` + `writing_preferences.venue_template`
+  + `citation_style`; project-specific rules → append to
+  `interaction.agent_notes`. Never silently override a value the researcher
+  set by hand — confirm first if it conflicts.
+
+**Watch the context drop-zone.** The researcher can drop a paper, a
+screenshot, a txt note, a PI email into `inputs/context/` (or a step's
+`context/`) at ANY time — even mid-session. `sys_boot.new_context` and
+`tool_route`'s `new_context` field surface files added/changed since the
+last turn: when they appear, `sys_file_read` them and fold anything
+relevant into the current step's plan / analysis before continuing.
+
+**Keep the glossary alive.** When you introduce a domain term the
+researcher's collaborators (or a future reader) might not know, add a row
+to `docs/glossary.md` (`term | definition | source`). `sys_boot.glossary_unfilled`
+nudges when it's still empty after real work has happened.
+
 **Never load `_router_index.yaml` directly.** That file is a maintainer
 artifact — the routing logic reads it server-side. For routing, call
 `tool_route`. For ranked alternatives, call `tool_semantic_route`. For
@@ -166,6 +212,14 @@ unit of work" and "done" mean — let it steer routing:
   `tool_bash_exec` for anything else, and `tool_task` for long builds.
 * **exploration** — scratch-first. `workspace/scratch/` is home base;
   gates are light; promote a probe to a numbered step only when it earns it.
+* **hybrid** — research + software. Routes + scaffolds like **analysis**
+  (numbered research steps), but the project ALSO ships code: `sys_boot`
+  reports `software_components` (inner repos / packages it detected), and
+  the workflow DAG shows each as a `Software` node the research "informs".
+  Govern BOTH sides — the research in `workspace/NN_*` steps (figures +
+  conclusions), and the code in the inner repo via `tool_git` + `tool_build`
+  + `tool_audit(scope="tool")`. The reaction-similarity shape: characterise
+  a method across steps, then implement it as a library.
 
 ---
 
@@ -198,7 +252,12 @@ unit of work" and "done" mean — let it steer routing:
 
 ## Hard rules (NEVER violate)
 
-1. **Never write to `inputs/raw_data/` or `inputs/literature/`** — immutable.
+1. **`.os_state/` is never hand-edited** (internal state). `inputs/` is the
+   researcher's source-of-truth and is editable — but `inputs/raw_data/` +
+   `inputs/literature/` are the ORIGINAL record: change them only with
+   `force=true` + the researcher's OK (the write warns + flags the intake
+   inventory stale). `inputs/context/` is a free drop-zone — write there
+   freely.
 2. **Never invent citations.** All final-deliverable citations are
    verified via `tool_citations_verify` (Crossref / Semantic Scholar /
    PubMed / arXiv); `tool_synthesis_check` surfaces unresolved keys
@@ -286,11 +345,12 @@ authorises a bypass — words like "skip the audit", "just draft it",
 * The override is never permanent — the next deliverable call re-runs
   the gate. The researcher must re-authorise each bypass.
 
-If the researcher's request would force a violation of a Hard Rule
-that is NOT a quality gate (e.g. invent a citation, write to
-`inputs/raw_data/`), refuse and explain the constraint. The hard
-rules above are absolute; the quality gate is the only authorised
-escape hatch.
+If the researcher's request would force a violation of a Hard Rule that
+is NOT a quality gate (e.g. invent a citation, hand-edit `.os_state/`),
+refuse and explain the constraint. Editing original inputs
+(`inputs/raw_data/` + `inputs/literature/`) is NOT absolute — it's a soft
+guard: proceed with `force=true` once the researcher confirms, and note
+the intake inventory is now stale.
 
 Research OS does **not** manage LLM provider keys. The IDE owns model
 access. The only credentials it uses are for literature / web search.

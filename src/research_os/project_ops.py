@@ -38,11 +38,16 @@ EXPERIMENT_SUBDIRS = (
     "scripts",
     "literature",        # per-step PDFs; populated by tool_literature_download(step_id=…)
     "context",           # per-step prose notes, methodology rationale, hand-overs
-    "outputs/reports",
     "outputs/figures",
     "outputs/tables",
     "environment",
 )
+# outputs/reports/ is NOT pre-created: when every step ships an empty
+# reports/ it becomes a magnet for misplaced analysis artefacts (the
+# reaction-similarity project dumped manifest.json / profile.md /
+# method_spec.md there). reports/ is for *optional* point-in-time
+# PRESENTATION artefacts (a one-off dashboard / slide); tools + the AI
+# create it on demand. The finalize inventory tolerates its absence.
 
 # 3.2 renamed the per-step data folders (data/input → data/past_step_input,
 # data/output → data/next_step_output) and added data/share. Reading code
@@ -412,7 +417,62 @@ SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
         "eager_dirs": _MULTI_STUDY_EAGER_DIRS,
         "lazy_dirs": _MULTI_STUDY_LAZY_DIRS,
     },
+    # hybrid (research + software) reuses the analysis layout — the
+    # software lives in its own inner repo / package, detected by
+    # detect_software_components() and surfaced in the workflow DAG +
+    # sys_boot rather than scaffolded as a fixed folder.
+    "hybrid": {
+        "top_level_dirs": TOP_LEVEL_DIRS,
+        "eager_dirs": EAGER_DIRS,
+        "lazy_dirs": LAZY_DIRS,
+    },
 }
+
+# Files whose presence in a directory marks it as a software component.
+_SOFTWARE_MARKERS = {
+    "pyproject.toml": "python", "setup.py": "python", "setup.cfg": "python",
+    "Cargo.toml": "rust", "package.json": "node", "go.mod": "go",
+    "DESCRIPTION": "r", "pom.xml": "java", "build.gradle": "java",
+}
+# Top-level dirs that are Research-OS scaffolding, never software components.
+_NON_SOFTWARE_DIRS = {
+    "workspace", "inputs", ".os_state", "environment", "docs", "synthesis",
+    "literature", "reports", "scripts", "spec", "decisions", "eval",
+}
+
+
+def detect_software_components(root: Path) -> list[dict[str, str]]:
+    """Find inner software components in a (hybrid) project.
+
+    A child directory counts as a software component when it carries a
+    build manifest (pyproject.toml / Cargo.toml / package.json / …) or its
+    own ``.git``. Research-OS scaffold dirs are excluded. This is what makes
+    a research+software project legible — e.g. KBUtilLib living beside the
+    analysis steps. Best-effort; never raises.
+    """
+    root = Path(root)
+    found: dict[str, dict[str, str]] = {}
+    try:
+        children = sorted(p for p in root.iterdir() if p.is_dir())
+    except OSError:
+        return []
+    for child in children:
+        if child.name in _NON_SOFTWARE_DIRS or child.name.startswith("."):
+            continue
+        kind: str | None = None
+        for marker, k in _SOFTWARE_MARKERS.items():
+            if (child / marker).exists():
+                kind = k
+                break
+        if kind is None and (child / ".git").exists():
+            kind = "repo"
+        if kind is not None:
+            found[child.name] = {
+                "path": child.name,
+                "name": child.name,
+                "kind": kind,
+            }
+    return list(found.values())
 
 
 def _resolve_scaffold_profile(mode: str | None) -> tuple[str, dict[str, tuple[str, ...]]]:
@@ -1827,20 +1887,22 @@ def scaffold_minimal_workspace(
     _write_getting_started(root, project_name)
     _write_project_root_readme(root, project_name, state)
     _write_sharing_scripts(root, project_name)
-    # Open-science scaffolding: CITATION.cff + codemeta.json at project
-    # root so every Research OS project is citable + machine-readable
-    # from day one. Pulls author identity from researcher_config block.
+    # Open-science scaffolding: CITATION.cff at project root so every
+    # Research OS project is citable from day one. Pulls author identity
+    # from the researcher_config block. codemeta.json + ro-crate-metadata
+    # are NO LONGER emitted at scaffold — they shipped as root clutter with
+    # placeholder "Anonymous Researcher" content nobody asked for. They are
+    # generated on demand by `sys_export_ro_crate` / the share-archive
+    # export, which is when a machine-readable manifest is actually needed.
     try:
         from research_os.tools.actions.state.citation import (
             emit_project_citation_cff,
         )
-        from research_os.tools.actions.state.ro_crate import build_codemeta
 
         researcher_block = ((config_overrides or {}).get("researcher")
                             or {})
         emit_project_citation_cff(root, project_name=project_name,
                                   researcher=researcher_block)
-        build_codemeta(root)
     except Exception:
         # Open-science manifests are best-effort; never block scaffold.
         pass
@@ -2614,7 +2676,56 @@ def _setup_gitignore(root: Path) -> None:
     )
 
 
-def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
+def mcp_server_entry() -> dict[str, Any]:
+    """The ONE canonical MCP server entry every writer uses.
+
+    Portable: `command: research-os` (resolved from PATH) + the
+    `${workspaceFolder}` env hint so the SAME global install serves every
+    project. Having a single builder is what keeps the per-IDE files from
+    drifting into the abs-path / `${workspaceFolder}` mix that shipped in
+    the reaction-similarity project.
+    """
+    return {
+        "command": "research-os",
+        "args": ["start"],
+        "env": {"RESEARCH_OS_WORKSPACE": "${workspaceFolder}"},
+    }
+
+
+def mcp_restart_notice() -> str:
+    """The notice EVERY MCP-setup path must surface: the IDE/session has to
+    reload before the freshly-wired server is visible."""
+    return (
+        "⚠ RESTART REQUIRED: the MCP server was just wired up. If your IDE / "
+        "AI session is already open, fully RESTART it (or reload the window) "
+        "so the `research-os` tools load. They will NOT appear in the current "
+        "session."
+    )
+
+
+def mcp_global_install_hint(ide_flags: list[str]) -> str:
+    """Copy-paste commands to register research-os GLOBALLY (user scope) so
+    it's available in every project — for `--mcp-scope global`."""
+    lines = [
+        "To make research-os available in EVERY project (global / user scope), "
+        "register it once with your IDE instead of per-project:",
+    ]
+    if "claude" in ide_flags or "claude_code" in ide_flags:
+        lines.append("  • Claude Code:  claude mcp add --scope user research-os -- research-os start")
+    if "cursor" in ide_flags:
+        lines.append("  • Cursor:       add the research-os entry to ~/.cursor/mcp.json")
+    if "vscode" in ide_flags:
+        lines.append("  • VS Code:      add it to your user settings.json mcp.servers")
+    lines.append(
+        "  (The per-project files were still written, so the workspace works "
+        "either way.)"
+    )
+    return "\n".join(lines)
+
+
+def _setup_mcp_configs(
+    root: Path, ide_flags: list[str], *, mcp_scope: str = "workspace",
+) -> None:
     """Drop a per-IDE MCP config + rule file so the AI auto-connects.
 
     The MCP config uses `${workspaceFolder}` so the SAME `research-os`
@@ -2624,12 +2735,12 @@ def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
     still work: the server reads `RESEARCH_OS_WORKSPACE` first and
     falls back to walking up from the current working directory for
     `.os_state/` (which the IDE typically launches the server in).
+
+    ``mcp_scope`` is informational here — the per-project files are always
+    written (they're harmless and make the workspace self-contained). The
+    CLI/wizard surfaces ``mcp_global_install_hint`` when scope='global'.
     """
-    mcp_entry = {
-        "command": "research-os",
-        "args": ["start"],
-        "env": {"RESEARCH_OS_WORKSPACE": "${workspaceFolder}"},
-    }
+    mcp_entry = mcp_server_entry()
     templates_dir = Path(__file__).resolve().parent.parent.parent / "templates"
 
     def _copy_rule(src_rel: str, dest: Path) -> None:
@@ -2653,6 +2764,16 @@ def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
         f = d / "mcp.json"
         if not f.exists():
             f.write_text(json.dumps({"mcpServers": {"research-os": mcp_entry}}, indent=2) + "\n")
+        # Claude Code reads project-scoped MCP servers from ROOT `.mcp.json`
+        # (NOT .claude/mcp.json). Writing the same canonical entry there too
+        # means Claude Code picks up RO's portable config instead of the
+        # researcher running `claude mcp add` (which bakes in absolute paths)
+        # — the abs-path-vs-portable drift seen in the wild.
+        root_mcp = root / ".mcp.json"
+        if not root_mcp.exists():
+            root_mcp.write_text(
+                json.dumps({"mcpServers": {"research-os": mcp_entry}}, indent=2) + "\n"
+            )
         _copy_rule(".claude/rules/research-os.md", d / "rules" / "research-os.md")
         _copy_rule(".claude/commands/start-session.md", d / "commands" / "start-session.md")
 
@@ -2987,13 +3108,14 @@ def _seed_step_subfolder_readmes(
         "interactive `.html` figures suit networks / large multi-panels.\n"
         "- **`tables/`** — CSV / TSV tables (analysis outputs). Each table "
         "SHOULD have a sibling `<name>.caption.md`.\n"
-        "- **`reports/`** — *optional* snapshot presentation artefacts you "
-        "build at a point in time to PRESENT — a one-off dashboard for a "
-        "committee, a slide for a journal club, a diagram for a "
-        "collaboration review. These are NOT analysis-script outputs and NOT "
-        "where findings live (findings → `conclusions.md`). Keeping them "
-        "here avoids cluttering `synthesis/`. Header each with its date + "
-        "intended audience.\n\n"
+        "- **`reports/`** — *optional, created on demand* (not pre-made). For "
+        "point-in-time PRESENTATION artefacts you build to SHOW someone — a "
+        "one-off dashboard for a committee, a slide for a journal club. These "
+        "are NOT analysis-script outputs (those are `figures/` + `tables/`), "
+        "NOT intermediate data (that's `data/next_step_output/`), and NOT "
+        "where findings live (findings → `conclusions.md`). Only `mkdir` this "
+        "when you genuinely build a presentation artefact; header each with "
+        "its date + intended audience.\n\n"
         "Follow `figure_guidelines` (DPI ≥150 screen / ≥300 print, colour-blind "
         "safe palette, axis units). The AI MUST `sys_file_read` each figure "
         "before declaring the step done (catches legend-over-plot, missing "
@@ -3107,9 +3229,12 @@ def create_numbered_experiment(
         prev = existing_main_steps[-1]
         prev_readme = prev / "README.md"
         prev_conc = prev / "conclusions.md"
+        prev_plan = prev / "plan.md"
         if prev_readme.exists() and prev_conc.exists():
             r_txt = prev_readme.read_text()
             c_txt = prev_conc.read_text()
+            # plan.md is optional on pre-3.2 steps; only gate when present.
+            p_txt = prev_plan.read_text() if prev_plan.exists() else ""
             placeholder_markers_readme = (
                 "*(2-3 sentences a colleague",
                 "*(list inputs used)*",
@@ -3122,21 +3247,51 @@ def create_numbered_experiment(
                 "*(Dataset shape",
                 "*(What this step cannot conclude",
             )
+            # plan.md seed sections (see the plan.md writer below). A plan
+            # that was genuinely written before the work fills the design
+            # core; a plan that was SKIPPED leaves these raw. Field-proof:
+            # every step of the reaction-similarity project shipped all six
+            # of these untouched yet still advanced — because the
+            # predecessor gate never inspected plan.md. It does now.
+            placeholder_markers_plan = (
+                "*(Recap the previous step's outcome",       # Where we are
+                "*(The goal for",                            # What this step will do
+                "*(How it advances",                         # Why this step, why now
+                "*(The decisions you want",                  # Open questions
+                "*(Update this AS YOU WORK",                 # Progress & deviations
+                "*(Where this likely leads",                 # Anticipated next steps
+            )
             unfilled_readme = sum(m in r_txt for m in placeholder_markers_readme)
             unfilled_conc = sum(m in c_txt for m in placeholder_markers_conc)
-            if unfilled_readme >= 3 or unfilled_conc >= 2:
+            unfilled_plan = sum(m in p_txt for m in placeholder_markers_plan)
+            plan_skipped = bool(p_txt) and unfilled_plan >= 4
+            if unfilled_readme >= 3 or unfilled_conc >= 2 or plan_skipped:
+                bits = []
+                if unfilled_readme >= 3:
+                    bits.append(f"README has {unfilled_readme} unfilled stubs")
+                if unfilled_conc >= 2:
+                    bits.append(f"conclusions.md has {unfilled_conc}")
+                if plan_skipped:
+                    bits.append(
+                        f"plan.md is still the unfilled seed "
+                        f"({unfilled_plan}/6 sections untouched)"
+                    )
                 raise ValueError(
                     f"Cannot scaffold the next step: previous step "
                     f"`{prev.name}` is still in placeholder form "
-                    f"(README has {unfilled_readme} unfilled stubs, "
-                    f"conclusions.md has {unfilled_conc}). Call "
-                    f"`tool_path_finalize` on `{prev.name}` first to "
-                    "lock its findings into workspace/analysis.md + "
-                    "methods.md + tools.md + citations.md. If this is a "
-                    "data-plumbing step that legitimately has nothing "
-                    "to conclude, the AI should explicitly write 'No "
-                    "substantive findings — see step purpose in README' "
-                    "into the conclusions stubs before re-trying."
+                    f"({'; '.join(bits)}). Fill the step's README "
+                    "(`## In plain English`, `## Decision`), conclusions.md "
+                    "(`## Findings`, `## Decision`), and plan.md (the design + "
+                    "`## Progress & deviations from plan` reconcile), then call "
+                    f"`tool_path_finalize` on `{prev.name}` to lock its "
+                    "findings into workspace/analysis.md + methods.md + "
+                    "tools.md + citations.md. If this is a data-plumbing step "
+                    "that legitimately has nothing to conclude, write 'No "
+                    "substantive findings — see step purpose in README' into "
+                    "the stubs before re-trying. To override deliberately, "
+                    "call `sys_path(operation='create', "
+                    "allow_unfinalized_predecessor=true, override_rationale=…)` "
+                    "(logged to workspace/logs/override_log.md)."
                 )
 
     # Numbering is CONTINUOUS across the whole workspace — flat steps AND
@@ -3460,6 +3615,182 @@ def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
     analysis_path.write_text(content[:start] + new_block + content[end:])
 
 
+def _step_purpose(exp_dir: Path, fallback: str) -> str:
+    """A short (<=46 char) one-liner for a workflow node, taken from the
+    step's README ``## Goal`` (skipping the unfilled stub). Falls back to
+    the step name."""
+    readme = exp_dir / "README.md"
+    if readme.exists():
+        try:
+            txt = readme.read_text()
+        except OSError:
+            txt = ""
+        m = re.search(r"^##\s+Goal\s*\n+(.+)", txt, re.M)
+        if m:
+            line = re.sub(r"\s+", " ", m.group(1).strip().lstrip("-* ").strip())
+            if line and not line.startswith(("*(", "_(")):
+                return line[:46]
+    return re.sub(r"\s+", " ", fallback)[:46]
+
+
+def _build_workflow_mermaid(root: Path) -> str:
+    """Build a realistic workflow DAG (graph TD) for the project.
+
+    Unlike the old `init --> every step` fan-out, this derives REAL
+    data-dependency edges from each step's ``data/past_step_input``
+    symlinks (→ another step's ``data/next_step_output`` or
+    ``inputs/raw_data``), labels nodes with status + a one-line purpose,
+    styles dead-ends, groups branch paths (``*_PATH_k``) into subgraphs,
+    and falls back to a sequential chain for main-path steps whose inputs
+    aren't symlinked yet. Shared by ``workspace/workflow.mermaid`` and
+    ``docs/workflow_dag.mermaid`` so the two never drift.
+    """
+    from research_os.tools.actions.state.path import list_paths
+
+    workspace = root / "workspace"
+    try:
+        steps = list_paths(root).get("paths", []) or []
+    except Exception:
+        steps = []
+
+    def _num(pid: str) -> int:
+        m = re.match(r"^(\d+)", pid)
+        return int(m.group(1)) if m else 0
+
+    def _safe(pid: str) -> str:
+        return re.sub(r"[^A-Za-z0-9_]", "_", pid)
+
+    info: dict[str, dict[str, Any]] = {}
+    for s in steps:
+        pid = s["path_id"]
+        exp = root / s.get("experiment_dir", f"workspace/{pid}")
+        info[pid] = {
+            "status": s.get("status", "active"),
+            "lineage": _extract_path_lineage(pid),
+            "purpose": _step_purpose(exp, s.get("name") or pid),
+            "exp": exp,
+            "num": _num(pid),
+            "short": pid.replace("__DEAD_END", ""),
+        }
+
+    # ── edges from data symlinks ──────────────────────────────────────
+    try:
+        ws_resolved = workspace.resolve()
+        raw_resolved = (root / "inputs" / "raw_data").resolve()
+    except OSError:
+        ws_resolved, raw_resolved = workspace, root / "inputs" / "raw_data"
+    edges: set[tuple[str, str]] = set()
+    consumes_raw: set[str] = set()
+    for pid, meta in info.items():
+        din = step_input_link(meta["exp"])
+        targets: list[Path] = []
+        if din.is_symlink():
+            try:
+                targets.append(din.resolve())
+            except OSError:
+                pass
+        elif din.is_dir():
+            for ch in din.iterdir():
+                if ch.is_symlink():
+                    try:
+                        targets.append(ch.resolve())
+                    except OSError:
+                        pass
+        for t in targets:
+            try:
+                rel = t.relative_to(ws_resolved)
+            except (ValueError, OSError):
+                try:
+                    t.relative_to(raw_resolved)
+                    consumes_raw.add(pid)
+                except (ValueError, OSError):
+                    pass
+                continue
+            anc = next((p for p in rel.parts if re.match(r"^\d{2,3}_", p)), None)
+            if anc and anc in info and anc != pid:
+                edges.add((anc, pid))
+
+    # ── fallback sequential chain for un-wired main-path steps ────────
+    main_sorted = sorted(
+        (p for p in info if info[p]["lineage"] is None), key=lambda p: info[p]["num"]
+    )
+    have_in = {dst for _, dst in edges}
+    prev: str | None = None
+    for pid in main_sorted:
+        if prev and pid not in have_in and (prev, pid) not in edges:
+            edges.add((prev, pid))
+            have_in.add(pid)
+        prev = pid
+    if main_sorted and main_sorted[0] not in have_in:
+        consumes_raw.add(main_sorted[0])
+
+    # ── assemble ──────────────────────────────────────────────────────
+    css_for = {"completed": "completed", "active": "active", "dead_end": "dead_end"}
+    lines = [
+        "graph TD",
+        "    classDef active fill:#fff3cd,stroke:#856404,color:#333",
+        "    classDef completed fill:#d4edda,stroke:#28a745,color:#155724",
+        "    classDef dead_end fill:#f8d7da,stroke:#dc3545,color:#721c24,stroke-dasharray: 5 5",
+        "    classDef planned fill:#e2e3e5,stroke:#6c757d,color:#333",
+        "    classDef source fill:#e7f1ff,stroke:#0d6efd,color:#084298",
+        "    classDef software fill:#f0e7ff,stroke:#6f42c1,color:#3d1a78",
+    ]
+    if consumes_raw:
+        lines.append('    raw[("inputs/raw_data")]:::source')
+
+    def _node_line(pid: str, indent: str = "    ") -> str:
+        meta = info[pid]
+        css = css_for.get(meta["status"], "planned")
+        label = meta["short"]
+        purpose = meta["purpose"]
+        if purpose and purpose.lower() not in (label.lower(), ""):
+            label = f"{label}<br/><i>{purpose}</i>"
+        return f'{indent}{_safe(pid)}["{label}"]:::{css}'
+
+    # group branch lineages into subgraphs; main path stays ungrouped.
+    lineages = sorted({m["lineage"] for m in info.values() if m["lineage"] is not None})
+    for pid in main_sorted:
+        lines.append(_node_line(pid))
+    for k in lineages:
+        members = sorted(
+            (p for p in info if info[p]["lineage"] == k), key=lambda p: info[p]["num"]
+        )
+        lines.append(f'    subgraph path_{k}["Path {k} — alternative approach"]')
+        for pid in members:
+            lines.append(_node_line(pid, indent="        "))
+        lines.append("    end")
+
+    for pid in consumes_raw:
+        lines.append(f"    raw --> {_safe(pid)}")
+    for src, dst in sorted(edges):
+        lines.append(f"    {_safe(src)} --> {_safe(dst)}")
+
+    # Software components (hybrid research+software projects): show the code
+    # deliverable as its own subgraph + a dashed "informs" link from the
+    # latest research step (the analysis feeds the implementation).
+    try:
+        components = detect_software_components(root)
+    except Exception:
+        components = []
+    if components:
+        lines.append('    subgraph software_component["Software"]')
+        for c in components:
+            cid = "sw_" + re.sub(r"[^A-Za-z0-9_]", "_", c["name"])
+            lines.append(f'        {cid}["{c["name"]}<br/><i>{c["kind"]}</i>"]:::software')
+        lines.append("    end")
+        all_nums = sorted(info, key=lambda p: info[p]["num"]) if info else []
+        anchor = main_sorted[-1] if main_sorted else (all_nums[-1] if all_nums else None)
+        if anchor:
+            for c in components:
+                cid = "sw_" + re.sub(r"[^A-Za-z0-9_]", "_", c["name"])
+                lines.append(f"    {_safe(anchor)} -. informs .-> {cid}")
+
+    if not info and not components:
+        lines.append('    empty["No analysis steps yet"]:::planned')
+
+    return "\n".join(lines)
+
+
 def _update_workflow_mermaid(root: Path) -> None:
     """Regenerate workspace/workflow.mermaid + analysis.md block + (optional) PNG.
 
@@ -3477,29 +3808,10 @@ def _update_workflow_mermaid(root: Path) -> None:
         # is exactly what we want.
         return
     try:
-        from research_os.tools.actions.state.path import list_paths
-
-        paths = list_paths(root).get("paths", []) or []
+        text = _build_workflow_mermaid(root)
     except Exception:
-        paths = []
-
-    lines = ["graph TD", "    init[Initialise Project]:::complete"]
-    for p in paths:
-        pid = re.sub(r"[^a-zA-Z0-9_]", "_", p["path_id"])
-        label = p.get("name") or p["path_id"]
-        status = p.get("status", "active")
-        css = {"completed": "complete", "active": "running", "dead_end": "failed"}.get(status, "planned")
-        lines.append(f"    {pid}[{label}]:::{css}")
-        lines.append(f"    init --> {pid}")
-    lines.extend(
-        [
-            "    classDef complete fill:#d4edda,stroke:#28a745",
-            "    classDef running  fill:#fff3cd,stroke:#ffc107",
-            "    classDef failed   fill:#f8d7da,stroke:#dc3545,stroke-dasharray: 5 5",
-            "    classDef planned  fill:#e2e3e5,stroke:#6c757d",
-        ]
-    )
-    text = "\n".join(lines)
+        # Never let a diagram refresh break step create/finalize.
+        return
     mermaid_path = root / "workspace" / "workflow.mermaid"
     mermaid_path.write_text(text + "\n")
     _update_analysis_mermaid_block(root, text)

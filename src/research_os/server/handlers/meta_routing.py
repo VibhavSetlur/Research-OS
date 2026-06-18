@@ -217,6 +217,23 @@ def _handle_tool_route(name, arguments, root):
         # Phase-9 cross-cutting: name the next tool to call so the AI
         # doesn't burn a turn deciding.
         res.setdefault("recommended_action", _recommended_action_for_route(res))
+        # Live drop-zone: surface (and consume) any context the researcher
+        # dropped since the last prompt. Fires on the turn after the drop —
+        # "I put a paper in context/" → the AI is told to read it.
+        try:
+            from research_os.tools.actions.state.context_watch import (
+                detect_new_context,
+            )
+
+            nc = detect_new_context(root, update_marker=True)
+            if nc.get("new_files") or nc.get("changed_files"):
+                res["new_context"] = {
+                    "new_files": nc.get("new_files", []),
+                    "changed_files": nc.get("changed_files", []),
+                    "hint": nc.get("hint", ""),
+                }
+        except Exception:
+            pass
         return _text(_success(res))
     return _text(_error(res.get("message", "tool_route failed")))
 

@@ -6,6 +6,76 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.2] — hybrid mode, AI-maintained config, honest environments (2026-06-18)
+
+Driven by an end-to-end audit of a real **research + software** project
+(`reaction-similarity`). The audit found steps advancing with an untouched
+`plan.md`, an `environment/requirements.txt` that was a full `pip freeze` of
+the *server's* conda env, a trivial workflow diagram, an empty glossary, and a
+write-once `researcher_config.yaml` that never tracked actual behaviour. This
+release closes all of those. (Numbered 3.2.2 by request; the surface is
+backwards-compatible — every existing tool keeps its name + schema.)
+
+### Added
+
+- **Hybrid mode (research + software).** New `workspace.mode: hybrid` (wizard
+  choice + `--workspace-mode hybrid`). `detect_software_components()` finds inner
+  code repos / packages (pyproject / Cargo / package.json / `.git`; RO scaffold
+  dirs excluded); `sys_boot` reports `software_components` and the workflow DAG
+  renders each as a `Software` node the latest step "informs".
+- **researcher_config is the AI's operating contract.** `sys_boot` now returns
+  `config_directives` (autonomy, gate policy, ambiguity posture, agent_notes,
+  output_types, citation_style, compute env) + a `config_reconcile_hint`. The AI
+  is instructed to FOLLOW these every session and keep them in sync via
+  `sys_config(set)` when intent shifts. New config fields: `interaction.agent_notes`
+  (free-form project directives) and `runtime.compute_environment` + `package_manager`.
+- **Live context drop-zone detection.** `inputs/context/` (+ per-step `context/`)
+  is watched: `sys_boot` peeks and `tool_route` surfaces NEW/CHANGED files since
+  the last turn, so a mid-session "I dropped a paper in context/" makes the AI read
+  it. First scan is a silent baseline.
+- **Glossary nudge.** `sys_boot.glossary_unfilled` flags an empty `docs/glossary.md`
+  once real work exists.
+- **`--mcp-scope {workspace,global}`** on `init`, plus a loud **restart notice** the
+  wizard + AGENTS surface after MCP setup.
+
+### Improved
+
+- **Step gate now inspects `plan.md`.** Scaffolding step N+1 is blocked when the
+  previous step's `plan.md` is still the unfilled seed (≥4/6 sections untouched) —
+  the exact slip seen in the audited project. Overridable via
+  `sys_path(allow_unfinalized_predecessor=true, …)`.
+- **Import-driven `environment/requirements.txt`.** `env_snapshot` + step `env_lock`
+  pin only the packages the project's own scripts import (scanned from `.py`/`.ipynb`),
+  excluding the Research-OS server stack (research_os, mcp, fastembed, …) that shares
+  the interpreter.
+- **Realistic workflow diagram.** `workspace/workflow.mermaid` + `docs/workflow_dag.mermaid`
+  are now built by one shared builder: real data-dependency edges (from
+  `data/past_step_input` symlinks, with a sequential fallback), node purpose labels,
+  status colours, dead-end styling, branch subgraphs, raw-data source node — replacing
+  the `init → every step` fan-out.
+- **`inputs/` relaxed to a soft guard.** Only `.os_state/` is hard-locked now.
+  `inputs/` is writable; `inputs/raw_data/` + `inputs/literature/` need `force=true`
+  + a confirm-with-researcher warning (and flag the intake stale); `inputs/context/`
+  is a free drop-zone.
+- **Canonical MCP entry.** One portable `mcp_server_entry()` everywhere; Claude Code's
+  real project file (root `.mcp.json`) is now written with that same entry so it stops
+  drifting to abs-path `claude mcp add` configs.
+- **Interview-before-scaffold.** AGENTS instructs the AI to ask the questions that
+  shape the scaffold (question / domain / output / autonomy / compute) and fold them
+  into the config BEFORE running init, rather than scaffolding with defaults.
+
+### Removed
+
+- **No `codemeta.json` at scaffold.** It shipped as root clutter with placeholder
+  "Anonymous Researcher" content; it's now generated on demand by `sys_export_ro_crate`
+  / the share-archive export. `CITATION.cff` is still emitted.
+- **Per-step `outputs/reports/` is no longer pre-created.** Empty in every step it became
+  a magnet for misplaced analysis artefacts; it's created on demand for presentation
+  artefacts only (the inventory tolerates its absence). `outputs/figures` + `outputs/tables`
+  unchanged.
+
+---
+
 ## [3.2.1] — plan.md is a living document (2026-06-18)
 
 PATCH. Fixes a gap in 3.2.0: the AI was told to *write* a step's `plan.md`

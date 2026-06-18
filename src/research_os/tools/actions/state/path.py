@@ -420,36 +420,16 @@ def workflow_dag(
                     if edge not in edges:
                         edges.append(edge)
 
-        # Build mermaid.
+        # Build mermaid via the SHARED builder so docs/workflow_dag.mermaid
+        # and workspace/workflow.mermaid never drift (rich DAG: real data-
+        # dependency edges, statuses, per-step purpose, dead-ends, branches).
         out_dir = root / output_dir
         out_dir.mkdir(parents=True, exist_ok=True)
-        mermaid_lines = [
-            "graph TD",
-            "    classDef active fill:#fff3cd,stroke:#856404,color:#333",
-            "    classDef completed fill:#d4edda,stroke:#28a745,color:#155724",
-            "    classDef dead_end fill:#f8d7da,stroke:#dc3545,color:#721c24",
-        ]
-        # Stable iteration order (numbered).
-        for pid in sorted(nodes):
-            node = nodes[pid]
-            safe_id = re.sub(r"[^A-Za-z0-9_]", "_", pid)
-            mermaid_lines.append(
-                f'    {safe_id}["{node["label"]}"]:::{node["status"]}'
-            )
-        if not edges:
-            # Show ingest from inputs/raw_data for the first step at least.
-            first = sorted(nodes)[0]
-            safe_first = re.sub(r"[^A-Za-z0-9_]", "_", first)
-            mermaid_lines.append("    raw[\"inputs/raw_data\"]")
-            mermaid_lines.append(f"    raw --> {safe_first}")
-        else:
-            for src, dst in edges:
-                src_safe = re.sub(r"[^A-Za-z0-9_]", "_", src)
-                dst_safe = re.sub(r"[^A-Za-z0-9_]", "_", dst)
-                mermaid_lines.append(f"    {src_safe} --> {dst_safe}")
+        from research_os.project_ops import _build_workflow_mermaid
 
+        mermaid_text = _build_workflow_mermaid(root)
         mmd_path = out_dir / "workflow_dag.mermaid"
-        mmd_path.write_text("\n".join(mermaid_lines) + "\n")
+        mmd_path.write_text(mermaid_text + "\n")
 
         png_path: str | None = None
         png_renderer = None  # mmdc | matplotlib | None

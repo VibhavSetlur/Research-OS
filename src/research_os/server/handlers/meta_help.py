@@ -65,7 +65,7 @@ def _handle_sys_help(name, arguments, root):
             "Don't one-shot 400-line scripts — tool_step_pipeline_define + atomic sub-tasks.",
             "Don't invent citations — synthesis tools VERIFY every citation against Crossref/S2/PubMed/arXiv.",
             "Don't pick a method or library from training memory — tool_research_method / tool_research_tool first.",
-            "Don't write under inputs/raw_data or inputs/literature (immutable; server blocks it).",
+            "Treat inputs/raw_data + inputs/literature as source-of-truth: editing needs force=true + researcher OK (soft guard). inputs/context is a free drop-zone — write there freely.",
             "Don't skip the ask_user from tool_route — asking once costs less than picking wrong.",
             "Don't re-route after the researcher already picked one — use tool_plan(operation='clear') if they pivoted.",
             "Don't bypass a quality gate without override_rationale — the pre-submission audit will surface every silent bypass.",
@@ -142,7 +142,7 @@ def _handle_sys_help(name, arguments, root):
                 "override_rationale is mandatory — silent bypass is a hard rule violation.",
                 "Each bypass appends to workspace/logs/override_log.md.",
                 "audit/pre_submission_checklist surfaces every unresolved bypass; RED if unresolved + no rationale.",
-                "Hard rules (no fabricated citations, no inputs/raw_data writes) are absolute — the quality gate is the ONLY authorised escape hatch.",
+                "Hard rules (no fabricated citations; .os_state is never hand-edited) are absolute. Editing original inputs (raw_data/literature) is a soft guard: force=true + researcher OK + log staleness.",
             ],
         }))
     if topic == "recovery":

@@ -814,11 +814,111 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             "handoff_hint": handoff_hint,
             "n_finalized_steps": n_finalized,
             "freshness": freshness,
+            # The behavioural contract from researcher_config, surfaced
+            # compactly so the AI FOLLOWS it every session AND keeps it in
+            # sync (a secondary AGENTS.md). See config_reconcile_hint.
+            "config_directives": {
+                "autonomy": (cfg.get("interaction") or {}).get("autonomy_level", "supervised"),
+                "quality_gate_policy": (cfg.get("interaction") or {}).get("quality_gate_policy", "enforce"),
+                "ambiguity_posture": (cfg.get("interaction") or {}).get("ambiguity_posture", "ask_when_uncertain"),
+                "agent_notes": (cfg.get("interaction") or {}).get("agent_notes", ""),
+                "output_types": (cfg.get("research_goal") or {}).get("output_types", []),
+                "target_venue": (cfg.get("research_goal") or {}).get("target_venue", ""),
+                "citation_style": (cfg.get("writing_preferences") or {}).get("citation_style", ""),
+                "compute_environment": (cfg.get("runtime") or {}).get("compute_environment", ""),
+            },
+            "config_reconcile_hint": _config_reconcile_hint(cfg),
+            # Live drop-zone awareness + glossary nudge (peek only — the
+            # marker is consumed by tool_route so each drop surfaces once).
+            "new_context": _boot_new_context(root),
+            "glossary_unfilled": _boot_glossary_unfilled(root, n_finalized),
+            # Hybrid (research + software): inner code components, so the AI
+            # governs the research in workspace/ AND the code via tool_git /
+            # tool_build on the inner repo.
+            "software_components": _boot_software_components(root),
             "advice": _boot_advice(pause, active_plan, state, cfg),
         }
     except Exception as e:
         logger.exception("sys_boot failed")
         return {"status": "error", "message": str(e)}
+
+
+def _boot_new_context(root: Path) -> dict:
+    """sys_boot peek at the context drop-zone (does NOT consume the marker
+    — tool_route consumes it so each drop surfaces once on the next prompt)."""
+    try:
+        from research_os.tools.actions.state.context_watch import detect_new_context
+
+        nc = detect_new_context(root, update_marker=False)
+        return {
+            "new_files": nc.get("new_files", []),
+            "changed_files": nc.get("changed_files", []),
+            "hint": nc.get("hint", ""),
+        }
+    except Exception:
+        return {"new_files": [], "changed_files": [], "hint": ""}
+
+
+def _boot_software_components(root: Path) -> list:
+    """Inner software components (hybrid projects) — empty for pure analysis."""
+    try:
+        from research_os.project_ops import detect_software_components
+
+        return detect_software_components(root)
+    except Exception:
+        return []
+
+
+def _boot_glossary_unfilled(root: Path, n_finalized: int) -> dict:
+    """Nudge to populate docs/glossary.md once the project has substance
+    (≥1 finalized step) but the glossary is still header-only."""
+    try:
+        from research_os.tools.actions.state.context_watch import glossary_unfilled
+
+        empty = glossary_unfilled(root)
+    except Exception:
+        empty = False
+    hint = ""
+    if empty and n_finalized >= 1:
+        hint = (
+            "docs/glossary.md is empty — add the domain terms you've used "
+            "(term | definition | source) so a non-expert reader (and the "
+            "synthesis) can follow the work."
+        )
+    return {"empty": bool(empty), "nudge": bool(hint), "hint": hint}
+
+
+def _config_reconcile_hint(cfg: dict) -> str:
+    """One-line nudge: researcher_config is the AI's operating contract;
+    keep the behaviour-shaping fields in sync with what the researcher
+    asks, and fill the blanks that matter for downstream gates."""
+    inter = cfg.get("interaction") or {}
+    goal = cfg.get("research_goal") or {}
+    runtime = cfg.get("runtime") or {}
+    gaps: list[str] = []
+    if not (goal.get("output_types") or []):
+        gaps.append(
+            "research_goal.output_types is blank (exploratory — no auto "
+            "paper/dashboard); set it the moment the researcher names a "
+            "deliverable"
+        )
+    if not (runtime.get("compute_environment") or "").strip():
+        gaps.append(
+            "runtime.compute_environment is blank — record the env "
+            "(conda/module/docker) so reproduction is right"
+        )
+    base = (
+        "researcher_config is your operating contract: FOLLOW "
+        f"autonomy='{inter.get('autonomy_level', 'supervised')}', "
+        f"quality_gate_policy='{inter.get('quality_gate_policy', 'enforce')}', "
+        f"ambiguity_posture='{inter.get('ambiguity_posture', 'ask_when_uncertain')}'. "
+        "When the researcher changes intent (\"be autonomous\", \"we're "
+        "writing a paper\", \"use Vancouver\"), UPDATE it via "
+        "sys_config(operation='set')."
+    )
+    if gaps:
+        base += " Gaps to fill from the conversation: " + "; ".join(gaps) + "."
+    return base
 
 
 def _classify_pause(entries: list[dict], root: Path) -> str:
