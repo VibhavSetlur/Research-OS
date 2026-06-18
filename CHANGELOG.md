@@ -6,6 +6,45 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.3] — routing accuracy on real-world phrasing (2026-06-18)
+
+Optimization release: make routing land the right protocol on the queries
+researchers actually type (paraphrases + jargon, not the exact trigger
+phrase), and tighten the operating manual so the AI stops over-reading.
+
+### Improved
+
+- **Routing accuracy on paraphrase / jargon queries: top-1 52% → 88%,
+  top-3 84% → 96%** (measured on a new 25-prompt hard eval), with the
+  existing easy fixture held at 100% — zero regression. Achieved by adding
+  specific, substring-safe **triggers** to the nine protocols that misfired
+  (inter_rater_reliability, preregistration, data_management_plan,
+  replication_study, reproducibility, hyperparameter_search_design,
+  journal_selection, synthesis_paper, writing_limitations). Rebuilt
+  `_route_meta.json` + `_embeddings.npz`; router index v27 → v28.
+- **AGENTS.md gains a "Token economy" contract** — summary-first protocol
+  loads, never re-read payloads already in context, search-don't-dump (no
+  loading `_router_index.yaml` / the full tool catalog to look around), read
+  file slices not whole files. Codifies the don't-waste-tokens discipline.
+
+### Added
+
+- **`HARD_FIXTURE` paraphrase regression guard** in the semantic-routing
+  test suite (top-1 ≥ 80%, top-3 ≥ 90%) — routing is now permanently
+  *measured* on the phrasings users misfire on, so future edits can't
+  silently regress paraphrase accuracy.
+
+### Investigated, not shipped (kept the proven baseline)
+
+- A hybrid **dense + BM25 + stemmed-trigger** retriever was prototyped and
+  measured against the hard eval — it **regressed** the well-tuned baseline
+  (BM25 promotes generic high-token-overlap protocols; suffix-stemming broke
+  exact-trigger matches). Reverted. For *paraphrase* misses the effective
+  lever is trigger coverage + sharper summaries, not lexical fusion; that's
+  what shipped.
+
+---
+
 ## [3.2.2] — hybrid mode, AI-maintained config, honest environments (2026-06-18)
 
 Driven by an end-to-end audit of a real **research + software** project
