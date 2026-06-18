@@ -10,7 +10,7 @@ the migrated audit also produces:
 * :func:`StepLiteratureAudit.run` returns a list of valid
   ``AuditFinding`` objects
 * :func:`audit_step_literature` writes the JSON companion
-  ``workspace/step_literature_audit.json`` and it is schema-valid
+  ``workspace/logs/audits/step_literature_audit.json`` and it is schema-valid
 * the append-only ``workspace/logs/.audit_findings.jsonl`` ledger
   gains new lines on each run (one per finding)
 * finding ids are deterministic across re-runs against the same inputs
@@ -178,7 +178,7 @@ def test_json_companion_written_and_schema_valid(tmp_path):
     _seed_step_missing_fvl(tmp_path)
     audit_step_literature(tmp_path, step_id="03_run_deseq2")
 
-    json_path = tmp_path / "workspace" / "step_literature_audit.json"
+    json_path = tmp_path / "workspace" / "logs" / "audits" / "step_literature_audit.json"
     assert json_path.exists()
     arr = json.loads(json_path.read_text())
     assert isinstance(arr, list)

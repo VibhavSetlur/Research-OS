@@ -172,7 +172,7 @@ def test_prose_audit_json_companion_schema_valid(tmp_path: Path):
     paths = write_audit_outputs(findings, ProseQualityAudit.name, root)
 
     assert paths["json"] == (
-        root / "workspace" / "prose_quality_audit.json"
+        root / "workspace" / "logs" / "audits" / "prose_quality_audit.json"
     )
     arr = json.loads(paths["json"].read_text())
     assert isinstance(arr, list)

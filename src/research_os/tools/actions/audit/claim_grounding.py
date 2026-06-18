@@ -36,7 +36,6 @@ normalised to fractions before comparison.
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import uuid
@@ -257,19 +256,17 @@ def audit_claims(
             ungrounded.append(c)
 
     coverage_pct = round(100 * len(grounded) / max(1, len(claims)), 1)
-    # Persist the claim index for the dashboard.
-    idx_path = root / "synthesis" / "claim_index.json"
-    idx_path.parent.mkdir(parents=True, exist_ok=True)
-    idx_path.write_text(json.dumps({
-        "target": target_path,
-        "tolerance": tolerance,
-        "total_claims": len(claims),
-        "grounded": len(grounded),
-        "ungrounded": len(ungrounded),
-        "coverage_pct": coverage_pct,
-        "ungrounded_claims": ungrounded,
-        "grounded_claims": grounded[:30],  # cap the file size
-    }, indent=2, default=str) + "\n")
+    # NB: the legacy ``synthesis/claim_index.json`` sidecar is no longer
+    # written — it was write-only infrastructure that cluttered the user's
+    # synthesis/ folder and nothing ever read it. The structured findings
+    # in ``workspace/logs/.audit_findings.jsonl`` are the source of truth.
+    # Migration: remove a stale copy left by a pre-3.2 release.
+    _stale_idx = root / "synthesis" / "claim_index.json"
+    try:
+        if _stale_idx.exists():
+            _stale_idx.unlink()
+    except OSError:
+        pass
 
     # Markdown report.
     logs = root / "workspace" / "logs"
@@ -306,7 +303,6 @@ def audit_claims(
         "coverage_pct": coverage_pct,
         "ungrounded_claims": ungrounded,
         "report_path": str(report.relative_to(root)),
-        "claim_index_path": str(idx_path.relative_to(root)),
         "advice": (
             f"{len(ungrounded)} numeric claim(s) in {target_path} do not "
             "appear in any workspace output. Either (a) verify them and "
@@ -322,8 +318,8 @@ def audit_claims(
 class ClaimGroundingAudit(AuditBase):
     """:class:`AuditBase` wrapper around :func:`audit_claims`.
 
-    Calls the procedural auditor (so the markdown report and
-    ``synthesis/claim_index.json`` continue to be written byte-identically)
+    Calls the procedural auditor (so the markdown report at
+    ``workspace/logs/claim_grounding.md`` continues to be written)
     and then translates its ``ungrounded`` list into a list of
     :class:`AuditFinding` objects:
 
@@ -376,9 +372,6 @@ class ClaimGroundingAudit(AuditBase):
         report_path = result.get("report_path") or (
             "workspace/logs/claim_grounding.md"
         )
-        idx_path = result.get("claim_index_path") or (
-            "synthesis/claim_index.json"
-        )
 
         for c in result.get("ungrounded_claims") or []:
             ctx = (c.get("context") or "").strip()
@@ -403,7 +396,7 @@ class ClaimGroundingAudit(AuditBase):
             _make_finding(
                 severity="info",
                 dimension="grounding",
-                evidence_paths=[target, report_path, idx_path],
+                evidence_paths=[target, report_path],
                 suggested_fix=(
                     f"{result.get('grounded', 0)} of {result.get('total_claims', 0)} "
                     f"numeric claims grounded "

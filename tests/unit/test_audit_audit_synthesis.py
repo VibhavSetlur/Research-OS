@@ -2,7 +2,7 @@
 
 Asserts that the legacy ``audit_synthesis`` markdown report continues
 to be written byte-for-byte, and that the new AuditBase companion
-artefacts (``workspace/synthesis_audit.json`` + the
+artefacts (``workspace/logs/audits/synthesis_audit.json`` + the
 ``workspace/logs/.audit_findings.jsonl`` ledger) land alongside it
 with schema-valid content.
 """
@@ -97,7 +97,7 @@ def test_json_companion_written_and_schema_valid(workspace_root: Path):
     paper_path = _seed_paper(workspace_root)
     audit_synthesis(paper_path, workspace_root)
 
-    json_path = workspace_root / "workspace" / "synthesis_audit.json"
+    json_path = workspace_root / "workspace" / "logs" / "audits" / "synthesis_audit.json"
     assert json_path.is_file(), (
         "Phase-4 JSON companion not written next to legacy markdown."
     )
@@ -186,7 +186,7 @@ def test_findings_helper_emits_block_per_gate_blocker():
             "citation_density_per_1000_words": 4.05,
             "figures_referenced": 2,
         },
-        "report_path": "workspace/logs/synthesis_audit.md",
+        "report_path": "workspace/logs/audits/synthesis_audit.md",
         "blockers": [
             "Paper is 1234 words — minimum publishable bar is 1500.",
             "DEFAULT-DENY: synthesis blocked because zero PDFs are present.",

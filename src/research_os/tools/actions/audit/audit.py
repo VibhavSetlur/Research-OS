@@ -1116,7 +1116,7 @@ def audit_quality_full(
 # dict shape that ``tool_synthesize`` + the dashboard parse. ``AuditMaster``
 # is additive: it repackages the same blocker / warning set as structured
 # :class:`AuditFinding` objects so the ``write_audit_outputs`` writer can
-# fan them out to ``workspace/audit_master_audit.{md,json}`` + the
+# fan them out to ``workspace/logs/audit_master_audit.{md,json}`` + the
 # ``workspace/logs/.audit_findings.jsonl`` cross-audit ledger. The markdown
 # is NEVER replaced — a snapshot test pins its format.
 # ---------------------------------------------------------------------------
@@ -1256,7 +1256,7 @@ class AuditMaster(AuditBase):
     Subclasses :class:`AuditBase`; emits the same blocker / warning set
     as the aggregator, repackaged as :class:`AuditFinding` objects so
     the ``write_audit_outputs`` writer can fan them to
-    ``workspace/audit_master_audit.{md,json}`` + the
+    ``workspace/logs/audit_master_audit.{md,json}`` + the
     ``workspace/logs/.audit_findings.jsonl`` ledger.
 
     The markdown at ``workspace/logs/audit_master.md`` is NOT replaced

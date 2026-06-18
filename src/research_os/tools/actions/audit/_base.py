@@ -7,14 +7,20 @@ draft-07) and validated on the way in via :func:`validate_finding`.
 
 Writing helpers fan one ``list[AuditFinding]`` out to three artefacts:
 
-* ``workspace/<gate>_audit.md``     — human-readable, grouped by severity.
-* ``workspace/<gate>_audit.json``   — schema-validated, machine-readable
+* ``workspace/logs/audits/<gate>_audit.md``   — human-readable, grouped by severity.
+* ``workspace/logs/audits/<gate>_audit.json`` — schema-validated, machine-readable
   array of finding objects (overwritten on each run).
 * ``workspace/logs/.audit_findings.jsonl`` — append-only one-JSON-per-line
   ledger across all audits, used by history queries.
 
-The .md + .json files are idempotent (rewritten in place); the .jsonl
-ledger is APPEND-ONLY so the historical record across reruns survives.
+The per-gate .md/.json live under ``workspace/logs/audits/`` so the workspace
+root stays clean (the researcher normally sees only ``analysis.md`` /
+``methods.md`` / ``tools.md`` / ``citations.md`` there) AND they never collide
+with the legacy procedural reports some auditors still write directly under
+``workspace/logs/``. The .md + .json files are idempotent (rewritten in
+place); the .jsonl ledger is APPEND-ONLY so the historical record across
+reruns survives. The single human-facing project-end audit lives at
+``workspace/audit.md`` (written only at ship/finalize time).
 """
 
 from __future__ import annotations
@@ -342,11 +348,26 @@ def write_audit_outputs(
 
     workspace = root / "workspace"
     logs_dir = workspace / "logs"
+    audits_dir = logs_dir / "audits"
     workspace.mkdir(parents=True, exist_ok=True)
     logs_dir.mkdir(parents=True, exist_ok=True)
+    audits_dir.mkdir(parents=True, exist_ok=True)
 
-    md_path = workspace / f"{gate_name}_audit.md"
-    json_path = workspace / f"{gate_name}_audit.json"
+    # Per-gate audit artefacts live under workspace/logs/audits/ so the
+    # workspace root stays uncluttered AND they never collide with the
+    # legacy procedural reports some auditors write under workspace/logs/.
+    # Migration: remove any stale copies left by a pre-3.2 release at the
+    # old root or logs/ locations.
+    for _stale in (workspace / f"{gate_name}_audit.md",
+                   workspace / f"{gate_name}_audit.json"):
+        try:
+            if _stale.exists():
+                _stale.unlink()
+        except OSError:
+            pass
+
+    md_path = audits_dir / f"{gate_name}_audit.md"
+    json_path = audits_dir / f"{gate_name}_audit.json"
     jsonl_path = logs_dir / ".audit_findings.jsonl"
 
     md_path.write_text(_render_markdown(findings, gate_name))

@@ -200,11 +200,14 @@ def test_workspace_hygiene_flags_loose_files_and_dirs(tmp_path: Path):
     (ws / "scratch").mkdir()
     (ws / "archive").mkdir()
     (ws / "01_baseline").mkdir()
+    # Canonical workspace-root files — should NOT be flagged.
+    (ws / "tools.md").write_text("tools")
+    (ws / "workflow.mermaid").write_text("graph TD;")
     # Loose offenders — should be flagged.
     (ws / "v2_1_backlog.md").write_text("backlog")
     (ws / "v2_1_plan.md").write_text("plan")
-    (ws / "tools.md").write_text("tools")
-    (ws / "workflow.mermaid").write_text("graph TD;")
+    # A stale root-level audit dump left by a pre-3.2 release is clutter
+    # (per-gate audits now live in workspace/logs/), so it's flagged.
     (ws / "step_completeness_audit.md").write_text("audit")
     (ws / "step_completeness_audit.json").write_text("{}")
     (ws / "planning").mkdir()
@@ -212,14 +215,14 @@ def test_workspace_hygiene_flags_loose_files_and_dirs(tmp_path: Path):
     names = {o["name"] for o in out["offenders"]}
     assert "v2_1_backlog.md" in names
     assert "v2_1_plan.md" in names
-    assert "tools.md" in names
-    assert "workflow.mermaid" in names
     assert "step_completeness_audit.md" in names
     assert "step_completeness_audit.json" in names
     assert "planning" in names
-    # Canonical files + dirs untouched.
-    for keep in ("methods.md", "analysis.md", "citations.md",
-                 "logs", "scratch", "archive", "01_baseline"):
+    # Canonical files + dirs untouched (tools.md + workflow.mermaid are
+    # Research-OS-generated workspace-root files, not clutter).
+    for keep in ("methods.md", "analysis.md", "citations.md", "tools.md",
+                 "workflow.mermaid", "logs", "scratch", "archive",
+                 "01_baseline"):
         assert keep not in names
 
 

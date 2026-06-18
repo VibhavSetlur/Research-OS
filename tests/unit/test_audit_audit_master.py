@@ -8,7 +8,7 @@ These tests pin three guarantees the v2 migration must hold:
    that ``tool_synthesis_check`` parses this file; any drift would
    silently break that caller.
 2. **JSON companion is schema-valid** — every ``AuditFinding`` written
-   to ``workspace/audit_master_audit.json`` round-trips through the
+   to ``workspace/logs/audits/audit_master_audit.json`` round-trips through the
    audit_finding JSON Schema.
 3. **JSONL roll-up gets new lines** — ``write_audit_outputs`` APPENDS
    to ``workspace/logs/.audit_findings.jsonl`` on each run so the
@@ -137,7 +137,7 @@ def test_v2_json_companion_round_trips_through_schema(
 
     paths = write_audit_outputs(findings, audit.name, blocking_root)
     json_path = paths["json"]
-    assert json_path == blocking_root / "workspace" / "audit_master_audit.json"
+    assert json_path == blocking_root / "workspace" / "logs" / "audits" / "audit_master_audit.json"
 
     arr = json.loads(json_path.read_text())
     assert isinstance(arr, list) and len(arr) == len(findings)

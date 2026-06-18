@@ -6,7 +6,7 @@ Covers:
 * ``StepCompletenessAudit.run()`` emits one ``AuditFinding`` per
   per-step blocker + warning, with severity mapped block→block and
   warn→warn.
-* The JSON companion at ``workspace/step_completeness_audit.json`` is
+* The JSON companion at ``workspace/logs/audits/step_completeness_audit.json`` is
   schema-valid and round-trips through ``validate_finding``.
 * ``workspace/logs/.audit_findings.jsonl`` gains one new line per
   finding on each run (append-only ledger).
@@ -159,7 +159,7 @@ def test_run_returns_empty_when_workspace_missing(tmp_path):
 
 def test_json_companion_is_schema_valid(tmp_path):
     """write_audit_outputs(findings, "step_completeness", root) produces
-    a workspace/step_completeness_audit.json file containing an array
+    a workspace/logs/audits/step_completeness_audit.json file containing an array
     of finding objects, each of which round-trips through
     validate_finding without raising.
     """
@@ -169,7 +169,7 @@ def test_json_companion_is_schema_valid(tmp_path):
 
     write_audit_outputs(findings, "step_completeness", tmp_path)
 
-    json_path = tmp_path / "workspace" / "step_completeness_audit.json"
+    json_path = tmp_path / "workspace" / "logs" / "audits" / "step_completeness_audit.json"
     assert json_path.exists()
     payload = json.loads(json_path.read_text())
     assert isinstance(payload, list)
@@ -285,8 +285,8 @@ def test_server_handler_writes_all_three_artefacts(tmp_path):
     # the response body is non-empty + the artefacts landed.
     assert res
 
-    md = tmp_path / "workspace" / "step_completeness_audit.md"
-    js = tmp_path / "workspace" / "step_completeness_audit.json"
+    md = tmp_path / "workspace" / "logs" / "audits" / "step_completeness_audit.md"
+    js = tmp_path / "workspace" / "logs" / "audits" / "step_completeness_audit.json"
     jl = tmp_path / "workspace" / "logs" / ".audit_findings.jsonl"
     legacy_md = tmp_path / "workspace" / "logs" / "step_completeness.md"
 
