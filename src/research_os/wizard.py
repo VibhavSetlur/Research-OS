@@ -138,8 +138,11 @@ class WizardResult:
     # Model tier — written into researcher_config.yaml as model_profile.
     model_profile: str = "medium"
     # Workspace mode — written into researcher_config.yaml as workspace.mode.
-    #   analysis (default) | tool_build | exploration
+    #   analysis (default) | hybrid | tool_build | exploration | notebook | multi_study
     workspace_mode: str = "analysis"
+    # MCP registration scope: workspace (per-project files, default) or
+    # global (also print the user-scope install command).
+    mcp_scope: str = "workspace"
     # Researcher identity, written into researcher_config.yaml AND
     # (when researcher opts in) ~/.config/research-os/profile.yaml so
     # the next `research-os init` pre-fills these without asking.
@@ -405,6 +408,7 @@ def run_wizard(args) -> WizardResult:
         api_keys=api_keys,
         model_profile=model_profile,
         workspace_mode=workspace_mode,
+        mcp_scope=(getattr(args, "mcp_scope", None) or "workspace"),
         researcher_name=researcher_name,
         researcher_email=researcher_email,
         researcher_institution=researcher_institution,
@@ -807,6 +811,15 @@ def _next_steps(r: WizardResult) -> None:
     print(f"        {_C.DIM}inputs/context/{_C.RESET}      notes, drafts, screenshots, prior reports")
     n += 1
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Open your AI IDE on this folder — the MCP server auto-launches.")
+    print(f"        {_C.BOLD}⚠ Already have it open? RESTART the IDE / reload the window{_C.RESET}")
+    print(f"        {_C.DIM}so the research-os MCP tools load — they won't appear until you do.{_C.RESET}")
+    if getattr(r, "mcp_scope", "workspace") == "global":
+        try:
+            from research_os.project_ops import mcp_global_install_hint
+            for line in mcp_global_install_hint(r.ides).splitlines():
+                print(f"        {_C.DIM}{line}{_C.RESET}")
+        except Exception:
+            pass
     n += 1
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Start chatting. Try:")
     for line in [

@@ -1384,6 +1384,13 @@ def build_parser() -> argparse.ArgumentParser:
                              "+ cross-study meta-analysis); "
                              "hybrid = research + software (analysis steps "
                              "plus an inner software component).")
+    p_init.add_argument("--mcp-scope", dest="mcp_scope",
+                        choices=["workspace", "global"], default="workspace",
+                        help="Where to register the MCP server. workspace "
+                             "(default) = per-project config files. global = "
+                             "also print the user-scope install command so "
+                             "research-os is available in every project. "
+                             "Either way, RESTART your IDE afterwards.")
     _ide_arg = p_init.add_argument(
         "--ide", default="all",
         help="IDE(s) to wire up: 'all' or a comma-separated list. "

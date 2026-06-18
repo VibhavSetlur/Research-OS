@@ -2676,7 +2676,56 @@ def _setup_gitignore(root: Path) -> None:
     )
 
 
-def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
+def mcp_server_entry() -> dict[str, Any]:
+    """The ONE canonical MCP server entry every writer uses.
+
+    Portable: `command: research-os` (resolved from PATH) + the
+    `${workspaceFolder}` env hint so the SAME global install serves every
+    project. Having a single builder is what keeps the per-IDE files from
+    drifting into the abs-path / `${workspaceFolder}` mix that shipped in
+    the reaction-similarity project.
+    """
+    return {
+        "command": "research-os",
+        "args": ["start"],
+        "env": {"RESEARCH_OS_WORKSPACE": "${workspaceFolder}"},
+    }
+
+
+def mcp_restart_notice() -> str:
+    """The notice EVERY MCP-setup path must surface: the IDE/session has to
+    reload before the freshly-wired server is visible."""
+    return (
+        "⚠ RESTART REQUIRED: the MCP server was just wired up. If your IDE / "
+        "AI session is already open, fully RESTART it (or reload the window) "
+        "so the `research-os` tools load. They will NOT appear in the current "
+        "session."
+    )
+
+
+def mcp_global_install_hint(ide_flags: list[str]) -> str:
+    """Copy-paste commands to register research-os GLOBALLY (user scope) so
+    it's available in every project — for `--mcp-scope global`."""
+    lines = [
+        "To make research-os available in EVERY project (global / user scope), "
+        "register it once with your IDE instead of per-project:",
+    ]
+    if "claude" in ide_flags or "claude_code" in ide_flags:
+        lines.append("  • Claude Code:  claude mcp add --scope user research-os -- research-os start")
+    if "cursor" in ide_flags:
+        lines.append("  • Cursor:       add the research-os entry to ~/.cursor/mcp.json")
+    if "vscode" in ide_flags:
+        lines.append("  • VS Code:      add it to your user settings.json mcp.servers")
+    lines.append(
+        "  (The per-project files were still written, so the workspace works "
+        "either way.)"
+    )
+    return "\n".join(lines)
+
+
+def _setup_mcp_configs(
+    root: Path, ide_flags: list[str], *, mcp_scope: str = "workspace",
+) -> None:
     """Drop a per-IDE MCP config + rule file so the AI auto-connects.
 
     The MCP config uses `${workspaceFolder}` so the SAME `research-os`
@@ -2686,12 +2735,12 @@ def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
     still work: the server reads `RESEARCH_OS_WORKSPACE` first and
     falls back to walking up from the current working directory for
     `.os_state/` (which the IDE typically launches the server in).
+
+    ``mcp_scope`` is informational here — the per-project files are always
+    written (they're harmless and make the workspace self-contained). The
+    CLI/wizard surfaces ``mcp_global_install_hint`` when scope='global'.
     """
-    mcp_entry = {
-        "command": "research-os",
-        "args": ["start"],
-        "env": {"RESEARCH_OS_WORKSPACE": "${workspaceFolder}"},
-    }
+    mcp_entry = mcp_server_entry()
     templates_dir = Path(__file__).resolve().parent.parent.parent / "templates"
 
     def _copy_rule(src_rel: str, dest: Path) -> None:
@@ -2715,6 +2764,16 @@ def _setup_mcp_configs(root: Path, ide_flags: list[str]) -> None:
         f = d / "mcp.json"
         if not f.exists():
             f.write_text(json.dumps({"mcpServers": {"research-os": mcp_entry}}, indent=2) + "\n")
+        # Claude Code reads project-scoped MCP servers from ROOT `.mcp.json`
+        # (NOT .claude/mcp.json). Writing the same canonical entry there too
+        # means Claude Code picks up RO's portable config instead of the
+        # researcher running `claude mcp add` (which bakes in absolute paths)
+        # — the abs-path-vs-portable drift seen in the wild.
+        root_mcp = root / ".mcp.json"
+        if not root_mcp.exists():
+            root_mcp.write_text(
+                json.dumps({"mcpServers": {"research-os": mcp_entry}}, indent=2) + "\n"
+            )
         _copy_rule(".claude/rules/research-os.md", d / "rules" / "research-os.md")
         _copy_rule(".claude/commands/start-session.md", d / "commands" / "start-session.md")
 

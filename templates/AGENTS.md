@@ -46,6 +46,24 @@ Need to confirm which project the server resolved for THIS request?
 Call `sys_active_project` — it returns the resolved root + how it
 was resolved (env var / cwd walk / fallback).
 
+**Setting up a new project (when the researcher asks).** Do NOT run
+`research-os init` blindly with defaults. INTERVIEW first — ask the few
+questions that change the scaffold + how you'll work, in one short batch:
+
+* the **research question / goal** (and whether it's research, software,
+  or **hybrid** — research + a code deliverable);
+* the **domain**;
+* what they want to **produce** (paper / dashboard / poster / report, or
+  "just exploring") → `research_goal.output_types`;
+* how **autonomous** you should be → `interaction.autonomy_level`;
+* the **compute environment** (laptop / HPC / which conda env) →
+  `runtime.compute_environment`.
+
+Fold the answers into `inputs/researcher_config.yaml` (your operating
+contract). THEN scaffold. After MCP is wired, **tell the researcher to
+restart their IDE / session** — the `research-os` tools will not appear in
+the current session until they reload.
+
 ---
 
 ## Every session — boot in two MCP calls (first turn only)
