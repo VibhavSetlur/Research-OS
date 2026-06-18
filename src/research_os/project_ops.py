@@ -1575,6 +1575,38 @@ def scaffold_minimal_workspace(
             "intake** — `tool_intake_autofill` rewrites this file.\n"
         )
 
+    # 8-rp. inputs/research_plan.md — the OVERALL project plan the AI and
+    #       researcher iterate on (co-scientist style). Distinct from each
+    #       step's `plan.md` (that plans one step); this frames the whole
+    #       arc: question, hypotheses, the planned sequence of steps, and a
+    #       living iteration log. Seeded once, then refined collaboratively.
+    research_plan = root / "inputs" / "research_plan.md"
+    if not research_plan.exists():
+        research_plan.write_text(
+            "# Research plan\n\n"
+            "> **What this file is.** The living plan for the *whole* "
+            "project — the AI and the researcher iterate on it together "
+            "(propose → critique → refine). Each analysis step also gets its "
+            "own `workspace/<NN_slug>/plan.md`; this file is the arc those "
+            "steps fit into. Ask the AI to **draft the research plan** to "
+            "fill it in (optionally grounded by a quick literature scan).\n\n"
+            "## Research question\n"
+            "*(The one question this project answers. Pull from "
+            "`inputs/researcher_config.yaml` once set.)*\n\n"
+            "## Hypotheses\n"
+            "*(H1, H2, … — the testable claims. Register each with "
+            "`mem_hypothesis_add`.)*\n\n"
+            "## Planned sequence of steps\n"
+            "*(The arc: step 1 → step 2 → … Each line: a goal + which "
+            "hypothesis it targets. Numbering is continuous across paths.)*\n\n"
+            "## Open questions / decisions\n"
+            "*(Scope, design, and trade-off calls the researcher wants to "
+            "weigh in on before the work proceeds.)*\n\n"
+            "## Iteration log\n"
+            "*(Append-only: each round of plan refinement — what changed and "
+            "why — so the project's direction is itself traceable.)*\n"
+        )
+
     # 8a. Seed each input sub-folder with a one-paragraph README so an
     #     empty folder isn't a dead end for a fresh researcher.
     _SEEDED_INPUT_READMES = {
@@ -2784,17 +2816,22 @@ def _seed_step_subfolder_readmes(
     _write_if_missing(
         exp_dir / "outputs" / "README.md",
         f"# `{branch_id}` — outputs\n\n"
-        "- **`reports/`** — Markdown narratives (`*.md`) summarising results "
-        "for humans. Reports go DEEPER than `conclusions.md`: choices, "
-        "reasoning, comparison of options, AI thoughts, tables embedded.\n"
-        "- **`figures/`** — `.png` plots. Each figure SHOULD have a "
-        "sibling `<name>.caption.md` describing what the reader is looking at "
-        "in plain language. SVG companions are opt-in "
-        "(`researcher_config.figures.svg_allowed: true`). Interactive `.html` "
-        "figures are appropriate for networks, large multi-panel dashboards, "
-        "or any view where reader exploration adds value.\n"
-        "- **`tables/`** — CSV / TSV tables. Each table SHOULD have a "
-        "sibling `<name>.caption.md` for the same reason.\n\n"
+        "- **`figures/`** — `.png` plots (the analysis outputs). Each figure "
+        "ships exactly three siblings: the image, a `<name>.prov.json` "
+        "provenance record, and a `<name>.caption.md` (the technical "
+        "caption the synthesis embeds). The plain-English interpretation "
+        "lives inline in `conclusions.md` next to the embed. SVG companions "
+        "are opt-in (`researcher_config.figures.svg_allowed: true`); "
+        "interactive `.html` figures suit networks / large multi-panels.\n"
+        "- **`tables/`** — CSV / TSV tables (analysis outputs). Each table "
+        "SHOULD have a sibling `<name>.caption.md`.\n"
+        "- **`reports/`** — *optional* snapshot presentation artefacts you "
+        "build at a point in time to PRESENT — a one-off dashboard for a "
+        "committee, a slide for a journal club, a diagram for a "
+        "collaboration review. These are NOT analysis-script outputs and NOT "
+        "where findings live (findings → `conclusions.md`). Keeping them "
+        "here avoids cluttering `synthesis/`. Header each with its date + "
+        "intended audience.\n\n"
         "Follow `figure_guidelines` (DPI ≥150 screen / ≥300 print, colour-blind "
         "safe palette, axis units). The AI MUST `sys_file_read` each figure "
         "before declaring the step done (catches legend-over-plot, missing "
@@ -2901,15 +2938,16 @@ def create_numbered_experiment(
             r_txt = prev_readme.read_text()
             c_txt = prev_conc.read_text()
             placeholder_markers_readme = (
+                "*(2-3 sentences a colleague",
                 "*(list inputs used)*",
                 "*(name the method;",
                 "*(the single most important result",
-                "*(proceed | branch | dead-end)*",
+                "*(proceed | branch | dead-end",
             )
             placeholder_markers_conc = (
-                "*(2-3 sentences",
-                "*(method name",
-                "*(the single most important",
+                "*(2-5 quantitative bullets",
+                "*(Dataset shape",
+                "*(What this step cannot conclude",
             )
             unfilled_readme = sum(m in r_txt for m in placeholder_markers_readme)
             unfilled_conc = sum(m in c_txt for m in placeholder_markers_conc)
@@ -3061,43 +3099,43 @@ def create_numbered_experiment(
         "the sections below from what was actually produced.\n\n"
         f"## Goal\n{hypothesis or name}\n\n"
         "## In plain English\n"
-        "*(One paragraph. Imagine you're explaining this step to a colleague "
-        "from a different field. What is being asked? Why does it matter? "
-        "What did we find?)*\n\n"
+        "*(2-3 sentences a colleague from another field could follow: what "
+        "was tested, what was found, and the strength of the evidence. This "
+        "is the canonical plain-language summary — the synthesis dashboard's "
+        "executive / teaching views surface it verbatim.)*\n\n"
         "## Input data\n- *(list inputs used)*\n\n"
         "## Methods (one line each)\n- *(name the method; full justification "
-        "lives in `conclusions.md` and `literature/key_papers.md`)*\n\n"
+        "lives in `conclusions.md` and `literature/findings_vs_literature.md`)*\n\n"
         "## Headline finding\n- *(the single most important result — "
         "researchers should be able to quote this sentence verbatim)*\n\n"
-        "## Outputs\n- *(figures / tables / reports produced)*\n\n"
+        "## Outputs\n- *(figures / tables produced)*\n\n"
         "## Decision\n- *(proceed | branch | dead-end)*\n\n"
         "## Read next\n"
+        "- [`plan.md`](./plan.md) — the pre-step plan: prior context, this "
+        "step's design, and open questions.\n"
         "- [`conclusions.md`](./conclusions.md) — full statistical results, "
-        "limitations, decisions.\n"
+        "limitations, decisions, and step-to-step tracking.\n"
         "- [`outputs/figures/`](./outputs/figures/) — every figure has a "
-        "sibling `.caption.md` (technical) and `.summary.md` (plain English).\n"
-        "- [`literature/key_papers.md`](./literature/key_papers.md) — the "
-        "sources that anchor each decision.\n"
-        "- [`context/notes.md`](./context/notes.md) — narrative "
-        "rationale + hand-overs.\n"
+        "sibling `.caption.md` (technical) the synthesis embeds.\n"
+        "- [`literature/findings_vs_literature.md`](./literature/findings_vs_literature.md)"
+        " — how this step's findings sit against the literature.\n"
     )
     # conclusions.md — the THOROUGH reader: full statistical detail, edge
     # cases, sensitivity checks, every limitation. Targets the same audience
     # as a journal Methods + Results + Discussion section.
     (exp_dir / "conclusions.md").write_text(
         f"# {branch_id} — Conclusions\n*Created: {now_iso()}*\n\n"
-        "> **What this file is.** The full statistical record of the step. "
-        "Method, assumption checks, every effect size, every limitation. "
-        "If `README.md` is the elevator pitch, this is the full paper.\n\n"
-        "## Plain-language summary\n"
-        "*(2-3 sentences. What was tested, what was found, and the strength "
-        "of the evidence — in language an undergraduate could follow. The "
-        "dashboard's executive/teaching views surface this verbatim.)*\n\n"
+        "> **What this file is.** The deep report for this step: the full "
+        "statistical record PLUS the thought-process tracking. Method, "
+        "assumption checks, every effect size, every limitation, and how "
+        "this step's decision evolved — both across the step's own "
+        "iterations and from the previous step to this one. The plain-"
+        "language summary lives in `README.md` (`## In plain English`); do "
+        "not duplicate it here.\n\n"
         "## Findings\n"
         "*(2-5 quantitative bullets with numbers + units + 95% CI where "
         "applicable. Lead with effect sizes, not p-values. Plain frequencies "
-        "preferred over percentages for risk communication — see the "
-        "statistical glossary in `synthesis/dashboard.html`.)*\n\n"
+        "preferred over percentages for risk communication.)*\n\n"
         "## Hypothesis evidence\n"
         "*(For each hypothesis touched: H<id> status + one-line evidence + "
         "the figure / table the verdict rests on.)*\n\n"
@@ -3113,8 +3151,45 @@ def create_numbered_experiment(
         "*(What this step cannot conclude, and why — sample size, design "
         "constraints, measurement bias, etc. Honest framing: \"no detectable "
         "difference\" beats \"no effect\" when underpowered.)*\n\n"
-        "## Decision\n*(proceed | branch | dead-end)*\n\n"
+        "## Decision\n"
+        "*(proceed | branch | dead-end. Record the reasoning AND the "
+        "lineage: how the previous step led here, and — if this step was "
+        "iterated — what changed from the prior version and why. This is "
+        "the full thought-process trail a future reader reconstructs the "
+        "project from.)*\n\n"
         "## Next steps\n*(2-3 candidates with rationale)*\n"
+    )
+
+    # plan.md — the PRE-STEP plan (co-scientist style). Written at step
+    # creation, BEFORE any scripts / figures: it carries forward the prior
+    # step's outcome + the project's findings-to-date, lays out this step's
+    # design, and poses the open question(s) the researcher iterates on
+    # before work begins. Under autopilot the AI still fills it in (it is
+    # the record of the AI's reasoning), but does not pause for sign-off.
+    (exp_dir / "plan.md").write_text(
+        f"# {branch_id} — Plan\n*Created: {now_iso()}*\n\n"
+        "> **What this file is.** The plan for this step, written BEFORE the "
+        "work. Iterate on it with the researcher (propose → critique → "
+        "refine) until the design is agreed, THEN build the scripts / "
+        "figures. The overall-project counterpart is "
+        "`inputs/research_plan.md`.\n\n"
+        "## Where we are\n"
+        "*(Recap the previous step's outcome + the project's findings so far "
+        "— the context this step builds on. For step 01, summarise the "
+        "research question + inputs instead.)*\n\n"
+        "## What this step will do\n"
+        f"*(The goal for `{branch_id}`: the question it answers, the data it "
+        "uses, the method(s) it will apply, and the artefact(s) it will "
+        "produce.)*\n\n"
+        "## Why this step, why now\n"
+        "*(How it advances the hypotheses / research question, and why it is "
+        "the right next move versus the alternatives.)*\n\n"
+        "## Open questions for the researcher\n"
+        "*(The decisions you want the researcher to weigh in on before you "
+        "start — design choices, scope, trade-offs. Under autopilot, note "
+        "the choice you made and proceed.)*\n\n"
+        "## Anticipated next steps\n"
+        "*(Where this likely leads — so the plan carries forward.)*\n"
     )
 
     _seed_step_subfolder_readmes(exp_dir, root, branch_id, next_num, from_step)

@@ -2199,6 +2199,7 @@ _DIMENSION_MATCHERS: tuple[tuple[str, str], ...] = (
     ("no figure produced", "focal_artefact"),
     # Warning patterns
     ("plain-language summary still a stub", "plain_language_summary"),
+    ("in plain english is still a stub", "plain_language_summary"),
     ("no figure starts with the step number prefix", "focal_artefact"),
     ("no script files under scripts", "scripts"),
     ("numeric findings", "tables"),

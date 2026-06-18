@@ -132,7 +132,10 @@ steps:
       `tool_literature_search_and_save` (into the project-global
       `inputs/literature/` corpus).
 
-      Write `outputs/reports/pipeline_survey_<subfield_slug>.md`:
+      Write the survey to `docs/pipeline_survey_<subfield_slug>.md` — it is
+      a PROJECT-LEVEL reference document, not a per-step analysis output, so
+      it belongs in docs/, never in a project-root `outputs/` folder (which
+      should not exist in analysis mode):
         - canonical pipeline stages, in order
         - the leading tool / library / CLI per stage WITH the primary
           citation supporting that choice

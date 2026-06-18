@@ -23,7 +23,12 @@ steps:
         - sys_path
         - sys_protocol_history limit=10
         - mem_hypothesis_list
-      Combine into a working summary. Do NOT call other tools yet.
+        - sys_file_read filepath="inputs/research_plan.md"   # whole-project arc, if present
+      Combine into a working summary. The research_plan.md is the living
+      project plan you are iterating ON — anchor the next-step proposal to
+      its planned sequence + open questions, and after the researcher
+      chooses, append the decision to its iteration log so the plan stays
+      the source of truth. Do NOT call other tools yet.
 
   - id: propose_via_tool
     name: Generate a Next-Step Plan

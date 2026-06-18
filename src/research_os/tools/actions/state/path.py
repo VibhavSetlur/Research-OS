@@ -722,10 +722,12 @@ _REPORT_EXTS = {".md", ".txt", ".html", ".rst"}
 def _figure_table_inventory(exp_dir: Path) -> dict[str, list[str]]:
     """Inventory of REAL artefacts under outputs/{figures,tables,reports}.
 
-    Filter by extension so caption / summary / prov sidecars don't
-    pollute the figure list — without this, READMEs would report a step
-    with 16 figures when it actually had 4 figures plus 12 metadata
-    files for them.
+    Filter by extension so caption / prov sidecars don't pollute the
+    figure list — without this, READMEs would report a step with 12
+    figures when it actually had 4 figures plus 8 metadata files for them.
+    ``reports/`` holds optional snapshot presentation artefacts (a
+    one-off dashboard / slide / diagram), NOT analysis-script outputs and
+    NOT where findings live (those are in conclusions.md).
     """
     bucket_exts = {
         "figures": _FIGURE_EXTS,
@@ -1070,11 +1072,13 @@ def finalize_path(
                     f"conclusions.md > {hdr} is still a stub — fill it before "
                     "the next step or before synthesis (gate will block there)."
                 )
-        if _is_stub_section(conc_text_now, "Plain-language summary"):
+    # The plain-language summary now lives in README.md (## In plain English);
+    # conclusions.md no longer carries it. Warn if the README's is still a stub.
+    if step_readme.exists():
+        if _is_stub_section(step_readme.read_text(), "In plain English"):
             warnings.append(
-                "conclusions.md > Plain-language summary is still a stub — "
-                "the dashboard's executive / teaching views will fall back to "
-                "the technical text."
+                "README.md > In plain English is still a stub — the dashboard's "
+                "executive / teaching views will fall back to the technical text."
             )
 
     # ---- 7. Per-step → project-scope file refresh.
@@ -1544,15 +1548,19 @@ def _downstream_consumers(workspace: Path, path_name: str) -> list[str]:
     return consumers
 
 
+# Substrings that mark an unfilled seed stub in README.md / conclusions.md.
+# Keep these in sync with the seeds in project_ops.create_numbered_experiment.
 _STUB_MARKERS = (
-    "*(list inputs used)*",
-    "*(list methods/models)*",
-    "*(describe expected outputs)*",
-    "*(proceed | branch | dead-end)*",
-    "*(One paragraph. Imagine",
-    "*(the single most important result",
-    "*(name the method;",
-    "*(figures / tables / reports produced)*",
+    # README.md stubs
+    "*(2-3 sentences a colleague",          # In plain English
+    "*(list inputs used)*",                 # Input data
+    "*(name the method;",                   # Methods (one line each)
+    "*(the single most important result",   # Headline finding
+    "*(figures / tables produced)*",        # Outputs
+    "*(proceed | branch | dead-end",        # Decision (README + conclusions)
+    # conclusions.md stubs
+    "*(2-5 quantitative bullets",           # Findings
+    "*(2-3 candidates with rationale)*",    # Next steps
 )
 
 
