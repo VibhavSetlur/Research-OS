@@ -6,6 +6,90 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.5] — pack/adapter robustness + universal-coverage pass (2026-06-19)
+
+A deep audit of the 5 domain packs (humanities, qualitative, theory_math,
+wet_lab, engineering) and 6 infra adapters (slurm, snakemake, nextflow,
+cytoscape, redcap, synapse) — driven by an adversarially-verified multi-agent
+review — found they were real and working but **structurally inconsistent,
+invisible, and untested at the boundary**, and that the router stranded real
+fields it could already serve. This release fixes that whole class.
+
+Scoped as a PATCH per maintainer direction (one release, not a flood). Note:
+a few items here — new router triggers, a new `sys_help` topic, new additive
+`sys_boot` fields — are conventionally MINOR; they're bundled in under PATCH
+because they fix dead/hidden/misrouting behaviour rather than add new surface.
+
+### Fixed (bugs)
+
+- **REDCap adapter went dark on UTF-8 BOM CSVs** (the standard Windows
+  web-UI export) — no detection, no PHI warnings. Now reads `utf-8-sig`.
+- **SLURM directive parser** dropped space-separated long opts
+  (`--time 01:00:00` → `'true'`) and **every PBS `-l` resource**; the cost
+  estimator hard-crashed on non-numeric nodes (`-N jobname`, ranges); the
+  walltime parser misread bare minutes (~60× off) and `days-hours`. All fixed;
+  `-N` now disambiguated by scheduler (Slurm=nodes, PBS=job-name).
+- **Engineering FMEA** bolding corrupted every RPN≥100 row (double
+  `.replace("|", …)` hit the leading pipe); **requirements_matrix** raised
+  `KeyError` on a requirement missing `id`.
+- **qualitative** speaker-turn detector never matched `I:` / `R:` / `P:` (the
+  most common transcript convention) — the colon was double-counted.
+- **humanities transcribe** returned `status:success` on a missing image;
+  now a proper error. **wet_lab** reagent/lineage outputs no longer escape to
+  `inputs/` or break on `/` in catalog numbers (reagents accumulate into one
+  ledger). **nextflow** no longer recurses into `.git`/`.venv`/`node_modules`
+  or captures trailing `//` comments into directive values. **synapse**
+  `project_id` now `fullmatch`-validated.
+
+### Improved (consistency + wiring)
+
+- **One envelope, not eleven.** Shared `pack_ok`/`pack_err` (from
+  `research_os.plugins`) and `ok_envelope`/`err_envelope` (from
+  `research_os.adapters`) replace ~10 copy-pasted pack helpers + 6 byte-
+  identical adapter copies that had already drifted (mismatched error keys,
+  one pack missing `_err`). `register_adapter` now rejects a compiled
+  `re.Pattern` as a `tools_md_patterns` source (was a latent CPython-only fluke).
+- **Bundled packs report the wheel version** (were stale 1.9.x / 1.11.0).
+- **Preflight now validates pack-protocol tool refs + routing targets** — the
+  blind spot that let broken pack refs ship green. It immediately caught and we
+  fixed: theory_math tool-prefix typos, a dangling conjecture `on_failure`,
+  wet_lab `instrument_run_log`'s 7 phantom tools (rewritten to the real manual
+  workflow), and plate-map / sample-lineage / experiment-design / humanities
+  refs to tools that never existed.
+
+### Added (discoverability — "how do users actually use the packs?")
+
+- **The pack domain detectors are now wired in.** They were registered but
+  **read nowhere** — the signal "this is wet-lab / humanities work" was
+  computed and discarded. New `run_pack_domain_detectors()` powers a `sys_boot`
+  nudge (`field_signals` + `pack_nudge` + `pack_capabilities` +
+  `adapters_detected`) and a level-0 route hint.
+- **`sys_help(topic='packs')` / `topic='adapters')`** — dynamically lists all
+  11 modules + how to use them; the `fields` topic now points to it.
+- **Universal field routing.** `methodology/deep_domain_research` (the
+  any-field-from-the-literature path) gained field-agnostic triggers + cross-
+  field anchors (panel data, GARCH, econometric, spatial autocorrelation,
+  spectroscopy, doctrinal); the level-0 fallback now names it +
+  `scope_clarification`. Survival → `cox_ph_diagnostics`, remote-sensing →
+  `geospatial_visualization`, scale-validation → `survey_psychometrics`; the
+  greedy bare-`status` shortcut no longer hijacks "conjecture status".
+- **`AGENTS.md`** gained a compact packs/adapters block (still under the lean
+  budget); the **wizard** domain menu added geoscience / ecology / astronomy /
+  public-health / education / law / humanities / engineering + a "what packs
+  are available?" prompt.
+- **New contract tests** (`tests/unit/test_pack_adapter_contract.py`) hold the
+  live registry to one bar: every pack contributes tools/router + wires its
+  detector + ships loadable YAML + reports the wheel version; every adapter
+  `describe()` returns a dict + every adapter tool dispatches to a clean
+  envelope. A new pack/adapter can no longer ship half-wired.
+
+### Bumped
+
+- Version 3.2.4 → 3.2.5 across `pyproject.toml`, `__init__.py`, `CITATION.cff`.
+  Router index v28 → v29; `_route_meta.json` + `_embeddings.npz` rebuilt.
+
+---
+
 ## [3.2.4] — leaner per-session context (2026-06-18)
 
 Efficiency release. `AGENTS.md` is loaded into context every session and had
