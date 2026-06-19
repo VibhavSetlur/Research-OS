@@ -14,7 +14,13 @@
 //     chicago_thesis.typ).
 //   - Page numbers bottom-centre (MLA / Chicago default for essays).
 
-#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
+// Consume the shared RO design tokens (ro-fonts / ro-navy) from common.typ so
+// the essay's serif + heading accent cohere with the figure / poster / slide
+// family. The humanities essay keeps its own larger long-form type scale
+// (12pt body, 14pt headings) — deliberately distinct from the dense scientific
+// ro-typescale — so those sizes stay as-is; only the font and the H1 accent
+// colour are tokenised. Font resolves to the same family it was hardcoded to.
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template, ro-fonts, ro-navy
 
 #let humanities_essay(
   title: "Untitled",
@@ -33,7 +39,7 @@
   // Body type: 12pt serif, 1.5 leading. Slight first-line indent for
   // paragraphs (the humanities-essay default, distinct from the
   // block-paragraph style scientific journals use).
-  set text(font: "New Computer Modern", size: 12pt, lang: "en")
+  set text(font: ro-fonts.serif, size: 12pt, lang: "en")
   set par(justify: true, leading: 0.85em, first-line-indent: 1.5em)
 
   // Footnotes — 10pt, marker as Arabic numerals, thin separator rule.
@@ -52,9 +58,10 @@
     pad(left: 0.5in, right: 0.5in, top: 0.5em, bottom: 0.5em, it.body)
   }
 
-  // Unnumbered section headings (MLA / Chicago essay convention).
+  // Unnumbered section headings (MLA / Chicago essay convention). H1 now
+  // carries the RO navy accent for cohesion with the figure/poster family.
   show heading.where(level: 1): it => {
-    set text(size: 14pt, weight: "bold")
+    set text(size: 14pt, weight: "bold", fill: ro-navy)
     v(1em, weak: true)
     it.body
     v(0.5em, weak: true)
