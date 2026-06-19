@@ -20,12 +20,16 @@ from research_os.plugins.pack_api import (
     register_tool,
     captured_tools,
     reset_captured_tools,
+    pack_ok,
+    pack_err,
 )
 from research_os.plugins.loader import (
     discover_packs,
     installed_packs,
     load_pack_errors,
     pack_paper_sections,
+    pack_domain_detectors,
+    run_pack_domain_detectors,
     PackLoadResult,
 )
 
@@ -35,9 +39,13 @@ __all__ = [
     "register_tool",
     "captured_tools",
     "reset_captured_tools",
+    "pack_ok",
+    "pack_err",
     "discover_packs",
     "installed_packs",
     "load_pack_errors",
     "pack_paper_sections",
+    "pack_domain_detectors",
+    "run_pack_domain_detectors",
     "PackLoadResult",
 ]

@@ -94,7 +94,7 @@ quality_bar:
   randomization_must_specify:
     - unit            # animal, well, slide, cage, litter
     - strata          # what is balanced across arms (sex, age, batch)
-    - tool_or_method  # named PRNG + seed, or block-randomization recipe
+    - method          # named PRNG + seed, or block-randomization recipe
   blinding_must_specify:
     - assignment_stage
     - execution_stage
@@ -189,8 +189,8 @@ steps:
       within plate AND across plates — edge wells, corner wells, and
       the well closest to the door of the incubator have
       systematically different microenvironments.
-      Use tool_design_randomize (or numpy.random with an explicit
-      logged seed) to generate the assignment. Save the assignment
+      Use numpy.random with an explicit logged seed to generate
+      the assignment. Save the assignment
       table AND the seed AND the script to
       workspace/design/randomization.{csv,seed,py}. The seed is what
       makes the scheme reproducible by audit.

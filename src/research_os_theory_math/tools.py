@@ -13,35 +13,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from research_os.plugins import register_tool
-
-
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
 
 
 @register_tool(
@@ -59,8 +31,8 @@ def _err(message: str) -> list:
         "Returns success / failure + structured error messages "
         "(line, column, message). If Lean isn't installed locally, "
         "writes a stub plan to workspace/proof/lean_install_hint.md and "
-        "returns a status='warning' envelope so the researcher knows to "
-        "install Lean 4 + Mathlib before re-running."
+        "returns a success envelope with lean_available=false + a warning "
+        "note so the researcher knows to install Lean 4 + Mathlib first."
     ),
 )
 def lean_check(name: str, arguments: dict, root: Path) -> Any:
@@ -79,10 +51,12 @@ def lean_check(name: str, arguments: dict, root: Path) -> Any:
             "Install via elan: https://leanprover-community.github.io/get_started.html\n"
             "Then re-run tool_theory_math_lean_check.\n"
         )
+        # Soft state: surface as data fields, not a nested status key the
+        # dispatcher/clients never read (the outer envelope is success).
         return _ok({
-            "status": "warning",
+            "lean_available": False,
+            "warning": "Lean 4 not installed; wrote install hint.",
             "hint_path": str(hint.relative_to(root)),
-            "message": "Lean 4 not installed; wrote install hint.",
         })
     try:
         proc = subprocess.run(
@@ -143,9 +117,9 @@ def coq_check(name: str, arguments: dict, root: Path) -> Any:
             "Then re-run tool_theory_math_coq_check.\n"
         )
         return _ok({
-            "status": "warning",
+            "coq_available": False,
+            "warning": "Coq not installed; wrote install hint.",
             "hint_path": str(hint.relative_to(root)),
-            "message": "Coq not installed; wrote install hint.",
         })
     try:
         proc = subprocess.run(

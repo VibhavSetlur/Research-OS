@@ -263,8 +263,10 @@ main theorem → theory paper → PDF), start by saying:
 ### Does Research OS support humanities / literary / textual analysis?
 
 Yes — there's a humanities pack with field-true protocols
-(`close_reading`, `distant_reading`, `digital_humanities_workflow`,
-`citation_chains`). The pack treats interpretive claims with the same
+(`archival_research`, `source_provenance`, `citation_chains`,
+`digital_humanities_workflow`, `hermeneutic_method`,
+`scholarly_edition`, `close_reading`, `distant_reading`). The pack
+treats interpretive claims with the same
 rigor as quantitative ones: every claim is anchored to a line/page
 number, every passage is edition-pinned, every reading declares its
 critical tradition, and every cluster requires a counter-pattern.

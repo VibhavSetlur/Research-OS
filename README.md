@@ -220,6 +220,9 @@ research-os doctor
 * **In-tree adapter packs** — `slurm`, `nextflow`, `snakemake`,
   `cytoscape`, `redcap`, `synapse` — bridge Research OS to common
   external systems via plugin hooks.
+  All domain packs and infrastructure adapters are bundled in the
+  wheel and always loaded; the `pip install research-os[<name>]`
+  extras are reserved no-ops today (names held for a future PyPI split).
 * **MCP `instructions` field** shipped at handshake — compliant
   clients (Claude Code, Cursor, Cline, etc.) see the canonical boot
   sequence (`sys_boot → tool_route → sys_protocol_get →

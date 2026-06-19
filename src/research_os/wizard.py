@@ -57,6 +57,14 @@ DOMAIN_MENU: list[tuple[str, str]] = [
     ("social_science",  "Social science"),
     ("ml",              "ML / AI methodology"),
     ("robotics",        "Robotics"),
+    ("geoscience",      "Geoscience / GIS / remote sensing"),
+    ("ecology",         "Ecology / field biology"),
+    ("astronomy",       "Astronomy / astrophysics"),
+    ("public_health",   "Public health / epidemiology"),
+    ("education",       "Education research"),
+    ("law",             "Law / legal scholarship"),
+    ("humanities",      "Humanities (history / lit / philosophy)"),
+    ("engineering",     "Engineering"),
 ]
 
 
@@ -827,6 +835,7 @@ def _next_steps(r: WizardResult) -> None:
         '"what should I do next?"         — iterative planning',
         '"run a baseline EDA"             — creates workspace/01_*, scripts + figures',
         '"write the paper for a journal"  — verified citations only',
+        '"what domain packs are available?" — wet_lab / humanities / qualitative / theory_math / engineering',
     ]:
         print(f"        {_C.DIM}{line}{_C.RESET}")
     print()

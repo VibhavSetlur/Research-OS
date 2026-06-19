@@ -31,6 +31,8 @@ from research_os.adapters.base import (
     AdapterRegistration,
     AdapterTool,
     register_adapter,
+    ok_envelope,
+    err_envelope,
 )
 from research_os.adapters.loader import (
     AdapterLoadResult,
@@ -45,6 +47,8 @@ __all__ = [
     "AdapterRegistration",
     "AdapterTool",
     "register_adapter",
+    "ok_envelope",
+    "err_envelope",
     "AdapterLoadResult",
     "discover_adapters",
     "installed_adapters",

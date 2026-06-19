@@ -312,6 +312,83 @@ def check_pack_protocols_load():
     return True, f"{loaded} pack protocol(s) load"
 
 
+def check_pack_protocol_refs_and_targets():
+    """Pack protocols are scaffolds an AI executes verbatim — so every tool
+    they name must resolve and every next_protocol / on_failure / see_also
+    target must exist. The core ref/target checks only walked core
+    protocols, so broken pack refs (wrong tool prefix, dangling on_failure)
+    shipped green. This is the durable guard for that whole class.
+    """
+    import re
+
+    import yaml
+
+    try:
+        from research_os.plugins import installed_packs
+        from research_os.server import TOOL_DEFINITIONS, _resolve_tool_name
+    except Exception as exc:
+        return False, f"plugin import failed: {exc}"
+
+    # Same prose false-positives the core tool-ref check tolerates.
+    false_positive_strings = {
+        "tool_name", "tool_discovery", "tool_list", "tool_build",
+    }
+    pattern = re.compile(r"\b((?:sys|tool|mem)_[a-z_]+)\b(?!\*)")
+
+    packs = list(installed_packs())
+    pack_dirs = {p["name"]: Path(p["protocols_dir"]) for p in packs}
+
+    def _target_resolves(ref) -> bool:
+        ref = (ref or "").split("#")[0].strip()
+        if not ref or ref.lower() in {"null", "none"} or "/" not in ref:
+            return True
+        # Some packs use on_failure as a free-text instruction rather than a
+        # protocol path. A real target is a single whitespace-free
+        # category/name token; anything with spaces is prose — skip it.
+        if any(ch.isspace() for ch in ref):
+            return True
+        if (PROTOCOLS_DIR / f"{ref}.yaml").exists():
+            return True  # core target
+        cat = ref.split("/")[0]
+        if cat in pack_dirs:  # pack-namespaced target → resolve in the pack
+            inner = "/".join(ref.split("/")[1:])
+            if (pack_dirs[cat] / f"{inner}.yaml").exists():
+                return True
+        return False
+
+    bad: list[str] = []
+    for pack in packs:
+        pdir = Path(pack["protocols_dir"])
+        if not pdir.exists():
+            continue
+        for f in pdir.rglob("*.yaml"):
+            if f.name.startswith("_"):
+                continue
+            text = f.read_text()
+            label = f"{pack['name']}/{f.relative_to(pdir).with_suffix('').as_posix()}"
+            for m in pattern.finditer(text):
+                name = m.group(1)
+                if name in false_positive_strings or name.endswith("_"):
+                    continue
+                if _resolve_tool_name(name) not in TOOL_DEFINITIONS:
+                    bad.append(f"{label}: tool `{name}` unresolved")
+            try:
+                data = yaml.safe_load(text) or {}
+            except Exception:
+                data = {}
+            for field in ("next_protocol", "on_failure"):
+                v = data.get(field)
+                if isinstance(v, str) and not _target_resolves(v):
+                    bad.append(f"{label}: {field} → {v}")
+            for s in (data.get("see_also") or []):
+                if isinstance(s, str) and not _target_resolves(s):
+                    bad.append(f"{label}: see_also → {s}")
+    if bad:
+        bad = sorted(set(bad))
+        return False, f"{len(bad)} broken pack ref(s): " + " | ".join(bad[:6])
+    return True, "all pack protocol tool refs + routing targets resolve"
+
+
 def check_alias_table_complete():
     """Every entry in _ALIASES must resolve to a registered handler.
 
@@ -1254,6 +1331,7 @@ def main() -> int:
     tally.check("Redirect-stub targets resolve", check_redirect_targets)
     tally.check("Bundled packs discovered", check_packs_discovered)
     tally.check("Pack protocols load", check_pack_protocols_load)
+    tally.check("Pack protocol tool refs + routing targets resolve", check_pack_protocol_refs_and_targets)
     tally.check("Bundled adapters discovered", check_adapters_discovered)
     tally.check("Adapter regex patterns compile", check_adapter_regex_compile)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)

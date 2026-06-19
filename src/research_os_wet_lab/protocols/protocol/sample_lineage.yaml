@@ -110,7 +110,7 @@ steps:
   - id: register_parent
     name: Register the parent sample
     description: |
-      Call tool_wet_lab_sample_lineage_register with node_type=parent.
+      Record the parent node (node_type=parent) in the lineage spec.
       Capture organism + strain/genotype + sex + age + IACUC/IRB
       number + source (vendor + cohort_id, or clinical site +
       consent_id). The parent's node_id is the root of every
@@ -129,7 +129,7 @@ steps:
       Capture tissue/compartment + collection_time_point + mass/volume
       + ischemia_time (for fresh tissue) + fixation_method (if applicable).
       For longitudinal designs the time_point field is the disambiguator,
-      not a free-text note. Run tool_wet_lab_sample_lineage_register
+      not a free-text note. Write each split node into the lineage spec
       at the dissection bench; do not batch splits at end-of-day.
 
   - id: log_aliquots
@@ -147,8 +147,8 @@ steps:
   - id: record_readouts
     name: Pin every assay readout to a terminal node
     description: |
-      When an assay completes, call tool_wet_lab_sample_lineage_register
-      with node_type=readout, parent_id = the aliquot that was
+      When an assay completes, record a readout node
+      (node_type=readout), parent_id = the aliquot that was
       consumed (or the split, for non-destructive assays). Capture
       assay_name + assay_date + raw_data_path + analysis_workspace_step.
       The readout node closes the loop — a figure data point cites

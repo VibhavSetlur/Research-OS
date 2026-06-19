@@ -34,7 +34,6 @@ Limitations (also surfaced under `_notes` in the returned payload):
 from __future__ import annotations
 
 import configparser
-import json
 import re
 from pathlib import Path
 from typing import Any
@@ -42,6 +41,8 @@ from typing import Any
 from research_os.adapters import (
     AdapterRegistration,
     AdapterTool,
+    err_envelope as _err,
+    ok_envelope as _ok,
     register_adapter,
 )
 
@@ -130,8 +131,11 @@ def _parse_config(path: Path) -> dict[str, Any]:
         pid = parser["project"].get("id") or parser["project"].get("project")
         if pid:
             pid = pid.strip()
-            if _ENTITY_RE.match(pid):
-                out["project_id"] = pid
+            # fullmatch (not match) so a trailing suffix like "syn123456-old"
+            # is rejected rather than stored verbatim; mirror the tool handler.
+            m_pid = _ENTITY_RE.fullmatch(pid)
+            if m_pid:
+                out["project_id"] = m_pid.group(1)
     # Fall back: scan any section for a synXXXXXXXX value
     if out["project_id"] is None:
         for section in parser.sections():
@@ -250,32 +254,7 @@ def describe() -> dict:
 # ── optional tools ────────────────────────────────────────────────────
 
 
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+# Envelope helpers (_ok / _err) are imported from research_os.adapters.
 
 
 def _handle_entity_info(name: str, arguments: dict, root: Path) -> Any:

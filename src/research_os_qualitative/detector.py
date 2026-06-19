@@ -19,7 +19,11 @@ _IRB_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 _SPEAKER_TURN_RE = re.compile(
-    r"^\s*(?:p\d+|participant|interviewer|i:|p:|r:)\s*[:\.\)]\s*\S",
+    # Single-letter speaker labels (I/P/R) must NOT carry the colon here —
+    # the trailing [:.)] consumes it. Including it (i:|p:|r:) made the
+    # pattern require a *second* delimiter, so "I: ...", "R: ..." (the most
+    # common transcript convention) never matched.
+    r"^\s*(?:p\d+|participant|interviewer|i|p|r)\s*[:\.\)]\s*\S",
     re.IGNORECASE | re.MULTILINE,
 )
 

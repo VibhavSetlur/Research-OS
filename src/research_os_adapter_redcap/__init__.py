@@ -42,14 +42,14 @@ Limitations (also surfaced in the returned payload under ``_notes``):
 from __future__ import annotations
 
 import csv
-import json
-import re
 from pathlib import Path
 from typing import Any
 
 from research_os.adapters import (
     AdapterRegistration,
     AdapterTool,
+    err_envelope as _err,
+    ok_envelope as _ok,
     register_adapter,
 )
 
@@ -74,6 +74,8 @@ _DICT_REQUIRED_COLUMNS = {
     "variable / field name",
     "form name",
 }
+
+
 def _candidate_csvs(root: Path) -> list[Path]:
     """Return CSV files in workspace/ and the project root worth sniffing."""
     csvs: list[Path] = []
@@ -104,7 +106,7 @@ def _candidate_csvs(root: Path) -> list[Path]:
 def _read_header(path: Path) -> list[str] | None:
     """Read just the header row. Return None on any read failure."""
     try:
-        with path.open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+        with path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
             reader = csv.reader(fh)
             return next(reader, None)
     except Exception:
@@ -210,7 +212,7 @@ def _parse_dictionary(path: Path) -> list[dict[str, Any]]:
     """Parse a REDCap data dictionary CSV into per-field metadata."""
     fields: list[dict[str, Any]] = []
     try:
-        with path.open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+        with path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
             reader = csv.DictReader(fh)
             # Build a case-insensitive lookup for column names — REDCap
             # exports vary in capitalisation across versions.
@@ -273,7 +275,7 @@ def _summarise_export(path: Path) -> dict[str, Any]:
     record_ids: set[str] = set()
     columns: list[str] = []
     try:
-        with path.open("r", encoding="utf-8", errors="ignore", newline="") as fh:
+        with path.open("r", encoding="utf-8-sig", errors="ignore", newline="") as fh:
             reader = csv.DictReader(fh)
             if not reader.fieldnames:
                 return {
@@ -454,32 +456,7 @@ def describe() -> dict:
 # ── optional tools ────────────────────────────────────────────────────
 
 
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+# Envelope helpers (_ok / _err) are imported from research_os.adapters.
 
 
 def _render_markdown(payload: dict) -> str:
@@ -594,7 +571,8 @@ def _handle_schema_describe(name: str, arguments: dict, root: Path) -> Any:
 
 
 _TOOLS_MD_PATTERNS = (
-    (re.compile(r"redcap"), "REDCap export present"),
+    # String source (the contract), case-insensitive so "REDCap" matches too.
+    (r"(?i)redcap", "REDCap export present"),
 )
 
 

@@ -1,8 +1,9 @@
 """Qualitative pack tools.
 
-Two tools:
+Three tools:
     * tool_qualitative_codebook_diff       — versioned codebook diff + Cohen's kappa per code
     * tool_qualitative_quote_provenance    — quote → participant ID + timestamp + interview line
+    * tool_qualitative_select_standard     — pick COREQ vs SRQR + copy the checklist template
 """
 from __future__ import annotations
 
@@ -10,21 +11,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from research_os.plugins import register_tool
-
-
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
+from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
 
 
 def _load_codebook(path: Path) -> dict:
@@ -134,7 +121,12 @@ def codebook_diff(name: str, arguments: dict, root: Path) -> Any:
 
     out_dir = root / "workspace" / "codebooks"
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "diff_v1_to_v2.md"
+    # Derive the filename + title from the actual inputs so two different
+    # diffs don't clobber each other (the old hardcoded diff_v1_to_v2.md
+    # overwrote every prior diff and mislabelled the versions).
+    v1_name = Path(arguments["codebook_v1"]).stem
+    v2_name = Path(arguments["codebook_v2"]).stem
+    out_path = out_dir / f"diff_{v1_name}_to_{v2_name}.md"
     added_lines = [f"- `{c}`" for c in added] or ["_(none)_"]
     removed_lines = [f"- `{c}`" for c in removed] or ["_(none)_"]
     renamed_lines = (
@@ -142,7 +134,7 @@ def codebook_diff(name: str, arguments: dict, root: Path) -> Any:
         or ["_(none)_"]
     )
     lines = [
-        "# Codebook diff — v1 → v2",
+        f"# Codebook diff — {v1_name} → {v2_name}",
         "",
         f"- v1: `{arguments['codebook_v1']}` ({len(v1)} codes)",
         f"- v2: `{arguments['codebook_v2']}` ({len(v2)} codes)",
@@ -239,19 +231,6 @@ def quote_provenance(name: str, arguments: dict, root: Path) -> Any:
 
 # ── AUDIT-026: COREQ / SRQR standard selector ────────────────────────
 import shutil as _shutil_audit026  # noqa: E402
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "message": message}, indent=2
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "message": message}, indent=2
-        ))]
 
 
 # Methods that drive the COREQ choice. Anything not in this set defaults

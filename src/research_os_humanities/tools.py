@@ -16,26 +16,10 @@ the pack free of network / OCR dependencies.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from research_os.plugins import register_tool
-
-
-def _ok(data: dict) -> list:
-    """Mirror the core server's `_text(_success(...))` envelope."""
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover - tests use a stub
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
+from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
 
 
 @register_tool(
@@ -162,12 +146,13 @@ def transcribe(name: str, arguments: dict, root: Path) -> Any:
     image_path = (arguments.get("image_path") or "").strip()
     engine = arguments.get("engine") or "manual"
     language = arguments.get("language") or "lat"
+    if not image_path:
+        return _err("image_path is required")
     img_abs = (root / image_path).resolve()
     if not img_abs.exists():
-        return _ok({
-            "status": "warning",
-            "message": f"image_path '{image_path}' does not exist yet; template will reference it anyway.",
-        })
+        # A missing source image is a user-actionable error (matches the
+        # other four packs); don't claim success on a dangling reference.
+        return _err(f"image_path '{image_path}' not found — drop the image first")
     out_dir = root / "workspace" / "transcriptions"
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = img_abs.stem

@@ -89,6 +89,19 @@ the right protocols; details there.
   `decisions/`, `eval/`); route to `build/*`; done = tests/build/eval pass.
 * **exploration** — scratch-first, light gates; promote a probe when it earns it.
 
+## Domain packs & infra adapters
+
+5 bundled **domain packs** (wet_lab, humanities, qualitative, theory_math,
+engineering) add field-specific tools + protocols; 6 **adapters** (slurm,
+snakemake, nextflow, cytoscape, redcap, synapse) auto-extract provenance from
+HPC / workflow / data tooling. All always-loaded — no install.
+`sys_boot.field_signals` + `pack_nudge` flag the pack your inputs match;
+`adapters_detected` lists fired adapters. The core is field-agnostic, so a
+field with NO pack still routes fine (`methodology/deep_domain_research`
+surveys any field's pipeline from the literature). Detail + full list:
+`sys_help(topic='packs')`. Diagnostics: `sys_packs_installed`,
+`tool_adapters_list`.
+
 ## Hard rules (NEVER violate)
 
 1. **`.os_state/` is never hand-edited.** `inputs/` is editable, but
@@ -145,7 +158,7 @@ pass the per-audit override flag + an `override_rationale` (logged to
 | Deeper guidance | `sys_help(topic=…)` — see below |
 
 **`sys_help` topics (load on demand):** `routing`, `iteration`, `overrides`,
-`recovery`, `fields`, `depth`, `anti_patterns`, `docs`, and category
+`recovery`, `fields`, `packs`, `depth`, `anti_patterns`, `docs`, and category
 orientation (`synthesis`, `methodology`, `visualization`, `audit`,
 `literature`, `writing`). Cold start with no context: `sys_help` then
 `sys_help(topic='routing')`.

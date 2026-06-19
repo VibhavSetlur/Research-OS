@@ -17,12 +17,46 @@ ergonomic syntax while the loader merges everything into core
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
 logger = logging.getLogger("research_os.plugins.pack_api")
+
+
+# ── canonical pack envelope helpers ───────────────────────────────────
+# Every pack tool MUST return through these. Historically each of the 5
+# packs copy-pasted its own `_ok`/`_err`, which drifted (different error
+# keys, one pack missing `_err` entirely). One implementation here keeps
+# the five packs byte-identical at the envelope boundary by construction.
+
+
+def _envelope(payload: dict) -> list:
+    text = json.dumps(payload, indent=2, default=str)
+    try:
+        from mcp.types import TextContent
+        return [TextContent(type="text", text=text)]
+    except ImportError:  # pragma: no cover
+        class _Stub:
+            def __init__(self, t: str) -> None:
+                self.type, self.text = "text", t
+        return [_Stub(text)]
+
+
+def pack_ok(data: dict) -> list:
+    """Canonical pack success envelope: ``[{status:success, data}]``.
+
+    Emits the legacy ``{status, data}`` shape; the dispatcher's
+    ``_normalize_envelope`` upgrades it to the v2.1.0 envelope.
+    """
+    return _envelope({"status": "success", "data": data})
+
+
+def pack_err(message: str) -> list:
+    """Canonical pack error envelope: ``[{status:error, error}]``."""
+    return _envelope({"status": "error", "error": str(message)})
 
 
 @dataclass(frozen=True)

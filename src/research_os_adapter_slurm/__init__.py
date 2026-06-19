@@ -25,6 +25,8 @@ from typing import Any
 from research_os.adapters import (
     AdapterRegistration,
     AdapterTool,
+    err_envelope as _err,
+    ok_envelope as _ok,
     register_adapter,
 )
 
@@ -37,7 +39,12 @@ __version__ = "1.8.0"
 
 _SBATCH_RE = re.compile(r"^\s*#\s*SBATCH\b", re.MULTILINE)
 _PBS_RE = re.compile(r"^\s*#\s*PBS\b", re.MULTILINE)
-_INLINE_RE = re.compile(r"\b(?:sbatch|qsub|squeue|qstat)\b")
+# Inline submit at a command position only: line start (indented ok) or
+# after a shell separator / command substitution. Anchoring this way stops
+# `# sbatch …` comments and `echo "submit with sbatch"` from false-firing
+# the adapter on non-HPC projects. Query commands (squeue/qstat) are NOT a
+# submit signal, so they're excluded.
+_INLINE_RE = re.compile(r"(?m)(?:^|[;&|`]|\$\()\s*(?:sbatch|qsub|srun)\b")
 
 
 def _candidate_scripts(root: Path) -> list[Path]:
@@ -67,8 +74,18 @@ def detect(root: Path) -> bool:
 
 
 _DIRECTIVE_RE = re.compile(r"^\s*#\s*(SBATCH|PBS)\s+(.+?)\s*$", re.MULTILINE)
-# --key=value | -k value | --flag
-_KV_RE = re.compile(r"--([A-Za-z][\w-]*)(?:=(\S+))?|(?:^|\s)-([A-Za-z])\s+(\S+)")
+# --key=value | --key value | --flag | -k value. The value form excludes a
+# leading '-' so a bare boolean flag (`--exclusive --next`) doesn't swallow
+# the following option as its value.
+_KV_RE = re.compile(
+    r"--([A-Za-z][\w-]*)(?:[=\s]+([^-\s]\S*))?"
+    r"|(?:^|\s)-([A-Za-z])\s+([^-\s]\S*)"
+)
+# PBS resource lists: `-l nodes=2:ppn=8,walltime=01:00:00`.
+_PBS_L_RE = re.compile(r"-l\s+(\S+)")
+# Resource keys whose value is a colon-chunked spec (nodes=2:ppn=8:gpus=1).
+# walltime / cput etc. keep their HH:MM:SS colons.
+_PBS_NODE_KEYS = {"nodes", "select"}
 
 
 def _parse_directives(text: str) -> tuple[str, dict]:
@@ -78,10 +95,28 @@ def _parse_directives(text: str) -> tuple[str, dict]:
     for m in _DIRECTIVE_RE.finditer(text[:8192]):
         scheduler = "slurm" if m.group(1) == "SBATCH" else "pbs"
         body = m.group(2)
+        # Expand PBS `-l` resource lists first so nodes/ppn/walltime/mem land
+        # directly in kv (the old code dropped all of them into kv['l']).
+        for lm in _PBS_L_RE.finditer(body):
+            for seg in lm.group(1).split(","):
+                if "=" not in seg:
+                    continue
+                k, v = seg.split("=", 1)
+                k, v = k.strip(), v.strip()
+                if k in _PBS_NODE_KEYS and ":" in v:
+                    head, *rest = v.split(":")
+                    kv.setdefault(k, head.strip())
+                    for sub in rest:
+                        if "=" in sub:
+                            sk, sv = sub.split("=", 1)
+                            kv.setdefault(sk.strip(), sv.strip())
+                else:
+                    kv.setdefault(k, v)
         for kvm in _KV_RE.finditer(body):
             if kvm.group(1):
                 kv[kvm.group(1)] = kvm.group(2) or "true"
-            elif kvm.group(3):
+            elif kvm.group(3) and kvm.group(3) != "l":
+                # '-l <list>' already expanded above; skip the raw capture.
                 kv[kvm.group(3)] = kvm.group(4)
     return scheduler, kv
 
@@ -108,19 +143,30 @@ def extract(root: Path, step_id: str | None = None) -> dict:
         if sched != "unknown":
             scheduler = sched
         rel = path.relative_to(root)
+        is_pbs = sched == "pbs"
+        # `-N` is nodes in Slurm but the JOB NAME in PBS — disambiguate by
+        # scheduler instead of blindly aliasing it to nodes (which crashed
+        # the cost estimator on `int('jobname')`).
+        nodes_val = kv.get("nodes") or kv.get("select")
+        if nodes_val is None and not is_pbs:
+            nodes_val = kv.get("N")
+        job_name = (
+            kv.get("job-name") or kv.get("J")
+            or (kv.get("N") if is_pbs else None)
+        )
         jobs.append({
             "script": str(rel),
             "scheduler": sched if sched != "unknown" else scheduler,
             "partition": kv.get("partition") or kv.get("queue") or kv.get("q"),
             "time": kv.get("time") or kv.get("walltime"),
-            "nodes": kv.get("nodes") or kv.get("N"),
+            "nodes": nodes_val,
             "ntasks": kv.get("ntasks") or kv.get("n"),
-            "cpus_per_task": kv.get("cpus-per-task") or kv.get("c"),
-            "mem": kv.get("mem") or kv.get("mem-per-cpu") or kv.get("l"),
+            "cpus_per_task": kv.get("cpus-per-task") or kv.get("c") or kv.get("ppn"),
+            "mem": kv.get("mem") or kv.get("mem-per-cpu") or kv.get("pmem"),
             "gres": kv.get("gres"),
             "output": kv.get("output") or kv.get("o"),
             "error": kv.get("error") or kv.get("e"),
-            "job_name": kv.get("job-name") or kv.get("J") or kv.get("N"),
+            "job_name": job_name,
             "account": kv.get("account") or kv.get("A"),
             "array_spec": kv.get("array"),
             "depends_on": [
@@ -145,34 +191,6 @@ def describe() -> dict:
 
 
 # ── optional tools ────────────────────────────────────────────────────
-
-
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
 
 
 def _handle_job_status(name: str, arguments: dict, root: Path) -> Any:
@@ -213,39 +231,38 @@ def _handle_job_status(name: str, arguments: dict, root: Path) -> Any:
     })
 
 
-def _parse_mem_gb(mem: str | None) -> float:
-    if not mem:
-        return 0.0
-    m = re.match(r"^\s*(\d+(?:\.\d+)?)([KMG]?)\s*$", mem.upper())
-    if not m:
-        return 0.0
-    val = float(m.group(1))
-    unit = m.group(2)
-    if unit == "K":
-        return val / (1024 * 1024)
-    if unit == "M":
-        return val / 1024
-    if unit == "G" or unit == "":
-        return val
-    return val
-
-
 def _parse_time_hours(time_str: str | None) -> float:
+    """Convert a Slurm/PBS walltime string to hours.
+
+    Slurm accepts: ``minutes``, ``minutes:seconds``, ``hours:minutes:seconds``,
+    ``days-hours``, ``days-hours:minutes``, ``days-hours:minutes:seconds``.
+    The dash matters: a bare ``30`` is 30 MINUTES, but the value AFTER a dash
+    is hours-first. The old parser treated bare values as seconds and dropped
+    the days component — both produced large under-estimates.
+    """
     if not time_str:
         return 0.0
-    parts = time_str.split("-", 1)
-    days = 0.0
-    if len(parts) == 2:
-        days = float(parts[0])
-        rest = parts[1]
-    else:
-        rest = parts[0]
-    hms = rest.split(":")
-    hms = [float(p) for p in hms]
-    while len(hms) < 3:
-        hms.insert(0, 0.0)
-    h, m, s = hms[-3], hms[-2], hms[-1]
-    return days * 24 + h + m / 60 + s / 3600
+    s = str(time_str).strip()
+    try:
+        days = 0.0
+        if "-" in s:
+            d, _, s = s.partition("-")
+            days = float(d) if d else 0.0
+            parts = [float(p) for p in s.split(":")] if s else [0.0]
+            while len(parts) < 3:
+                parts.append(0.0)
+            h, m, sec = parts[0], parts[1], parts[2]
+        else:
+            parts = [float(p) for p in s.split(":")]
+            if len(parts) == 1:        # bare minutes
+                h, m, sec = 0.0, parts[0], 0.0
+            elif len(parts) == 2:      # MM:SS
+                h, m, sec = 0.0, parts[0], parts[1]
+            else:                      # HH:MM:SS (extra fields ignored)
+                h, m, sec = parts[0], parts[1], parts[2]
+    except (TypeError, ValueError):
+        return 0.0
+    return days * 24 + h + m / 60 + sec / 3600
 
 
 def _handle_estimate_cost(name: str, arguments: dict, root: Path) -> Any:
@@ -255,7 +272,11 @@ def _handle_estimate_cost(name: str, arguments: dict, root: Path) -> Any:
     total_node_hours = 0.0
     per_job = []
     for j in payload["jobs"]:
-        nodes = int(j.get("nodes") or 1)
+        # Defensive: nodes may be a range ("1-4"), a PBS jobname misread, or
+        # the "true" sentinel from a boolean flag — never crash the estimate.
+        nodes_raw = j.get("nodes")
+        m_nodes = re.search(r"\d+", str(nodes_raw)) if nodes_raw is not None else None
+        nodes = int(m_nodes.group(0)) if m_nodes else 1
         hours = _parse_time_hours(j.get("time"))
         node_hours = nodes * hours
         total_node_hours += node_hours

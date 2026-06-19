@@ -232,4 +232,6 @@ def test_select_standard_rejects_unknown_standard(tmp_path):
     )
     payload = _result_payload(result)
     assert payload["status"] == "error"
-    assert "casp" in payload["message"].lower()
+    # Canonical pack error envelope uses the "error" key (was "message"
+    # before the shared pack_err helper unified it).
+    assert "casp" in payload["error"].lower()

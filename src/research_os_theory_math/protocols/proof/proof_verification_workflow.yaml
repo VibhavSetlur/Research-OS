@@ -134,7 +134,7 @@ steps:
       Check the formal_check_required_when triggers in this
       protocol's quality_bar. If any apply, formalise in Lean
       (theory_math/formal/lean_integration) or Coq (coq_integration).
-      Run tool_theory_lean_check / tool_theory_coq_check.
+      Run tool_theory_math_lean_check / tool_theory_math_coq_check.
       If formal-check is skipped, document WHY in
       `workspace/proofs/<slug>.md` under `## Formal-check waiver`.
 

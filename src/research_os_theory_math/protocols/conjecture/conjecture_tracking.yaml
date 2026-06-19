@@ -24,7 +24,7 @@ description: |
   no one re-reads. The register makes the project's open-problem
   surface inspectable in one place, with provenance for every
   status change. It is not a literature review (use
-  `theory_math/research/literature_survey` for that). It is the
+  `literature/literature_search` for that). It is the
   project's own state-of-play, updated as partial results land.
 
   Treat the register as append-mostly. Notes accumulate; entries
@@ -176,4 +176,4 @@ expected_outputs:
 
 next_protocol: null
 next_protocol_kind: terminal
-on_failure: theory_math/research/literature_survey
+on_failure: literature/literature_search

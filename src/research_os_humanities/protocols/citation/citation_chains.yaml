@@ -97,7 +97,7 @@ steps:
       For each link, the question is the same: who did THIS author
       read, in what edition / translation, and where does the
       target idea appear in their work?
-      Call tool_search and tool_research_assistant with queries
+      Call tool_search with queries
       keyed to the author + the work + the target term, not to
       the modern formulation. Searching for "Aquinas actuality"
       finds tertiary literature; searching for "Aquinas actus
