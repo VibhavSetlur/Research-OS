@@ -6,6 +6,87 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.6] — core bug-sweep + the 3.2.5 deferred items (2026-06-19)
+
+Two halves: (1) the items flagged-but-deferred from 3.2.5, and (2) a deep
+adversarially-verified bug-sweep of the CORE surface (handlers, synthesis,
+audit gates, state/provenance, router internals, exec/data, CLI) that 3.2.5
+didn't touch — 67 confirmed findings, all fixed.
+
+Scoped as a PATCH per maintainer direction (one release). **Note:** this
+release adds genuine new surface — 2 infra adapters, 1 protocol, 2 pack
+tools, new router triggers — which is conventionally MINOR; it's bundled
+under PATCH at the maintainer's request.
+
+### Security
+
+- **Arbitrary code execution fixed in `tool_rmarkdown_render`.** `output_format`
+  + `doc_path` were f-string-interpolated into `Rscript -e "rmarkdown::render(...)"`,
+  so a crafted value could break out and run arbitrary R → shell. Now the R
+  code is fixed and the path + format are passed as `commandArgs` (argv) —
+  injection-proof. Also: `pip install` now has a timeout (could hang the
+  server); `data_convert` no longer overwrites the source in place; typst
+  compile + verify-outputs reject paths escaping the project root.
+
+### Added (the 3.2.5 deferred items)
+
+- **MLflow / Weights & Biases adapter** — detects `mlruns/` / `wandb/` /
+  tracker imports; extracts per-run params / metrics / tags as provenance.
+  Detect+extract only (no new catalog tools). The biggest external-coverage
+  gap (almost all ML/CS research uses a tracker).
+- **Zenodo / OSF / Figshare / Dryad deposit adapter** — DMP-deposit
+  provenance across every field (funder compliance).
+- **`methodology/spatial_analysis` protocol** — the analysis counterpart to
+  map-plotting (CRS, spatial dependence/autocorrelation, spatial-vs-aspatial
+  model choice, MAUP/edge effects, spatial cross-validation); non-prescriptive.
+- **wet_lab `tool_wet_lab_run_log_init` + `tool_wet_lab_checksum_raw`** — the
+  two generic instrument-run-log tools (stub a family run-log; stream-sha256
+  + record a raw file). The 5 instrument-specific QC tools remain a documented
+  manual step (they'd need proprietary-format parsers).
+- 8 adapters now bundled (was 6); 128 protocols (was 127).
+
+### Fixed (core bug-sweep)
+
+- **Envelope conformance.** Broadened `_is_legacy_envelope` so the dispatcher
+  upgrades ANY `{status,…}` handler result lacking `payload` — repaired ~15
+  core tools that leaked non-conformant envelopes. Explicit fixes for what the
+  normalizer can't infer: `tool_step_complete` (overall_status→status, payload
+  preserved), `latex_compile` (no longer reports success on a failed compile),
+  `sys_session_handoff` (wraps its markdown), `path_finalize` (string error,
+  not a dict), and `resolve_gate_strictness` / `dry_run` / `quick_route`
+  (status-less dicts). New **core-handler envelope conformance test** — the
+  gap that let the whole class ship.
+- **Dead dispatch / router drift.** `tool_step(operation='env_lock')` actually
+  runs now (was always "handler not callable"). The anti-one-shot deliverable
+  gate + heavy-step weighting referenced tools removed long ago, so they never
+  fired for Typst deliverables — refreshed to live tools (drift guard added).
+  `_read_model_profile` honours `ai.model_profile`. Override gates require a
+  rationale whenever honoured (not only under `policy=enforce`).
+- **Quality-gate false ship-blocks.** %-claim grounding, cross-deliverable
+  metric/figure consistency, references under any heading depth, Typst
+  word-count, the bare-word "placeholder" blocker, `n=` matching, and
+  URL-literal "hardcoded path" flags — all no longer block valid work.
+- **State / provenance integrity.** Provenance sidecars use the `<stem>`
+  readers expect; ledger mutations are atomic under the lock; `analysis.md`
+  writes atomically; rollback backups are GC-managed; symlink repoints can't
+  drop the link; step regexes handle steps ≥100.
+- **Synthesis.** Typst special chars in title/author/abstract are escaped
+  (compile breakage); commented-out HTML no longer trips the dashboard
+  audit; the offline blocker catches single-quoted external scripts;
+  citation formatters handle dict-shaped authors.
+- **CLI / config.** `sys_config set` no longer strips the 177 inline help
+  comments from `researcher_config.yaml` (ruamel round-trip) + re-locks 0600
+  + coerces list/bool fields; `init` flag fixes (`--name` slug, `--mcp-scope`,
+  `--ide none`). Plus router detector caching, ISO/NULL data previews, and
+  mode-aware errors for `mem_log` / `tool_ground` / `tool_verify`.
+
+### Bumped
+
+- Version 3.2.5 → 3.2.6 across `pyproject.toml`, `__init__.py`, `CITATION.cff`.
+  Router index v29 → v30; `_route_meta.json` + `_embeddings.npz` rebuilt.
+
+---
+
 ## [3.2.5] — pack/adapter robustness + universal-coverage pass (2026-06-19)
 
 A deep audit of the 5 domain packs (humanities, qualitative, theory_math,
