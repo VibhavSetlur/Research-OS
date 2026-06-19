@@ -68,12 +68,11 @@ julia = ["julia"]
 # protocol embeddings ship in the wheel either way.
 semantic = ["fastembed>=0.4"]
 
-# Domain packs — bundled with the core wheel in this release for easy
-# testing; will split into separate PyPI packages
-# (research-os-<pack>) in a future release. The extras are reserved
-# now so downstream users can already opt in via
-# `pip install research-os[<pack>]` without changing the import
-# surface when packs split out.
+# Domain packs — these extras are no-op placeholders today (the packs
+# are bundled with the core wheel and always loaded; nothing extra is
+# installed by `pip install research-os[<pack>]`). The names are
+# reserved for a future PyPI split into separate research-os-<pack>
+# packages.
 humanities = []
 qualitative = []
 theory_math = []
@@ -82,11 +81,12 @@ engineering = []
 # Convenience meta-extra — installs every domain pack at once.
 all_packs = ["research-os[humanities,qualitative,theory_math,wet_lab,engineering]"]
 
-# Infrastructure adapters — bundled with the core wheel in this release.
-# Extras reserved so users can opt in via `pip install research-os[<adapter>]`
-# and split-out third-party adapter packages can later piggyback on the
-# same extra name. The adapters themselves degrade gracefully when their
-# optional system deps (snakemake, nextflow, synapseclient, etc.) are absent.
+# Infrastructure adapters — these extras are no-op placeholders today
+# (the adapters are bundled with the core wheel and always loaded;
+# `pip install research-os[<adapter>]` installs nothing extra). The
+# names are reserved for a future PyPI split. The adapters themselves
+# degrade gracefully when their optional system deps (snakemake,
+# nextflow, synapseclient, etc.) are absent.
 slurm = []
 snakemake = []
 nextflow = []

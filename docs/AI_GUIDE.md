@@ -282,10 +282,11 @@ with:
 * `status` — `live` (default and visible), `alias` (back-compat
   pointer to a consolidated tool), or `deprecated` (callable but
   flagged in `.os_state/deprecations.log`).
-* `pack` — `core` (the always-on tools) or one of `humanities`,
-  `qualitative`, `theory_math`, `wet_lab`, `engineering`, `slurm`,
-  `snakemake`, `nextflow`, `cytoscape`, `redcap`, `synapse` (each
-  pack contributes its own domain tools).
+* `pack` — `core` (the always-on tools) or one of the 5 domain packs
+  (`humanities`, `qualitative`, `theory_math`, `wet_lab`,
+  `engineering`) or the 6 infrastructure adapters (`slurm`,
+  `snakemake`, `nextflow`, `cytoscape`, `redcap`, `synapse`) — 11
+  extension modules in all, each contributing its own tools.
 
 `list_tools` returns only `status='live'`. Aliases + deprecated names
 are still callable but never advertised. When you need a tool you

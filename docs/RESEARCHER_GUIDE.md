@@ -360,7 +360,7 @@ filter by domain / audience / workflow shape.
 | **Synthesis** | The deliverables: paper, abstract, poster, dashboard, slides, grant, report, null-findings companion, lay summary, progress update, handout, cover letter, title workshop, manuscript outline, journal selection, defense prep. |
 | **Audit + reproducibility** | Master quality audit, the final GREEN/YELLOW/RED pre-submission gate, provenance-completeness check, environment snapshot + seed verification. |
 | **build/\*** *(tool_build mode)* | The software-building arc: `spec_and_design` → `implement_iteration` (loop) → `test_strategy` / `benchmark_vs_baseline` → `release_and_changelog`. See [TOOL_BUILDER.md](TOOL_BUILDER.md). |
-| **Pack-loaded** | Installed domain packs add their own protocols under `humanities/`, `qualitative/`, and `theory_math/`. Run `sys_packs_installed` to see which are active; `tool_protocols_list(pack=…)` to filter the catalogue. |
+| **Pack-loaded** | Installed domain packs add their own protocols under `humanities/`, `qualitative/`, `theory_math/`, `wet_lab/`, and `engineering/`. Run `sys_packs_installed` to see which are active; `tool_protocols_list(pack=<name>)` to filter the catalogue (it reports the live per-pack protocol count, so it never goes stale). |
 
 ---
 
@@ -800,9 +800,12 @@ src/research_os/
         │                        #   preview, discussion_from_verdicts, drafter_loops
         └── viz/                 # figures, dashboard_tests
 
-src/research_os_humanities/      # bundled humanities pack (12 protocols + 4 tools)
-src/research_os_qualitative/     # bundled qualitative pack (8 protocols + 3 tools)
-src/research_os_theory_math/     # bundled theory_math pack (16 protocols + 3 tools)
+src/research_os_humanities/      # bundled humanities pack
+src/research_os_qualitative/     # bundled qualitative pack
+src/research_os_theory_math/     # bundled theory_math pack
+src/research_os_wet_lab/         # bundled wet_lab pack
+src/research_os_engineering/     # bundled engineering pack
+                                 #   per-pack protocol/tool counts: tool_protocols_list(pack=<name>)
 
 tests/
 ├── conftest.py                  # isolates each test on tmp_path

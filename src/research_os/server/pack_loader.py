@@ -18,10 +18,11 @@ def _discover_packs_once() -> None:
     """Discover installed protocol packs and merge them into core registries.
 
     Idempotent — safe to call multiple times; subsequent calls reset
-    the plugin loader's state and rediscover. Bundled in-tree packs
-    (humanities, qualitative) ship in this wheel and are loaded
-    unconditionally; external packs come from the
-    `research_os.protocol_pack` entry-point group.
+    the plugin loader's state and rediscover. The bundled in-tree packs
+    in the list below (humanities, qualitative, theory_math, wet_lab,
+    engineering) ship in this wheel and are loaded unconditionally;
+    external packs come from the `research_os.protocol_pack`
+    entry-point group.
     """
     try:
         from research_os.plugins import discover_packs

@@ -153,7 +153,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_cache_clear` | Wipe cached search results (per-provider or older-than-N-days). TTL default 24h (`runtime.cache_ttl_seconds`). |
 | `tool_citations_verify` | Re-verify every `citation_key` in `workspace/citations.md`. |
 | `tool_context_intake` | Route a mid-flow file drop into the right `inputs/` subfolder. Skips scaffold files. |
-| `tool_cytoscape_export_static` | (pack: `cytoscape`) Render a static PNG / SVG snapshot of one or every network embedded in a `.cys` archive. |
+| `tool_cytoscape_export_static` | (adapter: `cytoscape`) Render a static PNG / SVG snapshot of one or every network embedded in a `.cys` archive. |
 | `tool_deprecations_summary` | Listed above (Discovery). |
 | `tool_discussion_coverage_audit` | BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph. |
 | `tool_dry_run` | Listed above (Discovery). |
@@ -171,7 +171,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_list_certifications` | List active researcher self-certifications. |
 | `tool_literature_download` | Save a paper PDF. Pass `step_id='NN_<slug>'` to scope to a step. |
 | `tool_literature_search_and_save` | Search + download top-N PDFs in one shot. |
-| `tool_nextflow_validate` | (pack: `nextflow`) `nextflow run <main.nf> --help`. Surfaces parse / config / DSL syntax issues. |
+| `tool_nextflow_validate` | (adapter: `nextflow`) `nextflow run <main.nf> --help`. Surfaces parse / config / DSL syntax issues. |
 | `tool_notebook_exec` | Run `.ipynb` (`jupyter nbconvert --execute --inplace`). |
 | `tool_null_findings_report` | Assemble a publishable companion document for findings that DIDN'T pan out (anti-file-drawer). |
 | `tool_package_install` | `pip install` + append to per-step `environment/requirements.txt`. |
@@ -188,11 +188,11 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_python_exec` | Run `.py`. |
 | `tool_qualitative_codebook_diff` | (pack: `qualitative`) Diff two versions of a qualitative codebook + optional per-code Cohen's κ from two rounds of applied coding. |
 | `tool_qualitative_quote_provenance` | (pack: `qualitative`) Register a participant quote in `workspace/quotes/registry.jsonl` (participant_id, transcript path, line range, optional timestamp). |
-| `tool_qualitative_select_standard` | (pack: `qualitative`) Select the reporting standard (COREQ / SRQR / CASP / O'Brien & Cook). |
+| `tool_qualitative_select_standard` | (pack: `qualitative`) Select the reporting standard (COREQ / SRQR; `auto` picks COREQ for interview/focus-group studies, SRQR otherwise). |
 | `tool_quick_review` | Stage a critical-appraisal skeleton for someone else's paper. |
 | `tool_quick_route` | Listed above (Discovery). |
 | `tool_r_exec` | Run `.R` (requires `Rscript` on PATH). |
-| `tool_redcap_schema_describe` | (pack: `redcap`) Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/data/redcap_schema.md`. |
+| `tool_redcap_schema_describe` | (adapter: `redcap`) Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/data/redcap_schema.md`. |
 | `tool_redteam_review` | Adversarial review of a deliverable BEFORE peer review. `focus='manuscript'\|'proof'\|'figure'\|'methods'`. |
 | `tool_research_method` | 5-10 academic + web sources on a method; structured report. **Required BEFORE choosing any method.** |
 | `tool_research_tool` | Find candidate libraries / CLIs / websites; tagged installable / api / external / paid. |
@@ -206,18 +206,18 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_semantic_route` | Listed above (Discovery). |
 | `tool_session_resume` | Reconstruct intent + status from logs after any pause / handoff / new chat. |
 | `tool_synthesize_plan` | Inspect workspace + return what's ready to draft (per-section source paths + gaps). Read-only; call before authoring synthesis files. |
-| `tool_slurm_estimate_cost` | (pack: `slurm`) Estimate compute cost from `#SBATCH walltime + nodes × $/node-hour`. |
-| `tool_slurm_fetch` | (pack: `slurm`) Block until a SLURM job finishes; return stdout / stderr paths. |
-| `tool_slurm_job_status` | (pack: `slurm`) Query Slurm (`squeue --json`) or PBS (`qstat -f`) for a job's status. |
-| `tool_slurm_list` | (pack: `slurm`) List every SLURM job submitted from this project. |
-| `tool_slurm_status` | (pack: `slurm`) Live status via `squeue` + finished status via `sacct` for one or all project jobs. |
-| `tool_slurm_submit` | (pack: `slurm`) Submit a `sbatch` script; return `job_id`. |
-| `tool_snakemake_dag_render` | (pack: `snakemake`) Render the workflow DAG to PNG via `snakemake --dag \| dot -Tpng`. Falls back to regex-derived Mermaid. |
-| `tool_snakemake_dryrun` | (pack: `snakemake`) `snakemake --dry-run -s <snakefile>`; status=warning with install hint if missing. |
+| `tool_slurm_estimate_cost` | (adapter: `slurm`) Estimate compute cost from `#SBATCH walltime + nodes × $/node-hour`. |
+| `tool_slurm_fetch` | (adapter: `slurm`) Block until a SLURM job finishes; return stdout / stderr paths. |
+| `tool_slurm_job_status` | (adapter: `slurm`) Query Slurm (`squeue --json`) or PBS (`qstat -f`) for a job's status. |
+| `tool_slurm_list` | (adapter: `slurm`) List every SLURM job submitted from this project. |
+| `tool_slurm_status` | (adapter: `slurm`) Live status via `squeue` + finished status via `sacct` for one or all project jobs. |
+| `tool_slurm_submit` | (adapter: `slurm`) Submit a `sbatch` script; return `job_id`. |
+| `tool_snakemake_dag_render` | (adapter: `snakemake`) Render the workflow DAG to PNG via `snakemake --dag \| dot -Tpng`. Falls back to regex-derived Mermaid. |
+| `tool_snakemake_dryrun` | (adapter: `snakemake`) `snakemake --dry-run -s <snakefile>`; status=warning with install hint if missing. |
 | `tool_state_freshness_check` | Detect stale workspace state (state.json > 30d, citations older than newest PDF, orphan provenance). |
 | `tool_step_complete` | One-call gate for "this step is done." Runs per-step completeness + literature + quality pieces and `tool_path_finalize` if every gate passes. Functionally an alias-superset of `tool_path_finalize` for callers who want a single entrypoint. |
 | `tool_step_literature_list` | List PDFs in one step's `literature/` (or across all steps). |
-| `tool_synapse_entity_info` | (pack: `synapse`) Opt-in live query of a Synapse entity's metadata via `synapseclient` using the project's `.synapseConfig`. |
+| `tool_synapse_entity_info` | (adapter: `synapse`) Opt-in live query of a Synapse entity's metadata via `synapseclient` using the project's `.synapseConfig`. |
 | `tool_synthesis_curate_figures` | Collect each step's focal figure into `synthesis/figures/` with stable ordered names (`fig01_<slug>.png`, …). |
 | `tool_synthesis_preview` | Cheap deterministic dry-run before authoring — predicts word counts, page count, figures, citations, gaps. `mode='diff'` compares against the existing deliverable on disk. |
 | `tool_synthesize_plan` | Inspect available sources; propose section order. |

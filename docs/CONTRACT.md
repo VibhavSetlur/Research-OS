@@ -67,16 +67,18 @@ Every tool definition carries two MAJOR-stable metadata fields:
   pointer) / `deprecated` (callable, telemetry to
   `.os_state/deprecations.log`). `list_tools` returns `status='live'`
   only.
-* `pack` — `core` or one of `humanities`, `qualitative`,
-  `theory_math`, `wet_lab`, `engineering`, `slurm`, `snakemake`,
-  `nextflow`, `cytoscape`, `redcap`, `synapse`. Adding a new pack
-  label is MINOR; renaming or removing an existing one is MAJOR.
+* `pack` — `core` or one of the 5 domain packs (`humanities`,
+  `qualitative`, `theory_math`, `wet_lab`, `engineering`) or the 6
+  infrastructure adapters (`slurm`, `snakemake`, `nextflow`,
+  `cytoscape`, `redcap`, `synapse`). Adding a new pack/adapter label
+  is MINOR; renaming or removing an existing one is MAJOR.
 
 The canonical, machine-readable list is whatever
 `sys_tool_describe`, `tool_tools_list`, and the MCP `tools/list`
-handshake return for the running server — a core set plus
-pack-contributed tools across the 11 packs above. Query the running
-server rather than relying on a hand-maintained count.
+handshake return for the running server — a core set plus tools
+contributed by the 5 domain packs + 6 infrastructure adapters
+(11 extension modules) above. Query the running server rather than
+relying on a hand-maintained count.
 
 ### A.2 Audit-finding JSON schema
 
