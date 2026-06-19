@@ -150,7 +150,7 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
     except TypeError as te:
         msg = str(te)
         # Distinguish "unexpected keyword argument" / "missing required" / other
-        if "unexpected keyword argument" in msg or "missing" in msg and "required" in msg:
+        if "unexpected keyword argument" in msg or ("missing" in msg and "required" in msg):
             return _text(_error(
                 what=f"argument shape mismatch in {name}",
                 why=f"the handler rejected the arguments: {msg}",

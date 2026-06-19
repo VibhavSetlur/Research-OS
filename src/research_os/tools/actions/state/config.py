@@ -629,8 +629,19 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
 
         parts = key.split(".")
         cursor = config
+        # Track scalar intermediates we replace with sections — clobbering
+        # a non-dict node silently discards its value. Distinguish "absent"
+        # (normal nested-key creation) from "present-but-scalar" (data loss)
+        # so we can surface the loss without changing the always-writes
+        # behaviour.
+        clobbered: list[tuple[str, Any]] = []
+        prefix: list[str] = []
         for part in parts[:-1]:
-            if part not in cursor or not isinstance(cursor[part], dict):
+            prefix.append(part)
+            if part in cursor and not isinstance(cursor[part], dict):
+                clobbered.append((".".join(prefix), cursor[part]))
+                cursor[part] = {}
+            elif part not in cursor:
                 cursor[part] = {}
             cursor = cursor[part]
         cursor[parts[-1]] = value
@@ -642,7 +653,13 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
             os.chmod(cfg_path, 0o600)
         except OSError:
             pass
-        return {"status": "success", "key": key, "value": value}
+        result: dict[str, Any] = {"status": "success", "key": key, "value": value}
+        if clobbered:
+            result["warning"] = (
+                "overwrote scalar section value(s): "
+                + "; ".join(f"{p}={old!r}" for p, old in clobbered)
+            )
+        return result
     except Exception as e:
         logger.exception("set_config failed")
         return {"status": "error", "message": str(e)}

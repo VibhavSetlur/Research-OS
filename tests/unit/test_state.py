@@ -135,6 +135,22 @@ def test_ledger_dead_ends_deduplicate(tmp_path):
     assert ledger.get()["dead_ends"] == ["approach_A"]
 
 
+def test_ledger_self_heals_corrupted_state(tmp_path):
+    """E3: a truncated/corrupted state_ledger.json must not crash every
+    state-touching tool. _load() backs the broken file up and reseeds the
+    default state, mirroring tool_workspace_repair."""
+    state_path = tmp_path / ".os_state" / "state_ledger.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text("{ truncated", encoding="utf-8")
+    ledger = ResearchLedger(state_path)
+    s = ledger.get()  # exercises _load() — must not raise JSONDecodeError
+    assert isinstance(s, dict)
+    assert s["current_path"] == "main"  # reseeded defaults
+    backups = list((tmp_path / ".os_state").glob("state_ledger.broken_*.json"))
+    assert len(backups) == 1, "corrupted ledger must be backed up, not deleted"
+    assert backups[0].read_text(encoding="utf-8") == "{ truncated"
+
+
 # ── Checkpoints ────────────────────────────────────────────────────────
 
 

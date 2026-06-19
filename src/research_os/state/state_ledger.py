@@ -47,8 +47,29 @@ class ResearchLedger:
 
     def _load(self) -> dict:
         if self._path.exists():
-            with open(self._path) as f:
-                raw = json.load(f)
+            try:
+                with open(self._path) as f:
+                    raw = json.load(f)
+            except (json.JSONDecodeError, OSError) as e:
+                # Corrupted/truncated ledger (e.g. a crash mid-write on a
+                # non-atomic FS, or a bad manual edit). Back it up and
+                # reseed rather than crashing every state-touching tool —
+                # mirrors tool_workspace_repair's recovery so the hot path
+                # self-heals instead of bricking the whole state layer.
+                try:
+                    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                    backup = self._path.with_suffix(f".broken_{ts}.json")
+                    self._path.rename(backup)
+                    logger.warning(
+                        "state_ledger.json corrupted (%s); backed up to %s, "
+                        "reseeding defaults",
+                        e, backup.name,
+                    )
+                except OSError:
+                    logger.warning(
+                        "state_ledger.json corrupted (%s); reseeding defaults", e
+                    )
+                return self._default_state()
             return self._migrate(raw)
         return self._default_state()
 

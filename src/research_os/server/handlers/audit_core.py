@@ -636,10 +636,27 @@ def _handle_tool_audit_claims(name, arguments, root):
 def _handle_tool_audit_evalue(name, arguments, root):
     from research_os.tools.actions.audit.audit import audit_evalue
 
+    def _num(v):
+        return float(v) if v is not None else None
+
+    # Coerce numeric args at the handler boundary — many MCP/LLM clients
+    # stringify numbers, and compute_evalue does `> 1` / `< 1` comparisons
+    # on the CI bounds. Without this, a stringified ci_lower/ci_upper raises
+    # a raw TypeError out of the dispatcher instead of a clean envelope.
+    try:
+        rr = float(arguments["risk_ratio"])
+        ci_lower = _num(arguments.get("ci_lower"))
+        ci_upper = _num(arguments.get("ci_upper"))
+    except (TypeError, ValueError, KeyError) as e:
+        return _text(_error(
+            "tool_audit(dimension='evalue') needs a numeric risk_ratio "
+            "(and optional numeric ci_lower/ci_upper). "
+            f"Could not parse: {e}. "
+            "NEXT: pass risk_ratio=<float>, e.g. risk_ratio=2.0, "
+            "ci_lower=1.5, ci_upper=2.5."
+        ))
     return _text(_success(audit_evalue(
-        float(arguments["risk_ratio"]), root,
-        ci_lower=arguments.get("ci_lower"),
-        ci_upper=arguments.get("ci_upper"),
+        rr, root, ci_lower=ci_lower, ci_upper=ci_upper,
     )))
 
 

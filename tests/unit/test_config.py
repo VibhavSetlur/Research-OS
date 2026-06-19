@@ -190,3 +190,24 @@ class TestSetConfigSafety:
         set_config("research_goal.output_types", ["poster"], tmp_root)
         cfg = get_config(tmp_root)["config"]
         assert cfg["research_goal"]["output_types"] == ["poster"]
+
+    def test_warns_when_scalar_intermediate_clobbered(self, tmp_root):
+        # E6: setting a nested key over an existing SCALAR intermediate
+        # silently discarded the prior value. The write still happens
+        # (always-writes behaviour preserved) but the loss is surfaced.
+        cfg = tmp_root / "inputs" / "researcher_config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("researcher: somebody\n", encoding="utf-8")
+        res = set_config("researcher.name", "Alice", tmp_root)
+        assert res["status"] == "success"
+        assert "warning" in res
+        assert "somebody" in res["warning"]
+        assert get_config(tmp_root)["config"]["researcher"]["name"] == "Alice"
+
+    def test_no_warning_for_absent_intermediate(self, tmp_root):
+        # Normal nested-key creation (intermediate absent, not scalar)
+        # must NOT emit a clobber warning.
+        self._write_cfg(tmp_root)
+        res = set_config("newsection.field", "value", tmp_root)
+        assert res["status"] == "success"
+        assert "warning" not in res

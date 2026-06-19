@@ -109,7 +109,7 @@ def _handle_sys_state_get(name, arguments, root):
         md_path = root / ".os_state" / "os_state.md"
         if not md_path.exists():
             return _text(_error("os_state.md missing: run a tool that mutates state first."))
-        return _text(_success({"markdown": md_path.read_text()}))
+        return _text(_success({"markdown": md_path.read_text(encoding="utf-8")}))
     # full (lean projection — strip very large fields)
     paths = state.get("paths", {})
     out: dict[str, Any] = {
@@ -141,7 +141,7 @@ def _handle_sys_file_read(name, arguments, root):
         return _text(_error(f"File not found: {arguments['filepath']}"))
     if p.stat().st_size > 50 * 1024 * 1024:
         return _text(_error("File too large (>50 MB). Use tool_data_sample for tabular data."))
-    return _text(_success({"content": p.read_text(errors="replace")}))
+    return _text(_success({"content": p.read_text(encoding="utf-8", errors="replace")}))
 
 
 def _handle_sys_file_write(name, arguments, root):
@@ -189,7 +189,7 @@ def _handle_sys_file_write(name, arguments, root):
         return _text(_error("synthesis/ files exist: pass force=true to overwrite."))
 
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(arguments["content"])
+    p.write_text(arguments["content"], encoding="utf-8")
     if rel.startswith("workspace/"):
         _update_manifest(root)
     payload = {"written": True, "checksum": compute_file_hash(p)}
