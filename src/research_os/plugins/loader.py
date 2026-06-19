@@ -160,6 +160,42 @@ def pack_paper_sections(pack_name: str) -> tuple[str, ...]:
     return _PACK_PAPER_SECTIONS.get(pack_name.lower(), ())
 
 
+def pack_domain_detectors() -> dict[str, Callable[[Path], dict]]:
+    """Map of pack-name → its registered domain_detector callable."""
+    return dict(_PACK_DOMAIN_DETECTORS)
+
+
+def run_pack_domain_detectors(
+    inputs_dir: Path, *, min_confidence: float = 0.4
+) -> list[dict]:
+    """Run every registered pack domain detector against ``inputs_dir``.
+
+    Returns the hits at or above ``min_confidence`` (default 0.4), best
+    first — each ``{pack, confidence, signals}`` (the detector's own shape).
+    sys_boot / tool_route use this to nudge the AI toward a relevant domain
+    pack ("this looks like wet-lab work — the wet_lab pack adds plate-map /
+    reagent tools"). Per-detector exceptions are isolated so one bad detector
+    never blocks the rest. This is the consumer that makes the registered
+    detectors actionable instead of dead.
+    """
+    hits: list[dict] = []
+    for name, detector in _PACK_DOMAIN_DETECTORS.items():
+        try:
+            res = detector(Path(inputs_dir)) or {}
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("domain detector %s failed: %s", name, exc)
+            continue
+        conf = float(res.get("confidence", 0.0) or 0.0)
+        if conf >= min_confidence:
+            hits.append({
+                "pack": res.get("pack", name),
+                "confidence": round(conf, 3),
+                "signals": list(res.get("signals", []))[:6],
+            })
+    hits.sort(key=lambda h: -h["confidence"])
+    return hits
+
+
 # ── internals ─────────────────────────────────────────────────────────
 
 

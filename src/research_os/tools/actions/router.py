@@ -777,6 +777,46 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
         except Exception:
             current_tier = None
 
+        # Extension-surface visibility — the packs/adapters are invisible
+        # otherwise (the AI never learns half the product exists). Surface,
+        # every session: what each loaded pack offers (pack_capabilities),
+        # which pack the project INPUTS actually look like (field_signals +
+        # a one-line pack_nudge, via the now-wired domain detectors), and
+        # which infra adapters fired (adapters_detected).
+        pack_capabilities: list[dict] = []
+        field_signals: list[dict] = []
+        adapters_detected: list[str] = []
+        pack_nudge = ""
+        try:
+            from research_os.plugins import (
+                installed_packs as _ip,
+                run_pack_domain_detectors as _detect,
+            )
+            for p in (_ip() or []):
+                pack_capabilities.append({
+                    "name": p.get("name"),
+                    "summary": (p.get("description") or "")[:140],
+                })
+            field_signals = _detect(root / "inputs")
+            if field_signals:
+                top = field_signals[0]
+                sig = ", ".join(top.get("signals", [])[:2])
+                pack_nudge = (
+                    f"Project inputs look like '{top['pack']}' work ({sig}). "
+                    f"The {top['pack']} pack adds domain tools + protocols — "
+                    f"sys_help(topic='packs'). Core stays field-agnostic regardless."
+                )
+        except Exception as e:
+            logger.debug("pack surface skipped: %s", e)
+        try:
+            from research_os.adapters.runner import list_adapters as _la
+            adapters_detected = [
+                a.get("name") for a in (_la(root).get("adapters") or [])
+                if a.get("detected_in_project")
+            ]
+        except Exception as e:
+            logger.debug("adapter detection skipped: %s", e)
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -809,6 +849,10 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             "dep_inventory": dep_inv,
             "active_plan": active_plan,
             "active_packs": active_packs,
+            "pack_capabilities": pack_capabilities,
+            "pack_nudge": pack_nudge,
+            "field_signals": field_signals,
+            "adapters_detected": adapters_detected,
             "current_tier": current_tier,
             "handoff_recommended": handoff_recommended,
             "handoff_hint": handoff_hint,
@@ -1636,9 +1680,27 @@ def _fallback_response(
         label = data.get("label", cls)
         ex = L1_EXAMPLES.get(cls, "")
         menu_lines.append(f"{cls} — {label}" + (f"  ({ex})" if ex else ""))
+    # Detector-driven pack hint — the no-match case is exactly when a
+    # domain pack is most likely the missing piece.
+    field_signals: list[dict] = []
+    field_hint = ""
+    if root is not None:
+        try:
+            from research_os.plugins import run_pack_domain_detectors
+            field_signals = run_pack_domain_detectors(root / "inputs")
+        except Exception:
+            field_signals = []
+        if field_signals:
+            top = field_signals[0]
+            field_hint = (
+                f"The project inputs look like '{top['pack']}' work — the "
+                f"{top['pack']} pack may carry the right protocol "
+                f"(sys_help(topic='packs'))."
+            )
     return {
         "status": "success",
         "resolved_level": 0,
+        "field_signals": field_signals,
         "intent_class": None,
         "sub_intent": None,
         "primary_protocol": None,
@@ -1663,10 +1725,15 @@ def _fallback_response(
         "why": "No trigger matched any protocol or shortcut.",
         "advice": (
             "Ask the researcher the `ask_user` question, then re-call "
-            "tool_route with their answer. If they're truly unsure, "
-            "suggest sys_help(topic='categories') for the protocol map "
-            "OR sys_protocol_next for the pipeline-recommended next step. "
-            "L1 classes (trigger hints in parens): "
+            "tool_route with their answer. If the prompt names a FIELD the "
+            "menu doesn't obviously cover (economics, geoscience, law, a "
+            "niche subfield), route to methodology/deep_domain_research — it "
+            "surveys that field's canonical pipeline from the literature at "
+            "any depth — or guidance/scope_clarification for a vague ask. "
+            "Otherwise sys_help(topic='categories') maps the protocols and "
+            "sys_protocol_next gives the pipeline-recommended next step. "
+            + (field_hint + " " if field_hint else "")
+            + "L1 classes (trigger hints in parens): "
             + " | ".join(menu_lines)
         ),
         "active_tools": list(_ESSENTIAL_TOOLS),

@@ -28,6 +28,8 @@ from research_os.plugins.loader import (
     installed_packs,
     load_pack_errors,
     pack_paper_sections,
+    pack_domain_detectors,
+    run_pack_domain_detectors,
     PackLoadResult,
 )
 
@@ -43,5 +45,7 @@ __all__ = [
     "installed_packs",
     "load_pack_errors",
     "pack_paper_sections",
+    "pack_domain_detectors",
+    "run_pack_domain_detectors",
     "PackLoadResult",
 ]

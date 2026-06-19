@@ -40,7 +40,7 @@ def _handle_sys_help(name, arguments, root):
         "topics": [
             "synthesis", "methodology", "visualization", "audit",
             "literature", "writing", "routing", "iteration", "overrides",
-            "recovery", "fields", "depth", "categories",
+            "recovery", "fields", "packs", "adapters", "depth", "categories",
             "anti_patterns", "docs", "gates",
         ],
         "hint": "Call sys_help again with topic=<one of topics> for detail.",
@@ -164,12 +164,74 @@ def _handle_sys_help(name, arguments, root):
                 "RuntimeError with 'pip install research-os[all]' instructions."
             ),
         }))
+    if topic in {"packs", "adapters", "domains"}:
+        packs: list[dict] = []
+        adapters: list[dict] = []
+        try:
+            from research_os.plugins import installed_packs
+            packs = [
+                {"name": p["name"], "summary": p.get("description", ""),
+                 "tools": p.get("tool_count", 0)}
+                for p in (installed_packs() or [])
+            ]
+        except Exception:
+            pass
+        try:
+            from research_os.adapters import installed_adapters
+            adapters = [
+                {"name": a["name"], "summary": a.get("description", "")}
+                for a in (installed_adapters() or [])
+            ]
+        except Exception:
+            pass
+        return _text(_success({
+            "what_packs_are": (
+                "Domain PACKS add field-specific tools + protocols on top of the "
+                "field-agnostic core. They're bundled with the wheel + always "
+                "loaded — no install needed (the pyproject extras are reserved "
+                "no-ops). sys_boot.field_signals nudges you to the relevant pack "
+                "from your inputs; routing a domain-specific prompt makes "
+                "tool_route pick the pack protocol."
+            ),
+            "domain_packs": packs,
+            "what_adapters_are": (
+                "Infrastructure ADAPTERS auto-extract provenance from the tools a "
+                "project uses AROUND its code (HPC schedulers, workflow engines, "
+                "data platforms). They detect from the filesystem (no network at "
+                "detect/extract); tool_adapters_list shows which fired; "
+                "tool_adapters_run_all writes provenance YAMLs. Each degrades "
+                "gracefully when its optional system dep is absent."
+            ),
+            "infra_adapters": adapters,
+            "no_pack_for_my_field": (
+                "Most fields need NO pack — the core is field-agnostic and already "
+                "covers clinical / survey / survival / meta-analysis / causal "
+                "inference / timeseries / ablation / simulation (see "
+                "sys_help(topic='fields')). For an unfamiliar field at any depth, "
+                "methodology/deep_domain_research surveys the field's canonical "
+                "pipeline from the literature; guidance/scope_clarification scopes "
+                "a vague ask. Method choices come from tool_research_method, never "
+                "training memory."
+            ),
+            "diagnostics": [
+                "sys_packs_installed — domain packs loaded + versions",
+                "sys_adapters_installed — infra adapters loaded",
+                "tool_adapters_list — which adapters this project triggers",
+            ],
+        }))
     if topic == "fields":
         return _text(_success({
             "principle": (
                 "Research OS is FIELD-AGNOSTIC by design. Protocols name questions and "
                 "grounding sources, not domain-specific methods. Every method choice "
                 "comes from the literature via tool_research_method — never from training memory."
+            ),
+            "domain_packs": (
+                "5 optional domain PACKS add field-specific TOOLS for non-standard "
+                "deliverables (wet_lab, humanities, qualitative, theory_math, "
+                "engineering); 6 infra ADAPTERS auto-extract provenance "
+                "(slurm/snakemake/nextflow/cytoscape/redcap/synapse). For the full "
+                "list + how to use them: sys_help(topic='packs')."
             ),
             "subfield_pipelines": (
                 "For multi-stage canonical pipelines (snRNA-seq, metagenomics, protein "
