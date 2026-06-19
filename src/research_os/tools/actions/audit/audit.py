@@ -14,11 +14,15 @@ from typing import Any
 
 from research_os.tools.actions.audit._base import AuditBase, AuditFinding
 from research_os.tools.actions.audit._paper import (
+    FIGURE_EXTS as _FIGURE_EXTS,
     figure_refs as _resolve_figure_refs,
     has_references as _resolve_has_references,
     has_section as _resolve_has_section,
     is_typst as _is_typst,
     section_body as _resolve_section_body,
+)
+from research_os.tools.actions.audit.content_depth import (
+    _typst_abstract as _resolve_typst_abstract,
 )
 
 logger = logging.getLogger("research_os.tools.audit")
@@ -168,7 +172,7 @@ def audit_synthesis(
                     figures_available.extend(
                         f"workspace/{step_dir.name}/outputs/figures/{p.name}"
                         for p in figs.iterdir()
-                        if p.suffix.lower() in {".png", ".svg"}
+                        if p.suffix.lower() in _FIGURE_EXTS
                     )
         n_available = len(figures_available)
         # Count any workspace figure that's referenced (anywhere) in the paper.
@@ -192,11 +196,9 @@ def audit_synthesis(
         for sec in ("abstract", "introduction", "methods", "results", "discussion"):
             if typst:
                 if sec == "abstract":
-                    am = re.search(
-                        r"abstract\s*:\s*\[(.+?)\]",
-                        text, re.DOTALL | re.IGNORECASE,
-                    )
-                    body = am.group(1) if am else ""
+                    # Depth-matched extraction (the lazy `[(.+?)]` regex
+                    # truncated at the first nested `]`, undercounting words).
+                    body = _resolve_typst_abstract(text)
                 else:
                     body = _resolve_section_body(text, sec, True)
             else:

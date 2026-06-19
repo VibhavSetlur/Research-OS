@@ -185,23 +185,42 @@ def test_figures_consistent_pass(tmp_path: Path):
 
 
 def test_figures_consistent_fail(tmp_path: Path):
-    _make_paper(
-        tmp_path,
-        body=(
-            "# Paper\n\n## Methods\n\n"
-            "![](outputs/fig1.png)\n\n"
-            "![](outputs/fig2.png)\n\n"
-        ),
+    # Corrected contract (AG-3): only figures SHARED by ≥2 deliverables and
+    # missing from a 3rd count, and >1 such gap is a block. Here paper +
+    # slides both carry fig1, fig2, fig3; the poster carries only fig1 →
+    # two shared figures (fig2, fig3) absent from a 3rd deliverable → block.
+    shared_body = (
+        "## Methods\n\n"
+        "![](outputs/fig1.png)\n\n"
+        "![](outputs/fig2.png)\n\n"
+        "![](outputs/fig3.png)\n\n"
     )
-    # Slides only embeds fig1, missing fig2.
-    _make_slides(
-        tmp_path,
-        body="# Slides\n\n![](outputs/fig1.png)\n\n",
-    )
+    _make_paper(tmp_path, body="# Paper\n\n" + shared_body)
+    _make_slides(tmp_path, body="# Slides\n\n" + shared_body)
+    _make_poster(tmp_path, body="# Poster\n\n![](outputs/fig1.png)\n\n")
     r = figures_consistent(tmp_path)
     assert not r["pass"]
     missing = r["details"]["paper_figures_missing_elsewhere"]
-    assert any(m["figure_stem"] == "fig2" for m in missing)
+    stems = {m["figure_stem"] for m in missing}
+    assert {"fig2", "fig3"} <= stems
+    assert r["details"]["shared_figures_missing_count"] >= 2
+
+
+def test_figures_consistent_single_elided_figure_passes(tmp_path: Path):
+    # AG-3: a single shared figure elided from one deliverable is a
+    # warning, not a block — a secondary deliverable may drop one figure.
+    shared_body = (
+        "## Methods\n\n"
+        "![](outputs/fig1.png)\n\n"
+        "![](outputs/fig2.png)\n\n"
+    )
+    _make_paper(tmp_path, body="# Paper\n\n" + shared_body)
+    _make_slides(tmp_path, body="# Slides\n\n" + shared_body)
+    # Poster elides only fig2.
+    _make_poster(tmp_path, body="# Poster\n\n![](outputs/fig1.png)\n\n")
+    r = figures_consistent(tmp_path)
+    assert r["pass"], r["details"]
+    assert r["details"]["shared_figures_missing_count"] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -422,20 +441,31 @@ def test_discovers_typst_paper_and_aligns_figures(tmp_path: Path):
 
 
 def test_typst_paper_figure_missing_elsewhere_flagged(tmp_path: Path):
-    """A figure embedded in the .typ paper but absent from slides is
-    flagged — proving the Typst figure extractor actually feeds the
-    consistency check."""
+    """Figures embedded in the .typ paper AND a poster, but absent from
+    slides, are flagged — proving the Typst figure extractor feeds the
+    consistency check. Per AG-3, >1 shared-but-missing figure is a block;
+    fig2 + fig3 are shared by paper+poster and missing from slides."""
     paper = tmp_path / "synthesis" / "paper.typ"
     paper.parent.mkdir(parents=True, exist_ok=True)
     paper.write_text(
         "#show: template.with(conf(abstract: [x]))\n\n"
         "= Findings\n\n"
         "#figure(image(\"outputs/fig1.png\"), caption: [F1])\n\n"
-        "#figure(image(\"outputs/fig2.png\"), caption: [F2])\n"
+        "#figure(image(\"outputs/fig2.png\"), caption: [F2])\n\n"
+        "#figure(image(\"outputs/fig3.png\"), caption: [F3])\n"
         + _REF_FOOTER
     )
+    # Poster shares fig2 + fig3 with the paper (so they ARE shared figures).
+    _make_poster(
+        tmp_path,
+        body=(
+            "# Poster\n\n![](outputs/fig2.png)\n\n![](outputs/fig3.png)\n\n"
+        ),
+    )
+    # Slides carry only fig1 → fig2 + fig3 absent from a 3rd deliverable.
     _make_slides(tmp_path, body="# Slides\n\n![](outputs/fig1.png)\n\n")
     r = figures_consistent(tmp_path)
     assert not r["pass"]
     missing = r["details"]["paper_figures_missing_elsewhere"]
-    assert any(m["figure_stem"] == "fig2" for m in missing)
+    stems = {m["figure_stem"] for m in missing}
+    assert {"fig2", "fig3"} <= stems

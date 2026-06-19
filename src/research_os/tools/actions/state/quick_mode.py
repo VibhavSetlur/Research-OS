@@ -153,9 +153,11 @@ def promote_to_step(
             "tool": "tool_promote_to_step",
         }
         import json
-        (dest.with_suffix(dest.suffix + ".prov.json")).write_text(
-            json.dumps(prov, indent=2)
-        )
+        # Provenance sidecar uses the STEM (fig.prov.json), matching what
+        # every reader (inventory / audit / RO-Crate) expects — NOT
+        # fig.png.prov.json, which left the record invisible.
+        prov_path = dest.with_name(dest.stem + ".prov.json")
+        prov_path.write_text(json.dumps(prov, indent=2))
         # Minimal conclusions.md.
         # The marker comment makes the step literature-exempt (a promoted
         # scratch probe doesn't owe the per-step literature loop). The
@@ -175,9 +177,7 @@ def promote_to_step(
             "step_id": f"{next_num:02d}_{slug}",
             "step_dir": str(step_dir.relative_to(root)),
             "moved_to": str(dest.relative_to(root)),
-            "provenance_file": str(
-                dest.with_suffix(dest.suffix + ".prov.json").relative_to(root)
-            ),
+            "provenance_file": str(prov_path.relative_to(root)),
             "note": (
                 "Step is literature-exempt by default (marker in "
                 "conclusions.md); delete the marker line if the promoted "

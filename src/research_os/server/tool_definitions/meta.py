@@ -452,8 +452,8 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "sys_checkpoint_create": {
-        "short": "Snapshot the workspace (hardlinked, fast). Use before risky operations.",
-        "description": "Snapshot the current workspace (hardlinked, fast). Returns checkpoint_id.",
+        "short": "Snapshot the workspace (copied snapshot). Use before risky operations.",
+        "description": "Snapshot the current workspace (copied snapshot). Returns checkpoint_id.",
         "category": "checkpoint",
         "inputSchema": {
             "type": "object",

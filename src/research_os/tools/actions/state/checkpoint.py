@@ -1,4 +1,4 @@
-"""Checkpoints — fast hardlinked workspace snapshots managed by ResearchLedger."""
+"""Checkpoints — copied workspace snapshots managed by ResearchLedger."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def create_checkpoint(
     tag: str | None = None,
     keep: int = 5,
 ) -> dict[str, Any]:
-    """Snapshot the workspace via hardlinks and record metadata in state.
+    """Snapshot the workspace (copied files) and record metadata in state.
 
     Parameters
     ----------

@@ -157,7 +157,7 @@ def _handle_sys_help(name, arguments, root):
             },
             "checkpoint_safety": (
                 "sys_checkpoint_create BEFORE risky moves; sys_checkpoint_rollback restores. "
-                "Hardlinked, fast. Always rollback to a checkpoint instead of `git reset --hard`."
+                "Copied snapshot. Always rollback to a checkpoint instead of `git reset --hard`."
             ),
             "missing_dependencies": (
                 "sys_dep_inventory reports what failed to import. Tools that need the missing dep raise "

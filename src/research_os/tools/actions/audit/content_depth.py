@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from research_os.tools.actions.audit._paper import (
+    FIGURE_EXTS,
     has_references,
     is_typst,
     resolve_paper_path,
@@ -286,7 +287,7 @@ def audit_results(text: str, root: Path) -> dict[str, Any]:
             continue
         focal = None
         for f in figs.iterdir():
-            if f.suffix.lower() in {".png", ".pdf", ".svg", ".jpg"}:
+            if f.suffix.lower() in FIGURE_EXTS:
                 focal = f
                 break
         if focal is None:
@@ -375,11 +376,11 @@ def audit_references_present(text: str, typst: bool = False) -> dict[str, Any]:
                 "`#bibliography(...)` directive found."
             )
         return {"blockers": blockers, "warnings": warnings}
-    refs_section_match = re.search(
-        r"^##\s+references\s*\n(.+?)(?=^##\s|\Z)",
-        text, re.MULTILINE | re.DOTALL | re.IGNORECASE,
-    )
-    bib_text = refs_section_match.group(1) if refs_section_match else ""
+    # Match a References heading at ANY depth (# … ######), not just `## `,
+    # and capture its body up to the next same-or-shallower heading. Authors
+    # write `# References` / `### References` too; the old `^##\s+` regex
+    # silently captured an empty body and reported every cited key missing.
+    bib_text = section_body(text, "references", typst=False)
     bib_keys = set(re.findall(r"@?([A-Za-z][\w:.-]+)", bib_text))
     missing = sorted(cited - bib_keys)
     if missing:
