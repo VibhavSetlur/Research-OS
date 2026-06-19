@@ -118,11 +118,11 @@ steps:
     name: Capture the run context while it is still fresh
     description: |
       Open the run log immediately after the instrument finishes,
-      not the next morning. Create the run-log stub yourself at
-      workspace/<step>/runs/<instrument>_<timestamp>.yaml, using the
-      field set for the instrument family (cytometry / qpcr /
-      sequencing / mass_spec / microscopy / plate_reader) and
-      stamping the run timestamp.
+      not the next morning. Call tool_wet_lab_run_log_init with the
+      instrument family (cytometry / qpcr / sequencing / mass_spec /
+      microscopy / plate_reader) — it stubs the family-appropriate
+      field set + capture timestamp at
+      workspace/<step>/runs/<family>_<label>.yaml.
       If the operator is not the person logging (common with shared
       core facilities), capture both: operator_initials + logged_by.
 
@@ -153,8 +153,9 @@ steps:
         raw_file_sha256: <SHA-256 of the file at this moment>
         raw_file_size_bytes: <stat size>
         raw_file_format: <fcs | raw | czi | nd2 | fastq.gz | abi | ...>
-      Compute the SHA-256 yourself (e.g. `sha256sum <file>`) and write
-      it into the log entry — never trust an operator-typed checksum.
+      Use tool_wet_lab_checksum_raw (file_path + run_log_path) — it
+      streams the file, computes the SHA-256, and appends the raw_files
+      entry to the run log. Never trust an operator-typed checksum.
       For multi-file outputs (sequencing run dir, microscopy tile sets,
       multi-position scans), checksum each file AND the directory
       manifest. Store the manifest alongside the run log.
@@ -246,8 +247,8 @@ on_failure: |
   If the raw file is missing or the checksum cannot be computed
   (file locked by instrument software, permissions on instrument
   server, file actively being written): register the run log as
-  status: pending_raw_file with the expected path, and re-compute
-  the SHA-256 (sha256sum) within 24 hours. Do not mark the run
+  status: pending_raw_file with the expected path, and re-run
+  tool_wet_lab_checksum_raw within 24 hours. Do not mark the run
   log complete with a TODO checksum — the audit treats that as a
   hard failure. If the operator cannot be reached for missing
   context (left for the day, off-rotation), log the gap explicitly

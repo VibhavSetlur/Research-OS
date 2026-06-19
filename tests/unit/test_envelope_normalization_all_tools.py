@@ -128,6 +128,8 @@ _STUB_ARGS: dict[str, dict] = {
     "tool_wet_lab_plate_map_render":       {"spec_path": "plate.yaml"},
     "tool_wet_lab_reagent_query":          {"supplier": "neb", "catalog_number": "M0491"},
     "tool_wet_lab_sample_lineage_export":  {"lineage_spec_path": "lineage.yaml"},
+    "tool_wet_lab_run_log_init":           {"instrument_family": "qpcr"},
+    "tool_wet_lab_checksum_raw":           {"file_path": "raw.fcs"},
     "tool_engineering_fmea_render":        {"spec_path": "fmea.yaml"},
     "tool_engineering_fault_tree_render":  {"spec_path": "fta.yaml"},
     "tool_engineering_requirements_matrix": {"spec_path": "req.yaml"},
@@ -190,3 +192,64 @@ def test_pack_tools_present_in_registry():
     names = _all_pack_and_adapter_tools()
     assert "tool_humanities_archive_lookup" in names
     assert "tool_qualitative_codebook_diff" in names
+
+
+# ---------------------------------------------------------------------------
+# env-08 — CORE-handler envelope conformance.
+# The conformance test above only covered pack/adapter tools, so an entire
+# class of core handlers leaked non-v2.1.0 envelopes (bare {status,...} /
+# {status,message} / raw markdown / dict-as-error). This curated set is the
+# core handlers the 3.2.6 audit flagged; dispatching each must yield a
+# conformant envelope (success OR a clean error), never a raw dict/string.
+# ---------------------------------------------------------------------------
+
+_CORE_TOOL_STUBS = {
+    "tool_state_freshness_check": {},
+    "tool_rigor_signals_scan": {},
+    "tool_resolve_gate_strictness": {},
+    "tool_project_tier_strictness": {},
+    "tool_list_certifications": {},
+    "tool_intake_freshness": {},
+    "tool_reliability": {"operation": "report"},
+    "tool_writing_discussion_from_verdicts": {},
+    "tool_discussion_coverage_audit": {},
+    "tool_step_complete": {"step_id": "01_x"},
+    "sys_session_handoff": {},
+    "tool_latex_compile": {},
+    "tool_dry_run": {"protocol_name": "guidance/analysis_plan"},
+    "tool_audit": {"scope": "project", "dimension": "coherence"},
+    "tool_path_finalize": {},
+    # Broader sweep of simple state/meta core handlers to flush out any other
+    # status-less raw-dict returns the normalizer can't classify.
+    "tool_self_certify": {"domain": "stats", "scope": "this project's models",
+                          "rationale": "I hold a doctorate in statistics."},
+    "tool_quick_route": {"prompt": "quick eda"},
+    "tool_promote_to_step": {"scratch_path": "workspace/scratch/x.py", "step_slug": "probe"},
+    "mem_citations_generate": {},
+    "mem_intake_regenerate": {},
+    "sys_dep_inventory": {},
+    "tool_progress_digest": {},
+    "tool_deprecations_summary": {},
+}
+
+
+@pytest.mark.parametrize("tool_name", sorted(_CORE_TOOL_STUBS))
+def test_core_handler_emits_v210_envelope(tool_name, project_root):
+    """Every flagged core handler must emit a conformant v2.1.0 envelope."""
+    from research_os.server.envelopes import REQUIRED_ENVELOPE_KEYS
+
+    if tool_name not in _srv.TOOL_DEFINITIONS:
+        pytest.skip(f"{tool_name} not registered")
+    result = _srv._handle_tool_call(tool_name, _CORE_TOOL_STUBS[tool_name], project_root)
+    env = _envelope(result)
+    missing = REQUIRED_ENVELOPE_KEYS - set(env.keys())
+    assert not missing, (
+        f"{tool_name} envelope missing v2.1.0 fields: {missing} (keys={sorted(env.keys())})"
+    )
+    assert env["status"] in {"success", "warning", "error"}, (
+        f"{tool_name} returned non-standard status {env.get('status')!r}"
+    )
+    if env["status"] == "error":
+        assert isinstance(env.get("error"), str) and env["error"], (
+            f"{tool_name} error envelope must carry a string 'error'"
+        )

@@ -549,12 +549,58 @@ def get_research_config(root: Path) -> dict[str, Any]:
         return {}
 
 
+def _coerce_config_value(key: str, value: Any) -> Any:
+    """Coerce a written value to the type a known field expects.
+
+    The AI / CLI hands set_config strings. Without coercion,
+    ``set research_goal.output_types paper`` stores the STRING
+    ``"paper"`` where a list is expected, and downstream synthesis gates
+    then iterate it character by character. Known list fields parse
+    comma-separated / JSON-array input; known bool fields parse
+    true/false. Non-string values (already typed by a structured caller)
+    pass through untouched.
+    """
+    if key in _LIST_FIELDS:
+        if isinstance(value, list):
+            return value
+        if value is None:
+            return []
+        s = str(value).strip()
+        if not s:
+            return []
+        if s.startswith("["):
+            try:
+                import json
+
+                parsed = json.loads(s)
+                if isinstance(parsed, list):
+                    return [str(x).strip() for x in parsed if str(x).strip()]
+            except (ValueError, TypeError):
+                pass
+        return [part.strip() for part in s.split(",") if part.strip()]
+    if key in _BOOL_FIELDS:
+        if isinstance(value, bool):
+            return value
+        s = str(value).strip().lower()
+        if s in ("true", "yes", "1", "on"):
+            return True
+        if s in ("false", "no", "0", "off"):
+            return False
+    return value
+
+
 def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
     """Set a single config value with dot notation (e.g. researcher.name)."""
     try:
         cfg_path = _config_path(root)
-        config = yaml.safe_load(cfg_path.read_text()) if cfg_path.exists() else {}
+        # Round-trip through ruamel so inline help comments survive an
+        # AI-driven edit (yaml.safe_load + yaml.dump would strip them).
+        config = _load_config_roundtrip(cfg_path) if cfg_path.exists() else {}
         config = config or {}
+
+        # Coerce bare-string writes into the type a known list/bool field
+        # expects (e.g. output_types: "paper" -> ["paper"]).
+        value = _coerce_config_value(key, value)
 
         parts = key.split(".")
         cursor = config
@@ -565,7 +611,12 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
         cursor[parts[-1]] = value
 
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
-        cfg_path.write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
+        _dump_config_roundtrip(cfg_path, config)
+        # Re-lock — the file may carry API keys (matches the sibling writers).
+        try:
+            os.chmod(cfg_path, 0o600)
+        except OSError:
+            pass
         return {"status": "success", "key": key, "value": value}
     except Exception as e:
         logger.exception("set_config failed")
@@ -887,6 +938,14 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
 
 # No bool fields today. Retained for future use.
 _BOOL_FIELDS: tuple[str, ...] = ()
+
+# List-valued fields: a bare-string write here (e.g.
+# `sys_config set research_goal.output_types paper`) must be coerced to
+# a list, otherwise downstream gates iterate the string CHARACTER BY
+# CHARACTER. set_config parses comma-separated / JSON-array input.
+_LIST_FIELDS: tuple[str, ...] = (
+    "research_goal.output_types",
+)
 
 # No numeric synthesis-tier fields today.
 _NUMERIC_FIELDS: tuple[tuple[str, str, float, float], ...] = ()

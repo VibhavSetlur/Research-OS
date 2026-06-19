@@ -2445,7 +2445,7 @@ def _append_project_status_section(root: Path, dest: Path, state: dict) -> None:
             p for p in workspace.iterdir()
             if p.is_dir()
             and not p.name.startswith((".", "_"))
-            and re.match(r"^\d{2}_", p.name)
+            and re.match(r"^\d{2,3}_", p.name)
         )
     if step_dirs:
         lines.append(f"**{len(step_dirs)} analysis step(s) recorded:**")
@@ -2519,7 +2519,7 @@ def regenerate_root_readme(root: Path) -> dict[str, Any]:
             1 for p in workspace.iterdir()
             if p.is_dir()
             and not p.name.startswith((".", "_"))
-            and re.match(r"^\d{2}_", p.name)
+            and re.match(r"^\d{2,3}_", p.name)
         )
     deliverables: list[str] = []
     synth = root / "synthesis"
@@ -3379,7 +3379,13 @@ def create_numbered_experiment(
             pass
 
     if from_step:
-        _link_upstream(resolve_step_dir(workspace, from_step) or (workspace / from_step))
+        # A typo'd from_step previously fell back to (workspace / from_step),
+        # silently materialising a phantom upstream dir + a bogus lineage
+        # edge. Validate it resolves to a real step (mirror branch_of above).
+        from_step_dir = resolve_step_dir(workspace, from_step)
+        if from_step_dir is None:
+            raise ValueError(f"from_step '{from_step}' not found in workspace/")
+        _link_upstream(from_step_dir)
     elif parent_id:
         # Branch steps draw from their parent's output (resolved above,
         # whether the parent is flat or grouped under a PATH container).
@@ -3599,6 +3605,26 @@ def log_decision(
     return {"logged": True, "path": "workspace/analysis.md"}
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Atomic text write: temp file in the same dir + ``os.replace``.
+
+    analysis.md (and the other append-only logs) are rewritten in place by
+    several mutating tools; a bare ``read_text`` → ``write_text`` can lose
+    the file to truncation if a concurrent writer interleaves or the
+    process dies mid-write. Writing to a sibling temp and renaming makes
+    the swap atomic on POSIX."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(tmp_path, str(path))
+    except Exception:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+
 def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
     analysis_path = root / "workspace" / "analysis.md"
     if not analysis_path.exists():
@@ -3612,7 +3638,10 @@ def _update_analysis_mermaid_block(root: Path, mermaid_content: str) -> None:
         return
     end += 3
     new_block = f"```mermaid\n{mermaid_content}\n```"
-    analysis_path.write_text(content[:start] + new_block + content[end:])
+    new_content = content[:start] + new_block + content[end:]
+    if new_content == content:
+        return  # no change → skip the rewrite (avoids needless churn/race)
+    _atomic_write_text(analysis_path, new_content)
 
 
 def _step_purpose(exp_dir: Path, fallback: str) -> str:

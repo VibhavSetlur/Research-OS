@@ -60,7 +60,10 @@ _STUB_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"\blorem ipsum\b", "lorem ipsum"),
     (r"<placeholder", "<placeholder>"),
     (r"\[INSERT[^\]]*\]", "[INSERT…]"),
-    (r"\bplaceholder\b", "placeholder"),
+    # NB: the bare word "placeholder" is intentionally NOT a stub marker —
+    # legitimate prose ("placeholder imputation", "a placeholder variable")
+    # tripped the ship gate. Only the scaffold forms above (``<placeholder``,
+    # ``[INSERT…]``) signal an unfinished section.
 )
 # Authoring HTML comments (Markdown scaffolds leave `<!-- AI: ... -->`).
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)

@@ -15,9 +15,10 @@ import os
 import shutil
 import tempfile
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Iterator, Optional
 
 try:
     import fcntl  # type: ignore[import-untyped]  # POSIX only
@@ -51,49 +52,79 @@ class ResearchLedger:
             return self._migrate(raw)
         return self._default_state()
 
-    def _save(self, data: dict) -> None:
-        """Atomic write: write to temp file, then rename to avoid corruption.
+    @contextmanager
+    def _exclusive_lock(self) -> Iterator[None]:
+        """Hold the advisory ``fcntl.flock`` for the duration of the block.
 
-        Wrapped in an advisory file lock (POSIX ``fcntl.flock``) so two
-        concurrent writers serialise instead of clobbering each other.
-        Windows has no fcntl — there we fall through unlocked (single-user
-        dev environment, the atomic ``os.replace`` is best-effort)."""
+        Used to serialise both the bare atomic write (:meth:`_save`) and
+        the whole load→mutate→save sequence (:meth:`_locked_update`) so
+        two concurrent agents can't clobber each other's changes. Windows
+        has no fcntl — there we fall through unlocked (single-user dev
+        environment, the atomic ``os.replace`` is best-effort)."""
         self._path.parent.mkdir(parents=True, exist_ok=True)
-
         lock_path = self._path.with_suffix(".lock")
         lock_fd: Optional[int] = None
         if fcntl is not None:
             lock_fd = os.open(str(lock_path), os.O_RDWR | os.O_CREAT, 0o600)
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
-
         try:
-            fd, tmp_path = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
-            try:
-                with os.fdopen(fd, "w") as f:
-                    json.dump(data, f, indent=2, default=str, sort_keys=True)
-                os.replace(tmp_path, str(self._path))
-            except Exception:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-                raise
-
-            # v1.3.0: stopped writing the .yaml mirror. STATE.md at the
-            # project root + state_ledger.json are sufficient. The yaml
-            # was duplicate, hard to keep in sync, and contributed to the
-            # .os_state "too many files" friction the user surfaced.
-            # Clean up any stale yaml from a previous Research-OS version.
-            stale_yaml = self._path.with_suffix(".yaml")
-            if stale_yaml.exists():
-                try:
-                    stale_yaml.unlink()
-                except OSError:
-                    pass
+            yield
         finally:
             if lock_fd is not None and fcntl is not None:
                 try:
                     fcntl.flock(lock_fd, fcntl.LOCK_UN)
                 finally:
                     os.close(lock_fd)
+
+    def _write_state_unlocked(self, data: dict) -> None:
+        """Atomic write of the state file. Assumes the caller holds the lock."""
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2, default=str, sort_keys=True)
+            os.replace(tmp_path, str(self._path))
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
+
+        # v1.3.0: stopped writing the .yaml mirror. STATE.md at the
+        # project root + state_ledger.json are sufficient. The yaml
+        # was duplicate, hard to keep in sync, and contributed to the
+        # .os_state "too many files" friction the user surfaced.
+        # Clean up any stale yaml from a previous Research-OS version.
+        stale_yaml = self._path.with_suffix(".yaml")
+        if stale_yaml.exists():
+            try:
+                stale_yaml.unlink()
+            except OSError:
+                pass
+
+    def _save(self, data: dict) -> None:
+        """Atomic write: write to temp file, then rename to avoid corruption.
+
+        Wrapped in an advisory file lock (POSIX ``fcntl.flock``) so two
+        concurrent writers serialise instead of clobbering each other."""
+        with self._exclusive_lock():
+            self._write_state_unlocked(data)
+
+    def _locked_update(self, mutator: "Callable[[dict], None]") -> dict:
+        """Atomic read-modify-write under a single exclusive lock.
+
+        Loads the state, applies ``mutator`` (which edits the dict
+        in-place), stamps ``updated_at``, and writes it back — all while
+        holding the flock, so a concurrent agent's load→mutate→save can't
+        clobber the change. Returns the new state dict.
+
+        ``mutator`` runs INSIDE the lock, so it must not itself call back
+        into a locking method (no nested ``_save`` / ``_locked_update``)."""
+        with self._exclusive_lock():
+            state = self._load()
+            mutator(state)
+            state["updated_at"] = datetime.now(timezone.utc).isoformat()
+            self._write_state_unlocked(state)
+            return state
 
     @staticmethod
     def _default_state() -> dict:
@@ -260,41 +291,38 @@ class ResearchLedger:
         status: str = "testing",
         effect: Optional[float] = None,
     ) -> dict:
-        state = self._load()
-        hypotheses = state.get("active_hypotheses", [])
-        for h in hypotheses:
-            if h["id"] == hypothesis_id:
-                h["status"] = status
-                if effect is not None:
-                    h["effect"] = effect
-                state["updated_at"] = datetime.now(timezone.utc).isoformat()
-                self._save(state)
-                return state
-        hypotheses.append({"id": hypothesis_id, "status": status, "effect": effect})
-        state["active_hypotheses"] = hypotheses
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save(state)
-        return state
+        def _mutate(state: dict) -> None:
+            hypotheses = state.setdefault("active_hypotheses", [])
+            for h in hypotheses:
+                if h["id"] == hypothesis_id:
+                    h["status"] = status
+                    if effect is not None:
+                        h["effect"] = effect
+                    return
+            hypotheses.append(
+                {"id": hypothesis_id, "status": status, "effect": effect}
+            )
+
+        return self._locked_update(_mutate)
 
     def add_dead_end(self, approach: str) -> dict:
-        state = self._load()
-        if approach not in state.get("dead_ends", []):
-            state.setdefault("dead_ends", []).append(approach)
-            state["updated_at"] = datetime.now(timezone.utc).isoformat()
-            self._save(state)
-        return state
+        def _mutate(state: dict) -> None:
+            dead_ends = state.setdefault("dead_ends", [])
+            if approach not in dead_ends:
+                dead_ends.append(approach)
+
+        return self._locked_update(_mutate)
 
     def add_error(self, error: str) -> dict:
-        state = self._load()
-        state.setdefault("errors", []).append(
-            {
-                "message": error,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save(state)
-        return state
+        def _mutate(state: dict) -> None:
+            state.setdefault("errors", []).append(
+                {
+                    "message": error,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
+        return self._locked_update(_mutate)
 
     def track_tokens(self, used: int, limit: Optional[int] = None) -> dict:
         """Deprecated — token_budget removed from state schema in v4.0.
@@ -466,45 +494,49 @@ class ResearchLedger:
         if not dag_path.exists():
             self._init_dag(dag_path)
 
-        with open(dag_path) as f:
-            dag = json.load(f)
+        # Hold the lock across the DAG read-modify-write AND the state stamp
+        # so two concurrent agents adding nodes can't clobber each other's
+        # additions (load→mutate→save was previously unguarded).
+        with self._exclusive_lock():
+            with open(dag_path) as f:
+                dag = json.load(f)
 
-        now = datetime.now(timezone.utc).isoformat()
-        state = self._load()
-        current_path = state.get("current_path", "main")
+            now = datetime.now(timezone.utc).isoformat()
+            state = self._load()
+            current_path = state.get("current_path", "main")
 
-        input_hashes = {}
-        for fp in input_files:
-            p = Path(fp)
-            if p.exists():
-                input_hashes[fp] = self._compute_file_hash(p)
+            input_hashes = {}
+            for fp in input_files:
+                p = Path(fp)
+                if p.exists():
+                    input_hashes[fp] = self._compute_file_hash(p)
 
-        node = {
-            "node_id": node_id,
-            "script_path": script_path,
-            "iteration_id": iteration_id,
-            "path_id": current_path,
-            "depends_on": depends_on or [],
-            "input_files": input_files,
-            "output_files": output_files,
-            "status": status,
-            "timestamp": now,
-            "data_hash_in": input_hashes,
-            "data_hash_out": {},
-        }
+            node = {
+                "node_id": node_id,
+                "script_path": script_path,
+                "iteration_id": iteration_id,
+                "path_id": current_path,
+                "depends_on": depends_on or [],
+                "input_files": input_files,
+                "output_files": output_files,
+                "status": status,
+                "timestamp": now,
+                "data_hash_in": input_hashes,
+                "data_hash_out": {},
+            }
 
-        dag["nodes"][node_id] = node
+            dag["nodes"][node_id] = node
 
-        for dep in depends_on or []:
-            if dep in dag["nodes"]:
-                dag["edges"].append({"from": dep, "to": node_id})
+            for dep in depends_on or []:
+                if dep in dag["nodes"]:
+                    dag["edges"].append({"from": dep, "to": node_id})
 
-        dag["last_updated"] = now
-        self._save_to_path(dag_path, dag)
+            dag["last_updated"] = now
+            self._save_to_path(dag_path, dag)
 
-        # Don't persist execution_dag_path (a constant) — just stamp updated_at.
-        state["updated_at"] = now
-        self._save(state)
+            # Don't persist execution_dag_path (a constant) — just stamp updated_at.
+            state["updated_at"] = now
+            self._write_state_unlocked(state)
 
         return state
 
@@ -514,22 +546,25 @@ class ResearchLedger:
         if not dag_path.exists():
             return self._load()
 
-        with open(dag_path) as f:
-            dag = json.load(f)
+        # Lock across the DAG read-modify-write so a concurrent add_dag_node
+        # (which also rewrites the DAG file) can't be clobbered.
+        with self._exclusive_lock():
+            with open(dag_path) as f:
+                dag = json.load(f)
 
-        if node_id not in dag["nodes"]:
-            return self._load()
+            if node_id not in dag["nodes"]:
+                return self._load()
 
-        node = dag["nodes"][node_id]
-        output_hashes = {}
-        for fp in node.get("output_files", []):
-            p = Path(fp)
-            if p.exists():
-                output_hashes[fp] = self._compute_file_hash(p)
+            node = dag["nodes"][node_id]
+            output_hashes = {}
+            for fp in node.get("output_files", []):
+                p = Path(fp)
+                if p.exists():
+                    output_hashes[fp] = self._compute_file_hash(p)
 
-        node["data_hash_out"] = output_hashes
-        dag["last_updated"] = datetime.now(timezone.utc).isoformat()
-        self._save_to_path(dag_path, dag)
+            node["data_hash_out"] = output_hashes
+            dag["last_updated"] = datetime.now(timezone.utc).isoformat()
+            self._save_to_path(dag_path, dag)
 
         return self._load()
 
@@ -781,6 +816,26 @@ class ResearchLedger:
                 dest = backup_dir / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dest)
+
+        # Write a .meta.json sidecar (untagged) so the existing checkpoint GC
+        # (_prune_old_checkpoints, which scans *.meta.json) manages these
+        # pre-rollback backups too. Without it, the full copies accumulated
+        # forever — the GC never saw them.
+        try:
+            backup_meta = backup_dir.with_name(f"{backup_id}.meta.json")
+            backup_meta.write_text(
+                json.dumps(
+                    {
+                        "checkpoint_id": backup_id,
+                        "kind": "pre_rollback",
+                        "rolled_back_to": checkpoint_id,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                    indent=2,
+                )
+            )
+        except OSError:
+            pass
 
         # Restore from checkpoint
         manifest: list[dict] = json.loads(manifest_path_ckpt.read_text())

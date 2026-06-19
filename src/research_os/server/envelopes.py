@@ -373,15 +373,20 @@ REQUIRED_ENVELOPE_KEYS: frozenset[str] = frozenset({
 
 
 def _is_legacy_envelope(env: dict) -> bool:
-    """Detect the legacy `{status, data, [error]}` shape used by packs/adapters.
+    """Detect a legacy envelope — any `{status, ...}` dict lacking `payload`.
 
-    A v2.1.0 envelope always carries `payload`; legacy envelopes do not.
+    A v2.1.0 envelope always carries `payload`. Anything else with a
+    top-level `status` is legacy and gets upgraded: not just the
+    `{status, data}` / `{status, error}` pack shape, but also the bare
+    `{status, ...}` and `{status, message}` shapes the core action layer
+    emits (which were previously leaking un-upgraded). `_upgrade_legacy_
+    envelope` already handles every one of those branches.
     """
     if not isinstance(env, dict):
         return False
     if "payload" in env:
         return False
-    return "status" in env and ("data" in env or "error" in env)
+    return "status" in env
 
 
 def _upgrade_legacy_envelope(env: dict) -> dict:

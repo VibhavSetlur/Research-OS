@@ -39,19 +39,28 @@ __all__ = [
 ]
 
 def _handle_mem_analysis_log(name, arguments, root):
+    entry = arguments.get("entry")
+    if not entry:
+        return _text(_error(
+            "mem_log kind='analysis' requires entry= (the analysis note to log)."
+        ))
     log_path = root / "workspace" / "analysis.md"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with open(log_path, "a") as f:
-        f.write(f"[{now_iso()}] {arguments['entry']}\n")
+        f.write(f"[{now_iso()}] {entry}\n")
     _update_workflow_mermaid(root)
     return _text(_success({"logged": True, "path": "workspace/analysis.md"}))
 
 
 def _handle_mem_methods_append(name, arguments, root):
+    method = arguments.get("method")
+    if not method:
+        return _text(_error(
+            "mem_log kind='methods' requires method= (the method or step description)."
+        ))
     m_path = root / "workspace" / "methods.md"
     m_path.parent.mkdir(parents=True, exist_ok=True)
     ts = now_iso()
-    method = arguments["method"]
     if len(arguments) == 1:
         line = f"- {method}\n"
     else:
@@ -79,12 +88,20 @@ def _handle_mem_methods_append(name, arguments, root):
 
 
 def _handle_mem_decision_log(name, arguments, root):
-    res = log_decision(
-        arguments["context"],
-        arguments["selected"],
-        arguments["rationale"],
-        root=root,
-    )
+    context = arguments.get("context")
+    selected = arguments.get("selected")
+    rationale = arguments.get("rationale")
+    missing = [k for k, v in (
+        ("context", context), ("selected", selected), ("rationale", rationale),
+    ) if not v]
+    if missing:
+        return _text(_error(
+            "mem_log kind='decision' requires "
+            + ", ".join(f"{k}=" for k in missing)
+            + " (context = the choice point, selected = what you chose, "
+            "rationale = why)."
+        ))
+    res = log_decision(context, selected, rationale, root=root)
     return _text(_success(res))
 
 
@@ -146,11 +163,20 @@ def _handle_tool_thought(name, arguments, root):
 def _handle_tool_grounding_register(name, arguments, root):
     from research_os.tools.actions.research.grounding import grounding_register
 
+    claim = arguments.get("claim")
+    sources = arguments.get("sources")
+    if not claim:
+        return _text(_error("tool_ground requires claim= (the statement to ground)."))
+    if not sources:
+        return _text(_error(
+            "tool_ground mode='explicit' requires sources= "
+            "(the list of supporting sources)."
+        ))
     res = grounding_register(
         root,
         decision_id=arguments.get("decision_id"),
-        claim=arguments["claim"],
-        sources=arguments["sources"],
+        claim=claim,
+        sources=sources,
         step_id=arguments.get("step_id"),
         confidence=arguments.get("confidence", "medium"),
         notes=arguments.get("notes", ""),
@@ -163,11 +189,20 @@ def _handle_tool_grounding_register(name, arguments, root):
 def _handle_tool_ground_from_context(name, arguments, root):
     from research_os.tools.actions.research.grounding import ground_from_context
 
+    claim = arguments.get("claim")
+    context_paths = arguments.get("context_paths")
+    if not claim:
+        return _text(_error("tool_ground requires claim= (the statement to ground)."))
+    if not context_paths:
+        return _text(_error(
+            "tool_ground mode='from_context' requires context_paths= "
+            "(the workspace paths the claim is grounded in)."
+        ))
     res = ground_from_context(
         root,
         decision_id=arguments.get("decision_id"),
-        claim=arguments["claim"],
-        context_paths=arguments["context_paths"],
+        claim=claim,
+        context_paths=context_paths,
         cited_excerpts=arguments.get("cited_excerpts"),
         confidence=arguments.get("confidence", "medium"),
     )
@@ -179,10 +214,21 @@ def _handle_tool_ground_from_context(name, arguments, root):
 def _handle_tool_claim_verify(name, arguments, root):
     from research_os.tools.actions.research.grounding import claim_verify
 
+    claim = arguments.get("claim")
+    verifications = arguments.get("verifications")
+    if not claim:
+        return _text(_error(
+            "tool_verify scope='claim' requires claim= (the claim to verify)."
+        ))
+    if not verifications:
+        return _text(_error(
+            "tool_verify scope='claim' requires verifications= "
+            "(the list of {question, answer, supports, evidence} checks)."
+        ))
     res = claim_verify(
         root,
-        claim=arguments["claim"],
-        verifications=arguments["verifications"],
+        claim=claim,
+        verifications=verifications,
         decision_id=arguments.get("decision_id"),
         step_id=arguments.get("step_id"),
     )

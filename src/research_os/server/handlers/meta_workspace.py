@@ -337,10 +337,18 @@ def _handle_tool_path_finalize(name, arguments, root):
             "override_literature_gate=true + override_rationale=... to "
             "proceed. See workspace/logs/step_literature_audit.md."
         )
-        return _text(_error({
-            "message": msg,
-            "literature_audit": lit_audit,
-        }))
+        # Pass a STRING message (a dict here made envelope.error a dict);
+        # stash the audit detail in the payload (env-04).
+        env = _error(
+            what=msg,
+            why="the step literature gate has unresolved blocker(s)",
+            next_action=(
+                "run research/literature_per_step OR pass "
+                "override_literature_gate=true + override_rationale=..."
+            ),
+        )
+        env["payload"]["literature_audit"] = lit_audit
+        return _text(env)
 
     res = finalize_path(arguments.get("path_name"), root)
     if isinstance(res, dict):

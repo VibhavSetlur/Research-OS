@@ -408,3 +408,59 @@ def test_synthesis_check_envelope_includes_intent_gate(tmp_path: Path):
     assert res["intent_gate"]["verdict"] == "ask"
     # Warning surfaces the mismatch in human-readable form.
     assert any("dashboard" in w for w in res.get("warnings", []))
+
+
+# ── SYN-2 / SYN-3 / SYN-8: dashboard scan correctness ────────────────
+
+
+def test_check_dashboard_ignores_commented_markup(tmp_path: Path):
+    """Markup inside <!-- ... --> is inert and must not trip the
+    alt-text / <section> / placeholder scans (the bundled scaffold
+    otherwise blocks its own audit). (SYN-2)"""
+    html = (
+        "<html><body>\n"
+        "<!-- <img src=x.png>  TODO: fix  <section>no id</section> -->\n"
+        "<h1>Headline finding</h1>\n"
+        "<h2>A</h2><h2>B</h2>\n"
+        '<img src="real.png" alt="a real image">\n'
+        '<section id="hero">The finding: 42% lift over baseline.</section>\n'
+        "</body></html>"
+    )
+    res = _check_dashboard(html, tmp_path)
+    assert res["blockers"] == [], res["blockers"]
+
+
+def test_check_dashboard_blocks_single_quoted_external_script(tmp_path: Path):
+    """A single-quoted external <script src='https://...'> must still be
+    caught as an offline-invariant violation. (SYN-3)"""
+    html = (
+        "<html><head>"
+        "<script src='https://cdn.example.com/x.js'></script>"
+        "</head><body><h1>x</h1></body></html>"
+    )
+    res = _check_dashboard(html, tmp_path)
+    assert any(
+        "offline" in b.lower() or "external script" in b.lower()
+        for b in res["blockers"]
+    ), res["blockers"]
+
+
+def test_check_dashboard_data_alt_does_not_satisfy_alt(tmp_path: Path):
+    """`data-alt=` must NOT satisfy the alt-text requirement. (SYN-8)"""
+    html = (
+        "<html><body><h1>x</h1><h2>a</h2><h2>b</h2>"
+        '<img src="z.png" data-alt="nope">'
+        '<section id="hero">finding 42%</section></body></html>'
+    )
+    res = _check_dashboard(html, tmp_path)
+    assert any("alt text" in b.lower() for b in res["blockers"]), res["blockers"]
+
+
+def test_check_dashboard_real_alt_satisfies(tmp_path: Path):
+    html = (
+        "<html><body><h1>x</h1><h2>a</h2><h2>b</h2>"
+        '<img src="z.png" alt="a described image">'
+        '<section id="hero">finding 42%</section></body></html>'
+    )
+    res = _check_dashboard(html, tmp_path)
+    assert not any("alt text" in b.lower() for b in res["blockers"]), res["blockers"]

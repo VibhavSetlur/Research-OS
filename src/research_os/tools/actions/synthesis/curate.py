@@ -211,8 +211,10 @@ def audit_figure_coverage(root: Path) -> dict[str, Any]:
         else:
             uncited.append(str(fig.relative_to(root)))
 
+    # Figure coverage is a warning-only audit: uncited figures are
+    # advisory, never a hard gate. (`blockers` stays an empty list for
+    # report-shape compatibility with the audit aggregator.)
     warnings: list[str] = []
-    blockers: list[str] = []
     if uncited and not body_text:
         warnings.append(
             f"{len(uncited)} curated figure(s) but no synthesis file authored yet."
@@ -224,11 +226,11 @@ def audit_figure_coverage(root: Path) -> dict[str, Any]:
         )
 
     return {
-        "status": "error" if blockers else "success",
+        "status": "success",
         "checked": len(curated),
         "embedded": embedded,
         "orphans": [],
         "uncited": uncited,
-        "blockers": blockers,
+        "blockers": [],
         "warnings": warnings,
     }

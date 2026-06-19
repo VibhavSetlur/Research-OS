@@ -277,9 +277,18 @@ _STYLE_BODY_RE = re.compile(
     r"<style\b[^>]*>.*?</style[^>]*>",
     re.DOTALL | re.I,
 )
+# HTML comments: `<!-- ... -->`. Commented-out markup is inert and must
+# not be counted by the alt-text / `<section>` / placeholder scans (the
+# bundled dashboard scaffold otherwise trips its own audit).
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _strip_html_comments(text: str) -> str:
+    return _HTML_COMMENT_RE.sub("", text)
 
 
 def _strip_script_style(text: str) -> str:
+    text = _strip_html_comments(text)
     text = _SCRIPT_BODY_RE.sub("", text)
     text = _STYLE_BODY_RE.sub("", text)
     return text
@@ -290,22 +299,28 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
     warnings: list[str] = []
     visible = _strip_script_style(text)
     byte_count = len(text)
+    # Structural scans ignore commented-out markup — a `<section>` or
+    # `<img>` inside `<!-- ... -->` is inert and must not be counted.
+    scan_text = _strip_html_comments(text)
 
-    # Engineering invariant: offline (no http: scripts/links).
-    if re.search(r'<script[^>]+src\s*=\s*"http', text, re.I):
+    # Engineering invariant: offline (no http: scripts/links). Match
+    # either quote form so a single-quoted external src/href can't slip
+    # through and silently break the dashboard offline.
+    if re.search(r'<script[^>]+src\s*=\s*["\']https?:', scan_text, re.I):
         blockers.append("Dashboard loads external script(s). Must be offline.")
-    if re.search(r'<link[^>]+href\s*=\s*"http', text, re.I):
+    if re.search(r'<link[^>]+href\s*=\s*["\']https?:', scan_text, re.I):
         warnings.append("Dashboard references external stylesheet(s).")
-    # Accessibility: alt-text on every image.
-    imgs = re.findall(r"<img[^>]+>", text, re.I)
-    missing_alt = [i for i in imgs if not re.search(r'\balt\s*=\s*["\']', i)]
+    # Accessibility: alt-text on every image. The lookbehind keeps
+    # `data-alt=` from satisfying the check.
+    imgs = re.findall(r"<img[^>]+>", scan_text, re.I)
+    missing_alt = [i for i in imgs if not re.search(r'(?<![\w-])alt\s*=\s*["\']', i)]
     if missing_alt:
         blockers.append(
             f"{len(missing_alt)}/{len(imgs)} <img> tag(s) missing alt text. "
             "Every image needs alt text for accessibility."
         )
     # Semantic structure: every <section> has an id.
-    sections = re.findall(r"<section[^>]*>", text, re.I)
+    sections = re.findall(r"<section[^>]*>", scan_text, re.I)
     sections_no_id = [s for s in sections if not re.search(r'\bid\s*=\s*["\']', s)]
     if sections_no_id and len(sections_no_id) >= 2:
         warnings.append(
@@ -313,8 +328,8 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
             "Add ids so anchors and TOCs work."
         )
     # Headings: at least one h1 and the structure isn't flat.
-    h1s = re.findall(r"<h1\b", text, re.I)
-    h2s = re.findall(r"<h2\b", text, re.I)
+    h1s = re.findall(r"<h1\b", scan_text, re.I)
+    h2s = re.findall(r"<h2\b", scan_text, re.I)
     if len(h1s) == 0:
         warnings.append("Dashboard has no <h1>. Add a top-level heading.")
     if len(h2s) < 2:
@@ -336,7 +351,7 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
             f"(e.g. {tokens[0]!r}). These look like un-substituted templates."
         )
     # Directory-dump headings — the fingerprint of auto-generated trash.
-    dir_dump = _DIR_DUMP_HEADING_RE.findall(text)
+    dir_dump = _DIR_DUMP_HEADING_RE.findall(scan_text)
     if dir_dump:
         blockers.append(
             f"Dashboard has {len(dir_dump)} heading(s) that are raw workspace "
@@ -347,7 +362,7 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
     # is the bookkeeping-leak structure synthesis_dashboard explicitly
     # forbids. Tolerate 3 (a comparison block referencing specific
     # steps is fine); reject more.
-    step_headings = _STEP_HEADING_RE.findall(text)
+    step_headings = _STEP_HEADING_RE.findall(scan_text)
     if len(step_headings) >= 4:
         blockers.append(
             f"Dashboard has {len(step_headings)} 'Step NN' section headings. "
@@ -367,10 +382,10 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
     # top-line finding. Look for a heading or a section id containing
     # one of the hero hints.
     headings_lower = [
-        m.lower() for m in _HERO_HEADING_RE.findall(text)
+        m.lower() for m in _HERO_HEADING_RE.findall(scan_text)
     ]
     section_ids_lower = [
-        m.lower() for m in _HERO_SECTION_ID_RE.findall(text)
+        m.lower() for m in _HERO_SECTION_ID_RE.findall(scan_text)
     ]
     has_hero = any(
         any(hint in h for hint in _HERO_HINTS) for h in headings_lower

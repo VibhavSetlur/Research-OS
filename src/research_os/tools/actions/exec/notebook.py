@@ -235,7 +235,13 @@ def render_rmarkdown(doc_path: str, root: Path, *, output_format: str = "html_do
         cmd = [
             "Rscript",
             "-e",
-            f"rmarkdown::render('{p}', output_format='{output_format}')",
+            # FIXED R code; the path + output_format are passed as argv
+            # (commandArgs) NOT interpolated into the code, so a crafted
+            # doc_path / output_format cannot break out of render(...) and
+            # execute arbitrary R -> shell. render() validates the format.
+            "rmarkdown::render(commandArgs(TRUE)[1], output_format=commandArgs(TRUE)[2])",
+            str(p),
+            output_format,
         ]
     else:
         return {"status": "error", "message": f"Expected .Rmd or .qmd, got {ext}"}

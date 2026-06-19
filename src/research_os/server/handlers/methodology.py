@@ -7,6 +7,10 @@ where it is merged into the canonical _HANDLERS map.
 from __future__ import annotations
 
 from .._handlers_runtime import *  # noqa: F401,F403
+# env_lock's handler lives in meta_routing, but the tool_step dispatcher
+# resolves operations via this module's globals() — so it must be importable
+# here or operation='env_lock' silently fails "handler not callable" (F1).
+from .meta_routing import _handle_tool_step_env_lock  # noqa: F401
 
 __all__ = [
     "_handle_tool_plan_advance",
@@ -47,9 +51,17 @@ def _handle_tool_plan_advance(name, arguments, root):
     from research_os.tools.actions.router import advance_plan
 
     override = bool(arguments.get("override_gate", False))
-    # if researcher passed an override + rationale, the rationale
-    # must be substantive (>=20 chars, multi-word, not a placeholder).
     raw_rationale = arguments.get("override_rationale")
+    # A bypass is applied + logged whenever override_gate=true, so the
+    # rationale is required whenever it's honoured (not just under
+    # policy=enforce) — else the override slips through logging rationale=None.
+    if override and not (raw_rationale and str(raw_rationale).strip()):
+        return _text(_error(
+            what="override_gate=true requires override_rationale",
+            why="an un-rationaled bypass would log rationale=None and slip past the pre-submission audit",
+            next_action='pass override_rationale="..." (>=20 chars, multi-word, substantive)',
+        ))
+    # The rationale must be substantive (>=20 chars, multi-word, not a placeholder).
     if override and raw_rationale:
         thin = validate_override_rationale(raw_rationale)
         if thin is not None:
@@ -401,8 +413,14 @@ def _handle_mem_hypothesis_add(name, arguments, root):
 def _handle_mem_hypothesis_update(name, arguments, root):
     from research_os.tools.actions.memory.memory import hypothesis_update
 
+    hypothesis_id = arguments.get("hypothesis_id")
+    if not hypothesis_id:
+        return _text(_error(
+            "mem_log kind='hypothesis' requires hypothesis_id= "
+            "(e.g. 'H1') to update an existing hypothesis."
+        ))
     res = hypothesis_update(
-        arguments["hypothesis_id"],
+        hypothesis_id,
         root,
         status=arguments.get("status"),
         evidence=arguments.get("evidence"),

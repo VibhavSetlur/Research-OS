@@ -278,7 +278,7 @@ def test_plan_turn_small_model_one_step_per_turn(tmp_path):
     scaffold_minimal_workspace(tmp_path, "PlanTurn Small")
     cfg_path = tmp_path / "inputs" / "researcher_config.yaml"
     cfg = _yaml.safe_load(cfg_path.read_text()) or {}
-    cfg["model_profile"] = "small"
+    cfg.setdefault("ai", {})["model_profile"] = "small"  # canonical location
     cfg_path.write_text(_yaml.dump(cfg, sort_keys=False))
 
     prompt = (
@@ -748,7 +748,7 @@ def test_plan_turn_recommends_chat_split_when_long(tmp_path):
     # Tiny budget + long plan → chat split should be recommended.
     cfg_path = tmp_path / "inputs" / "researcher_config.yaml"
     cfg = _yaml.safe_load(cfg_path.read_text()) or {}
-    cfg["model_profile"] = "small"
+    cfg.setdefault("ai", {})["model_profile"] = "small"  # canonical location
     cfg_path.write_text(_yaml.dump(cfg, sort_keys=False))
 
     # Manually persist a long fake active plan.

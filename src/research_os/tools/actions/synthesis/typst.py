@@ -77,6 +77,23 @@ CITATION_STYLE_TO_TYPST = {
 # ---------------------------------------------------------------------------
 
 
+_TYPST_SPECIALS = "\\#$*_@<>[]`~"
+_TYPST_ESCAPE_RE = re.compile("([" + re.escape(_TYPST_SPECIALS) + "])")
+
+
+def _typst_escape(text: str) -> str:
+    """Backslash-escape Typst markup specials for safe insertion into a
+    content block (``[...]``).
+
+    Title / author / affiliation / abstract values are dropped verbatim
+    into ``#show: venue.with(title: [...], ...)`` content blocks. A raw
+    ``$ # % @ _ *`` or an unbalanced ``[ ]`` there breaks compilation
+    with a cryptic .typ error, so every Typst markup special is
+    backslash-escaped here (matching how the body escapes specials).
+    """
+    return _TYPST_ESCAPE_RE.sub(r"\\\1", text)
+
+
 def _inline_md_to_typst(text: str) -> str:
     """Convert inline markdown constructs in a single paragraph.
 
@@ -321,10 +338,13 @@ def md_to_typst(markdown_text: str, venue_template: str = "generic_two_column",
 
     body = "\n".join(body_buf).rstrip() + "\n"
 
-    title_arg = title or "Untitled"
-    authors_arg = authors_raw or "Anonymous"
-    affiliations_arg = affiliations_raw or ""
-    abstract_arg = abstract or ""
+    # Escape Typst markup specials — these values land RAW inside `[...]`
+    # content blocks, so an unescaped `$ # @ _ *` or unbalanced `[ ]`
+    # breaks compilation with a cryptic .typ error.
+    title_arg = _typst_escape(title or "Untitled")
+    authors_arg = _typst_escape(authors_raw or "Anonymous")
+    affiliations_arg = _typst_escape(affiliations_raw or "")
+    abstract_arg = _typst_escape(abstract or "")
 
     bibliography_style = VENUE_CITATION_STYLE.get(venue_template, "apa")
     # ORCID preamble — emitted only when researcher_config supplies one.
@@ -434,7 +454,10 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
             for a in authors:
                 lines_out.append(f'    - "{_yaml_escape(a)}"')
         if "year" in meta or "date" in meta:
-            lines_out.append(f'  date: {meta.get("date", meta.get("year"))}')
+            raw_date = str(meta.get("date", meta.get("year")) or "").strip()
+            date_yaml = _hayagriva_date(raw_date)
+            if date_yaml is not None:
+                lines_out.append(f"  date: {date_yaml}")
         parent_title = meta.get("journal") or meta.get("conference") or meta.get("publisher")
         if parent_title:
             lines_out.append("  parent:")
@@ -447,6 +470,13 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
                 lines_out.append(f'    volume: {meta["volume"]}')
             if "issue" in meta:
                 lines_out.append(f'    issue: {meta["issue"]}')
+        else:
+            # No parent block — emit volume/issue at the top level so they
+            # aren't silently dropped.
+            if "volume" in meta:
+                lines_out.append(f'  volume: {meta["volume"]}')
+            if "issue" in meta:
+                lines_out.append(f'  issue: {meta["issue"]}')
         if "page" in meta or "pages" in meta:
             lines_out.append(f'  page-range: {meta.get("pages", meta.get("page"))}')
         if "doi" in meta:
@@ -460,6 +490,25 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
 
 def _yaml_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _hayagriva_date(raw: str) -> str | None:
+    """Render a citation date for Hayagriva YAML.
+
+    Hayagriva expects ``date:`` to be a bare year (``2024``) or an ISO
+    date (``2024-05-01``). A non-numeric value like ``in press`` parses
+    as garbage and corrupts the bibliography entry, so:
+      * a plausible year / ISO value is emitted unquoted,
+      * any other non-empty string is quoted (kept as a note rather
+        than mis-parsed as a date),
+      * an empty value is skipped (returns None).
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    if re.fullmatch(r"\d{4}(-\d{2}(-\d{2})?)?", raw):
+        return raw
+    return f'"{_yaml_escape(raw)}"'
 
 
 # ---------------------------------------------------------------------------

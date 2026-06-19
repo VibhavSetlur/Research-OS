@@ -17,6 +17,31 @@ from typing import Any
 logger = logging.getLogger("research_os.tools.path")
 
 
+def _atomic_repoint_symlink(link: Path, new_target: str) -> bool:
+    """Re-point ``link`` at ``new_target`` without ever losing the link.
+
+    A naive ``unlink()`` + ``symlink_to()`` permanently destroys the
+    symlink if the second call fails. Instead create the replacement at a
+    sibling temp name and ``os.replace`` it over the original (atomic on
+    POSIX). If anything fails, the original symlink is left intact and we
+    clean up any temp artefact. Returns True on success."""
+    tmp = link.with_name(link.name + ".repoint.tmp")
+    try:
+        if tmp.is_symlink() or tmp.exists():
+            tmp.unlink()
+        tmp.symlink_to(new_target)
+        os.replace(tmp, link)
+        return True
+    except OSError:
+        # Best-effort cleanup of the temp link; the original is untouched.
+        try:
+            if tmp.is_symlink() or tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        return False
+
+
 def create_path(name: str, root: Path, hypothesis: str = "") -> dict[str, Any]:
     """Create the next numbered experiment folder.
 
@@ -48,7 +73,7 @@ def abandon_path(path_name: str, rationale: str, root: Path) -> dict[str, Any]:
     target_dir = workspace_dir / path_name
     if not target_dir.exists() or not target_dir.is_dir():
         return {"status": "error", "message": f"Path '{path_name}' not found in workspace/"}
-    if not re.match(r"^\d{2}_", path_name):
+    if not re.match(r"^\d{2,3}_", path_name):
         return {"status": "error", "message": f"'{path_name}' is not a numbered experiment path"}
 
     dead_end_name = f"{path_name}__DEAD_END"
@@ -167,12 +192,13 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
         # sibling `01_eda_extra`'s links (prefix-match bug).
         if target == old_abs or target.startswith(old_abs + os.sep):
             new_target = new_abs + target[len(old_abs):]
-            try:
-                link.unlink()
-                link.symlink_to(new_target)
+            if _atomic_repoint_symlink(link, new_target):
                 repointed += 1
-            except OSError:
-                continue
+            else:
+                logger.warning(
+                    "failed to re-point symlink %s → %s; left untouched",
+                    link, new_target,
+                )
 
     state = load_state(root)
     paths = state.setdefault("paths", {})
@@ -290,12 +316,13 @@ def group_paths(
         for old_abs, new_abs in remap:
             if target == old_abs or target.startswith(old_abs + os.sep):
                 new_target = new_abs + target[len(old_abs):]
-                try:
-                    link.unlink()
-                    link.symlink_to(new_target)
+                if _atomic_repoint_symlink(link, new_target):
                     repointed += 1
-                except OSError:
-                    pass
+                else:
+                    logger.warning(
+                        "failed to re-point symlink %s → %s; left untouched",
+                        link, new_target,
+                    )
                 break
 
     # State: stamp the container on each grouped path; fix experiment_dir.

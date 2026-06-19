@@ -76,3 +76,37 @@ def test_format_vancouver():
     v = format_vancouver(entry)
     assert "T" in v
     assert "10.1/x" in v
+
+
+def test_formatters_handle_dict_shaped_authors():
+    """Upstream feeds sometimes hand dict authors ({name} or
+    {given,family}); the APA / Vancouver / BibTeX formatters must
+    render them as names, never as a dict-repr. (SYN-6)"""
+    entry = {
+        "authors": [
+            {"given": "Jane", "family": "Smith"},
+            {"name": "A. B. Cohen"},
+            "Plain Author",
+        ],
+        "title": "T",
+        "year": 2024,
+        "doi": "10.1/x",
+    }
+    apa = format_apa(entry)
+    vanc = format_vancouver(entry)
+    bib = format_bib(entry)
+    for out in (apa, vanc, bib):
+        assert "Jane Smith" in out
+        assert "A. B. Cohen" in out
+        assert "Plain Author" in out
+        # No dict-repr leakage.
+        assert "'given'" not in out and "'family'" not in out and "'name'" not in out
+
+
+def test_formatters_skip_empty_dict_authors():
+    """A dict author with no usable name is dropped, not rendered as
+    an empty token."""
+    entry = {"authors": [{"given": "", "family": ""}, "Real Name"],
+             "title": "T", "year": 2024}
+    apa = format_apa(entry)
+    assert "Real Name" in apa

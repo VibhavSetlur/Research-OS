@@ -179,7 +179,9 @@ def test_promote_to_step_creates_numbered_step(tmp_path):
     assert not (step_dir / "step_summary.yaml").exists()
     assert "literature_required=false" in (step_dir / "conclusions.md").read_text()
     assert (step_dir / "outputs" / "figures" / "fig_quicklook.png").exists()
-    prov = step_dir / "outputs" / "figures" / "fig_quicklook.png.prov.json"
+    # Provenance sidecar uses the STEM (fig_quicklook.prov.json) so that
+    # inventory / audit / RO-Crate readers (which key off the stem) find it.
+    prov = step_dir / "outputs" / "figures" / "fig_quicklook.prov.json"
     assert prov.exists()
     assert "scratch" in prov.read_text()
 

@@ -126,8 +126,10 @@ _NUMERIC_CLAIM_RE = re.compile(
         # percentage:  42% / 42.3 % / 100%
         -?\d+(?:\.\d+)?\s*%
         |
-        # sample size:  n = 423 / N=12 / n = 1,200
-        [nN]\s*=\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?
+        # sample size:  n = 423 / N=12 / n = 1,200 / n=4234 / n=5000
+        # (comma-grouped OR a plain 1-7 digit run, so 4-5 digit n's
+        # without a thousands separator are not silently missed)
+        [nN]\s*=\s*(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,7}(?:\.\d+)?)
         |
         # plain decimal:  0.84  /  -0.12  /  1.23e-4
         -?\d+\.\d+(?:e[+-]?\d+)?
@@ -192,11 +194,25 @@ def _claim_kind(token: str) -> str:
     return "decimal"
 
 
+# A metric anchor is the nearest label-ish word right before the number
+# (AUROC / slope / accuracy / r / beta …). Two numbers are only the "same
+# claim" if they carry the same anchor — otherwise comparing AUROC 0.84
+# against slope 0.86 is meaningless.
+_ANCHOR_RE = re.compile(r"([A-Za-z][A-Za-z0-9_\-]{1,30})\s*[:=≈~]?\s*$")
+
+
+def _metric_anchor(text: str, start: int) -> str:
+    """Lowercased label immediately preceding the number at ``start``, or ""."""
+    m = _ANCHOR_RE.search(text[:start])
+    return m.group(1).lower() if m else ""
+
+
 def _numeric_claim_extractor(text: str) -> list[dict[str, Any]]:
     """Extract numeric claims from a deliverable's source text.
 
-    Returns a list of dicts with ``token``, ``value`` (float), and
-    ``kind`` ('p_value' | 'sample_size' | 'percentage' | 'decimal').
+    Returns a list of dicts with ``token``, ``value`` (float), ``kind``
+    ('p_value' | 'sample_size' | 'percentage' | 'decimal'), and ``anchor``
+    (the nearest preceding metric label, lowercased, or "").
     """
     cleaned = _strip_code_and_cites(text)
     out: list[dict[str, Any]] = []
@@ -212,6 +228,7 @@ def _numeric_claim_extractor(text: str) -> list[dict[str, Any]]:
             "token": tok,
             "value": val,
             "kind": _claim_kind(tok),
+            "anchor": _metric_anchor(cleaned, m.start()),
         })
     return out
 
@@ -233,17 +250,21 @@ def numeric_claims_consistent(
     for name, p in deliverables.items():
         per_deliv[name] = _numeric_claim_extractor(_read_text_safe(p))
 
-    # Bucket every claim by (kind, rounded-value).
-    # For each bucket, list the deliverables that emit it.
-    # A "mismatch" is two deliverables that both emit a value of the
-    # same kind, where their values differ by more than `tolerance`.
-    mismatches: list[dict[str, Any]] = []
-    by_kind: dict[str, dict[str, list[float]]] = {}
+    # Bucket every claim by (kind, anchor). The metric anchor (AUROC /
+    # slope / accuracy …) is what gives a number its identity: two numbers
+    # are only the "same claim" when they share both kind AND anchor. Two
+    # numbers of the same kind but DIFFERENT (or absent) anchors — e.g.
+    # AUROC 0.84 vs slope 0.86 — are different metrics and a near-but-not-
+    # equal value between them is at most a warning, never a block.
+    mismatches: list[dict[str, Any]] = []          # same metric → BLOCK
+    near_warnings: list[dict[str, Any]] = []        # different/absent metric → WARN
+    by_bucket: dict[tuple[str, str], dict[str, list[float]]] = {}
     for name, claims in per_deliv.items():
         for c in claims:
-            by_kind.setdefault(c["kind"], {}).setdefault(name, []).append(c["value"])
+            key = (c["kind"], c.get("anchor", ""))
+            by_bucket.setdefault(key, {}).setdefault(name, []).append(c["value"])
 
-    for kind, deliv_values in by_kind.items():
+    for (kind, anchor), deliv_values in by_bucket.items():
         names = list(deliv_values.keys())
         if len(names) < 2:
             continue
@@ -255,9 +276,9 @@ def numeric_claims_consistent(
                 vals_b = deliv_values[b]
                 for va in vals_a:
                     # If `va` is "shared" (within 1% of any value in B's set
-                    # of the same kind), it's fine. Otherwise it's a candidate
-                    # mismatch — but only flag if there exists a value in B
-                    # that is "close but not equal" (within 10× tolerance).
+                    # of the same bucket), it's fine. Otherwise it's a
+                    # candidate mismatch — but only when a value in B is
+                    # "close but not equal" (within 10× tolerance).
                     matched = any(
                         _within(vb, va, tolerance) for vb in vals_b
                     )
@@ -266,18 +287,28 @@ def numeric_claims_consistent(
                     near = [
                         vb for vb in vals_b if _within(vb, va, tolerance * 10)
                     ]
-                    if near:
-                        mismatches.append({
-                            "kind": kind,
-                            "deliverable_a": a,
-                            "value_a": va,
-                            "deliverable_b": b,
-                            "value_b_candidates": near,
-                            "relative_diff": min(
-                                abs(vb - va) / max(abs(va), abs(vb), 1e-12)
-                                for vb in near
-                            ),
-                        })
+                    if not near:
+                        continue
+                    record = {
+                        "kind": kind,
+                        "anchor": anchor,
+                        "deliverable_a": a,
+                        "value_a": va,
+                        "deliverable_b": b,
+                        "value_b_candidates": near,
+                        "relative_diff": min(
+                            abs(vb - va) / max(abs(va), abs(vb), 1e-12)
+                            for vb in near
+                        ),
+                    }
+                    # Only a SHARED, NON-EMPTY metric anchor makes this the
+                    # same claim → a genuine inconsistency (block). A blank
+                    # anchor means we can't establish the two numbers refer
+                    # to the same metric → downgrade to a warning.
+                    if anchor:
+                        mismatches.append(record)
+                    else:
+                        near_warnings.append(record)
 
     return {
         "pass": not mismatches,
@@ -286,6 +317,8 @@ def numeric_claims_consistent(
             "claim_counts": {k: len(v) for k, v in per_deliv.items()},
             "mismatches": mismatches[:50],
             "mismatch_count": len(mismatches),
+            "near_warnings": near_warnings[:50],
+            "near_warning_count": len(near_warnings),
             "tolerance": tolerance,
         },
     }
@@ -340,24 +373,35 @@ def figures_consistent(
     for name, p in deliverables.items():
         per_deliv[name] = _extract_figure_stems(_read_text_safe(p))
 
-    # A "shared" figure stem appears in at least 2 deliverables. For
-    # each shared stem, any other deliverable that should plausibly
-    # also show it but does not is flagged. We treat paper as the
-    # canonical source: any figure in the paper that is missing from
-    # the dashboard / slides / poster (when those deliverables exist)
-    # is a soft mismatch.
-    missing: list[dict[str, Any]] = []
-    paper_stems = per_deliv.get("paper", set())
-    for stem in sorted(paper_stems):
-        absent_in: list[str] = []
-        for other in ("dashboard", "slides", "poster"):
-            if other in per_deliv and stem not in per_deliv[other]:
-                absent_in.append(other)
-        if absent_in:
-            missing.append({"figure_stem": stem, "absent_in": absent_in})
+    # A figure stem is only a candidate for an inconsistency when it is
+    # SHARED — i.e. embedded in ≥2 deliverables. A figure that appears in
+    # just one deliverable is fine: each deliverable is free to elide a
+    # secondary figure (a poster doesn't reproduce every paper figure).
+    # For each shared stem, the deliverables that DON'T carry it are the
+    # gap. Per the documented threshold: 0-1 gaps = warning, >1 = block.
+    stem_to_deliverables: dict[str, list[str]] = {}
+    for name, stems in per_deliv.items():
+        for stem in stems:
+            stem_to_deliverables.setdefault(stem, []).append(name)
 
-    # Also check the inverse: figures in dashboard/slides/poster that
-    # aren't in the paper (paper is the canonical record).
+    all_names = set(per_deliv.keys())
+    missing: list[dict[str, Any]] = []
+    for stem in sorted(stem_to_deliverables):
+        present_in = stem_to_deliverables[stem]
+        if len(present_in) < 2:
+            continue  # not shared → no inconsistency
+        absent_in = sorted(all_names - set(present_in))
+        if absent_in:
+            missing.append({
+                "figure_stem": stem,
+                "present_in": sorted(present_in),
+                "absent_in": absent_in,
+            })
+
+    # For the structured suggested_fix, also surface figures that live in a
+    # secondary deliverable but not the paper (paper is the canonical
+    # record). These are informational, not blocking.
+    paper_stems = per_deliv.get("paper", set())
     extra: list[dict[str, Any]] = []
     for other in ("dashboard", "slides", "poster"):
         if other not in per_deliv:
@@ -365,17 +409,18 @@ def figures_consistent(
         for stem in sorted(per_deliv[other] - paper_stems):
             extra.append({"figure_stem": stem, "deliverable": other})
 
-    # Threshold: more than 1 missing-from-paper-everywhere figure is a
-    # blocker (the deliverables genuinely disagree). 1 missing is a
-    # warning (could be a poster-only summary figure).
+    # Threshold (per docstring): >1 shared figure missing from a 3rd
+    # deliverable is a genuine disagreement → block. 0-1 missing is a
+    # warning (elision of a single figure is allowed).
     return {
-        "pass": len(missing) == 0,
+        "pass": len(missing) <= 1,
         "details": {
             "deliverables_scanned": list(deliverables.keys()),
             "figures_per_deliverable": {
                 k: sorted(v) for k, v in per_deliv.items()
             },
             "paper_figures_missing_elsewhere": missing,
+            "shared_figures_missing_count": len(missing),
             "figures_in_secondary_but_not_paper": extra,
         },
     }
@@ -722,6 +767,17 @@ def audit_cross_deliverable_consistency(root: Path) -> dict[str, Any]:
 
         blockers: list[str] = []
         warnings: list[str] = []
+        # Near-but-different-metric numeric divergences (no shared anchor)
+        # are warnings, surfaced even when the dimension passes.
+        _num = dim_results.get("numeric_claims_consistent", {}).get("details", {})
+        _near = _num.get("near_warning_count", 0)
+        if _near:
+            warnings.append(
+                f"numeric_claims_consistent: {_near} near-but-different-metric "
+                "value(s) diverge without a shared metric label — verify they "
+                "refer to different quantities (see "
+                "dimensions.numeric_claims_consistent.details.near_warnings)."
+            )
         for dim_name, result in dim_results.items():
             if result.get("pass"):
                 continue

@@ -36,6 +36,12 @@ PAPER_CANDIDATES: tuple[str, ...] = (
     "synthesis/report.md",
 )
 
+# Single shared figure-extension universe. Every auditor that counts /
+# scans workspace figures uses THIS set so coverage numerators and
+# denominators are computed over the same file types (a .pdf or .jpg
+# figure used to count in one site but not another).
+FIGURE_EXTS: frozenset[str] = frozenset({".png", ".svg", ".pdf", ".jpg"})
+
 
 def resolve_paper_path(root: Path) -> str:
     """Return the relative path of the first existing paper candidate.
@@ -145,6 +151,7 @@ def has_section(text: str, section: str, typst: bool) -> bool:
 
 __all__ = [
     "PAPER_CANDIDATES",
+    "FIGURE_EXTS",
     "resolve_paper_path",
     "is_typst",
     "figure_refs",

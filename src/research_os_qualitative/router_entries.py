@@ -49,7 +49,7 @@ QUALITATIVE_ROUTER_ENTRIES = {
     "qualitative/method/thematic_analysis_braun_clarke": {
         "intent_class": "methodology",
         "sub_intent": "method_pick",
-        "summary": "Braun & Clarke 2006 six-phase thematic analysis, parametrized.",
+        "summary": "Six-phase reflexive thematic analysis (Braun & Clarke 2006) of interview / focus-group transcripts: familiarisation, coding, theme generation, review, definition, reporting.",
         "triggers": [
             "thematic analysis", "braun and clarke", "braun & clarke",
             "ta methodology", "ta protocol", "reflexive thematic",

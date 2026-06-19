@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "3.2.5"
+version = "3.2.6"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -93,7 +93,9 @@ nextflow = []
 cytoscape = []
 redcap = []
 synapse = []
-all_adapters = ["research-os[slurm,snakemake,nextflow,cytoscape,redcap,synapse]"]
+mlflow = []
+zenodo = []
+all_adapters = ["research-os[slurm,snakemake,nextflow,cytoscape,redcap,synapse,mlflow,zenodo]"]
 
 # Typst PDF compilation — no Python deps; the user installs the `typst`
 # CLI on their system. The extra exists so `pip install research-os[typst_compile]`
@@ -191,6 +193,8 @@ packages = [
     "src/research_os_adapter_cytoscape",
     "src/research_os_adapter_redcap",
     "src/research_os_adapter_synapse",
+    "src/research_os_adapter_mlflow",
+    "src/research_os_adapter_zenodo",
 ]
 # Force-include vendored binary assets that hatchling's default ignore
 # rules would otherwise skip. Bundled fonts (New Computer Modern, OFL

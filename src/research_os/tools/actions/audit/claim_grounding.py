@@ -139,6 +139,7 @@ def extract_claims(md_path: Path) -> list[dict[str, Any]]:
             claims.append({
                 "token": tok,
                 "value": val,
+                "is_pct": tok.rstrip().endswith("%"),
                 "line": line_no,
                 "context": line[ctx_start:ctx_end].strip(),
             })
@@ -187,15 +188,24 @@ def _extract_corpus_numbers(corpus: str) -> set[float]:
 
 
 def _claim_grounded(value: float, corpus_numbers: set[float],
-                    tolerance: float = 0.01) -> bool:
-    """Check whether ``value`` appears in the corpus (verbatim or close)."""
-    if value in corpus_numbers:
-        return True
-    # Tolerant match: any corpus number within `tolerance` relative diff.
-    abs_v = abs(value) or 1e-12
-    for cv in corpus_numbers:
-        if abs(cv - value) / max(abs_v, abs(cv) or 1e-12) <= tolerance:
+                    tolerance: float = 0.01, *, is_pct: bool = False) -> bool:
+    """Check whether ``value`` appears in the corpus (verbatim or close).
+
+    A percentage claim ("84%") is normalised to a fraction (0.84) by
+    :func:`_normalise`, but the corpus often stores the same figure as the
+    raw percent (``84``) — or, for an already-fractional source, as
+    ``0.84``. So for a %-derived claim we test the normalised value AND its
+    ``×100`` / ``÷100`` variants before declaring it ungrounded."""
+    candidates = [value]
+    if is_pct:
+        candidates.extend([value * 100.0, value / 100.0])
+    for v in candidates:
+        if v in corpus_numbers:
             return True
+        abs_v = abs(v) or 1e-12
+        for cv in corpus_numbers:
+            if abs(cv - v) / max(abs_v, abs(cv) or 1e-12) <= tolerance:
+                return True
     return False
 
 
@@ -252,7 +262,9 @@ def audit_claims(
     grounded: list[dict[str, Any]] = []
     ungrounded: list[dict[str, Any]] = []
     for c in claims:
-        if _claim_grounded(c["value"], corpus_numbers, tolerance):
+        if _claim_grounded(
+            c["value"], corpus_numbers, tolerance, is_pct=c.get("is_pct", False)
+        ):
             grounded.append(c)
         else:
             ungrounded.append(c)

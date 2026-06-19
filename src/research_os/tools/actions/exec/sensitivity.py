@@ -307,6 +307,22 @@ def _render_specification_curve(
     except ImportError:
         return None
 
+    # Render through the Research-OS style so the spec-curve carries the
+    # cream / Okabe-Ito identity the viz layer enforces (no ad-hoc hex,
+    # no white facecolor clashing with dashboard figures).
+    from research_os.tools.actions.viz import (
+        RO_BG,
+        RO_FG,
+        RO_MUTED,
+        RO_PALETTE,
+        RO_RULE,
+        apply_research_os_style,
+    )
+
+    apply_research_os_style(destination="full_width", palette="accent")
+    _pos_color = RO_PALETTE["diverging_emphasis"][1]   # forest = positive
+    _neg_color = RO_PALETTE["diverging_emphasis"][0]   # oxblood = negative
+
     # Parse the CSV.
     rows: list[dict[str, str]] = []
     try:
@@ -354,11 +370,11 @@ def _render_specification_curve(
     # Dots + CI.
     for i, (e, lo_v, hi_v) in enumerate(zip(est, lo, hi, strict=False)):
         if lo_v is not None and hi_v is not None:
-            ax_top.plot([i, i], [lo_v, hi_v], color="#cbd5e1", lw=0.7, zorder=1)
+            ax_top.plot([i, i], [lo_v, hi_v], color=RO_RULE, lw=0.7, zorder=1)
         ax_top.scatter([i], [e],
-                       color="#2C5282" if e >= 0 else "#9b2c2c",
+                       color=_pos_color if e >= 0 else _neg_color,
                        s=15, zorder=2, alpha=0.85)
-    ax_top.axhline(0, color="#6b7280", lw=0.8, linestyle="--")
+    ax_top.axhline(0, color=RO_MUTED, lw=0.8, linestyle="--")
     ax_top.set_ylabel("Estimate")
     ax_top.set_title(
         f"Specification curve — {len(estimates)} specifications "
@@ -377,17 +393,19 @@ def _render_specification_curve(
         for spec_i, t in enumerate(estimates):
             v = str(t[4].get(col, ""))
             if v and v in val_to_dot:
-                ax_bot.scatter([spec_i], [col_i], color="#1a202c",
+                ax_bot.scatter([spec_i], [col_i], color=RO_FG,
                                s=8, marker="s")
     ax_bot.set_ylim(-0.5, len(spec_cols) - 0.5)
     ax_bot.invert_yaxis()
-    plt.tight_layout()
+    # Layout is handled by the Research-OS style's constrained_layout (set
+    # in apply_research_os_style); calling tight_layout() on top of it
+    # warns + double-lays-out. savefig(bbox_inches="tight") trims margins.
 
     step_num = step_id.split("_", 1)[0]
     figs_dir = _step_dir(step_id, root) / "outputs" / "figures"
     figs_dir.mkdir(parents=True, exist_ok=True)
     out_png = figs_dir / f"{step_num}_specification_curve.png"
-    fig.savefig(out_png, dpi=300, bbox_inches="tight", facecolor="white")
+    fig.savefig(out_png, dpi=300, bbox_inches="tight", facecolor=RO_BG)
     plt.close(fig)
 
     # Sibling caption + summary.

@@ -448,12 +448,20 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "Step folder name (e.g. '03_replicate_attitude_demographics'). Defaults to current_path.",
                 },
+                "override_literature_gate": {
+                    "type": "boolean",
+                    "description": "Bypass the step-literature gate when it blocks finalize. Requires override_rationale.",
+                },
+                "override_rationale": {
+                    "type": "string",
+                    "description": "Justification logged when override_literature_gate=true.",
+                },
             },
         },
     },
     "sys_checkpoint_create": {
-        "short": "Snapshot the workspace (hardlinked, fast). Use before risky operations.",
-        "description": "Snapshot the current workspace (hardlinked, fast). Returns checkpoint_id.",
+        "short": "Snapshot the workspace (copied snapshot). Use before risky operations.",
+        "description": "Snapshot the current workspace (copied snapshot). Returns checkpoint_id.",
         "category": "checkpoint",
         "inputSchema": {
             "type": "object",

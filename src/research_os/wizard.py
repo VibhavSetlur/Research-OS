@@ -307,7 +307,11 @@ def run_wizard(args) -> WizardResult:
     section(4, total, "AI IDE wiring",
             "Pick only the IDE(s) you actually use. Add more later with "
             "`research-os ide add <name>`.")
-    if args.ide and args.ide != "all":
+    if args.ide and args.ide.strip().lower() == "none":
+        # Explicit opt-out — skip all IDE wiring (matches cli._ide_choice).
+        ides = []
+        ok("IDEs (from --ide): none — skipping IDE wiring.")
+    elif args.ide and args.ide != "all":
         ides = [p.strip() for p in args.ide.split(",") if p.strip() in VALID_IDES]
         if not ides:
             ides = ["claude"]

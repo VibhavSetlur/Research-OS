@@ -60,10 +60,11 @@ def test_step_complete_advances_tier_from_active_plan(tmp_path):
     res = _handle_tool_step_complete(
         "tool_step_complete", {"step_id": step_id}, root,
     )
-    payload = json.loads(res[0].text)
-    # The bundle's overall_status may be error/warning depending on the
-    # sub-audits; what we care about is that the tier advanced.
-    assert "tier_transition" in payload, payload
+    env = json.loads(res[0].text)
+    # tool_step_complete now returns a conformant envelope; the bundle (incl.
+    # the tier_transition dict) lives under payload.
+    payload = env["payload"]
+    assert "tier_transition" in payload, env
     assert payload["tier_transition"]["from"] == "intake"
     assert payload["tier_transition"]["to"] == "synthesize"
     assert get_current_tier(root) == "synthesize"
@@ -84,8 +85,8 @@ def test_step_complete_falls_back_to_execution_log(tmp_path):
     res = _handle_tool_step_complete(
         "tool_step_complete", {"step_id": step_id}, root,
     )
-    payload = json.loads(res[0].text)
-    assert payload.get("tier_transition", {}).get("to") == "synthesize"
+    env = json.loads(res[0].text)
+    assert env["payload"].get("tier_transition", {}).get("to") == "synthesize"
     assert get_current_tier(root) == "synthesize"
 
 
@@ -104,8 +105,8 @@ def test_step_complete_no_advance_when_tier_unchanged(tmp_path):
     res = _handle_tool_step_complete(
         "tool_step_complete", {"step_id": step_id}, root,
     )
-    payload = json.loads(res[0].text)
-    trans = payload.get("tier_transition") or {}
+    env = json.loads(res[0].text)
+    trans = env["payload"].get("tier_transition") or {}
     assert trans.get("from") == "synthesize"
     assert trans.get("to") == "synthesize"
     assert trans.get("wrote") is False

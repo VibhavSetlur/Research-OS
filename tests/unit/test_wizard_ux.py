@@ -40,3 +40,12 @@ def test_run_wizard_exits_early_when_already_initialized(tmp_path, monkeypatch):
     with pytest.raises(SystemExit) as exc:
         wizard.run_wizard(args)
     assert exc.value.code == 1
+
+
+def test_slugify_empty_falls_back():
+    """A name with no slug-safe chars must fall back, not yield '---'.
+    (CWC-2)"""
+    assert wizard.slugify("!!!") == "research-project"
+    assert wizard.slugify("   ") == "research-project"
+    assert wizard.slugify("My Cool Project!") == "my-cool-project"
+    assert wizard.slugify("---") == "research-project"

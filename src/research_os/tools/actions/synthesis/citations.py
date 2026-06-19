@@ -353,10 +353,38 @@ def verify_all_in_workspace(root: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _author_str(a: Any) -> str:
+    """Normalise one author to a display string.
+
+    Tolerates the shapes upstream feeds hand us: a plain ``str``, a
+    ``{"name": ...}`` dict, or a ``{"given": ..., "family": ...}`` dict.
+    Anything else is stringified rather than leaking a dict-repr into the
+    formatted citation.
+    """
+    if isinstance(a, str):
+        return a.strip()
+    if isinstance(a, dict):
+        name = a.get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+        given = str(a.get("given") or "").strip()
+        family = str(a.get("family") or "").strip()
+        joined = " ".join(p for p in (given, family) if p).strip()
+        if joined:
+            return joined
+        return ""
+    return str(a).strip()
+
+
+def _author_list(entry: dict[str, Any]) -> list[str]:
+    """Normalise an entry's ``authors`` to a list of non-empty strings."""
+    return [s for s in (_author_str(a) for a in (entry.get("authors") or [])) if s]
+
+
 def format_bib(entry: dict[str, Any]) -> str:
     """One BibTeX entry from a verified citation dict."""
     key = entry.get("citation_key") or _make_key(entry)
-    authors = " and ".join(entry.get("authors") or ["Unknown"])
+    authors = " and ".join(_author_list(entry) or ["Unknown"])
     title = entry.get("title", "Untitled").replace("{", "").replace("}", "")
     year = entry.get("year") or ""
     doi = entry.get("doi") or ""
@@ -375,7 +403,7 @@ def format_bib(entry: dict[str, Any]) -> str:
 
 def format_apa(entry: dict[str, Any]) -> str:
     """One APA-style citation line."""
-    authors = entry.get("authors") or []
+    authors = _author_list(entry)
     if not authors:
         author_str = "Unknown"
     elif len(authors) == 1:
@@ -394,7 +422,7 @@ def format_apa(entry: dict[str, Any]) -> str:
 
 def format_vancouver(entry: dict[str, Any]) -> str:
     """One Vancouver-style citation line."""
-    authors = entry.get("authors") or []
+    authors = _author_list(entry)
     if not authors:
         author_str = "Anon"
     elif len(authors) <= 6:

@@ -47,6 +47,15 @@ _NUMBER_WITH_UNIT = re.compile(
 )
 _NAKED_NUMBER = re.compile(r"(?<!\w)\d+\.?\d*(?!\w)")
 
+# HTML comments: `<!-- ... -->`. Commented-out markup is inert and must
+# not be counted by the alt-text / `<section>` / placeholder scans (the
+# bundled dashboard scaffold otherwise trips its own audit).
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _strip_html_comments(text: str) -> str:
+    return _HTML_COMMENT_RE.sub("", text)
+
 
 # ---------------------------------------------------------------------------
 # 1. Numeric claim cross-check
@@ -330,8 +339,11 @@ def audit_accessibility(dashboard_html: str) -> dict[str, Any]:
             break
         last = lvl
 
-    # Images missing alt.
-    img_no_alt = re.findall(r"<img\b(?![^>]*\balt=)[^>]*>", dashboard_html, re.I)
+    # Images missing alt. The lookbehind `(?<![\w-])` keeps `data-alt=`
+    # from satisfying the check.
+    img_no_alt = re.findall(
+        r"<img\b(?![^>]*(?<![\w-])alt=)[^>]*>", dashboard_html, re.I
+    )
     if img_no_alt:
         warnings.append(f"{len(img_no_alt)} <img> tag(s) missing alt= attribute.")
 
@@ -534,6 +546,10 @@ def audit_dashboard_content(
             "warnings": [],
         }
     html = dpath.read_text(encoding="utf-8", errors="replace")
+    # Drop commented-out markup before the alt-text / <section> /
+    # placeholder scans so the bundled scaffold doesn't trip its own
+    # audit on inert HTML inside `<!-- ... -->`.
+    html = _strip_html_comments(html)
 
     numeric = audit_numeric_grounding(html, root)
     proximity = audit_figure_proximity(html)

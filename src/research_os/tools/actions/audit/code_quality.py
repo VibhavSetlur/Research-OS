@@ -122,13 +122,72 @@ def _detect_smells(src: str, tree: ast.AST) -> list[str]:
             f"{len(todos)} TODO/FIXME markers — high WIP density; "
             "spin off into a tracked issue rather than leaving in code."
         )
-    # Hardcoded absolute paths (BLOCKER for reproducibility).
-    for m in re.finditer(r'["\']/(?:home|users|scratch|data|mnt)/[^"\'\s]+["\']', src):
+    # Hardcoded absolute paths. Distinguish two cases:
+    #   1. Machine-specific prefixes (/home/<user>/, /Users/<user>/,
+    #      /scratch/, /mnt/, C:\…) → BLOCKER for reproducibility.
+    #   2. Ambiguous absolute-looking literals (/data/api, /users/list) →
+    #      these are usually URL routes, not filesystem paths, so only a
+    #      BLOCKER when actually passed to a file API; otherwise a WARNING.
+    _machine_specific_re = re.compile(
+        r'''["']               # opening quote
+        (?:
+            /home/[^/"'\s]+/    # /home/<user>/
+          | /Users/[^/"'\s]+/   # /Users/<user>/
+          | /scratch/           # cluster scratch
+          | /mnt/               # explicit mounts
+          | [A-Za-z]:\\\\        # Windows drive (C:\\)
+        )
+        [^"'\s]*["']''',
+        re.VERBOSE,
+    )
+    m = _machine_specific_re.search(src)
+    if m:
         smells.append(
             f"Absolute path literal `{m.group(0)[:60]}…` — load from "
             "config or environment so the script runs on other machines."
         )
-        break  # report once
+    else:
+        # No machine-specific path. Flag a generic absolute literal only
+        # when it's passed to a file-opening call (open / Path /
+        # read_csv / read_table / read_parquet / np.loadtxt …).
+        _FILE_FUNCS = {
+            "open", "Path", "read_csv", "read_table", "read_excel",
+            "read_parquet", "read_json", "loadtxt", "genfromtxt",
+        }
+        flagged = False
+        for node in ast.walk(tree):
+            if flagged or not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            fname = getattr(fn, "id", None) or getattr(fn, "attr", None)
+            if fname not in _FILE_FUNCS:
+                continue
+            for arg in node.args:
+                if (isinstance(arg, ast.Constant)
+                        and isinstance(arg.value, str)
+                        and re.match(r"/(?:home|users|scratch|data|mnt)/",
+                                     arg.value)):
+                    smells.append(
+                        f"Absolute path literal `{arg.value[:60]}…` passed to "
+                        f"`{fname}()` — load from config or environment so the "
+                        "script runs on other machines."
+                    )
+                    flagged = True
+                    break
+        if not flagged:
+            # A generic absolute-looking literal not passed to a file API
+            # (often a URL route like '/data/api'). Surface as a WARNING
+            # only — the phrasing deliberately omits the "Absolute path
+            # literal" token so it routes to warnings, not blockers.
+            gm = re.search(
+                r'''["']/(?:home|users|scratch|data|mnt)/[^"'\s]+["']''', src
+            )
+            if gm:
+                smells.append(
+                    f"absolute-looking string literal `{gm.group(0)[:60]}…` — "
+                    "if this is a filesystem path, load it from config; if it's "
+                    "a URL route, ignore this note."
+                )
     return smells
 
 

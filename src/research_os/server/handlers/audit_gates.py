@@ -46,7 +46,9 @@ def _handle_tool_rigor_signals_scan(name, arguments, root):
 
 def _handle_tool_resolve_gate_strictness(name, arguments, root):
     from research_os.tools.actions.state.rigor_signals import resolve_gate_strictness
-    return _text(resolve_gate_strictness(root))
+    # Action returns a bare {resolved, source, trust_score} dict (no status) —
+    # wrap so the envelope is conformant.
+    return _text(_success(resolve_gate_strictness(root)))
 
 
 def _handle_tool_self_certify(name, arguments, root):
@@ -66,7 +68,8 @@ def _handle_tool_list_certifications(name, arguments, root):
 
 def _handle_tool_quick_route(name, arguments, root):
     from research_os.tools.actions.state.quick_mode import quick_route
-    return _text(quick_route(root, str(arguments.get("prompt", ""))))
+    # Action returns a bare {is_quick, ...} dict (no status) — wrap it.
+    return _text(_success(quick_route(root, str(arguments.get("prompt", "")))))
 
 
 def _handle_tool_promote_to_step(name, arguments, root):
@@ -91,13 +94,13 @@ def _handle_tool_dry_run(name, arguments, root):
     from research_os.tools.actions.protocol import load_protocol
     pname = arguments.get("protocol_name") or ""
     if not pname:
-        return _text({"status": "error", "message": "protocol_name is required"})
+        return _text(_error("protocol_name is required"))
     try:
         out = load_protocol(pname, format="dryrun")
         out["simulated_args"] = arguments.get("simulated_args") or {}
-        return _text(out)
+        return _text(_success(out))
     except (FileNotFoundError, ValueError) as e:
-        return _text({"status": "error", "message": str(e)})
+        return _text(_error(str(e)))
 
 
 def _handle_tool_step_complete(name, arguments, root):
@@ -196,7 +199,20 @@ def _handle_tool_step_complete(name, arguments, root):
         "anti-one-shot doctrine; do not auto-scaffold the next step "
         "unless autonomy_level='autopilot'."
     )
-    return _text(merged)
+    # Emit a conformant v2.1.0 envelope (was a raw dict missing all 9 keys).
+    # overall_status -> envelope status; merged is preserved as the payload so
+    # stages / tier_transition / revision_options stay visible on every path.
+    env = _success(merged)
+    if merged["overall_status"] == "error":
+        failed = [
+            s for s, v in (merged.get("stages") or {}).items()
+            if isinstance(v, dict) and v.get("status") == "error"
+        ]
+        env["status"] = "error"
+        env["error"] = (
+            "tool_step_complete — failing stage(s): " + (", ".join(failed) or "unknown")
+        )
+    return _text(env)
 
 
 def _handle_tool_finalize_project(name, arguments, root):

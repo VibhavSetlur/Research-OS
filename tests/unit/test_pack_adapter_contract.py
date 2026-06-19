@@ -21,7 +21,8 @@ import pytest
 import research_os.server  # noqa: F401 — triggers pack + adapter discovery
 
 PACK_NAMES = ["humanities", "qualitative", "theory_math", "wet_lab", "engineering"]
-ADAPTER_NAMES = ["slurm", "snakemake", "nextflow", "cytoscape", "redcap", "synapse"]
+ADAPTER_NAMES = ["slurm", "snakemake", "nextflow", "cytoscape", "redcap",
+                 "synapse", "mlflow", "zenodo"]
 
 
 @pytest.fixture
@@ -110,6 +111,40 @@ def test_run_pack_domain_detectors_surfaces_wet_lab(project_root):
 def test_run_pack_domain_detectors_quiet_on_empty(project_root):
     from research_os.plugins import run_pack_domain_detectors
     assert run_pack_domain_detectors(project_root / "inputs") == []
+
+
+def test_pack_signals_cache_memoises_on_mtime(project_root, monkeypatch):
+    """router._pack_signals_cached must memoise on the inputs/ dir mtime
+    so a repeated boot does NOT re-walk the corpus, and must recompute
+    when inputs/ changes. (router-4)"""
+    from research_os.tools.actions import router
+
+    router._PACK_SIGNALS_CACHE.clear()
+    calls = {"n": 0}
+
+    def _fake_detect(inputs_dir):
+        calls["n"] += 1
+        return [{"pack": "fake", "confidence": 0.9, "signals": ["x"]}]
+
+    monkeypatch.setattr(
+        "research_os.plugins.run_pack_domain_detectors", _fake_detect,
+    )
+    inp = project_root / "inputs"
+
+    first = router._pack_signals_cached(inp)
+    second = router._pack_signals_cached(inp)
+    assert first == second
+    assert calls["n"] == 1, "cache should not recompute when inputs unchanged"
+
+    # Change inputs/ (new file at top level bumps the dir mtime) → recompute.
+    import os
+    import time
+    (inp / "new_file.txt").write_text("hello")
+    os.utime(inp, (time.time() + 5, time.time() + 5))
+    router._pack_signals_cached(inp)
+    assert calls["n"] == 2, "cache should recompute when inputs/ changes"
+
+    router._PACK_SIGNALS_CACHE.clear()
 
 
 # ── adapter contract (C7, C11) ────────────────────────────────────────

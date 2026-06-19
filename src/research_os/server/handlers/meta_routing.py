@@ -242,8 +242,10 @@ def _handle_tool_semantic_route(name, arguments, root):
     from research_os.tools.actions import semantic
 
     if not semantic.semantic_available():
-        return _text(_success({
-            "status": "unavailable",
+        # The op didn't run — signal that with a `warning` status rather
+        # than `success`, but keep the diagnostic payload intact so
+        # clients that read it still work. (No inner redundant `status`.)
+        env = _success({
             "reason": (
                 "Semantic routing requires the `semantic` extra. "
                 "Install with: pip install 'research-os[semantic]' "
@@ -252,7 +254,9 @@ def _handle_tool_semantic_route(name, arguments, root):
             ),
             "fastembed_installed": semantic.fastembed_available(),
             "embeddings_on_disk": semantic.embeddings_on_disk(),
-        }))
+        }, next_recommended_call="tool_route(prompt=<original_or_refined>)")
+        env["status"] = "warning"
+        return _text(env)
     prompt = arguments["prompt"]
     top_k = int(arguments.get("top_k") or 5)
     matches = semantic.top_k_protocols(prompt, k=top_k)
@@ -280,15 +284,18 @@ def _handle_sys_semantic_tool_search(name, arguments, root):
     from research_os.tools.actions import semantic
 
     if not semantic.semantic_available():
-        return _text(_success({
-            "status": "unavailable",
+        # Op didn't run — `warning` status, payload preserved, no inner
+        # redundant `status` key.
+        env = _success({
             "reason": (
                 "Semantic tool search requires the `semantic` extra. "
                 "Install with: pip install 'research-os[semantic]'."
             ),
             "fastembed_installed": semantic.fastembed_available(),
             "embeddings_on_disk": semantic.embeddings_on_disk(),
-        }))
+        }, next_recommended_call="tool_tools_list(match_substring=<keyword>)")
+        env["status"] = "warning"
+        return _text(env)
     query = arguments["query"]
     top_k = int(arguments.get("top_k") or 5)
     matches = semantic.top_k_tools(query, k=top_k)

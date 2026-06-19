@@ -1,9 +1,9 @@
 """Wet-Lab pack for Research-OS.
 
-Adds 8 protocols + 3 tools for bench science: SOP versioning,
-reagent lot tracking, plate-map provenance, instrument run logs,
-sample lineage, experiment design, reproducibility audit, and
-wet-lab Materials & Methods sections.
+Adds 8 protocols + 5 tools for bench science: SOP versioning,
+reagent lot tracking, plate-map provenance, instrument run logs
+(stub + checksum), sample lineage, experiment design, reproducibility
+audit, and wet-lab Materials & Methods sections.
 """
 from pathlib import Path
 
