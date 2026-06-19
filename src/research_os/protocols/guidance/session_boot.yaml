@@ -165,7 +165,7 @@ expected_outputs:
   - .os_state/protocol_execution_log.jsonl
 
 next_protocol: null    # routing drives the next step, not a hardcoded link
-next_protocol_kind: forward_default
+next_protocol_kind: terminal
 on_failure: guidance/dead_end_routing
 
 quality_bar: |

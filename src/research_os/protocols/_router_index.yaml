@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 30
+version: 31
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1208,7 +1208,7 @@ protocols:
   literature/literature_per_step:
     intent_class: literature
     sub_intent: per_step_grounding
-    summary: "After a step writes Findings, search → download → cite → write findings_vs_literature.md (AGREES|DISAGREES|EXTENDS|DEFERRED) → register grounding. Gated by tool_audit_step_literature."
+    summary: "After a step writes Findings, search → download → cite → write findings_vs_literature.md (AGREES|DISAGREES|EXTENDS|DEFERRED) → register grounding. Gated by tool_audit (scope='step', dimension='literature')."
     triggers: ["ground this step", "literature for this step", "validate findings",
                "compare to literature", "literature check", "is this novel",
                "does the literature support", "findings vs literature",
@@ -1216,8 +1216,8 @@ protocols:
     decomposition:
       - protocol: literature/literature_per_step
         purpose: "Find + download + cite + write structured comparison per claim."
-      - tool: tool_audit_step_literature
-        purpose: "Gate before path_finalize: blocks if findings_vs_literature.md missing or DISAGREES lacks discussion."
+      - tool: tool_audit
+        purpose: "Gate before path_finalize (scope='step', dimension='literature'): blocks if findings_vs_literature.md missing or DISAGREES lacks discussion."
 
 # ─────────────────────────────────────────────────────────────────────
 # WRITING + VISUALIZATION (granular rules)
@@ -1548,10 +1548,10 @@ protocols:
         purpose: "Ingest reviews, parse to grid, classify + route per comment, execute routes, re-audit, fill response, assemble letter."
       - tool: tool_reviewer
         purpose: "Generate the formal point-by-point letter skeleton (operation='response')."
-      - tool: tool_audit_claims
-        purpose: "Re-audit every number in the revised manuscript."
-      - tool: tool_audit_prose
-        purpose: "Re-audit the revised prose for hedging / causal-language / reading level."
+      - tool: tool_audit
+        purpose: "Re-audit every number in the revised manuscript (scope='project', dimension='claims')."
+      - tool: tool_audit
+        purpose: "Re-audit the revised prose for hedging / causal-language / reading level (scope='project', dimension='prose')."
       - tool: tool_audit_quality_full
         purpose: "Master re-audit before pre-submission gate."
 
@@ -1575,9 +1575,12 @@ protocols:
                "is this paper ready", "ready to submit", "ready for submission",
                "is this paper ready to submit"]
     decomposition:
-      - tool: tool_audit_synthesis
-      - tool: tool_audit_citations
-      - tool: tool_audit_figure
+      - tool: tool_audit
+        purpose: "Full synthesis audit pass (scope='synthesis', dimension='all')."
+      - tool: tool_audit
+        purpose: "Verify citations resolve / are not hallucinated (scope='project', dimension='citations')."
+      - tool: tool_audit
+        purpose: "Audit each figure (scope='step', dimension='figure')."
 
   audit/provenance_completeness:
     intent_class: audit_wrap
@@ -1610,7 +1613,7 @@ protocols:
               "snapshot environment", "rerun my pipeline",
               "rerun my whole pipeline", "someone else can rerun",
               "so others can reproduce"]
-    shortcut_tool: tool_audit_reproducibility
+    shortcut_tool: tool_audit          # scope='step', dimension='reproducibility'
 
 # ─────────────────────────────────────────────────────────────────────
 # Partial-workflow / role-specific protocols
@@ -1661,8 +1664,8 @@ protocols:
     decomposition:
       - protocol: visualization/visualization_workflow
         purpose: "Scope + plan figures, then build via an AI-authored plotting script (see visualization/figure_guidelines)."
-      - tool: tool_audit_figure_full
-        purpose: "Audit each figure."
+      - tool: tool_audit
+        purpose: "Audit each figure (scope='step', dimension='figure_full')."
 
   visualization/figure_critique:
     intent_class: review
@@ -1955,8 +1958,8 @@ protocols:
         purpose: "Detect Cox fit, run Schoenfeld + log-log + per-covariate tests, route to fallback on violation."
       - tool: tool_python_exec
         purpose: "Run the diagnostics script (lifelines / sksurv / statsmodels) or tool_r_exec for survival::coxph."
-      - tool: tool_audit_assumptions
-        purpose: "Record the PH-assumption verdict alongside the other assumption checks."
+      - tool: tool_audit
+        purpose: "Record the PH-assumption verdict alongside the other assumption checks (scope='step', dimension='assumptions')."
 
   methodology/missing_data_strategy:
     intent_class: methodology
@@ -2152,8 +2155,10 @@ protocols:
     decomposition:
       - protocol: writing/writing_discussion
         purpose: "Pull evidence floor + draft per-section discipline."
-      - tool: tool_audit_prose
-      - tool: tool_audit_claims
+      - tool: tool_audit
+        purpose: "Audit prose for hedging / causal-language / reading level (scope='project', dimension='prose')."
+      - tool: tool_audit
+        purpose: "Audit every number traces to a workspace output (scope='project', dimension='claims')."
 
   writing/writing_limitations:
     intent_class: synthesize
@@ -2190,7 +2195,8 @@ protocols:
     decomposition:
       - protocol: writing/writing_results
         purpose: "Build evidence table, draft per-structure, audit causal-language + number-format."
-      - tool: tool_audit_claims
+      - tool: tool_audit
+        purpose: "Audit every number traces to a workspace output (scope='project', dimension='claims')."
 
   writing/writing_data_availability:
     intent_class: synthesize
@@ -2438,8 +2444,10 @@ protocols:
     decomposition:
       - protocol: audit/pre_submission_checklist
         purpose: "Artefact + paper + figure + end-matter + cover-letter + ethics + repro + claims + venue checks."
-      - tool: tool_audit_synthesis
-      - tool: tool_audit_claims
+      - tool: tool_audit
+        purpose: "Full synthesis audit pass (scope='synthesis', dimension='all')."
+      - tool: tool_audit
+        purpose: "Audit every number traces to a workspace output (scope='project', dimension='claims')."
       - tool: tool_citations_verify
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2529,4 +2537,4 @@ shortcut_intents:
       - "outputs out of sync"
       - "are my figures up to date"
       - "version coherence"
-    tool: tool_audit_version_coherence
+    tool: tool_audit          # scope='project', dimension='version_coherence'

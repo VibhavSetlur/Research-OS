@@ -183,21 +183,32 @@ steps:
       (the ones that anchor abstract / discussion paragraphs):
 
         tool_verify
+            scope="claim"
             claim="<verbatim from draft>"
-            questions=[
-              "Does the cited paper measure the same thing?",
-              "Same effect direction?",
-              "Same population / cohort / units?",
-              "Quantitative anchor in the same range?",
+            verifications=[
+              {question: "Does the cited paper measure the same thing?",
+               answer: "<your finding>", supports: true,
+               evidence: {type: "cited_paper",
+                          path: "inputs/literature/<file>.pdf",
+                          cited_text: "<verbatim span from source>"}},
+              {question: "Same effect direction?", answer: "...", supports: true,
+               evidence: {type: "cited_paper", path: "...", cited_text: "..."}},
+              {question: "Same population / cohort / units?", answer: "...", supports: true,
+               evidence: {type: "cited_paper", path: "...", cited_text: "..."}},
+              {question: "Quantitative anchor in the same range?", answer: "...", supports: true,
+               evidence: {type: "cited_paper", path: "...", cited_text: "..."}},
             ]
-            supports=[true|false per question]
 
-      A claim is VERIFIED only if all questions support==true. Any
-      `false` flips the draft sentence into a caveated form ("…in
-      contrast to <paper>, which reports …") OR the claim is removed.
+      `supports` is per-verification-entry. A claim is VERIFIED only if
+      EVERY entry has supports==true AND its `evidence.path` resolves
+      with the `cited_text` present in that file; otherwise the entry
+      downgrades to needs_revision / unverifiable and the claim verdict
+      is never `verified`. Any unsupported entry flips the draft sentence
+      into a caveated form ("…in contrast to <paper>, which reports …")
+      OR the claim is removed.
 
-      tool_verify (project-wide scan) runs the audit gate
-      at finalize:
+      tool_verify(scope="project") runs the project-wide audit gate
+      at finalize (a different scope of the same tool):
         - walks workspace/analysis.md decision blocks
         - confirms each decision has a grounding record or inline cite
         - writes workspace/logs/grounding_audit.md

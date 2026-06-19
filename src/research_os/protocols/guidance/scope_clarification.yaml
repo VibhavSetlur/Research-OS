@@ -188,5 +188,5 @@ quality_bar:
   no_invented_research_question: true
 
 next_protocol: null    # downstream protocol is whatever the re-route picks
-next_protocol_kind: forward_default
+next_protocol_kind: terminal
 on_failure: guidance/iterative_planning

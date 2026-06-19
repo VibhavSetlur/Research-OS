@@ -235,8 +235,10 @@ steps:
     description: |
       For every claim with verdict ≠ DEFERRED:
         tool_ground
-            decision="<step>_claim_<n>"
+            claim="<one-line restatement of the step's claim>"
+            mode="explicit"
             sources=[{type: "paper", key: "<cite_key>", relevance: "high"}, ...]
+            decision_id="<step>_claim_<n>"
             confidence="high"|"medium"|"low"
             notes="<one-line summary of how literature supports/refutes>"
 
@@ -250,16 +252,27 @@ steps:
       For the highest-stakes claims (those that will lead paragraphs
       in the synthesis):
         tool_verify
+            scope="claim"
             claim="<original claim>"
-            questions=[
-              "Does <paper1> measure the same effect direction?",
-              "Was the cohort comparable (sample size, demographics)?",
-              "Is the quantitative anchor (log2FC, HR) in the same range?",
+            verifications=[
+              {question: "Does <paper1> measure the same effect direction?",
+               answer: "<your finding>", supports: true,
+               evidence: {type: "cited_paper",
+                          path: "workspace/<step>/literature/<file>.pdf",
+                          cited_text: "<verbatim span from source>"}},
+              {question: "Was the cohort comparable (sample size, demographics)?",
+               answer: "...", supports: true,
+               evidence: {type: "cited_paper", path: "...", cited_text: "..."}},
+              {question: "Is the quantitative anchor (log2FC, HR) in the same range?",
+               answer: "...", supports: true,
+               evidence: {type: "cited_paper", path: "...", cited_text: "..."}},
             ]
-            supports=[true|false per question]
 
-      A claim is VERIFIED only if all questions support==true.
-      Failures route to discussion as caveats.
+      `supports` is per-verification-entry. A claim is VERIFIED only if
+      EVERY entry has supports==true AND its `evidence.path` resolves
+      with the `cited_text` present in that file; otherwise the entry
+      downgrades to needs_revision / unverifiable and the claim verdict
+      is never `verified`. Failures route to discussion as caveats.
 
   - id: append_citations_md
     name: Append citation entries to workspace/citations.md
