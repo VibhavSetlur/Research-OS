@@ -9,6 +9,7 @@ scope_tags:
   workflow_shape: [any]
 last_reviewed: '2026-06-16'
 see_also:
+  - synthesis/deliverable_design      # the design skill: poster archetype + palette selection
   - synthesis/synthesis_lay_summary   # public-facing handout profiles overlap
   - synthesis/synthesis_paper         # the poster/handout points back at the paper
 description: |

@@ -9,6 +9,7 @@ scope_tags:
   workflow_shape: [any]
 last_reviewed: '2026-06-16'
 see_also:
+  - synthesis/deliverable_design                  # the design skill: archetype + palette selection
   - visualization/interactive_dashboard_design   # multi-page interactive variant
   - synthesis/synthesis_paper                     # the linear argument the dashboard skims
   - synthesis/synthesis_lay_summary               # non-expert sibling deliverable
@@ -73,14 +74,21 @@ prerequisites:
     treated as 'open' so unfilled projects don't trip the gate."
 
 design_principles: |
-  - **Visual cohesion with the figures.** The scaffold ships with the
-    Research-OS dashboard style (cream background `#FBF8F3`, italic
-    serif accents, muted navy / olive / forest / oxblood accent
-    palette, hairline rules instead of heavy borders) — the same
-    palette + typography that `apply_research_os_style()` applies to
-    matplotlib figures. Embed figures generated through that helper
-    and the dashboard reads as a single deliverable rather than a
-    chrome wrapper around miscellaneous PNGs.
+  - **Design to the argument — pick an archetype + palette, don't pour
+    into one fixed form.** Before authoring, work synthesis/deliverable_design
+    (the visual-design skill): choose a LAYOUT ARCHETYPE
+    (single-viewport-brief / scroll-lite-narrative / comparison-scorecard /
+    multi-panel-exploratory) and a professional PALETTE
+    (`tool_synthesis_scaffold kind='dashboard' archetype=... palette=...`).
+    A single fixed template for every project is the slop this protocol exists
+    to prevent.
+  - **Visual cohesion with the figures.** The RO house palette (cream `#FBF8F3`,
+    italic serif accents, muted navy / olive / forest / oxblood, hairline rules)
+    is the DEFAULT because it matches `apply_research_os_style()` figures — but
+    it is a default for cohesion, NOT a mandate. A custom-but-professional
+    palette (restraint, AA contrast, CVD-safe, no neon) is fine; the design
+    audit judges it on quality, not membership. Whatever palette you pick, embed
+    figures in the SAME palette so the page reads as one deliverable.
   - **Story before structure.** Organise sections by hypothesis,
     decision, or argument — not by step number. The reader navigates
     by *what was learned* (e.g. "What lifted accuracy", "What we
@@ -155,6 +163,10 @@ forbidden_structure: |
   - **Caption-only sections.** Section containing only an image +
     caption with no surrounding interpretive prose. Captions
     augment claims; they don't replace them.
+  - **Endless scroll.** An unbounded vertical `<section>` stack with no
+    in-page nav. Respect the chosen archetype's scroll budget; a
+    multi-section dashboard (scroll-lite-narrative) MUST carry the in-page
+    `<nav>`. The design audit flags scroll over budget.
 
 quality_standards: |
   - offline — zero `<script src="http`, zero `<link href="http`.
