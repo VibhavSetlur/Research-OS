@@ -225,7 +225,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--transport", default="stdio",
-        help="MCP transport (default: stdio). 'sse' reserved for future use.",
+        help="MCP transport (default: stdio). 'sse' not yet implemented — falls back to stdio.",
     )
     parser.add_argument(
         "--workspace",
@@ -239,6 +239,21 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    # Only stdio is implemented today. A non-stdio --transport (e.g. sse) is
+    # accepted by the parser but silently discarded below; warn instead of
+    # leaving the user to wonder why their SSE endpoint never comes up.
+    if getattr(args, "transport", "stdio") != "stdio":
+        logger.warning(
+            "transport %r is not yet implemented; falling back to stdio. "
+            "Only 'stdio' is currently supported.",
+            args.transport,
+        )
+        print(
+            f"  warning: --transport {args.transport!r} not yet implemented "
+            "— falling back to stdio.",
+            file=sys.stderr,
+        )
 
     if args.workspace:
         os.environ["RESEARCH_OS_WORKSPACE"] = str(

@@ -743,9 +743,11 @@ def show_summary_and_confirm(r: WizardResult) -> bool:
         ("Location", str(r.target_dir) + (f"  {_C.YELLOW}(new){_C.RESET}"
                                           if r.create_dir_needed else "")),
         ("Domain",   r.domain or _C.GREY + "(blank — AI will infer)" + _C.RESET),
+        ("Mode",     r.workspace_mode),
         ("Questions", (f"{len(r.questions)} queued" if r.questions
                        else _C.GREY + "(blank — fill later in researcher_config.yaml)" + _C.RESET)),
         ("IDEs",     ", ".join(r.ides)),
+        ("Model class", r.model_profile),
     ]
     if r.pending_notes:
         rows.append(("Notes",       f"{len(r.pending_notes)} pasted blob(s) → inputs/context/"))
@@ -825,6 +827,7 @@ def _next_steps(r: WizardResult) -> None:
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Open your AI IDE on this folder — the MCP server auto-launches.")
     print(f"        {_C.BOLD}⚠ Already have it open? RESTART the IDE / reload the window{_C.RESET}")
     print(f"        {_C.DIM}so the research-os MCP tools load — they won't appear until you do.{_C.RESET}")
+    print(f"        {_C.DIM}If the tools don't appear, run `research-os doctor` to diagnose (usually a PATH issue).{_C.RESET}")
     if getattr(r, "mcp_scope", "workspace") == "global":
         try:
             from research_os.project_ops import mcp_global_install_hint

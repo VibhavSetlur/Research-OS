@@ -129,13 +129,20 @@ def _handle_sys_help(name, arguments, root):
     if topic == "overrides":
         return _text(_success({
             "policy_levels": {
-                "enforce": "default — AI refuses to bypass without an explicit current-message ask.",
-                "allow_override": "AI may bypass when asked; logs the rationale.",
-                "warn_only": "gate blockers become warnings (sandbox use only).",
+                "enforce": "ACTIVE default — AI refuses to bypass without an explicit current-message ask + logged rationale.",
+                "allow_override": "RESERVED (not yet enforced) — behaves like enforce today; per-tool override_* flags already work regardless.",
+                "warn_only": "RESERVED (not yet enforced) — blockers still hard-block today; do not rely on it to soften gates.",
             },
+            # Canonical list of every quality-gate bypass flag, the tool it
+            # belongs to, and what it bypasses. (Floor/autopilot gates differ.)
             "how_to_bypass": [
-                "tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale='<why>')",
-                "tool_plan(operation='advance', override_gate=true, override_rationale='<why>')",
+                "tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale='<why>') — non-AGREES verdict missing from Discussion",
+                "tool_step_complete(override_literature_gate=true, override_rationale='<why>') — per-step literature-loop check (same flag on tool_path_finalize)",
+                "tool_audit(scope='synthesis', dimension='all', override_no_pdfs=true, override_rationale='<why>') — zero-PDF default-deny on literature-required steps",
+                "tool_audit(scope='synthesis', dimension='dashboard_content', override_dashboard_content_gate=true, override_rationale='<why>') — dashboard-content BLOCKERs",
+                "tool_audit(scope='project', dimension='cross_deliverable', override_cross_deliverable=true, override_rationale='<why>') — 5-dimension cross-deliverable audit",
+                "tool_plan(operation='advance', override_gate=true, override_rationale='<why>') — deliverable-step quality gate (also bypasses the master completeness aggregator)",
+                "tool_finalize_project(operation='finalize', override=true, override_rationale='<why>') — the ship gate; the ONLY soften path (it ignores quality_gate_policy)",
             ],
             "rules": [
                 "Authorisation must be in the researcher's CURRENT message ('skip the audit', 'just draft it', 'preview only').",

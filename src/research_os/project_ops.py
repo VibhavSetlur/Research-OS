@@ -782,6 +782,10 @@ def _write_os_state_summary(root: Path) -> None:
     stage = state.get("pipeline_stage", "init")
     current = state.get("current_path", "main")
     question = (state.get("research_question") or "").strip()
+    questions = [
+        q for q in (state.get("research_questions") or [])
+        if isinstance(q, str) and q.strip()
+    ]
     domain = (state.get("domain") or "").strip()
     hyps = state.get("active_hypotheses") or []
 
@@ -806,7 +810,11 @@ def _write_os_state_summary(root: Path) -> None:
         "",
         "## What this project is",
         "",
-        f"- **Research question:** {question or '_(not yet set — run `tool_intake_autofill` or set in `inputs/researcher_config.yaml`)_'}",
+        *(
+            ["- **Research question(s):**"] + [f"  - {q}" for q in questions]
+            if len(questions) > 1
+            else [f"- **Research question:** {question or '_(not yet set — run `tool_intake_autofill` or set in `inputs/researcher_config.yaml`)_'}"]
+        ),
         f"- **Domain:** {domain or '_(unset)_'}",
         f"- **Pipeline phase:** `{stage}`",
         f"- **Active path:** `{current}`",
@@ -867,7 +875,7 @@ def _write_os_state_summary(root: Path) -> None:
         ("workspace/methods.md", "methods log (assembles into paper)"),
         ("workspace/citations.md", "auto bibliography"),
         ("environment/requirements.txt", "reproducibility env"),
-        ("synthesis/paper.md", "draft paper"),
+        ("synthesis/paper.typ", "draft paper (compiles to paper.pdf)"),
     ]:
         exists = (root / f).exists()
         lines.append(f"- {'✓' if exists else '⚪'} `{f}` — {label}")
@@ -1515,7 +1523,7 @@ def scaffold_minimal_workspace(
 
     Philosophy: scaffold creates ONLY the directories + the bare minimum files
     the AI / researcher need before the first session boot. We do NOT
-    pre-create synthesis outputs (paper.md, abstract.md), per-experiment
+    pre-create synthesis outputs (paper.typ, poster.typ, ...), per-experiment
     folders, or pre-filled docs. Those get written by the protocols that own
     them, when (and only when) they're needed.
 
@@ -2286,7 +2294,7 @@ A clean research workspace they can read without any Research-OS context:
 * `synthesis/dashboard.html` — the polished single-file dashboard
   (open in any browser; self-contained).
 * `synthesis/figures/` — every curated figure with its caption sidecar.
-* `synthesis/REPORT.md` / `synthesis/paper.md` — the narrative deliverable.
+* `synthesis/paper.typ` (→ `paper.pdf`) / `synthesis/REPORT.md` — the narrative deliverable.
 * `workspace/NN_*/conclusions.md` — the per-step reasoning chain.
 * `workspace/NN_*/scripts/` — the actual analysis code (reproducible).
 * `workspace/NN_*/data/next_step_output/` — derived artefacts each step persisted.
@@ -2370,7 +2378,7 @@ def _write_project_root_readme(
     dest.write_text(
         f"""# {project_name}
 
-{q_line}{domain_line}> A research project scaffolded with [Research OS](https://github.com/vsetlur/Research-OS) — a structured AI-collaboration workspace for grounded, reproducible research.
+{q_line}{domain_line}> A research project scaffolded with [Research OS](https://github.com/VibhavSetlur/Research-OS) — a structured AI-collaboration workspace for grounded, reproducible research.
 
 ## What's in this folder
 
@@ -2598,13 +2606,13 @@ The AI loads the right protocol and walks through it. Interrupt anytime;
 | `workspace/01_<slug>/`, `02_<slug>/`, ... | Numbered experiment folders. Scripts + data + outputs + per-step conclusions. |
 | `workspace/methods.md`, `analysis.md`, `citations.md` | Append-only logs (the project's narrative). |
 | `workspace/scratch/`  | AI sandbox for quick tests (gitignored). |
-| `synthesis/`          | Final outputs — paper.md, abstract.md, poster.pdf, dashboard.html (only created when you ask). |
+| `synthesis/`          | Final outputs — paper.typ (→ paper.pdf), poster.typ, slides.typ, dashboard.html (only created when you ask). |
 
 ## 5. Controls
 
 In `inputs/researcher_config.yaml`:
 
-* `interaction.autonomy_level: manual | supervised | autopilot`
+* `interaction.autonomy_level: manual | supervised | autopilot | coaching`
 * `model_profile: small | medium | large` (affects how the AI batches work)
 * `runtime.shared_server: true` if you're on HPC / a shared box
 
@@ -2635,13 +2643,16 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 
 ## More
 
-* First steps: `docs/START.md` (install + first project + cheatsheet)
-* Sharing: `docs/SHARING.md` (zip + GitHub paths)
-* Full guide: `docs/RESEARCHER_GUIDE.md`
-* Pick a protocol: `docs/USE_CASES.md` (role × goal × output)
-* All tools: `docs/TOOLS.md`
-* All protocols: `docs/PROTOCOLS.md`
-* FAQ: `docs/FAQ.md`
+`docs/SHARING.md` is bundled in this project. The rest live online in the
+Research-OS repository:
+
+* First steps: <https://github.com/VibhavSetlur/Research-OS/blob/main/docs/START.md> (install + first project + cheatsheet)
+* Sharing: `docs/SHARING.md` (zip + GitHub paths) — bundled here
+* Full guide: <https://github.com/VibhavSetlur/Research-OS/blob/main/docs/RESEARCHER_GUIDE.md>
+* Pick a protocol: <https://github.com/VibhavSetlur/Research-OS/blob/main/docs/USE_CASES.md> (role × goal × output)
+* All tools: <https://github.com/VibhavSetlur/Research-OS/blob/main/docs/TOOLS.md>
+* All protocols: <https://github.com/VibhavSetlur/Research-OS/blob/main/docs/PROTOCOLS.md>
+* FAQ: <https://github.com/VibhavSetlur/Research-OS/blob/main/docs/FAQ.md>
 """
     )
 
@@ -2850,6 +2861,25 @@ def regenerate_intake(
         or state.get("research_question")
         or ""
     )
+    # The wizard / CLI can collect several questions (--questions repeatable);
+    # render all of them so questions 2..N aren't silently dropped. Keep the
+    # singular one-line form when there's 0 or 1 so existing output is identical.
+    research_questions = [
+        q for q in (
+            config_overrides.get("research_questions")
+            or state.get("research_questions")
+            or []
+        )
+        if isinstance(q, str) and q.strip()
+    ]
+    if len(research_questions) > 1:
+        question_lines = ["- Research question(s):"] + [
+            f"  - {q}" for q in research_questions
+        ]
+    else:
+        question_lines = [
+            f"- Research question: {research_question or '(to be confirmed in project_startup)'}"
+        ]
     keywords: list[str] = list(config_overrides.get("keywords", []) or [])
     if not keywords:
         keywords = [
@@ -2881,7 +2911,7 @@ def regenerate_intake(
         "## Project",
         f"- Title: {project_name}",
         f"- Domain: {domain or '(not yet classified — domain_analysis will set this)'}",
-        f"- Research question: {research_question or '(to be confirmed in project_startup)'}",
+        *question_lines,
         f"- Keywords: {', '.join(keywords) if keywords else '(none)'}",
         "",
         "## Input files",

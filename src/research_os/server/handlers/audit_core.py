@@ -287,19 +287,16 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
         audit_cross_deliverable_consistency,
     )
     from research_os.project_ops import log_override, validate_override_rationale
-    from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_cross_deliverable", False))
     rationale = arguments.get("override_rationale")
-    policy = get_interaction_policy(root)["quality_gate_policy"]
-    if (
-        policy == "enforce"
-        and override_requested
-        and (not rationale or not str(rationale).strip())
-    ):
+    # Require a rationale whenever an override is requested — regardless of
+    # quality_gate_policy — so this gate matches its six siblings (the bypass is
+    # logged + applied either way; policy never silently waived the rationale).
+    if override_requested and (not rationale or not str(rationale).strip()):
         return _text(_error(
-            "interaction.quality_gate_policy=enforce: "
-            "override_cross_deliverable=true requires override_rationale."
+            "override_cross_deliverable=true requires override_rationale "
+            "(a bypass is logged + applied regardless of quality_gate_policy)."
         ))
     if override_requested and rationale:
         thin = validate_override_rationale(rationale)

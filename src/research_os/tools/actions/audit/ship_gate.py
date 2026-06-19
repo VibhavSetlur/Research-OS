@@ -33,6 +33,9 @@ The verdict
   blocker set yields ``status='blocked'`` that the handler escalates to a
   hard error. Pass ``override=true`` + a substantive
   ``override_rationale`` (validated, logged) to ship despite blockers.
+  This gate intentionally ignores ``interaction.quality_gate_policy``: even
+  under ``warn_only`` / ``allow_override`` it still refuses on any unresolved
+  blocker, so the per-call ``override`` is the sole soften path.
 
 This is intentionally the LAST pre-ship step a synthesis/audit protocol
 references. It is a scaffold, not a script: it tells the AI exactly what

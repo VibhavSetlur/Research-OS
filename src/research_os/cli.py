@@ -525,6 +525,9 @@ def cmd_start(args: argparse.Namespace) -> None:
         if not (workspace / ".os_state").exists():
             print(f"  {_warn_glyph()}  --workspace points at a non-RO directory: {workspace}")
             print("  Run 'research-os init' there first, or omit --workspace.")
+            # Launching the server against an un-scaffolded path leaves the AI
+            # with no state to boot from — fail fast rather than start broken.
+            sys.exit(1)
         sys.argv = [sys.argv[0], "--transport", args.transport,
                     "--workspace", str(workspace)]
     else:

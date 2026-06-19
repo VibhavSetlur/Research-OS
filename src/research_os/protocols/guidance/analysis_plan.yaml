@@ -497,7 +497,7 @@ steps:
       matching step_intent, the explicit escape is:
         figure_required: false      # in step_summary.yaml
       Combined with the override path:
-        tool_path_finalize override_completeness_gate=true
+        tool_path_finalize override_literature_gate=true
                             override_rationale="<why this analyse step has no figure>"
 
       Outputs spanning multiple categories (figures + tables + reports)

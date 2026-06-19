@@ -86,6 +86,45 @@ class TestSetConfig:
         assert res["status"] == "success"
         assert get_config(initialised_root)["config"]["researcher"]["name"] == "Dr. Smith"
 
+    # C4 — set_config rejects off-enum writes instead of silently storing a typo.
+    def test_rejects_off_enum_value(self, initialised_root):
+        res = set_config("gate_strictness", "lite", initialised_root)
+        assert res["status"] == "error"
+        assert "gate_strictness" in res["message"]
+        assert "light" in res["allowed"]
+        # The bad value must NOT have been written.
+        assert get_config(initialised_root)["config"]["gate_strictness"] != "lite"
+
+    def test_accepts_valid_enum_value(self, initialised_root):
+        res = set_config("gate_strictness", "light", initialised_root)
+        assert res["status"] == "success"
+        assert get_config(initialised_root)["config"]["gate_strictness"] == "light"
+
+    def test_rejects_off_enum_model_profile(self, initialised_root):
+        assert set_config("model_profile", "big", initialised_root)["status"] == "error"
+
+    # C6 — boolean knobs coerce "false" to a real bool (not a truthy string).
+    def test_bool_field_coerces_false(self, initialised_root):
+        res = set_config("figures.svg_allowed", "false", initialised_root)
+        assert res["status"] == "success"
+        val = get_config(initialised_root)["config"]["figures"]["svg_allowed"]
+        assert val is False
+
+    def test_bool_field_coerces_true(self, initialised_root):
+        set_config("runtime.shared_server", "on", initialised_root)
+        assert get_config(initialised_root)["config"]["runtime"]["shared_server"] is True
+
+
+class TestModelProfileSync:
+    """A1 — the wizard's model_profile choice must reach the canonical
+    ai.model_profile key every reader prefers, not just the legacy top-level."""
+
+    def test_init_override_syncs_ai_model_profile(self, tmp_root):
+        init_config(tmp_root, overrides={"model_profile": "large"})
+        cfg = get_config(tmp_root)["config"]
+        assert cfg["model_profile"] == "large"
+        assert cfg["ai"]["model_profile"] == "large"
+
 
 class TestValidateConfig:
     def test_returns_structure(self, initialised_root):

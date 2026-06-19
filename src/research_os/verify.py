@@ -13,6 +13,7 @@ can pretty-print however it wants.
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 try:
@@ -149,8 +150,52 @@ def verify_workspace(root: Path, ides: list[str] | None = None) -> list[tuple[st
             continue
         ok, detail = _json_parses(p)
         results.append((f"MCP config: {ide}", ok, detail or "ok"))
+        # The #1 silent first-session failure is the configured server command
+        # not being on PATH (e.g. installed in a venv that isn't active). Surface
+        # it as a WARN row (ok=True so the smoke check still passes) rather than
+        # leaving the IDE to fail to launch the server with no explanation.
+        if ok:
+            cmd = _mcp_server_command(p)
+            if cmd and not (Path(cmd).is_absolute() or shutil.which(cmd)):
+                results.append((
+                    f"MCP command on PATH: {ide}",
+                    True,
+                    f"WARN: command `{cmd}` not on PATH — the IDE may fail to "
+                    "launch the server. Run `research-os doctor` to diagnose.",
+                ))
 
     return results
+
+
+def _mcp_server_command(p: Path) -> str | None:
+    """Pull the research-os server `command` from a written MCP config JSON.
+
+    Tolerates the three server-block spellings (mcpServers / mcp_servers /
+    servers) and the research-os key variants. Returns None if absent /
+    unparseable (the caller already reported JSON validity separately)."""
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    servers = (
+        data.get("mcpServers")
+        or data.get("mcp_servers")
+        or data.get("servers")
+        or {}
+    )
+    if not isinstance(servers, dict):
+        return None
+    for name in ("research-os", "research_os", "researchos"):
+        block = servers.get(name)
+        if isinstance(block, dict) and isinstance(block.get("command"), str):
+            return block["command"].strip() or None
+    # Fall back to the first server block that carries a command string.
+    for block in servers.values():
+        if isinstance(block, dict) and isinstance(block.get("command"), str):
+            return block["command"].strip() or None
+    return None
 
 
 def summarize(results: list[tuple[str, bool, str]]) -> tuple[int, int, str]:
