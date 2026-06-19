@@ -137,18 +137,21 @@ def test_dashboard_scaffold_points_at_style_helper():
 
 
 def test_audit_color_palette_accepts_research_os_accents():
-    from research_os.tools.actions.audit.dashboard_content import (
-        RESEARCH_OS_ACCENT, audit_color_palette,
-    )
-    # Build a dashboard fragment that uses every accent colour exactly
-    # once — should produce zero "out of palette" warnings.
+    # 3.2.8: audit_color_palette no longer polices membership against a
+    # hardcoded RESEARCH_OS_ACCENT allow-list — it JUDGES quality (neon +
+    # restraint). The RO house palette's own colours must pass cleanly: no
+    # neon, and they ARE the declared palette so nothing is off-palette.
+    from research_os.tools.actions.audit.dashboard_content import audit_color_palette
+    from research_os.tools.actions.viz.palettes import palette_hexes
+
     html = "".join(
         f"<span style='color:{c}'>x</span>"
-        for c in sorted(RESEARCH_OS_ACCENT)
+        for c in sorted(palette_hexes("ro_house"))
     )
     res = audit_color_palette(html)
+    assert res["blockers"] == [], res["blockers"]
     assert res["warnings"] == [], (
-        f"new accent palette tripped {len(res['warnings'])} warnings"
+        f"RO house palette tripped {len(res['warnings'])} warnings"
     )
 
 

@@ -29,6 +29,7 @@ needed.
 
 from research_os.tools.actions.viz.figures import (
     audit_figure_quality,
+    audit_figure_style,
     palette_for,
     step_figure_inventory,
 )
@@ -58,6 +59,7 @@ __all__ = [
     "apply_research_os_style",
     "apply_suptitle",
     "audit_figure_quality",
+    "audit_figure_style",
     "label_bars_above",
     "label_diverging_bars",
     "palette_for",

@@ -550,11 +550,30 @@ def _handle_tool_audit_version_coherence(name, arguments, root):
 
 
 def _handle_tool_audit_figure_full(name, arguments, root):
-    from research_os.tools.actions.viz import audit_figure_quality
+    from research_os.tools.actions.viz import audit_figure_quality, audit_figure_style
 
-    return _text(_success(audit_figure_quality(
-        arguments["figure_path"], root,
-    )))
+    figure_path = arguments["figure_path"]
+    technical = audit_figure_quality(figure_path, root)
+    # If the figure doesn't exist the technical audit already reports it;
+    # don't double-run the style audit on a missing file.
+    if technical.get("status") == "error" and "not found" in str(technical.get("message", "")).lower():
+        return _text(_success(technical))
+
+    # 3.2.8: layer the design / style audit (colour, axis labels, caption
+    # framing, aspect) on top of the technical audit (DPI, caption presence,
+    # overlap) so figure_full delivers ONE verdict for the figure.
+    style = audit_figure_style(figure_path, root)
+    merged = dict(technical)
+    merged["blockers"] = list(technical.get("blockers", [])) + list(style.get("blockers", []))
+    merged["warnings"] = list(technical.get("warnings", [])) + list(style.get("warnings", []))
+    merged["style_report"] = style.get("report", {})
+    if merged["blockers"]:
+        merged["status"] = "error"
+        merged["message"] = f"{len(merged['blockers'])} blocker(s): " + "; ".join(merged["blockers"])
+    elif merged["warnings"]:
+        merged["status"] = "warning"
+        merged["message"] = f"{len(merged['warnings'])} warning(s)."
+    return _text(_success(merged))
 
 
 def _handle_tool_audit_code_quality(name, arguments, root):

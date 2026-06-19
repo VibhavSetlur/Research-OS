@@ -195,6 +195,41 @@ def _check_slides(text: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+# Poster-scale type floors (3.2.8). The OLD 14pt floor was a SCREEN floor —
+# it silently passed posters set at 14pt body, which is unreadable across a
+# conference-session room. A real 36x48 poster wants ≥24pt body and ≥36pt
+# section titles. We scale the floor with the board's longest edge so a small
+# A1 handout-poster isn't held to A0 type.
+_POSTER_BODY_FLOOR_PT = 24.0      # body / running text on a ≥36in board
+_POSTER_TITLE_FLOOR_PT = 36.0     # section-title (#block-section) on a ≥36in board
+
+# Finding verbs / comparative cues that mark a headline as a RESULT, not a topic.
+_POSTER_FINDING_CUES = (
+    "found", "show", "showed", "shows", "lifted", "raised", "reduced", "cut",
+    "improved", "increased", "decreased", "ruled out", "indicate", "support",
+    "outperform", "beat", "achieved", "reached", "confirms", "higher", "lower",
+    "faster", "slower", "better", "worse", "more", "fewer", "than", "vs",
+    "versus", "up", "down",
+)
+_POSTER_TOPIC_OPENERS = (
+    "a study of", "studies of", "investigating", "investigation of",
+    "towards", "toward", "on the", "an analysis of", "analysis of",
+    "exploring", "an exploration of", "understanding",
+)
+
+
+def _poster_size_inches(text: str) -> tuple[float, float] | None:
+    """Parse the board geometry from `size: "WxH"` (inches). Returns (W, H) or
+    None if no recognisable size string is present."""
+    m = re.search(r'size\s*:\s*["\'](\d+(?:\.\d+)?)\s*[xX×]\s*(\d+(?:\.\d+)?)["\']', text)
+    if not m:
+        return None
+    try:
+        return float(m.group(1)), float(m.group(2))
+    except ValueError:
+        return None
+
+
 def _check_poster(text: str) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -212,25 +247,73 @@ def _check_poster(text: str) -> dict[str, Any]:
     )
     sections = block_sections or heading_sections
     has_title_field = bool(re.search(r"^#?title:|title:", text, re.I))
+
+    # single_headline_present — a billboard has exactly one headline.
     if headlines < 1 and not has_title_field:
-        # WARN, not BLOCK: a hand-rolled poster may carry its headline as a
-        # large heading or a template title arg we can't see. The structural
-        # requirement (>=3 sections, below) stays a blocker.
         warnings.append(
             "No #headline[...] detected — a Better-Poster reads best with one "
             "across-the-room-readable headline sentence. Confirm one is present."
         )
+    elif headlines >= 2:
+        warnings.append(
+            f"{headlines} #headline[...] blocks — a poster has exactly ONE "
+            "billboard headline. Keep the strongest, demote the rest to "
+            "section titles."
+        )
+
+    # section_count_sanity — too few (block, existing) / too many (warn).
     if sections < 3:
         blockers.append(
             f"{sections} content section(s) detected. A poster needs at least "
             "Background / Methods / Results / Implication (#block-section(...))."
         )
+    elif sections > 8:
+        warnings.append(
+            f"{sections} sections — the poster reads as a directory. Group into "
+            "≤~6 panels so a passer-by can follow the argument at a glance."
+        )
+
     cites = len(re.findall(r"#cite\(<|\[@[^\]]+\]", text))
     if cites > 8:
         warnings.append(f"{cites} citations — posters usually keep ≤ 8.")
-    # Design lints (WARN-only). These fire ONLY on hand-rolled overrides — a
-    # clean scaffold delegates sizing + colour to the bundled poster template,
-    # so it carries no inline `…pt` sizing and no rgb() fills and trips neither.
+
+    # headline_is_a_finding — extract the first #headline[...] body and judge
+    # whether it states a RESULT (digit / comparative / finding verb) vs a
+    # topic ("A study of …"). WARN only.
+    hm = re.search(r"#(?:poster-)?headline\[([^\]]*)\]", text, re.S)
+    if hm:
+        h_text = re.sub(r"[#*_]", "", hm.group(1)).strip()
+        h_low = h_text.lower()
+        n_words = len(h_text.split())
+        has_digit = bool(re.search(r"\d", h_text))
+        has_cue = any(c in h_low for c in _POSTER_FINDING_CUES)
+        is_topic_opener = any(h_low.startswith(o) for o in _POSTER_TOPIC_OPENERS)
+        # The bundled scaffold ships a literal placeholder; don't lint that.
+        is_placeholder = "headline finding as a plain-english sentence" in h_low
+        if not is_placeholder and (n_words < 4 or is_topic_opener or not (has_digit or has_cue)):
+            warnings.append(
+                "Headline reads as a topic, not a finding "
+                f"({h_text[:60]!r}). State the RESULT — a number or comparison "
+                "with a finding verb (\"Reranking lifted hits@10 by 5.9pp\"), "
+                "not \"A study of …\"."
+            )
+
+    # poster_body_font_floor — size-aware (replaces the misleading 14pt floor).
+    # Parse every inline pt size, separating section-title sizes (#block-section
+    # / #heading) from body sizes is hard from text alone, so we apply the body
+    # floor to all inline pt sizes and surface the title floor as guidance. The
+    # floor scales with the board's longest edge.
+    size = _poster_size_inches(text)
+    longest_edge = max(size) if size else 0.0
+    # Below 36in we relax the floor (a small handout-poster); at/above 36in the
+    # full poster floors apply. With no size string, apply the full floor (a
+    # hand-rolled poster with no geometry is assumed full-size).
+    if size and longest_edge < 36:
+        body_floor = 18.0
+        title_floor = 28.0
+    else:
+        body_floor = _POSTER_BODY_FLOOR_PT
+        title_floor = _POSTER_TITLE_FLOOR_PT
     font_pts = [
         float(v)
         for v in re.findall(
@@ -238,21 +321,157 @@ def _check_poster(text: str) -> dict[str, Any]:
             text,
         )
     ]
-    tiny = sorted({v for v in font_pts if v < 14})
+    tiny = sorted({v for v in font_pts if v < body_floor})
     if tiny:
         warnings.append(
-            f"Poster hard-codes {tiny[0]:g}pt text — posters must read across a "
-            "room (>=14pt body, ideally >=16pt). The bundled template sizes are "
-            "already correct; remove the override or raise it."
+            f"Poster hard-codes {tiny[0]:g}pt text — at {int(longest_edge) or 36}in "
+            f"a poster must read across a room (body ≥{body_floor:g}pt, section "
+            f"titles ≥{title_floor:g}pt). The bundled template sizes are already "
+            "at poster scale; remove the override or raise it."
         )
+
+    # palette_restraint_and_cvd — count hand-coded rgb() hues; flag a red+green
+    # clash with no third channel. Reuses the shared colour science.
     poster_hexes = re.findall(r'rgb\(\s*["\']?#([0-9A-Fa-f]{6})', text)
-    if len(poster_hexes) >= 3:
+    n_hex = len(poster_hexes)
+    if n_hex >= 4:
         warnings.append(
-            f"Poster hard-codes {len(poster_hexes)} rgb() colours instead of the "
-            "template palette. Confirm the scheme is colour-vision-deficiency "
-            "safe (tool_figure_palette has an Okabe-Ito set) — red/green pairs "
-            "are the common failure."
+            f"Poster hard-codes {n_hex} rgb() colours instead of the template "
+            "palette. Restraint reads as credibility — one ground + one primary "
+            "+ ≤2-3 semantic accents. Confirm the scheme is CVD-safe "
+            "(tool_figure_palette has an Okabe-Ito set)."
         )
+    elif n_hex >= 3:
+        # Keep the 3.2.7 behaviour (>=3 hand-coded hues warns) so the existing
+        # CVD lint still fires on a red/green/blue hand-roll.
+        warnings.append(
+            f"Poster hard-codes {n_hex} rgb() colours instead of the template "
+            "palette. Confirm the scheme is colour-vision-deficiency safe "
+            "(tool_figure_palette has an Okabe-Ito set) — red/green pairs are "
+            "the common failure."
+        )
+    else:
+        try:
+            from research_os.tools.actions.viz.palettes import hex_to_hsv
+            reds = greens = 0
+            for h in poster_hexes:
+                hh, s, v = hex_to_hsv("#" + h)
+                if s > 0.3 and v > 0.3:
+                    deg = hh * 360
+                    if deg < 20 or deg > 340:
+                        reds += 1
+                    elif 90 < deg < 160:
+                        greens += 1
+            if reds and greens:
+                warnings.append(
+                    "Poster pairs a red-dominant and a green-dominant fill — "
+                    "the classic red/green CVD clash. Encode the contrast "
+                    "redundantly (shape / position / label), not by hue alone."
+                )
+        except Exception:
+            pass
+
+    # density_word_proxy — wall-of-text. Count words inside block-section[...]
+    # + headline[...] bodies.
+    body_words = 0
+    longest_block = 0
+    for bm in re.finditer(r"#block-section\([^)]*\)\[(.*?)\]", text, re.S):
+        bt = re.sub(r"//[^\n]*", "", bm.group(1))      # strip line comments
+        bt = re.sub(r"[#*_\[\]]", " ", bt)
+        w = len(bt.split())
+        body_words += w
+        longest_block = max(longest_block, w)
+    for hmw in re.finditer(r"#(?:poster-)?headline\[(.*?)\]", text, re.S):
+        body_words += len(re.sub(r"[#*_]", " ", hmw.group(1)).split())
+    if body_words > 1300:
+        blockers.append(
+            f"~{body_words} words of poster body text — well over the ≤1000-word "
+            "budget. A poster is a billboard, not a paper; cut to the argument."
+        )
+    elif body_words > 1000:
+        warnings.append(
+            f"~{body_words} words of poster body text — over the ≤1000-word "
+            "budget. Tighten to the load-bearing claims."
+        )
+    if longest_block > 120:
+        warnings.append(
+            f"One section has ~{longest_block} words — a poster panel reads in "
+            "seconds. Keep each block ≤~120 words; move detail to the handout."
+        )
+
+    # every_figure_captioned — each #poster-figure needs a real caption.
+    fig_label_only = 0
+    fig_uncaptioned = 0
+    for fm in re.finditer(r"#poster-figure\((.*?)\)", text, re.S):
+        args = fm.group(1)
+        cm = re.search(r'caption\s*:\s*"((?:[^"\\]|\\.)*)"', args)
+        if not cm:
+            fig_uncaptioned += 1
+            continue
+        cap = cm.group(1).strip()
+        if not cap:
+            fig_uncaptioned += 1
+        elif len(cap.split()) < 6 or (
+            re.match(r"^(?:fig|table)\s*\d", cap, re.I)
+            and not any(c in cap.lower() for c in _POSTER_FINDING_CUES)
+        ):
+            fig_label_only += 1
+    if fig_uncaptioned:
+        warnings.append(
+            f"{fig_uncaptioned} #poster-figure(...) without a caption — every "
+            "figure needs an interpretive caption (what to see + what it means)."
+        )
+    if fig_label_only:
+        warnings.append(
+            f"{fig_label_only} figure caption(s) are label-only / too short. "
+            "Lead with the finding the figure shows, not the chart label."
+        )
+
+    # no_internal_step_leak — workspace refs in poster text → block.
+    leak_re = re.compile(
+        r"(?i)(?:\bstep[_ ]?\d+\b|\b\d{2}_[a-z][\w]*\b|conclusions\.md|"
+        r"workspace/|see step)"
+    )
+    leaks = sorted(set(m.group(0) for m in leak_re.finditer(text)))
+    if leaks:
+        blockers.append(
+            f"{len(leaks)} internal workspace reference(s) in poster text "
+            f"({', '.join(leaks[:4])}). A poster reader has no workspace — "
+            "strip step numbers, folder names, sidecar filenames, and paths."
+        )
+
+    # qr_and_contact_present — a poster needs a takeaway hook.
+    has_contact = bool(re.search(r'contact\s*:\s*"[^"]+"', text))
+    has_qr = bool(
+        re.search(r"qr", text, re.I)
+        or re.search(r'image\(\s*"[^"]*qr[^"]*"', text, re.I)
+    )
+    if not has_contact:
+        warnings.append(
+            "No contact: \"...\" on the poster — give the reader a way to "
+            "follow up (email / ORCID) and a QR to the paper or repo."
+        )
+    elif not has_qr:
+        warnings.append(
+            "Contact present but no QR image wired — a QR to the paper / repo "
+            "is the highest-value takeaway hook on a poster."
+        )
+
+    # orientation_geometry_sanity — will it fit the board?
+    cols_m = re.search(r"columns-n\s*:\s*(\d+)", text)
+    n_cols = int(cols_m.group(1)) if cols_m else None
+    if size is None:
+        # info, not a warning — surfaced in the report dict only.
+        pass
+    else:
+        w, h = size
+        if w < h and (n_cols or 0) >= 3:
+            warnings.append(
+                f"Portrait board ({w:g}x{h:g}in) with columns-n:{n_cols} — "
+                "≥3 columns crush on a vertical board. Use the portrait 2-col "
+                "archetype (columns-n: 2)."
+            )
+
     return {
         "blockers": blockers,
         "warnings": warnings,
@@ -260,7 +479,12 @@ def _check_poster(text: str) -> dict[str, Any]:
         "headline_count": headlines,
         "citation_count": cites,
         "hardcoded_font_pt": tiny,
-        "hardcoded_hex_count": len(poster_hexes),
+        "hardcoded_hex_count": n_hex,
+        "body_word_estimate": body_words,
+        "poster_size_in": list(size) if size else None,
+        "column_count": n_cols,
+        "has_contact": has_contact,
+        "has_qr": has_qr,
     }
 
 
