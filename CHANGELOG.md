@@ -6,6 +6,71 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.8] — research-grade visual-design system (dashboards / posters / figures) (2026-06-19)
+
+Turns the deliverable design surface from a single fixed template ("generic AI
+slop") into a **composable design system the AI designs from per project** — a
+design skill + a design audit that reviews stylistic choices. Driven by a
+design-research workflow (current-surface map + grounded dashboard/poster/figure
+experts → build spec). MINOR-shaped content shipped under the 3.2.8 label;
+several audit fixes change verdicts (flagged below) but no tool/protocol was
+removed and no schema broke.
+
+### Added
+- **`viz/palettes.py`** — one source of truth for the visual identity, consumed
+  by chrome AND the audit: three selectable professional palettes (ro_house /
+  okabe_ito / clinical), each light+dark, AA-contrast, CVD-safe; sequential
+  (viridis) / diverging (PuOr) anchors; banned rainbow colormaps; colour-science
+  predicates (is_neon tuned so professional-saturated colours pass).
+- **Composable dashboard archetypes** — the single `_DASHBOARD_HTML` becomes a
+  shared shell + four selectable `<main>` archetypes: single-viewport-brief (no
+  scroll), scroll-lite-narrative (in-page nav required, default),
+  comparison-scorecard, multi-panel-exploratory. `:root` tokens are generated
+  from the chosen palette (palette selection is real); `<body data-archetype>`
+  is stamped for the audit.
+- **Composable poster archetypes** — `classic` (default) / `billboard`
+  (asymmetric centre + sidebar) / `hero` / `portrait` presets + `poster-stats`;
+  poster type scale raised to true poster size (headline 48→90pt, title 56→80,
+  body 16→24). Three selectable palettes wired through.
+- **`synthesis/deliverable_design` protocol** — the visual-design skill (the
+  "UI/UX pro max" for research deliverables): 7 principles + a 6-step
+  archetype/palette/budget selection scaffold + the anti-pattern list. Routes on
+  "design my dashboard" / "make this professional" / "the dashboard looks
+  generic" / etc.
+- **`tool_synthesis_scaffold` gains `archetype=` + `palette=`** (optional,
+  validated, reported + stamped). Old calls unchanged.
+- **The design audit** — reviews stylistic choices, not just structure:
+  dashboard (scroll budget / endless scroll, in-page nav, per-step recap,
+  workspace+tool leaks, neon/off-palette, buried lede, density, uncaptioned
+  figures, colour-not-sole-channel, archetype-vs-declared), poster (size-aware
+  font floor, single+finding headline, column/section sanity, palette restraint,
+  density, captions, internal-step leak), figure (banned rainbow colormap,
+  palette adherence, axis labels/units, finding-led caption, internal-ref leak,
+  zero-baseline, spaghetti, aspect ratio).
+- **Figure primitives** in `viz/style.py`: `ranked_dot`, `lollipop`,
+  `facet_grid` (shared axes), `direct_label_endpoints`, `ro_colorbar`.
+- **Slide layouts** in touying-mini: `big-number-slide`, `quote-slide`,
+  `two-column-slide`, `image-full-slide`.
+
+### Improved
+- `synthesis_dashboard` no longer mandates the cream/serif identity as THE style
+  (the doctrine conflict) — the RO house palette is the default for figure
+  cohesion, a custom-but-professional palette is fine; "endless scroll" added to
+  forbidden structure; delegates archetype/palette choice to `deliverable_design`.
+  `printable` + `synthesis_slides` delegate likewise.
+- Venue templates `generic_two_column` + `humanities_essay` consume the shared
+  `common.typ` ro-* tokens (H1 now RO navy; generic heading sizes shift ≤1pt to
+  the shared scale).
+
+### Fixed (audit verdict-changing — by design)
+- `audit_color_palette` was a membership allow-list that **punished any custom
+  palette**; it now JUDGES quality (neon → block, lack of restraint → warn) and
+  scans the chrome `<style>` block. A custom-but-professional palette passes.
+- Removed `per_step` (and `audit`) from `DASHBOARD_SECTIONS` / `SECTION_BARS`:
+  the dashboard content audit no longer **rewards** the per-step recap
+  anti-pattern it elsewhere bans.
+- `_check_poster`'s misleading flat 14pt body floor → a size-aware poster floor.
+
 ## [3.2.7] — UX + output-design + override polish, fresh bug-sweep (2026-06-19)
 
 A PATCH-only iteration (no new tools, protocols, or config knobs) from an
