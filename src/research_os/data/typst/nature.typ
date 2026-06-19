@@ -1,5 +1,4 @@
-// Nature journal — 3-column, sans-serif body, abstract in a top panel.
-// Title is enforced ≤ 140 characters at compile (paragraph error).
+// Nature journal — two-column, sans-serif body, abstract in a top panel.
 
 #import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
 

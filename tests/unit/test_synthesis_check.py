@@ -54,12 +54,14 @@ from pathlib import Path
 
 from research_os.tools.actions.synthesis.check import (
     _check_dashboard,
+    _check_poster,
+    _check_slides,
     output_types_gate,
     synthesis_hygiene,
     workspace_hygiene,
 )
 from research_os.tools.actions.synthesis.curate import curate_figures
-from research_os.tools.actions.synthesis.scaffold import synthesis_scaffold
+from research_os.tools.actions.synthesis.scaffold import SCAFFOLDS, synthesis_scaffold
 
 
 _GOOD_DASHBOARD = """\
@@ -464,3 +466,75 @@ def test_check_dashboard_real_alt_satisfies(tmp_path: Path):
     )
     res = _check_dashboard(html, tmp_path)
     assert not any("alt text" in b.lower() for b in res["blockers"]), res["blockers"]
+
+
+# ---------------------------------------------------------------------------
+# Design lints (WARN-only) on poster + slides — 3.2.7.
+# They must fire on hand-rolled overrides but stay SILENT on clean scaffolds
+# (sizing + colour are delegated to the bundled templates).
+# ---------------------------------------------------------------------------
+
+
+def test_scaffolded_poster_trips_no_design_warnings():
+    """A clean scaffolded poster has no inline pt sizing or rgb() fills, so the
+    font-floor and CVD-colour lints must NOT fire (false-positive guard)."""
+    _rel, body = SCAFFOLDS["poster"]
+    res = _check_poster(body)
+    assert res["hardcoded_font_pt"] == []
+    assert res["hardcoded_hex_count"] == 0
+    assert not any("hard-codes" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_handrolled_poster_trips_font_and_colour_lints():
+    text = (
+        '#set text(size: 10pt)\n'
+        '#text(fill: rgb("#ff0000"))[a]\n'
+        '#text(fill: rgb("#00ff00"))[b]\n'
+        '#text(fill: rgb("#0000ff"))[c]\n'
+        "= Background\n= Methods\n= Results\n"
+    )
+    res = _check_poster(text)
+    assert 10.0 in res["hardcoded_font_pt"]
+    assert res["hardcoded_hex_count"] >= 3
+    assert any("read across a" in w for w in res["warnings"]), res["warnings"]
+    assert any("colour-vision-deficiency" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_poster_size_string_is_not_a_font_size():
+    """`size: "36x48"` (the poster dimensions) must not be read as a tiny font."""
+    text = '#show: poster.with(size: "36x48")\n= A\n= B\n= C\n'
+    res = _check_poster(text)
+    assert res["hardcoded_font_pt"] == []
+    assert not any("read across a" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_scaffolded_slides_trip_no_colour_warning():
+    _rel, body = SCAFFOLDS["slides"]
+    res = _check_slides(body)
+    assert res["hardcoded_hex_count"] == 0
+    assert not any("hard-codes" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_handrolled_deck_trips_colour_lint():
+    text = (
+        "#slide[a]\n#slide[b]\n#slide[c]\n#slide[d]\n"
+        '#text(fill: rgb("#ff0000"))[x] rgb("#00ff00") rgb("#123456")\n'
+    )
+    res = _check_slides(text)
+    assert res["hardcoded_hex_count"] >= 3
+    assert any("colour-vision-deficiency" in w for w in res["warnings"]), res["warnings"]
+
+
+def test_handout_scaffold_uses_bundled_font_not_inter():
+    """D2: the handout must not request the unbundled 'Inter' family (it would
+    warn + silently fall back); it uses the bundled NCM Sans like the others."""
+    _rel, body = SCAFFOLDS["handout"]
+    assert 'font: "Inter"' not in body
+    assert "New Computer Modern Sans" in body
+
+
+def test_handout_in_single_page_overflow_targets():
+    """D8: a handout that overflows its one A4 page must trip the overflow gate."""
+    from research_os.tools.actions.synthesis.typst_compile import _SINGLE_PAGE_TARGETS
+
+    assert "handout" in _SINGLE_PAGE_TARGETS

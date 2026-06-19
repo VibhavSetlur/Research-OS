@@ -27,10 +27,14 @@
 // stepwise reveals, or themes beyond white/black. A project that outgrows
 // it can migrate to upstream Touying without rewriting slide bodies.
 
+// Theme colours mirror RO_PALETTE (tools/actions/viz/style.py): the white
+// theme is the RO cream identity so an embedded RO-styled figure matches the
+// deck; the dark theme lightens the navy so it reads on near-black. Keep the
+// accent navy in sync with the figure/poster/dashboard palette.
 #let _theme-colors(theme) = if theme == "black" {
-  (bg: rgb("#0b0b0b"), fg: rgb("#f4f4f4"), accent: rgb("#36c"))
+  (bg: rgb("#0b0b0b"), fg: rgb("#f4f4f4"), accent: rgb("#7FA8D4"))
 } else {
-  (bg: rgb("#ffffff"), fg: rgb("#111111"), accent: rgb("#36c"))
+  (bg: rgb("#FBF8F3"), fg: rgb("#3D3A35"), accent: rgb("#1F4D7A"))
 }
 
 #let slides(
@@ -73,9 +77,10 @@
     let affiliation = state("touying.affiliation").get()
     let date = state("touying.date").get()
     let venue = state("touying.venue").get()
+    let c = _theme-colors(state("touying.theme").get())
     page[
       #align(center + horizon)[
-        #text(size: 36pt, weight: "bold")[#title]
+        #text(size: 36pt, weight: "bold", fill: c.accent)[#title]
         #if subtitle != "" [
           #v(0.4em)
           #text(size: 20pt)[#subtitle]
@@ -90,30 +95,35 @@
   }
 }
 
-#let slide(title: none, body) = {
+#let slide(title: none, body) = context {
+  let c = _theme-colors(state("touying.theme").get())
   page[
     #if title != none [
-      #text(size: 26pt, weight: "bold")[#title]
+      #text(size: 26pt, weight: "bold", fill: c.accent)[#title]
       #v(0.4em)
-      #line(length: 100%, stroke: 0.5pt)
+      #line(length: 100%, stroke: 1pt + c.accent)
       #v(0.6em)
     ]
     #body
   ]
 }
 
-#let section-slide(title) = {
+#let section-slide(title) = context {
+  let c = _theme-colors(state("touying.theme").get())
   page[
     #align(center + horizon)[
-      #text(size: 32pt, weight: "bold")[#title]
+      #text(size: 32pt, weight: "bold", fill: c.accent)[#title]
     ]
   ]
 }
 
-#let focus-slide(body) = {
-  page[
+// Focus slide — one big sentence on a full-bleed accent panel (the deck's
+// punctuation mark), paper-coloured text for maximum contrast.
+#let focus-slide(body) = context {
+  let c = _theme-colors(state("touying.theme").get())
+  page(fill: c.accent)[
     #align(center + horizon)[
-      #text(size: 28pt, weight: "bold")[#body]
+      #text(size: 28pt, weight: "bold", fill: c.bg)[#body]
     ]
   ]
 }

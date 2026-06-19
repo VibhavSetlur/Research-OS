@@ -170,12 +170,23 @@ def _check_slides(text: str) -> dict[str, Any]:
             f"{len(path_leaks)} filesystem path(s) visible in the deck: "
             f"{path_leaks[0]}. Audiences should not see file paths."
         )
+    # Design lint (WARN-only) — fires only when the author hard-codes a
+    # multi-colour scheme instead of inheriting the deck theme. Slides inherit
+    # theme sizing, so no font-floor check (it would be unreliable).
+    deck_hexes = re.findall(r'rgb\(\s*["\']?#([0-9A-Fa-f]{6})', text)
+    if len(deck_hexes) >= 3:
+        warnings.append(
+            f"Deck hard-codes {len(deck_hexes)} rgb() colours instead of the "
+            "theme palette. Confirm the scheme is colour-vision-deficiency safe "
+            "(tool_figure_palette has an Okabe-Ito set)."
+        )
     return {
         "blockers": blockers,
         "warnings": warnings,
         "slide_count": slide_count,
         "speaker_notes_count": note_count,
         "citation_count": cites,
+        "hardcoded_hex_count": len(deck_hexes),
     }
 
 
@@ -217,12 +228,39 @@ def _check_poster(text: str) -> dict[str, Any]:
     cites = len(re.findall(r"#cite\(<|\[@[^\]]+\]", text))
     if cites > 8:
         warnings.append(f"{cites} citations — posters usually keep ≤ 8.")
+    # Design lints (WARN-only). These fire ONLY on hand-rolled overrides — a
+    # clean scaffold delegates sizing + colour to the bundled poster template,
+    # so it carries no inline `…pt` sizing and no rgb() fills and trips neither.
+    font_pts = [
+        float(v)
+        for v in re.findall(
+            r"(?:#set\s+text\([^)]*?|#text\()\s*[^)]*?size\s*:\s*(\d+(?:\.\d+)?)pt",
+            text,
+        )
+    ]
+    tiny = sorted({v for v in font_pts if v < 14})
+    if tiny:
+        warnings.append(
+            f"Poster hard-codes {tiny[0]:g}pt text — posters must read across a "
+            "room (>=14pt body, ideally >=16pt). The bundled template sizes are "
+            "already correct; remove the override or raise it."
+        )
+    poster_hexes = re.findall(r'rgb\(\s*["\']?#([0-9A-Fa-f]{6})', text)
+    if len(poster_hexes) >= 3:
+        warnings.append(
+            f"Poster hard-codes {len(poster_hexes)} rgb() colours instead of the "
+            "template palette. Confirm the scheme is colour-vision-deficiency "
+            "safe (tool_figure_palette has an Okabe-Ito set) — red/green pairs "
+            "are the common failure."
+        )
     return {
         "blockers": blockers,
         "warnings": warnings,
         "section_count": sections,
         "headline_count": headlines,
         "citation_count": cites,
+        "hardcoded_font_pt": tiny,
+        "hardcoded_hex_count": len(poster_hexes),
     }
 
 

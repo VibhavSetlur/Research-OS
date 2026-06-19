@@ -1,6 +1,6 @@
 // PLOS ONE — single-column with abstract above.
 
-#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template, ro-navy
 
 #let plos(
   title: "Untitled",
@@ -24,7 +24,7 @@
   v(10pt)
   abstract-block(abstract, kind: "block")
 
-  show heading.where(level: 1): it => text(size: 12pt, weight: "bold", fill: rgb("#33526a"))[#it.body]
+  show heading.where(level: 1): it => text(size: 12pt, weight: "bold", fill: ro-navy)[#it.body]
   show heading.where(level: 2): it => text(size: 11pt, weight: "bold")[#it.body]
   show figure: default-figure-show
 

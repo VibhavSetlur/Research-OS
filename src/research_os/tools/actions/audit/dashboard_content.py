@@ -428,10 +428,21 @@ RESEARCH_OS_ACCENT = {
     "#9b3737",  # oxblood — emphasis / negative deltas
     "#c3a14e",  # mustard — fifth accent
     "#3d3a35",  # warm dark grey foreground
-    "#7c7468",  # muted secondary text
+    "#7c7468",  # muted secondary text (legacy)
+    "#6e665a",  # muted secondary text — AA-safe (current scaffold)
     "#d6cfc2",  # hairline rule on cream
     "#fbf8f3",  # cream background
     "#fffdf8",  # near-white card on cream
+    # Dark-scheme tokens (prefers-color-scheme: dark) — the same identity
+    # retuned for low light, so a bundled dashboard's dark mode stays in palette.
+    "#1c1a17",  # dark page
+    "#24221e",  # dark card
+    "#e8e3d8",  # dark-mode foreground
+    "#a89e8e",  # dark-mode muted
+    "#3a372f",  # dark-mode rule
+    "#7fa8d4",  # dark-mode navy accent
+    "#6fa07c",  # dark-mode forest
+    "#c97a7a",  # dark-mode oxblood
 }
 
 

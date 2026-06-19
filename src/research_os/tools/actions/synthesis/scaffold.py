@@ -131,12 +131,14 @@ _HANDOUT_TYP = """// synthesis/handout.typ — single-page A4 handout. Author fo
 // synthesis/printable (format=handout). Compile with tool_typst_compile.
 
 #set page("a4", margin: 0.75in)
-#set text(font: "Inter", size: 11pt)
+// "New Computer Modern Sans" is bundled (compile injects it via --font-path);
+// an unbundled family like Inter would warn + silently fall back.
+#set text(font: "New Computer Modern Sans", size: 11pt)
 
 #align(center)[
   #text(size: 22pt, weight: 700)[Headline finding as a sentence.]
   #v(0.3em)
-  #text(size: 12pt, fill: rgb("#666"))[Author Name · Institution · date]
+  #text(size: 12pt, fill: rgb("#6E665A"))[Author Name · Institution · date]
 ]
 
 #v(1em)
@@ -250,7 +252,7 @@ _DASHBOARD_HTML = """<!doctype html>
     --bg: #FBF8F3;          /* cream page */
     --card: #FFFDF8;        /* near-white card on cream */
     --fg: #3D3A35;          /* warm dark grey foreground */
-    --muted: #7C7468;       /* muted secondary text */
+    --muted: #6E665A;       /* muted secondary text — AA-safe (>=4.5:1) on --bg/--card */
     --rule: #D6CFC2;        /* hairline rule on cream */
     --accent: #1F4D7A;      /* navy — primary */
     --accent-gold: #9B7E2D; /* olive gold — secondary */
@@ -262,7 +264,28 @@ _DASHBOARD_HTML = """<!doctype html>
     --sans: "Inter", "Helvetica Neue", "Source Sans Pro", "Roboto",
             "Liberation Sans", Arial, sans-serif;
   }
+  /* Dark-scheme tokens — same identity, retuned for low-light environments. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1C1A17; --card: #24221E; --fg: #E8E3D8; --muted: #A89E8E;
+      --rule: #3A372F; --accent: #7FA8D4; --accent-gold: #C3A14E;
+      --accent-green: #6FA07C; --accent-red: #C97A7A; --accent-mustard: #C3A14E;
+    }
+  }
   * { box-sizing: border-box; }
+  /* Keyboard-focus ring + skip-link (a11y baseline). */
+  .skip-link { position: absolute; left: -999px; top: 0;
+               background: var(--accent); color: var(--bg);
+               padding: 0.5rem 0.9rem; border-radius: 0 0 4px 0; z-index: 10; }
+  .skip-link:focus { left: 0; }
+  a:focus-visible, [tabindex]:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Honour reduced-motion preference. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
   html { background: var(--bg); }
   body { font-family: var(--sans); margin: 0; color: var(--fg);
          background: var(--bg); line-height: 1.6;
@@ -349,6 +372,8 @@ _DASHBOARD_HTML = """<!doctype html>
 </style>
 </head>
 <body>
+
+<a class="skip-link" href="#headline">Skip to main content</a>
 
 <header>
   <p class="eyebrow"><!-- AI: project type · date · audience tag. e.g. "Research synthesis · 2026-06-10 · Internal review" --></p>

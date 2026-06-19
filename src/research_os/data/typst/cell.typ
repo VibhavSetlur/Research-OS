@@ -1,6 +1,6 @@
 // Cell Press — graphical-abstract-friendly two-column, IEEE citations.
 
-#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template, ro-navy
 
 #let cell(
   title: "Untitled",
@@ -24,7 +24,7 @@
   v(8pt)
   abstract-block(abstract, kind: "panel")
 
-  show heading.where(level: 1): it => text(size: 11pt, weight: "bold", fill: rgb("#1a5276"))[#upper(it.body)]
+  show heading.where(level: 1): it => text(size: 11pt, weight: "bold", fill: ro-navy)[#upper(it.body)]
   show heading.where(level: 2): it => text(size: 10pt, weight: "bold")[#it.body]
   show figure: default-figure-show
 
