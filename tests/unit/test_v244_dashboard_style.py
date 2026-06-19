@@ -62,18 +62,44 @@ def test_dashboard_scaffold_uses_serif_for_titles():
 
 
 def test_dashboard_scaffold_preserves_section_ids():
-    """Existing audit gates lint section IDs — the rewrite must not
-    silently drop them."""
+    """The default (scroll-lite-narrative) carries the stable section IDs the
+    audit gates lint. Per-archetype sections (key-findings/comparison/panels)
+    are composed by their own archetype, not the default — 3.2.8 turned the
+    single fixed dashboard into a composable archetype system."""
     from research_os.tools.actions.synthesis.scaffold import _DASHBOARD_HTML
     for sid in (
         'id="headline"',
-        'id="key-findings"',
-        'id="comparison"',
         'id="methods"',
         'id="limitations"',
         'id="references"',
     ):
-        assert sid in _DASHBOARD_HTML, f"section {sid} missing after rewrite"
+        assert sid in _DASHBOARD_HTML, f"section {sid} missing from default"
+
+
+def test_dashboard_archetypes_compose_and_stamp():
+    """Every dashboard archetype composes cleanly, stamps data-archetype for
+    the design audit, and leaves no template placeholders behind."""
+    from research_os.tools.actions.synthesis.scaffold import (
+        DASHBOARD_ARCHETYPES, _compose_dashboard,
+    )
+    assert set(DASHBOARD_ARCHETYPES) == {
+        "single-viewport-brief", "scroll-lite-narrative",
+        "comparison-scorecard", "multi-panel-exploratory",
+    }
+    for arch in DASHBOARD_ARCHETYPES:
+        html = _compose_dashboard(arch)
+        assert f'data-archetype="{arch}"' in html
+        assert 'id="headline"' in html
+        assert "__DASH_" not in html, f"placeholder left in {arch}"
+
+
+def test_dashboard_palette_selection_swaps_tokens():
+    """Choosing a palette swaps the :root tokens to that palette's hexes."""
+    from research_os.tools.actions.synthesis.scaffold import _compose_dashboard
+    from research_os.tools.actions.viz.palettes import PALETTES
+    html = _compose_dashboard("scroll-lite-narrative", "clinical")
+    assert PALETTES["clinical"]["light"]["primary"] in html
+    assert PALETTES["ro_house"]["light"]["ground"] not in html.split("</style>")[0]
 
 
 def test_dashboard_scaffold_has_print_stylesheet():

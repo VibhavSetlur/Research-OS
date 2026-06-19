@@ -46,15 +46,44 @@
   muted:   rgb("#F1E5E7"),
 )
 
+// Okabe-Ito categorical on a neutral ground (max CVD safety). Mirrors
+// viz/palettes.py "okabe_ito" so an embedded figure cohres with the poster.
+#let palette-okabe = (
+  primary: rgb("#0072B2"),
+  accent:  rgb("#E69F00"),
+  ink:     rgb("#1A1A1A"),
+  paper:   rgb("#FFFFFF"),
+  muted:   rgb("#ECECEC"),
+)
+
+// Cool institutional / clinical. Mirrors viz/palettes.py "clinical".
+#let palette-clinical = (
+  primary: rgb("#2B5F8C"),
+  accent:  rgb("#2A7F7B"),
+  ink:     rgb("#1F2933"),
+  paper:   rgb("#F7F8FA"),
+  muted:   rgb("#E6EBF0"),
+)
+
+// Resolve a palette by name. Accepts the viz/palettes.py vocabulary
+// (ro_house / okabe_ito / clinical) AND the poster-local aliases
+// (light / dark / institution[_branded]). Unknown → RO house light.
 #let resolve-palette(name) = {
   if name == "dark" {
     palette-dark
-  } else if name == "institution_branded" {
+  } else if name == "institution" or name == "institution_branded" {
     palette-institution
+  } else if name == "okabe_ito" or name == "okabe" {
+    palette-okabe
+  } else if name == "clinical" {
+    palette-clinical
   } else {
-    palette-light
+    palette-light  // "light" / "ro_house" / default
   }
 }
+
+// Coerce a palette argument that may arrive as a name string OR a dict.
+#let _as-palette(p) = if type(p) == str { resolve-palette(p) } else { p }
 
 // Titled block — coloured header bar + body. Used for every poster panel.
 #let poster-block(title: "", body, palette: palette-light) = {
@@ -69,14 +98,14 @@
         inset: (x: 8mm, y: 4mm),
         width: 100%,
         radius: (top-left: 3mm, top-right: 3mm),
-        text(fill: palette.paper, weight: "bold", size: 22pt, title),
+        text(fill: palette.paper, weight: "bold", size: 36pt, title),
       )
       block(
         fill: palette.muted,
         inset: (x: 8mm, y: 6mm),
         width: 100%,
         radius: (bottom-left: 3mm, bottom-right: 3mm),
-        text(fill: palette.ink, size: 16pt, body),
+        text(fill: palette.ink, size: 26pt, body),
       )
     },
   )
@@ -92,7 +121,7 @@
     align(center, text(
       fill: palette.ink,
       weight: "bold",
-      size: 48pt,
+      size: 90pt,
       headline,
     )),
   )
@@ -106,7 +135,7 @@
     image(path, width: 95%)
     if caption != "" {
       v(2mm)
-      text(fill: palette.ink, size: 14pt, style: "italic", caption)
+      text(fill: palette.ink, size: 22pt, style: "italic", caption)
     }
   })
 }
@@ -134,18 +163,18 @@
     fill: palette.primary,
     inset: (x: 12mm, y: 10mm),
     {
-      align(center, text(fill: palette.paper, weight: "bold", size: 56pt, title))
+      align(center, text(fill: palette.paper, weight: "bold", size: 80pt, title))
       if subtitle != "" {
         v(3mm)
-        align(center, text(fill: palette.paper, style: "italic", size: 26pt, subtitle))
+        align(center, text(fill: palette.paper, style: "italic", size: 32pt, subtitle))
       }
       v(5mm)
       if authors != "" {
-        align(center, text(fill: palette.paper, size: 22pt, authors))
+        align(center, text(fill: palette.paper, size: 28pt, authors))
       }
       if affiliation != "" {
         v(2mm)
-        align(center, text(fill: palette.paper, size: 18pt, style: "italic", affiliation))
+        align(center, text(fill: palette.paper, size: 24pt, style: "italic", affiliation))
       }
     },
   )
@@ -217,9 +246,9 @@
   set text(
     font: "New Computer Modern Sans",
     fill: palette.ink,
-    size: 16pt,
+    size: 24pt,
   )
-  set par(justify: false, leading: 0.65em)
+  set par(justify: false, leading: 0.6em)
 
   if header != none {
     header
@@ -302,4 +331,100 @@
 // Titled coloured panel — alias for poster-block.
 #let block-section(title: "", body, palette: palette-light) = {
   poster-block(title: title, body, palette: palette)
+}
+
+// ---------------------------------------------------------------------------
+// Layout ARCHETYPES — the AI picks ONE per poster (not one fixed form). Each
+// is a thin show-rule wrapper over the helpers above so a researcher can read
+// + tweak it. All accept `palette:` as a NAME string (ro_house / okabe_ito /
+// clinical / dark) or a palette dict.
+// ---------------------------------------------------------------------------
+
+// Metric strip — big stat cards (label / value / delta). Used by hero +
+// billboard; matches the dashboard metric-card identity. `cards` is an array
+// of dicts: (label: "...", value: "...", delta: "...").
+#let poster-stats(cards, palette: palette-light) = {
+  let p = _as-palette(palette)
+  grid(
+    columns: cards.len(),
+    gutter: 8mm,
+    ..cards.map(c => block(
+      fill: p.muted, inset: (x: 6mm, y: 5mm), radius: 3mm, width: 100%,
+      {
+        text(fill: p.ink, size: 22pt, weight: "bold", c.at("label", default: ""))
+        linebreak()
+        text(fill: p.primary, size: 48pt, weight: "bold", c.at("value", default: ""))
+        if c.at("delta", default: "") != "" {
+          linebreak()
+          text(fill: p.ink, size: 22pt, style: "italic", c.at("delta"))
+        }
+      },
+    )),
+  )
+}
+
+// Classic 3-column IMRaD — the safe default. Full-width header + headline,
+// then three equal columns. ≈ the original `poster` behaviour.
+#let poster-classic(
+  title: "Untitled", authors: "", affiliation: "", subtitle: "",
+  size: "36x48", palette: "ro_house", columns-n: 3, funding: "", contact: "", body,
+) = {
+  let p = _as-palette(palette)
+  let dims = _parse-poster-size(size)
+  poster-page(
+    width: dims.at(0), height: dims.at(1), columns-n: columns-n, palette: p,
+    header: poster-header(title: title, subtitle: subtitle, authors: authors, affiliation: affiliation, palette: p),
+    footer: if funding != "" or contact != "" { poster-footer(funding: funding, contact: contact, palette: p) } else { none },
+    body,
+  )
+}
+
+// Portrait 2-column — for tall boards (A0 portrait / 36×48 vertical).
+#let poster-portrait(
+  title: "Untitled", authors: "", affiliation: "", subtitle: "",
+  size: "36x48", palette: "ro_house", funding: "", contact: "", body,
+) = poster-classic(
+  title: title, authors: authors, affiliation: affiliation, subtitle: subtitle,
+  size: size, palette: palette, columns-n: 2, funding: funding, contact: contact, body,
+)
+
+// Single-finding hero — one striking figure that speaks for itself. Single
+// centre-weighted column; author puts #headline + a large figure + poster-stats.
+#let poster-hero(
+  title: "Untitled", authors: "", affiliation: "", subtitle: "",
+  size: "48x36", palette: "ro_house", funding: "", contact: "", body,
+) = poster-classic(
+  title: title, authors: authors, affiliation: affiliation, subtitle: subtitle,
+  size: size, palette: palette, columns-n: 1, funding: funding, contact: contact, body,
+)
+
+// Better-Poster billboard — a big plain-English headline + a focal figure in a
+// dominant CENTRE column, with a narrow SIDEBAR for Background/Methods/Refs.
+// This asymmetric grid is the layout the uniform N-column flow cannot express.
+#let poster-billboard(
+  title: "Untitled", authors: "", affiliation: "", subtitle: "",
+  size: "48x36", palette: "ro_house", funding: "", contact: "",
+  headline: [], sidebar: [], body,
+) = {
+  let p = _as-palette(palette)
+  let dims = _parse-poster-size(size)
+  set page(width: dims.at(0), height: dims.at(1), margin: 18mm, fill: p.paper)
+  set text(font: "New Computer Modern Sans", fill: p.ink, size: 24pt)
+  set par(justify: false, leading: 0.6em)
+  poster-header(title: title, subtitle: subtitle, authors: authors, affiliation: affiliation, palette: p)
+  v(6mm)
+  if headline != [] {
+    poster-headline(headline, palette: p)
+    v(6mm)
+  }
+  grid(
+    columns: (2fr, 1fr),
+    gutter: 12mm,
+    body,      // CENTRE: focal figure + interpretation (the billboard)
+    sidebar,   // NARROW sidebar: Background / Methods / supporting / Refs
+  )
+  if funding != "" or contact != "" {
+    v(6mm)
+    poster-footer(funding: funding, contact: contact, palette: p)
+  }
 }

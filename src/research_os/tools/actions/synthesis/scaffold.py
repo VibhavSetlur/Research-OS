@@ -92,40 +92,155 @@ _SLIDES_TYP = """// synthesis/slides.typ — Touying presentation. Author follow
 ]
 """
 
-_POSTER_TYP = """// synthesis/poster.typ — conference poster. Author following
-// synthesis/synthesis_poster. Compile with tool_typst_compile.
+_POSTER_CLASSIC = """// synthesis/poster.typ — conference poster (archetype: classic 3-column IMRaD,
+// the safe default). Author following synthesis/deliverable_design +
+// synthesis/printable. Compile with tool_typst_compile. Re-scaffold with
+// archetype=billboard | hero | portrait for a different layout.
 
-#import "_typst_templates/poster.typ": poster, headline, block-section
+#import "_typst_templates/poster.typ": poster-classic, headline, block-section, poster-figure
 
-#show: poster.with(
-  title: [Headline finding as a sentence],
+#show: poster-classic.with(
+  title: [Project title — short],
   authors: [Author Name],
   affiliation: [Institution],
-  size: "36x48",
+  size: "36x48",                       // WxH inches; "48x36" for landscape
+  palette: "__POSTER_PALETTE__",       // ro_house | okabe_ito | clinical | dark
+  contact: "email · ORCID",
 )
 
-#headline[Headline finding as a sentence — across-the-room readable.]
+#headline[Headline finding as a plain-English sentence — across-the-room readable.]
 
 #block-section(title: "Background")[
-  // AI: one paragraph. The question.
+  // AI: the question, in one short paragraph.
 ]
-
 #block-section(title: "Methods")[
-  // AI: one diagram + one paragraph.
+  // AI: one diagram + a short paragraph.
 ]
-
 #block-section(title: "Results")[
-  // AI: the focal figure plus 1-2 supporting figures. Caption each.
+  // AI: focal figure + 1-2 supporting. #poster-figure(path: "figures/fig01.png",
+  //     caption: "what to see + what it means.")
 ]
-
 #block-section(title: "Implication")[
   // AI: one sentence the reader walks away with.
 ]
-
 #block-section(title: "References")[
   // AI: <=8 citations.
 ]
 """
+
+_POSTER_BILLBOARD = """// synthesis/poster.typ — conference poster (archetype: Better-Poster billboard).
+// A big plain-English headline + a focal figure in a dominant CENTRE column,
+// with a narrow SIDEBAR. Best for ONE clear result in a busy session.
+
+#import "_typst_templates/poster.typ": poster-billboard, block-section, poster-figure, poster-stats
+
+#show: poster-billboard.with(
+  title: [Project title — short],
+  authors: [Author Name],
+  affiliation: [Institution],
+  size: "48x36",                       // landscape suits the billboard
+  palette: "__POSTER_PALETTE__",       // ro_house | okabe_ito | clinical | dark
+  contact: "email · ORCID",
+  headline: [Headline finding as a plain-English sentence.],
+  sidebar: [
+    #block-section(title: "Background")[
+      // AI: the question, briefly.
+    ]
+    #block-section(title: "Methods")[
+      // AI: the design, briefly.
+    ]
+    #block-section(title: "References")[
+      // AI: <=6 citations.
+    ]
+  ],
+)
+
+// CENTRE billboard: the ONE focal figure + interpretive caption + key stats.
+// AI: uncomment once your figure is rendered:
+// #poster-figure(path: "figures/fig01_focal.png", caption: "what to see + what it means.")
+#poster-stats((
+  (label: "Headline metric", value: "N", delta: "+X better"),
+  (label: "Second metric", value: "M", delta: ""),
+))
+"""
+
+_POSTER_HERO = """// synthesis/poster.typ — conference poster (archetype: single-finding hero).
+// ONE striking figure that speaks for itself; centre-weighted single column.
+
+#import "_typst_templates/poster.typ": poster-hero, headline, block-section, poster-figure, poster-stats
+
+#show: poster-hero.with(
+  title: [Project title — short],
+  authors: [Author Name],
+  affiliation: [Institution],
+  size: "48x36",
+  palette: "__POSTER_PALETTE__",       // ro_house | okabe_ito | clinical | dark
+  contact: "email · ORCID",
+)
+
+#headline[Headline finding — one sentence.]
+#v(8mm)
+// The ONE large focal figure — uncomment once rendered:
+// #poster-figure(path: "figures/fig01_focal.png", caption: "what to see + what it means.")
+#poster-stats((
+  (label: "Headline metric", value: "N", delta: "+X"),
+))
+#block-section(title: "Methods & References")[
+  // AI: compressed — one paragraph + <=6 citations.
+]
+"""
+
+_POSTER_PORTRAIT = """// synthesis/poster.typ — conference poster (archetype: portrait 2-column).
+// For tall boards (A0 portrait / 36×48 vertical).
+
+#import "_typst_templates/poster.typ": poster-portrait, headline, block-section, poster-figure
+
+#show: poster-portrait.with(
+  title: [Project title — short],
+  authors: [Author Name],
+  affiliation: [Institution],
+  size: "36x48",
+  palette: "__POSTER_PALETTE__",       // ro_house | okabe_ito | clinical | dark
+  contact: "email · ORCID",
+)
+
+#headline[Headline finding — one sentence.]
+
+#block-section(title: "Background")[
+  // AI: the question.
+]
+#block-section(title: "Methods")[
+  // AI: the design.
+]
+#block-section(title: "Results")[
+  // AI: focal figure + supporting.
+]
+#block-section(title: "Implication")[
+  // AI: one sentence.
+]
+#block-section(title: "References")[
+  // AI: <=8 citations.
+]
+"""
+
+POSTER_ARCHETYPES: dict[str, str] = {
+    "classic": _POSTER_CLASSIC,
+    "billboard": _POSTER_BILLBOARD,
+    "hero": _POSTER_HERO,
+    "portrait": _POSTER_PORTRAIT,
+}
+_POSTER_DEFAULT_ARCHETYPE = "classic"
+
+
+def _compose_poster(archetype: str | None = None, palette: str | None = None) -> str:
+    """Assemble the poster .typ for the chosen layout archetype + palette name."""
+    arch = archetype if archetype in POSTER_ARCHETYPES else _POSTER_DEFAULT_ARCHETYPE
+    pal = palette if palette else "ro_house"
+    return POSTER_ARCHETYPES[arch].replace("__POSTER_PALETTE__", pal)
+
+
+# Back-compat default (classic) preserved under the original name.
+_POSTER_TYP = _compose_poster(_POSTER_DEFAULT_ARCHETYPE)
 
 _HANDOUT_TYP = """// synthesis/handout.typ — single-page A4 handout. Author following
 // synthesis/printable (format=handout). Compile with tool_typst_compile.
@@ -226,52 +341,39 @@ _ESSAY_TYP = """// synthesis/essay.typ — humanities essay. Author following
 #bibliography("biblio.yml")
 """
 
-_DASHBOARD_HTML = """<!doctype html>
+_DASHBOARD_SHELL = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- synthesis/dashboard.html — author following synthesis/synthesis_dashboard.
-     AI: this is a CUSTOM, STORY-DRIVEN dashboard, NOT a per-step recap.
-       - Section headings name CLAIMS / DECISIONS, never "Step NN".
-       - Hero section delivers the top-line finding in the first viewport.
-       - Embed only the 5-8 figures that move the argument; not all of them.
-       - Captions interpret figures (what to see + why it matters), not label them.
-       - Single file: no <script src="http", no <link href="http".
-       - Every <img> has alt text; every <section> has an id.
-     STYLE: matches the Research-OS reference figures — cream background,
-       italic serif accents, muted navy / olive / forest / oxblood
-       palette, generous whitespace, no gradients or shadows. The figures
-       you embed should use research_os.tools.actions.viz.apply_research_os_style()
-       so the colour identity is consistent throughout. -->
+<!-- synthesis/dashboard.html — author following synthesis/deliverable_design
+     + synthesis/synthesis_dashboard. This is a CUSTOM, SHAREABLE deliverable
+     for an external reader (peer / reviewer) who has NO workspace — design it
+     to the argument, do not dump.
+       - You chose a LAYOUT ARCHETYPE (data-archetype on <body>): single-
+         viewport-brief | scroll-lite-narrative | comparison-scorecard |
+         multi-panel-exploratory. Compose to that archetype's shape + budget.
+       - Section headings name CLAIMS / DECISIONS ("Reranking lifted hits@10
+         by 5.9pp"), never "Step NN", never bare containers (Results/Overview).
+       - Hero answers the question in the first viewport: a number + a finding
+         verb, never the question itself.
+       - Embed only the 5-8 figures that MOVE the argument; caption each with
+         what-to-see + what-it-means (finding-led, not "Figure 3: accuracy").
+       - NO endless scroll. Respect the archetype's scroll budget; a multi-
+         section page MUST carry the in-page <nav>.
+       - NO workspace paths / step numbers / tool names / raw column names.
+       - Single file, offline: no <script src="http", no <link href="http".
+       - Every <img> has descriptive alt text; every <section> has an id.
+     STYLE: pick ONE professional palette (the RO house cream/navy below is the
+       default + cohesive with apply_research_os_style figures, but a custom-
+       but-professional palette is fine — restraint, AA contrast, CVD-safe, no
+       neon/rainbow, colour carries consistent MEANING). Whitespace + hairlines
+       structure the page; no gradients, shadows, or decoration. -->
 <title>Project title — single-line framing of the answer</title>
 <style>
   /* Research-OS dashboard style — mirrors viz/style.py STYLE_RCPARAMS so
      embedded figures and the page chrome share one visual identity. */
-  :root {
-    --bg: #FBF8F3;          /* cream page */
-    --card: #FFFDF8;        /* near-white card on cream */
-    --fg: #3D3A35;          /* warm dark grey foreground */
-    --muted: #6E665A;       /* muted secondary text — AA-safe (>=4.5:1) on --bg/--card */
-    --rule: #D6CFC2;        /* hairline rule on cream */
-    --accent: #1F4D7A;      /* navy — primary */
-    --accent-gold: #9B7E2D; /* olive gold — secondary */
-    --accent-green: #3F6049;/* forest — positive deltas */
-    --accent-red: #9B3737;  /* oxblood — emphasis / negative deltas */
-    --accent-mustard: #C3A14E; /* fifth accent */
-    --serif: "EB Garamond", "Crimson Text", "Source Serif Pro",
-             "Liberation Serif", Georgia, serif;
-    --sans: "Inter", "Helvetica Neue", "Source Sans Pro", "Roboto",
-            "Liberation Sans", Arial, sans-serif;
-  }
-  /* Dark-scheme tokens — same identity, retuned for low-light environments. */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1C1A17; --card: #24221E; --fg: #E8E3D8; --muted: #A89E8E;
-      --rule: #3A372F; --accent: #7FA8D4; --accent-gold: #C3A14E;
-      --accent-green: #6FA07C; --accent-red: #C97A7A; --accent-mustard: #C3A14E;
-    }
-  }
+__DASH_TOKENS__
   * { box-sizing: border-box; }
   /* Keyboard-focus ring + skip-link (a11y baseline). */
   .skip-link { position: absolute; left: -999px; top: 0;
@@ -362,8 +464,28 @@ _DASHBOARD_HTML = """<!doctype html>
        margin: 1.4rem 0; }
   ul, ol { padding-left: 1.4rem; }
   li { margin: 0.2rem 0; }
+  /* In-page jump nav — REQUIRED by the scroll-lite-narrative archetype so a
+     multi-section dashboard never forces endless scrolling to navigate. */
+  nav.dash-nav { position: sticky; top: 0; z-index: 5;
+                 display: flex; flex-wrap: wrap; gap: 1.1rem;
+                 padding: 0.6rem 2.5rem; background: var(--card);
+                 border-bottom: 1px solid var(--rule); font-size: 0.9rem; }
+  nav.dash-nav a { border-bottom: none; color: var(--muted); }
+  nav.dash-nav a:hover, nav.dash-nav a:focus-visible { color: var(--accent); }
+  /* Bounded panel grid — multi-panel-exploratory archetype (shared scale). */
+  .panel-grid { display: grid; gap: 1.2rem;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .panel { background: var(--card); border: 1px solid var(--rule);
+           border-radius: 4px; padding: 1.1rem 1.3rem; margin: 0; }
+  .panel figure { margin: 0; }
+  /* Scorecard — comparison-scorecard archetype; adopted row reads at a glance
+     via weight + a ✓ glyph, not colour alone. */
+  table.scorecard tr.adopted td { font-weight: 600; color: var(--fg); }
+  table.scorecard td.win { color: var(--accent-green); font-weight: 600; }
+  table.scorecard td.lose { color: var(--accent-red); }
   @media print {
     html, body { background: #fff; color: #000; }
+    nav.dash-nav { display: none; }
     section { break-inside: avoid; border: 1px solid #ccc;
               background: #fff; box-shadow: none; }
     a { color: #000; border-bottom: none; }
@@ -371,7 +493,7 @@ _DASHBOARD_HTML = """<!doctype html>
   }
 </style>
 </head>
-<body>
+<body data-archetype="__DASH_ARCHETYPE__">
 
 <a class="skip-link" href="#headline">Skip to main content</a>
 
@@ -382,63 +504,239 @@ _DASHBOARD_HTML = """<!doctype html>
 </header>
 
 <main>
-
-<section class="hero" id="headline">
-  <h2>Headline finding</h2>
-  <p class="lead">
-    <!-- AI: ONE sentence — the single most important thing the reader
-         should take away. Lead with a number + finding verb. -->
-  </p>
-  <div class="metric-grid">
-    <!-- AI: 3-6 <div class="metric-card"> with label / value / delta.
-         Use class="delta up" or "delta down" for direction-coloured
-         deltas (forest for up, oxblood for down). -->
-  </div>
-  <!-- AI: optional — embed the single most important figure here, with a
-       caption that names what to see + what it means. Use a figure
-       generated via research_os.tools.actions.viz.apply_research_os_style()
-       so its palette matches the dashboard chrome. -->
-</section>
-
-<section id="key-findings">
-  <h2>Key findings</h2>
-  <!-- AI: 3-6 sub-sections (h3), each tied to ONE supported claim or
-       decision. Organise by hypothesis or argument, NOT by workspace
-       step number. Each finding: claim sentence + supporting figure or
-       table + interpretive caption. Skip findings that don't move the
-       argument; this is curated, not exhaustive. -->
-</section>
-
-<section id="comparison">
-  <h2>What we tried (adopted vs ruled out)</h2>
-  <!-- AI: when the project tested multiple paths / candidates / variants,
-       surface the comparison here — scorecard table, before/after, or
-       ablation. Skip this section if a single approach was tested. -->
-</section>
-
-<section id="methods">
-  <h2>Methods</h2>
-  <!-- AI: one short paragraph. Point readers at synthesis/paper.pdf for
-       full detail. Do NOT duplicate workspace/methods.md. -->
-</section>
-
-<section id="limitations">
-  <h2>Limitations + open questions</h2>
-  <!-- AI: be honest. What this dashboard CANNOT claim. What the next
-       investigation should answer. -->
-</section>
-
-<section id="references">
-  <h2>References + how to cite</h2>
-  <!-- AI: ≤12 citations. Data + code availability line. Link to the
-       paper / preprint when available. -->
-</section>
-
+__DASH_MAIN__
 </main>
 
 </body>
 </html>
 """
+
+
+# Four composable dashboard layout archetypes — the AI picks ONE per project
+# (driven by the research story) and fills the <main> body. These are OPTIONS,
+# never a single fixed form. Each carries its design rule + scroll budget
+# inline so the AI sees the constraints where it authors.
+
+_DASH_SINGLE_VIEWPORT_BRIEF = """
+<section class="hero" id="headline">
+  <h2>Headline finding</h2>
+  <p class="lead"><!-- AI: ONE sentence — number + finding verb. The single
+       takeaway. NOT the research question. --></p>
+  <div class="metric-grid">
+    <!-- AI: 3-5 metric-cards. Each: <div class="metric-card"><p class="label">
+         METRIC</p><p class="value">N</p><p class="delta up">+X (better)</p></div>.
+         delta up=forest, down=oxblood — ALWAYS include a sign/word so colour
+         is never the only cue. -->
+  </div>
+</section>
+
+<figure>
+  <!-- AI: the ONE focal figure (apply_research_os_style). -->
+  <img src="figures/fig01_focal.png" alt="<AI: describe what the figure shows>">
+  <figcaption><!-- AI: what to SEE + what it MEANS, finding-led. --></figcaption>
+</figure>
+
+<hr>
+
+<section id="context">
+  <h2>How &amp; caveats</h2>
+  <p><!-- AI: 1-2 sentences — method pointer (→ paper.pdf) + the key limitation. --></p>
+  <p class="muted"><!-- AI: data + code availability + how to cite, one line. --></p>
+</section>
+<!-- BUDGET: single-viewport-brief fits <=1.5 screens, NO nav. One finding,
+     emailable. If you need more sections, switch to scroll-lite-narrative. -->
+"""
+
+_DASH_SCROLL_LITE_NARRATIVE = """
+<nav class="dash-nav" aria-label="Sections">
+  <!-- AI: REQUIRED for this archetype — a jump-link per section id below so the
+       reader never has to scroll blindly. Keep labels to 1-2 words. -->
+  <a href="#headline">Finding</a>
+  <a href="#claim-1">Claim 1</a>
+  <a href="#claim-2">Claim 2</a>
+  <a href="#methods">Methods</a>
+  <a href="#limitations">Limits</a>
+</nav>
+
+<section class="hero" id="headline">
+  <h2>Headline finding</h2>
+  <p class="lead"><!-- AI: ONE sentence — number + finding verb, not the question. --></p>
+  <div class="metric-grid"><!-- AI: 3-5 metric-cards (label/value/delta + sign). --></div>
+</section>
+
+<section id="claim-1">
+  <h2><!-- AI: claim AS A SENTENCE, e.g. "Reranking lifted hits@10 by 5.9pp" --></h2>
+  <p><!-- AI: interpret the result. --></p>
+  <figure><img src="figures/fig01.png" alt="<AI: describe>"><figcaption><!-- what to see + meaning --></figcaption></figure>
+</section>
+
+<section id="claim-2">
+  <h2><!-- AI: next claim sentence --></h2>
+  <p><!-- AI: interpret. --></p>
+</section>
+<!-- AI: 3-6 claim sections total (id="claim-N", add a matching nav link).
+     BUDGET: <=8 sections, <=~5 viewports. Each section = ONE claim + 1-2
+     figures + interpretation. Curated, not a dump. -->
+
+<section id="methods">
+  <h2>Methods</h2>
+  <p><!-- AI: one short paragraph. Point to paper.pdf; do NOT restate methods.md. --></p>
+</section>
+
+<section id="limitations">
+  <h2>Limitations + open questions</h2>
+  <p><!-- AI: be honest — what this cannot claim + the next question. --></p>
+</section>
+
+<section id="references">
+  <h2>References + how to cite</h2>
+  <p><!-- AI: <=12 citations + data/code availability line. --></p>
+</section>
+"""
+
+_DASH_COMPARISON_SCORECARD = """
+<section class="hero" id="headline">
+  <h2><!-- AI: the WINNING choice + the deciding metric, as a sentence. --></h2>
+  <p class="lead"><!-- AI: why it won, in one line (number + verb). --></p>
+</section>
+
+<section id="scorecard">
+  <h2>What we compared</h2>
+  <table class="scorecard">
+    <thead>
+      <tr><th>Approach</th><th><!-- deciding metric --></th><th><!-- metric 2 --></th><th><!-- cost/notes --></th></tr>
+    </thead>
+    <tbody>
+      <tr class="adopted"><td>&#10003; <!-- AI: adopted approach --></td><td class="win"><!-- best value --></td><td></td><td></td></tr>
+      <tr><td><!-- AI: ruled-out candidate --></td><td><!-- value --></td><td></td><td><!-- why ruled out --></td></tr>
+    </tbody>
+  </table>
+  <figcaption><!-- AI: what the scorecard shows + the deciding criterion.
+       Mark the adopted row (class="adopted"); colour the deciding cell
+       win/lose — but the &#10003; + weight already carry it without colour. --></figcaption>
+</section>
+
+<section id="why">
+  <h2>Why this won</h2>
+  <p><!-- AI: the decisive trade-off. Optionally ONE figure (e.g. the curve
+       that separates the candidates). --></p>
+</section>
+
+<section id="methods">
+  <h2>Methods</h2>
+  <p><!-- AI: how the comparison was run + what was held constant. → paper.pdf. --></p>
+</section>
+
+<section id="limitations">
+  <h2>Limitations + open questions</h2>
+  <p><!-- AI: where the verdict might not hold. --></p>
+</section>
+
+<section id="references">
+  <h2>References + how to cite</h2>
+  <p><!-- AI: <=12 citations + data/code availability. --></p>
+</section>
+"""
+
+_DASH_MULTI_PANEL_EXPLORATORY = """
+<section class="hero" id="headline">
+  <h2><!-- AI: the INTEGRATING takeaway across all facets, as a sentence. --></h2>
+  <p class="lead"><!-- AI: what the panels jointly show — number + verb. --></p>
+</section>
+
+<section id="panels">
+  <h2><!-- AI: what to read off the grid (the shared comparison). --></h2>
+  <div class="panel-grid">
+    <figure class="panel"><img src="figures/panel01.png" alt="<AI: describe>"><figcaption><!-- facet 1: what + meaning --></figcaption></figure>
+    <figure class="panel"><img src="figures/panel02.png" alt="<AI: describe>"><figcaption><!-- facet 2 --></figcaption></figure>
+    <figure class="panel"><img src="figures/panel03.png" alt="<AI: describe>"><figcaption><!-- facet 3 --></figcaption></figure>
+    <figure class="panel"><img src="figures/panel04.png" alt="<AI: describe>"><figcaption><!-- facet 4 --></figcaption></figure>
+  </div>
+  <!-- AI: BUDGET <=6-8 panels, <=~2 viewports. ALL panels share ONE scale so
+       the comparison is honest. If facets aren't comparable, this is the
+       wrong archetype. -->
+</section>
+
+<section id="methods">
+  <h2>Methods</h2>
+  <p><!-- AI: one short paragraph. → paper.pdf. --></p>
+</section>
+
+<section id="limitations">
+  <h2>Limitations + open questions</h2>
+  <p><!-- AI: honest caveats. --></p>
+</section>
+
+<section id="references">
+  <h2>References + how to cite</h2>
+  <p><!-- AI: <=12 citations + data/code availability. --></p>
+</section>
+"""
+
+DASHBOARD_ARCHETYPES: dict[str, str] = {
+    "single-viewport-brief": _DASH_SINGLE_VIEWPORT_BRIEF,
+    "scroll-lite-narrative": _DASH_SCROLL_LITE_NARRATIVE,
+    "comparison-scorecard": _DASH_COMPARISON_SCORECARD,
+    "multi-panel-exploratory": _DASH_MULTI_PANEL_EXPLORATORY,
+}
+_DASHBOARD_DEFAULT_ARCHETYPE = "scroll-lite-narrative"
+
+# Shared font stacks (palette-independent; offline-safe fallbacks).
+_DASH_SERIF = ('"EB Garamond", "Crimson Text", "Source Serif Pro", '
+               '"Liberation Serif", Georgia, serif')
+_DASH_SANS = ('"Inter", "Helvetica Neue", "Source Sans Pro", "Roboto", '
+              '"Liberation Sans", Arial, sans-serif')
+
+
+def _dashboard_tokens_css(palette: str | None = None) -> str:
+    """Generate the :root token block (+ dark-scheme override) from one of the
+    professional palettes in viz/palettes.py. Makes "pick a palette" real and
+    keeps chrome colour in lockstep with the figure/audit palette source."""
+    from research_os.tools.actions.viz.palettes import DEFAULT_PALETTE, PALETTES
+
+    name = palette if palette in PALETTES else DEFAULT_PALETTE
+    p = PALETTES[name]
+
+    def block(scheme: dict) -> str:
+        return (
+            f"      --bg: {scheme['ground']}; --card: {scheme['card']};\n"
+            f"      --fg: {scheme['fg']}; --muted: {scheme['muted']};\n"
+            f"      --rule: {scheme['rule']};\n"
+            f"      --accent: {scheme['primary']}; --accent-gold: {scheme['secondary']};\n"
+            f"      --accent-green: {scheme['positive']}; --accent-red: {scheme['negative']};\n"
+            f"      --accent-mustard: {scheme['fifth']};"
+        )
+
+    return (
+        f"  /* Palette: {name} ({p['label']}) — mirrors viz/palettes.py so chrome,\n"
+        f"     figures, and the design audit share ONE professional identity.\n"
+        f"     Swap `palette=` to okabe_ito / clinical, or hand-edit these tokens\n"
+        f"     for a custom-but-professional scheme (AA contrast, CVD-safe, no neon). */\n"
+        f"  :root {{\n{block(p['light'])}\n"
+        f"      --serif: {_DASH_SERIF};\n"
+        f"      --sans: {_DASH_SANS};\n  }}\n"
+        f"  /* Dark scheme — same semantic mapping, retuned for low light. */\n"
+        f"  @media (prefers-color-scheme: dark) {{\n    :root {{\n{block(p['dark'])}\n    }}\n  }}"
+    )
+
+
+def _compose_dashboard(archetype: str | None = None, palette: str | None = None) -> str:
+    """Assemble the shared dashboard shell (token base + a11y + chrome) with the
+    chosen layout archetype's <main> body + a chosen professional palette. The
+    archetype name is stamped into <body data-archetype=...> so the design audit
+    can verify shape-vs-declared."""
+    arch = archetype if archetype in DASHBOARD_ARCHETYPES else _DASHBOARD_DEFAULT_ARCHETYPE
+    return (
+        _DASHBOARD_SHELL
+        .replace("__DASH_TOKENS__", _dashboard_tokens_css(palette))
+        .replace("__DASH_ARCHETYPE__", arch)
+        .replace("__DASH_MAIN__", DASHBOARD_ARCHETYPES[arch].strip("\n"))
+    )
+
+
+# Back-compat default (the scroll-lite narrative, RO house palette) — preserved
+# as the name downstream tests + the SCAFFOLDS default import.
+_DASHBOARD_HTML = _compose_dashboard(_DASHBOARD_DEFAULT_ARCHETYPE)
 
 
 SCAFFOLDS: dict[str, tuple[str, str]] = {
@@ -451,12 +749,21 @@ SCAFFOLDS: dict[str, tuple[str, str]] = {
     "dashboard": ("synthesis/dashboard.html", _DASHBOARD_HTML),
 }
 
+# Composable layout archetypes per deliverable kind — the AI picks ONE; the
+# scaffold validates against this menu and stamps the choice into the output.
+ARCHETYPE_MENUS: dict[str, list[str]] = {
+    "dashboard": list(DASHBOARD_ARCHETYPES),
+    "poster": ["classic", "billboard", "hero", "portrait"],
+}
+
 
 def synthesis_scaffold(
     root: Path,
     kind: str = "paper",
     overwrite: bool = False,
     confirmed: bool = False,
+    archetype: str | None = None,
+    palette: str | None = None,
 ) -> dict[str, Any]:
     """Write a tiny skeleton synthesis file.
 
@@ -479,6 +786,33 @@ def synthesis_scaffold(
             "message": f"Unknown kind '{kind}'. Valid: {', '.join(sorted(SCAFFOLDS))}.",
         }
 
+    # Validate the optional layout-archetype choice against the kind's menu.
+    if archetype is not None:
+        menu = ARCHETYPE_MENUS.get(kind)
+        if menu is None:
+            return {
+                "status": "error",
+                "message": (
+                    f"kind '{kind}' has no layout archetypes. "
+                    f"Archetypes apply to: {', '.join(sorted(ARCHETYPE_MENUS))}."
+                ),
+            }
+        if archetype not in menu:
+            return {
+                "status": "error",
+                "message": f"Unknown archetype '{archetype}' for {kind}. Valid: {', '.join(menu)}.",
+            }
+
+    # Validate the optional palette choice.
+    if palette is not None:
+        from research_os.tools.actions.viz.palettes import PALETTES
+
+        if palette not in PALETTES:
+            return {
+                "status": "error",
+                "message": f"Unknown palette '{palette}'. Valid: {', '.join(PALETTES)}.",
+            }
+
     # Output-types intent gate. Skipped when the caller has already
     # confirmed with the researcher (confirmed=true) or is doing a
     # forced overwrite (overwrite=true implies prior confirmation).
@@ -496,6 +830,16 @@ def synthesis_scaffold(
             }
 
     rel_path, body = SCAFFOLDS[kind]
+    # Compose the body for kinds that offer a layout-archetype design system.
+    chosen_archetype: str | None = None
+    if kind == "dashboard":
+        chosen_archetype = (
+            archetype if archetype in DASHBOARD_ARCHETYPES else _DASHBOARD_DEFAULT_ARCHETYPE
+        )
+        body = _compose_dashboard(chosen_archetype, palette)
+    elif kind == "poster":
+        chosen_archetype = archetype or "classic"
+        body = _compose_poster(chosen_archetype, palette)
     target = root / rel_path
     if target.exists() and not overwrite:
         return {
@@ -509,7 +853,7 @@ def synthesis_scaffold(
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(body, encoding="utf-8")
-    return {
+    result = {
         "status": "success",
         "path": str(target),
         "kind": kind,
@@ -520,3 +864,9 @@ def synthesis_scaffold(
             "(or open the HTML directly for dashboards)."
         ),
     }
+    if chosen_archetype is not None:
+        result["archetype"] = chosen_archetype
+        result["available_archetypes"] = ARCHETYPE_MENUS.get(kind, [])
+    if palette is not None:
+        result["palette"] = palette
+    return result
