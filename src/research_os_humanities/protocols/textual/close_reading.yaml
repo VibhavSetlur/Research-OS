@@ -91,9 +91,9 @@ steps:
       `apparatus` auto-waives the figure-gate (consistent with `plan`,
       `ground`, `proof`).
 
-      If the audit `tool_humanities_apparatus_audit` is available
-      (planned; tracked for a future release), it replaces the generic
-      completeness gate with a close-reading-aware check: presence of
+      If a close-reading-aware apparatus audit ships in a future
+      release, it will replace the generic
+      completeness gate with a check for: presence of
       line/folio/page anchors, tradition header, counter-instance
       section, and secondary-criticism ledger (per this protocol's
       quality_bar below). Until that ships, the apparatus contract +

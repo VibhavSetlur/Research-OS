@@ -174,8 +174,8 @@ steps:
       status: deprecated + superseded_by. For each result that now
       cites this lemma, add a `## Dependencies` line in the
       dependent's file pointing at `<slug>@<version>` — explicit
-      pins, like a lockfile. Run `tool_theorem_dependency_refresh`
-      (or theory_math/proof/theorem_dependency_graph) to regenerate
+      pins, like a lockfile. Run `tool_theory_math_dep_graph`
+      (see theory_math/proof/theorem_dependency_graph) to regenerate
       the global graph. Call `mem_log` with the final version + the
       dependent count so future sessions can see the impact.
 

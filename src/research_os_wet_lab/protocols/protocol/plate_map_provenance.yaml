@@ -59,14 +59,14 @@ editorial_voice:
        Every plate map must declare positive control, negative
        control, blank, and (where applicable) standard curve wells
        BEFORE the plate is loaded. The plate map renderer
-       (tool_wet_lab_plate_map_render) refuses to emit a layout
-       missing any of these declarations."
+       (tool_wet_lab_plate_map_render) visualises the layout so you can
+       confirm these declarations are present."
     - "Randomise sample positions across the plate to break
        confounds with row / column / edge effects. A plate where
        all treatment wells are in columns 1-6 and all control wells
        are in columns 7-12 cannot distinguish treatment effect from
-       plate-position effect. Use tool_wet_lab_plate_map_randomise
-       with a recorded seed."
+       plate-position effect. Randomise with a recorded seed (e.g.
+       numpy.random.default_rng(seed)) and mem_log the seed."
     - "The map is versioned per run. A re-pipetted plate is a new
        run with a new map_id, even if the layout is nominally
        identical — pipetting errors are the dominant source of
@@ -125,17 +125,17 @@ steps:
   - id: assign_wells_with_randomisation
     name: Assign samples to wells with a recorded randomisation seed
     description: |
-      Call tool_wet_lab_plate_map_randomise with the sample list +
-      control architecture + a seed. The seed is mandatory and
+      Randomise the well assignments with a recorded seed (e.g.
+      numpy.random.default_rng(seed)); the seed is mandatory and
       gets logged via mem_log so the layout is reproducible.
-      The tool emits workspace/<step>/plate_map_<map_id>.yaml with
-      well-by-well assignments. It refuses layouts that:
+      Write workspace/<step>/plate_map_<map_id>.yaml with
+      well-by-well assignments, then sanity-check that it does NOT:
         - load samples into edge wells without an edge policy,
         - place all replicates of one condition in the same row /
           column,
         - omit any required well class.
-      If the tool rejects your layout, fix the underlying issue —
-      do not bypass with a hand-edited YAML.
+      If the layout violates any of these, fix the underlying issue —
+      do not ship a confounded plate.
 
   - id: render_for_visual_check
     name: Render the map + eyeball it before pipetting
