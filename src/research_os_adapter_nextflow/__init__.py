@@ -30,7 +30,7 @@ Optional tools:
 """
 from __future__ import annotations
 
-import json
+import os
 import re
 import shutil
 import subprocess
@@ -40,6 +40,8 @@ from typing import Any
 from research_os.adapters import (
     AdapterRegistration,
     AdapterTool,
+    err_envelope as _err,
+    ok_envelope as _ok,
     register_adapter,
 )
 
@@ -54,48 +56,43 @@ _CONFIG_NAMES = {"nextflow.config"}
 _ENTRY_NAMES = {"main.nf"}
 
 
-def _candidate_dirs(root: Path) -> list[Path]:
-    dirs = [root]
-    workspace = root / "workspace"
-    if workspace.exists():
-        # include workspace itself + each immediate step folder
-        dirs.append(workspace)
-        try:
-            for child in workspace.iterdir():
-                if child.is_dir():
-                    dirs.append(child)
-        except OSError as exc:
-            import logging
-            logging.getLogger("research_os_adapter_nextflow").debug(
-                "workspace scan skipped: %s", exc
-            )
-    return dirs
+# Vendor / VCS / cache dirs that may hold third-party *.nf files (e.g. a
+# pinned nf-core module under .venv or node_modules). Pruning them stops a
+# vendored pipeline from false-triggering the adapter on a non-Nextflow
+# project, and avoids walking huge trees.
+_SKIP_DIRS = {
+    ".git", ".hg", ".svn", ".venv", "venv", "env", "node_modules",
+    "__pycache__", ".tox", ".mypy_cache", ".pytest_cache",
+    "site-packages", ".os_state", ".ipynb_checkpoints",
+}
 
 
 def _candidate_files(root: Path) -> list[Path]:
-    """Return every .nf / nextflow.config / main.nf below root + workspace."""
+    """Return every .nf / nextflow.config / main.nf under root.
+
+    Single pruned walk (skips dot/vendor dirs) — covers the project root,
+    inputs/, and workspace/<step>/ in one pass without double-walking or
+    descending into .git / .venv / node_modules.
+    """
     files: list[Path] = []
     seen: set[Path] = set()
-    search_roots: list[Path] = [root]
-    workspace = root / "workspace"
-    if workspace.exists():
-        search_roots.append(workspace)
-    for base in search_roots:
-        if not base.exists():
-            continue
-        try:
-            for p in base.rglob("*"):
-                if not p.is_file():
-                    continue
-                name = p.name.lower()
-                if p.suffix.lower() == ".nf" or name in _CONFIG_NAMES or name in _ENTRY_NAMES:
+    try:
+        for base, dirs, names in os.walk(root):
+            dirs[:] = [
+                d for d in dirs
+                if d not in _SKIP_DIRS and not d.startswith(".")
+            ]
+            for name in names:
+                low = name.lower()
+                if low.endswith(".nf") or low in _CONFIG_NAMES or low in _ENTRY_NAMES:
+                    p = Path(base) / name
                     resolved = p.resolve()
                     if resolved in seen:
                         continue
                     seen.add(resolved)
                     files.append(p)
-        except OSError:
-            continue
+    except OSError:
+        pass
     return files
 
 
@@ -168,10 +165,44 @@ def _slice_process_block(text: str, start: int) -> str:
     return text[body_start:] if body_start >= 0 else ""
 
 
+def _strip_inline_comment(v: str) -> str:
+    """Drop an unquoted trailing `// …` or `/* … */` Groovy comment.
+
+    `time = '2h'  // wall clock` must yield `2h`, not `2h'  // wall clock`.
+    Quote-aware so a `//` inside a quoted value is preserved.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    i, n = 0, len(v)
+    while i < n:
+        ch = v[i]
+        if quote:
+            out.append(ch)
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in "'\"":
+            quote = ch
+            out.append(ch)
+        elif ch == "/" and i + 1 < n and v[i + 1] == "/":
+            break
+        elif ch == "/" and i + 1 < n and v[i + 1] == "*":
+            end = v.find("*/", i + 2)
+            if end == -1:
+                break
+            i = end + 2
+            continue
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _strip(value: str | None) -> str | None:
     if value is None:
         return None
-    v = value.strip().rstrip(",").strip()
+    v = _strip_inline_comment(value).strip().rstrip(",").strip()
     if (v.startswith("'") and v.endswith("'")) or (v.startswith('"') and v.endswith('"')):
         v = v[1:-1]
     return v or None
@@ -355,32 +386,7 @@ def describe() -> dict:
 # ── optional tools ────────────────────────────────────────────────────
 
 
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+# Envelope helpers (_ok / _err) are imported from research_os.adapters.
 
 
 def _handle_validate(name: str, arguments: dict, root: Path) -> Any:

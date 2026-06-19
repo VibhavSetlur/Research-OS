@@ -44,7 +44,6 @@ Optional tools:
 """
 from __future__ import annotations
 
-import json
 import logging
 import re
 import xml.etree.ElementTree as ET
@@ -55,6 +54,8 @@ from typing import Any
 from research_os.adapters import (
     AdapterRegistration,
     AdapterTool,
+    err_envelope as _err,
+    ok_envelope as _ok,
     register_adapter,
 )
 
@@ -323,32 +324,7 @@ def describe() -> dict:
 # ── optional tools ────────────────────────────────────────────────────
 
 
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+# Envelope helpers (_ok / _err) are imported from research_os.adapters.
 
 
 def _xgmml_to_edge_list(data: bytes) -> tuple[list[str], list[tuple[str, str]], dict[str, tuple[float, float]]] | None:

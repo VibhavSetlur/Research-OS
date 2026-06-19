@@ -1,6 +1,6 @@
 """Qualitative-research pack for Research-OS.
 
-Extends core qualitative coverage with 5 protocols + 2 tools:
+Extends core qualitative coverage with 5 protocols + 3 tools:
 multi-round coding-scheme iteration, member checking, grounded-theory
 iteration, Braun & Clarke 2006 thematic analysis, and qualitative
 report formats (COREQ / SRQR). Tools support versioned codebook
@@ -19,7 +19,8 @@ from research_os_qualitative import tools as _tools  # noqa: F401 — load decor
 from research_os_qualitative.detector import detect_qualitative
 from research_os_qualitative.router_entries import QUALITATIVE_ROUTER_ENTRIES
 
-__version__ = "1.11.0"
+from research_os import __version__  # bundled pack reports the wheel version
+
 PACK_NAME = "qualitative"
 _PROTOCOLS_DIR = Path(__file__).parent / "protocols"
 

@@ -16,7 +16,8 @@ from research_os_theory_math import tools as _tools  # noqa: F401
 from research_os_theory_math.detector import detect_theory_math
 from research_os_theory_math.router_entries import THEORY_MATH_ROUTER_ENTRIES
 
-__version__ = "1.9.3"
+from research_os import __version__  # bundled pack reports the wheel version
+
 PACK_NAME = "theory_math"
 _PROTOCOLS_DIR = Path(__file__).parent / "protocols"
 

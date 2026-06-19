@@ -3,41 +3,12 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from research_os.plugins import register_tool
-
-
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
 
 
 _FMEA_COLUMNS = [
@@ -98,10 +69,14 @@ def fmea_render(name: str, arguments: dict, root: Path) -> Any:
     md_lines = [f"# FMEA — {stem}", "", "| " + " | ".join(_FMEA_COLUMNS) + " |",
                 "|" + "|".join(["---"] * len(_FMEA_COLUMNS)) + "|"]
     for it in items:
-        row = "| " + " | ".join(str(it.get(c, "")) for c in _FMEA_COLUMNS) + " |"
-        if int(it.get("rpn", 0)) >= 100:
-            row = row.replace("|", "| **", 1).replace("|", "** |", 1)
-        md_lines.append(row)
+        high = int(it.get("rpn", 0)) >= 100
+        # High-priority rows render every cell bold. The old single-row
+        # `.replace("|", ...)` corrupted the leading pipe (both replaces hit
+        # it); build the bolded row from cell values instead.
+        cells = [str(it.get(c, "")) for c in _FMEA_COLUMNS]
+        if high:
+            cells = [f"**{c}**" for c in cells]
+        md_lines.append("| " + " | ".join(cells) + " |")
     md_path = out_dir / f"{stem}.md"
     md_path.write_text("\n".join(md_lines) + "\n")
 
@@ -226,7 +201,7 @@ def requirements_matrix(name: str, arguments: dict, root: Path) -> Any:
     out_dir = root / "workspace" / "engineering" / "traceability"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    orphan_reqs = [r["id"] for r in reqs if not r.get("test_cases")]
+    orphan_reqs = [r.get("id", "") for r in reqs if not r.get("test_cases")]
     all_test_ids: set = set()
     for r in reqs:
         for tc in r.get("test_cases", []) or []:

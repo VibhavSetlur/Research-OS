@@ -7,35 +7,7 @@ from typing import Any
 
 import yaml
 
-from research_os.plugins import register_tool
-
-
-def _ok(data: dict) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "success", "data": data}, indent=2, default=str
-        ))]
-
-
-def _err(message: str) -> list:
-    try:
-        from mcp.types import TextContent
-        return [TextContent(type="text", text=json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
-    except ImportError:  # pragma: no cover
-        class _Stub:
-            def __init__(self, text): self.type, self.text = "text", text
-        return [_Stub(json.dumps(
-            {"status": "error", "error": message}, indent=2, default=str
-        ))]
+from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
 
 
 @register_tool(
@@ -144,17 +116,22 @@ def plate_map_render(name: str, arguments: dict, root: Path) -> Any:
         "required": ["supplier", "catalog_number"],
     },
     description=(
-        "Returns a structured query plan + a write-into-reagents-yaml "
-        "stub for one reagent. The pack does NOT hit live supplier "
-        "APIs (auth varies wildly + would make the package depend on "
-        "credentials); instead it writes a clearly-marked TODO entry "
-        "to workspace/<step>/reagents.yaml that the researcher fills "
-        "with the COA URL + lot number from the supplier's portal."
+        "Returns a structured query plan + appends a write-into-reagents "
+        "stub for one reagent into the accumulating ledger "
+        "workspace/reagents/reagents.yaml (keyed by supplier:catalog). "
+        "The pack does NOT hit live supplier APIs (auth varies wildly + "
+        "would make the package depend on credentials); instead each "
+        "entry carries clearly-marked TODOs the researcher fills with "
+        "the COA URL + lot number from the supplier's portal."
     ),
 )
 def reagent_query(name: str, arguments: dict, root: Path) -> Any:
-    supplier = arguments["supplier"]
-    cat = arguments["catalog_number"].strip()
+    supplier = (arguments.get("supplier") or "").strip()
+    cat = (arguments.get("catalog_number") or "").strip()
+    if not supplier:
+        return _err("supplier is required")
+    if not cat:
+        return _err("catalog_number is required")
     portal = {
         "sigma_aldrich": f"https://www.sigmaaldrich.com/US/en/product/sigma/{cat}",
         "thermofisher": f"https://www.thermofisher.com/order/catalog/product/{cat}",
@@ -176,15 +153,35 @@ def reagent_query(name: str, arguments: dict, root: Path) -> Any:
         "storage_conditions": "TODO",
         "handling_notes": "TODO",
     }
-    entry_path = reagent_dir / f"{supplier}_{cat}.yaml"
-    entry_path.write_text(yaml.safe_dump(entry, sort_keys=False))
+    # Accumulate into one ledger keyed by supplier:catalog. Avoids the old
+    # per-reagent <supplier>_<cat>.yaml filename (which broke when a catalog
+    # number contained '/'), and matches the reagent_lot_tracking protocol's
+    # "one accumulating reagents.yaml" model. The key holds the raw catalog
+    # number verbatim — no path is ever built from it.
+    ledger_path = reagent_dir / "reagents.yaml"
+    ledger: dict = {}
+    if ledger_path.exists():
+        try:
+            loaded = yaml.safe_load(ledger_path.read_text())
+            if isinstance(loaded, dict):
+                ledger = loaded
+        except Exception as exc:
+            import logging
+            logging.getLogger("research_os_wet_lab.tools").debug(
+                "could not parse existing reagents.yaml; starting fresh: %s", exc
+            )
+    key = f"{supplier}:{cat}"
+    ledger[key] = entry
+    ledger_path.write_text(yaml.safe_dump(ledger, sort_keys=False))
     return _ok({
-        "entry_path": str(entry_path.relative_to(root)),
+        "ledger_path": str(ledger_path.relative_to(root)),
+        "reagent_key": key,
         "portal_url": portal,
+        "n_reagents": len(ledger),
         "advice": (
             "Visit the supplier portal, download the COA, and update "
-            "lot_number / coa_url / dates / handling_notes. The "
-            "reagent_lot_tracking protocol expects all TODOs resolved "
+            "lot_number / coa_url / dates / handling_notes for this entry. "
+            "The reagent_lot_tracking protocol expects all TODOs resolved "
             "before the assay is logged as reproducible."
         ),
     })
@@ -206,20 +203,26 @@ def reagent_query(name: str, arguments: dict, root: Path) -> Any:
         "Renders the parent→split→aliquot→readout tree as JSON and "
         "Mermaid. Sample lineage answers 'where did this reading "
         "come from' — every assay readout must trace upward to a "
-        "single parent sample. Mermaid output lands at "
-        "workspace/<step>/sample_lineage.mermaid."
+        "single parent sample. Output lands in "
+        "workspace/lineage/sample_lineage.{json,mermaid}."
     ),
 )
 def sample_lineage_export(name: str, arguments: dict, root: Path) -> Any:
-    spec_path = (root / arguments["lineage_spec_path"]).resolve()
+    spec_rel = (arguments.get("lineage_spec_path") or "").strip()
+    if not spec_rel:
+        return _err("lineage_spec_path is required")
+    spec_path = (root / spec_rel).resolve()
     if not spec_path.exists():
-        return _err(f"lineage_spec_path '{arguments['lineage_spec_path']}' not found")
+        return _err(f"lineage_spec_path '{spec_rel}' not found")
     data = yaml.safe_load(spec_path.read_text()) or {}
     if isinstance(data, dict):
         samples = data.get("samples", [])
     else:
         samples = list(data)
-    out_dir = spec_path.parent
+    # Write to a deterministic workspace location, not the spec's parent —
+    # otherwise a spec under inputs/ would land its output under inputs/.
+    out_dir = root / "workspace" / "lineage"
+    out_dir.mkdir(parents=True, exist_ok=True)
     json_out = out_dir / "sample_lineage.json"
     json_out.write_text(json.dumps({"samples": samples}, indent=2))
     lines = ["graph TD"]

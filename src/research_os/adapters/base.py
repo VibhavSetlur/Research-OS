@@ -15,10 +15,41 @@ captured as (name, handler, schema) and merged into core
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
+
+
+# ── canonical adapter envelope helpers ────────────────────────────────
+# The envelope is the one thing every adapter MUST emit identically for
+# the dispatcher. Historically all 6 adapters copy-pasted a byte-identical
+# `_ok`/`_err` (~156 duplicated lines); these shared helpers are the single
+# source of truth. Adapters keep thin local `_ok`/`_err` aliases for
+# back-compat with any test that imports them directly.
+
+
+def _envelope(payload: dict) -> list:
+    text = json.dumps(payload, indent=2, default=str)
+    try:
+        from mcp.types import TextContent
+        return [TextContent(type="text", text=text)]
+    except ImportError:  # pragma: no cover
+        class _Stub:
+            def __init__(self, t: str) -> None:
+                self.type, self.text = "text", t
+        return [_Stub(text)]
+
+
+def ok_envelope(data: dict) -> list:
+    """Canonical adapter success envelope: ``[{status:success, data}]``."""
+    return _envelope({"status": "success", "data": data})
+
+
+def err_envelope(message: str) -> list:
+    """Canonical adapter error envelope: ``[{status:error, error}]``."""
+    return _envelope({"status": "error", "error": str(message)})
 
 
 @dataclass(frozen=True)
@@ -109,6 +140,15 @@ def register_adapter(
                 f"'{expected_prefix}' (namespace convention)"
             )
     for pat_source, _ in tools_md_patterns:
+        # The contract is (regex_source: str, template: str). Reject a
+        # pre-compiled re.Pattern (or anything non-str) here so an adapter
+        # can't smuggle one through on CPython's lenient re.compile(pattern)
+        # behaviour and then break when a flag is added downstream.
+        if not isinstance(pat_source, str):
+            raise TypeError(
+                f"Adapter '{name}' tools_md_patterns source must be a str "
+                f"(use an inline flag like '(?i)…'); got {type(pat_source).__name__}"
+            )
         # Compile up-front; surface bad regex at registration not at extract.
         re.compile(pat_source)
     return AdapterRegistration(

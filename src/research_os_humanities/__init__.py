@@ -17,7 +17,8 @@ from research_os_humanities import tools as _tools  # noqa: F401 — load decora
 from research_os_humanities.detector import detect_humanities
 from research_os_humanities.router_entries import HUMANITIES_ROUTER_ENTRIES
 
-__version__ = "1.9.3"
+from research_os import __version__  # bundled pack reports the wheel version
+
 PACK_NAME = "humanities"
 _PROTOCOLS_DIR = Path(__file__).parent / "protocols"
 
