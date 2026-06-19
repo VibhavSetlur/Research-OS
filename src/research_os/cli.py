@@ -34,7 +34,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -243,7 +242,9 @@ def cmd_init(args: argparse.Namespace) -> None:
 
     # ── Non-interactive path (legacy / scripted) ────────────────────────
     if args.name and args.directory is None:
-        slug = re.sub(r"[^a-zA-Z0-9_-]", "-", args.name.replace(" ", "-")).lower()
+        from research_os.wizard import slugify
+
+        slug = slugify(args.name)
         target_dir = (Path.cwd() / slug).resolve()
         created_new_folder = not target_dir.exists()
     elif args.directory:
@@ -283,6 +284,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         create_dir_needed=created_new_folder,
         detected_inputs=raw_data_sources,
         workspace_mode=getattr(args, "workspace_mode", None) or "analysis",
+        mcp_scope=getattr(args, "mcp_scope", None) or "workspace",
     )
     _execute(result, run_preflight_repo=args.preflight, quiet_banner=True)
 
@@ -752,21 +754,6 @@ def _print_mcp_results(results: dict[str, str], name: str, action: str, wizard) 
 # ---------------------------------------------------------------------------
 # api-key subcommand — manage api_keys in inputs/researcher_config.yaml
 # ---------------------------------------------------------------------------
-
-
-# Known free / lift-the-rate-limit providers RO knows how to wire. Anything
-# else still works — providers are open-ended strings — but these are the
-# ones `research-os api-key test` knows how to ping.
-KNOWN_API_KEY_PROVIDERS = (
-    "semantic_scholar",
-    "pubmed",
-    "crossref",
-    "openalex",
-    "openai",
-    "anthropic",
-    "firecrawl",
-    "serpapi",
-)
 
 
 def cmd_api_key(args: argparse.Namespace) -> int:

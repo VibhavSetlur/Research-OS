@@ -413,8 +413,14 @@ def _handle_mem_hypothesis_add(name, arguments, root):
 def _handle_mem_hypothesis_update(name, arguments, root):
     from research_os.tools.actions.memory.memory import hypothesis_update
 
+    hypothesis_id = arguments.get("hypothesis_id")
+    if not hypothesis_id:
+        return _text(_error(
+            "mem_log kind='hypothesis' requires hypothesis_id= "
+            "(e.g. 'H1') to update an existing hypothesis."
+        ))
     res = hypothesis_update(
-        arguments["hypothesis_id"],
+        hypothesis_id,
         root,
         status=arguments.get("status"),
         evidence=arguments.get("evidence"),

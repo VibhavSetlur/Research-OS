@@ -234,3 +234,65 @@ def test_find_templates_dir_exists():
     assert (d / "generic_two_column.typ").exists()
     for v in VENUE_TEMPLATES:
         assert (d / f"{v}.typ").exists(), f"missing template: {v}.typ"
+
+
+# ── SYN-1: title / author / abstract escaping ────────────────────────
+
+
+def test_md_to_typst_escapes_hostile_title():
+    """A title with Typst specials ($ # @ _ * [ ]) must not break the
+    generated .typ — every special is backslash-escaped inside the
+    `title: [...]` content block. (SYN-1)"""
+    src = (
+        "---\n"
+        "title: Cost-effectiveness of X#1 @ 50% [pilot]\n"
+        "author: A. B. Researcher\n"
+        "abstract: We spent $5 and got a 50% lift in _throughput_.\n"
+        "---\n"
+        "# Body heading\n\nProse.\n"
+    )
+    out = md_to_typst(src, venue_template="generic_two_column")
+    header = out.split("#bibliography")[0]
+    title_line = next(
+        ln for ln in header.splitlines() if ln.strip().startswith("title:")
+    )
+    # The markup specials must be escaped, not raw.
+    assert "X\\#1" in title_line
+    assert "\\@ 50%" in title_line
+    assert "\\[pilot\\]" in title_line
+    # Abstract specials escaped too.
+    abstract_line = next(
+        ln for ln in header.splitlines() if ln.strip().startswith("abstract:")
+    )
+    assert "\\$5" in abstract_line
+    assert "\\_throughput\\_" in abstract_line
+
+
+# ── SYN-9: Hayagriva date + volume/issue handling ────────────────────
+
+
+def test_hayagriva_quotes_non_year_date(tmp_path: Path):
+    """A non-numeric date (e.g. 'in press') is quoted so Hayagriva keeps
+    it as a note instead of mis-parsing it, and volume/issue land at the
+    top level when there is no parent block. (SYN-9)"""
+    cit = tmp_path / "citations.md"
+    cit.write_text(
+        "@smith2024 A notable paper\n"
+        "author: Jane Smith\n"
+        "year: in press\n"
+        "volume: 12\n"
+        "issue: 3\n"
+    )
+    out = citations_md_to_hayagriva(cit)
+    assert 'date: "in press"' in out
+    # No parent → volume/issue at the top level (two-space indent).
+    assert "\n  volume: 12" in out
+    assert "\n  issue: 3" in out
+
+
+def test_hayagriva_emits_plain_year_unquoted(tmp_path: Path):
+    cit = tmp_path / "citations.md"
+    cit.write_text("@jones2020 Title\nauthor: A Jones\nyear: 2020\n")
+    out = citations_md_to_hayagriva(cit)
+    assert "date: 2020" in out
+    assert 'date: "2020"' not in out

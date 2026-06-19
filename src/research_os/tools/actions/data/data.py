@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -109,7 +110,14 @@ def data_sample(
             sampled.to_csv(out_path.with_suffix(".csv"), index=False)
             out_path = out_path.with_suffix(".csv")
 
-        preview_rows = sampled.head(min(10, len(sampled))).to_dict(orient="records")
+        # Round-trip through pandas' JSON writer so Timestamp values
+        # become ISO strings and NaN becomes null — a raw to_dict()
+        # preview leaks Timestamp objects + NaN (invalid JSON).
+        preview_rows = json.loads(
+            sampled.head(min(10, len(sampled))).to_json(
+                orient="records", date_format="iso"
+            )
+        )
 
         return {
             "status": "success",

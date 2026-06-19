@@ -98,3 +98,56 @@ class TestValidateConfig:
         set_config("api_keys.firecrawl", "fc-valid-key", initialised_root)
         res = validate_config(initialised_root)
         assert "firecrawl" in res["api_keys_configured"]
+
+
+class TestSetConfigSafety:
+    """Regression coverage for set_config: comment-preservation, chmod
+    re-lock, and typed-field coercion (CWC-1 / CWC-5 / CWC-7)."""
+
+    def _write_cfg(self, root):
+        cfg = root / "inputs" / "researcher_config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text(
+            "# A guiding comment that must survive an AI-driven edit\n"
+            "project_name: demo  # inline comment\n"
+            "research_goal:\n"
+            "  output_types: []   # paper | dashboard | report\n"
+        )
+        return cfg
+
+    def test_preserves_inline_comments(self, tmp_root):
+        # CWC-1: round-trip through ruamel — comments are NOT stripped.
+        cfg = self._write_cfg(tmp_root)
+        res = set_config("researcher.name", "Dr. Smith", tmp_root)
+        assert res["status"] == "success"
+        txt = cfg.read_text()
+        assert "A guiding comment that must survive an AI-driven edit" in txt
+        assert "inline comment" in txt
+
+    def test_relocks_to_0600(self, tmp_root):
+        # CWC-5: the file may carry API keys, so re-lock after writing.
+        cfg = self._write_cfg(tmp_root)
+        cfg.chmod(0o644)
+        set_config("api_keys.firecrawl", "fc-secret", tmp_root)
+        assert oct(os.stat(cfg).st_mode & 0o777) == "0o600"
+
+    def test_coerces_bare_string_to_list(self, tmp_root):
+        # CWC-7: output_types is list-valued — a bare string must coerce
+        # to a list, not be stored as a string downstream gates iterate
+        # character by character.
+        self._write_cfg(tmp_root)
+        set_config("research_goal.output_types", "paper", tmp_root)
+        cfg = get_config(tmp_root)["config"]
+        assert cfg["research_goal"]["output_types"] == ["paper"]
+
+    def test_coerces_comma_separated_to_list(self, tmp_root):
+        self._write_cfg(tmp_root)
+        set_config("research_goal.output_types", "paper, dashboard", tmp_root)
+        cfg = get_config(tmp_root)["config"]
+        assert cfg["research_goal"]["output_types"] == ["paper", "dashboard"]
+
+    def test_passes_through_actual_list(self, tmp_root):
+        self._write_cfg(tmp_root)
+        set_config("research_goal.output_types", ["poster"], tmp_root)
+        cfg = get_config(tmp_root)["config"]
+        assert cfg["research_goal"]["output_types"] == ["poster"]

@@ -128,6 +128,35 @@ _WORKFLOW_SHAPE_BOOST = 1
 # Cache: protocol_id → tier (read lazily from the YAML).
 _TIER_CACHE: dict[str, str] = {}
 
+# Cache: pack domain-detector results, keyed on the inputs/ dir + its
+# mtime. run_pack_domain_detectors does a full inputs/ rglob + read on
+# every boot; without this, large corpora make every `sys_boot` pay a
+# latency cliff. Recompute only when inputs/ changes.
+_PACK_SIGNALS_CACHE: dict[str, tuple[float, list[dict]]] = {}
+
+
+def _pack_signals_cached(inputs_dir: Path) -> list[dict]:
+    """run_pack_domain_detectors, memoised on the inputs/ dir mtime.
+
+    The inputs directory's own mtime changes whenever a file is added,
+    removed, or renamed at its top level — a cheap staleness key that
+    avoids re-walking the whole tree on every boot.
+    """
+    from research_os.plugins import run_pack_domain_detectors as _detect
+
+    try:
+        mtime = inputs_dir.stat().st_mtime
+    except OSError:
+        # No inputs/ dir yet — nothing to detect, nothing to cache.
+        return []
+    cache_key = str(inputs_dir.resolve())
+    cached = _PACK_SIGNALS_CACHE.get(cache_key)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    signals = _detect(inputs_dir)
+    _PACK_SIGNALS_CACHE[cache_key] = (mtime, signals)
+    return signals
+
 
 def _resolve_tier(
     protocol_id: str | None,
@@ -788,16 +817,13 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
         adapters_detected: list[str] = []
         pack_nudge = ""
         try:
-            from research_os.plugins import (
-                installed_packs as _ip,
-                run_pack_domain_detectors as _detect,
-            )
+            from research_os.plugins import installed_packs as _ip
             for p in (_ip() or []):
                 pack_capabilities.append({
                     "name": p.get("name"),
                     "summary": (p.get("description") or "")[:140],
                 })
-            field_signals = _detect(root / "inputs")
+            field_signals = _pack_signals_cached(root / "inputs")
             if field_signals:
                 top = field_signals[0]
                 sig = ", ".join(top.get("signals", [])[:2])
@@ -1686,8 +1712,7 @@ def _fallback_response(
     field_hint = ""
     if root is not None:
         try:
-            from research_os.plugins import run_pack_domain_detectors
-            field_signals = run_pack_domain_detectors(root / "inputs")
+            field_signals = _pack_signals_cached(root / "inputs")
         except Exception:
             field_signals = []
         if field_signals:

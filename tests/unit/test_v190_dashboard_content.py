@@ -184,3 +184,28 @@ def test_audit_dashboard_content_combined(tmp_path: Path):
     res = audit_dashboard_content(tmp_path)
     assert "sub_reports" in res
     assert "numeric_grounding" in res["sub_reports"]
+
+
+def test_accessibility_data_alt_does_not_satisfy_alt():
+    """`data-alt=` must not satisfy the alt-text check; a real `alt=`
+    must. (SYN-8)"""
+    bad = audit_accessibility('<img src="x.png" data-alt="nope">')
+    assert any("alt=" in w for w in bad["warnings"]), bad["warnings"]
+    good = audit_accessibility('<img src="x.png" alt="real">')
+    assert not any("alt=" in w for w in good["warnings"]), good["warnings"]
+
+
+def test_dashboard_content_ignores_commented_markup(tmp_path: Path):
+    """Markup inside <!-- ... --> is stripped before the content scans
+    so a commented <img> doesn't trip the alt-text gate. (SYN-2)"""
+    html = (
+        "<html><body>"
+        "<!-- <img src=commented.png> -->"
+        '<img src="real.png" alt="a described figure">'
+        "</body></html>"
+    )
+    (tmp_path / "synthesis").mkdir(parents=True)
+    (tmp_path / "synthesis" / "dashboard.html").write_text(html)
+    res = audit_dashboard_content(tmp_path)
+    a11y = res["sub_reports"]["accessibility"]
+    assert not any("alt=" in w for w in a11y["warnings"]), a11y["warnings"]
