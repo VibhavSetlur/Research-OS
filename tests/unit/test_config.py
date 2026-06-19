@@ -86,6 +86,45 @@ class TestSetConfig:
         assert res["status"] == "success"
         assert get_config(initialised_root)["config"]["researcher"]["name"] == "Dr. Smith"
 
+    # C4 — set_config rejects off-enum writes instead of silently storing a typo.
+    def test_rejects_off_enum_value(self, initialised_root):
+        res = set_config("gate_strictness", "lite", initialised_root)
+        assert res["status"] == "error"
+        assert "gate_strictness" in res["message"]
+        assert "light" in res["allowed"]
+        # The bad value must NOT have been written.
+        assert get_config(initialised_root)["config"]["gate_strictness"] != "lite"
+
+    def test_accepts_valid_enum_value(self, initialised_root):
+        res = set_config("gate_strictness", "light", initialised_root)
+        assert res["status"] == "success"
+        assert get_config(initialised_root)["config"]["gate_strictness"] == "light"
+
+    def test_rejects_off_enum_model_profile(self, initialised_root):
+        assert set_config("model_profile", "big", initialised_root)["status"] == "error"
+
+    # C6 — boolean knobs coerce "false" to a real bool (not a truthy string).
+    def test_bool_field_coerces_false(self, initialised_root):
+        res = set_config("figures.svg_allowed", "false", initialised_root)
+        assert res["status"] == "success"
+        val = get_config(initialised_root)["config"]["figures"]["svg_allowed"]
+        assert val is False
+
+    def test_bool_field_coerces_true(self, initialised_root):
+        set_config("runtime.shared_server", "on", initialised_root)
+        assert get_config(initialised_root)["config"]["runtime"]["shared_server"] is True
+
+
+class TestModelProfileSync:
+    """A1 — the wizard's model_profile choice must reach the canonical
+    ai.model_profile key every reader prefers, not just the legacy top-level."""
+
+    def test_init_override_syncs_ai_model_profile(self, tmp_root):
+        init_config(tmp_root, overrides={"model_profile": "large"})
+        cfg = get_config(tmp_root)["config"]
+        assert cfg["model_profile"] == "large"
+        assert cfg["ai"]["model_profile"] == "large"
+
 
 class TestValidateConfig:
     def test_returns_structure(self, initialised_root):
@@ -151,3 +190,24 @@ class TestSetConfigSafety:
         set_config("research_goal.output_types", ["poster"], tmp_root)
         cfg = get_config(tmp_root)["config"]
         assert cfg["research_goal"]["output_types"] == ["poster"]
+
+    def test_warns_when_scalar_intermediate_clobbered(self, tmp_root):
+        # E6: setting a nested key over an existing SCALAR intermediate
+        # silently discarded the prior value. The write still happens
+        # (always-writes behaviour preserved) but the loss is surfaced.
+        cfg = tmp_root / "inputs" / "researcher_config.yaml"
+        cfg.parent.mkdir(parents=True, exist_ok=True)
+        cfg.write_text("researcher: somebody\n", encoding="utf-8")
+        res = set_config("researcher.name", "Alice", tmp_root)
+        assert res["status"] == "success"
+        assert "warning" in res
+        assert "somebody" in res["warning"]
+        assert get_config(tmp_root)["config"]["researcher"]["name"] == "Alice"
+
+    def test_no_warning_for_absent_intermediate(self, tmp_root):
+        # Normal nested-key creation (intermediate absent, not scalar)
+        # must NOT emit a clobber warning.
+        self._write_cfg(tmp_root)
+        res = set_config("newsection.field", "value", tmp_root)
+        assert res["status"] == "success"
+        assert "warning" not in res

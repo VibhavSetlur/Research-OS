@@ -160,13 +160,10 @@ steps:
       the venue or the argument calls for it. Each section is grounded
       in the workspace artefact the plan named for it. In autopilot
       mode the AI may proceed through sections automatically; each is
-      still its own focused authoring pass.
-
-      Note (unresolved across the library): some deliverables assemble
-      a full IMRAD manuscript here, while others draft individual
-      sections that a separate assembly stage stitches together. This
-      protocol authors the whole paper; the paper-vs-section assembly
-      split is a known structural seam, not settled here.
+      still its own focused authoring pass. This protocol authors the
+      whole paper section by section; if a venue needs separately-
+      assembled sections, draft them with the per-section writing/*
+      protocols and stitch them here.
 
   - id: per_section_check
     name: Check after every section

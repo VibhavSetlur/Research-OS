@@ -859,6 +859,13 @@ def compute_evalue(
     """
     import math
 
+    # Defense in depth: coerce numeric args so any direct caller is safe
+    # even if a client stringifies them. The CI bounds feed `> 1` / `< 1`
+    # comparisons below, which raise TypeError on str inputs.
+    risk_ratio = float(risk_ratio)
+    ci_lower = float(ci_lower) if ci_lower is not None else None
+    ci_upper = float(ci_upper) if ci_upper is not None else None
+
     def _one(rr: float) -> float:
         # Reflect to ≥1.
         if rr <= 0:

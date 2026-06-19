@@ -239,6 +239,15 @@ def data_profile(filepath: str, root: Path = Path(".")) -> dict[str, Any]:
 def data_convert(filepath: str, output_format: str, root: Path) -> dict[str, Any]:
     try:
         p = root / filepath
+        # Verify containment up front: an absolute filepath outside root
+        # makes `root / filepath` resolve to that absolute path (Path
+        # discards root), which would write the converted file OUTSIDE the
+        # project and then make `relative_to(root)` raise. Reject it here
+        # instead of writing-then-failing.
+        try:
+            p.resolve().relative_to(root.resolve())
+        except ValueError:
+            return {"status": "error", "message": f"Path escapes project root: {filepath}"}
         if not p.exists() or not p.is_file():
             return {"status": "error", "message": f"File not found: {filepath}"}
 
@@ -272,10 +281,16 @@ def data_convert(filepath: str, output_format: str, root: Path) -> dict[str, Any
                 "message": f"Unsupported output format: {output_format}",
             }
 
+        # out_path is guaranteed inside root by the up-front check, but mirror
+        # the established _fake_pdfs idiom so a symlink edge case can't crash.
+        try:
+            rel = str(out_path.relative_to(root))
+        except ValueError:
+            rel = str(out_path)
         return {
             "status": "success",
             "message": f"Converted to {output_format}",
-            "filepath": str(out_path.relative_to(root)),
+            "filepath": rel,
         }
     except Exception as e:
         logger.error(f"data_convert failed: {e}")

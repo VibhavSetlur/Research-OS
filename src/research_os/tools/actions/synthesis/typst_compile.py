@@ -139,7 +139,7 @@ def _materialise_template_imports(source: Path) -> None:
 # Fixed-format targets that MUST render to a single page — a page count
 # above this is a strong signal that content overflowed the canvas (the
 # user's "overlapping / overflowing" pain in posters + one-pagers).
-_SINGLE_PAGE_TARGETS = {"poster", "cover_letter"}
+_SINGLE_PAGE_TARGETS = {"poster", "cover_letter", "handout"}
 
 
 def _target_kind(src: Path) -> str:

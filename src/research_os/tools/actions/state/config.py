@@ -111,6 +111,8 @@ project_name: "{project_name}"
 # ── Workspace mode — what kind of work is this? ─────────────────────────
 # Changes the scaffold, which protocols route, and which audits apply.
 #   analysis    → linear numbered analysis steps (default; classic Research OS)
+#   hybrid      → a research project that ALSO ships software: routes +
+#                 scaffolds like analysis AND surfaces the inner tool component.
 #   tool_build  → building software / a tool you iterate on. Research OS
 #                 governs from above (spec + decisions + milestones + eval
 #                 harness); the tool itself lives in an inner git repo.
@@ -118,7 +120,7 @@ project_name: "{project_name}"
 #   notebook    → Jupyter-first; a notebook / cell is the unit of work.
 #   multi_study → a portfolio of sub-studies with a shared codebook + roll-up.
 workspace:
-  mode: "analysis"        # analysis | tool_build | exploration | notebook | multi_study
+  mode: "analysis"        # analysis | hybrid | tool_build | exploration | notebook | multi_study
   inner_repo: ""          # tool_build only: inner project dir (blank → "project")
   # tool_build only: the shell commands that define "done" for the inner
   # repo. tool_build(operation=build|test|lint) runs these (cwd = inner
@@ -158,10 +160,12 @@ interaction:
   #            tripping.
 
   # Quality-gate posture (the AI NEVER bypasses on its own).
-  #   enforce        → refuse bypass without an explicit researcher ask
-  #   allow_override → allow override_completeness_gate=true on request,
-  #                    rationale logged to workspace/logs/override_log.md
-  #   warn_only      → treat gate blockers as warnings (sandbox use only)
+  #   enforce        → ACTIVE default. Refuse bypass without an explicit
+  #                    researcher ask + logged override_rationale.
+  #   allow_override → RESERVED (not yet enforced). Behaves like enforce today;
+  #                    overrides are already accepted via per-tool override_* flags.
+  #   warn_only      → RESERVED (not yet enforced). Behaves like enforce today —
+  #                    blockers still hard-block. Do not rely on it to soften gates.
   quality_gate_policy: "enforce"
 
   # Ambiguity posture
@@ -185,10 +189,16 @@ interaction:
 gate_strictness: "auto"               # light | normal | strict | auto
 
 # ── Project tier ───────────────────────────────────────────────────────
-# Sets the default audit strictness across the whole project.
-#   throwaway → light  (sandbox / exploratory; no publication intent)
-#   sketch    → normal (working draft; may or may not publish)
-#   production → strict (active path to submission / hand-off)
+# Coarse default that feeds gate strictness ONLY when gate_strictness is not
+# an explicit light/normal/strict. Precedence (see resolve_gate_strictness):
+# (1) explicit gate_strictness wins; else (2) a NON-production tier maps
+# directly: throwaway → light, sketch → normal; else (3) production +
+# gate_strictness:auto defers to the trust-score scan (tool_rigor_signals_scan),
+# which resolves to light/normal/strict by project rigor. To force strict on a
+# production project, set gate_strictness: "strict" explicitly above.
+#   throwaway → light   (sandbox / exploratory; no publication intent)
+#   sketch    → normal  (working draft; may or may not publish)
+#   production → defers to gate_strictness (auto → trust-score scan)
 project_tier: "production"            # throwaway | sketch | production
 
 # ── Match the AI model class running in your IDE ────────────────────────
@@ -602,10 +612,36 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
         # expects (e.g. output_types: "paper" -> ["paper"]).
         value = _coerce_config_value(key, value)
 
+        # Reject off-enum writes up front so a typo (e.g. gate_strictness:
+        # "lite") fails loudly here instead of being silently written and
+        # then silently treated as the documented default at read time.
+        # Only guards non-empty string values (mirrors validate_config) so
+        # blank clears and already-typed structured writes pass through.
+        allowed = _ENUM_FIELDS.get(key)
+        if allowed is not None and isinstance(value, str) and value != "" and value not in allowed:
+            return {
+                "status": "error",
+                "key": key,
+                "value": value,
+                "message": f"{key} must be one of {'|'.join(allowed)}; got '{value}'",
+                "allowed": list(allowed),
+            }
+
         parts = key.split(".")
         cursor = config
+        # Track scalar intermediates we replace with sections — clobbering
+        # a non-dict node silently discards its value. Distinguish "absent"
+        # (normal nested-key creation) from "present-but-scalar" (data loss)
+        # so we can surface the loss without changing the always-writes
+        # behaviour.
+        clobbered: list[tuple[str, Any]] = []
+        prefix: list[str] = []
         for part in parts[:-1]:
-            if part not in cursor or not isinstance(cursor[part], dict):
+            prefix.append(part)
+            if part in cursor and not isinstance(cursor[part], dict):
+                clobbered.append((".".join(prefix), cursor[part]))
+                cursor[part] = {}
+            elif part not in cursor:
                 cursor[part] = {}
             cursor = cursor[part]
         cursor[parts[-1]] = value
@@ -617,7 +653,13 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
             os.chmod(cfg_path, 0o600)
         except OSError:
             pass
-        return {"status": "success", "key": key, "value": value}
+        result: dict[str, Any] = {"status": "success", "key": key, "value": value}
+        if clobbered:
+            result["warning"] = (
+                "overwrote scalar section value(s): "
+                + "; ".join(f"{p}={old!r}" for p, old in clobbered)
+            )
+        return result
     except Exception as e:
         logger.exception("set_config failed")
         return {"status": "error", "message": str(e)}
@@ -663,6 +705,8 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                         config[top_key] = config_block
                 if isinstance(profile.get("model_profile"), str):
                     config["model_profile"] = profile["model_profile"]
+                    # Mirror to the canonical ai.* key that every reader prefers.
+                    config.setdefault("ai", {})["model_profile"] = profile["model_profile"]
                 _dump_config_roundtrip(cfg_path, config)
             except Exception as e:
                 logger.warning("Failed to apply cross-project profile: %s", e)
@@ -704,6 +748,11 @@ def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
                     ws_block["inner_repo"] = inner_in.strip()
             if overrides.get("model_profile") in ("small", "medium", "large"):
                 config["model_profile"] = overrides["model_profile"]
+                # Keep the canonical ai.model_profile in sync — every reader
+                # (router._read_model_profile, server/_helpers) prefers the
+                # ai.* key, so writing only the legacy top-level key made the
+                # wizard's model-profile choice a silent no-op.
+                config.setdefault("ai", {})["model_profile"] = overrides["model_profile"]
             # API keys: merge non-empty values into the api_keys: block.
             if overrides.get("api_keys"):
                 api_keys_in = overrides["api_keys"]
@@ -936,8 +985,16 @@ _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     # files directly, so there's nothing to validate.
 }
 
-# No bool fields today. Retained for future use.
-_BOOL_FIELDS: tuple[str, ...] = ()
+# Boolean knobs: a bare-string write here (e.g.
+# `sys_config set figures.svg_allowed false`) must coerce to a real bool,
+# otherwise the non-empty string "false" reads back TRUTHY and inverts the
+# toggle. _coerce_config_value maps true/yes/1/on -> True, false/no/0/off
+# -> False for these keys.
+_BOOL_FIELDS: tuple[str, ...] = (
+    "figures.svg_allowed",
+    "figures.interactive_html_allowed",
+    "runtime.shared_server",
+)
 
 # List-valued fields: a bare-string write here (e.g.
 # `sys_config set research_goal.output_types paper`) must be coerced to

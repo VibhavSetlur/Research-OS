@@ -374,3 +374,31 @@ def test_audit_step_completeness_blocks_on_missing_stack_plan(tmp_path):
     assert any("stack_plan" in b.lower() for b in blockers), (
         f"missing stack_plan.md must BLOCK in v1.5.0; got blockers={blockers}"
     )
+
+
+class TestComputeEvalueCoercion:
+    """E6 (Theme E / E1): compute_evalue must not crash when a client
+    stringifies the numeric args. Many MCP/LLM clients send numbers as
+    strings, and the CI-bound `> 1` / `< 1` comparisons raised TypeError."""
+
+    def test_string_ci_bounds_do_not_crash(self):
+        from research_os.tools.actions.audit.audit import compute_evalue
+
+        res = compute_evalue(risk_ratio="2.0", ci_lower="1.5", ci_upper="2.5")
+        assert isinstance(res["e_value_point"], (int, float))
+        assert isinstance(res["e_value_ci_bound"], (int, float))
+        # Round-trip the coerced numerics back into the payload.
+        assert res["risk_ratio"] == 2.0
+        assert res["ci_lower"] == 1.5
+
+    def test_numeric_args_still_work(self):
+        from research_os.tools.actions.audit.audit import compute_evalue
+
+        res = compute_evalue(risk_ratio=2.0, ci_lower=1.5, ci_upper=2.5)
+        assert res["e_value_ci_bound"] is not None
+
+    def test_no_ci_bounds(self):
+        from research_os.tools.actions.audit.audit import compute_evalue
+
+        res = compute_evalue(risk_ratio="3.0")
+        assert res["e_value_ci_bound"] is None

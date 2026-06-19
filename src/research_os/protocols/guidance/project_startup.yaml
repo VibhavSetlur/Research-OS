@@ -147,12 +147,14 @@ steps:
       records, so every downstream decision can trace back to the
       source brief:
         tool_ground
-            decision="project_intake"
-            context_files=["inputs/context/<brief.md>", ...]
+            claim="project intake framing (question, hypotheses, scope)"
+            mode="from_context"
+            context_paths=["inputs/context/<brief.md>", ...]
+            decision_id="project_intake"
             notes="initial project framing — used to derive the
                    question, hypotheses, and per-step scope"
       Writes to workspace/.grounding/grounding.jsonl. Subsequent
-      grounding_register / grounding_verify calls can reference
+      tool_ground / tool_verify calls can reference
       decision_id="project_intake" as the upstream anchor.
 
   - id: present_startup_summary

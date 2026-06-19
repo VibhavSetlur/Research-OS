@@ -161,12 +161,16 @@ def step_revision_options(
 
     # Alternative paths the researcher could consider.
     alternative_paths: list[str] = []
+    # Drop the NN_ prefix for the suggested branch name, but stay safe when
+    # the step folder carries no underscore (split would yield a 1-element
+    # list and [1] would raise IndexError).
+    slug = step_id.split("_", 1)[1] if "_" in step_id else step_id
     # Stratified analysis suggestion if the step's findings mention groups.
     if any(g in conc_text.lower() for g in (" by sex", " by age", " by cohort", " by site")):
         alternative_paths.append(
             "Stratified analysis: re-run within each subgroup separately to "
             "check whether the headline holds, then branch via "
-            f"`sys_path(operation='create', name='{step_id.split('_', 1)[1]}_stratified', "
+            f"`sys_path(operation='create', name='{slug}_stratified', "
             f"branch_of='{step_id}')`."
         )
     # Sensitivity analysis if any cutoff was named.

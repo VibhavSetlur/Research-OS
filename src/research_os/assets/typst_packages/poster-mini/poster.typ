@@ -18,12 +18,16 @@
 // Palette is a dict with at minimum:
 //   (primary: rgb, accent: rgb, ink: rgb, paper: rgb, muted: rgb)
 
+// Default palette mirrors RO_PALETTE in tools/actions/viz/style.py so an
+// RO-styled figure embedded in the poster matches the panel chrome (one
+// visual identity across figures, poster, slides, dashboard). Keep these
+// hexes in sync when the figure palette changes.
 #let palette-light = (
-  primary: rgb("#2C5282"),
-  accent:  rgb("#B7791F"),
-  ink:     rgb("#1A202C"),
-  paper:   rgb("#FFFFFF"),
-  muted:   rgb("#E2E8F0"),
+  primary: rgb("#1F4D7A"),   // RO navy
+  accent:  rgb("#9B7E2D"),   // RO olive gold
+  ink:     rgb("#3D3A35"),   // RO warm-dark foreground
+  paper:   rgb("#FBF8F3"),   // RO cream
+  muted:   rgb("#EDE6D9"),   // cream-toned panel fill that sits on the paper
 )
 
 #let palette-dark = (
@@ -207,12 +211,15 @@
     margin: margin,
     fill: palette.paper,
   )
+  // Sans body: posters are read across a room, where a humanist sans is
+  // more legible at distance than a serif. Ragged-right (justify: false)
+  // avoids the rivers justified text opens up in wide poster columns.
   set text(
-    font: "New Computer Modern",
+    font: "New Computer Modern Sans",
     fill: palette.ink,
     size: 16pt,
   )
-  set par(justify: true, leading: 0.65em)
+  set par(justify: false, leading: 0.65em)
 
   if header != none {
     header

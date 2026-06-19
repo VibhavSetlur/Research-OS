@@ -48,7 +48,7 @@ steps:
         - claims — every number in synthesis/paper.{typ,md} traces to a
           workspace output (catches AI hallucination);
         - preregistration_diff — deviations from the frozen SAP if any;
-        - grounding_verify — every decision record in
+        - tool_verify — every decision record in
           workspace/decisions/ resolves to a registered grounding source
           (catches ungrounded synthesis claims).
       Writes workspace/logs/audit_master.md. tool_synthesis_check

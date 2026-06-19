@@ -42,7 +42,7 @@ from typing import Any
 logger = logging.getLogger("research_os.tools.research.citations_isbn")
 
 _TIMEOUT = 5.0
-_UA = "Research-OS/1.0 (+https://github.com/vsetlur/Research-OS)"
+_UA = "Research-OS/1.0 (+https://github.com/VibhavSetlur/Research-OS)"
 
 
 # ---------------------------------------------------------------------------

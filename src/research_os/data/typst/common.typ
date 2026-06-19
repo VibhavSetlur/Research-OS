@@ -128,3 +128,34 @@
 // value is used as `#show: template.with(conf(..))`: the normalised config
 // dict spreads onto the venue function, then the document body follows.
 #let make-template(venue-fn) = (config, body) => venue-fn(..config, body)
+
+// ---------------------------------------------------------------------------
+// Research-OS design tokens — the single home for the shared visual identity.
+//
+// These mirror RO_PALETTE + the type scale in
+// src/research_os/tools/actions/viz/style.py so a project's figures, paper,
+// poster, slides, and dashboard read as ONE document. Typst cannot import the
+// Python module, so keep these hexes in sync when the figure palette changes.
+//
+//   #import "common.typ": ro-navy, ro-typescale
+//   show heading.where(level: 1): it => text(fill: ro-navy)[#it.body]
+// ---------------------------------------------------------------------------
+
+// Colour tokens (mirror viz/style.py RO_PALETTE).
+#let ro-navy  = rgb("#1F4D7A")   // primary accent
+#let ro-gold  = rgb("#9B7E2D")   // secondary (olive gold)
+#let ro-green = rgb("#3F6049")   // positive
+#let ro-red   = rgb("#9B3737")   // emphasis / negative
+#let ro-fg    = rgb("#3D3A35")   // warm dark foreground
+#let ro-muted = rgb("#6E665A")   // muted secondary text (AA-safe on cream)
+#let ro-cream = rgb("#FBF8F3")   // page paper
+
+// Font tokens (both bundled; compile_typst injects them via --font-path).
+#let ro-fonts = (serif: "New Computer Modern", sans: "New Computer Modern Sans")
+
+// Modular type scale (pt) — one place to retune sizes across venues.
+#let ro-typescale = (
+  title-thesis: 22pt, title-large: 18pt, title-mid: 17pt, title-compact: 16pt,
+  h1: 12pt, h2: 11pt, h3: 10pt, body: 10pt, body-dense: 9.5pt, caption: 9pt,
+  author: 10pt, affiliation: 8.5pt,
+)

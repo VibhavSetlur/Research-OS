@@ -495,10 +495,18 @@ steps:
 
       If you genuinely need to opt OUT of the figure gate without a
       matching step_intent, the explicit escape is:
-        figure_required: false      # in step_summary.yaml
-      Combined with the override path:
-        tool_path_finalize override_completeness_gate=true
-                            override_rationale="<why this analyse step has no figure>"
+        figure_required: false      # in step_summary.yaml, with a
+                                    # recorded rationale in the override block
+      The completeness audit that fires the figure gate can also be
+      overridden directly on the audit itself:
+        tool_audit(scope='step', dimension='completeness',
+                   override_completeness_gate=true,
+                   override_rationale="<why this analyse step has no figure>")
+      (tool_path_finalize itself only accepts override_literature_gate +
+      override_rationale — it gates step literature, not figures. Use it
+      only to opt out of the per-step literature loop:
+        tool_path_finalize override_literature_gate=true
+                            override_rationale="<why this step needs no new lit>")
 
       Outputs spanning multiple categories (figures + tables + reports)
       WITHOUT a pipeline.yaml is ALSO a HARD FAIL — the mega-script
@@ -830,7 +838,7 @@ steps:
 
         tool_thought(operation='log',
             step_id=<NN_slug>,
-            entry_type=decision,
+            kind='decision',
             content=<one-line decision + rationale>,
             decision_id=<NN_slug>_<proceed|revise|branch|handoff|abandon>)
 
@@ -845,15 +853,18 @@ expected_outputs:
   - workspace/logs
 
 # AUTONOMY GATE on next_protocol:
-#   - autopilot     → chain to reproducibility/reproducibility automatically.
-#   - manual /      → present "Next: reproducibility/reproducibility" as a
-#     supervised /     SUGGESTION; wait for the researcher to ask before
-#     coaching         loading the next protocol. Single-step requests
-#                      ("run step 17") end here; the AI does NOT auto-
-#                      chain to a reproducibility audit the user didn't
-#                      request. Closes the ontology-mapping failure
-#                      where every analysis step silently kicked off
-#                      the next protocol.
-next_protocol: reproducibility/reproducibility
-next_protocol_kind: forward_default
+#   This is a per-step LOOP. The default next action after a step is to
+#   loop back to scope_step for the NEXT experiment (next_protocol_kind:
+#   iterate_back), NOT to advance forward. The AI does NOT auto-chain to
+#   a reproducibility audit after one step — that closes the failure
+#   where every analysis step silently kicked off the next protocol.
+#
+#   Advancing FORWARD to reproducibility/reproducibility is the
+#   conditional ALL-STEPS-DONE exit specified in decide_next: only when
+#   every planned experiment has a non-empty conclusions.md (decisions
+#   'proceed' or 'branch', NONE 'dead-end') AND >=1 terminal experiment
+#   has a publishable finding. Single-step requests ("run step 17") end
+#   at the loop; they do not advance.
+next_protocol: analysis_plan            # loops back per experiment step
+next_protocol_kind: iterate_back
 on_failure: guidance/dead_end_routing

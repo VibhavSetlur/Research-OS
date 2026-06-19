@@ -84,7 +84,7 @@ def abandon_path(path_name: str, rationale: str, root: Path) -> dict[str, Any]:
 
     analysis_path = root / "workspace" / "analysis.md"
     analysis_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(analysis_path, "a") as f:
+    with open(analysis_path, "a", encoding="utf-8") as f:
         f.write(
             f"\n## Abandoned `{path_name}` ({now_iso()})\n\n"
             f"**Rationale:** {rationale}\n\n"
@@ -215,7 +215,7 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
 
     analysis_path = root / "workspace" / "analysis.md"
     analysis_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(analysis_path, "a") as f:
+    with open(analysis_path, "a", encoding="utf-8") as f:
         f.write(f"\n## Renamed `{path_name}` → `{new_name}` ({now_iso()})\n\n")
 
     _update_workflow_mermaid(root)
@@ -342,7 +342,8 @@ def group_paths(
         f"on {now_iso()} because they explore one direction. Step numbering "
         "stays continuous with the rest of the project (it is NOT reset), so "
         "these steps can be moved or merged without renumbering.\n\n"
-        + "\n".join(f"- `{sid}`" for sid, _ in moves) + "\n"
+        + "\n".join(f"- `{sid}`" for sid, _ in moves) + "\n",
+        encoding="utf-8",
     )
 
     _update_workflow_mermaid(root)
@@ -456,7 +457,7 @@ def workflow_dag(
 
         mermaid_text = _build_workflow_mermaid(root)
         mmd_path = out_dir / "workflow_dag.mermaid"
-        mmd_path.write_text(mermaid_text + "\n")
+        mmd_path.write_text(mermaid_text + "\n", encoding="utf-8")
 
         png_path: str | None = None
         png_renderer = None  # mmdc | matplotlib | None
@@ -511,7 +512,8 @@ def workflow_dag(
                         "dead-end, preserved). Steps with no inbound arrows "
                         "read from the project inputs directly. The ★ marker "
                         "indicates a focal figure named after the step "
-                        "number; ⚠ flags an outstanding artefact.\n"
+                        "number; ⚠ flags an outstanding artefact.\n",
+                        encoding="utf-8",
                     )
             except Exception as e:
                 logger.debug("workflow figure copy to synthesis/figures failed: %s", e)
@@ -581,7 +583,7 @@ def _collect_step_metadata(workspace: Path, root: Path) -> dict[str, dict[str, A
         conc = p / "conclusions.md"
         if conc.exists():
             try:
-                txt = conc.read_text()
+                txt = conc.read_text(encoding="utf-8")
                 m = re.search(
                     r"##\s*Findings\s*\n(.+?)(?:\n##|\Z)",
                     txt, flags=re.DOTALL | re.IGNORECASE,
@@ -836,7 +838,7 @@ def _extract_step_decisions(root: Path, branch_id: str) -> list[str]:
     analysis = root / "workspace" / "analysis.md"
     if not analysis.exists():
         return []
-    text = analysis.read_text()
+    text = analysis.read_text(encoding="utf-8")
     blocks = _DEC_HEADER_RE.split(text)
     step_num = branch_id.split("_", 1)[0]  # e.g. "03"
     needle_re = re.compile(
@@ -955,7 +957,8 @@ def finalize_path(
             "other step. Reproduce by recreating the global env.\n\n"
             "If you later add a step-specific requirement, run "
             "`sys_env_snapshot` and re-run `tool_path_finalize` to refresh "
-            "this note.\n"
+            "this note.\n",
+            encoding="utf-8",
         )
         changes.append("environment/README.md → global-env note")
     else:
@@ -965,7 +968,8 @@ def finalize_path(
             "**Step-specific environment** captured here (differs from "
             "project global):\n\n"
             f"{lines}\n\n"
-            "Recreate with `pip install -r requirements.txt` from this folder.\n"
+            "Recreate with `pip install -r requirements.txt` from this folder.\n",
+            encoding="utf-8",
         )
         changes.append("environment/README.md → bespoke-env listing")
 
@@ -977,7 +981,7 @@ def finalize_path(
     _early_conc_path = exp_dir / "conclusions.md"
     if _early_conc_path.exists() and lit_dir.exists():
         try:
-            conc_full = _early_conc_path.read_text()
+            conc_full = _early_conc_path.read_text(encoding="utf-8")
             m = re.search(
                 r"##\s*References?\s+to\s+ground\s*\n(.+?)(?=^##|\Z)",
                 conc_full, re.MULTILINE | re.DOTALL | re.IGNORECASE,
@@ -1002,7 +1006,7 @@ def finalize_path(
                     )
                     for r in ref_lines:
                         kp_body += f"- {r}\n"
-                    kp.write_text(kp_body)
+                    kp.write_text(kp_body, encoding="utf-8")
                     changes.append(
                         f"{lit_dir.relative_to(exp_dir)}/key_papers.md ← "
                         f"{len(ref_lines)} ref(s) from conclusions.md"
@@ -1036,7 +1040,7 @@ def finalize_path(
                 "`mem_log(kind='decision', ...)` so the reasoning is preserved.\n"
             )
         (lit_dir / "README.md").parent.mkdir(parents=True, exist_ok=True)
-        (lit_dir / "README.md").write_text(body)
+        (lit_dir / "README.md").write_text(body, encoding="utf-8")
         changes.append("literature/README.md → global-corpus note + decisions")
     else:
         lines = "\n".join(f"- `{p.name}`" for p in lit_files)
@@ -1052,7 +1056,7 @@ def finalize_path(
                 + "\n\n".join(decisions[-5:])
                 + "\n"
             )
-        (lit_dir / "README.md").write_text(body)
+        (lit_dir / "README.md").write_text(body, encoding="utf-8")
         changes.append("literature/README.md → sources + linked decisions")
 
     # ---- 1c. Context folder (narrative scratchpad) ----
@@ -1078,7 +1082,7 @@ def finalize_path(
         if not path.exists():
             continue
         try:
-            txt = path.read_text()
+            txt = path.read_text(encoding="utf-8")
             m = summary_pat.search(txt)
             if m:
                 body = m.group(1).strip()
@@ -1096,7 +1100,8 @@ def finalize_path(
             "No prose context was needed for this step — the README + "
             "conclusions captured the relevant narrative. The "
             "`notes.md` template is preserved if a later analyst wants to "
-            "add commentary.\n"
+            "add commentary.\n",
+            encoding="utf-8",
         )
         changes.append("context/README.md → no-context note")
     else:
@@ -1112,7 +1117,7 @@ def finalize_path(
                 "\n## Plain-language summary (lifted from notes.md)\n\n"
                 f"{plain_summary_from_context}\n"
             )
-        (ctx_dir / "README.md").write_text(body)
+        (ctx_dir / "README.md").write_text(body, encoding="utf-8")
         changes.append("context/README.md → narrative inventory + summary")
 
     # ---- 2. Data folder + downstream consumer map ----
@@ -1150,7 +1155,7 @@ def finalize_path(
             "\nNo downstream step currently consumes these outputs.\n"
         )
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "README.md").write_text(out_body)
+    (out_dir / "README.md").write_text(out_body, encoding="utf-8")
     changes.append(f"data/{out_rel}/README.md → artefacts + consumer map")
 
     # ---- 3. Outputs inventory + step README finalize ----
@@ -1169,7 +1174,8 @@ def finalize_path(
         + (": " + ", ".join(f"`{n}`" for n in inv['reports']) if inv['reports'] else "")
         + "\n\n"
         "Pair each figure / table with a sibling `<name>.caption.md` so the "
-        "synthesis dashboard can embed the explanation inline.\n"
+        "synthesis dashboard can embed the explanation inline.\n",
+        encoding="utf-8",
     )
     changes.append("outputs/README.md → produced-artefact inventory")
 
@@ -1177,15 +1183,15 @@ def finalize_path(
     step_readme = exp_dir / "README.md"
     conc_path = exp_dir / "conclusions.md"
     if step_readme.exists() and conc_path.exists():
-        readme_text = step_readme.read_text()
-        conc_text = conc_path.read_text()
+        readme_text = step_readme.read_text(encoding="utf-8")
+        conc_text = conc_path.read_text(encoding="utf-8")
         new_readme = _finalize_step_readme(
             readme_text, conc_text, decisions, inv, path_name,
             plain_summary=plain_summary_from_context,
             exp_dir=exp_dir,
         )
         if new_readme != readme_text:
-            step_readme.write_text(new_readme)
+            step_readme.write_text(new_readme, encoding="utf-8")
             changes.append("README.md → stub sections populated")
 
     # ---- 5. Figure summary sidecars are REMOVED (3.2) ----
@@ -1204,7 +1210,7 @@ def finalize_path(
     #         themselves are the audit trail.
     warnings: list[str] = []
     if conc_path.exists():
-        conc_text_now = conc_path.read_text()
+        conc_text_now = conc_path.read_text(encoding="utf-8")
         for hdr in ("Findings", "Decision"):
             if _is_stub_section(conc_text_now, hdr):
                 warnings.append(
@@ -1214,7 +1220,7 @@ def finalize_path(
     # The plain-language summary now lives in README.md (## In plain English);
     # conclusions.md no longer carries it. Warn if the README's is still a stub.
     if step_readme.exists():
-        if _is_stub_section(step_readme.read_text(), "In plain English"):
+        if _is_stub_section(step_readme.read_text(encoding="utf-8"), "In plain English"):
             warnings.append(
                 "README.md > In plain English is still a stub — the dashboard's "
                 "executive / teaching views will fall back to the technical text."
@@ -1226,7 +1232,7 @@ def finalize_path(
     plan_path = exp_dir / "plan.md"
     if plan_path.exists():
         try:
-            prog = _section(plan_path.read_text(), "Progress & deviations from plan")
+            prog = _section(plan_path.read_text(encoding="utf-8"), "Progress & deviations from plan")
         except OSError:
             prog = "filled"  # unreadable → don't nag
         if (not prog) or prog.startswith(("*(", "_(")):
@@ -1250,10 +1256,10 @@ def finalize_path(
     analysis_md = root / "workspace" / "analysis.md"
     if conc_path.exists() and analysis_md.exists():
         try:
-            existing = analysis_md.read_text()
+            existing = analysis_md.read_text(encoding="utf-8")
             marker = f"\n### Step `{path_name}` finalized"
             if marker not in existing:
-                headline = _headline_from_findings(conc_path.read_text())
+                headline = _headline_from_findings(conc_path.read_text(encoding="utf-8"))
                 stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                 entry = (
                     f"\n### Step `{path_name}` finalized — {stamp}\n\n"
@@ -1264,7 +1270,7 @@ def finalize_path(
                     f"- **Decisions linked:** {len(decisions)} entries in "
                     f"`mem_log(kind='decision')` (see `literature/README.md`).\n"
                 )
-                analysis_md.write_text(existing.rstrip() + "\n" + entry)
+                analysis_md.write_text(existing.rstrip() + "\n" + entry, encoding="utf-8")
                 project_updates.append("workspace/analysis.md ← step entry")
         except OSError as e:
             logger.debug("analysis.md append skipped: %s", e)
@@ -1276,18 +1282,19 @@ def finalize_path(
     methods_md = root / "workspace" / "methods.md"
     if conc_path.exists() and methods_md.exists():
         try:
-            conc_full = conc_path.read_text()
+            conc_full = conc_path.read_text(encoding="utf-8")
             methods_body = _section(conc_full, "Methods (full detail)") or \
                 _section(conc_full, "Methods")
             if methods_body:
-                existing_m = methods_md.read_text()
+                existing_m = methods_md.read_text(encoding="utf-8")
                 marker = f"\n### Step `{path_name}` — methods\n"
                 if marker not in existing_m:
                     methods_md.write_text(
                         existing_m.rstrip() + "\n"
                         + f"\n### Step `{path_name}` — methods\n\n"
                         + methods_body.strip()
-                        + "\n"
+                        + "\n",
+                        encoding="utf-8",
                     )
                     project_updates.append("workspace/methods.md ← step methods")
         except OSError as e:
@@ -1328,7 +1335,7 @@ def finalize_path(
     #       grounded in actual lookups.
     if conc_path.exists():
         try:
-            conc_full_for_lit = conc_path.read_text()
+            conc_full_for_lit = conc_path.read_text(encoding="utf-8")
             cites_refs = bool(
                 re.search(
                     r"##\s*References?\s+to\s+ground\s*\n.+?(?:\b\d{4}\b|doi\.org)",
@@ -1340,7 +1347,7 @@ def finalize_path(
                 search_count = 0
                 if searches_log.exists():
                     search_count = sum(
-                        1 for line in searches_log.read_text().splitlines()
+                        1 for line in searches_log.read_text(encoding="utf-8").splitlines()
                         if line.strip()
                     )
                 if search_count == 0:
@@ -1364,7 +1371,7 @@ def finalize_path(
     DECISION_VERBS = {"PROCEED", "BRANCH", "DEAD-END", "DEAD_END", "HOLD", "ABANDON"}
     if conc_path.exists():
         try:
-            conc_full = conc_path.read_text()
+            conc_full = conc_path.read_text(encoding="utf-8")
             m = re.search(
                 r"##\s*Decision\s*\n(.+?)(?=^##|\Z)",
                 conc_full, re.MULTILINE | re.DOTALL | re.IGNORECASE,
@@ -1380,7 +1387,7 @@ def finalize_path(
                         # Idempotency: skip if an existing analysis.md decision
                         # for this step already exists.
                         analysis_md_path = root / "workspace" / "analysis.md"
-                        existing_a = analysis_md_path.read_text() if analysis_md_path.exists() else ""
+                        existing_a = analysis_md_path.read_text(encoding="utf-8") if analysis_md_path.exists() else ""
                         marker_d = f"step={path_name}; verb={verb}"
                         if marker_d not in existing_a:
                             from research_os.project_ops import log_decision
@@ -1403,8 +1410,8 @@ def finalize_path(
     tools_md = root / "workspace" / "tools.md"
     if conc_path.exists() and tools_md.exists():
         try:
-            conc_full = conc_path.read_text()
-            existing_t = tools_md.read_text()
+            conc_full = conc_path.read_text(encoding="utf-8")
+            existing_t = tools_md.read_text(encoding="utf-8")
             marker = f"\n### Step `{path_name}` — tools used\n"
             if marker not in existing_t:
                 # Extract from conclusions.md: Methods section + any explicit
@@ -1517,7 +1524,8 @@ def finalize_path(
                         existing_t.rstrip() + "\n"
                         + f"\n### Step `{path_name}` — tools used\n\n"
                         + tools_body
-                        + "\n"
+                        + "\n",
+                        encoding="utf-8",
                     )
                     project_updates.append("workspace/tools.md ← step tools")
         except OSError as e:
@@ -1534,11 +1542,11 @@ def finalize_path(
     project_req = root / "environment" / "requirements.txt"
     is_template_empty = (
         project_req.exists()
-        and "# Project-global Python packages" in project_req.read_text()
-        and "\n" in project_req.read_text()
+        and "# Project-global Python packages" in project_req.read_text(encoding="utf-8")
+        and "\n" in project_req.read_text(encoding="utf-8")
         and not any(
             ln.strip() and not ln.strip().startswith("#")
-            for ln in project_req.read_text().splitlines()
+            for ln in project_req.read_text(encoding="utf-8").splitlines()
         )
     )
     if work_happened and (is_template_empty or not project_req.exists()):
@@ -1649,7 +1657,7 @@ def finalize_path(
     #     critique is on record. Idempotent on the marker.
     try:
         if conc_path.exists():
-            conc_text = conc_path.read_text()
+            conc_text = conc_path.read_text(encoding="utf-8")
             retro_marker = "## Anticipated reviewer questions"
             if retro_marker not in conc_text:
                 questions = _anticipated_reviewer_questions(
@@ -1668,7 +1676,7 @@ def finalize_path(
                     + "\n".join(f"- {q}" for q in questions)
                     + "\n"
                 )
-                conc_path.write_text(conc_text.rstrip() + retro_block)
+                conc_path.write_text(conc_text.rstrip() + retro_block, encoding="utf-8")
                 project_updates.append(
                     "conclusions.md ← Anticipated reviewer questions appended"
                 )
@@ -2072,7 +2080,7 @@ def _input_inventory_for_readme(exp_dir: Path) -> str:
     pipeline_yaml = exp_dir / "pipeline.yaml"
     if pipeline_yaml.exists():
         try:
-            text = pipeline_yaml.read_text()
+            text = pipeline_yaml.read_text(encoding="utf-8")
             raw_refs = sorted(set(re.findall(r"inputs/raw_data/[^\s\"']+", text)))
             for r in raw_refs:
                 line = f"- `{r}` (project-scope raw input)"

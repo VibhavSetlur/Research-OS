@@ -110,6 +110,12 @@ def _supports_color() -> bool:
     return True
 
 
+def _supports_utf8() -> bool:
+    """True when stdout can encode the ✓/⚠/✗ glyphs (else fall back to ASCII)."""
+    enc = (getattr(sys.stdout, "encoding", "") or "").lower()
+    return "utf" in enc
+
+
 class _Style:
     RESET = "\033[0m"
     BOLD = "\033[1m"
@@ -946,16 +952,24 @@ def run_all_checks(
 # ── Human-readable rendering ──────────────────────────────────────────
 
 
-_ICON = {"pass": "✓", "warn": "⚠", "fail": "✗"}
+_ICON_UTF8 = {"pass": "✓", "warn": "⚠", "fail": "✗"}
+_ICON_ASCII = {"pass": "[+]", "warn": "[!]", "fail": "[x]"}
 _COLOR = {"pass": _Style.GREEN, "warn": _Style.YELLOW, "fail": _Style.RED}
+
+
+def _icons() -> dict[str, str]:
+    """Pick glyphs at render time so the stdout encoding is read when printed."""
+    return _ICON_UTF8 if _supports_utf8() else _ICON_ASCII
 
 
 def _render_human(report: DoctorRun, *, verbose: bool, color: bool) -> str:
     lines: list[str] = []
+    icons = _icons()
+    rule_char = "─" if _supports_utf8() else "-"
     lines.append("")
     title = _c("research-os doctor", _Style.BOLD, color)
     lines.append(f"  {title}")
-    lines.append(f"  {_c('─' * 60, _Style.GREY, color)}")
+    lines.append(f"  {_c(rule_char * 60, _Style.GREY, color)}")
 
     last_scope = None
     for c in report.checks:
@@ -964,7 +978,7 @@ def _render_human(report: DoctorRun, *, verbose: bool, color: bool) -> str:
             lines.append("")
             lines.append(f"  {_c(header, _Style.BOLD, color)}")
             last_scope = c.scope
-        icon = _c(_ICON[c.status], _COLOR[c.status], color)
+        icon = _c(icons[c.status], _COLOR[c.status], color)
         name = c.name.ljust(28)
         lines.append(f"    {icon} {name} {c.message}")
         if c.fix and (verbose or c.status != "pass"):

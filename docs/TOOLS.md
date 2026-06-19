@@ -446,10 +446,11 @@ pre-submission audit can resurface it before publication.
 
 Under the default `interaction.quality_gate_policy=enforce`, the
 rationale is **mandatory** — a bypass kwarg without a rationale is
-rejected before the gate is even consulted. Under `allow_override`
-the AI may bypass on request with the rationale logged. Under
-`warn_only` (sandbox only) blockers degrade to warnings and no
-explicit override is needed.
+rejected before the gate is even consulted. `allow_override` and
+`warn_only` are **reserved** (not yet enforced): today they behave
+exactly like `enforce`, and the per-tool `override_<gate>=true`
+flags below already work regardless of the policy — so don't rely on
+`warn_only` to soften gates.
 
 ### Override kwargs by tool
 

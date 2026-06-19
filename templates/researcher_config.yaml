@@ -38,6 +38,8 @@ project_name: ""                 # blank → uses directory name
 # ── Workspace mode — what kind of work is this? ─────────────────────────
 # Changes the scaffold, which protocols route, and which audits apply.
 #   analysis    → linear numbered analysis steps (default; classic Research OS)
+#   hybrid      → a research project that ALSO ships software: routes +
+#                 scaffolds like analysis AND surfaces the inner tool component.
 #   tool_build  → building software / a tool you iterate on. Research OS
 #                 governs from above (spec + decisions + milestones + eval
 #                 harness); the tool itself lives in an inner git repo.
@@ -45,7 +47,7 @@ project_name: ""                 # blank → uses directory name
 #   notebook    → Jupyter-first; a notebook / cell is the unit of work.
 #   multi_study → a portfolio of sub-studies with a shared codebook + roll-up.
 workspace:
-  mode: "analysis"        # analysis | tool_build | exploration | notebook | multi_study
+  mode: "analysis"        # analysis | hybrid | tool_build | exploration | notebook | multi_study
   inner_repo: ""          # tool_build only: inner project dir (blank → "project")
   # tool_build only: the shell commands that define "done" for the inner
   # repo. tool_build(operation=build|test|lint) runs these (cwd = inner
@@ -85,10 +87,12 @@ interaction:
   #            tripping.
 
   # Quality-gate posture (the AI NEVER bypasses on its own).
-  #   enforce        → refuse bypass without an explicit researcher ask
-  #   allow_override → allow override_completeness_gate=true on request,
-  #                    rationale logged to workspace/logs/override_log.md
-  #   warn_only      → treat gate blockers as warnings (sandbox use only)
+  #   enforce        → ACTIVE default. Refuse bypass without an explicit
+  #                    researcher ask + logged override_rationale.
+  #   allow_override → RESERVED (not yet enforced). Behaves like enforce today;
+  #                    overrides are already accepted via per-tool override_* flags.
+  #   warn_only      → RESERVED (not yet enforced). Behaves like enforce today —
+  #                    blockers still hard-block. Do not rely on it to soften gates.
   quality_gate_policy: "enforce"
 
   # Ambiguity posture
@@ -112,10 +116,16 @@ interaction:
 gate_strictness: "auto"               # light | normal | strict | auto
 
 # ── Project tier ───────────────────────────────────────────────────────
-# Sets the default audit strictness across the whole project.
-#   throwaway → light  (sandbox / exploratory; no publication intent)
-#   sketch    → normal (working draft; may or may not publish)
-#   production → strict (active path to submission / hand-off)
+# Coarse default that feeds gate strictness ONLY when gate_strictness is not
+# an explicit light/normal/strict. Precedence (see resolve_gate_strictness):
+# (1) explicit gate_strictness wins; else (2) a NON-production tier maps
+# directly: throwaway → light, sketch → normal; else (3) production +
+# gate_strictness:auto defers to the trust-score scan (tool_rigor_signals_scan),
+# which resolves to light/normal/strict by project rigor. To force strict on a
+# production project, set gate_strictness: "strict" explicitly above.
+#   throwaway → light   (sandbox / exploratory; no publication intent)
+#   sketch    → normal  (working draft; may or may not publish)
+#   production → defers to gate_strictness (auto → trust-score scan)
 project_tier: "production"            # throwaway | sketch | production
 
 # ── Match the AI model class running in your IDE ────────────────────────
