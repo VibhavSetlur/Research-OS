@@ -95,13 +95,15 @@ def test_tool_step_complete_handler_returns_merged_result(tmp_path):
     from research_os.server import _HANDLERS
     handler = _HANDLERS["tool_step_complete"]
     res = handler("tool_step_complete", {"step_id": "01_smoke"}, tmp_path)
-    # _text wraps in {"content": [...]}; parse the JSON back.
-    inner = json.loads(res[0].text)
+    # tool_step_complete now returns a conformant envelope; the bundle is in payload.
+    env = json.loads(res[0].text)
+    inner = env["payload"]
     assert inner["step_id"] == "01_smoke"
     assert "stages" in inner
     for stage in ("finalize", "completeness", "literature", "revision"):
         assert stage in inner["stages"], f"missing stage: {stage}"
     assert inner["overall_status"] in {"success", "warning", "error"}
+    assert env["status"] in {"success", "warning", "error"}
 
 
 def test_tool_step_complete_requires_step_id():

@@ -237,6 +237,10 @@ def data_convert(filepath: str, output_format: str, root: Path) -> dict[str, Any
         df = _read(p)
         output_format = output_format.lower().lstrip(".")
         out_path = p.with_suffix(f".{output_format}")
+        # Never overwrite the source in place when the target extension equals
+        # the input's (e.g. convert a .csv "to csv") — write a distinct file.
+        if out_path.resolve() == p.resolve():
+            out_path = p.with_name(f"{p.stem}_converted.{output_format}")
 
         if output_format == "csv":
             df.to_csv(out_path, index=False)

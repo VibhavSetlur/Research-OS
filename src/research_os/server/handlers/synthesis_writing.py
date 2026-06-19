@@ -81,7 +81,12 @@ def _handle_tool_typst_compile(name, arguments, root):
 def _handle_tool_latex_compile(name, arguments, root):
     from research_os.tools.actions.synthesis.latex import latex_compile
 
-    return _text(_success(latex_compile(root)))
+    res = latex_compile(root)
+    # Don't wrap a failed compile (no pdflatex / no PDF) in _success — mirror
+    # the typst handler so the client doesn't think a PDF exists (SYN-4).
+    if res.get("status") == "error":
+        return _text(_error(res.get("message") or res.get("error") or "latex_compile failed"))
+    return _text(_success(res))
 
 
 def _handle_tool_writing_discussion_from_verdicts(name, arguments, root):

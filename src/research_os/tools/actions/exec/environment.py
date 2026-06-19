@@ -26,6 +26,7 @@ def package_install(packages: list[str]) -> dict[str, Any]:
             [sys.executable, "-m", "pip", "install", *packages],
             capture_output=True,
             text=True,
+            timeout=1800,
         )
         status = "success" if res.returncode == 0 else "error"
         return {
@@ -34,6 +35,10 @@ def package_install(packages: list[str]) -> dict[str, Any]:
             "stderr": res.stderr,
             "code": res.returncode,
         }
+    except subprocess.TimeoutExpired:
+        # Without a timeout a wedged pip (e.g. a build hang) would block the
+        # MCP server forever — match the R/julia/quarto runners.
+        return {"status": "error", "error": "pip install timed out after 1800s", "code": 1}
     except Exception as e:
         logger.exception("package_install failed")
         return {"status": "error", "error": str(e), "code": 1}

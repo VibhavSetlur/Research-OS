@@ -598,6 +598,14 @@ def _check_output(root: Path, item: Any, min_bytes: int) -> dict[str, Any] | Non
             return sum(f.stat().st_size for f in m.rglob("*") if f.is_file())
         return 0
 
+    # Defensive: expected_output paths come from (trusted) protocol YAML, but
+    # must never resolve outside the project root.
+    if ".." in Path(path_str).parts:
+        return {
+            "path": path_str, "status": "missing", "bytes": 0,
+            "next_action": f"INVALID: `{path_str}` escapes the project root.",
+        }
+
     if "*" in path_str or "{" in path_str:
         expanded = path_str.replace("{step_number}", "??").replace("{step_name}", "*")
         matches = [m for m in root.glob(expanded.lstrip("/"))]

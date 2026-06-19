@@ -59,7 +59,9 @@ def _handle_sys_notify(name, arguments, root):
 def _handle_sys_session_handoff(name, arguments, root):
     res = session_handoff(root)
     if res.get("status") == "success":
-        return _text(res["content"])
+        # Wrap the markdown in a conformant envelope — a bare string can't be
+        # normalized (env-05).
+        return _text(_success({"handoff_markdown": res["content"]}))
     return _text(_error(res.get("message", "handoff failed")))
 
 

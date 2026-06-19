@@ -174,6 +174,10 @@ def typst_compile(
         a recompile never silently loses the previous deliverable.
     """
     src = _resolve_source(root, source)
+    _root_r = root.resolve()
+    if not src.resolve().is_relative_to(_root_r):
+        return {"status": "error",
+                "message": f"source must stay within the project root; got {source!r}"}
     if not src.exists():
         return {
             "status": "error",
@@ -195,6 +199,9 @@ def typst_compile(
             out_path = root / out_path
     else:
         out_path = _default_output_for(src)
+    if not out_path.resolve().is_relative_to(_root_r):
+        return {"status": "error",
+                "message": f"output must stay within the project root; got {output!r}"}
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     biblio_path: Path | None = None
