@@ -57,6 +57,14 @@ DOMAIN_MENU: list[tuple[str, str]] = [
     ("social_science",  "Social science"),
     ("ml",              "ML / AI methodology"),
     ("robotics",        "Robotics"),
+    ("geoscience",      "Geoscience / GIS / remote sensing"),
+    ("ecology",         "Ecology / field biology"),
+    ("astronomy",       "Astronomy / astrophysics"),
+    ("public_health",   "Public health / epidemiology"),
+    ("education",       "Education research"),
+    ("law",             "Law / legal scholarship"),
+    ("humanities",      "Humanities (history / lit / philosophy)"),
+    ("engineering",     "Engineering"),
 ]
 
 

@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 28
+version: 29
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -873,6 +873,22 @@ protocols:
       - "premium analysis"
       - "domain reasoning"
       - "domain-grounded"
+      # Field-agnostic phrasings — the universal "any field" entry point.
+      - "standard analysis for"
+      - "standard pipeline for"
+      - "how is this analyzed"
+      - "how do people analyze"
+      - "analysis pipeline for my field"
+      - "what's the standard approach for"
+      # Cross-field anchors for subfields that otherwise strand at level 0
+      # or misroute (no dedicated protocol owns these).
+      - "panel data"
+      - "fixed effects"
+      - "garch"
+      - "econometric"
+      - "spatial autocorrelation"
+      - "spectroscopy"
+      - "doctrinal analysis"
     decomposition:
       - protocol: methodology/deep_domain_research
         purpose: "Identify subfield + survey + propose pipeline + assumption matrix + optional alternative branch."
@@ -999,7 +1015,8 @@ protocols:
     sub_intent: survey
     summary: "Scale validation, EFA/CFA, reliability."
     triggers: ["psychometric", "factor analysis", "scale validation",
-              "cronbach", "irt"]
+              "validate a scale", "validate a survey scale", "validate my scale",
+              "survey scale", "scale validity", "cronbach", "irt"]
 
   methodology/qualitative_research:
     intent_class: methodology
@@ -1254,7 +1271,9 @@ protocols:
                "geojson", "lat/lon", "gis", "trajectory map",
                "geographic", "spatial visualization",
                "satellite imagery", "raster map", "leaflet",
-               "tile map", "proportional symbol"]
+               "tile map", "proportional symbol",
+               "remote sensing", "remote-sensing", "change detection",
+               "raster time series"]
 
   visualization/animation_design:
     intent_class: synthesize
@@ -1900,6 +1919,14 @@ protocols:
       - "log-log plot"
       - "log log survival"
       - "hazard ratio check"
+      # Survival analysis entry points (this is the survival protocol; a bare
+      # "survival analysis" was misrouting to clinical_trials on a thin margin).
+      - "survival analysis"
+      - "kaplan-meier"
+      - "kaplan meier"
+      - "time-to-event"
+      - "time to event"
+      - "cox regression"
       - "cox.zph"
       - "phreg"
       - "stcox"
@@ -2403,7 +2430,10 @@ protocols:
 
 shortcut_intents:
   progress_check:
-    triggers: ["progress", "status", "where are we", "what's done", "digest"]
+    # Bare "status" removed — it hijacked phrases like "track my conjecture
+    # status". Bounded phrases only (same de-greedy fix as map/coding in v3.0.0).
+    triggers: ["progress", "project status", "status update", "where are we",
+               "what's done", "progress digest", "digest"]
     tool: tool_progress_digest
 
   context_intake:
