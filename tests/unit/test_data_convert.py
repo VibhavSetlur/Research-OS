@@ -10,6 +10,19 @@ pd = pytest.importorskip("pandas")
 from research_os.tools.actions.data.data import data_convert  # noqa: E402
 
 
+def _has_parquet_engine() -> bool:
+    """pandas.to_parquet needs pyarrow OR fastparquet — neither is in the
+    minimal CI install, so the success-path test must skip when absent."""
+    for mod in ("pyarrow", "fastparquet"):
+        try:
+            __import__(mod)
+            return True
+        except ImportError:
+            continue
+    return False
+
+
+@pytest.mark.skipif(not _has_parquet_engine(), reason="no parquet engine (pyarrow/fastparquet)")
 def test_data_convert_relative_input_succeeds(tmp_path: Path):
     """A normal relative input inside the project converts cleanly and
     returns a project-relative output path."""
