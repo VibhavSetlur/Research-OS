@@ -101,16 +101,15 @@ def _handle_tool_discussion_coverage_audit(name, arguments, root):
         discussion_coverage_audit,
     )
     from research_os.project_ops import log_override, validate_override_rationale
-    from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_discussion_coverage", False))
     rationale = arguments.get("override_rationale")
-    policy = get_interaction_policy(root)["quality_gate_policy"]
-    if (policy == "enforce" and override_requested
-            and (not rationale or not str(rationale).strip())):
+    # Required whenever an override is requested — the bypass is logged +
+    # applied regardless of quality_gate_policy (AG-11).
+    if override_requested and (not rationale or not str(rationale).strip()):
         return _text(_error(
-            "interaction.quality_gate_policy=enforce: "
-            "override_discussion_coverage=true requires override_rationale."
+            "override_discussion_coverage=true requires override_rationale "
+            "(a bypass is logged + applied regardless of quality_gate_policy)."
         ))
     if override_requested and rationale:
         thin = validate_override_rationale(rationale)

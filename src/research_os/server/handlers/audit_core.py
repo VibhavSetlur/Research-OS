@@ -150,11 +150,19 @@ def _handle_tool_audit_synthesis(name, arguments, root):
 def _handle_tool_audit_power(name, arguments, root):
     from research_os.tools.actions.audit import audit_power
 
+    # alpha/n are schema-optional — give a clear directed error / default
+    # instead of a generic KeyError (F8).
+    filepath = arguments.get("filepath")
+    if not filepath:
+        return _text(_error("dimension='power' requires filepath="))
+    n = arguments.get("n")
+    if n is None:
+        return _text(_error("dimension='power' requires n= (sample size)"))
     res = audit_power(
-        arguments["filepath"],
+        filepath,
         arguments.get("effect_size", 0.5),
-        arguments["alpha"],
-        arguments["n"],
+        arguments.get("alpha", 0.05),
+        n,
         root,
     )
     if res.get("status") != "error":
@@ -216,16 +224,16 @@ def _handle_tool_audit_figure_interactivity(name, arguments, root):
 def _handle_tool_audit_dashboard_content(name, arguments, root):
     from research_os.tools.actions.audit.dashboard_content import audit_dashboard_content
     from research_os.project_ops import log_override, validate_override_rationale
-    from research_os.tools.actions.state.config import get_interaction_policy
 
     override_requested = bool(arguments.get("override_dashboard_content_gate", False))
     rationale = arguments.get("override_rationale")
-    policy = get_interaction_policy(root)["quality_gate_policy"]
-    if (policy == "enforce" and override_requested
-            and (not rationale or not str(rationale).strip())):
+    # The bypass is logged + applied regardless of quality_gate_policy, so the
+    # rationale is required whenever an override is requested — not only under
+    # policy=enforce (AG-11; was silently logging rationale=None otherwise).
+    if override_requested and (not rationale or not str(rationale).strip()):
         return _text(_error(
-            "interaction.quality_gate_policy=enforce: "
-            "override_dashboard_content_gate=true requires override_rationale."
+            "override_dashboard_content_gate=true requires override_rationale "
+            "(a bypass is logged + applied regardless of quality_gate_policy)."
         ))
     if override_requested and rationale:
         thin = validate_override_rationale(rationale)

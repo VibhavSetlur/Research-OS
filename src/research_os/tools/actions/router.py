@@ -2073,10 +2073,6 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
     next_tool = (
         next_step.get("tool", "") if isinstance(next_step, dict) else ""
     )
-    DELIVERABLE_TOOLS = {
-        "tool_synthesize", "tool_dashboard_create",
-        "tool_poster_create", "tool_latex_compile",
-    }
     bypassed_blockers: list[str] = []
     if next_tool in DELIVERABLE_TOOLS:
         try:
@@ -2161,14 +2157,23 @@ _TURN_BUDGET = {
 
 # If a planned tool is known to be heavyweight, count it as more than 1
 # step against the per-turn budget.
+# Live deliverable-compile tools (drives the anti-one-shot completeness gate
+# in advance_plan). Must stay free of aliases._REMOVED_TOOLS — a stale set
+# naming removed deliverable tools made the gate silently never fire for
+# Typst deliverables. A test guard enforces the no-drift invariant.
+DELIVERABLE_TOOLS = frozenset({
+    "tool_typst_compile",
+    "tool_latex_compile",
+    "tool_synthesis_scaffold",
+})
+
 _HEAVY_TOOLS = {
-    "tool_synthesize": 3,
+    "tool_typst_compile": 3,
     "tool_audit_reproducibility": 3,
     "tool_audit_synthesis": 2,
     "tool_literature_search_and_save": 2,
     "tool_research_method": 2,
-    "tool_dashboard_create": 2,
-    "tool_poster_create": 2,
+    "tool_synthesis_scaffold": 2,
 }
 
 
@@ -2306,7 +2311,14 @@ def _read_model_profile(root: Path) -> str:
         if cfg_res.get("status") != "success":
             return "medium"
         cfg = cfg_res.get("config", {}) or {}
-        profile = cfg.get("model_profile") or "medium"
+        # Honour the documented ai.model_profile location first (sys_boot reads
+        # it there); fall back to the legacy top-level key. Without this, boot
+        # could report "large" while plan batches were sized "medium".
+        profile = (
+            (cfg.get("ai", {}) or {}).get("model_profile")
+            or cfg.get("model_profile")
+            or "medium"
+        )
         return profile if profile in _TURN_BUDGET else "medium"
     except Exception:
         return "medium"
