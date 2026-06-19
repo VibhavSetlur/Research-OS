@@ -128,6 +128,8 @@ _STUB_ARGS: dict[str, dict] = {
     "tool_wet_lab_plate_map_render":       {"spec_path": "plate.yaml"},
     "tool_wet_lab_reagent_query":          {"supplier": "neb", "catalog_number": "M0491"},
     "tool_wet_lab_sample_lineage_export":  {"lineage_spec_path": "lineage.yaml"},
+    "tool_wet_lab_run_log_init":           {"instrument_family": "qpcr"},
+    "tool_wet_lab_checksum_raw":           {"file_path": "raw.fcs"},
     "tool_engineering_fmea_render":        {"spec_path": "fmea.yaml"},
     "tool_engineering_fault_tree_render":  {"spec_path": "fta.yaml"},
     "tool_engineering_requirements_matrix": {"spec_path": "req.yaml"},

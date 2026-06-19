@@ -21,7 +21,8 @@ import pytest
 import research_os.server  # noqa: F401 — triggers pack + adapter discovery
 
 PACK_NAMES = ["humanities", "qualitative", "theory_math", "wet_lab", "engineering"]
-ADAPTER_NAMES = ["slurm", "snakemake", "nextflow", "cytoscape", "redcap", "synapse"]
+ADAPTER_NAMES = ["slurm", "snakemake", "nextflow", "cytoscape", "redcap",
+                 "synapse", "mlflow", "zenodo"]
 
 
 @pytest.fixture

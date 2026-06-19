@@ -68,6 +68,8 @@ def _discover_adapters_once() -> None:
         ("cytoscape", "research_os_adapter_cytoscape:register"),
         ("redcap", "research_os_adapter_redcap:register"),
         ("synapse", "research_os_adapter_synapse:register"),
+        ("mlflow", "research_os_adapter_mlflow:register"),
+        ("zenodo", "research_os_adapter_zenodo:register"),
     ]
     try:
         from .registry import TOOL_DEFINITIONS, _HANDLERS

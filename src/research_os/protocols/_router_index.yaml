@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 29
+version: 30
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -886,7 +886,6 @@ protocols:
       - "fixed effects"
       - "garch"
       - "econometric"
-      - "spatial autocorrelation"
       - "spectroscopy"
       - "doctrinal analysis"
     decomposition:
@@ -1017,6 +1016,25 @@ protocols:
     triggers: ["psychometric", "factor analysis", "scale validation",
               "validate a scale", "validate a survey scale", "validate my scale",
               "survey scale", "scale validity", "cronbach", "irt"]
+
+  methodology/spatial_analysis:
+    intent_class: methodology
+    sub_intent: pick
+    summary: "Analyse spatial data — CRS, spatial dependence/autocorrelation, spatial-vs-aspatial model choice, MAUP/edge effects, spatial cross-validation. The analysis counterpart to map plotting."
+    triggers:
+      - "spatial analysis"
+      - "spatial autocorrelation"
+      - "spatial dependence"
+      - "spatial regression"
+      - "spatial model"
+      - "geostatistics"
+      - "kriging"
+      - "moran's i"
+      - "morans i"
+      - "point pattern"
+      - "areal data"
+      - "spatial cross-validation"
+      - "spatial econometrics"
 
   methodology/qualitative_research:
     intent_class: methodology

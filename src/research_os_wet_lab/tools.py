@@ -1,6 +1,7 @@
 """Wet-Lab pack tools."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -245,3 +246,163 @@ def sample_lineage_export(name: str, arguments: dict, root: Path) -> Any:
         "mermaid_path": str(mermaid_out.relative_to(root)),
         "n_samples": len(samples),
     })
+
+
+# Per-instrument-family parameter skeletons for the run log. The values are
+# TODO placeholders the operator fills; the KEYS are the reproducibility floor
+# the instrument_run_log protocol + reproducibility audit expect.
+_FAMILY_PARAM_FIELDS = {
+    "cytometry": ["pmt_voltages", "threshold", "compensation_matrix_ref",
+                  "sample_flow_rate", "events_to_acquire", "stopping_gate"],
+    "qpcr": ["cycle_program", "reference_dye", "baseline_method",
+             "threshold_method", "plate_map_version"],
+    "sequencing": ["read_length", "flowcell_id", "kit_lot",
+                   "loading_concentration", "phix_spike_pct",
+                   "cluster_density_or_pore_occupancy"],
+    "mass_spec": ["method_file_sha256", "scan_range_mz", "resolution",
+                  "collision_energy", "lock_mass", "column_id",
+                  "mobile_phase_lot", "gradient_program"],
+    "microscopy": ["objective", "NA", "immersion", "exposure_per_channel",
+                   "laser_power_per_channel", "pinhole_au", "z_step_um",
+                   "pixel_size_um", "tile_overlap_pct"],
+    "plate_reader": ["read_mode", "wavelengths", "gain", "read_height",
+                     "shake_protocol", "plate_map_version"],
+}
+
+
+@register_tool(
+    "tool_wet_lab_run_log_init",
+    schema={
+        "type": "object",
+        "properties": {
+            "instrument_family": {
+                "type": "string",
+                "enum": ["cytometry", "qpcr", "sequencing", "mass_spec",
+                         "microscopy", "plate_reader"],
+            },
+            "step_id": {
+                "type": "string",
+                "description": "Optional NN_<slug> step; defaults to a top-level runs/ dir.",
+            },
+            "run_label": {"type": "string", "description": "Short human label for the run."},
+        },
+        "required": ["instrument_family"],
+    },
+    description=(
+        "Stub a structured instrument run-log YAML for the given instrument "
+        "family at workspace/<step>/runs/<family>_<run_label>.yaml (or a "
+        "top-level runs/ dir). Pre-fills the family-appropriate parameter "
+        "field set + capture timestamp with TODO placeholders the operator "
+        "fills. Step 1 of the instrument_run_log protocol."
+    ),
+)
+def run_log_init(name: str, arguments: dict, root: Path) -> Any:
+    import datetime as _dt
+    family = (arguments.get("instrument_family") or "").strip()
+    if family not in _FAMILY_PARAM_FIELDS:
+        return _err(
+            f"instrument_family must be one of {sorted(_FAMILY_PARAM_FIELDS)}; got {family!r}"
+        )
+    step_id = (arguments.get("step_id") or "").strip()
+    label = (arguments.get("run_label") or "").strip()
+    safe_label = "".join(c if c.isalnum() or c in "._-" else "_" for c in label)
+    ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stem = f"{family}_{safe_label or ts}"
+    base = root / "workspace"
+    runs_dir = (base / step_id / "runs") if step_id else (base / "runs")
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = runs_dir / f"{stem}.yaml"
+    stub = {
+        "instrument_family": family,
+        "run_label": label or stem,
+        "logged_at_utc": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "operator_initials": "TODO",
+        "logged_by": "TODO",
+        "instrument_id": "TODO",
+        "last_calibration_date": "TODO: YYYY-MM-DD or 'skipped' + reason",
+        "last_qc_pass_date": "TODO: YYYY-MM-DD or 'skipped' + reason",
+        "parameter_block": {f: "TODO" for f in _FAMILY_PARAM_FIELDS[family]},
+        "raw_files": [],
+        "sample_ids": [],
+        "operator_notes": "",
+        "qc_summary": {"status": "TODO: pass/warn/fail"},
+    }
+    log_path.write_text(yaml.safe_dump(stub, sort_keys=False))
+    return _ok({
+        "run_log_path": str(log_path.relative_to(root)),
+        "instrument_family": family,
+        "fields_to_fill": _FAMILY_PARAM_FIELDS[family],
+        "advice": (
+            "Fill every TODO while the run is fresh. Register each raw file "
+            "with tool_wet_lab_checksum_raw. Family-specific post-run QC "
+            "(bead CV, NTC, Q30, lock-mass, focus drift) stays a manual step — "
+            "parse the instrument's own QC output into qc_summary."
+        ),
+    })
+
+
+@register_tool(
+    "tool_wet_lab_checksum_raw",
+    schema={
+        "type": "object",
+        "properties": {
+            "file_path": {"type": "string", "description": "Raw output file to checksum."},
+            "run_log_path": {
+                "type": "string",
+                "description": "Optional run-log YAML to append the raw_files entry to.",
+            },
+        },
+        "required": ["file_path"],
+    },
+    description=(
+        "Compute the SHA-256 + size of a raw instrument output file (never "
+        "trust an operator-typed checksum) and, if run_log_path is given, "
+        "append the {path, sha256, size_bytes} entry to that run log's "
+        "raw_files list. Streams the file so large sequencing/imaging outputs "
+        "don't load into memory."
+    ),
+)
+def checksum_raw(name: str, arguments: dict, root: Path) -> Any:
+    file_rel = (arguments.get("file_path") or "").strip()
+    if not file_rel:
+        return _err("file_path is required")
+    target = (root / file_rel).resolve()
+    if not target.exists() or not target.is_file():
+        return _err(f"file_path '{file_rel}' not found")
+    h = hashlib.sha256()
+    size = 0
+    try:
+        with target.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                h.update(chunk)
+                size += len(chunk)
+    except OSError as exc:
+        return _err(f"could not read '{file_rel}': {exc}")
+    entry = {
+        "raw_file_path": file_rel,
+        "raw_file_sha256": h.hexdigest(),
+        "raw_file_size_bytes": size,
+        "raw_file_format": target.suffix.lstrip(".").lower() or "unknown",
+    }
+    log_rel = (arguments.get("run_log_path") or "").strip()
+    appended_to = None
+    if log_rel:
+        log_path = (root / log_rel).resolve()
+        if not log_path.exists():
+            return _err(f"run_log_path '{log_rel}' not found")
+        try:
+            log = yaml.safe_load(log_path.read_text()) or {}
+        except Exception as exc:
+            return _err(f"could not parse run log '{log_rel}': {exc}")
+        if not isinstance(log, dict):
+            return _err(f"run log '{log_rel}' is not a mapping")
+        raws = log.get("raw_files")
+        if not isinstance(raws, list):
+            raws = []
+        # de-dup by path: replace any existing entry for the same file
+        raws = [r for r in raws if not (isinstance(r, dict) and r.get("raw_file_path") == file_rel)]
+        raws.append(entry)
+        log["raw_files"] = raws
+        log_path.write_text(yaml.safe_dump(log, sort_keys=False))
+        appended_to = log_rel
+    return _ok({**entry, "appended_to": appended_to})
