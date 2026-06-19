@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 31
+version: 32
 generated_at: '2026-06-16'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1460,6 +1460,13 @@ protocols:
     triggers: ["make a poster", "make me a poster", "build me a poster",
                "create a poster", "build a poster", "conference poster",
                "academic poster", "poster", "i need a poster"]
+    shortcut_tool: tool_synthesis_scaffold
+
+  synthesis/deliverable_design:
+    intent_class: synthesize
+    sub_intent: deliverable_design
+    summary: "The visual-design skill: design a custom shareable deliverable (dashboard/poster/slides) — pick + compose a layout archetype + professional palette + type system for an external reader. Not one fixed template."
+    triggers: ["design my dashboard", "make this look professional", "make this professional", "poster design", "lay out my dashboard", "design the deliverable", "make a custom dashboard", "design review", "how should this look", "style my poster", "professional research dashboard", "redesign the dashboard", "the dashboard looks generic", "dashboard design", "visual design"]
     shortcut_tool: tool_synthesis_scaffold
 
   synthesis/synthesis_dashboard:

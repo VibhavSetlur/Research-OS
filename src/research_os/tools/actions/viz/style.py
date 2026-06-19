@@ -443,6 +443,371 @@ def apply_suptitle(
         logger.debug("apply_suptitle failed: %s", e)
 
 
+# ---------------------------------------------------------------------------
+# Figure primitives — the small set of polish patterns the AI re-codes by
+# hand on nearly every step (a Cleveland ranked-dot, a lollipop, a shared-
+# scale facet grid, direct endpoint labels instead of a legend, an in-palette
+# continuous colorbar). These are STYLE helpers, NOT a chart-builder: the AI
+# still writes its own plotting / analysis code and passes in the data; these
+# just apply the Research-OS polish (sorted, common scale, dropped top/left
+# spine, direct value labels, in-palette ramps) so the FIRST render already
+# reads as a publication figure. Each runs headless under the Agg backend.
+# ---------------------------------------------------------------------------
+
+
+def ranked_dot(
+    ax: Any,
+    labels: Any,
+    values: Any,
+    *,
+    sort: bool = True,
+    ascending: bool = False,
+    color: str | None = None,
+    value_fmt: str = "{:.1f}",
+    unit: str = "",
+    show_values: bool = True,
+    markersize: float = 7.0,
+) -> Any:
+    """Cleveland ranked dot plot — sorted categories, common scale, dropped
+    top/right *and left* spine, direct value labels at each dot.
+
+    The Cleveland dot is the most legible encoding for "rank these categories
+    by one number", and the one the AI keeps re-deriving. ``labels`` +
+    ``values`` are parallel sequences; by default they are sorted descending
+    so the biggest value is on top. Returns the ``ax`` for chaining.
+
+    No-ops gracefully (returns ``ax``) if matplotlib isn't importable or the
+    inputs don't pair up.
+    """
+    try:
+        labels = list(labels)
+        values = [float(v) for v in values]
+    except (TypeError, ValueError) as e:
+        logger.debug("ranked_dot: bad inputs: %s", e)
+        return ax
+    if len(labels) != len(values) or not labels:
+        logger.debug("ranked_dot: labels/values length mismatch or empty")
+        return ax
+
+    pairs = list(zip(labels, values))
+    if sort:
+        pairs.sort(key=lambda p: p[1], reverse=not ascending)
+    labs = [p[0] for p in pairs]
+    vals = [p[1] for p in pairs]
+    ys = list(range(len(labs)))
+    col = color or RO_PALETTE["accent"][0]
+
+    try:
+        ax.scatter(vals, ys, s=markersize**2, color=col, zorder=3,
+                   edgecolors=RO_BG, linewidths=0.6)
+        ax.set_yticks(ys)
+        ax.set_yticklabels(labs)
+        # Horizontal layout: drop left spine too, keep only the bottom value
+        # axis. A faint x-grid orients the eye to the common scale.
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.spines["bottom"].set_visible(True)
+        ax.tick_params(axis="y", length=0)
+        ax.grid(True, axis="x", color=RO_RULE, linewidth=0.5,
+                linestyle=(0, (1, 2)), alpha=0.7)
+        ax.set_axisbelow(True)
+        if show_values:
+            span = (max(vals) - min(vals)) or (abs(max(vals)) or 1.0)
+            pad = span * 0.02
+            for v, y in zip(vals, ys):
+                lab = value_fmt.format(v)
+                if unit:
+                    lab = f"{lab} {unit}".rstrip()
+                ax.text(v + pad, y, lab, ha="left", va="center",
+                        fontsize=8, fontstyle="italic", color=RO_FG)
+    except Exception as e:
+        logger.debug("ranked_dot: draw failed: %s", e)
+    return ax
+
+
+def lollipop(
+    ax: Any,
+    labels: Any,
+    values: Any,
+    *,
+    sort: bool = True,
+    ascending: bool = False,
+    color: str | None = None,
+    baseline: float = 0.0,
+    value_fmt: str = "{:.1f}",
+    unit: str = "",
+    show_values: bool = True,
+    markersize: float = 7.0,
+    stem_width: float = 1.2,
+) -> Any:
+    """Horizontal lollipop — a ranked dot with a stem back to a baseline.
+
+    Same sorting + common-scale + dropped-left-spine + direct-label discipline
+    as :func:`ranked_dot`, but draws an ``hlines`` stem from ``baseline`` to
+    each dot. Reads as "how far above/below the reference is each category".
+    Returns ``ax``; no-ops gracefully on bad inputs / no matplotlib.
+    """
+    try:
+        labels = list(labels)
+        values = [float(v) for v in values]
+    except (TypeError, ValueError) as e:
+        logger.debug("lollipop: bad inputs: %s", e)
+        return ax
+    if len(labels) != len(values) or not labels:
+        logger.debug("lollipop: labels/values length mismatch or empty")
+        return ax
+
+    pairs = list(zip(labels, values))
+    if sort:
+        pairs.sort(key=lambda p: p[1], reverse=not ascending)
+    labs = [p[0] for p in pairs]
+    vals = [p[1] for p in pairs]
+    ys = list(range(len(labs)))
+    col = color or RO_PALETTE["accent"][0]
+
+    try:
+        ax.hlines(ys, baseline, vals, color=col, linewidth=stem_width,
+                  alpha=0.85, zorder=2)
+        ax.scatter(vals, ys, s=markersize**2, color=col, zorder=3,
+                   edgecolors=RO_BG, linewidths=0.6)
+        ax.set_yticks(ys)
+        ax.set_yticklabels(labs)
+        for side in ("top", "right", "left"):
+            ax.spines[side].set_visible(False)
+        ax.spines["bottom"].set_visible(True)
+        ax.tick_params(axis="y", length=0)
+        ax.grid(True, axis="x", color=RO_RULE, linewidth=0.5,
+                linestyle=(0, (1, 2)), alpha=0.7)
+        ax.set_axisbelow(True)
+        if show_values:
+            span = (max(vals + [baseline]) - min(vals + [baseline])) or 1.0
+            pad = span * 0.02
+            for v, y in zip(vals, ys):
+                lab = value_fmt.format(v)
+                if unit:
+                    lab = f"{lab} {unit}".rstrip()
+                ha = "left" if v >= baseline else "right"
+                dx = pad if v >= baseline else -pad
+                ax.text(v + dx, y, lab, ha=ha, va="center",
+                        fontsize=8, fontstyle="italic", color=RO_FG)
+    except Exception as e:
+        logger.debug("lollipop: draw failed: %s", e)
+    return ax
+
+
+def facet_grid(
+    nrows: int,
+    ncols: int,
+    *,
+    destination: str = "two_col",
+    figsize: tuple[float, float] | None = None,
+    sharex: bool = True,
+    sharey: bool = True,
+    squeeze: bool = False,
+    **subplots_kwargs: Any,
+) -> tuple[Any, Any]:
+    """Return a Research-OS-styled ``(fig, axes)`` grid that ENFORCES shared
+    x/y limits across every panel.
+
+    Small-multiples only read as a comparison when every panel sits on the
+    same scale — the single most common small-multiples defect is panels with
+    independent y-limits. This forces ``sharex=sharey=True`` by default and
+    runs :func:`apply_research_os_style` first so the panels inherit the RO
+    look. ``figsize`` defaults to the destination's figsize scaled to the
+    grid. Returns ``(None, None)`` if matplotlib isn't importable.
+    """
+    try:
+        import matplotlib.pyplot as plt  # type: ignore
+    except ImportError:
+        logger.debug("facet_grid: matplotlib not importable")
+        return None, None
+
+    style = apply_research_os_style(destination=destination)
+    if figsize is None:
+        base_w, base_h = style["figsize"]
+        # Scale the destination figsize out across the grid, but keep the
+        # per-panel area reasonable so labels don't collapse.
+        figsize = (base_w * max(1, ncols) * 0.75, base_h * max(1, nrows) * 0.7)
+
+    try:
+        fig, axes = plt.subplots(
+            nrows, ncols,
+            figsize=figsize,
+            sharex=sharex, sharey=sharey,
+            squeeze=squeeze,
+            **subplots_kwargs,
+        )
+    except Exception as e:
+        logger.debug("facet_grid: plt.subplots failed: %s", e)
+        return None, None
+
+    # Re-assert spines on each panel (rcParams already drops top/right, but be
+    # explicit so the grid is correct even if a caller reset rcParams).
+    try:
+        flat = axes.ravel() if hasattr(axes, "ravel") else [axes]
+        for a in flat:
+            for side in ("top", "right"):
+                a.spines[side].set_visible(False)
+            a.set_axisbelow(True)
+    except Exception as e:
+        logger.debug("facet_grid: panel polish failed: %s", e)
+    return fig, axes
+
+
+def direct_label_endpoints(
+    ax: Any,
+    *,
+    lines: Any = None,
+    fontsize: float = 8.0,
+    x_offset_frac: float = 0.01,
+    italic: bool = False,
+) -> Any:
+    """Label each line at its right-hand endpoint (Cleveland: labels-at-data
+    beats a legend).
+
+    Reads the line's label (its matplotlib ``get_label``) and draws it at the
+    last finite data point in the line's colour, then removes any legend so
+    the two encodings don't double up. Pass ``lines`` to restrict to specific
+    Line2D objects; otherwise every labelled line on the axes is used.
+    Returns ``ax``; no-ops gracefully.
+    """
+    try:
+        candidates = list(lines) if lines is not None else list(ax.get_lines())
+    except Exception as e:
+        logger.debug("direct_label_endpoints: cannot read lines: %s", e)
+        return ax
+
+    try:
+        xlim = ax.get_xlim()
+        dx = (xlim[1] - xlim[0]) * x_offset_frac
+    except Exception:
+        dx = 0.0
+
+    labelled = 0
+    for ln in candidates:
+        try:
+            label = ln.get_label()
+            if not label or str(label).startswith("_"):
+                continue
+            xdata = list(ln.get_xdata())
+            ydata = list(ln.get_ydata())
+            if not xdata or not ydata:
+                continue
+            # Last finite point.
+            xe, ye = None, None
+            for xv, yv in zip(reversed(xdata), reversed(ydata)):
+                try:
+                    fx, fy = float(xv), float(yv)
+                except (TypeError, ValueError):
+                    continue
+                if fx == fx and fy == fy:  # not NaN
+                    xe, ye = fx, fy
+                    break
+            if xe is None:
+                continue
+            col = ln.get_color()
+            ax.text(
+                xe + dx, ye, f" {label}",
+                ha="left", va="center", fontsize=fontsize,
+                fontstyle="italic" if italic else "normal",
+                color=col,
+            )
+            labelled += 1
+        except Exception as e:
+            logger.debug("direct_label_endpoints: skip a line: %s", e)
+            continue
+
+    # Drop the legend if we directly labelled — avoid the redundant channel.
+    if labelled:
+        try:
+            leg = ax.get_legend()
+            if leg is not None:
+                leg.remove()
+        except Exception:
+            pass
+    return ax
+
+
+def ro_colorbar(
+    mappable: Any = None,
+    *,
+    ax: Any = None,
+    fig: Any = None,
+    kind: str = "sequential",
+    label: str = "",
+    n_colors: int = 256,
+) -> Any:
+    """Attach an in-palette continuous colorbar (viridis sequential / PuOr
+    diverging) — never jet/rainbow.
+
+    The colormap anchors come from
+    :data:`research_os.tools.actions.viz.palettes.SEQUENTIAL` /
+    :data:`DIVERGING` (one source of truth, shared with the figure audit), so
+    a continuous figure stays inside the declared palette. Pass an existing
+    ``mappable`` (an image / collection) to colour it; otherwise a colorbar is
+    drawn from a fresh ``ScalarMappable`` for use as a standalone legend.
+
+    Returns the matplotlib ``Colorbar`` (or ``None`` if matplotlib isn't
+    importable). Also exposes the chosen colormap on the returned object via
+    ``cbar.ro_cmap`` so a caller can reuse it for the data layer.
+    """
+    try:
+        import matplotlib as mpl  # type: ignore
+        import matplotlib.pyplot as plt  # type: ignore
+        from matplotlib.colors import LinearSegmentedColormap  # type: ignore
+    except ImportError:
+        logger.debug("ro_colorbar: matplotlib not importable")
+        return None
+
+    # Import the anchors from the shared palette module rather than hardcoding,
+    # so chrome + audit + this helper all agree on the in-palette ramps.
+    from research_os.tools.actions.viz.palettes import DIVERGING, SEQUENTIAL
+
+    if kind == "diverging":
+        anchors = DIVERGING["puor"]
+        cmap_name = "ro_puor"
+    else:
+        anchors = SEQUENTIAL["viridis"]
+        cmap_name = "ro_viridis"
+
+    try:
+        cmap = LinearSegmentedColormap.from_list(cmap_name, anchors, N=n_colors)
+    except Exception as e:
+        logger.debug("ro_colorbar: cmap build failed: %s", e)
+        return None
+
+    try:
+        if mappable is None:
+            norm = mpl.colors.Normalize(vmin=0.0, vmax=1.0)
+            mappable = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+            mappable.set_array([])
+        else:
+            try:
+                mappable.set_cmap(cmap)
+            except Exception:
+                pass
+        if fig is None:
+            fig = getattr(ax, "figure", None) or plt.gcf()
+        cbar = fig.colorbar(mappable, ax=ax) if ax is not None else fig.colorbar(mappable)
+        if label:
+            cbar.set_label(label, color=RO_FG, fontsize=8)
+        try:
+            cbar.outline.set_edgecolor(RO_RULE)
+            cbar.outline.set_linewidth(0.6)
+            cbar.ax.tick_params(labelsize=7, color=RO_FG, labelcolor=RO_FG)
+        except Exception:
+            pass
+        # Surface the cmap so the caller can colour the data layer with it.
+        try:
+            cbar.ro_cmap = cmap
+        except Exception:
+            pass
+        return cbar
+    except Exception as e:
+        logger.debug("ro_colorbar: colorbar attach failed: %s", e)
+        return None
+
+
 __all__ = [
     "RO_PALETTE",
     "RO_BG",
@@ -456,4 +821,9 @@ __all__ = [
     "label_diverging_bars",
     "polish_axes",
     "apply_suptitle",
+    "ranked_dot",
+    "lollipop",
+    "facet_grid",
+    "direct_label_endpoints",
+    "ro_colorbar",
 ]

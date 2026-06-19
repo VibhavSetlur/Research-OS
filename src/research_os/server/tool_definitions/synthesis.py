@@ -50,16 +50,26 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_synthesis_scaffold": {
-        "short": "Write a tiny skeleton .typ/.html for the AI to author into. Gates on researcher_config.yaml output_types.",
-        "description": "Writes a ≤80-line skeleton with section headers + `// AI: author this` markers. Refuses to overwrite an existing file unless overwrite=true. Kinds: paper, slides, poster, essay, dashboard, grant, handout. After scaffolding, AUTHOR the content directly (follow the matching synthesis protocol), then tool_synthesis_check, then tool_typst_compile (or open the HTML for dashboards). Output-types intent gate: if the researcher has declared `research_goal.output_types` in `inputs/researcher_config.yaml` and the requested `kind` is NOT in that list, the call returns status='ask' instead of writing — surface the returned message to the researcher and re-call with `confirmed=true` only if they actually want this deliverable. Prevents auto-creating papers / dashboards / posters the user never asked for.",
+        "short": "Scaffold a deliverable from composable archetypes + palettes (not one template). Gates on output_types.",
+        "description": "Writes a skeleton with section headers + `// AI: author this` markers, composed from a chosen LAYOUT ARCHETYPE + professional PALETTE — a design system, not one fixed form (see synthesis/deliverable_design for how to choose). Refuses to overwrite unless overwrite=true. Kinds: paper, slides, poster, essay, dashboard, grant, handout. dashboard archetypes: single-viewport-brief | scroll-lite-narrative (default) | comparison-scorecard | multi-panel-exploratory. poster archetypes: classic (default) | billboard | hero | portrait. palettes: ro_house (default) | okabe_ito | clinical. The chosen archetype is stamped into the output so the design audit can verify it. After scaffolding, AUTHOR the content (follow synthesis/deliverable_design + the matching synthesis protocol), then tool_synthesis_check, then tool_typst_compile (or open the HTML for dashboards). Output-types intent gate: if the researcher declared `research_goal.output_types` and the requested `kind` is NOT in it, returns status='ask' — surface the message and re-call with confirmed=true only if they want it. Prevents auto-creating deliverables the user never asked for.",
         "category": "synthesis",
         "inputSchema": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "kind": {
                     "type": "string",
                     "enum": ["paper", "slides", "poster", "handout", "grant", "essay", "dashboard"],
                     "description": "Which artefact to scaffold. Default 'paper'.",
+                },
+                "archetype": {
+                    "type": "string",
+                    "description": "Layout archetype (composable, not a fixed template). dashboard: single-viewport-brief | scroll-lite-narrative | comparison-scorecard | multi-panel-exploratory. poster: classic | billboard | hero | portrait. Omit for the kind's safe default. Ignored for kinds without archetypes (paper/essay/grant/slides/handout).",
+                },
+                "palette": {
+                    "type": "string",
+                    "enum": ["ro_house", "okabe_ito", "clinical"],
+                    "description": "Professional colour system for dashboard/poster chrome. Default ro_house (cohesive with apply_research_os_style figures). A custom-but-professional palette is fine too — the audit judges quality, not membership.",
                 },
                 "overwrite": {
                     "type": "boolean",

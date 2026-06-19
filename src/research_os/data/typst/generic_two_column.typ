@@ -1,7 +1,12 @@
 // Generic two-column journal fallback. The default if researcher_config
 // doesn't pick a venue. Clean, conservative, prints well.
 
-#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template
+// Consume the shared RO design tokens (ro-fonts / ro-typescale / ro-navy)
+// from common.typ so the paper reads as ONE document with the figures,
+// poster, slides, and dashboard. Sizes resolve to the same values they were
+// hardcoded to (title 16pt, h1 12pt, body 10pt); H1 headings now carry the
+// RO navy accent instead of plain black (the deliberate cohesion change).
+#import "common.typ": author-block, abstract-block, default-figure-show, conf, make-template, ro-fonts, ro-typescale, ro-navy
 
 #let generic_two_column(
   title: "Untitled",
@@ -15,18 +20,18 @@
     margin: (top: 2.2cm, bottom: 2.2cm, left: 1.8cm, right: 1.8cm),
   )
   set par(justify: true, leading: 0.6em)
-  set text(font: "New Computer Modern", size: 10pt, lang: "en")
+  set text(font: ro-fonts.serif, size: ro-typescale.body, lang: "en")
 
   align(center)[
-    #text(size: 16pt, weight: "bold")[#title]
+    #text(size: ro-typescale.title-compact, weight: "bold")[#title]
   ]
   v(6pt)
   author-block(authors, affiliations)
   v(10pt)
   abstract-block(abstract, kind: "block")
 
-  show heading.where(level: 1): it => text(size: 11pt, weight: "bold")[#it.body]
-  show heading.where(level: 2): it => text(size: 10.5pt, weight: "bold", style: "italic")[#it.body]
+  show heading.where(level: 1): it => text(size: ro-typescale.h1, weight: "bold", fill: ro-navy)[#it.body]
+  show heading.where(level: 2): it => text(size: ro-typescale.h2, weight: "bold", style: "italic")[#it.body]
   show figure: default-figure-show
 
   columns(2, gutter: 0.7cm, body)

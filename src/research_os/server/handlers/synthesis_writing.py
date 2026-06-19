@@ -45,6 +45,8 @@ def _handle_tool_synthesis_scaffold(name, arguments, root):
         kind=arguments.get("kind", "paper"),
         overwrite=bool(arguments.get("overwrite", False)),
         confirmed=bool(arguments.get("confirmed", False)),
+        archetype=arguments.get("archetype"),
+        palette=arguments.get("palette"),
     )
     if res.get("status") == "error":
         return _text(_error(res.get("message", "scaffold failed")))

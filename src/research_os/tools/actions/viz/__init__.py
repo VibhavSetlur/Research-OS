@@ -29,6 +29,7 @@ needed.
 
 from research_os.tools.actions.viz.figures import (
     audit_figure_quality,
+    audit_figure_style,
     palette_for,
     step_figure_inventory,
 )
@@ -42,9 +43,14 @@ from research_os.tools.actions.viz.style import (
     STYLE_RCPARAMS,
     apply_research_os_style,
     apply_suptitle,
+    direct_label_endpoints,
+    facet_grid,
     label_bars_above,
     label_diverging_bars,
+    lollipop,
     polish_axes,
+    ranked_dot,
+    ro_colorbar,
 )
 
 __all__ = [
@@ -58,9 +64,15 @@ __all__ = [
     "apply_research_os_style",
     "apply_suptitle",
     "audit_figure_quality",
+    "audit_figure_style",
+    "direct_label_endpoints",
+    "facet_grid",
     "label_bars_above",
     "label_diverging_bars",
+    "lollipop",
     "palette_for",
     "polish_axes",
+    "ranked_dot",
+    "ro_colorbar",
     "step_figure_inventory",
 ]

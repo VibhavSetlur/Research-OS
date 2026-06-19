@@ -9,6 +9,7 @@ scope_tags:
   workflow_shape: [any]
 last_reviewed: '2026-06-16'
 see_also:
+  - synthesis/deliverable_design      # the design skill: slide-layout + palette selection
   - synthesis/defense_prep            # a deck for a defense needs the Q&A prep
   - synthesis/synthesis_paper         # the paper the talk compresses
 description: |
