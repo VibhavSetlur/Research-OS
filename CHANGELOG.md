@@ -6,6 +6,70 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.7] — UX + output-design + override polish, fresh bug-sweep (2026-06-19)
+
+A PATCH-only iteration (no new tools, protocols, or config knobs) from an
+adversarially-verified audit across five themes: init/start UX, usage-protocol
+refinement, override ergonomics, output design, and a fresh bug sweep. 45
+findings confirmed (50 checked; 4 dropped as bogus/stale, 1 deferred) and fixed
+across four gated waves. One stale finding was caught + avoided during
+implementation: `tool_synthesize` is a removed tool, so its
+`override_completeness_gate` is an internal plan flag, not a user-facing kwarg —
+it was not documented as one.
+
+### Fixed
+- **Wizard model-profile choice was a silent no-op.** `init_config` wrote only
+  the legacy top-level `model_profile`; every reader prefers `ai.model_profile`.
+  Now synced at both write sites.
+- **`sys_config set` accepted off-enum typos.** A typo like `gate_strictness: lite`
+  was written silently, then silently treated as the default. Now rejected up front.
+- **Boolean config knobs stored truthy strings.** `figures.svg_allowed=false` was
+  stored as the string `"false"` (truthy), inverting the toggle. Registered as
+  bool fields so they coerce to real `False`.
+- **E-value audit crashed on string CI bounds** (`TypeError`). CI bounds are now
+  coerced like `risk_ratio`, with a clean error envelope on bad input.
+- **`StateLedger._load` had no JSON-decode guard** — a corrupted `state_ledger.json`
+  crashed every state read. Now backs up the broken file and reseeds defaults.
+- **`data_convert` could write outside the project** and falsely error on an
+  absolute path. Added an up-front containment check.
+- **Multiple research questions collapsed to one** in `intake.md` / `STATE.md`.
+- **`--transport sse` silently fell back to stdio** with no warning; now warns.
+- **Scaffolded README + ISBN User-Agent** linked a 404 GitHub URL (wrong casing).
+- **`GETTING_STARTED` "More" links** pointed at docs never scaffolded into a project.
+- **`start --workspace <non-RO dir>`** warned then launched anyway; now fails fast.
+- **Protocol tool-call examples were wrong**: `tool_verify` (wrong arg shape),
+  `tool_ground` (nonexistent params), `tool_thought` (`entry_type=`→`kind=`),
+  references to removed `grounding_register` / `grounding_verify`.
+- **Dead/contradictory protocol pointers**: `analysis_plan` now loops back per the
+  core-loop doctrine; `session_boot` + `scope_clarification` marked `terminal`.
+- **Router index** referenced 16 deprecated audit-alias names → canonical `tool_audit`.
+- **Dashboard `--muted` failed WCAG AA contrast** (4.35:1 → 5.3:1).
+- **Handout used an unbundled font** (`Inter`) → font warning + silent fallback;
+  now the bundled New Computer Modern Sans; handout wired into the overflow gate.
+- Smaller fixes: `step_revision_options` IndexError on underscore-less step_id;
+  missing `encoding=utf-8` on file writers; `set_config` clobbering a scalar
+  intermediate (now warns); dispatch.py operator-precedence; `nature.typ` false
+  header comment.
+
+### Improved
+- **Unified output visual identity.** Poster + slide palettes now mirror the
+  figure/dashboard `RO_PALETTE`; the slide deck applies an RO navy accent that was
+  previously computed but never used (title/section/content/focus slides); shared
+  Typst design tokens (colour + type scale + fonts) in `common.typ`; PLOS/Cell
+  headings use the shared token; poster body switched to sans + ragged-right for
+  across-the-room legibility.
+- **Modern dashboard standards**: dark-mode, reduced-motion, focus-visible, skip-link.
+- **Honest override + config docs.** `warn_only` / `allow_override` marked RESERVED
+  (not yet enforced); `project_tier` precedence stated truthfully; `hybrid` workspace
+  mode documented; cross-deliverable override now requires a rationale regardless of
+  policy (consistent with its six siblings); `sys_help(topic='overrides')` is the
+  canonical bypass list; ship gate documented as ignoring `quality_gate_policy`.
+- **Onboarding affordances**: doctor/verify now checks the MCP server command is on
+  PATH (the #1 silent first-session failure); wizard confirmation card shows Mode +
+  Model class; doctor glyphs degrade to ASCII on non-UTF-8 terminals.
+- **WARN-only poster/slide design lints** (font floor + colour-vision-deficiency
+  check), scoped to hand-rolled overrides so clean scaffolds stay silent.
+
 ## [3.2.6] — core bug-sweep + the 3.2.5 deferred items (2026-06-19)
 
 Two halves: (1) the items flagged-but-deferred from 3.2.5, and (2) a deep
