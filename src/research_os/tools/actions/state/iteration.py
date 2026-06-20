@@ -304,8 +304,23 @@ def iterate_step(
             # Also copy sidecars if present (caption, prov).
             for sidecar_suffix in (".caption.md", ".prov.json"):
                 sidecar = src.with_name(src.stem + sidecar_suffix)
-                if sidecar.exists():
-                    shutil.copy2(sidecar, dest.with_name(src.stem + sidecar_suffix))
+                if not sidecar.exists():
+                    continue
+                dest_sidecar = dest.with_name(src.stem + sidecar_suffix)
+                if sidecar_suffix == ".prov.json":
+                    # Stamp the iteration number so audit_version_coherence can
+                    # correlate this archived artefact to its iteration (the
+                    # docstring promises an `iteration` provenance field).
+                    try:
+                        data = json.loads(sidecar.read_text())
+                        data["iteration"] = n
+                        dest_sidecar.write_text(
+                            json.dumps(data, indent=2, default=str) + "\n"
+                        )
+                        continue
+                    except Exception:
+                        pass  # fall back to a plain copy
+                shutil.copy2(sidecar, dest_sidecar)
             snapshotted.append(dest_rel)
 
         for s in snap_scripts:
@@ -447,6 +462,24 @@ def audit_version_coherence(root: Path, step_id: str | None = None) -> dict[str,
                     except Exception:
                         warns.append(f"{art.relative_to(step)}: .prov.json unreadable")
                         continue
+                    # Output-integrity drift: the live file no longer matches the
+                    # sha256 its provenance recorded — it was edited / regenerated
+                    # outside its producing script, so the provenance is a lie.
+                    recorded = ((data.get("output") or {}).get("sha256") or "")
+                    if recorded and recorded != "sha256:unavailable":
+                        from research_os.tools.actions.state.provenance import (
+                            _file_sha256,
+                        )
+                        live = _file_sha256(art)
+                        if live != "sha256:unavailable" and live != recorded:
+                            drift.append(
+                                f"{art.relative_to(step)} has changed since its "
+                                "provenance was written (live sha256 != recorded "
+                                "output.sha256) — edited or regenerated outside its "
+                                "producing script. Re-run the script under "
+                                "provenance, or rewrite the sidecar."
+                            )
+                            total_drift += 1
                     script_field = (data.get("produced_by") or {}).get("script") or ""
                     script_name = Path(script_field).name
                     if script_name and script_name != "<unknown>":
