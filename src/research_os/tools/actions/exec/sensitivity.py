@@ -188,7 +188,7 @@ def _run_one(
     try:
         proc = subprocess.run(
             cmd, cwd=str(step_dir), env=env,
-            capture_output=True, text=True, timeout=1800,
+            capture_output=True, text=True, errors="replace", timeout=1800,
         )
     except subprocess.TimeoutExpired:
         return {"spec_hash": spec_hash, "spec": spec, "ok": False,

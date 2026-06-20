@@ -73,3 +73,39 @@ def test_inputs_literature_mirrored_to_corpus(tmp_path):
     )
     finalize_path(step_id, tmp_path)
     assert (tmp_path / "literature" / "inputs" / "proj2021.pdf").exists()
+
+
+def test_download_literature_passes_timeout(tmp_path):
+    """C3: tool_literature_download must pass an explicit timeout to urlopen,
+    so a hanging file server cannot block the MCP server forever
+    (urllib.request.urlretrieve accepted no timeout)."""
+    from contextlib import contextmanager
+    from unittest import mock
+
+    from research_os.tools.actions.search import literature as lit
+
+    scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+
+    class _FakeResp:
+        def __init__(self) -> None:
+            self._data = _PDF
+        def read(self, n: int = -1) -> bytes:
+            d, self._data = self._data, b""
+            return d
+
+    @contextmanager
+    def _fake_urlopen(req, timeout=None):
+        _fake_urlopen.timeout = timeout
+        yield _FakeResp()
+
+    with mock.patch.object(lit.urllib.request, "urlopen", _fake_urlopen):
+        res = lit.download_literature(
+            "https://example.org/paper.pdf",
+            "paper.pdf",
+            tmp_path,
+            skip_unpaywall=True,
+        )
+
+    assert res["status"] == "success", res
+    # The timeout actually reached urlopen and equals the module constant.
+    assert _fake_urlopen.timeout == lit._DOWNLOAD_TIMEOUT

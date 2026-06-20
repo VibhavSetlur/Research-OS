@@ -13,7 +13,13 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
+from research_os.plugins import (
+    PackPathError,
+    pack_err as _err,
+    pack_ok as _ok,
+    register_tool,
+    resolve_in_root,
+)
 
 
 @register_tool(
@@ -38,7 +44,10 @@ from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
 def lean_check(name: str, arguments: dict, root: Path) -> Any:
     file_path = (arguments.get("file_path") or "").strip()
     timeout = int(arguments.get("timeout_seconds") or 120)
-    target = (root / file_path).resolve()
+    try:
+        target = resolve_in_root(root, file_path)
+    except PackPathError as exc:
+        return _err(str(exc))
     if not target.exists():
         return _err(f"file_path '{file_path}' not found")
     lean_bin = shutil.which("lean")
@@ -103,7 +112,10 @@ def lean_check(name: str, arguments: dict, root: Path) -> Any:
 def coq_check(name: str, arguments: dict, root: Path) -> Any:
     file_path = (arguments.get("file_path") or "").strip()
     timeout = int(arguments.get("timeout_seconds") or 120)
-    target = (root / file_path).resolve()
+    try:
+        target = resolve_in_root(root, file_path)
+    except PackPathError as exc:
+        return _err(str(exc))
     if not target.exists():
         return _err(f"file_path '{file_path}' not found")
     coq_bin = shutil.which("coqc")
@@ -181,7 +193,10 @@ _COQ_IMPORT_PAT = re.compile(r"^\s*(?:From\s+\S+\s+)?Require(?:\s+Import)?\s+([A
     ),
 )
 def dep_graph(name: str, arguments: dict, root: Path) -> Any:
-    src_dir = (root / arguments["source_dir"]).resolve()
+    try:
+        src_dir = resolve_in_root(root, arguments["source_dir"])
+    except PackPathError as exc:
+        return _err(str(exc))
     if not src_dir.exists() or not src_dir.is_dir():
         return _err(f"source_dir '{arguments['source_dir']}' not a directory")
     files: list[dict] = []

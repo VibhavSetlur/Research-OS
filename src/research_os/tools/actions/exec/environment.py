@@ -26,6 +26,7 @@ def package_install(packages: list[str]) -> dict[str, Any]:
             [sys.executable, "-m", "pip", "install", *packages],
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=1800,
         )
         status = "success" if res.returncode == 0 else "error"
@@ -500,7 +501,7 @@ def env_snapshot(
             r_version = None
             try:
                 r_v = subprocess.run(
-                    ["R", "--version"], capture_output=True, text=True, timeout=10,
+                    ["R", "--version"], capture_output=True, text=True, errors="replace", timeout=10,
                 )
                 if r_v.returncode == 0:
                     r_version = r_v.stdout.splitlines()[0]
@@ -525,7 +526,7 @@ def env_snapshot(
             try:
                 jv = subprocess.run(
                     ["julia", "--version"], capture_output=True, text=True,
-                    timeout=10,
+                    errors="replace", timeout=10,
                 )
                 if jv.returncode == 0:
                     julia_version = jv.stdout.strip()
@@ -547,7 +548,7 @@ def env_snapshot(
             try:
                 qr = subprocess.run(
                     ["quarto", "--version"], capture_output=True, text=True,
-                    timeout=10,
+                    errors="replace", timeout=10,
                 )
                 if qr.returncode == 0:
                     qv = qr.stdout.strip()

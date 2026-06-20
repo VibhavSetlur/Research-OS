@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -42,7 +43,10 @@ def create_checkpoint(
         Older untagged checkpoints are pruned at the end of this call.
     """
     try:
-        checkpoint_id = f"ckpt_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        checkpoint_id = (
+            f"ckpt_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_"
+            f"{uuid.uuid4().hex[:6]}"
+        )
         ledger = _ledger(root)
         snap = ledger.snapshot_workspace(checkpoint_id, root=root)
 

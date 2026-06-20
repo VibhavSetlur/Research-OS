@@ -93,7 +93,7 @@ def execute_notebook(
     ]
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True,
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace",
             timeout=timeout + 60,
         )
     except subprocess.TimeoutExpired:
@@ -259,7 +259,7 @@ def render_rmarkdown(doc_path: str, root: Path, *, output_format: str = "html_do
 
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, timeout=timeout
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
         )
     except subprocess.TimeoutExpired:
         return {"status": "error", "message": f"Render timed out after {timeout}s"}

@@ -838,20 +838,63 @@ class ResearchLedger:
                 f"Available: {[d.name for d in (root / '.os_state' / 'checkpoints').iterdir()] if (root / '.os_state' / 'checkpoints').exists() else 'none'}"
             )
 
+        # Touch the rollback target's sidecar so the checkpoint GC
+        # (_prune_old_checkpoints, which orders by meta.json mtime) treats a
+        # checkpoint you keep rolling back to as recently-used and does not
+        # evict it out from under you. Now that checkpoint IDs are collision-
+        # free (each create is a distinct file), a series of rollbacks to one
+        # target would otherwise age it out of the keep window.
+        target_meta = ckpt_dir.with_name(f"{checkpoint_id}.meta.json")
+        if target_meta.exists():
+            try:
+                os.utime(target_meta, None)
+            except OSError:
+                pass
+
         # Backup current workspace
-        backup_id = f"pre_rollback_{checkpoint_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        backup_id = (
+            f"pre_rollback_{checkpoint_id}_"
+            f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_"
+            f"{uuid.uuid4().hex[:6]}"
+        )
         backup_dir = root / ".os_state" / "checkpoints" / backup_id
         backup_dir.mkdir(parents=True, exist_ok=True)
 
         workspace = root / "workspace"
+        backup_manifest: list[dict] = []
         if workspace.exists():
             for f in sorted(workspace.rglob("*")):
                 if not f.is_file():
                     continue
                 rel = f.relative_to(root)
+                # Mirror snapshot_workspace: ref-only the large data artefacts
+                # instead of deep-copying them. The restore loop below skips
+                # ref-only entries, and the delete loop never removes these
+                # extensions from workspace/, so their bytes are never needed
+                # from the pre_rollback backup — copying them is pure wasted
+                # disk and can fill the volume on a single rollback.
+                if f.suffix.lower() in _SNAPSHOT_SKIP_EXTS:
+                    backup_manifest.append({
+                        "path": str(rel),
+                        "size": f.stat().st_size,
+                        "sha256": "ref_only",
+                        "skipped": True,
+                    })
+                    continue
                 dest = backup_dir / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dest)
+                backup_manifest.append({
+                    "path": str(rel),
+                    "size": f.stat().st_size,
+                    "sha256": "copied",
+                })
+            # Writing checkpoint_manifest.json makes the pre_rollback backup a
+            # valid rollback target itself (the restore loop already honours
+            # skipped entries), which it was not before.
+            (backup_dir / "checkpoint_manifest.json").write_text(
+                json.dumps(backup_manifest, indent=2, default=str) + "\n"
+            )
 
         # Write a .meta.json sidecar (untagged) so the existing checkpoint GC
         # (_prune_old_checkpoints, which scans *.meta.json) manages these

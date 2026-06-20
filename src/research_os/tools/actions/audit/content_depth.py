@@ -236,7 +236,22 @@ def audit_methods(text: str, root: Path) -> dict[str, Any]:
                 # step_summary unreadable — skip the primary_tool hint
                 # and fall back to the slug-only match below.
                 pass
-        if slug in text_lower or slug_stem in text_lower or (primary_tool and primary_tool in text_lower):
+        # A well-written Methods section describes a step in prose
+        # ("baseline EDA") rather than with the underscored folder slug
+        # ("baseline_eda"), so also match the space-normalized stem and a
+        # majority of the stem's content tokens — otherwise a paper that
+        # perfectly covers every step in natural language scores 0% and
+        # false-blocks.
+        stem_spaced = slug_stem.replace("_", " ")
+        tokens = [t for t in stem_spaced.split() if len(t) > 2]
+        majority = bool(tokens) and sum(t in text_lower for t in tokens) * 2 >= len(tokens)
+        if (
+            slug in text_lower
+            or slug_stem in text_lower
+            or stem_spaced in text_lower
+            or majority
+            or (primary_tool and primary_tool in text_lower)
+        ):
             covered += 1
         else:
             uncovered.append(d.name)

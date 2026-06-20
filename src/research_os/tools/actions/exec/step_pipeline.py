@@ -415,7 +415,7 @@ def _run_node(
     try:
         proc = subprocess.run(
             cmd, cwd=str(step_dir), env=env,
-            capture_output=True, text=True, timeout=node.get("timeout", 1800),
+            capture_output=True, text=True, errors="replace", timeout=node.get("timeout", 1800),
         )
     except subprocess.TimeoutExpired:
         return {

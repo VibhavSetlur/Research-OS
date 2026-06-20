@@ -314,7 +314,6 @@ def task_run(command: str | list[str], root: Path, *, cwd: str | None = None,
                 preexec_fn=preexec_fn,
             )
         except FileNotFoundError as e:
-            log_file.close()
             _audit_log(
                 root,
                 task_id=task_id,
@@ -326,6 +325,12 @@ def task_run(command: str | list[str], root: Path, *, cwd: str | None = None,
                 reason=f"Command not found: {e}",
             )
             return {"status": "error", "message": f"Command not found: {e}"}
+        finally:
+            # Close the parent's copy on every path (success,
+            # FileNotFoundError return, and any other Popen/preexec
+            # exception). The child retains its own dup'd descriptor, so
+            # log output is unaffected.
+            log_file.close()
 
         meta = {
             "task_id": task_id,
@@ -353,8 +358,8 @@ def task_run(command: str | list[str], root: Path, *, cwd: str | None = None,
             pid=proc.pid,
             accepted=True,
         )
-        # Don't wait — return immediately. The file handle stays open in the
-        # subprocess; the parent reference is fine to drop.
+        # Don't wait — return immediately. The child holds its own dup'd fd;
+        # the parent's copy was closed deterministically above.
         return {
             "status": "success",
             "task_id": task_id,

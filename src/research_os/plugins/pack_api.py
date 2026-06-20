@@ -59,6 +59,38 @@ def pack_err(message: str) -> list:
     return _envelope({"status": "error", "error": str(message)})
 
 
+# ── path containment for pack tools ───────────────────────────────────
+# Core sys_file_* handlers route every user-supplied path through
+# meta_workspace._resolve_inside_root, which rejects traversal + absolute
+# escapes. Pack tools historically did a bare `(root / arg).resolve()`,
+# which silently discards `root` when `arg` is absolute — so a spec_path
+# of "/etc/passwd" would be read. This helper mirrors the core guard so
+# pack tools can reject out-of-root paths up front.
+
+
+class PackPathError(Exception):
+    """Raised when a pack-tool path argument escapes the project root."""
+
+
+def resolve_in_root(root: Path, rel: str) -> Path:
+    """Resolve ``rel`` under ``root``, rejecting absolute escapes / traversal.
+
+    Mirrors ``meta_workspace._resolve_inside_root`` for pack tools.
+    """
+    root_resolved = Path(root).resolve()
+    target = Path(rel)
+    candidate = target if target.is_absolute() else (root_resolved / target)
+    try:
+        resolved = candidate.resolve()
+    except OSError as exc:
+        raise PackPathError(f"path could not be resolved: {exc}")
+    try:
+        resolved.relative_to(root_resolved)
+    except ValueError:
+        raise PackPathError(f"path '{rel}' escapes project root")
+    return resolved
+
+
 @dataclass(frozen=True)
 class PackTool:
     """A single tool contributed by a pack."""

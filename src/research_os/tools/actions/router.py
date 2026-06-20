@@ -2104,7 +2104,14 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
             from research_os.tools.actions.audit.audit import audit_step_completeness
 
             gate = audit_step_completeness(root)
-            if gate.get("status") == "error":
+            # Only treat the gate as a completeness BLOCK when it returned a
+            # non-empty `blockers` list (the genuine-incompleteness path).
+            # audit_step_completeness ALSO returns status='error' for real
+            # infrastructure failures ("workspace/ not found", "Step 'X' not
+            # found") that carry no `blockers` — blocking on those would
+            # report "0 blocker(s)" and "Full report: None", so let them fall
+            # through to the normal advance below.
+            if gate.get("status") == "error" and gate.get("blockers"):
                 if override_gate or plan.get("override_completeness_gate"):
                     bypassed_blockers = list(gate.get("blockers", []))
                     if plan.get("override_completeness_gate"):
@@ -2141,6 +2148,13 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
                             f"Full report: {gate.get('report_path')}"
                         ),
                     }
+            else:
+                if gate.get("status") == "error" and not gate.get("blockers"):
+                    logger.warning(
+                        "plan_advance completeness gate errored (no blockers, "
+                        "not a real block): %s",
+                        gate.get("message"),
+                    )
         except Exception as e:
             logger.warning("plan_advance gate check failed: %s", e)
 

@@ -346,6 +346,46 @@ def test_rollback_does_not_evict_user_checkpoints(tmp_path):
     assert cid in ids, "the original user checkpoint must survive rollbacks"
 
 
+def test_back_to_back_checkpoints_get_distinct_ids(tmp_path):
+    """C12: two checkpoints created within the same wall-clock second must
+    get distinct IDs (a uuid suffix), not collide and overwrite each other."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    (tmp_path / "workspace" / "note.md").write_text("x")
+    a = create_checkpoint("first", root=tmp_path)["checkpoint_id"]
+    b = create_checkpoint("second", root=tmp_path)["checkpoint_id"]
+    assert a != b
+    ids = {c["id"] for c in list_checkpoints(root=tmp_path)["checkpoints"]}
+    assert {a, b} <= ids  # both survived; neither overwrote the other
+
+
+def test_pre_rollback_backup_ref_only_for_data_artifacts(tmp_path):
+    """C4: the pre-rollback backup must NOT deep-copy large data artefacts
+    (the extensions snapshot_workspace skips); it ref-only's them in a
+    manifest instead, mirroring snapshot behaviour."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    ws = tmp_path / "workspace"
+    (ws / "note.md").write_text("v0")
+    big = ws / "data.parquet"
+    big.write_bytes(b"PAR1" + b"\x00" * 4096)
+    cp = create_checkpoint("base", root=tmp_path)
+    cid = cp["checkpoint_id"]
+    (ws / "note.md").write_text("v1")
+    res = rollback_checkpoint(cid, root=tmp_path)
+    backup_id = res["backup_id"]
+    backup_dir = tmp_path / ".os_state" / "checkpoints" / backup_id
+    # The .parquet bytes were NOT copied into the backup dir.
+    assert not (backup_dir / "workspace" / "data.parquet").exists()
+    # But the manifest records it as ref_only.
+    import json as _json
+    manifest = _json.loads(
+        (backup_dir / "checkpoint_manifest.json").read_text()
+    )
+    parquet_entries = [
+        m for m in manifest if m["path"].endswith("data.parquet")
+    ]
+    assert parquet_entries and parquet_entries[0]["sha256"] == "ref_only"
+
+
 def test_checkpoint_create_runs_gc_and_returns_report(tmp_path):
     """create_checkpoint(keep=N) prunes after writing + returns gc report."""
     scaffold_minimal_workspace(tmp_path, "Test")

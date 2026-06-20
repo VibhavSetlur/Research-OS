@@ -235,6 +235,74 @@ def test_engineering_requirements_matrix_flags_orphans(project_root):
     assert "TC-99" in env["data"]["orphan_tests"]
 
 
+# ── malformed-input robustness (C5) ──────────────────────────────────
+
+
+def test_engineering_fmea_render_skips_malformed_items(project_root):
+    """C5: a stray non-dict list item (bare string / null) must be skipped,
+    not crash the render with an uncaught AttributeError."""
+    srv = _fresh_import()
+    spec_path = project_root / "inputs" / "fmea_bad.yaml"
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(
+        "items:\n"
+        "- {id: F1, function: power, severity: 8, occurrence: 4, detection: 3}\n"
+        "- just a stray string\n"
+        "- null\n"
+    )
+    r = srv._handle_tool_call(
+        "tool_engineering_fmea_render",
+        {"spec_path": "inputs/fmea_bad.yaml"},
+        project_root,
+    )
+    env = json.loads(r[0].text)
+    assert env["status"] == "success"
+    assert env["data"]["n_items"] == 1
+    assert env["data"]["skipped_malformed_items"] == 2
+
+
+def test_engineering_fault_tree_skips_malformed_nodes(project_root):
+    srv = _fresh_import()
+    spec_path = project_root / "inputs" / "fta_bad.yaml"
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(
+        "top_event: total_failure\n"
+        "nodes:\n"
+        "- {id: N1, label: gate, kind: or, children: [N2]}\n"
+        "- stray\n"
+    )
+    r = srv._handle_tool_call(
+        "tool_engineering_fault_tree_render",
+        {"spec_path": "inputs/fta_bad.yaml"},
+        project_root,
+    )
+    env = json.loads(r[0].text)
+    assert env["status"] == "success"
+    assert env["data"]["skipped_malformed_nodes"] == 1
+
+
+# ── pack path containment (C9) ───────────────────────────────────────
+
+
+def test_pack_tools_reject_out_of_root_path(project_root):
+    """C9: pack tools must reject an absolute out-of-root path arg with a
+    clean error envelope instead of reading arbitrary filesystem locations."""
+    srv = _fresh_import()
+    cases = [
+        ("tool_engineering_fmea_render", {"spec_path": "/etc/passwd"}),
+        ("tool_engineering_fault_tree_render", {"spec_path": "/etc/passwd"}),
+        ("tool_engineering_requirements_matrix", {"spec_path": "/etc/passwd"}),
+        ("tool_wet_lab_plate_map_render", {"spec_path": "/etc/passwd"}),
+        ("tool_wet_lab_sample_lineage_export", {"lineage_spec_path": "/etc/passwd"}),
+        ("tool_theory_math_dep_graph", {"source_dir": "/etc"}),
+    ]
+    for tool_name, args in cases:
+        r = srv._handle_tool_call(tool_name, args, project_root)
+        env = json.loads(r[0].text)
+        assert env["status"] == "error", f"{tool_name} did not reject escape: {env}"
+        assert "escapes project root" in env.get("error", ""), env
+
+
 # ── domain detectors ─────────────────────────────────────────────────
 
 
