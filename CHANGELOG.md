@@ -6,6 +6,74 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.9] — scientific rigor + reproducibility integrity + universality (2026-06-20)
+
+A PATCH release from an adversarially-verified audit of five under-covered,
+high-value dimensions (the statistical gates had been audited for crashes,
+never for METHODOLOGY; reproducibility/provenance integrity; a fresh bug sweep;
+field universality; AI usability). 38 findings confirmed (3 dropped as bogus)
+and fixed across four gated waves. Several audit fixes change verdicts (flagged)
+but no tool/protocol was removed and no schema broke.
+
+### Fixed — statistical / methodological correctness
+- **Claim-grounding "grounded" hallucinated counts.** Integer claims (sample
+  sizes / counts) were matched within a 1% tolerance, so a paper's N=2456
+  "grounded" to a real 2469. Integers now require an EXACT match; floats keep
+  the ±1% tolerance.
+- **Claim-grounding false-blocked well-reported papers.** CI confidence levels
+  (95%) and p-value thresholds (p<0.001) were extracted as claims → ungrounded
+  BLOCKERS that refused to ship. Both are now excluded (context-aware).
+- **Power audit reported wrong power for every non-two-sample design.** It
+  hardcoded the two-sample t-test; now test-family aware (paired / one-sample /
+  two-proportion / ANOVA) and stamps the assumed test. `n` documented as
+  PER-GROUP (the natural total-N misreading roughly doubled reported power).
+  Non-finite power is now an error, not a silent "passed". Handler coerces
+  stringified numeric args (a crash the e-value path had already been hardened against).
+- **E-value applied the risk-ratio formula to any scale.** Now
+  `effect_measure=rr|or|hr` + `rare_outcome`: a common-outcome OR is converted
+  RR≈√OR, HR is flagged, rare outcomes use the value directly.
+- **Normality check was biased + over-eager.** Shapiro-Wilk took the first
+  5000 (ordered) residuals → seeded random subsample; the unconditional
+  "switch to rank/bootstrap" advice is now n-aware (acknowledges CLT robustness).
+- Removed clinical/epi defaults leaking into field-agnostic tools (sensitivity
+  multiverse grid; the prereg SAP no longer defaults multiplicity to BH).
+
+### Fixed — reproducibility / provenance integrity
+- **Re-run audit never compared the baseline it promised** — a non-deterministic
+  / drifted output reported success. Now compares each re-run output's hash
+  against the recorded baseline (.prov.json / output_hashes.json) and is honest
+  when no baseline exists.
+- **Re-run used the wrong context** (cwd=scripts/ vs the pipeline's cwd=step/ +
+  env) — now aligned, delegating to the pipeline runner when a spec exists.
+- **Checkpoint rollback was restore-OVER, not restore-TO** — files created after
+  the checkpoint survived. Rollback now deletes non-manifest workspace files
+  (scoped to workspace/, skipping ref-only data, recoverable via the backup).
+- **Provenance could silently drift** — added an output-sha256 integrity check
+  (an artefact edited outside its producing script is now flagged).
+- Pre-rollback backups no longer evict user checkpoints (own GC bucket) or
+  deep-copy large data; R/Julia outputs no longer record a Python-only env;
+  unseeded randomness is flagged; the `iteration` provenance field is written.
+
+### Fixed — correctness bugs
+- `tool_python_exec` returned success on a CRASHING script (siblings didn't) →
+  now errors; missing-path message echoes the path.
+- Foreign-script / notebook executors crashed on non-UTF-8 output → `errors=replace`.
+- `tool_literature_download` had no timeout (a hung server hung forever) → 30s.
+- Pack renderers (engineering FMEA/fault-tree/requirements, wet-lab plate map)
+  no longer crash on a malformed item; pack tools guard path-escape.
+- `audit_methods` no longer false-flags methods (slug-vs-prose normalization);
+  `advance_plan` no longer conflates a real audit error with a completeness block.
+- task fd leak; same-second ID collisions (checkpoint/backup/slurm) get a uuid suffix.
+
+### Improved — universality + usability
+- **Hyphen-insensitive routing** — "agent-based", "single-cell", "fixed-effects"
+  no longer strand/misroute (both prompt + trigger normalized).
+- Qualitative routing now reaches phenomenology / discourse / content analysis /
+  case study / narrative inquiry; the dead `workflow_shape` signal is revived
+  (inferred from workspace.mode); engineering simulation/CFD/controls prompts route.
+- Dead doc references → real `sys_help` topics; stale protocol + adapter counts
+  corrected; `output_types` vocab completed; pack tools accept `filepath` alias.
+
 ## [3.2.8] — research-grade visual-design system (dashboards / posters / figures) (2026-06-19)
 
 Turns the deliverable design surface from a single fixed template ("generic AI
