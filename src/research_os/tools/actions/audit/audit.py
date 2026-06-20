@@ -594,6 +594,7 @@ def audit_power(
             "status": "error",
             "message": f"unknown test '{test}'. Valid: {', '.join(_POWER_TESTS)}.",
         }
+    power_value: float | None = None
     try:
         if test == "two_sample_t":
             power_value = smp.tt_ind_solve_power(

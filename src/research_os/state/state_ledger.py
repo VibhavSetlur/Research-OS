@@ -849,7 +849,7 @@ class ResearchLedger:
             try:
                 os.utime(target_meta, None)
             except OSError:
-                pass
+                pass  # best-effort recency touch; never fail rollback over it
 
         # Backup current workspace
         backup_id = (
@@ -951,7 +951,7 @@ class ResearchLedger:
                         f.unlink()
                         removed += 1
                     except OSError:
-                        pass
+                        pass  # locked / already-gone file; skip, don't abort rollback
             # Prune now-empty dirs bottom-up, leaving workspace/ itself.
             for d in sorted(
                 (p for p in workspace.rglob("*") if p.is_dir()), reverse=True
@@ -959,7 +959,7 @@ class ResearchLedger:
                 try:
                     d.rmdir()
                 except OSError:
-                    pass
+                    pass  # dir not empty (kept files remain) — leave it
 
         # Touch updated_at so consumers of state ordering see the
         # rollback event. The rollback-history list previously persisted
