@@ -31,8 +31,18 @@ __all__ = [
 
 def _handle_tool_python_exec(name, arguments, root):
     p = root / arguments["script_path"]
-    if not p.exists() or not p.is_file():
-        return _text(_error("Script not found"))
+    if not p.exists():
+        return _text(_error(
+            what=f"script not found at {p}",
+            why="the script_path is resolved relative to the project root",
+            next_action="call sys_file_list or sys_workspace_tree to confirm the path",
+        ))
+    if not p.is_file():
+        return _text(_error(
+            what=f"script_path points to a directory, not a file: {p}",
+            why="tool_python_exec runs a single .py file",
+            next_action="pass the path to the .py script itself",
+        ))
 
     step_name = p.stem
     log_dir = root / "workspace" / "logs"
@@ -47,6 +57,7 @@ def _handle_tool_python_exec(name, arguments, root):
             cwd=str(p.parent),
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
@@ -60,9 +71,23 @@ def _handle_tool_python_exec(name, arguments, root):
             f"STDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}\n\n"
         )
 
-    return _text(
-        _success({"stdout": res.stdout, "stderr": res.stderr, "code": res.returncode})
-    )
+    payload = {
+        "stdout": res.stdout,
+        "stderr": res.stderr,
+        "code": res.returncode,
+        "exit_code": res.returncode,
+    }
+    if res.returncode == 0:
+        return _text(_success(payload))
+
+    # Non-zero exit → report status:error to match the R/Julia/Bash siblings,
+    # but keep the run streams in the payload so the AI can debug.
+    tail = (res.stderr or res.stdout or "").strip().splitlines()[-5:]
+    msg = f"python exited with code {res.returncode}: " + " | ".join(tail)
+    env = _error(msg)
+    env["payload"].update(payload)
+    env["data"] = env["payload"]
+    return _text(env)
 
 
 def _handle_tool_script_exec(name, arguments, root):

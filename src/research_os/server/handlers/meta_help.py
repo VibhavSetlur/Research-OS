@@ -50,11 +50,11 @@ def _handle_sys_help(name, arguments, root):
             "guidance": "session/flow (boot/resume/handoff/autopilot/casual/mid_entry/disagree/revise)",
             "discover": "intake + question lock-in + mid-pipeline entry",
             "domain": "domain classification + study design",
-            "methodology": "method picking + per-method protocols (42)",
+            "methodology": "method picking + per-method protocols",
             "literature": "search + systematic review + GRADE + comparative review",
             "writing": "per-section drafting (methods/results/discussion/limitations/end-matter)",
             "visualization": "figures (rules/workflow/critique/multi-panel/arc/a11y)",
-            "synthesis": "final deliverables (18: paper/poster/dashboard/slides/...)",
+            "synthesis": "final deliverables (paper/poster/dashboard/slides/...)",
             "audit": "quality audit + pre-submission checklist + provenance completeness",
             "reproducibility": "snapshot + verify reruns",
         }}))
@@ -236,9 +236,9 @@ def _handle_sys_help(name, arguments, root):
             "domain_packs": (
                 "5 optional domain PACKS add field-specific TOOLS for non-standard "
                 "deliverables (wet_lab, humanities, qualitative, theory_math, "
-                "engineering); 6 infra ADAPTERS auto-extract provenance "
-                "(slurm/snakemake/nextflow/cytoscape/redcap/synapse). For the full "
-                "list + how to use them: sys_help(topic='packs')."
+                "engineering); 8 infra ADAPTERS auto-extract provenance "
+                "(slurm/snakemake/nextflow/cytoscape/redcap/synapse/mlflow/zenodo). "
+                "For the full list + how to use them: sys_help(topic='packs')."
             ),
             "subfield_pipelines": (
                 "For multi-stage canonical pipelines (snRNA-seq, metagenomics, protein "

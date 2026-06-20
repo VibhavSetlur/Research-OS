@@ -91,7 +91,7 @@ def scratch_run(filename: str, root: Path, *, timeout: int = 60) -> dict[str, An
         t0 = time.time()
         try:
             res = subprocess.run(
-                cmd, cwd=str(d), capture_output=True, text=True, timeout=timeout
+                cmd, cwd=str(d), capture_output=True, text=True, errors="replace", timeout=timeout
             )
         except subprocess.TimeoutExpired:
             return {"status": "error", "message": f"Scratch run timed out after {timeout}s"}

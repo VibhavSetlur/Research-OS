@@ -8,7 +8,13 @@ from typing import Any
 
 import yaml
 
-from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
+from research_os.plugins import (
+    PackPathError,
+    pack_err as _err,
+    pack_ok as _ok,
+    register_tool,
+    resolve_in_root,
+)
 
 
 _FMEA_COLUMNS = [
@@ -40,13 +46,21 @@ _FMEA_COLUMNS = [
     ),
 )
 def fmea_render(name: str, arguments: dict, root: Path) -> Any:
-    spec_path = (root / arguments["spec_path"]).resolve()
+    try:
+        spec_path = resolve_in_root(root, arguments["spec_path"])
+    except PackPathError as exc:
+        return _err(str(exc))
     if not spec_path.exists():
         return _err(f"spec_path '{arguments['spec_path']}' not found")
     data = yaml.safe_load(spec_path.read_text()) or {}
     items = data.get("items") if isinstance(data, dict) else data
     if not isinstance(items, list):
         return _err("FMEA spec must contain a list of items")
+    # Drop malformed (non-dict) list entries — a stray YAML string/null
+    # would otherwise crash `.get()` with an uncaught AttributeError.
+    n_raw = len(items)
+    items = [it for it in items if isinstance(it, dict)]
+    skipped = n_raw - len(items)
     for it in items:
         try:
             rpn = int(it.get("severity", 0)) * int(it.get("occurrence", 0)) * int(it.get("detection", 0))
@@ -107,6 +121,7 @@ def fmea_render(name: str, arguments: dict, root: Path) -> Any:
         "n_items": len(items),
         "high_priority_count": len(high_priority),
         "high_priority_ids": [it.get("id", "") for it in high_priority],
+        "skipped_malformed_items": skipped,
     })
 
 
@@ -131,12 +146,20 @@ def fmea_render(name: str, arguments: dict, root: Path) -> Any:
     ),
 )
 def fault_tree_render(name: str, arguments: dict, root: Path) -> Any:
-    spec_path = (root / arguments["spec_path"]).resolve()
+    try:
+        spec_path = resolve_in_root(root, arguments["spec_path"])
+    except PackPathError as exc:
+        return _err(str(exc))
     if not spec_path.exists():
         return _err(f"spec_path '{arguments['spec_path']}' not found")
     spec = yaml.safe_load(spec_path.read_text()) or {}
     top = spec.get("top_event") or "top"
     nodes = spec.get("nodes") or []
+    # Drop malformed (non-dict) nodes so a stray YAML entry can't crash
+    # the node loops with an uncaught AttributeError.
+    n_raw = len(nodes)
+    nodes = [n for n in nodes if isinstance(n, dict)]
+    skipped = n_raw - len(nodes)
     out_dir = root / "workspace" / "engineering" / "fta"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -167,6 +190,7 @@ def fault_tree_render(name: str, arguments: dict, root: Path) -> Any:
         "mermaid_path": str(mermaid_path.relative_to(root)),
         "n_nodes": len(nodes),
         "top_event": top,
+        "skipped_malformed_nodes": skipped,
     })
 
 
@@ -191,12 +215,20 @@ def fault_tree_render(name: str, arguments: dict, root: Path) -> Any:
     ),
 )
 def requirements_matrix(name: str, arguments: dict, root: Path) -> Any:
-    spec_path = (root / arguments["spec_path"]).resolve()
+    try:
+        spec_path = resolve_in_root(root, arguments["spec_path"])
+    except PackPathError as exc:
+        return _err(str(exc))
     if not spec_path.exists():
         return _err(f"spec_path '{arguments['spec_path']}' not found")
     spec = yaml.safe_load(spec_path.read_text()) or {}
     reqs = spec.get("requirements") or []
     results = spec.get("test_results") or {}
+    # Drop malformed (non-dict) requirement entries so a stray YAML line
+    # can't crash the matrix render with an uncaught AttributeError.
+    n_raw = len(reqs)
+    reqs = [r for r in reqs if isinstance(r, dict)]
+    skipped = n_raw - len(reqs)
 
     out_dir = root / "workspace" / "engineering" / "traceability"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -256,4 +288,5 @@ def requirements_matrix(name: str, arguments: dict, root: Path) -> Any:
         "n_test_results": len(results),
         "orphan_requirements": orphan_reqs,
         "orphan_tests": orphan_tests,
+        "skipped_malformed_requirements": skipped,
     })

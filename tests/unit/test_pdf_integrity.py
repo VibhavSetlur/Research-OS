@@ -69,10 +69,23 @@ def test_count_valid_pdfs_missing_dir(tmp_path: Path):
 # ── download path: magic-byte gate ──────────────────────────────────
 
 
-def _fake_urlretrieve(payload: bytes):
-    def _impl(url, out_path):
-        Path(out_path).write_bytes(payload)
-        return out_path, None
+def _fake_urlopen(payload: bytes):
+    """Stand in for urllib.request.urlopen (C3 switched the download from
+    urlretrieve to a streaming urlopen). Returns a context-manager response
+    whose .read() yields the payload bytes once."""
+    from contextlib import contextmanager
+
+    class _Resp:
+        def __init__(self) -> None:
+            self._data = payload
+        def read(self, n: int = -1) -> bytes:
+            d, self._data = self._data, b""
+            return d
+
+    @contextmanager
+    def _impl(req, timeout=None):
+        yield _Resp()
+
     return _impl
 
 
@@ -80,8 +93,8 @@ def test_download_rejects_non_pdf_and_deletes_file(tmp_path: Path):
     (tmp_path / "inputs" / "literature").mkdir(parents=True)
     html = b"<!DOCTYPE html><html>Access denied (403)</html>"
     with mock.patch(
-        "research_os.tools.actions.search.literature.urllib.request.urlretrieve",
-        _fake_urlretrieve(html),
+        "research_os.tools.actions.search.literature.urllib.request.urlopen",
+        _fake_urlopen(html),
     ):
         res = download_literature(
             "https://example.com/paper.pdf",
@@ -99,8 +112,8 @@ def test_download_records_structured_failure_for_fake_pdf(tmp_path: Path):
     (tmp_path / "inputs" / "literature").mkdir(parents=True)
     html = b"<html>paywall interstitial</html>"
     with mock.patch(
-        "research_os.tools.actions.search.literature.urllib.request.urlretrieve",
-        _fake_urlretrieve(html),
+        "research_os.tools.actions.search.literature.urllib.request.urlopen",
+        _fake_urlopen(html),
     ):
         download_literature(
             "https://example.com/x.pdf",
@@ -119,8 +132,8 @@ def test_download_accepts_real_pdf(tmp_path: Path):
     (tmp_path / "inputs" / "literature").mkdir(parents=True)
     pdf = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\nbody\n%%EOF\n"
     with mock.patch(
-        "research_os.tools.actions.search.literature.urllib.request.urlretrieve",
-        _fake_urlretrieve(pdf),
+        "research_os.tools.actions.search.literature.urllib.request.urlopen",
+        _fake_urlopen(pdf),
     ):
         res = download_literature(
             "https://example.com/real.pdf",

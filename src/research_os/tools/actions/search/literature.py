@@ -29,12 +29,18 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
 logger = logging.getLogger("research_os.tools.search.literature")
+
+# Hard ceiling on a single PDF fetch so a slow/hanging file server cannot
+# block the MCP server indefinitely. urllib.request.urlretrieve does not
+# accept a timeout, so we stream via urlopen(..., timeout=...) instead.
+_DOWNLOAD_TIMEOUT = 30.0
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +357,12 @@ def download_literature(
             out_path = target_dir / f"{stem}_v{i}{out_path.suffix}"
 
         try:
-            urllib.request.urlretrieve(url, out_path)
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "Research-OS/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as resp, \
+                    open(out_path, "wb") as fh:
+                shutil.copyfileobj(resp, fh)
         except Exception as e:
             err_text = str(e)
             # Record the failure for paywall memory.

@@ -8,7 +8,13 @@ from typing import Any
 
 import yaml
 
-from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
+from research_os.plugins import (
+    PackPathError,
+    pack_err as _err,
+    pack_ok as _ok,
+    register_tool,
+    resolve_in_root,
+)
 
 
 @register_tool(
@@ -36,7 +42,10 @@ from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
     ),
 )
 def plate_map_render(name: str, arguments: dict, root: Path) -> Any:
-    spec_path = (root / arguments["spec_path"]).resolve()
+    try:
+        spec_path = resolve_in_root(root, arguments["spec_path"])
+    except PackPathError as exc:
+        return _err(str(exc))
     fmt = arguments.get("format", "png")
     if not spec_path.exists():
         return _err(f"spec_path '{arguments['spec_path']}' not found")
@@ -64,42 +73,57 @@ def plate_map_render(name: str, arguments: dict, root: Path) -> Any:
     ascii_path.write_text("\n".join(ascii_lines))
     paths["ascii"] = str(ascii_path.relative_to(root))
 
+    # The ASCII grid above is the guaranteed deliverable. The matplotlib
+    # render is best-effort: an import miss means matplotlib is unavailable,
+    # but a render/savefig failure (bad backend, write error, disk full,
+    # malformed layout) must NOT bubble out and discard the ASCII success —
+    # and the figure must always be closed when it was created.
+    fig = None
     try:
         import matplotlib.pyplot as plt
-        fig, ax = plt.subplots(figsize=(max(8, len(cols)*0.5),
-                                        max(4, len(rows)*0.5)))
-        for ri, r in enumerate(rows):
-            for ci, c in enumerate(cols):
-                well_id = f"{r}{c}"
-                content = wells.get(well_id, "")
-                color = "#cccccc" if not content else "#88aaff"
-                ax.add_patch(plt.Circle((ci, len(rows) - ri - 1),
-                                        0.4, facecolor=color, edgecolor="black"))
-                if content:
-                    ax.text(ci, len(rows) - ri - 1, str(content)[:6],
-                            ha="center", va="center", fontsize=6)
-        ax.set_xlim(-0.7, len(cols) - 0.3)
-        ax.set_ylim(-0.7, len(rows) - 0.3)
-        ax.set_xticks(range(len(cols)))
-        ax.set_xticklabels([str(c) for c in cols])
-        ax.set_yticks(range(len(rows)))
-        ax.set_yticklabels(list(reversed(rows)))
-        ax.set_aspect("equal")
-        ax.set_title(spec.get("title", stem))
-        if fmt in {"png", "both"}:
-            png_path = fig_dir / f"{stem}.png"
-            fig.savefig(png_path, dpi=150, bbox_inches="tight")
-            paths["png"] = str(png_path.relative_to(root))
-        if fmt in {"svg", "both"}:
-            svg_path = fig_dir / f"{stem}.svg"
-            fig.savefig(svg_path, format="svg", bbox_inches="tight")
-            paths["svg"] = str(svg_path.relative_to(root))
-        plt.close(fig)
     except ImportError as exc:
         import logging
         logging.getLogger("research_os_wet_lab.tools").debug(
             "matplotlib unavailable; ASCII fallback only: %s", exc
         )
+    else:
+        try:
+            fig, ax = plt.subplots(figsize=(max(8, len(cols)*0.5),
+                                            max(4, len(rows)*0.5)))
+            for ri, r in enumerate(rows):
+                for ci, c in enumerate(cols):
+                    well_id = f"{r}{c}"
+                    content = wells.get(well_id, "")
+                    color = "#cccccc" if not content else "#88aaff"
+                    ax.add_patch(plt.Circle((ci, len(rows) - ri - 1),
+                                            0.4, facecolor=color, edgecolor="black"))
+                    if content:
+                        ax.text(ci, len(rows) - ri - 1, str(content)[:6],
+                                ha="center", va="center", fontsize=6)
+            ax.set_xlim(-0.7, len(cols) - 0.3)
+            ax.set_ylim(-0.7, len(rows) - 0.3)
+            ax.set_xticks(range(len(cols)))
+            ax.set_xticklabels([str(c) for c in cols])
+            ax.set_yticks(range(len(rows)))
+            ax.set_yticklabels(list(reversed(rows)))
+            ax.set_aspect("equal")
+            ax.set_title(spec.get("title", stem))
+            if fmt in {"png", "both"}:
+                png_path = fig_dir / f"{stem}.png"
+                fig.savefig(png_path, dpi=150, bbox_inches="tight")
+                paths["png"] = str(png_path.relative_to(root))
+            if fmt in {"svg", "both"}:
+                svg_path = fig_dir / f"{stem}.svg"
+                fig.savefig(svg_path, format="svg", bbox_inches="tight")
+                paths["svg"] = str(svg_path.relative_to(root))
+        except Exception as exc:
+            import logging
+            logging.getLogger("research_os_wet_lab.tools").debug(
+                "plate render failed; ASCII fallback only: %s", exc
+            )
+        finally:
+            if fig is not None:
+                plt.close(fig)
     return _ok({"paths": paths, "wells_filled": len(wells), "title": spec.get("title", stem)})
 
 
@@ -212,7 +236,10 @@ def sample_lineage_export(name: str, arguments: dict, root: Path) -> Any:
     spec_rel = (arguments.get("lineage_spec_path") or "").strip()
     if not spec_rel:
         return _err("lineage_spec_path is required")
-    spec_path = (root / spec_rel).resolve()
+    try:
+        spec_path = resolve_in_root(root, spec_rel)
+    except PackPathError as exc:
+        return _err(str(exc))
     if not spec_path.exists():
         return _err(f"lineage_spec_path '{spec_rel}' not found")
     data = yaml.safe_load(spec_path.read_text()) or {}
@@ -347,6 +374,7 @@ def run_log_init(name: str, arguments: dict, root: Path) -> Any:
         "type": "object",
         "properties": {
             "file_path": {"type": "string", "description": "Raw output file to checksum."},
+            "filepath": {"type": "string", "description": "Alias for file_path (core file tools use 'filepath')."},
             "run_log_path": {
                 "type": "string",
                 "description": "Optional run-log YAML to append the raw_files entry to.",
@@ -363,10 +391,13 @@ def run_log_init(name: str, arguments: dict, root: Path) -> Any:
     ),
 )
 def checksum_raw(name: str, arguments: dict, root: Path) -> Any:
-    file_rel = (arguments.get("file_path") or "").strip()
+    file_rel = (arguments.get("file_path") or arguments.get("filepath") or "").strip()
     if not file_rel:
         return _err("file_path is required")
-    target = (root / file_rel).resolve()
+    try:
+        target = resolve_in_root(root, file_rel)
+    except PackPathError as exc:
+        return _err(str(exc))
     if not target.exists() or not target.is_file():
         return _err(f"file_path '{file_rel}' not found")
     h = hashlib.sha256()
@@ -387,7 +418,10 @@ def checksum_raw(name: str, arguments: dict, root: Path) -> Any:
     log_rel = (arguments.get("run_log_path") or "").strip()
     appended_to = None
     if log_rel:
-        log_path = (root / log_rel).resolve()
+        try:
+            log_path = resolve_in_root(root, log_rel)
+        except PackPathError as exc:
+            return _err(str(exc))
         if not log_path.exists():
             return _err(f"run_log_path '{log_rel}' not found")
         try:

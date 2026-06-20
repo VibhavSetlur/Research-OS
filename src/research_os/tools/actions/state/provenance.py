@@ -101,6 +101,77 @@ def _package_versions(extra: Iterable[str] | None = None) -> dict[str, str]:
     return out
 
 
+def _runtime_version(language: str) -> str | None:
+    """Best-effort interpreter version for a non-Python runtime.
+
+    Shells out to ``R --version`` / ``julia --version`` (mirroring
+    ``exec/environment.py``). Returns the first informative line, or
+    ``None`` when the interpreter is absent or the call fails. Never
+    raises — provenance writing must not crash on a missing toolchain.
+    """
+    lang = (language or "").lower()
+    if lang in ("r", "rmarkdown", "rmd"):
+        cmd = ["R", "--version"]
+    elif lang == "julia":
+        cmd = ["julia", "--version"]
+    else:
+        return None
+    try:
+        res = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=5,
+        )
+        out = (res.stdout or "").strip()
+        if out:
+            return out.splitlines()[0].strip()
+    except (FileNotFoundError, subprocess.SubprocessError, OSError) as e:
+        logger.debug("%s version lookup failed: %s", lang, e)
+    return None
+
+
+def _foreign_packages(language: str, root: Path) -> dict[str, str]:
+    """Best-effort package versions for an R / Julia analysis.
+
+    Parses ``renv.lock`` (R) or ``Manifest.toml`` (Julia) at the project
+    root. Returns ``{}`` when no lockfile is present or parsing fails —
+    this is a best-effort enrichment, never a hard requirement.
+    """
+    lang = (language or "").lower()
+    out: dict[str, str] = {}
+    try:
+        if lang in ("r", "rmarkdown", "rmd"):
+            lock = root / "renv.lock"
+            if not lock.exists():
+                return out
+            data = json.loads(lock.read_text())
+            pkgs = data.get("Packages") or {}
+            for name, meta in pkgs.items():
+                if isinstance(meta, dict) and meta.get("Version"):
+                    out[str(name)] = str(meta["Version"])
+        elif lang == "julia":
+            manifest = root / "Manifest.toml"
+            if not manifest.exists():
+                return out
+            try:
+                import tomllib  # type: ignore[import-not-found]
+            except ImportError:  # pragma: no cover — Python < 3.11
+                return out
+            data = tomllib.loads(manifest.read_text())
+            # Manifest.toml v2 nests deps under a top-level "deps" table;
+            # v1 lists them at the top level. Handle both.
+            deps = data.get("deps", data)
+            if isinstance(deps, dict):
+                for name, entries in deps.items():
+                    if name in ("julia_version", "manifest_format", "project_hash"):
+                        continue
+                    if isinstance(entries, list) and entries:
+                        ver = entries[0].get("version") if isinstance(entries[0], dict) else None
+                        if ver:
+                            out[str(name)] = str(ver)
+    except Exception as e:  # noqa: BLE001 — best-effort; never crash provenance
+        logger.debug("foreign package lookup failed for %s: %s", lang, e)
+    return out
+
+
 def _git_sha(repo_root: Path) -> str | None:
     """Best-effort short commit SHA for the project's repo."""
     if not (repo_root / ".git").exists():
@@ -187,6 +258,7 @@ def write_output_provenance(
     wall_seconds: float | None = None,
     extra_packages: Iterable[str] | None = None,
     extra: dict[str, Any] | None = None,
+    language: str = "python",
 ) -> Path:
     """Write a ``<output>.prov.json`` sidecar describing one produced artefact.
 
@@ -219,6 +291,14 @@ def write_output_provenance(
         ``_KEY_PACKAGES``.
     extra:
         Arbitrary additional metadata merged into the sidecar.
+    language:
+        The runtime that produced the artefact (``"python"`` by default,
+        or ``"r"`` / ``"julia"`` / ``"shell"``). When non-Python, the
+        ``software`` block records the foreign interpreter version (best
+        effort) and foreign package versions from ``renv.lock`` /
+        ``Manifest.toml`` instead of falsely claiming a Python stack; the
+        MCP server's own Python is still recorded under
+        ``mcp_server_python`` for traceability.
     """
     output_path = Path(output_path)
     root = Path(root)
@@ -247,6 +327,28 @@ def write_output_provenance(
         if sha:
             producer["git_sha"] = sha
 
+    # Build the software block language-aware. A Python-only block on an
+    # R / Julia artefact is actively misleading — it claims a runtime and
+    # packages that had nothing to do with producing the file.
+    lang = (language or "python").lower()
+    if lang == "python":
+        software: dict[str, Any] = {
+            "runtime_language": "python",
+            "python": ".".join(map(str, sys.version_info[:3])),
+            "platform": platform.platform(),
+            "packages": _package_versions(extra_packages),
+        }
+    else:
+        software = {
+            "runtime_language": lang,
+            "platform": platform.platform(),
+            # The MCP server's interpreter, labelled so it is never
+            # mistaken for the analysis runtime.
+            "mcp_server_python": ".".join(map(str, sys.version_info[:3])),
+            "interpreter_version": _runtime_version(lang),
+            "packages": _foreign_packages(lang, root),
+        }
+
     record: dict[str, Any] = {
         "@context": {"prov": "http://www.w3.org/ns/prov#"},
         "@type": "prov:Entity",
@@ -256,11 +358,7 @@ def write_output_provenance(
         "inputs": _input_hashes(inputs, root),
         "params": params or {},
         "rng_seed": rng_seed,
-        "software": {
-            "python": ".".join(map(str, sys.version_info[:3])),
-            "platform": platform.platform(),
-            "packages": _package_versions(extra_packages),
-        },
+        "software": software,
         "runtime": {
             "started_at": started_at or datetime.now(timezone.utc).isoformat(),
             "ended_at":   datetime.now(timezone.utc).isoformat(),

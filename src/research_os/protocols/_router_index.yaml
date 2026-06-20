@@ -41,8 +41,8 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 32
-generated_at: '2026-06-16'
+version: 33
+generated_at: '2026-06-20'
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -1044,9 +1044,10 @@ protocols:
     # "coding this up" (→ build/implement). The qualitative sense is
     # carried by open coding / axial coding / thematic coding.
     triggers: ["interviews", "thematic", "qualitative", "coreq",
-              "srqr", "grounded theory", "ethnography", "focus group",
+              "srqr", "grounded theory", "ethnograph", "focus group",
               "open coding", "axial coding", "thematic coding",
-              "qualitative coding"]
+              "qualitative coding", "phenomenolog", "discourse analysis",
+              "content analysis", "case study", "narrative inquiry"]
 
   methodology/qualitative_pii_redaction:
     intent_class: methodology

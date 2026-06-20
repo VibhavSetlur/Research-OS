@@ -1018,3 +1018,111 @@ def test_router_expert_phrasings_still_route(tmp_path):
             f"expert {prompt!r} -> {res.get('primary_protocol')!r}, "
             f"expected {expected!r}"
         )
+
+
+# ── 3.2.9 D2: hyphen-insensitive trigger matching ─────────────────────
+def _trigger_only(monkeypatch):
+    """Force the deterministic trigger path so the assertion holds in any
+    env (with or without fastembed/embeddings)."""
+    from research_os.tools.actions import semantic
+    monkeypatch.setattr(semantic, "semantic_available", lambda: False)
+
+
+def test_route_hyphenated_matches_spaced_form(tmp_path, monkeypatch):
+    """Hyphenated method names must route the same as their spaced form
+    (D2 — router trigger matching was hyphen-sensitive)."""
+    _trigger_only(monkeypatch)
+    scaffold_minimal_workspace(tmp_path, "Hyphen Route Test")
+    pairs = [
+        ("agent based model", "agent-based model"),
+        ("difference in differences design", "difference-in-differences design"),
+        ("single cell rna-seq", "single-cell rna-seq"),
+    ]
+    for spaced, hyphenated in pairs:
+        a = route_request(spaced, tmp_path, persist_plan=False)
+        b = route_request(hyphenated, tmp_path, persist_plan=False)
+        assert a["status"] == "success" and b["status"] == "success"
+        assert a.get("primary_protocol") == b.get("primary_protocol"), (
+            f"hyphen drift: {spaced!r} -> {a.get('primary_protocol')!r} "
+            f"but {hyphenated!r} -> {b.get('primary_protocol')!r}"
+        )
+
+
+def test_route_fixed_effects_not_bayesian(tmp_path, monkeypatch):
+    """'fixed-effects regression' must not misroute to bayesian_analysis
+    (D2 — the hyphen broke the 'fixed effects' econometric anchor)."""
+    _trigger_only(monkeypatch)
+    scaffold_minimal_workspace(tmp_path, "Fixed Effects Route Test")
+    res = route_request("fixed-effects regression", tmp_path, persist_plan=False)
+    assert res["status"] == "success"
+    assert res.get("primary_protocol") != "methodology/bayesian_analysis"
+
+
+# ── 3.2.9 D3: qualitative_research method coverage ────────────────────
+def test_route_qualitative_methods_reachable(tmp_path, monkeypatch):
+    """Mainstream qualitative methods the protocol advertises must route to
+    it (D3 — triggers omitted phenomenology / discourse / case study / …)."""
+    _trigger_only(monkeypatch)
+    scaffold_minimal_workspace(tmp_path, "Qual Methods Route Test")
+    for prompt in (
+        "ethnographic field study",
+        "phenomenological study of patient experience",
+        "discourse analysis of political speeches",
+        "I want to do a case study of one organization",
+        "narrative inquiry of teacher stories",
+    ):
+        res = route_request(prompt, tmp_path, persist_plan=False)
+        assert res["status"] == "success", prompt
+        assert res.get("primary_protocol") == "methodology/qualitative_research", (
+            f"qual {prompt!r} -> {res.get('primary_protocol')!r}"
+        )
+
+
+# ── 3.2.9 D1: workflow_shape inferred from workspace.mode ─────────────
+def test_workflow_shape_inferred_from_mode(tmp_path):
+    """When no explicit workflow_shape is declared, the router infers it
+    from workspace.mode so the shape tiebreak finally fires (D1)."""
+    from research_os.tools.actions.router import (
+        _clear_workflow_shape_cache,
+        _read_project_workflow_shape,
+    )
+    scaffold_minimal_workspace(tmp_path, "Shape Infer Test")
+    cfg_path = tmp_path / "inputs" / "researcher_config.yaml"
+    cfg_path.write_text(
+        'project_name: "Shape Infer Test"\nworkspace:\n  mode: "tool_build"\n'
+    )
+    _clear_workflow_shape_cache()
+    assert _read_project_workflow_shape(tmp_path) == "tool_build"
+    # analysis (the default) intentionally maps to None — no force-boost.
+    cfg_path.write_text(
+        'project_name: "Shape Infer Test"\nworkspace:\n  mode: "analysis"\n'
+    )
+    assert _read_project_workflow_shape(tmp_path) is None
+
+
+def test_shape_boost_fires_for_inferred_shape(tmp_path):
+    """A tool_build-shaped protocol gets shape_boost > 0 when the project's
+    shape is inferred from mode=tool_build (closes the zero-test gap)."""
+    from research_os.tools.actions.router import _score_protocols
+    protocols = {
+        "build/implement_iteration": {
+            "intent_class": "execute",
+            "sub_intent": "build_implement",
+            "triggers": ["implement"],
+            "workflow_shape": ["tool_build"],
+        },
+    }
+    # patch _protocol_workflow_shape to read the inline tag for this test
+    import research_os.tools.actions.router as R
+    orig = R._protocol_workflow_shape
+    R._protocol_workflow_shape = lambda name: protocols.get(name, {}).get("workflow_shape", [])
+    try:
+        scored = _score_protocols(
+            " implement ", protocols,
+            workspace_mode="tool_build",
+            project_workflow_shape="tool_build",
+        )
+    finally:
+        R._protocol_workflow_shape = orig
+    assert scored, "expected the protocol to score"
+    assert scored[0]["shape_boost"] > 0

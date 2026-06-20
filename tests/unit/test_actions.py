@@ -105,20 +105,27 @@ class TestCheckpoints:
 
 class TestDownloadLiterature:
     @patch("research_os.tools.actions.search.literature._check_unpaywall")
-    @patch("urllib.request.urlretrieve")
-    def test_success(self, mock_retrieve, mock_unpaywall, tmp_path):
+    @patch("research_os.tools.actions.search.literature.urllib.request.urlopen")
+    def test_success(self, mock_urlopen, mock_unpaywall, tmp_path):
         mock_unpaywall.return_value = {"is_oa": True, "reason": "OA"}
 
-        # A real urlretrieve writes the fetched bytes to disk. The
-        # download path now validates the %PDF- magic header, so the mock
-        # must write a genuine PDF (not just return a path) — exactly the
-        # integrity guarantee being tested elsewhere.
-        def _write_pdf(url, out_path):
-            from pathlib import Path as _P
-            _P(out_path).write_bytes(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\nbody\n")
-            return str(out_path), None
+        # The download now streams via urlopen(..., timeout=...) (C3) instead
+        # of urlretrieve, validating the %PDF- magic header. The fake response
+        # yields a genuine PDF so the integrity gate passes.
+        from contextlib import contextmanager
 
-        mock_retrieve.side_effect = _write_pdf
+        class _Resp:
+            def __init__(self) -> None:
+                self._data = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\nbody\n"
+            def read(self, n: int = -1) -> bytes:
+                d, self._data = self._data, b""
+                return d
+
+        @contextmanager
+        def _fake(req, timeout=None):
+            yield _Resp()
+
+        mock_urlopen.side_effect = _fake
         res = download_literature("https://example.com/paper.pdf", "paper.pdf", tmp_path)
         assert res["status"] == "success"
         assert (tmp_path / "inputs" / "literature").exists()

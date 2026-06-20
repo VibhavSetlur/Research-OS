@@ -102,8 +102,9 @@ def define_sensitivity(
 ) -> dict[str, Any]:
     """Author ``workspace/<step>/sensitivity.yaml``.
 
-    Seeds a 4-dimension default grid (covariates, exclude_under_18,
-    outcome_transform, model_family) that the analyst can edit.
+    Seeds a 4-dimension FIELD-NEUTRAL default grid (covariate_set, outlier_rule,
+    transform, model_family) with placeholder values the analyst MUST replace
+    with the actual analytic decision points for their study.
     """
     sd = _step_dir(step_id, root)
     if not sd.is_dir():
@@ -112,15 +113,15 @@ def define_sensitivity(
         return {"status": "error",
                 "message": "PyYAML required for sensitivity specs"}
 
+    # Field-neutral placeholders — the previous default baked in clinical/epi
+    # choices (exclude_under_18, age/sex/comorbidity_index) that are meaningless
+    # for NLP / physics / economics / ML / qualitative work, yet got copied
+    # verbatim. Replace these with your own analytic decision points.
     grid = grid or {
-        "covariates": [
-            ["age", "sex"],
-            ["age", "sex", "site"],
-            ["age", "sex", "site", "comorbidity_index"],
-        ],
-        "exclude_under_18": [False, True],
-        "outcome_transform": ["identity", "log", "winsor_99"],
-        "model_family": ["logit", "probit"],
+        "covariate_set": [["<baseline>"], ["<baseline>", "<control_A>"]],
+        "outlier_rule": ["none", "winsor_99", "drop_3sd"],
+        "transform": ["identity", "log"],
+        "model_family": ["primary", "alternative"],
     }
     spec = {
         "schema_version": "1.0",
@@ -187,7 +188,7 @@ def _run_one(
     try:
         proc = subprocess.run(
             cmd, cwd=str(step_dir), env=env,
-            capture_output=True, text=True, timeout=1800,
+            capture_output=True, text=True, errors="replace", timeout=1800,
         )
     except subprocess.TimeoutExpired:
         return {"spec_hash": spec_hash, "spec": spec, "ok": False,

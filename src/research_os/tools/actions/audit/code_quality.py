@@ -88,8 +88,34 @@ def _function_metrics(tree: ast.AST) -> list[dict[str, Any]]:
     return out
 
 
+# Randomness used (any) vs randomness seeded (any). A script that draws from an
+# RNG but never seeds it produces a different byte sequence every run — the most
+# common silent reproducibility break. Regex (never executes the code).
+_RNG_USE = re.compile(
+    r"\b(?:np\.random\.|numpy\.random\.|"
+    r"random\.(?:random|randint|randrange|choice|shuffle|sample|uniform|gauss|normal)"
+    r"|torch\.(?:rand|randn|randint|randperm)|tf\.random\.)"
+    r"|random_state\s*=\s*None"
+)
+_RNG_SEED = re.compile(
+    r"\b(?:np\.random\.seed|numpy\.random\.seed|random\.seed|default_rng|"
+    r"torch\.manual_seed|torch\.cuda\.manual_seed|manual_seed_all|"
+    r"tf\.random\.set_seed|set_random_seed)\b|random_state\s*=\s*\d"
+)
+
+
 def _detect_smells(src: str, tree: ast.AST) -> list[str]:
     smells: list[str] = []
+    # Unseeded randomness (WARNING — reproducibility). Uses an RNG but never
+    # seeds it: the result drifts every run. random_state=<int> / a seed call
+    # clears it.
+    if _RNG_USE.search(src) and not _RNG_SEED.search(src):
+        smells.append(
+            "uses randomness (np.random / random / torch / tf / random_state) "
+            "but no seed is set — add a seed (e.g. np.random.seed(0) / "
+            "rng=np.random.default_rng(0) / torch.manual_seed(0) / "
+            "random_state=<int>) so the result is reproducible."
+        )
     # Bare except (BLOCKER — masks failures).
     for node in ast.walk(tree):
         if isinstance(node, ast.ExceptHandler) and node.type is None:

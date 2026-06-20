@@ -35,6 +35,7 @@ import re
 import shutil
 import subprocess
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -191,16 +192,18 @@ def submit_slurm(
         output_dir=log_dir,
     )
 
-    # Write script next to the logs.
+    # Write script next to the logs. A short uuid suffix prevents two
+    # submits within the same wall-clock second from overwriting each
+    # other's script.
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
-    script_path = log_dir / f"sbatch_{job_name}_{ts}.sh"
+    script_path = log_dir / f"sbatch_{job_name}_{ts}_{uuid.uuid4().hex[:6]}.sh"
     script_path.write_text(script_body)
     script_path.chmod(0o755)
 
     try:
         res = subprocess.run(
             ["sbatch", str(script_path)],
-            cwd=str(cwd), capture_output=True, text=True, timeout=30,
+            cwd=str(cwd), capture_output=True, text=True, errors="replace", timeout=30,
         )
     except (subprocess.TimeoutExpired, OSError) as e:
         return {"status": "error", "message": f"sbatch invocation failed: {e}"}
@@ -271,7 +274,7 @@ def status_slurm(root: Path, job_id: str | None = None) -> dict[str, Any]:
         try:
             sq = subprocess.run(
                 ["squeue", "-j", jid, "-h", "-o", "%T|%M|%R"],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True, text=True, errors="replace", timeout=15,
             )
             if sq.returncode == 0 and sq.stdout.strip():
                 state, elapsed, reason = sq.stdout.strip().split("|", 2)
@@ -287,7 +290,7 @@ def status_slurm(root: Path, job_id: str | None = None) -> dict[str, Any]:
                 sa = subprocess.run(
                     ["sacct", "-j", jid, "-P", "-n",
                      "-o", "JobID,State,Elapsed,MaxRSS,ExitCode,Start,End"],
-                    capture_output=True, text=True, timeout=15,
+                    capture_output=True, text=True, errors="replace", timeout=15,
                 )
                 if sa.returncode == 0:
                     # First line is the parent job; later lines are .batch / .extern

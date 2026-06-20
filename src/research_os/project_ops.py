@@ -2974,7 +2974,9 @@ def update_literature_index(root: Path) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _prune_old_checkpoints(root: Path, keep: int = 5) -> dict[str, Any]:
+def _prune_old_checkpoints(
+    root: Path, keep: int = 5, keep_backups: int = 3
+) -> dict[str, Any]:
     """Bound `.os_state/checkpoints/` size by keeping only the most recent N.
 
     A checkpoint whose ``.meta.json`` carries any truthy ``tag`` field
@@ -2983,35 +2985,55 @@ def _prune_old_checkpoints(root: Path, keep: int = 5) -> dict[str, Any]:
     as keep-forever before doing something risky. Untagged checkpoints
     outside the keep window are deleted (sidecar + snapshot dir).
 
-    Returns a small report: ``{kept, removed, tagged}`` for the caller
-    to log. Idempotent and safe to call repeatedly.
+    Pre-rollback backups (``.meta.json`` with ``kind == "pre_rollback"``,
+    written automatically before every rollback) get their OWN retention
+    bucket (``keep_backups``) independent of the user-checkpoint ``keep``.
+    Without this, a few rollbacks — each a full workspace copy — would
+    pool into the same budget and silently evict deliberately-created
+    user checkpoints.
+
+    Returns a small report: ``{kept, removed, tagged, backups_kept,
+    backups_removed}`` for the caller to log. Idempotent and safe to call
+    repeatedly.
     """
     ckpt_dir = root / ".os_state" / "checkpoints"
     if not ckpt_dir.exists():
-        return {"kept": 0, "removed": 0, "tagged": 0}
+        return {"kept": 0, "removed": 0, "tagged": 0,
+                "backups_kept": 0, "backups_removed": 0}
     meta_files = sorted(
         ckpt_dir.glob("*.meta.json"), key=lambda f: f.stat().st_mtime
     )
     if not meta_files:
-        return {"kept": 0, "removed": 0, "tagged": 0}
+        return {"kept": 0, "removed": 0, "tagged": 0,
+                "backups_kept": 0, "backups_removed": 0}
 
-    # Partition into tagged (always keep) and untagged (subject to GC).
+    # Partition into tagged (always keep), pre-rollback backups (own
+    # bucket), and ordinary untagged user checkpoints (subject to GC).
     tagged: list[Path] = []
+    backups: list[Path] = []
     untagged: list[Path] = []
     for meta in meta_files:
         try:
             data = json.loads(meta.read_text())
             if data.get("tag"):
                 tagged.append(meta)
+            elif data.get("kind") == "pre_rollback":
+                backups.append(meta)
             else:
                 untagged.append(meta)
         except Exception:
             # Malformed sidecar: treat as untagged so GC can remove it.
             untagged.append(meta)
 
-    # Keep the most-recent ``keep`` untagged checkpoints; drop the rest.
-    to_remove = untagged[: max(0, len(untagged) - keep)]
+    # Keep the most-recent ``keep`` user checkpoints + ``keep_backups``
+    # pre-rollback backups; drop the rest from each bucket independently.
+    to_remove = (
+        untagged[: max(0, len(untagged) - keep)]
+        + backups[: max(0, len(backups) - keep_backups)]
+    )
     removed = 0
+    backups_removed = 0
+    backup_set = set(backups)
     for meta in to_remove:
         try:
             data = json.loads(meta.read_text())
@@ -3022,12 +3044,17 @@ def _prune_old_checkpoints(root: Path, keep: int = 5) -> dict[str, Any]:
         snapshot_dir = ckpt_dir / cid if cid else None
         if snapshot_dir and snapshot_dir.exists():
             shutil.rmtree(snapshot_dir, ignore_errors=True)
-        removed += 1
+        if meta in backup_set:
+            backups_removed += 1
+        else:
+            removed += 1
 
     return {
         "kept": len(tagged) + min(keep, len(untagged)),
         "removed": removed,
         "tagged": len(tagged),
+        "backups_kept": min(keep_backups, len(backups)),
+        "backups_removed": backups_removed,
     }
 
 

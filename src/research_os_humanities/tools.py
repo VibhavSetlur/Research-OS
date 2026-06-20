@@ -19,7 +19,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from research_os.plugins import pack_err as _err, pack_ok as _ok, register_tool
+from research_os.plugins import (
+    PackPathError,
+    pack_err as _err,
+    pack_ok as _ok,
+    register_tool,
+    resolve_in_root,
+)
 
 
 @register_tool(
@@ -148,7 +154,10 @@ def transcribe(name: str, arguments: dict, root: Path) -> Any:
     language = arguments.get("language") or "lat"
     if not image_path:
         return _err("image_path is required")
-    img_abs = (root / image_path).resolve()
+    try:
+        img_abs = resolve_in_root(root, image_path)
+    except PackPathError as exc:
+        return _err(str(exc))
     if not img_abs.exists():
         # A missing source image is a user-actionable error (matches the
         # other four packs); don't claim success on a dangling reference.

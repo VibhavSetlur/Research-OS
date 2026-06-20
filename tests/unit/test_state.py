@@ -186,6 +186,55 @@ def test_checkpoint_rollback_unknown(tmp_path):
     assert res["status"] == "error"
 
 
+def test_rollback_removes_post_checkpoint_file_but_preserves_ref_only_data(tmp_path):
+    """B2: rollback is restore-TO, not restore-OVER.
+
+    A file created after the checkpoint is deleted; a captured file is
+    restored; a large ref-only data file (skip-ext) the snapshot never
+    copies is NEVER deleted even though it's absent from the manifest;
+    and the deletion stays strictly inside workspace/.
+    """
+    scaffold_minimal_workspace(tmp_path, "Test")
+    ws = tmp_path / "workspace"
+    captured = ws / "note.md"
+    captured.write_text("original")
+
+    # A file that exists OUTSIDE workspace/ must never be touched.
+    outside = tmp_path / "inputs" / "keep_me.txt"
+    outside.parent.mkdir(parents=True, exist_ok=True)
+    outside.write_text("untouched")
+
+    cp = create_checkpoint("snap", root=tmp_path)
+
+    # Mutate after the checkpoint: edit captured, add a post-checkpoint
+    # text file + a whole new step dir, and a ref-only data file.
+    captured.write_text("modified")
+    post_file = ws / "after.txt"
+    post_file.write_text("created after checkpoint")
+    bad_step = ws / "99_bad_step"
+    bad_step.mkdir()
+    (bad_step / "result.txt").write_text("phantom")
+    data_file = ws / "01_step" / "data" / "big.csv"
+    data_file.parent.mkdir(parents=True, exist_ok=True)
+    data_file.write_text("a,b\n1,2\n")
+
+    rb = rollback_checkpoint(cp["checkpoint_id"], root=tmp_path)
+    assert rb["status"] == "success"
+
+    # Captured file restored.
+    assert captured.read_text() == "original"
+    # Post-checkpoint text file + entire bad step dir removed.
+    assert not post_file.exists()
+    assert not (bad_step / "result.txt").exists()
+    assert not bad_step.exists(), "empty post-checkpoint dir should be pruned"
+    # Ref-only data file (skip-ext) preserved — its bytes are unrecoverable.
+    assert data_file.exists(), "ref-only .csv must never be deleted on rollback"
+    # Nothing outside workspace/ touched.
+    assert outside.read_text() == "untouched"
+    # files_removed reported (at least after.txt + result.txt).
+    assert rb.get("files_removed", 0) >= 2
+
+
 def test_checkpoint_gc_prunes_untagged_beyond_keep(tmp_path):
     """_prune_old_checkpoints keeps the newest N untagged checkpoints
     and removes the rest. Tagged checkpoints survive regardless of age.
@@ -235,6 +284,106 @@ def test_checkpoint_gc_prunes_untagged_beyond_keep(tmp_path):
     for i in range(3):
         assert not (ckpt_dir / f"ckpt_u{i:02d}.meta.json").exists()
         assert not (ckpt_dir / f"ckpt_u{i:02d}").exists()
+
+
+def test_prerollback_backups_have_own_gc_bucket(tmp_path):
+    """B8: pre_rollback backups are pruned in a separate budget so a
+    rollback can never evict a deliberate user checkpoint."""
+    import json
+    import os
+    import time
+    from research_os.project_ops import _prune_old_checkpoints
+
+    ckpt_dir = tmp_path / ".os_state" / "checkpoints"
+    ckpt_dir.mkdir(parents=True)
+
+    base = time.time() - 1000
+    # 3 user checkpoints (within keep=5) ...
+    for i in range(3):
+        cid = f"ckpt_u{i:02d}"
+        (ckpt_dir / cid).mkdir()
+        meta = ckpt_dir / f"{cid}.meta.json"
+        meta.write_text(json.dumps({"checkpoint_id": cid, "description": f"u{i}"}))
+        os.utime(meta, (base + i, base + i))
+    # ... plus 6 pre_rollback backups (their own bucket, keep_backups=3).
+    for i in range(6):
+        cid = f"pre_rollback_x_{i:02d}"
+        (ckpt_dir / cid).mkdir()
+        meta = ckpt_dir / f"{cid}.meta.json"
+        meta.write_text(
+            json.dumps({"checkpoint_id": cid, "kind": "pre_rollback"})
+        )
+        os.utime(meta, (base + 100 + i, base + 100 + i))
+
+    report = _prune_old_checkpoints(tmp_path, keep=5, keep_backups=3)
+
+    # No user checkpoint evicted — 3 < keep, and backups don't compete.
+    assert report["removed"] == 0
+    for i in range(3):
+        assert (ckpt_dir / f"ckpt_u{i:02d}.meta.json").exists()
+    # Backups pruned in their own bucket: 6 → keep 3, remove 3.
+    assert report["backups_removed"] == 3
+    surviving_backups = list(ckpt_dir.glob("pre_rollback_*.meta.json"))
+    assert len(surviving_backups) == 3
+
+
+def test_rollback_does_not_evict_user_checkpoints(tmp_path):
+    """B8 (integration): repeated rollbacks (each writes a pre_rollback
+    backup) leave the user's original checkpoint intact."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    note = tmp_path / "workspace" / "note.md"
+    note.write_text("v0")
+    cp = create_checkpoint("keep-me", root=tmp_path)
+    cid = cp["checkpoint_id"]
+
+    # Several rollbacks, each producing a pre_rollback backup + GC pass.
+    for i in range(6):
+        note.write_text(f"v{i + 1}")
+        create_checkpoint(f"snap {i}", root=tmp_path)
+        rollback_checkpoint(cid, root=tmp_path)
+
+    ids = [c["id"] for c in list_checkpoints(root=tmp_path)["checkpoints"]]
+    assert cid in ids, "the original user checkpoint must survive rollbacks"
+
+
+def test_back_to_back_checkpoints_get_distinct_ids(tmp_path):
+    """C12: two checkpoints created within the same wall-clock second must
+    get distinct IDs (a uuid suffix), not collide and overwrite each other."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    (tmp_path / "workspace" / "note.md").write_text("x")
+    a = create_checkpoint("first", root=tmp_path)["checkpoint_id"]
+    b = create_checkpoint("second", root=tmp_path)["checkpoint_id"]
+    assert a != b
+    ids = {c["id"] for c in list_checkpoints(root=tmp_path)["checkpoints"]}
+    assert {a, b} <= ids  # both survived; neither overwrote the other
+
+
+def test_pre_rollback_backup_ref_only_for_data_artifacts(tmp_path):
+    """C4: the pre-rollback backup must NOT deep-copy large data artefacts
+    (the extensions snapshot_workspace skips); it ref-only's them in a
+    manifest instead, mirroring snapshot behaviour."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    ws = tmp_path / "workspace"
+    (ws / "note.md").write_text("v0")
+    big = ws / "data.parquet"
+    big.write_bytes(b"PAR1" + b"\x00" * 4096)
+    cp = create_checkpoint("base", root=tmp_path)
+    cid = cp["checkpoint_id"]
+    (ws / "note.md").write_text("v1")
+    res = rollback_checkpoint(cid, root=tmp_path)
+    backup_id = res["backup_id"]
+    backup_dir = tmp_path / ".os_state" / "checkpoints" / backup_id
+    # The .parquet bytes were NOT copied into the backup dir.
+    assert not (backup_dir / "workspace" / "data.parquet").exists()
+    # But the manifest records it as ref_only.
+    import json as _json
+    manifest = _json.loads(
+        (backup_dir / "checkpoint_manifest.json").read_text()
+    )
+    parquet_entries = [
+        m for m in manifest if m["path"].endswith("data.parquet")
+    ]
+    assert parquet_entries and parquet_entries[0]["sha256"] == "ref_only"
 
 
 def test_checkpoint_create_runs_gc_and_returns_report(tmp_path):

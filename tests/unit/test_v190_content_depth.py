@@ -78,6 +78,23 @@ def test_methods_full_coverage_passes(tmp_path: Path):
     assert res["step_coverage_pct"] == 100
 
 
+def test_methods_underscored_slug_matches_prose(tmp_path: Path):
+    """C7: a step folder slug (baseline_eda) described in natural-language
+    Methods prose ('baseline EDA', with a space) must count as covered.
+    Previously the underscored token never matched prose → false 0% block."""
+    workspace = tmp_path / "workspace"
+    for slug in ("03_baseline_eda", "04_logistic_regression"):
+        (workspace / slug).mkdir(parents=True)
+        (workspace / slug / "step_summary.yaml").write_text("primary_tool: tool_x\n")
+    text = (
+        "We first performed baseline EDA on the cohort, then fit a "
+        "logistic regression model to the outcome."
+    )
+    res = audit_methods(text, tmp_path)
+    assert res["step_coverage_pct"] == 100
+    assert res["blockers"] == []
+
+
 def test_results_no_statistics_warns(tmp_path: Path):
     (tmp_path / "workspace").mkdir()
     text = "We saw an effect."

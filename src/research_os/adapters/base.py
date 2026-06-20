@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 # ── canonical adapter envelope helpers ────────────────────────────────
 # The envelope is the one thing every adapter MUST emit identically for
-# the dispatcher. Historically all 6 adapters copy-pasted a byte-identical
+# the dispatcher. Historically the bundled adapters copy-pasted a byte-identical
 # `_ok`/`_err` (~156 duplicated lines); these shared helpers are the single
 # source of truth. Adapters keep thin local `_ok`/`_err` aliases for
 # back-compat with any test that imports them directly.

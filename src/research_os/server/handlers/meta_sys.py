@@ -181,7 +181,7 @@ def _handle_tool_deprecations_summary(name, arguments, root):
         "advice": (
             "Replace deprecated names with their consolidated counterparts "
             "before the next major (when aliases / redirect stubs will be removed). "
-            "See docs/MIGRATION.md for the full table."
+            "See docs/AI_GUIDE.md (Consolidated v2 entry points) for the full old→new table."
         ),
     }))
 

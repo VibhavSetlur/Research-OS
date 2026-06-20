@@ -93,7 +93,7 @@ def execute_notebook(
     ]
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True,
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace",
             timeout=timeout + 60,
         )
     except subprocess.TimeoutExpired:
@@ -172,6 +172,16 @@ def _execute_with_papermill(
                 write_output_provenance,
             )
 
+            # Map the Jupyter kernel to its language so the sidecar's
+            # software block reflects the real runtime (an R/Julia kernel
+            # must not record a Python-only stack).
+            kl = (kernel or "").lower()
+            if kl == "ir" or kl.startswith("r"):
+                nb_language = "r"
+            elif kl.startswith("julia"):
+                nb_language = "julia"
+            else:
+                nb_language = "python"
             write_output_provenance(
                 output_path=out_nb, root=root,
                 produced_by={"tool": "tool_notebook_exec",
@@ -182,6 +192,7 @@ def _execute_with_papermill(
                 rng_seed=parameters.get("seed") or parameters.get("rng_seed"),
                 started_at=started_at,
                 wall_seconds=wall,
+                language=nb_language,
             )
         except Exception as e:
             logger.debug("notebook provenance skipped: %s", e)
@@ -248,7 +259,7 @@ def render_rmarkdown(doc_path: str, root: Path, *, output_format: str = "html_do
 
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, timeout=timeout
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
         )
     except subprocess.TimeoutExpired:
         return {"status": "error", "message": f"Render timed out after {timeout}s"}

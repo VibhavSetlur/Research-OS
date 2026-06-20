@@ -395,6 +395,9 @@ def _run_node(
     env["RESEARCH_OS_PARAMS"] = json.dumps(params, default=str)
 
     ext = script_path.suffix.lower()
+    language = {".py": "python", ".r": "r", ".jl": "julia", ".sh": "shell"}.get(
+        ext, "python"
+    )
     if ext == ".py":
         cmd = [sys.executable, str(script_path)]
     elif ext == ".r":
@@ -412,7 +415,7 @@ def _run_node(
     try:
         proc = subprocess.run(
             cmd, cwd=str(step_dir), env=env,
-            capture_output=True, text=True, timeout=node.get("timeout", 1800),
+            capture_output=True, text=True, errors="replace", timeout=node.get("timeout", 1800),
         )
     except subprocess.TimeoutExpired:
         return {
@@ -460,6 +463,7 @@ def _run_node(
                 started_at=started,
                 wall_seconds=wall,
                 step_id=step_dir.name,
+                language=language,
             )
             sidecars.append(str(sidecar.relative_to(root)))
         except Exception as e:

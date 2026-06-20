@@ -83,6 +83,19 @@ _TRIGGER_MARGIN_ASK = 1
 # still routes.
 _PARTIAL_MATCH_MIN_LEN = 4
 
+
+def _collapse_hyphens(text: str) -> str:
+    """Treat hyphens as word separators so 'agent-based' == 'agent based'.
+
+    Hyphenated compounds dominate single-cell biology, agent-based
+    modeling, fixed-effects/cross-sectional econometrics, mixed-methods
+    social science, and time-series. Users freely mix the hyphenated and
+    spaced forms, so trigger matching must be hyphen-insensitive on BOTH
+    sides (prompt and trigger) or roughly half of such requests miss.
+    """
+    return re.sub(r"-+", " ", text)
+
+
 # MODE-AWARE ROUTING BIAS. When workspace_mode == 'tool_build', add this
 # to the trigger score of every build/* protocol so build-shaped prompts
 # ("add a feature", "write tests", "cut a release") reliably win over a
@@ -97,6 +110,19 @@ _BUILD_SUB_INTENTS = frozenset({
     "build_spec", "build_implement", "build_test",
     "build_benchmark", "build_release",
 })
+
+# Fallback map: when a project never declares an explicit
+# workspace.workflow_shape, infer one from workspace.mode so the
+# WORKFLOW-SHAPE tiebreak can still fire. Only modes with a clean 1:1
+# shape equivalent are mapped; "analysis"/"hybrid" map to None (the
+# experiment_pipeline shape is broad and shouldn't be force-boosted from
+# the default mode).
+_MODE_TO_SHAPE = {
+    "tool_build": "tool_build",
+    "exploration": "exploration",
+    "notebook": "notebook",
+    "multi_study": "multi_study",
+}
 
 # EXPLORATION-mode bias. exploration workspaces are scratch-first quick
 # probes — when in that mode, nudge the lightweight / open-ended
@@ -356,6 +382,14 @@ def _read_project_workflow_shape(root: Path | None) -> str | None:
             shape = cfg.get("workflow_shape")
         if isinstance(shape, str) and shape.strip():
             return shape.strip().lower()
+        # Fallback: map workspace.mode to a workflow_shape so the boost
+        # fires even when the project never declared an explicit shape.
+        # (Previously the project-side shape was never written by anything,
+        # so this tiebreak was permanently dead for real projects.)
+        mode = workspace.get("mode") if isinstance(workspace, dict) else None
+        mapped = _MODE_TO_SHAPE.get(str(mode or "").strip().lower())
+        if mapped:
+            return mapped
     except Exception as exc:
         logger.debug("project workflow_shape read failed: %s", exc)
     return None
@@ -1188,9 +1222,11 @@ def route_request(
 
         # Normalise: lowercase, strip, pad with spaces, and turn common
         # punctuation into whitespace so triggers like " broken " can
-        # still match prompts like "...broken, fix it...".
+        # still match prompts like "...broken, fix it...". Hyphens are
+        # included so 'agent-based' == 'agent based' (triggers are
+        # hyphen-collapsed on their side too — see _score_protocols).
         prompt_norm = " " + re.sub(
-            r"[,.;:!?]+", " ", prompt.lower().strip()
+            r"[,.;:!?\-]+", " ", prompt.lower().strip()
         ) + " "
         # Collapse multiple spaces from the substitution.
         prompt_norm = re.sub(r"\s+", " ", prompt_norm)
@@ -1851,7 +1887,9 @@ def _score_protocols(
         score = 0
         matched: list[str] = []
         for trig in data.get("triggers", []) or []:
-            trig_lc = str(trig).lower().strip()
+            # Collapse hyphens on the trigger side too so the prompt
+            # (already hyphen-collapsed above) matches both spellings.
+            trig_lc = _collapse_hyphens(str(trig).lower().strip())
             t = " " + trig_lc + " "
             if t in prompt_norm:
                 # Multi-word triggers outrank single-word ones.
@@ -1904,7 +1942,7 @@ def _match_shortcut(prompt_norm: str, shortcuts: dict) -> dict | None:
         matched: list[str] = []
         score = 0
         for trig in data.get("triggers", []) or []:
-            t = " " + str(trig).lower().strip() + " "
+            t = " " + _collapse_hyphens(str(trig).lower().strip()) + " "
             if t in prompt_norm:
                 score += max(1, len(str(trig).split())) * 2
                 matched.append(str(trig))
@@ -2104,7 +2142,14 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
             from research_os.tools.actions.audit.audit import audit_step_completeness
 
             gate = audit_step_completeness(root)
-            if gate.get("status") == "error":
+            # Only treat the gate as a completeness BLOCK when it returned a
+            # non-empty `blockers` list (the genuine-incompleteness path).
+            # audit_step_completeness ALSO returns status='error' for real
+            # infrastructure failures ("workspace/ not found", "Step 'X' not
+            # found") that carry no `blockers` — blocking on those would
+            # report "0 blocker(s)" and "Full report: None", so let them fall
+            # through to the normal advance below.
+            if gate.get("status") == "error" and gate.get("blockers"):
                 if override_gate or plan.get("override_completeness_gate"):
                     bypassed_blockers = list(gate.get("blockers", []))
                     if plan.get("override_completeness_gate"):
@@ -2141,6 +2186,13 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
                             f"Full report: {gate.get('report_path')}"
                         ),
                     }
+            else:
+                if gate.get("status") == "error" and not gate.get("blockers"):
+                    logger.warning(
+                        "plan_advance completeness gate errored (no blockers, "
+                        "not a real block): %s",
+                        gate.get("message"),
+                    )
         except Exception as e:
             logger.warning("plan_advance gate check failed: %s", e)
 

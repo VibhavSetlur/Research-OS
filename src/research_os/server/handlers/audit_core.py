@@ -64,14 +64,13 @@ def _handle_tool_audit(name, arguments, root):
         return _text(_error(
             "tool_audit requires scope= and dimension=. "
             "Valid scopes: step | project | synthesis | tool | active_gates. "
-            "See docs/V2_MIGRATION_TABLE.md for the full dimension list. "
-            "Use sys_help(topic='gates') for the full gate vocabulary."
+            "Use sys_help(topic='gates') for the full (scope, dimension) gate vocabulary."
         ))
     handler_name = _AUDIT_DISPATCH.get((scope, dimension))
     if not handler_name:
         return _text(_error(
             f"tool_audit: unknown (scope='{scope}', dimension='{dimension}'). "
-            "See docs/V2_MIGRATION_TABLE.md for valid combinations."
+            "Use sys_help(topic='gates') for every valid (scope, dimension) combination."
         ))
     handler = globals().get(handler_name)
     if not callable(handler):
@@ -157,13 +156,26 @@ def _handle_tool_audit_power(name, arguments, root):
         return _text(_error("dimension='power' requires filepath="))
     n = arguments.get("n")
     if n is None:
-        return _text(_error("dimension='power' requires n= (sample size)"))
+        return _text(_error(
+            "dimension='power' requires n= (PER-GROUP sample size / nobs1 for "
+            "the two-sample families, not total N)"))
+    # Coerce numeric args at the boundary — MCP JSON-schema types are advisory
+    # and clients commonly stringify numbers; statsmodels then raises a cryptic
+    # TypeError. Mirror the e-value handler precedent (C1).
+    try:
+        ef = float(arguments.get("effect_size", 0.5))
+        al = float(arguments.get("alpha", 0.05))
+        nn = int(float(n))
+        kg = arguments.get("k_groups")
+        kg = int(float(kg)) if kg is not None else None
+    except (TypeError, ValueError) as e:
+        return _text(_error(
+            "tool_audit(dimension='power') needs numeric effect_size, alpha, n "
+            f"(and k_groups for anova). Could not parse: {e}. "
+            "NEXT: e.g. effect_size=0.5, alpha=0.05, n=64, test='two_sample_t'."))
     res = audit_power(
-        filepath,
-        arguments.get("effect_size", 0.5),
-        arguments.get("alpha", 0.05),
-        n,
-        root,
+        filepath, ef, al, nn, root,
+        test=arguments.get("test", "two_sample_t"), k_groups=kg,
     )
     if res.get("status") != "error":
         return _text(_success(res))
@@ -676,6 +688,8 @@ def _handle_tool_audit_evalue(name, arguments, root):
         ))
     return _text(_success(audit_evalue(
         rr, root, ci_lower=ci_lower, ci_upper=ci_upper,
+        effect_measure=str(arguments.get("effect_measure", "rr")),
+        rare_outcome=bool(arguments.get("rare_outcome", False)),
     )))
 
 

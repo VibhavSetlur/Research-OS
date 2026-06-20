@@ -28,8 +28,8 @@ def test_sensitivity_define(tmp_path: Path):
         "01_fit", tmp_path, base_script="scripts/fit.py",
     )
     assert r["status"] == "success"
-    # Cartesian product of the default grid (3 * 2 * 3 * 2) = 36.
-    assert r["n_specifications"] == 36
+    # Cartesian product of the field-neutral default grid (2 * 3 * 2 * 2) = 24.
+    assert r["n_specifications"] == 24
 
 
 def test_sensitivity_define_idempotent(tmp_path: Path):

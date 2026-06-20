@@ -63,7 +63,7 @@ def execute_r_script(script_path: str, root: Path, timeout: int = 300) -> dict[s
     cmd = ["Rscript", str(p)]
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, timeout=timeout
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
         )
         _log_execution(root, p.stem, cmd, res)
         return _envelope(res, runner="Rscript")
@@ -90,7 +90,7 @@ def execute_julia_script(script_path: str, root: Path, timeout: int = 300) -> di
 
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, timeout=timeout
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
         )
         _log_execution(root, p.stem, cmd, res)
         return _envelope(res, runner="julia")
@@ -108,7 +108,7 @@ def execute_bash_script(script_path: str, root: Path, timeout: int = 300) -> dic
     cmd = ["/bin/bash", "-e", str(p)]
     try:
         res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, timeout=timeout
+            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
         )
         _log_execution(root, p.stem, cmd, res)
         return _envelope(res, runner="bash")
