@@ -34,6 +34,21 @@ logger = logging.getLogger("research.state_ledger")
 
 from research_os.utils.common import find_project_root
 
+# Large binary / data artefacts that ``snapshot_workspace`` records as
+# ``ref_only`` (path + size + sha, but bytes NOT copied). Rollback can
+# never restore their bytes, so it must also never DELETE a post-checkpoint
+# file of one of these types — deleting unrecoverable data would be far
+# worse than leaving it. Single source of truth for both snapshot + rollback.
+_SNAPSHOT_SKIP_EXTS = (
+    ".csv",
+    ".parquet",
+    ".feather",
+    ".pkl",
+    ".joblib",
+    ".h5",
+    ".hdf5",
+)
+
 
 class ResearchLedger:
     """Thread-safe, atomic research state ledger."""
@@ -762,15 +777,7 @@ class ResearchLedger:
                     continue
                 # Skip large binary / data artifacts
                 ext = f.suffix.lower()
-                if ext in (
-                    ".csv",
-                    ".parquet",
-                    ".feather",
-                    ".pkl",
-                    ".joblib",
-                    ".h5",
-                    ".hdf5",
-                ):
+                if ext in _SNAPSHOT_SKIP_EXTS:
                     manifest.append(
                         {
                             "path": str(f.relative_to(root)),
@@ -803,11 +810,19 @@ class ResearchLedger:
         }
 
     def rollback(self, checkpoint_id: str, root: Path | None = None) -> dict:
-        """Restore workspace from a checkpoint snapshot.
+        """Restore the workspace to a checkpoint snapshot.
 
         Reads checkpoint_manifest.json from .os_state/checkpoints/<checkpoint_id>/
-        and restores every file to its original location under workspace/.
-        The current workspace state is backed up first.
+        and restores every captured file to its original location under
+        workspace/. This is a true restore-to, not a restore-over: files
+        created AFTER the checkpoint (absent from the manifest) are removed
+        and now-empty directories are pruned, so the workspace is returned
+        to the captured state. Large ref-only data artefacts (the
+        ``_SNAPSHOT_SKIP_EXTS`` extensions the snapshot never copies) are
+        never deleted — their bytes are unrecoverable and deleting them
+        would be destructive. The full current workspace is backed up to a
+        ``pre_rollback`` checkpoint first, so the prior state (including any
+        removed files) is recoverable.
         """
         if root is None:
             try:
@@ -871,6 +886,38 @@ class ResearchLedger:
                 shutil.copy2(src_path, dest_path)
                 restored += 1
 
+        # True restore-to: remove workspace files created AFTER the
+        # checkpoint (absent from the manifest). The whole workspace was
+        # just copied into backup_dir above, so these deletions are
+        # recoverable from the pre_rollback backup. Never delete ref-only
+        # data extensions the snapshot intentionally skipped — their bytes
+        # were never captured, so deleting them would be irreversible.
+        # ``manifest_paths`` includes skipped (ref_only) entries so a data
+        # file the checkpoint DID know about is preserved either way.
+        removed = 0
+        manifest_paths = {entry["path"] for entry in manifest}
+        if workspace.exists():
+            for f in sorted(workspace.rglob("*")):
+                if not f.is_file():
+                    continue
+                if f.suffix.lower() in _SNAPSHOT_SKIP_EXTS:
+                    continue
+                rel = str(f.relative_to(root))
+                if rel not in manifest_paths:
+                    try:
+                        f.unlink()
+                        removed += 1
+                    except OSError:
+                        pass
+            # Prune now-empty dirs bottom-up, leaving workspace/ itself.
+            for d in sorted(
+                (p for p in workspace.rglob("*") if p.is_dir()), reverse=True
+            ):
+                try:
+                    d.rmdir()
+                except OSError:
+                    pass
+
         # Touch updated_at so consumers of state ordering see the
         # rollback event. The rollback-history list previously persisted
         # here was never read by any code path (the .meta.json sidecars
@@ -881,14 +928,16 @@ class ResearchLedger:
         self._save(state)
 
         logger.info(
-            "Rollback to '%s' complete — %d files restored (backup: %s)",
+            "Rollback to '%s' complete — %d files restored, %d removed (backup: %s)",
             checkpoint_id,
             restored,
+            removed,
             backup_id,
         )
         return {
             "checkpoint_id": checkpoint_id,
             "backup_id": backup_id,
             "files_restored": restored,
+            "files_removed": removed,
         }
 

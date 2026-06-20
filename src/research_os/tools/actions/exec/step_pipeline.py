@@ -395,6 +395,9 @@ def _run_node(
     env["RESEARCH_OS_PARAMS"] = json.dumps(params, default=str)
 
     ext = script_path.suffix.lower()
+    language = {".py": "python", ".r": "r", ".jl": "julia", ".sh": "shell"}.get(
+        ext, "python"
+    )
     if ext == ".py":
         cmd = [sys.executable, str(script_path)]
     elif ext == ".r":
@@ -460,6 +463,7 @@ def _run_node(
                 started_at=started,
                 wall_seconds=wall,
                 step_id=step_dir.name,
+                language=language,
             )
             sidecars.append(str(sidecar.relative_to(root)))
         except Exception as e:

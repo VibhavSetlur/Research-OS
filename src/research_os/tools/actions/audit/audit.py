@@ -1640,20 +1640,117 @@ def audit_citations(root: Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _baseline_for_output(
+    exp_dir: Path,
+    root: Path,
+    rel_to_exp: str,
+    baseline_json: dict[str, Any],
+) -> tuple[str | None, str]:
+    """Recorded baseline sha256 for one output + where it came from.
+
+    Prefers the artefact's own ``.prov.json`` sidecar (``output.sha256``);
+    falls back to ``workspace/logs/output_hashes.json`` keyed by the
+    project-root-relative path. Returns ``(baseline_sha_or_None, source)``
+    where ``source`` is ``"sidecar"`` / ``"output_hashes.json"`` / ``"none"``.
+    Both shapes are normalised to a bare hex digest (no ``sha256:`` prefix).
+    """
+    from research_os.tools.actions.state.provenance import load_provenance
+
+    def _bare(value: Any) -> str | None:
+        if not value or not isinstance(value, str):
+            return None
+        v = value.split(":", 1)[1] if value.startswith("sha256:") else value
+        if v in ("", "unavailable", "ref_only"):
+            return None
+        return v
+
+    out_file = exp_dir / rel_to_exp
+    prov = load_provenance(out_file, root)
+    if prov:
+        recorded = ((prov.get("output") or {}).get("sha256"))
+        bare = _bare(recorded)
+        if bare:
+            return bare, "sidecar"
+
+    # Fall back to the project-wide hash log, keyed by root-relative path.
+    try:
+        rel_to_root = (exp_dir / rel_to_exp).resolve().relative_to(root.resolve()).as_posix()
+    except (ValueError, OSError):
+        rel_to_root = rel_to_exp
+    if isinstance(baseline_json, dict):
+        entry = baseline_json.get(rel_to_root)
+        if isinstance(entry, dict):
+            entry = entry.get("sha256")
+        bare = _bare(entry)
+        if bare:
+            return bare, "output_hashes.json"
+
+    return None, "none"
+
+
 def audit_reproducibility_full(root: Path) -> dict[str, Any]:
     """Re-run every numbered experiment script and verify outputs.
 
-    If Docker is available, build the project's Dockerfile and run inside;
-    otherwise fall back to local re-execution with a warning.
+    Re-execution mirrors the canonical step-execution context used by
+    ``step_pipeline._run_node`` (``cwd=<step_root>`` + ``RESEARCH_OS_STEP_DIR``
+    / ``RESEARCH_OS_PARAMS`` env) so step-relative paths resolve identically;
+    steps that carry a ``pipeline.yaml`` are re-run through the pipeline
+    runner so the context is byte-identical to what produced the outputs.
+
+    After re-running, each produced output's fresh sha256 is compared
+    against its recorded baseline — the ``.prov.json`` sidecar's
+    ``output.sha256`` (preferred), falling back to
+    ``workspace/logs/output_hashes.json``. A hash that diverges from its
+    baseline downgrades status to ``warning`` and is counted as a blocker,
+    so a non-deterministic / drifted output is no longer reported as
+    ``success`` on returncode alone.
     """
     root = Path(root)
     try:
+        import json as _json
+        import os as _os
         import subprocess
         import sys
+
+        from research_os.tools.actions.exec.step_pipeline import (
+            _spec_path,
+            run_pipeline,
+        )
 
         workspace = root / "workspace"
         if not workspace.exists():
             return {"status": "error", "message": "workspace/ not found"}
+
+        # Optional project-wide baseline fallback (B1).
+        hashes_json = root / "workspace" / "logs" / "output_hashes.json"
+        try:
+            baseline_json: dict[str, Any] = (
+                _json.loads(hashes_json.read_text()) if hashes_json.exists() else {}
+            )
+            if not isinstance(baseline_json, dict):
+                baseline_json = {}
+        except Exception:
+            baseline_json = {}
+
+        def _hash_checks(exp_dir: Path, post: dict[str, str]) -> list[dict[str, Any]]:
+            """Compare each post-run output hash to its recorded baseline."""
+            checks: list[dict[str, Any]] = []
+            for rel_key, post_hash in post.items():
+                baseline, source = _baseline_for_output(
+                    exp_dir, root, rel_key, baseline_json
+                )
+                checks.append(
+                    {
+                        "output": str((exp_dir / rel_key).relative_to(root)),
+                        "post_hash": post_hash,
+                        "baseline_hash": baseline,
+                        "baseline_source": source,
+                        # No baseline => can't fail it; only a recorded
+                        # baseline that differs is a mismatch.
+                        "hash_match": (baseline is None) or (baseline == post_hash),
+                    }
+                )
+            return checks
 
         results: list[dict[str, Any]] = []
         for exp_dir in sorted(workspace.iterdir()):
@@ -1661,14 +1758,47 @@ def audit_reproducibility_full(root: Path) -> dict[str, Any]:
                 continue
             if exp_dir.name.endswith("__DEAD_END"):
                 continue
+
+            # B4: pipeline-built steps must be re-run through the pipeline
+            # runner so cwd + env are byte-identical to production.
+            if _spec_path(exp_dir.name, root).exists():
+                pre_hashes = _hash_outputs(exp_dir)
+                pres = run_pipeline(exp_dir.name, root, force=True)
+                post_hashes = _hash_outputs(exp_dir)
+                rc = 0 if pres.get("status") == "success" else 1
+                results.append(
+                    {
+                        "script": f"workspace/{exp_dir.name}/pipeline.yaml",
+                        "runner": "pipeline",
+                        "returncode": rc,
+                        "stderr_tail": (pres.get("advice") or "")[-500:],
+                        "outputs_changed": len(
+                            {
+                                k
+                                for k in set(pre_hashes) | set(post_hashes)
+                                if pre_hashes.get(k) != post_hashes.get(k)
+                            }
+                        ),
+                        "hash_checks": _hash_checks(exp_dir, post_hashes),
+                    }
+                )
+                continue
+
             scripts_dir = exp_dir / "scripts"
             if not scripts_dir.exists():
                 continue
             for script in sorted(scripts_dir.glob("*.py")):
                 pre_hashes = _hash_outputs(exp_dir)
+                # B4: match step_pipeline._run_node — cwd=step_root +
+                # RESEARCH_OS_STEP_DIR / RESEARCH_OS_PARAMS env. Scripts
+                # live under the step but declare step-root-relative I/O.
+                env = _os.environ.copy()
+                env["RESEARCH_OS_STEP_DIR"] = str(exp_dir.resolve())
+                env["RESEARCH_OS_PARAMS"] = _json.dumps({}, default=str)
                 proc = subprocess.run(
                     [sys.executable, str(script)],
-                    cwd=str(scripts_dir),
+                    cwd=str(exp_dir),
+                    env=env,
                     capture_output=True,
                     text=True,
                     timeout=600,
@@ -1682,29 +1812,116 @@ def audit_reproducibility_full(root: Path) -> dict[str, Any]:
                 results.append(
                     {
                         "script": str(script.relative_to(root)),
+                        "runner": "script",
                         "returncode": proc.returncode,
                         "stderr_tail": (proc.stderr or "")[-500:],
                         "outputs_changed": len(changed),
+                        "hash_checks": _hash_checks(exp_dir, post_hashes),
                     }
                 )
+
+        # B1: escalate on hash divergence, not only on returncode.
+        failed = [r for r in results if r["returncode"] != 0]
+        mismatched = [
+            c
+            for r in results
+            for c in r.get("hash_checks", [])
+            if c["baseline_hash"] is not None and not c["hash_match"]
+        ]
+        no_baseline = [
+            c
+            for r in results
+            for c in r.get("hash_checks", [])
+            if c["baseline_hash"] is None
+        ]
+        total_checks = sum(len(r.get("hash_checks", [])) for r in results)
+        any_baseline = total_checks > len(no_baseline)
 
         out = _report_path(root, "reproducibility_report.md")
         out.parent.mkdir(parents=True, exist_ok=True)
         lines = ["# Reproducibility Audit", ""]
+        lines.append(
+            f"- Scripts/pipelines re-run: {len(results)}; failed: {len(failed)}; "
+            f"output hash mismatches: {len(mismatched)}; "
+            f"outputs without a recorded baseline: {len(no_baseline)}"
+        )
+        lines.append("")
         for r in results:
             lines.append(
-                f"- `{r['script']}` → rc={r['returncode']}, outputs changed: {r['outputs_changed']}"
+                f"- `{r['script']}` → rc={r['returncode']}, "
+                f"outputs changed: {r['outputs_changed']}"
+            )
+            for c in r.get("hash_checks", []):
+                if c["baseline_hash"] is None:
+                    lines.append(
+                        f"    - {c['output']}: NO BASELINE "
+                        "(re-execution verified, bit-stability not checked)"
+                    )
+                elif c["hash_match"]:
+                    lines.append(
+                        f"    - {c['output']}: MATCH "
+                        f"(baseline via {c['baseline_source']})"
+                    )
+                else:
+                    lines.append(
+                        f"    - {c['output']}: MISMATCH — output drifted from "
+                        f"its recorded baseline ({c['baseline_source']})"
+                    )
+        if mismatched:
+            lines.extend(
+                [
+                    "",
+                    "## BLOCKER — output hash mismatches",
+                    "A re-run produced a different byte sequence than the "
+                    "recorded baseline. Likely causes: unseeded randomness, "
+                    "a timestamp baked into the output, or non-deterministic "
+                    "ordering. Seed every RNG and re-run, or accept and "
+                    "rewrite the baseline.",
+                ]
+            )
+        if not any_baseline:
+            lines.extend(
+                [
+                    "",
+                    "## Note — no recorded baseline",
+                    "No output_hashes.json baseline and no .prov.json "
+                    "sidecars were found, so this run verified re-execution "
+                    "only, NOT bit-stability. Produce provenance sidecars "
+                    "(or workspace/logs/output_hashes.json) first to enable "
+                    "true reproducibility verification.",
+                ]
             )
         out.write_text("\n".join(lines) + "\n")
 
-        failed = [r for r in results if r["returncode"] != 0]
+        status = "warning" if (failed or mismatched) else "success"
+        if failed and mismatched:
+            message = (
+                f"{len(failed)} script(s) failed to re-run; "
+                f"{len(mismatched)} output(s) drifted from baseline."
+            )
+        elif failed:
+            message = f"{len(failed)} script(s) failed to re-run."
+        elif mismatched:
+            message = (
+                f"{len(mismatched)} output(s) drifted from their recorded "
+                "baseline (BLOCKER per the reproducibility protocol)."
+            )
+        elif not any_baseline:
+            message = (
+                "All scripts re-ran cleanly, but no baseline was recorded — "
+                "bit-stability was not verified."
+            )
+        else:
+            message = "All scripts re-ran cleanly and outputs matched baseline."
+
         return {
-            "status": "warning" if failed else "success",
+            "status": status,
             "results": results,
+            "hash_mismatches": len(mismatched),
+            "outputs_without_baseline": len(no_baseline),
+            "blocker_count": len(failed) + len(mismatched),
             "report_path": str(out.relative_to(root)),
-            "message": (
-                f"{len(failed)} script(s) failed to re-run." if failed else "All scripts re-ran cleanly."
-            ),
+            "message": message,
         }
     except Exception as e:
         logger.exception("audit_reproducibility_full failed")

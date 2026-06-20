@@ -172,6 +172,16 @@ def _execute_with_papermill(
                 write_output_provenance,
             )
 
+            # Map the Jupyter kernel to its language so the sidecar's
+            # software block reflects the real runtime (an R/Julia kernel
+            # must not record a Python-only stack).
+            kl = (kernel or "").lower()
+            if kl == "ir" or kl.startswith("r"):
+                nb_language = "r"
+            elif kl.startswith("julia"):
+                nb_language = "julia"
+            else:
+                nb_language = "python"
             write_output_provenance(
                 output_path=out_nb, root=root,
                 produced_by={"tool": "tool_notebook_exec",
@@ -182,6 +192,7 @@ def _execute_with_papermill(
                 rng_seed=parameters.get("seed") or parameters.get("rng_seed"),
                 started_at=started_at,
                 wall_seconds=wall,
+                language=nb_language,
             )
         except Exception as e:
             logger.debug("notebook provenance skipped: %s", e)

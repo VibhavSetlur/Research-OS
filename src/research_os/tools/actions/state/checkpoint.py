@@ -99,6 +99,7 @@ def rollback_checkpoint(checkpoint_id: str, root: Path) -> dict[str, Any]:
             "checkpoint_id": res.get("checkpoint_id"),
             "backup_id": res.get("backup_id"),
             "files_restored": res.get("files_restored"),
+            "files_removed": res.get("files_removed"),
             "message": f"Rolled back to {checkpoint_id}",
         }
     except FileNotFoundError as e:
