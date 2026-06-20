@@ -104,8 +104,8 @@ steps:
   - id: pick_the_target_deliverable
     name: Pick the target deliverable
     description: |
-      Ask: "What's the target? paper | abstract | poster | dashboard |
-      report | grant | lay_summary | slides | progress_update."
+      Ask: "What's the target? paper | abstract | poster | slides |
+      dashboard | report | lay_summary | grant | essay | handout."
 
       This protocol is the SOURCING layer; the named target's
       synthesis/* protocol still runs on top. The shadow workspace

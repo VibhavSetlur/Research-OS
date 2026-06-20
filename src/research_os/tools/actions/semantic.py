@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 from dataclasses import dataclass
 from functools import lru_cache
@@ -49,6 +50,18 @@ import numpy as np
 import yaml
 
 logger = logging.getLogger(__name__)
+
+
+def _collapse_hyphens(text: str) -> str:
+    """Treat hyphens as word separators so 'agent-based' == 'agent based'.
+
+    Mirrors ``router.py:_collapse_hyphens`` so the trigger-boost path can't
+    drift from the trigger-substring path. ``protocol_triggers`` are lowered
+    when loaded but NOT hyphen-collapsed, so the per-trigger collapse here
+    is required for hyphen-insensitive matching.
+    """
+    return re.sub(r"-+", " ", text)
+
 
 # ---------------------------------------------------------------------------
 # Paths + constants — keep in sync with scripts/build_embeddings.py
@@ -282,7 +295,12 @@ def _compute_trigger_boost(query_lower: str, triggers_for_id: list[str]) -> floa
     the boost so multi-word specific triggers ("bias audit") beat
     single-word generic ones ("audit").
     """
-    matched_lens = [len(t) for t in triggers_for_id if t and t in query_lower]
+    # Hyphen-insensitive on both sides so 'agent-based' matches the
+    # 'agent based' trigger (and vice versa). Mirrors router.py.
+    q = _collapse_hyphens(query_lower)
+    matched_lens = [
+        len(t) for t in triggers_for_id if t and _collapse_hyphens(t) in q
+    ]
     if not matched_lens:
         return 0.0
     longest = max(matched_lens)
@@ -312,7 +330,7 @@ def _apply_trigger_boost(
     """
     if not triggers or not query:
         return matches_full[:k]
-    q_lower = query.lower()
+    q_lower = _collapse_hyphens(query.lower())
     in_pool_ids = {m.id for m in matches_full}
     boosted: list[Match] = []
     for m in matches_full:

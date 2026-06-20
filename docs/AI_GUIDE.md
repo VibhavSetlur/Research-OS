@@ -284,9 +284,9 @@ with:
   flagged in `.os_state/deprecations.log`).
 * `pack` — `core` (the always-on tools) or one of the 5 domain packs
   (`humanities`, `qualitative`, `theory_math`, `wet_lab`,
-  `engineering`) or the 6 infrastructure adapters (`slurm`,
-  `snakemake`, `nextflow`, `cytoscape`, `redcap`, `synapse`) — 11
-  extension modules in all, each contributing its own tools.
+  `engineering`) or the 8 infrastructure adapters (`slurm`,
+  `snakemake`, `nextflow`, `cytoscape`, `redcap`, `synapse`, `mlflow`,
+  `zenodo`) — 13 extension modules in all, each contributing its own tools.
 
 `list_tools` returns only `status='live'`. Aliases + deprecated names
 are still callable but never advertised. When you need a tool you
@@ -366,11 +366,11 @@ them by tier compatibility.
 | guidance | session + flow control (boot / resume / handoff / autopilot / casual / mid_entry / disagree / scope_clarification / revise) |
 | discover | intake routing — `tool_intake_autofill` (a shortcut tool, not a YAML protocol) plus `guidance/scope_clarification`. There is no `protocols/discover/` directory; the category exists as a router intent_class, and `tool_route` returns `shortcut_tool=tool_intake_autofill` for it. |
 | domain | domain classification + study design |
-| methodology | method picking + per-method protocols (42 protocols, incl. `pick_tool_stack` + `mixed_language_orchestration`) |
+| methodology | method picking + per-method protocols (incl. `pick_tool_stack` + `mixed_language_orchestration`) |
 | literature | search + systematic review + evidence synthesis + comparative review + `literature_per_step` (per-step findings_vs_literature.md loop) |
 | writing | per-section drafting (methods / results / discussion / limitations / end_matter) |
 | visualization | figures (rules / workflow / critique / multi-panel / arc / a11y / interactive) |
-| synthesis | final deliverables (18 protocols: paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable) |
+| synthesis | final deliverables (paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable / deliverable_design / humanities_essay_structure / reviewer_response) |
 | audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + `tool_audit(scope='step', dimension='literature')` gate |
 
 If a category looks like it should have a folder but you can't find one

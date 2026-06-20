@@ -649,7 +649,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
 },
     "sys_adapters_installed": {
-    "short": "List installed infrastructure adapters (Slurm / Snakemake / Nextflow / Cytoscape / REDCap / Synapse / external).",
+    "short": "List installed infrastructure adapters (HPC / workflow / data-platform / experiment-tracking; plus external plugins).",
     "description": "Returns the set of infrastructure adapters currently registered via the `research_os.adapter` entry-point group. Adapters are pluggable detectors + provenance extractors for HPC schedulers, workflow engines, analysis platforms, and data systems. Use to confirm an adapter is loaded; pair with tool_adapters_list to check detection on the current project.",
     "category": "routing",
     "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},

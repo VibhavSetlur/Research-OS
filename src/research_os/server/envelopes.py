@@ -5,7 +5,7 @@ Every tool handler returns an envelope of the shape::
     {
       "status":               "success" | "warning" | "error",
       "payload":              <tool-specific dict>,
-      "data":                 alias for payload (back-compat; removal slated for v3.0.0),
+      "data":                 alias for payload (intentional back-compat; retained — see note below),
       "audit_findings":       [<finding>, ...],
       "next_recommended_call": "tool_X(args=...)" | None,
       "next_recommended_call_structured": {"tool": "tool_X", "arguments": {...}} | None,
@@ -28,9 +28,13 @@ returns to clients.
 
 Backwards compatibility: ``payload`` and ``data`` reference the SAME
 object, so older callers that read ``envelope["data"]`` keep working.
-The ``data`` alias is slated for removal in v3.0.0 (kept through every
-2.x release); the migration table in ``docs/MIGRATION_v2_0_to_v2_1.md``
-names callers that should switch.
+The ``data`` alias is an INTENTIONAL, load-bearing part of the public
+envelope contract — it is in ``REQUIRED_ENVELOPE_KEYS`` and asserted by
+``tests/unit/test_v210_envelope_shape.py`` — so it is still emitted as
+of the current release. The duplication (``data`` is a verbatim copy of
+``payload`` in the serialized JSON) is a known token cost; removing it is
+a breaking change deferred to the next MAJOR, which will ship a migration
+table at that time. Do NOT drop the ``data`` key in a minor/patch.
 """
 from __future__ import annotations
 

@@ -374,6 +374,7 @@ def run_log_init(name: str, arguments: dict, root: Path) -> Any:
         "type": "object",
         "properties": {
             "file_path": {"type": "string", "description": "Raw output file to checksum."},
+            "filepath": {"type": "string", "description": "Alias for file_path (core file tools use 'filepath')."},
             "run_log_path": {
                 "type": "string",
                 "description": "Optional run-log YAML to append the raw_files entry to.",
@@ -390,7 +391,7 @@ def run_log_init(name: str, arguments: dict, root: Path) -> Any:
     ),
 )
 def checksum_raw(name: str, arguments: dict, root: Path) -> Any:
-    file_rel = (arguments.get("file_path") or "").strip()
+    file_rel = (arguments.get("file_path") or arguments.get("filepath") or "").strip()
     if not file_rel:
         return _err("file_path is required")
     try:

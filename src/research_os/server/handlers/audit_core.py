@@ -64,14 +64,13 @@ def _handle_tool_audit(name, arguments, root):
         return _text(_error(
             "tool_audit requires scope= and dimension=. "
             "Valid scopes: step | project | synthesis | tool | active_gates. "
-            "See docs/V2_MIGRATION_TABLE.md for the full dimension list. "
-            "Use sys_help(topic='gates') for the full gate vocabulary."
+            "Use sys_help(topic='gates') for the full (scope, dimension) gate vocabulary."
         ))
     handler_name = _AUDIT_DISPATCH.get((scope, dimension))
     if not handler_name:
         return _text(_error(
             f"tool_audit: unknown (scope='{scope}', dimension='{dimension}'). "
-            "See docs/V2_MIGRATION_TABLE.md for valid combinations."
+            "Use sys_help(topic='gates') for every valid (scope, dimension) combination."
         ))
     handler = globals().get(handler_name)
     if not callable(handler):

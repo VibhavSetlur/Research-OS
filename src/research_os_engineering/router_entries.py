@@ -7,6 +7,11 @@ ENGINEERING_ROUTER_ENTRIES = {
         "triggers": [
             "design iteration", "design revision", "rev N to rev N+1",
             "design diff", "design changelog",
+            "finite element", "finite element analysis",
+            "computational fluid dynamics", "cfd simulation", "cfd model",
+            "numerical simulation", "simulation model",
+            "design a controller", "controller design",
+            "control system design", "control loop design",
         ],
         "token_estimate": 1500,
         "decomposition": [

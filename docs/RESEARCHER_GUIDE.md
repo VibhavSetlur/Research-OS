@@ -492,8 +492,9 @@ researcher:                       # who AI is talking to (most important)
 project_name: ""                  # blank → uses directory name
 
 research_goal:                    # what you want the AI to produce
-  output_types: []                # paper | abstract | poster |
-                                  # dashboard | report | exploratory
+  output_types: []                # paper | abstract | poster | slides |
+                                  # dashboard | report | lay_summary | grant |
+                                  # essay | handout | exploratory
   target_venue: ""                # journal | conference | preprint |
                                   #   dissertation | report
   poster_dimensions: "36x48"

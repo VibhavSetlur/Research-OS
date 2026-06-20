@@ -76,8 +76,8 @@ Every tool definition carries two MAJOR-stable metadata fields:
 The canonical, machine-readable list is whatever
 `sys_tool_describe`, `tool_tools_list`, and the MCP `tools/list`
 handshake return for the running server — a core set plus tools
-contributed by the 5 domain packs + 6 infrastructure adapters
-(11 extension modules) above. Query the running server rather than
+contributed by the 5 domain packs + 8 infrastructure adapters
+(13 extension modules) above. Query the running server rather than
 relying on a hand-maintained count.
 
 ### A.2 Audit-finding JSON schema

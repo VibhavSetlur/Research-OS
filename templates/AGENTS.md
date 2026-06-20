@@ -92,9 +92,9 @@ the right protocols; details there.
 ## Domain packs & infra adapters
 
 5 bundled **domain packs** (wet_lab, humanities, qualitative, theory_math,
-engineering) add field-specific tools + protocols; 6 **adapters** (slurm,
-snakemake, nextflow, cytoscape, redcap, synapse) auto-extract provenance from
-HPC / workflow / data tooling. All always-loaded — no install.
+engineering) add field-specific tools + protocols; 8 **adapters** (slurm,
+snakemake, nextflow, cytoscape, redcap, synapse, mlflow, zenodo) auto-extract
+provenance from HPC / workflow / data tooling. All always-loaded — no install.
 `sys_boot.field_signals` + `pack_nudge` flag the pack your inputs match;
 `adapters_detected` lists fired adapters. The core is field-agnostic, so a
 field with NO pack still routes fine (`methodology/deep_domain_research`

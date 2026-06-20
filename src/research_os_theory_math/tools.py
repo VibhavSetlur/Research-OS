@@ -28,6 +28,7 @@ from research_os.plugins import (
         "type": "object",
         "properties": {
             "file_path": {"type": "string"},
+            "filepath": {"type": "string", "description": "Alias for file_path (core file tools use 'filepath')."},
             "timeout_seconds": {"type": "integer"},
         },
         "required": ["file_path"],
@@ -42,7 +43,7 @@ from research_os.plugins import (
     ),
 )
 def lean_check(name: str, arguments: dict, root: Path) -> Any:
-    file_path = (arguments.get("file_path") or "").strip()
+    file_path = (arguments.get("file_path") or arguments.get("filepath") or "").strip()
     timeout = int(arguments.get("timeout_seconds") or 120)
     try:
         target = resolve_in_root(root, file_path)
@@ -98,6 +99,7 @@ def lean_check(name: str, arguments: dict, root: Path) -> Any:
         "type": "object",
         "properties": {
             "file_path": {"type": "string"},
+            "filepath": {"type": "string", "description": "Alias for file_path (core file tools use 'filepath')."},
             "timeout_seconds": {"type": "integer"},
         },
         "required": ["file_path"],
@@ -110,7 +112,7 @@ def lean_check(name: str, arguments: dict, root: Path) -> Any:
     ),
 )
 def coq_check(name: str, arguments: dict, root: Path) -> Any:
-    file_path = (arguments.get("file_path") or "").strip()
+    file_path = (arguments.get("file_path") or arguments.get("filepath") or "").strip()
     timeout = int(arguments.get("timeout_seconds") or 120)
     try:
         target = resolve_in_root(root, file_path)
