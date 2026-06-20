@@ -282,6 +282,18 @@ def download_literature(
         if "/" in filename or ".." in filename:
             return {"status": "error",
                     "message": "filename may not contain '/' or '..'"}
+        # SSRF / local-file-read guard: urllib's default opener registers
+        # FileHandler / FTPHandler / DataHandler, so file:// / ftp:// / data:
+        # URLs would resolve and exfiltrate local files into inputs/literature/.
+        # Only http(s) downloads are ever legitimate here. This also covers the
+        # data-driven path (search_and_save feeds provider-supplied URLs here).
+        from urllib.parse import urlparse
+
+        scheme = (urlparse(url).scheme or "").lower()
+        if scheme not in ("http", "https"):
+            return {"status": "error",
+                    "message": (f"refusing to download from a non-http(s) URL "
+                                f"(scheme={scheme!r}); only http/https are allowed.")}
         # Force a .pdf suffix if absent (most callers omit it).
         safe_name = _slugify(Path(filename).name)
         if not safe_name.lower().endswith((".pdf", ".epub", ".djvu", ".ps")):

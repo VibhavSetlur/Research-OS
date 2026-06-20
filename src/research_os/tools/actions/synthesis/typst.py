@@ -423,7 +423,16 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
         meta: dict[str, str] = {}
         for j, ln in enumerate(block):
             if j == 0:
-                # First line: try to extract a citation key.
+                # Canonical format from generate_citations_md: a markdown
+                # heading with a BACK-TICKED key, `### `key``. Require the
+                # back-ticks so the document title ("# Citations") + section
+                # headers are NOT mistaken for citation entries. Recognise it
+                # FIRST — it has no inline title.
+                m_h = re.match(r"^\s*#{1,6}\s+[`]([A-Za-z][\w:.-]+)[`]\s*$", ln)
+                if m_h:
+                    key = m_h.group(1)
+                    continue
+                # Legacy: `@key` form, or a bare-key line with an inline title.
                 m = re.search(r"@([A-Za-z][\w:.-]+)", ln)
                 if not m:
                     m = re.match(r"^\s*([A-Za-z][\w:.-]+)\s*[:.]?\s*", ln)
@@ -434,9 +443,15 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
                 if rest and "title" not in meta:
                     meta["title"] = rest.rstrip(".")
                 continue
-            m_kv = re.match(r"^\s*([A-Za-z_-]+)\s*[:=]\s*(.+?)\s*$", ln)
+            # Metadata line: strip a leading markdown bullet ("- DOI: ...") then
+            # parse "Field: value"; strip back-ticks the producer wraps values in.
+            ln_kv = re.sub(r"^\s*[-*+]\s+", "", ln)
+            m_kv = re.match(r"^\s*([A-Za-z_ -]+?)\s*[:=]\s*(.+?)\s*$", ln_kv)
             if m_kv:
-                meta[m_kv.group(1).lower()] = m_kv.group(2)
+                field = m_kv.group(1).strip().lower()
+                if field == "authors":   # generate_citations_md writes the plural
+                    field = "author"
+                meta[field] = m_kv.group(2).strip().strip("`")
 
         if not key or key in seen_keys:
             continue
@@ -480,9 +495,9 @@ def citations_md_to_hayagriva(citations_md_path: Path) -> str:
         if "page" in meta or "pages" in meta:
             lines_out.append(f'  page-range: {meta.get("pages", meta.get("page"))}')
         if "doi" in meta:
-            lines_out.append(f'  doi: "{meta["doi"]}"')
+            lines_out.append(f'  doi: "{_yaml_escape(meta["doi"])}"')
         if "url" in meta:
-            lines_out.append(f'  url: "{meta["url"]}"')
+            lines_out.append(f'  url: "{_yaml_escape(meta["url"])}"')
         entries.append("\n".join(lines_out))
 
     return ("\n".join(entries) + "\n") if entries else ""

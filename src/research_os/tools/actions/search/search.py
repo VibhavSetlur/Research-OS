@@ -231,8 +231,10 @@ def _fetch_json_with_backoff(
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < max_attempts - 1:
                 retry_after = e.headers.get("Retry-After") if e.headers else None
+                # Cap the server-supplied Retry-After: an untrusted header could
+                # otherwise sleep the call for hours (DoS). 30s is generous.
                 wait = (
-                    float(retry_after)
+                    min(float(retry_after), 30.0)
                     if retry_after and retry_after.isdigit()
                     else min(2 ** attempt, 8)
                 )

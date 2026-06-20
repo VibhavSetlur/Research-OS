@@ -1952,6 +1952,8 @@ _SHARE_EXCLUDE_NAMES = (
     "AGENTS.md",
     "CLAUDE.md",
     "GETTING_STARTED.md",
+    # Secret-bearing: plaintext api_keys + author PII. NEVER ship it.
+    "researcher_config.yaml",
     ".os_state",
     ".claude",
     ".cursor",
@@ -2059,6 +2061,8 @@ EXCLUDE_NAMES = {
     ".os_state", ".claude", ".cursor", ".vscode",
     ".antigravity", ".opencode",
     "mcp_config.json", ".mcp.json", "opencode.json",
+    # Secret-bearing: holds plaintext api_keys + author PII. NEVER ship it.
+    "researcher_config.yaml",
     "__pycache__", ".pytest_cache", ".DS_Store",
     "node_modules", "venv", ".venv", "env",
 }

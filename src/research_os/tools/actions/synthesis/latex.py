@@ -8,10 +8,22 @@ via tool_typst_compile.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
+
+# Harden the TeX runtime against a malicious .tex / .bib (a transcribed paper
+# title / abstract / bibliographic field is untrusted): disable shell-escape
+# (\write18 RCE) and restrict file in/out to the working tree (\openin /
+# \input{/etc/...} local-file exfiltration). Mirrors the rmarkdown ACE fix.
+_HARDENED_TEX_ENV = {
+    **os.environ,
+    "openin_any": "p",   # paranoid: only files under the cwd tree
+    "openout_any": "p",
+    "shell_escape": "f",
+}
 
 logger = logging.getLogger("research_os.tools.synthesis.latex")
 
@@ -35,11 +47,13 @@ def latex_compile(root: Path) -> dict[str, Any]:
 
     def _run_pdflatex() -> int:
         res = subprocess.run(
-            [pdflatex, "-interaction=nonstopmode", "-halt-on-error", tex_path.name],
+            [pdflatex, "-no-shell-escape", "-interaction=nonstopmode",
+             "-halt-on-error", tex_path.name],
             cwd=str(tex_path.parent),
             capture_output=True,
             text=True,
             timeout=120,
+            env=_HARDENED_TEX_ENV,
         )
         log_lines.append(res.stdout[-1500:])
         return res.returncode
@@ -52,6 +66,7 @@ def latex_compile(root: Path) -> dict[str, Any]:
             capture_output=True,
             text=True,
             timeout=60,
+            env=_HARDENED_TEX_ENV,
         )
     if success:
         _run_pdflatex()
