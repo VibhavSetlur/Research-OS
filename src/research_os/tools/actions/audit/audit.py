@@ -563,51 +563,101 @@ def audit_synthesis(
 # ---------------------------------------------------------------------------
 
 
+# Power solvers by analysis design. The default (two_sample_t) is unchanged;
+# the gate now refuses to silently report a two-sample figure for a different
+# design, which is methodologically wrong (often by a large margin).
+_POWER_TESTS = {
+    "two_sample_t": "two-sample independent t-test (balanced)",
+    "paired_t": "paired t-test",
+    "one_sample_t": "one-sample t-test",
+    "two_proportion": "two-proportion z-test",
+    "anova": "one-way ANOVA (F-test)",
+}
+# Families whose `n` argument is PER-GROUP (group 1), not total N.
+_POWER_PER_GROUP = {"two_sample_t", "two_proportion"}
+
+
 def audit_power(
-    filepath: str, effect_size: float, alpha: float, n: int, root: Path
+    filepath: str, effect_size: float, alpha: float, n: int, root: Path,
+    test: str = "two_sample_t", k_groups: int | None = None,
 ) -> dict[str, Any]:
     root = Path(root)
     try:
-        try:
-            from statsmodels.stats import power as smp  # type: ignore
-        except ImportError:
-            return {
-                "status": "error",
-                "message": "statsmodels required (pip install statsmodels)",
-            }
-
-        power_value = smp.tt_ind_solve_power(
-            effect_size=effect_size, nobs1=n, alpha=alpha, power=None
-        )
-        out = _report_path(root, "power_report.md")
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(
-            "# Power Analysis Report\n\n"
-            f"- Effect size: {effect_size}\n"
-            f"- Alpha: {alpha}\n"
-            f"- n: {n}\n"
-            f"- Computed power: {power_value:.4f}\n"
-            f"- Source file: {filepath}\n"
-        )
-        report = {
-            "power": power_value,
-            "alpha": alpha,
-            "effect_size": effect_size,
-            "n": n,
-        }
+        from statsmodels.stats import power as smp  # type: ignore
+    except ImportError:
         return {
-            "status": "warning" if power_value < 0.8 else "success",
-            "report": report,
-            "report_path": str(out.relative_to(root)),
-            "message": (
-                f"Low power ({power_value:.2f} < 0.8) — consider larger n."
-                if power_value < 0.8
-                else "Power analysis passed."
-            ),
+            "status": "error",
+            "message": "statsmodels required (pip install statsmodels)",
         }
+    if test not in _POWER_TESTS:
+        return {
+            "status": "error",
+            "message": f"unknown test '{test}'. Valid: {', '.join(_POWER_TESTS)}.",
+        }
+    try:
+        if test == "two_sample_t":
+            power_value = smp.tt_ind_solve_power(
+                effect_size=effect_size, nobs1=n, alpha=alpha, power=None)
+        elif test in ("paired_t", "one_sample_t"):
+            power_value = smp.tt_solve_power(
+                effect_size=effect_size, nobs=n, alpha=alpha, power=None)
+        elif test == "two_proportion":
+            power_value = smp.NormalIndPower().solve_power(
+                effect_size=effect_size, nobs1=n, alpha=alpha, power=None)
+        elif test == "anova":
+            if not k_groups or int(k_groups) < 2:
+                return {"status": "error",
+                        "message": "test='anova' requires k_groups>=2 (number of groups)."}
+            power_value = smp.FTestAnovaPower().solve_power(
+                effect_size=effect_size, nobs=n, alpha=alpha,
+                k_groups=int(k_groups), power=None)
     except Exception as e:
-        logger.exception("audit_power failed")
-        return {"status": "error", "message": str(e)}
+        logger.exception("audit_power solve failed")
+        return {"status": "error",
+                "message": f"power solve failed for test='{test}': {e}"}
+    # A non-finite / out-of-range power means the inputs were nonsensical —
+    # don't silently report nan as "passed".
+    if power_value is None or not (0.0 <= float(power_value) <= 1.0):
+        return {"status": "error",
+                "message": (f"power solver returned a non-finite value "
+                            f"({power_value}) for test='{test}'; check "
+                            "effect_size / alpha / n.")}
+    power_value = float(power_value)
+    test_label = _POWER_TESTS[test]
+    n_label = "Per-group n (nobs1)" if test in _POWER_PER_GROUP else "n"
+    out = _report_path(root, "power_report.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        "# Power Analysis Report\n\n"
+        f"- Assumed test family: {test_label}\n"
+        f"- Effect size: {effect_size}\n"
+        f"- Alpha: {alpha}\n"
+        f"- {n_label}: {n}\n"
+        + (f"- Groups (k): {k_groups}\n" if test == "anova" else "")
+        + f"- Computed power: {power_value:.4f}\n"
+        f"- Source file: {filepath}\n\n"
+        "> This power is valid ONLY for the assumed test family above. For a "
+        "different design (paired / ANOVA / regression / proportion / "
+        "survival) pass test=<family>. For the two-sample / two-proportion "
+        "families `n` is the PER-GROUP size (nobs1), not total N.\n"
+    )
+    report = {
+        "power": power_value,
+        "alpha": alpha,
+        "effect_size": effect_size,
+        "n": n,
+        "assumed_test": test,
+    }
+    return {
+        "status": "warning" if power_value < 0.8 else "success",
+        "report": report,
+        "report_path": str(out.relative_to(root)),
+        "message": (
+            f"Low power ({power_value:.2f} < 0.8, {test_label}) — consider larger n."
+            if power_value < 0.8
+            else f"Power analysis passed ({test_label})."
+        ),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -657,16 +707,37 @@ def audit_assumptions(filepath: str, root: Path) -> dict[str, Any]:
         if res_col:
             res = df[res_col].dropna()
             try:
-                w, p_value = sst.shapiro(res[: min(5000, len(res))])
+                n = len(res)
+                # Shapiro-Wilk caps at 5000; take a SEEDED RANDOM subsample, not
+                # the first 5000 rows — a head-slice is systematically biased
+                # when residuals are ordered by time / a sorted predictor / group.
+                sample = res.sample(n=5000, random_state=0) if n > 5000 else res
+                w, p_value = sst.shapiro(sample)
+                # At large n Shapiro-Wilk rejects normality for practically
+                # irrelevant deviations, but the CLT makes OLS/GLS coefficient
+                # inference robust — so the verdict is n-aware.
+                LARGE_N = 300
+                if p_value < 0.05 and n >= LARGE_N:
+                    interp = (
+                        f"Shapiro-Wilk rejects normality (p={p_value:.3g}), but "
+                        f"with n={n} the CLT makes coefficient inference robust "
+                        "to non-normal residuals — inspect a Q-Q plot before "
+                        "switching methods."
+                    )
+                elif p_value < 0.05:
+                    interp = "residuals NOT normal at α=0.05"
+                else:
+                    interp = "no evidence against normality"
                 report["shapiro_wilk"] = {
                     "W": float(w), "p_value": float(p_value),
-                    "interpretation": "residuals NOT normal at α=0.05"
-                    if p_value < 0.05 else "no evidence against normality",
+                    "n": n, "n_tested": int(len(sample)),
+                    "interpretation": interp,
                 }
-                if p_value < 0.05:
+                # Only push the hard "use rank/bootstrap" warning at small n.
+                if p_value < 0.05 and n < LARGE_N:
                     warnings.append(
-                        f"Residuals fail Shapiro-Wilk normality (p={p_value:.3g}). "
-                        "Consider rank-based or bootstrap inference."
+                        f"Residuals fail Shapiro-Wilk normality (p={p_value:.3g}, "
+                        f"n={n}). Consider rank-based or bootstrap inference."
                     )
             except Exception as e:
                 report["shapiro_wilk"] = f"failed: {e}"
@@ -913,21 +984,63 @@ def compute_evalue(
 def audit_evalue(
     risk_ratio: float, root: Path,
     ci_lower: float | None = None, ci_upper: float | None = None,
+    effect_measure: str = "rr", rare_outcome: bool = False,
 ) -> dict[str, Any]:
-    """Compute + persist an E-value sensitivity report."""
+    """Compute + persist an E-value sensitivity report.
+
+    The E-value formula is defined on the RISK-RATIO scale. Odds ratios and
+    hazard ratios — the dominant observational outputs — must be put on the RR
+    scale first, or the E-value is wrong. ``effect_measure`` ('rr'|'or'|'hr')
+    + ``rare_outcome`` make that conversion explicit:
+      * or, common outcome  → RR ≈ sqrt(OR)  (VanderWeele & Ding)
+      * or/hr, rare outcome → value used directly (OR≈HR≈RR)
+      * hr, common outcome  → NOT converted automatically; flagged (the
+        HR→RR map needs the baseline risk) — convert manually or pass rare.
+    """
     root = Path(root)
+    em = (effect_measure or "rr").lower()
+    observed = float(risk_ratio)
+    scale_note: str | None = None
+
+    def _to_rr(x: float | None) -> float | None:
+        if x is None:
+            return None
+        x = float(x)
+        if em == "or" and not rare_outcome and x > 0:
+            return x ** 0.5  # sqrt is monotonic → CI bounds convert too
+        return x
+
+    if em == "or" and not rare_outcome:
+        scale_note = ("Input treated as a COMMON-outcome odds ratio; converted "
+                      "to the risk-ratio scale via RR ≈ sqrt(OR) before the "
+                      "E-value (VanderWeele & Ding).")
+    elif em == "hr" and not rare_outcome:
+        scale_note = ("Input is a hazard ratio for a COMMON outcome — HR is not "
+                      "on the risk-ratio scale and is NOT auto-converted. The "
+                      "E-value below assumes HR≈RR, which only holds for a RARE "
+                      "outcome. Convert HR→RR manually for a common outcome, or "
+                      "pass rare_outcome=true if the outcome is rare.")
+    elif em in ("or", "hr") and rare_outcome:
+        scale_note = (f"Rare outcome assumed — {em.upper()} ≈ RR, value used "
+                      "directly.")
+
     res = compute_evalue(
-        risk_ratio=risk_ratio, ci_lower=ci_lower, ci_upper=ci_upper,
+        risk_ratio=_to_rr(observed), ci_lower=_to_rr(ci_lower),
+        ci_upper=_to_rr(ci_upper),
     )
     out = _report_path(root, "evalue_report.md")
     out.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# E-value Sensitivity (VanderWeele & Ding, 2017)",
         "",
-        f"- Observed risk ratio: **{risk_ratio}**",
+        f"- Observed effect ({em.upper()}): **{observed}**",
     ]
+    if em != "rr":
+        lines.append(f"- On the risk-ratio scale: **{res['risk_ratio']:.3f}**")
+    if scale_note:
+        lines.append(f"- ⚠ Scale: {scale_note}")
     if ci_lower is not None or ci_upper is not None:
-        lines.append(f"- 95% CI: ({ci_lower}, {ci_upper})")
+        lines.append(f"- 95% CI ({em.upper()} scale): ({ci_lower}, {ci_upper})")
     lines.extend([
         f"- E-value at point estimate: **{res['e_value_point']}**",
     ])
@@ -949,11 +1062,16 @@ def audit_evalue(
         "- A small E-value (close to 1) means even modest unmeasured "
         "confounding could explain the result; a large E-value means "
         "the result is robust to plausible confounding.",
+        "- State explicitly which effect measure was used and how it was "
+        "converted to the risk-ratio scale.",
     ])
     out.write_text("\n".join(lines) + "\n")
     return {
         "status": "success",
         **res,
+        "effect_measure": em,
+        "rare_outcome": rare_outcome,
+        "scale_note": scale_note,
         "report_path": str(out.relative_to(root)),
     }
 

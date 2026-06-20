@@ -243,7 +243,7 @@ def freeze_preregistration(
         subgroups=_fmt_list(subgroups, "(no pre-specified subgroups)"),
         sensitivity=_fmt_list(
             sensitivity, "(no pre-specified sensitivity analyses)"),
-        multiplicity=multiplicity or "(unspecified — Benjamini-Hochberg by default)",
+        multiplicity=multiplicity or "(unspecified — choose a correction appropriate to your inferential goal: family-wise error control e.g. Holm/Bonferroni, or false-discovery-rate e.g. Benjamini-Hochberg; do not leave blank)",
         inclusion=_fmt_list(inclusion, "(unspecified)"),
         exclusion=_fmt_list(exclusion, "(unspecified)"),
         missing_data=missing_data or "(unspecified)",

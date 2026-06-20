@@ -29,9 +29,12 @@ The auditor is opinionated about what counts as a "claim":
 
 Tolerance
 ---------
-Floats match if they share ≥ 3 significant digits OR the relative
-difference is ≤ 1%. Integers must match exactly. Percentages are
-normalised to fractions before comparison.
+Floats match if the relative difference is ≤ 1%. Integers (counts /
+sample sizes) must match EXACTLY — a relative tolerance there would
+"ground" a hallucinated N=2456 to a real 2469. Percentages are
+normalised to fractions before comparison. Canonical CI confidence
+levels (90/95/99% in CI context) and p-value thresholds (p/α < x) are
+excluded — they are reporting conventions, not values in an output table.
 """
 
 from __future__ import annotations
@@ -94,6 +97,27 @@ def _is_year(token: str) -> bool:
         return False
 
 
+# Canonical CI confidence levels + p-value thresholds are reporting
+# conventions, not estimates that appear in an output table — extracting them
+# as "claims" produces false ungrounded BLOCKERS on well-reported papers.
+_CI_LEVELS = {"90%", "95%", "99%", "99.5%", "99.9%"}
+_CI_CTX = re.compile(r"\b(?:CI|confidence|interval)\b", re.I)
+# A number immediately preceded by p / P / alpha / α + a comparator is a
+# p-value (or significance) threshold, not a substantive estimate. Word
+# boundaries keep "step < 5" / "group = 3" from matching the bare "p".
+_PVAL_CTX = re.compile(
+    r"(?:\bp[\s.\-]?val(?:ue)?\b|\bp\b|\balpha\b|α)\s*[<>=≤≥]\s*$", re.I
+)
+
+
+def _is_ci_level(tok: str, ctx: str) -> bool:
+    return tok.replace(" ", "") in _CI_LEVELS and bool(_CI_CTX.search(ctx))
+
+
+def _is_pvalue_threshold(before: str) -> bool:
+    return bool(_PVAL_CTX.search(before))
+
+
 def _normalise(token: str) -> float | None:
     """Convert a claim token to a float for tolerant matching."""
     t = token.strip().replace(",", "").replace(" ", "")
@@ -131,15 +155,27 @@ def extract_claims(md_path: Path) -> list[dict[str, Any]]:
             # (image dimensions, dates).
             if re.search(r"(\d{4})-\d{2}-\d{2}", line[max(0, m.start() - 4):m.end()]):
                 continue
+            # Skip canonical CI levels (in CI context) + p-value thresholds
+            # (in p/α context) — reporting conventions, never in an output table.
+            before = line[max(0, m.start() - 12):m.start()]
+            ctx_local = line[max(0, m.start() - 12):min(len(line), m.end() + 12)]
+            if _is_ci_level(tok, ctx_local) or _is_pvalue_threshold(before):
+                continue
             val = _normalise(tok)
             if val is None:
                 continue
+            is_pct = tok.rstrip().endswith("%")
+            # An integer claim (no decimal point / scientific form, not a %) is
+            # a count / sample size — it must match an output value EXACTLY, not
+            # within ±tolerance (else a hallucinated N=2456 "grounds" to 2469).
+            is_int = not is_pct and "." not in tok and "e" not in tok.lower()
             ctx_start = max(0, m.start() - 60)
             ctx_end = min(len(line), m.end() + 60)
             claims.append({
                 "token": tok,
                 "value": val,
-                "is_pct": tok.rstrip().endswith("%"),
+                "is_pct": is_pct,
+                "is_int": is_int,
                 "line": line_no,
                 "context": line[ctx_start:ctx_end].strip(),
             })
@@ -188,14 +224,21 @@ def _extract_corpus_numbers(corpus: str) -> set[float]:
 
 
 def _claim_grounded(value: float, corpus_numbers: set[float],
-                    tolerance: float = 0.01, *, is_pct: bool = False) -> bool:
+                    tolerance: float = 0.01, *, is_pct: bool = False,
+                    is_int: bool = False) -> bool:
     """Check whether ``value`` appears in the corpus (verbatim or close).
+
+    An integer (count / sample size) must match EXACTLY — applying a relative
+    tolerance there would silently "ground" a hallucinated N=2456 to a real
+    2469. Only genuine floats get the ±tolerance match.
 
     A percentage claim ("84%") is normalised to a fraction (0.84) by
     :func:`_normalise`, but the corpus often stores the same figure as the
     raw percent (``84``) — or, for an already-fractional source, as
     ``0.84``. So for a %-derived claim we test the normalised value AND its
     ``×100`` / ``÷100`` variants before declaring it ungrounded."""
+    if is_int and not is_pct:
+        return float(value) in corpus_numbers
     candidates = [value]
     if is_pct:
         candidates.extend([value * 100.0, value / 100.0])
@@ -263,7 +306,8 @@ def audit_claims(
     ungrounded: list[dict[str, Any]] = []
     for c in claims:
         if _claim_grounded(
-            c["value"], corpus_numbers, tolerance, is_pct=c.get("is_pct", False)
+            c["value"], corpus_numbers, tolerance,
+            is_pct=c.get("is_pct", False), is_int=c.get("is_int", False),
         ):
             grounded.append(c)
         else:

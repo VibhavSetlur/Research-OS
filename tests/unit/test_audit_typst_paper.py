@@ -164,11 +164,15 @@ def test_audit_synthesis_typst_missing_section_detected(tmp_path: Path):
 def test_extract_claims_from_typst_excludes_comment_numbers(tmp_path: Path):
     p = _seed_typst_paper(tmp_path)
     tokens = {c["token"] for c in extract_claims(p)}
-    # Real claims surface.
+    # Real estimates surface (CI interval bounds are estimates).
     assert "42%" in tokens
-    assert "0.01" in tokens
+    assert "0.1" in tokens and "0.3" in tokens
     # The number inside the ``// … 999 …`` comment must NOT be a claim.
     assert "999" not in tokens
+    # 3.2.9: p-value thresholds (p<0.01 / p=0.01) and CI confidence levels
+    # (95%) are reporting conventions, not grounded claims.
+    assert "0.01" not in tokens
+    assert "95%" not in tokens
 
 
 def test_audit_claims_targets_typst_paper(tmp_path: Path):
