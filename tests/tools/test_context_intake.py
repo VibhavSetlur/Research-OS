@@ -58,3 +58,48 @@ def test_intake_dry_run_does_not_copy(tmp_path):
     assert res["status"] == "success"
     assert res["new_files_count"] == 1
     assert not (tmp_path / "inputs" / "raw_data" / "f.csv").exists()
+
+
+def test_intake_unchanged_file_skipped_on_rerun(tmp_path):
+    """An unchanged drop-file already imported is NOT re-detected on re-run."""
+    scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+    (tmp_path / "drop").mkdir()
+    (tmp_path / "drop" / "paper.pdf").write_text("%PDF v1")
+    first = context_intake(tmp_path)
+    assert first["new_files_count"] == 1
+    # Re-run with no change — must report zero new files.
+    second = context_intake(tmp_path)
+    assert second["new_files_count"] == 0
+
+
+def test_intake_changed_file_reimported_on_rerun(tmp_path):
+    """C9: a replaced/edited drop-file (same basename, new content) must be
+    re-detected on re-run via mtime/size change, not silently skipped. The
+    original import is preserved (never overwrite); the new content lands as
+    paper_imported_N.pdf."""
+    import os
+    import time
+
+    scaffold_minimal_workspace(tmp_path, "Test", ide_flags=[], copy_agents=False)
+    drop = tmp_path / "drop"
+    drop.mkdir()
+    src = drop / "paper.pdf"
+    src.write_text("%PDF v1")
+    first = context_intake(tmp_path)
+    assert first["new_files_count"] == 1
+    lit = tmp_path / "inputs" / "literature"
+    assert (lit / "paper.pdf").read_text() == "%PDF v1"
+
+    # Overwrite the drop file with corrected v2 content + bump mtime so the
+    # change is unambiguous regardless of filesystem mtime granularity.
+    src.write_text("%PDF v2 corrected — longer content here")
+    future = time.time() + 10
+    os.utime(src, (future, future))
+
+    second = context_intake(tmp_path)
+    assert second["new_files_count"] == 1
+    # Original preserved, corrected content imported under a new name.
+    assert (lit / "paper.pdf").read_text() == "%PDF v1"
+    renamed = list(lit.glob("paper_imported_*.pdf"))
+    assert len(renamed) == 1
+    assert "v2 corrected" in renamed[0].read_text()

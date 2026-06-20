@@ -36,6 +36,7 @@ def _profile_inputs(root: Path) -> None:
                 "dtypes": {},
                 "missing_pct": {},
                 "sha256": "",
+                "encoding": "",
             }
 
             h = hashlib.sha256()
@@ -54,7 +55,19 @@ def _profile_inputs(root: Path) -> None:
                 df = None
                 if has_pandas:
                     if ext == ".csv":
-                        df = pd.read_csv(p)
+                        # Encoding fallback: a latin-1/cp1252 CSV would
+                        # otherwise raise UnicodeDecodeError, get swallowed by
+                        # the outer except, and be inventoried as 0 rows / 0
+                        # columns — indistinguishable from a genuinely empty
+                        # file. Try UTF-8, then cp1252, then latin-1, then
+                        # errors='replace', recording which encoding worked.
+                        from research_os.tools.actions.data.data import (
+                            _read_csv_with_fallback,
+                        )
+
+                        df = _read_csv_with_fallback(p)
+                        note = df.attrs.get("_ro_encoding_note")
+                        file_info["encoding"] = note or "utf-8"
                     elif ext == ".parquet":
                         df = pd.read_parquet(p)
 
