@@ -83,7 +83,16 @@ def _handle_sys_workspace_scaffold(name, arguments, root):
 
 
 def _handle_sys_workspace_tree(name, arguments, root):
-    depth = arguments.get("depth", 3)
+    # Coerce + clamp depth at the boundary: a negative depth never reaches the
+    # `if depth == 0` base case (unbounded recursion / RecursionError on a deep
+    # tree), and a non-int like "3" raises a TypeError on `depth - 1`. MCP arg
+    # types are advisory, so harden here.
+    raw_depth = arguments.get("depth", 3)
+    try:
+        depth = int(raw_depth)
+    except (TypeError, ValueError):
+        depth = 3
+    depth = max(0, min(depth, 12))
     include_files = arguments.get("include_files", True)
     tree = _build_tree(root / "workspace", depth, include_files)
     return _text(_success({"tree": tree}))

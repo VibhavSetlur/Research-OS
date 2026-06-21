@@ -103,9 +103,12 @@ def set_current_tier(
     state["updated_at"] = datetime.now(tz=timezone.utc).isoformat()
     p = _tier_path(root)
     p.parent.mkdir(parents=True, exist_ok=True)
+    # Atomic write (temp file + os.replace) so a crash mid-write can't
+    # truncate current_tier.json and silently wipe the tier history.
     try:
-        p.write_text(json.dumps(state, indent=2, default=str))
-    except OSError as exc:
+        from research_os.utils.common import save_json_atomic
+        save_json_atomic(p, state)
+    except Exception as exc:  # save_json_atomic re-raises any failure
         logger.warning("current_tier.json write failed: %s", exc)
         return {"from": prev, "to": new_tier, "wrote": False}
     return {"from": prev, "to": new_tier, "wrote": True}

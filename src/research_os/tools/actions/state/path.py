@@ -64,9 +64,8 @@ def abandon_path(path_name: str, rationale: str, root: Path) -> dict[str, Any]:
     from research_os.project_ops import (
         _update_manifest,
         _update_workflow_mermaid,
-        load_state,
+        mutate_state,
         now_iso,
-        save_state,
     )
 
     workspace_dir = root / "workspace"
@@ -90,23 +89,26 @@ def abandon_path(path_name: str, rationale: str, root: Path) -> dict[str, Any]:
             f"**Rationale:** {rationale}\n\n"
         )
 
-    state = load_state(root)
-    paths = state.setdefault("paths", {})
-    if path_name in paths:
-        paths[path_name]["status"] = "dead_end"
-        paths[path_name]["abandoned_at"] = now_iso()
-        paths[path_name]["abandon_rationale"] = rationale
-    dead_ends = state.setdefault("dead_ends", [])
-    if path_name not in dead_ends:
-        dead_ends.append(path_name)
-    if state.get("current_path") == path_name:
-        # Roll back to most recent active path, or 'main'.
-        remaining = [
-            p for p, info in paths.items()
-            if info.get("status") == "active" and p != path_name
-        ]
-        state["current_path"] = remaining[-1] if remaining else "main"
-    save_state(root, state)
+    # Mutate state under the ledger lock (was an unguarded load→mutate→save,
+    # which loses the change if another session's RMW interleaves).
+    def _abandon(state: dict) -> None:
+        paths = state.setdefault("paths", {})
+        if path_name in paths:
+            paths[path_name]["status"] = "dead_end"
+            paths[path_name]["abandoned_at"] = now_iso()
+            paths[path_name]["abandon_rationale"] = rationale
+        dead_ends = state.setdefault("dead_ends", [])
+        if path_name not in dead_ends:
+            dead_ends.append(path_name)
+        if state.get("current_path") == path_name:
+            # Roll back to most recent active path, or 'main'.
+            remaining = [
+                p for p, info in paths.items()
+                if info.get("status") == "active" and p != path_name
+            ]
+            state["current_path"] = remaining[-1] if remaining else "main"
+
+    mutate_state(root, _abandon)
 
     _update_workflow_mermaid(root)
     _update_manifest(root)
@@ -143,9 +145,8 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
     from research_os.project_ops import (
         _update_manifest,
         _update_workflow_mermaid,
-        load_state,
+        mutate_state,
         now_iso,
-        save_state,
     )
 
     workspace_dir = root / "workspace"
@@ -200,18 +201,20 @@ def rename_path(path_name: str, new_label: str, root: Path) -> dict[str, Any]:
                     link, new_target,
                 )
 
-    state = load_state(root)
-    paths = state.setdefault("paths", {})
-    if path_name in paths:
-        paths[new_name] = paths.pop(path_name)
-        paths[new_name]["renamed_from"] = path_name
-        paths[new_name]["renamed_at"] = now_iso()
-    if state.get("current_path") == path_name:
-        state["current_path"] = new_name
-    dead_ends = state.get("dead_ends", [])
-    if path_name in dead_ends:
-        dead_ends[dead_ends.index(path_name)] = new_name
-    save_state(root, state)
+    # Mutate state under the ledger lock (was an unguarded load→mutate→save).
+    def _rename(state: dict) -> None:
+        paths = state.setdefault("paths", {})
+        if path_name in paths:
+            paths[new_name] = paths.pop(path_name)
+            paths[new_name]["renamed_from"] = path_name
+            paths[new_name]["renamed_at"] = now_iso()
+        if state.get("current_path") == path_name:
+            state["current_path"] = new_name
+        dead_ends = state.get("dead_ends", [])
+        if path_name in dead_ends:
+            dead_ends[dead_ends.index(path_name)] = new_name
+
+    mutate_state(root, _rename)
 
     analysis_path = root / "workspace" / "analysis.md"
     analysis_path.parent.mkdir(parents=True, exist_ok=True)
@@ -250,16 +253,18 @@ def group_paths(
     re-pointed, and state / manifest / mermaid / DAG are refreshed.
 
     Steps already inside a container, dead-ends, and unknown ids are
-    rejected up front so the move is all-or-nothing.
+    rejected up front. The move itself is all-or-nothing: if a directory
+    rename fails partway through, the already-moved steps are rolled back to
+    their flat locations and an error envelope is returned (state, symlinks,
+    and derived artefacts are only updated once every step has moved).
     """
     from research_os.project_ops import (
         _max_path_container_seq,
         _update_manifest,
         _update_workflow_mermaid,
         is_path_container,
-        load_state,
+        mutate_state,
         now_iso,
-        save_state,
         slugify,
     )
 
@@ -296,11 +301,41 @@ def group_paths(
     # Move each step into the container, recording (old_abs, new_abs) for
     # symlink re-pointing. project_ops writes symlinks with .absolute() (not
     # resolved), so match that exact string form.
+    #
+    # The move is genuinely all-or-nothing: if a rename fails mid-loop
+    # (cross-device link, permission, ENOSPC, a held-open file), the already-
+    # moved steps are rolled back to their flat locations and the empty
+    # container is removed, then we return an error envelope — never a
+    # half-grouped workspace with state/symlinks left untouched.
     remap: list[tuple[str, str]] = []
+    completed: list[tuple[Path, Path]] = []  # (new_dir, old_dir) for undo
     for sid, old_dir in moves:
         old_abs = str(old_dir.absolute())
         new_dir = container / sid
-        old_dir.rename(new_dir)
+        try:
+            old_dir.rename(new_dir)
+        except OSError as e:
+            # Reverse the renames already done, newest-first.
+            for moved_new, moved_old in reversed(completed):
+                try:
+                    moved_new.rename(moved_old)
+                except OSError:
+                    logger.error(
+                        "rollback failed for %s → %s; workspace partially grouped",
+                        moved_new, moved_old,
+                    )
+            try:
+                container.rmdir()  # only succeeds if now empty
+            except OSError:
+                pass
+            return {
+                "status": "error",
+                "message": (
+                    f"group failed moving '{sid}': {e}. Rolled back; "
+                    "workspace left flat."
+                ),
+            }
+        completed.append((new_dir, old_dir))
         remap.append((old_abs, str(new_dir.absolute())))
 
     # Re-point every absolute symlink across the workspace that pointed into
@@ -326,14 +361,16 @@ def group_paths(
                 break
 
     # State: stamp the container on each grouped path; fix experiment_dir.
-    state = load_state(root)
-    paths = state.setdefault("paths", {})
-    for sid, _ in moves:
-        if sid in paths:
-            paths[sid]["path_container"] = container_name
-            paths[sid]["experiment_dir"] = f"workspace/{container_name}/{sid}"
-            paths[sid]["grouped_at"] = now_iso()
-    save_state(root, state)
+    # Under the ledger lock (was an unguarded load→mutate→save).
+    def _group(state: dict) -> None:
+        paths = state.setdefault("paths", {})
+        for sid, _ in moves:
+            if sid in paths:
+                paths[sid]["path_container"] = container_name
+                paths[sid]["experiment_dir"] = f"workspace/{container_name}/{sid}"
+                paths[sid]["grouped_at"] = now_iso()
+
+    mutate_state(root, _group)
 
     # Container README so the folder explains itself.
     (container / "README.md").write_text(

@@ -76,11 +76,18 @@ def run_extract(
             "message": f"could not write provenance YAML: {exc}",
         }
     summary = _summarise(payload)
+    # Mirror the data_convert idiom: a symlinked workspace or odd step_id can
+    # make out_path resolve outside root, where relative_to() raises — fall
+    # back to the absolute path rather than crashing after the YAML is written.
+    try:
+        rel = str(out_path.relative_to(root))
+    except ValueError:
+        rel = str(out_path)
     return {
         "status": "success",
         "adapter": adapter_name,
         "step_id": step_id,
-        "output_path": str(out_path.relative_to(root)),
+        "output_path": rel,
         "summary": summary,
     }
 
@@ -129,10 +136,16 @@ def run_all(root: Path, step_id: str | None = None) -> dict:
             })
             continue
         results.append(run_extract(root, name, step_id=step_id))
+    # total_attempted counts only records produced by run_extract (which
+    # always returns 'success' or 'error'); detect()-raised 'skipped' records
+    # are reported separately via total_skipped so the name isn't misleading.
     return {
         "results": results,
-        "total_attempted": len(results),
+        "total_attempted": sum(
+            1 for r in results if r.get("status") in ("success", "error")
+        ),
         "total_succeeded": sum(1 for r in results if r.get("status") == "success"),
+        "total_skipped": sum(1 for r in results if r.get("status") == "skipped"),
     }
 
 

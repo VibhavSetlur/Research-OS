@@ -29,6 +29,7 @@ from typing import Any
 import yaml
 
 from research_os.protocols._tiers import infer_tier, is_valid_tier
+from research_os.utils.common import save_json_atomic
 
 logger = logging.getLogger("research_os.tools.router")
 
@@ -400,6 +401,20 @@ def _clear_workflow_shape_cache() -> None:
     _WORKFLOW_SHAPE_CACHE.clear()
 
 
+def _normalize_prompt(prompt: str) -> str:
+    """Lowercase, strip, space-pad, and collapse punctuation + hyphens.
+
+    Single source of truth for the prompt normalization that
+    ``_score_protocols`` relies on: triggers are matched as space-bounded
+    substrings and hyphen-collapsed on their side, so the prompt must be
+    hyphen-collapsed AND leading/trailing-space-padded for boundary +
+    'agent-based' == 'agent based' matches to fire. Every _score_protocols
+    call site must feed a prompt through this (3.2.9 hyphen-normalization
+    was applied on the main path only)."""
+    pn = " " + re.sub(r"[,.;:!?\-]+", " ", prompt.lower().strip()) + " "
+    return re.sub(r"\s+", " ", pn)
+
+
 # ---------------------------------------------------------------------------
 # Semantic routing — primary path when fastembed + embeddings file present
 # ---------------------------------------------------------------------------
@@ -445,8 +460,9 @@ def _try_semantic_route(
     # the semantic guess. "Strong" = a multi-word trigger (base ≥ 4) so a
     # single stray build word doesn't hijack an analysis prompt.
     if workspace_mode == "tool_build":
-        prompt_norm = " " + re.sub(r"[,.;:!?]+", " ", prompt.lower().strip()) + " "
-        prompt_norm = re.sub(r"\s+", " ", prompt_norm)
+        # Normalize identically to the main path (the old inline form missed
+        # the hyphen collapse, so 'agent-based' never matched 'agent based').
+        prompt_norm = _normalize_prompt(prompt)
         build_scored = [
             s for s in _score_protocols(
                 prompt_norm, protocols,
@@ -569,8 +585,12 @@ def _try_semantic_route(
     # promised, none persisted).
     fall_through = False
     if is_complex and not decomposition:
+        # Feed the SAME normalized prompt the main path uses — raw
+        # prompt.lower() has no space-padding/hyphen collapse, so triggers at
+        # the very start/end of the prompt (e.g. 'bug' in 'fix the bug') and
+        # hyphenated triggers silently failed to score here.
         scored = _score_protocols(
-            prompt.lower(), protocols,
+            _normalize_prompt(prompt), protocols,
             workspace_mode=workspace_mode,
             project_workflow_shape=project_workflow_shape,
         )
@@ -1225,11 +1245,7 @@ def route_request(
         # still match prompts like "...broken, fix it...". Hyphens are
         # included so 'agent-based' == 'agent based' (triggers are
         # hyphen-collapsed on their side too — see _score_protocols).
-        prompt_norm = " " + re.sub(
-            r"[,.;:!?\-]+", " ", prompt.lower().strip()
-        ) + " "
-        # Collapse multiple spaces from the substitution.
-        prompt_norm = re.sub(r"\s+", " ", prompt_norm)
+        prompt_norm = _normalize_prompt(prompt)
         is_complex = _is_complex(prompt_norm)
 
         # Mode + shape signals — read once, used by both the semantic and
@@ -2050,8 +2066,10 @@ def _persist_active_plan(
         for w in removed_warnings:
             logger.warning("active_plan write: %s", w)
     p = _active_plan_path(root)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(plan, indent=2, default=str))
+    # Atomic write so an interrupted route can't truncate active_plan.json —
+    # the very artefact that lets sys_boot recover the in-progress plan after
+    # a crash.
+    save_json_atomic(p, plan)
     try:
         return str(p.relative_to(root))
     except ValueError:
@@ -2128,7 +2146,7 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
         try:
             path.rename(archive_dir / f"plan_{ts}.json")
         except OSError:
-            path.write_text(json.dumps(plan, indent=2, default=str))
+            save_json_atomic(path, plan)
         return {"status": "success", "message": "Plan completed and archived."}
     next_step = decomposition[plan["current_step"] - 1]
 
@@ -2196,7 +2214,7 @@ def advance_plan(root: Path, *, override_gate: bool = False) -> dict[str, Any]:
         except Exception as e:
             logger.warning("plan_advance gate check failed: %s", e)
 
-    _active_plan_path(root).write_text(json.dumps(plan, indent=2, default=str))
+    save_json_atomic(_active_plan_path(root), plan)
     result: dict[str, Any] = {
         "status": "success",
         "current_step": plan["current_step"],

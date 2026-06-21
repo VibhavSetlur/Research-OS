@@ -207,8 +207,8 @@ def _make_preexec(runtime_cfg: dict):
     return _preexec
 
 
-def _pid_alive(pid: int) -> bool:
-    """True if pid points at a running, non-zombie process.
+def _reap_pid(pid: int) -> tuple[bool, int | None]:
+    """Return ``(alive, exit_code)`` for ``pid``.
 
     Background tasks are spawned via ``subprocess.Popen`` and the parent
     drops the handle. When the child exits it becomes a zombie until
@@ -216,21 +216,42 @@ def _pid_alive(pid: int) -> bool:
     liveness checks report ``running`` long after the process finished.
     Reap with ``waitpid(WNOHANG)`` when we are the parent; fall back to
     ``/proc/<pid>/status`` (Linux) when we are not.
+
+    The status word returned by ``waitpid`` carries the exit code (or the
+    terminating signal). It is available EXACTLY ONCE — the child is
+    reaped on the first successful ``waitpid``, after which subsequent
+    calls raise ``ChildProcessError``. Callers MUST persist a returned
+    non-None ``exit_code`` immediately, or the success/failure verdict is
+    lost. ``exit_code`` is None when the process is still alive or when
+    we are not the parent and can't recover the status word (in that case
+    success vs. failure is unknown — reported as ``finished``).
+
+    Exit-code convention (``os.waitstatus_to_exitcode``): 0 = success,
+    >0 = the process's own non-zero exit, <0 = killed by signal N
+    (value is ``-N``).
     """
     if not pid:
-        return False
+        return False, None
     # Try non-blocking reap — succeeds when we are the parent and child
-    # has already exited.
+    # has already exited. Capture the status word so the exit code isn't
+    # discarded (a crashed task must not look identical to a clean one).
     try:
-        reaped, _ = os.waitpid(pid, os.WNOHANG)
+        reaped, wstatus = os.waitpid(pid, os.WNOHANG)
         if reaped == pid:
-            return False
+            try:
+                exit_code = os.waitstatus_to_exitcode(wstatus)
+            except (ValueError, ChildProcessError):
+                exit_code = None
+            return False, exit_code
     except (ChildProcessError, OSError):
+        # Already reaped by someone else, or we are not the parent —
+        # fall through to the /proc liveness probe; exit code is
+        # unrecoverable here.
         pass
     try:
         os.kill(pid, 0)
     except (OSError, ProcessLookupError):
-        return False
+        return False, None
     # Process exists in the table — distinguish running from zombie.
     try:
         with open(f"/proc/{pid}/status") as f:
@@ -238,11 +259,18 @@ def _pid_alive(pid: int) -> bool:
                 if line.startswith("State:"):
                     parts = line.split()
                     if len(parts) >= 2 and parts[1].upper().startswith("Z"):
-                        return False
-                    return True
+                        return False, None
+                    return True, None
     except (FileNotFoundError, PermissionError, OSError):
         pass
-    return True
+    return True, None
+
+
+def _pid_alive(pid: int) -> bool:
+    """Back-compat liveness check. Prefer :func:`_reap_pid` when the exit
+    code matters (it reaps the child exactly once)."""
+    alive, _ = _reap_pid(pid)
+    return alive
 
 
 # ---------------------------------------------------------------------------
@@ -387,7 +415,15 @@ def task_status(task_id: str, root: Path, *, tail_lines: int = 50) -> dict[str, 
             return {"status": "error", "message": f"Unknown task {task_id}"}
 
         pid = meta.get("pid", 0)
-        alive = _pid_alive(pid)
+        # If we already reaped this task on a prior poll the exit code is
+        # recorded in meta — don't waitpid() again (the child is gone and
+        # the status word can't be recovered a second time).
+        already_terminal = meta.get("status") in {"finished", "failed", "killed"}
+        if already_terminal:
+            alive = False
+            exit_code = meta.get("exit_code")
+        else:
+            alive, exit_code = _reap_pid(pid)
         log_path = root / meta.get("log_path", f".os_state/tasks/{task_id}.log")
 
         tail = ""
@@ -399,17 +435,44 @@ def task_status(task_id: str, root: Path, *, tail_lines: int = 50) -> dict[str, 
             except Exception:
                 tail = ""
 
-        current_status = "running" if alive else "finished"
-        if meta.get("status") != current_status:
+        # Distinguish a crashed task from a clean one. 'finished' is kept as
+        # a back-compat superset for the unknown-exit-code case (we weren't
+        # the parent / couldn't recover the status word); a known non-zero
+        # exit (or a terminating signal, encoded as a negative code) is
+        # surfaced as 'failed'.
+        if alive:
+            current_status = "running"
+        elif exit_code is None:
+            current_status = "finished"
+        elif exit_code == 0:
+            current_status = "finished"
+        else:
+            current_status = "failed"
+
+        if meta.get("status") != current_status or (
+            not alive and exit_code is not None and "exit_code" not in meta
+        ):
             meta["status"] = current_status
             if not alive:
-                meta["finished_at"] = _now()
+                meta.setdefault("finished_at", _now())
+                if exit_code is not None:
+                    meta["exit_code"] = exit_code
             _save(meta_path, meta)
+
+        succeeded: bool | None
+        if alive:
+            succeeded = None
+        elif exit_code is None:
+            succeeded = None  # terminal but exit code unknown
+        else:
+            succeeded = exit_code == 0
 
         return {
             "status": "success",
             "task_id": task_id,
             "task_status": current_status,
+            "exit_code": meta.get("exit_code", exit_code),
+            "succeeded": succeeded,
             "pid": pid,
             "started_at": meta.get("started_at"),
             "finished_at": meta.get("finished_at"),
@@ -432,13 +495,39 @@ def task_list(root: Path) -> dict[str, Any]:
             if not meta:
                 continue
             pid = meta.get("pid", 0)
-            alive = _pid_alive(pid)
-            meta["task_status"] = "running" if alive else "finished"
+            # Don't re-reap a task already recorded as terminal — the exit
+            # code (if any) is persisted in meta from the first observation.
+            already_terminal = meta.get("status") in {"finished", "failed", "killed"}
+            if already_terminal:
+                alive = False
+                exit_code = meta.get("exit_code")
+            else:
+                alive, exit_code = _reap_pid(pid)
+            if alive:
+                live_status = "running"
+            elif exit_code is None:
+                live_status = "finished"
+            elif exit_code == 0:
+                live_status = "finished"
+            else:
+                live_status = "failed"
+            # Persist the verdict (and exit code) so a later poll doesn't
+            # need to re-reap a child that's already gone.
+            if meta.get("status") != live_status or (
+                not alive and exit_code is not None and "exit_code" not in meta
+            ):
+                meta["status"] = live_status
+                if not alive:
+                    meta.setdefault("finished_at", _now())
+                    if exit_code is not None:
+                        meta["exit_code"] = exit_code
+                _save(meta_path, meta)
             out.append(
                 {
                     "task_id": meta["task_id"],
                     "pid": pid,
-                    "task_status": meta["task_status"],
+                    "task_status": live_status,
+                    "exit_code": meta.get("exit_code", exit_code),
                     "started_at": meta.get("started_at"),
                     "description": meta.get("description"),
                     "command": meta.get("command"),

@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 try:
     import yaml  # type: ignore
@@ -745,6 +745,28 @@ def save_state(root: Path, state: dict) -> dict:
     # the on-disk view stays canonical from this point forward.
     ResearchLedger._migrate(state)
     ledger._save(state)
+    _write_os_state_summary(root)
+    return state
+
+
+def mutate_state(root: Path | None, fn: "Callable[[dict], None]") -> dict:
+    """Atomic load→mutate→save under the ledger's exclusive lock.
+
+    The unguarded ``load_state(...)`` → mutate → ``save_state(...)`` pattern
+    has its lock window only around the final write, so two concurrent
+    sessions on one workspace (the server is global + per-request
+    root-resolved) can read the same state and clobber each other's
+    mutation. ``mutate_state`` runs ``fn`` (which edits the state dict
+    in-place) INSIDE the flock, serialising the whole read-modify-write.
+
+    ``fn`` must not call back into ``load_state`` / ``save_state`` /
+    ``mutate_state`` (it already holds the lock). ``updated_at`` is stamped
+    by the ledger. ``STATE.md`` is regenerated OUTSIDE the lock afterwards
+    (it re-reads state) so we never nest the lock.
+    """
+    root = _resolve_root(root)
+    ledger = ResearchLedger(state_json_path(root))
+    state = ledger.locked_update(fn)
     _write_os_state_summary(root)
     return state
 
@@ -3590,8 +3612,10 @@ def create_numbered_experiment(
 
     _seed_step_subfolder_readmes(exp_dir, root, branch_id, next_num, from_step)
 
-    # State update
-    state = load_state(root)
+    # State update — under the ledger lock so a concurrent step-create /
+    # hypothesis-add on another session can't clobber the new paths[] entry
+    # (the folder is already on disk above; the lock closes the
+    # lost-paths-entry / orphaned-folder window).
     path_entry: dict[str, Any] = {
         "path_id": branch_id,
         "experiment_number": next_num,
@@ -3604,12 +3628,15 @@ def create_numbered_experiment(
         path_entry["path_lineage"] = lineage
     if parent_id:
         path_entry["branch_of"] = parent_id
-    state["paths"][branch_id] = path_entry
-    state["current_path"] = branch_id
-    state["step"] = next_num
-    if state.get("pipeline_stage") in (None, "init", "planned"):
-        state["pipeline_stage"] = "execution"
-    save_state(root, state)
+
+    def _record_step(state: dict) -> None:
+        state.setdefault("paths", {})[branch_id] = path_entry
+        state["current_path"] = branch_id
+        state["step"] = next_num
+        if state.get("pipeline_stage") in (None, "init", "planned"):
+            state["pipeline_stage"] = "execution"
+
+    mutate_state(root, _record_step)
     _update_manifest(root)
     _update_workflow_mermaid(root)
     _prune_old_checkpoints(root, keep=5)
