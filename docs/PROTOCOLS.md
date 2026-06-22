@@ -290,7 +290,7 @@ proof", "iterate on the proof", "formalise in Lean / Coq".
 
 Three theory-only tools ship with the pack: `tool_theory_math_lean_check`,
 `tool_theory_math_coq_check`, `tool_theory_math_dep_graph`. See
-[TOOLS.md § Theory + math pack](TOOLS.md#theory--math-pack).
+[TOOLS.md](TOOLS.md#catalogue-alphabetical-by-canonical-name) (alphabetical catalogue).
 
 ### Audit + reproducibility
 

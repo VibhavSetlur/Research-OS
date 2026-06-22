@@ -1,52 +1,14 @@
 # FAQ
 
-## v2.0.0 (the short answer)
+Common questions, grouped by topic. New here? Skim **Setup** and
+**Workflow** first. For complete worked examples of real projects, see
+[SCENARIOS.md](SCENARIOS.md); for the role × goal × output map, see
+[USE_CASES.md](USE_CASES.md).
 
-### What changed in v2.0.0?
-
-The headline shape change is a **tool surface consolidation
-(344 → 144 live)** plus a flip of `sys_protocol_get` to default
-`format='summary'`. Both are breaking on paper but **every legacy
-tool name still dispatches via alias for the v2.0.x runway** — most
-projects upgrade with zero call-site edits. After
-`pip install --upgrade research-os`, run **`research-os doctor`** for
-a 20+ install + workspace health report (exit 0 = all pass,
-1 = warn-only, 2 = fail). See
-`CHANGELOG.md [2.0.0]` for the full upgrade
-recipe.
-
-Other v2.0.0 highlights:
-
-* **MCP `instructions` field on the initialize handshake** — names
-  the canonical boot ritual (`sys_boot → tool_route →
-  sys_protocol_get(format=summary) → sys_active_tools`) so a fresh
-  MCP client sees it instead of discovering it.
-* **`tool_route.recommended_action` + `why_matched`** — the router
-  returns a literal next-call string and a short rationale on every
-  match, so the AI doesn't burn a turn deciding what to call next.
-* **Audit-as-data** — every audit emits a JSON companion + appends
-  to the cross-audit ledger at
-  `workspace/logs/.audit_findings.jsonl`. Query with
-  `tool_audit_findings(operation='query', severity='block')`.
-* **AI-direct synthesis authoring (v2.3.0)** — the AI writes
-  `synthesis/paper.typ` / `slides.typ` / `poster.typ` / `essay.typ` /
-  `dashboard.html` directly, following the matching synthesis
-  protocol. Tools validate (`tool_synthesis_check`) and compile
-  (`tool_typst_compile`); the auto-generators that produced rigid
-  output were retired.
-* **`research-os doctor`** — 20+ install + workspace health checks.
-* **`tier:` + `scope_tags`** on every protocol — wires the
-  router to filter candidates by project lifecycle and applicability.
-* **New discovery tools** — `tool_protocols_list` + `tool_tools_list`
-  return flat filterable catalogues.
-
-The Phase 15b 20-agent validation moved the mean rating
-**6.35 → 7.70 (+21%)** with **HIGH-friction items 124 → 63 (-49%)**;
-v2.0.0 ships with a documented YELLOW caveat that the absolute
-release-gate targets (calibrated against a v3-grade product) were
-not met. See
-`CHANGELOG.md [2.0.0]` for the full
-analysis.
+Jump to: [Setup](#setup) · [Setup & configuration](#setup-configuration)
+· [Workflow](#workflow) · [Outputs](#outputs) ·
+[State / robustness](#state-robustness) · [Power users](#power-users) ·
+[Version history](#version-history-in-depth)
 
 ---
 
@@ -390,9 +352,11 @@ it up automatically; no code changes needed. The standard
 ### Can I add a custom MCP tool?
 
 Yes. Implement the function in `src/research_os/tools/actions/<group>/<file>.py`,
-add a JSON schema to `TOOL_DEFINITIONS` in `src/research_os/server.py`, register
-the handler in `_HANDLERS`. Reference the new tool from at least one
-protocol so it doesn't become dead code. See
+add a JSON schema to `TOOL_DEFINITIONS` in the matching
+`src/research_os/server/tool_definitions/*.py` module, and register the
+handler in the matching `src/research_os/server/handlers/*.py` module's
+`HANDLERS` map. Reference the new tool from at least one protocol so it
+doesn't become dead code. See
 [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ### Can I run Research OS without the synthesis features?
@@ -412,6 +376,31 @@ Two patterns:
   pointers to the sibling project.
 
 ---
+
+## Version history (in depth)
+
+> Historical reference. These entries explain features introduced in
+> earlier major versions (still current behaviour unless a later
+> CHANGELOG entry says otherwise). For the live release history, see
+> [`../CHANGELOG.md`](../CHANGELOG.md).
+
+### What changed in v2.0.0?
+
+The headline shape change was a **tool surface consolidation
+(344 → 144 live)** plus a flip of `sys_protocol_get` to default
+`format='summary'`. Both were breaking on paper but **every legacy
+tool name still dispatches via alias** — most projects upgraded with
+zero call-site edits. After `pip install --upgrade research-os`, run
+**`research-os doctor`** for an install + workspace health report
+(exit 0 = all pass, 1 = warn-only, 2 = fail). See `CHANGELOG.md [2.0.0]`
+for the full upgrade recipe. Other v2.0.0 highlights: the MCP
+`instructions` field on the initialize handshake (names the canonical
+boot ritual), `tool_route.recommended_action` + `why_matched`,
+audit-as-data (the `.audit_findings.jsonl` ledger), `tier:` +
+`scope_tags` on every protocol, and the `tool_protocols_list` /
+`tool_tools_list` discovery tools. v2.3.0 added AI-direct synthesis
+authoring (the AI writes `synthesis/paper.typ` etc. directly; the rigid
+auto-generators were retired).
 
 ## v2.0.0 — new features (in depth)
 

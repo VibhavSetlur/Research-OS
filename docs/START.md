@@ -152,7 +152,8 @@ careful collaborator, not an eager autocomplete:
 
 When you're ready for more, the [1-hour walkthrough](#the-1-hour-walkthrough-optional)
 below shows the full arc; [USE_CASES.md](USE_CASES.md) maps "what I want"
-to "what to say".
+to "what to say"; and [SCENARIOS.md](SCENARIOS.md) walks seven complete
+real projects from first prompt to finished `synthesis/` output.
 
 ---
 

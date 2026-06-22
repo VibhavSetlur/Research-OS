@@ -6,15 +6,47 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
-## [3.11.1] — documentation accuracy pass (2026-06-22)
+## [3.11.1] — documentation accuracy + worked-scenarios pass (2026-06-22)
 
 A PATCH release. Docs-only — no code, tool, or protocol behaviour
 changed. The whole `docs/` tree and the README were audited against the
-live registry, protocol catalogue, and CLI, and corrected wherever they
-had drifted.
+live registry, protocol catalogue, and CLI, corrected wherever they had
+drifted, and substantially enriched with realistic end-to-end examples.
+
+### Added
+
+- **`docs/SCENARIOS.md`** — a new doc with seven complete, realistic,
+  end-to-end worked examples: a grad student turning a messy sensor CSV
+  into a paper + poster; a postdoc reproducing a published bioinformatics
+  result and finding it normalization-sensitive; a PI assembling an NIH
+  R01 from finished work; an engineer benchmarking their own Rust tool in
+  `tool_build` mode; a qualitative researcher taking 18 interview
+  transcripts to a publishable paper + dashboard; bringing a
+  half-finished project into Research OS mid-stream; and a quick
+  one-figure job. Each names a researcher, shows the data on disk, the
+  exact prompts typed, the protocols that fire, and what lands in
+  `synthesis/`. Every protocol, tool, CLI flag, and protocol step
+  referenced was verified against the live registry. Linked from the
+  README, the docs index, USE_CASES, START, RESEARCHER_GUIDE, and FAQ.
+
+### Improved
+
+- **`docs/FAQ.md`** — replaced the stale v2.0.0-retrospective lead-in
+  (which greeted every reader of a 3.11.x product with a two-year-old
+  migration note) with a topic-grouped "common questions" entry point +
+  jump links. The v2.0.0 detail was preserved verbatim under a clearly
+  labelled "Version history (in depth)" section.
 
 ### Fixed
 
+- **`docs/FAQ.md`** — the "add a custom MCP tool" answer pointed at the
+  long-removed monolithic `src/research_os/server.py`; corrected to the
+  split `server/tool_definitions/*.py` + `server/handlers/*.py` layout.
+- **Cross-doc links** — fixed three broken/stale internal anchors
+  (`PROTOCOLS.md → TOOLS.md` theory-pack section that no longer exists;
+  `README.md → RESEARCHER_GUIDE.md` config section that renumbered from
+  §9 to §8) and verified zero broken links across the whole `docs/` tree
+  + README.
 - **`docs/TOOLS.md`** — added the 8 live tools that had no entry
   (`tool_build`, `tool_git`, `tool_deliverable_chooser`, `tool_explain`,
   `tool_finalize_project`, `tool_skills`, and the `wet_lab` pack's
