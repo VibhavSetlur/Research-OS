@@ -6,6 +6,44 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.11.1] — documentation accuracy pass (2026-06-22)
+
+A PATCH release. Docs-only — no code, tool, or protocol behaviour
+changed. The whole `docs/` tree and the README were audited against the
+live registry, protocol catalogue, and CLI, and corrected wherever they
+had drifted.
+
+### Fixed
+
+- **`docs/TOOLS.md`** — added the 8 live tools that had no entry
+  (`tool_build`, `tool_git`, `tool_deliverable_chooser`, `tool_explain`,
+  `tool_finalize_project`, `tool_skills`, and the `wet_lab` pack's
+  `tool_wet_lab_checksum_raw` + `tool_wet_lab_run_log_init`). The doc
+  now covers all 152 live tools with zero stale entries (verified by a
+  cross-reference against `TOOL_DEFINITIONS`).
+- **`docs/PROTOCOLS.md`** — corrected the header from "100+ protocols /
+  nine categories" to the accurate **130+ protocols across thirteen
+  categories**, and regenerated the auto-catalogue block via
+  `scripts/regen_protocols_doc.py` so per-category counts (methodology
+  44, synthesis 22) and the previously-undocumented `build`,
+  `exploration`, `notebook`, and `program` categories are all present.
+- **`docs/CLI.md`** — the top command table listed only 7 of the 10
+  real subcommands; added `hermes`, `route`, and `refresh`, rewrote the
+  intro, and added a full `research-os refresh` reference section.
+- **`docs/START.md`** — fixed both "seven commands" references to the
+  accurate ten, and added the missing `hermes` / `route` / `refresh`
+  examples to the cheatsheet.
+- **`docs/AI_GUIDE.md`** — corrected the protocol-categories heading
+  ("100+ protocols, organised in 9" → "130+ protocols") and added the
+  `build`, `exploration`, `notebook`, and `program` router intent
+  classes to the category table, with a pointer to `PROTOCOLS.md` for
+  the authoritative folder roster.
+- Verified zero broken internal doc links, README Python badge matches
+  the packaging classifiers (3.10 / 3.11 / 3.12), and the README IDE
+  list matches the wizard's supported targets.
+
+---
+
 ## [3.11.0] — step report adoption (2026-06-22)
 
 A MINOR release that makes the **step report** (added in 3.10.0)
