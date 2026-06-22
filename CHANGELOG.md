@@ -6,6 +6,26 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.4.0] — terminal-facing router preview (2026-06-22)
+
+A MINOR release that lets you drive the protocol router straight from the
+terminal, no IDE or MCP client required. Fully backwards-compatible.
+
+### Added
+- `research-os route "<prompt>"` — runs the same hierarchical router the
+  MCP `tool_route` uses and prints the routing decision: matched
+  protocol, intent class / sub-intent, resolved level, complexity, tier,
+  planned tool sequence, and ranked alternatives. `--json` emits the raw
+  decision for scripting or non-MCP agents. Read-only: never persists an
+  active plan. Reads project workflow shape + workspace mode when run
+  inside a workspace; works statelessly anywhere else.
+
+### Improved
+- Shell completion now offers the `hermes` and `route` subcommands.
+- CLI reference documents `research-os route`.
+
+---
+
 ## [3.3.0] — self-improving, adaptive Research-OS (2026-06-22)
 
 A MINOR release that makes Research-OS adapt to the work in front of it and

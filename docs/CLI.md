@@ -129,6 +129,27 @@ up the new server and skill.
 
 ---
 
+## `research-os route "<prompt>"`
+
+Preview the protocol router from the terminal — the same hierarchical
+router the MCP `tool_route` calls. Prints the matched protocol, intent
+class, planned tool sequence, and ranked alternatives so you can see
+what Research-OS *would* do for a request without opening an IDE. It is
+read-only: it never persists an active plan.
+
+```bash
+# Human-readable decision.
+research-os route "fit a mixed-effects model to my data"
+
+# Raw decision as JSON (for scripting / non-MCP agents).
+research-os route "draft the methods section" --json
+```
+
+Run it inside a workspace for state-aware routing (it reads the project
+workflow shape + workspace mode), or anywhere for a stateless preview.
+
+---
+
 ## `research-os api-key add | list | rotate | remove | test`
 
 Manages the `api_keys:` block of `inputs/researcher_config.yaml`.
