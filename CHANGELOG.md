@@ -6,6 +6,53 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.7.0] — first-class workspace modes (2026-06-22)
+
+A MINOR release that makes the workspace **mode** axis coherent and
+discoverable. Research OS already supported six modes (`analysis`,
+`hybrid`, `tool_build`, `exploration`, `notebook`, `multi_study`), but
+routing only biased toward two of them and the mode system was scattered
+across the router as hardcoded `if/elif` branches with no single source
+of truth — and it was invisible from `sys_help`. This release unifies
+the mode routing into one registry, promotes `notebook` and
+`multi_study` to first-class routing citizens, and surfaces the whole
+axis through help. Mode names, the config enum, and every tool signature
+are unchanged, so this is backwards-compatible.
+
+### Added
+- **`sys_help(topic='modes')`** — the workspace-mode axis is now
+  discoverable from help (aliases: `mode`, `workspace_mode`). It returns
+  what mode is, the registered-mode enum (sourced from config so it
+  can't drift), a one-line role per mode, how to set it, and how routing
+  bias differs per mode. Closes the gap where the AI learned modes
+  existed only by reading `config.py`.
+- **`MODE_ROUTING` registry** in `tools/actions/router.py` — one table
+  mapping each mode to its native sub-intents, boost weight, and whether
+  it overrides the semantic router. Every mode-aware code path now reads
+  from this single source of truth instead of duplicated constants.
+
+### Improved
+- **`notebook` and `multi_study` are now first-class routing modes.**
+  They each boost their native sub-intents (`notebook_run` /
+  `program_setup`) in `tool_route`, matching the bias `tool_build` and
+  `exploration` already had. Previously they only got the weaker
+  indirect workflow-shape tiebreak, so build-shaped and analysis-shaped
+  prompts could out-rank a notebook/program protocol in those modes.
+- **The mode-override (semantic-deferral) path generalised** from
+  `tool_build`-only to any mode flagged `override=True` in the registry,
+  driven by the registry's per-mode native sub-intents.
+- **The wizard re-exports `VALID_WORKSPACE_MODES` from config** instead
+  of keeping its own copy, so the init mode menu can never offer a mode
+  the config layer would reject (drift guard).
+
+### Fixed
+- `sys_help(topic='gates')` descriptions for the `power` and
+  `assumptions` gates were stale after v3.6.0 (they still described the
+  removed statsmodels/scipy compute behaviour). They now correctly
+  describe the verify-recorded gates.
+
+---
+
 ## [3.6.0] — audit gates verify recorded work, they don't compute it (2026-06-22)
 
 A MINOR release that removes the last place a Research-OS tool did the

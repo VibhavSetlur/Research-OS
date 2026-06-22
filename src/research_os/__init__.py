@@ -5,4 +5,4 @@ language, and get publication-grade analyses with provenance sidecars,
 plain-English captions, and a self-tested dashboard you can email.
 """
 
-__version__ = "3.6.0"
+__version__ = "3.7.0"

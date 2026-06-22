@@ -41,7 +41,7 @@ def _handle_sys_help(name, arguments, root):
             "synthesis", "methodology", "visualization", "audit",
             "literature", "writing", "routing", "iteration", "overrides",
             "recovery", "fields", "packs", "adapters", "depth", "categories",
-            "anti_patterns", "docs", "gates",
+            "anti_patterns", "docs", "gates", "modes",
         ],
         "hint": "Call sys_help again with topic=<one of topics> for detail.",
     }
@@ -402,6 +402,81 @@ def _handle_sys_help(name, arguments, root):
             "arc": "visualization/figure_narrative_arc",
             "a11y": "visualization/color_accessibility_audit",
         }))
+    if topic in {"modes", "mode", "workspace_mode"}:
+        # Workspace MODE is the top-level axis that shapes the whole project:
+        # the scaffold on disk, which protocols routing biases toward, and
+        # which audit gates apply. Set once at init (the wizard asks) or via
+        # the workspace.mode field in inputs/researcher_config.yaml. Sourcing
+        # the enum from config keeps this list from drifting.
+        from research_os.tools.actions.state.config import VALID_WORKSPACE_MODES
+        return _text(_success({
+            "what_mode_is": (
+                "Workspace MODE is the single top-level axis that shapes a "
+                "project end-to-end: (1) the directory scaffold init builds, "
+                "(2) which protocols tool_route biases toward, (3) which "
+                "audit gates apply. It is set ONCE at init and rarely changes. "
+                "analysis is the default and the universal fallback."
+            ),
+            "registered_modes": sorted(VALID_WORKSPACE_MODES),
+            "modes": {
+                "analysis": (
+                    "DEFAULT. The classic linear numbered-step workspace "
+                    "(inputs/ → workspace/NN_step/ → synthesis/). The full "
+                    "audit + literature + synthesis surface. Pick this for a "
+                    "study that produces a paper / poster / dashboard."
+                ),
+                "hybrid": (
+                    "analysis surface + tool_build governance for projects "
+                    "that BUILD a tool AND publish findings about it. Reuses "
+                    "the analysis routing surface (no separate bias) but the "
+                    "scaffold adds the spec/decisions/eval governance layer."
+                ),
+                "tool_build": (
+                    "Research OS governs a software build from above: spec/ "
+                    "(requirements + design), decisions/ (ADRs), eval/, "
+                    "milestones.md, governance.md, CHANGELOG.md, and an INNER "
+                    "git repo (workspace.inner_repo, default 'project/'). "
+                    "Routing strongly biases toward build/* protocols; build "
+                    "vocabulary that collides with analysis defers to the "
+                    "build router. Pick this when the deliverable IS the code."
+                ),
+                "exploration": (
+                    "Scratch-first quick probes with light gates. "
+                    "workspace/scratch is the home base; synthesis stays lazy. "
+                    "Routing biases toward exploration/* (loop / triage / "
+                    "promote). Pick this for an open-ended 'let me poke at "
+                    "this' session that may later promote into an analysis."
+                ),
+                "notebook": (
+                    "Jupyter-first: notebooks/ + data/ + outputs/ are eager. "
+                    "Routing biases toward notebook/* (the notebook_run "
+                    "sub-intent). Pick this for interactive iterative work "
+                    "that lives in .ipynb rather than numbered step scripts."
+                ),
+                "multi_study": (
+                    "A research PROGRAM spanning several studies: studies/ + "
+                    "shared/ (codebook, preregistration, governance) + "
+                    "roll_up/. Routing biases toward program/* (the "
+                    "program_setup sub-intent). Pick this for a portfolio of "
+                    "related studies that share methods and roll up into one "
+                    "synthesis."
+                ),
+            },
+            "how_to_set": (
+                "init: the wizard asks. Existing project: set "
+                "workspace.mode in inputs/researcher_config.yaml (one of the "
+                "registered_modes; off-enum values degrade to analysis). The "
+                "mode is mirrored into .os_state so tools and routing agree."
+            ),
+            "routing_effect": (
+                "tool_build / exploration / notebook / multi_study each boost "
+                "their native sub-intents in tool_route. analysis + hybrid "
+                "add NO bias — they use the baseline routing surface. So the "
+                "same prompt can resolve to different protocols depending on "
+                "the active mode."
+            ),
+            "inspect": "sys_boot returns the active workspace_mode for the project.",
+        }))
     if topic == "gates":
         # Full gate vocabulary — every (scope, dimension) the
         # _AUDIT_DISPATCH table can route to + the 8-gate autopilot
@@ -418,8 +493,8 @@ def _handle_sys_help(name, arguments, root):
                     "figure":               "PNG DPI + basic visual hygiene per step figure.",
                     "figure_full":          "full figure quality audit (axis, ticks, legend, colour, font).",
                     "figure_interactivity": "dashboard / interactive plot interactivity coverage.",
-                    "power":                "statistical power gate (statsmodels-driven).",
-                    "assumptions":          "residual normality / variance / autocorrelation / VIF / Cook's D battery.",
+                    "power":                "power justification gate — verifies you RECORDED test family, effect size + its source, alpha, n, target power (tool does not solve for power).",
+                    "assumptions":          "assumptions gate — verifies you RAN + recorded each named diagnostic (statistic + interpretation + response to violations); the tool does not run the tests.",
                     "reproducibility":      "step rerun + bit-stability check (slow + expensive; autopilot floor gate).",
                 },
                 "project": {

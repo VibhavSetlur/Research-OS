@@ -434,9 +434,12 @@ def run_wizard(args) -> WizardResult:
 # ---------------------------------------------------------------------------
 
 
-VALID_WORKSPACE_MODES = (
-    "analysis", "tool_build", "exploration", "notebook", "multi_study",
-    "hybrid",
+# Single source of truth lives in tools.actions.state.config — re-export it
+# here so the wizard's mode menu can never offer a mode the config layer
+# would later reject (drift guard). Imported lazily-safe at module load:
+# config is a leaf state module with no back-edge to the wizard.
+from research_os.tools.actions.state.config import (  # noqa: E402
+    VALID_WORKSPACE_MODES,
 )
 
 
