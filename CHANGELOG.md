@@ -6,6 +6,52 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.6.0] — audit gates verify recorded work, they don't compute it (2026-06-22)
+
+A MINOR release that removes the last place a Research-OS tool did the
+researcher's science. The `power` and `assumptions` audit gates used to
+run statistical computations themselves (statsmodels power solve;
+scipy/statsmodels Shapiro-Wilk, Levene, Breusch-Pagan, Durbin-Watson,
+VIF, Cook's distance) and decide the verdict. They now follow the
+`audit_citations` pattern: the AI runs the diagnostics in its own code
+and records them; the gate only **verifies the work was done and
+written down**. Tool names and the `(scope, dimension)` surface are
+unchanged, so this is backwards-compatible.
+
+### Changed
+- **`tool_audit(scope='step', dimension='power')` verifies a recorded
+  justification instead of solving for power.** It reads your power /
+  sample-size file and confirms it records the test family, the effect
+  size **and its source** (a bare effect size with no pilot / prior /
+  SESOI is flagged), alpha, n, and the target power with a conclusion.
+  Returns `recorded` / `missing`; it never computes a power figure.
+- **`tool_audit(scope='step', dimension='assumptions')` verifies a
+  recorded diagnostics record instead of running the tests.** It reads
+  your diagnostics file and confirms each named assumption check has a
+  statistic, an interpretation, and — for any violation — a recorded
+  response (robust SEs, a different test, a transform, …). Returns
+  `recorded` / `incomplete`; it never computes a p-value.
+- The legacy numeric kwargs on the power gate (`effect_size`, `alpha`,
+  `n`, `test`, `k_groups`) are now accepted-and-ignored for
+  back-compat — the numbers live in your record, not the tool call.
+
+### Improved
+- `docs/PROTOCOL_DOCTRINE.md` gains a **"Tools verify recorded work —
+  they never do the science"** section with the litmus test: if
+  removing a tool would change a scientific result, the tool was doing
+  the science and is wrong.
+- The `audit/audit_and_validation` assumptions step is reframed from
+  "re-test assumptions" to "run the diagnostics in your code, then
+  verify you recorded them."
+
+### Removed
+- `statsmodels` / `scipy` statistical computation from the audit layer
+  (the `_POWER_TESTS` / `_POWER_PER_GROUP` solver tables and all
+  in-tool diagnostic test runs). The arithmetic-only E-value
+  conversion is unchanged.
+
+---
+
 ## [3.5.0] — adaptive-aware autonomy gates (2026-06-22)
 
 A MINOR release that teaches every protocol's autonomy gate to speak the

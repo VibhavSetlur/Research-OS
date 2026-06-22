@@ -1,7 +1,7 @@
 id: audit_and_validation
 tier: 'review'
 name: Audit & Validation
-version: '3.0.0'
+version: '3.6.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -68,17 +68,27 @@ steps:
       outputs/reports/citation_audit.md (or workspace/logs/ if no active step).
 
   - id: audit_assumptions
-    name: Re-test Statistical Assumptions
+    name: Verify Recorded Assumption Diagnostics
     description: |
-      For each experiment step that ran a statistical model, find the residuals
-      file (typically workspace/<step>/data/output/residuals.csv) and call:
+      The model assumptions are YOUR science to run — Research-OS does not run
+      Shapiro / Levene / Breusch-Pagan / Durbin-Watson / VIF / Cook's for you.
+      In your own analysis code, run the diagnostics the model actually
+      requires, and write them into a diagnostics record
+      (e.g. workspace/<step>/outputs/reports/assumptions.md): name each check,
+      record its statistic and your interpretation, and — for any assumption
+      you found VIOLATED — record what you did about it (robust SEs, a
+      different test, a transform, etc.).
+
+      Then call the gate to confirm the record is complete:
         tool_audit(scope='step', dimension='assumptions') filepath=<that file>
-      Then read the report and append any FAILED assumptions to the step's
-      conclusions.md under "## Limitations".
+      It verifies you named the checks, interpreted each one, and responded to
+      any violation — it does NOT compute a p-value or decide the verdict.
+      Append any unresolved violations to the step's conclusions.md under
+      "## Limitations".
 
       Model-specific routing — if the step's methods.md or scripts indicate
       a particular model family, ALSO run the family-specific diagnostic
-      protocol BEFORE accepting the assumption verdict:
+      protocol so you know WHICH checks to run before recording them:
 
         If Cox PH model detected (lifelines `CoxPHFitter`,
         survival::coxph, statsmodels PHReg, sksurv
