@@ -34,6 +34,7 @@ __all__ = [
     "_handle_tool_ground",
     "_handle_tool_verify",
     "_handle_tool_lessons",
+    "_handle_tool_skills",
     "_handle_tool_reliability",
     "_handle_mem_log",
 ]
@@ -283,6 +284,27 @@ def _handle_tool_dead_end_lessons(name, arguments, root):
     return _text(_error(res.get("message", "dead_end_lessons failed")))
 
 
+def _handle_tool_skills(name, arguments, root):
+    """Self-improving skill registry: distill | promote | list."""
+    from research_os.tools.actions.research.skills import (
+        distill_skills,
+        list_skills,
+        promote_skills,
+    )
+
+    op = str(arguments.get("operation", "")).strip()
+    min_occ = int(arguments.get("min_occurrences", 2) or 2)
+    if op == "distill":
+        return _text(_success(distill_skills(root, min_occurrences=min_occ)))
+    if op == "promote":
+        return _text(_success(promote_skills(root, min_occurrences=min_occ)))
+    if op == "list":
+        return _text(_success(list_skills(root)))
+    return _text(_error(
+        f"Unknown tool_skills operation '{op}' — use distill | promote | list"
+    ))
+
+
 def _handle_tool_reliability_log_event(name, arguments, root):
     from research_os.tools.actions.state.reliability import log_event
     return _text(log_event(
@@ -493,6 +515,7 @@ HANDLERS = {
     "tool_ground": _handle_tool_ground,
     "tool_verify": _handle_tool_verify,
     "tool_lessons": _handle_tool_lessons,
+    "tool_skills": _handle_tool_skills,
     "tool_reliability": _handle_tool_reliability,
     "mem_log": _handle_mem_log,
 }

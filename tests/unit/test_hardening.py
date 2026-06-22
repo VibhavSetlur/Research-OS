@@ -67,6 +67,12 @@ def test_retry_after_is_capped():
 def test_autopilot_gate_resolves_dotdot_synthesis_writes():
     from research_os.server.autopilot_gate import _requires_confirmation
     r = _root()
+    # The gate fires on an actual OVERWRITE of existing synthesis content;
+    # the security property under test is that a ../ traversal still
+    # RESOLVES into synthesis/ (and is therefore protected, not bypassed).
+    syn = r / "synthesis"
+    syn.mkdir(parents=True, exist_ok=True)
+    (syn / "paper.md").write_text("existing")
     assert _requires_confirmation(
         "sys_file_write", {"filepath": "workspace/../synthesis/paper.md", "force": True}, r)
     assert _requires_confirmation(

@@ -36,7 +36,7 @@ class TestInitConfig:
         assert "interaction" in cfg
         assert "api_keys" in cfg
         assert cfg["model_profile"] == "medium"
-        assert cfg["interaction"]["autonomy_level"] == "supervised"
+        assert cfg["interaction"]["autonomy_level"] == "adaptive"
 
     def test_overrides_apply(self, tmp_root):
         # researcher_config.yaml now only holds the who-and-how (researcher

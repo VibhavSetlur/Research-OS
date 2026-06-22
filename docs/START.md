@@ -208,8 +208,12 @@ The AI reads all of it. No data? Skip this — you can drop files later, or
 talk to the AI in pure consult mode ("teach me about propensity scores
 before I use them").
 
-`inputs/raw_data/` and `inputs/literature/` are **immutable** — Research
-OS blocks writes server-side.
+`inputs/raw_data/` and `inputs/literature/` are **source-of-truth** —
+Research OS soft-guards them, so the AI overwrites them only with
+`force=true` plus your OK. The rest of `inputs/` (`context/`, `intake.md`,
+`researcher_config.yaml`) is AI-maintained: whether you drop files in or
+just describe the project in chat, the AI fills in the intake for you.
+Only `.os_state/` is ever hard-locked.
 
 ### When your project needs extra `inputs/` subfolders
 
@@ -393,8 +397,8 @@ research-os start                         # run the MCP server (global)
 ### Where files go
 
 ```
-inputs/raw_data/      ← your data (immutable — RO blocks writes)
-inputs/literature/    ← your PDFs (immutable — RO blocks writes)
+inputs/raw_data/      ← your data (source-of-truth; soft-guarded, force=true to overwrite)
+inputs/literature/    ← your PDFs (source-of-truth; soft-guarded, force=true to overwrite)
 inputs/context/       ← your notes / drafts / past reports
 docs/                 ← research question, domain, glossary
 workspace/            ← AI lives here; numbered experiment folders

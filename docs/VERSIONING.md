@@ -16,7 +16,8 @@ the one rule, so the AI and the researcher never guess.
 | **Figures / tables / captions** | overwrite in place (`fig_1.png`) | The *script* that produces them is versioned; the image is derived |
 | **Synthesis deliverables** (paper / poster / slides / dashboard PDFs) | overwrite the live file; the previous good render is auto-archived to `synthesis/archive/<name>_<timestamp>.<ext>` on recompile | You want one canonical `paper.pdf`, but never silently lose a good render |
 | **Data you produced** (`outputs/*.csv`, processed datasets) | overwrite in place; the producing script is versioned | Reproducible from the versioned script |
-| **`inputs/`** | never modified — immutable | The AI reads it, never writes it |
+| **`inputs/raw_data/` + `inputs/literature/`** | source-of-truth; soft-guarded (`force=true` + your OK to overwrite) | Your original data + papers — the AI shouldn't silently rewrite them |
+| **Rest of `inputs/`** (`context/`, `intake.md`, `researcher_config.yaml`) | the AI maintains these for you | Intake + context can come from files you drop OR from what you tell the AI in chat |
 
 **One canonical name, versioned history where it matters.** Don't create
 `paper_final_v3_REAL.typ`. The live file keeps its plain name; history lives in

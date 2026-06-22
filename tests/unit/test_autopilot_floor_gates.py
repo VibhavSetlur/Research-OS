@@ -63,6 +63,12 @@ FLOOR_GATES: list[tuple[str, dict]] = [
 def test_autopilot_gate_blocks_without_confirmed(tmp_path, tool_name, arguments):
     """Each floor gate must refuse the call in autopilot mode without confirmed=true."""
     _set_autonomy(tmp_path, "autopilot")
+    # The synthesis-force gate only trips on an actual OVERWRITE; create
+    # the target so the gate has something to protect.
+    if tool_name == "sys_file_write":
+        syn = tmp_path / "synthesis"
+        syn.mkdir(parents=True, exist_ok=True)
+        (syn / "paper.typ").write_text("existing")
     with pytest.raises(RoError) as exc:
         enforce_autopilot_gate(tool_name, dict(arguments), tmp_path)
     assert exc.value.what == "autopilot_gate_blocked"
@@ -201,6 +207,10 @@ def test_unit_requires_confirmation_truth_table():
 def test_dispatcher_returns_gate_envelope_for_sys_file_write(tmp_path):
     """End-to-end: _handle_tool_call routes the gate error into the envelope."""
     _set_autonomy(tmp_path, "autopilot")
+    # Materialize an existing deliverable so force=true is a real overwrite.
+    syn = tmp_path / "synthesis"
+    syn.mkdir(parents=True, exist_ok=True)
+    (syn / "paper.typ").write_text("existing deliverable")
     res = _handle_tool_call(
         "sys_file_write",
         {"filepath": "synthesis/paper.typ", "content": "x", "force": True},

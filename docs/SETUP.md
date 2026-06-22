@@ -330,7 +330,7 @@ research_goal:
   target_venue: ""
 
 interaction:
-  autonomy_level: "supervised"     # manual | supervised | autopilot
+  autonomy_level: "adaptive"       # adaptive (default) | manual | supervised | autopilot
 
 model_profile: "medium"            # small | medium | large
 

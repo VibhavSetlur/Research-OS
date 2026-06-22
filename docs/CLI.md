@@ -94,6 +94,41 @@ rule files and are not supported here.
 
 ---
 
+## `research-os hermes add | remove | status`
+
+Wires Research-OS into [Hermes Agent](https://hermes-agent.nousresearch.com)
+by editing its global config (`~/.hermes/config.yaml`). Registers the RO
+MCP server under `mcp_servers:` and installs the canonical RO `SKILL.md`
+so Hermes loads the research workflow automatically. The edit is
+comment-preserving, idempotent, and reversible.
+
+```bash
+# Wire it: auto-detects the stdio launch command and installs the skill.
+research-os hermes add
+
+# Check what's wired.
+research-os hermes status
+
+# Unwire (idempotent — no-op if not present).
+research-os hermes remove
+
+# Register an HTTP/SSE endpoint instead of a stdio command.
+research-os hermes add --url http://127.0.0.1:8765/mcp
+
+# Override the launch command / args explicitly.
+research-os hermes add --command research-os --args start
+
+# Target a non-default config location.
+research-os hermes add --config /path/to/config.yaml
+```
+
+Respects `$HERMES_CONFIG` and `$HERMES_HOME`. When the skill lands in the
+built-in `~/.hermes/skills` tree (which Hermes already scans), no
+`skills.external_dirs` entry is added. Restart Hermes after `add` to pick
+up the new server and skill.
+
+---
+
 ## `research-os api-key add | list | rotate | remove | test`
 
 Manages the `api_keys:` block of `inputs/researcher_config.yaml`.
