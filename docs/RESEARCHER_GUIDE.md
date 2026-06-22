@@ -506,11 +506,15 @@ research_goal:                    # what you want the AI to produce
   # measurement_instrument: ""    # name of scale / assay; surfaces in audits
 
 interaction:                      # how the AI should behave
-  # manual | supervised | autopilot | coaching
+  # adaptive | manual | supervised | autopilot | coaching
+  #   adaptive → DEFAULT. Per-action risk gating: proceeds on cheap,
+  #              reversible actions; pauses only on irreversible /
+  #              expensive / paid ones, with the bar tightening or
+  #              relaxing as the project earns rigor (trust score).
   #   coaching → AI doesn't auto-execute; surfaces pedagogical preludes,
   #              explains WHY each gate exists, asks the researcher to
   #              draft then critiques. Pair with tool_mistake_replay.
-  autonomy_level: "supervised"
+  autonomy_level: "adaptive"
   quality_gate_policy: "enforce"  # enforce | allow_override | warn_only
   ambiguity_posture: "ask_when_uncertain"  # | take_best_default
 

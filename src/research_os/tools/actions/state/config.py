@@ -149,12 +149,25 @@ research_goal:
 
 # ── How the AI should behave — the AI's operating contract ──────────────
 # Treat this block as a secondary AGENTS.md. The AI READS it every session
-# (via sys_boot) and FOLLOWS it, and it KEEPS IT IN SYNC with what you ask:
-# say "just be autonomous" → it sets autonomy_level: autopilot; "ask before
-# big moves" → supervised; "teach me as we go" → coaching. It never
-# silently overrides a value you set by hand.
+# (via sys_boot) and FOLLOWS it, and it KEEPS IT IN SYNC with what you ask.
+#
+# You do NOT have to pick a mode. The default — `adaptive` — infers the
+# right posture for EACH action: it flows silently through anything cheap +
+# reversible (writing scripts, drafting, EDA, figures) and pauses to confirm
+# ONLY on the handful of moves that are genuinely irreversible, expensive,
+# or external-cost (final PDF compile, abandoning a path, rolling back,
+# installing packages, paid tools, long GPU jobs, force-overwriting a
+# deliverable). The pause set tightens as the project earns rigor (clean
+# audits, grounded claims), so good projects get more flow over time.
+#
+# Override only if you want a fixed posture: say "ask before every move" →
+# supervised; "just go, never stop" → autopilot; "teach me as we go" →
+# coaching; "I'll drive each step" → manual. The AI never silently
+# overrides a value you set by hand.
 interaction:
-  autonomy_level: "supervised"   # manual | supervised | autopilot | coaching
+  autonomy_level: "adaptive"   # adaptive(default) | manual | supervised | autopilot | coaching
+  # adaptive  → DEFAULT. Per-action risk gating: flow on reversible/cheap,
+  #            pause on irreversible/expensive/external-cost. No mode to pick.
   # coaching → AI doesn't auto-execute; surfaces pedagogical preludes,
   #            explains WHY each gate exists, asks the researcher to draft
   #            then critiques. Great for graduate students / new PIs
@@ -396,18 +409,31 @@ VALID_AMBIGUITY_POSTURES = ("ask_when_uncertain", "take_best_default")
 # scheduling code only sees the three executable modes.
 _AUTONOMY_ALIASES = {"coaching": "supervised"}
 
+# Autonomy levels that engage the server-side floor gates (pause on
+# genuinely risky / irreversible / costly actions, flow on everything
+# reversible + cheap). ``autopilot`` is the static opt-in; ``adaptive``
+# is the default and lets the gate set flex with the project's rigor
+# tier + learned trust (see server/autopilot_gate.py).
+_GATE_ACTIVE_LEVELS = frozenset({"autopilot", "adaptive"})
 
-def normalize_autonomy_level(value: Any, *, default: str = "supervised") -> str:
-    """Return one of ``manual | supervised | autopilot`` for the executable
-    scheduler. ``coaching`` aliases to ``supervised``. Unknown / blank values
-    fall back to ``default``.
+
+def normalize_autonomy_level(value: Any, *, default: str = "adaptive") -> str:
+    """Return one of ``manual | supervised | autopilot | adaptive`` for the
+    executable scheduler. ``coaching`` aliases to ``supervised``. Unknown /
+    blank values fall back to ``default`` (``adaptive`` — the researcher
+    never has to pick a mode; the system infers the right posture per action).
     """
     if not isinstance(value, str):
         return default
     v = value.strip()
-    if v in {"manual", "supervised", "autopilot"}:
+    if v in {"manual", "supervised", "autopilot", "adaptive"}:
         return v
     return _AUTONOMY_ALIASES.get(v, default)
+
+
+def gate_is_active(level: Any) -> bool:
+    """True when this autonomy level engages server-side floor gates."""
+    return normalize_autonomy_level(level) in _GATE_ACTIVE_LEVELS
 
 
 def get_interaction_policy(root: Path) -> dict[str, str]:
@@ -963,7 +989,7 @@ def check_api_key(root: Path, provider: str) -> dict[str, Any]:
 # being silently treated as the documented default.
 _ENUM_FIELDS: dict[str, tuple[str, ...]] = {
     "interaction.autonomy_level": (
-        "manual", "supervised", "autopilot", "coaching",
+        "adaptive", "manual", "supervised", "autopilot", "coaching",
     ),
     "interaction.quality_gate_policy": VALID_GATE_POLICIES,
     "interaction.ambiguity_posture": VALID_AMBIGUITY_POSTURES,

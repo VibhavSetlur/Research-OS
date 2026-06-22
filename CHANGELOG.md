@@ -6,6 +6,64 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.3.0] — self-improving, adaptive Research-OS (2026-06-22)
+
+A MINOR release that makes Research-OS adapt to the work in front of it and
+get better over time, and makes it a first-class citizen inside Hermes
+Agent. Fully backwards-compatible: every existing autonomy mode, tool, and
+protocol keeps working; the new behaviour is additive.
+
+### Added — adaptive autonomy
+- **`adaptive` autonomy mode (new default).** RO now proceeds automatically
+  on cheap, reversible actions and pauses only on actions that are
+  irreversible, expensive, or carry external/real-money cost. The bar
+  tightens or relaxes with the project's earned rigor (trust score) across
+  three tiers — `strict` (every floor gate), `normal` (irreversible +
+  expensive), `light` (only truly irreversible / paid: path abandon,
+  package install, paid tools, checkpoint rollback). The explicit
+  `manual` / `supervised` / `autopilot` modes remain available for anyone
+  who wants to pin behaviour.
+
+### Added — self-improving skill registry
+- **`tool_skills` (operation = `distill` | `promote` | `list`).** Closes the
+  learning loop on top of `tool_lessons`: `distill` clusters recorded
+  lessons by tag and crystallizes recurring patterns into reusable
+  Hermes-compatible `SKILL.md` cards under `workspace/.skills/`; `promote`
+  lifts durable, cross-project lessons into the user profile
+  (`~/.config/research-os/profile.yaml`) so RO improves at *this user's*
+  work over time; `list` enumerates the current registry. Reachable via the
+  `distill_skills` shortcut intent.
+
+### Added — Hermes Agent integration
+- **`research-os hermes` CLI (`add` | `remove` | `status`).** Wires the RO
+  MCP server into `~/.hermes/config.yaml` (`mcp_servers:`) and installs a
+  canonical RO `SKILL.md` so Hermes loads the research workflow
+  automatically. The edit is comment-preserving (ruamel round-trip),
+  idempotent, and reversible; supports stdio (auto-detected launch command)
+  or an HTTP/SSE `--url` endpoint.
+
+### Improved
+- **Synthesis overwrite gate is now overwrite-aware.** Force-writing a
+  synthesis file that does not yet exist no longer triggers a confirmation
+  gate — a fresh write destroys nothing, so only an actual overwrite of
+  existing content (which auto-archives the prior version) gates.
+
+### Fixed
+- Corrected a doubled "because" in the adaptive gate's confirmation
+  message.
+
+### Bumped
+- Router index `version:` 33 → 34 (adds the `distill_skills` shortcut).
+
+### Documentation
+- Documented the new `adaptive` default across SETUP, RESEARCHER_GUIDE,
+  SECURITY, and FAQ, and corrected stale `autonomy_level: managed`
+  references (never a valid value) to the real enum
+  (`adaptive | manual | supervised | autopilot`).
+- Added a `research-os hermes` section to the CLI reference.
+
+---
+
 ## [3.2.10] — security, data/IO, durability & literature-integrity hardening (2026-06-21)
 
 A PATCH release from an adversarially-verified audit of five under-covered

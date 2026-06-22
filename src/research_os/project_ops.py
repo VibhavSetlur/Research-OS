@@ -217,8 +217,10 @@ LAZY_DIRS = (
 # surface to how that work actually flows.
 #
 # Mode-agnostic safety invariants stay constant across every profile:
-# ``.os_state`` (state), ``inputs/{raw_data,literature,context}`` (immutable
-# inputs), ``docs`` (overview/glossary), ``environment`` (reproducibility),
+# ``.os_state`` (the only hard-locked tree), ``inputs/`` (source-of-truth;
+# the original ``raw_data/`` + ``literature/`` drops are soft-guarded,
+# ``context/`` + ``researcher_config.yaml`` are AI-writable),
+# ``docs`` (overview/glossary), ``environment`` (reproducibility),
 # and ``workspace/scratch`` (the AI sandbox). Profiles only choose how the
 # *work surface* between inputs and outputs is shaped.
 #
@@ -1027,7 +1029,12 @@ run quick probes, throw things away freely.
 | `inputs/literature/`| PDFs of papers you want the AI to know about |
 | `inputs/context/`   | Notes, drafts, prior reports — anything text |
 
-`inputs/` is **immutable** — the AI reads it but never modifies it.
+Your original drops — `inputs/raw_data/` and `inputs/literature/` — are
+**source-of-truth**: soft-guarded so the AI only overwrites them with
+`force=true` plus your OK. Everything else under `inputs/` is fair game —
+the AI fills out `inputs/context/`, `inputs/intake.md`, and
+`inputs/researcher_config.yaml` for you, whether you drop files in or just
+describe the project in chat. Only `.os_state/` is ever hard-locked.
 
 ## 2. Probe in scratch
 
@@ -1137,7 +1144,9 @@ unit of work is a notebook in `notebooks/`, not a numbered analysis step.
 | `inputs/context/`   | Notes, drafts, prior reports |
 | `data/`             | Working + derived data the notebooks read/write |
 
-`inputs/` is immutable — the AI reads it but never modifies it.
+`inputs/raw_data/` + `inputs/literature/` are source-of-truth (soft-guarded);
+the AI freely maintains the rest of `inputs/` (context, intake, config). Only
+`.os_state/` is hard-locked. Derived data lives under `workspace/`.
 
 ## 2. Work in notebooks
 
@@ -1271,7 +1280,8 @@ See `GETTING_STARTED.md` for the workflow.
             "* `roll_up/` — cross-study synthesis + meta-analysis: the one "
             "  place that reads across studies to make a program-level "
             "  claim.\n\n"
-            "Mode-agnostic safety holds: `inputs/` is immutable, all "
+            "Mode-agnostic safety holds: `.os_state/` is hard-locked, "
+            "original inputs (raw_data/literature) are soft-guarded, all "
             "workspace writes go through the tools, nothing escapes the "
             "project root. Run `program/program_setup` to reason about the "
             "shared codebook + prereg + how the studies roll up.\n",
@@ -1438,7 +1448,8 @@ See `GETTING_STARTED.md` for the workflow.
         "    not by figures.\n"
         "  * `milestones.md` — the roadmap of shippable increments.\n"
         "  * `CHANGELOG.md` — what changed, milestone by milestone.\n\n"
-        "Mode-agnostic safety holds here too: `inputs/` is immutable, all\n"
+        "Mode-agnostic safety holds here too: `.os_state/` is hard-locked,\n"
+        "original inputs (raw_data/literature) are soft-guarded, all\n"
         "workspace writes go through the tools, and nothing escapes the\n"
         "project root.\n",
     )
@@ -2593,7 +2604,8 @@ This is a Research OS workspace. Two files matter most to you:
 | `inputs/literature/`| PDFs of papers you want the AI to know about |
 | `inputs/context/`   | Notes, drafts, prior reports — anything text |
 
-`inputs/` is **immutable** — the AI can read it but cannot modify it.
+`inputs/raw_data/` + `inputs/literature/` are source-of-truth (soft-guarded);
+the AI maintains the rest of `inputs/` for you. Only `.os_state/` is hard-locked.
 Derived data lives under `workspace/`.
 
 ## 2. Open your AI IDE on this folder

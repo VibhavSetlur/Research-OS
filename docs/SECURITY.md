@@ -67,11 +67,13 @@ who calls `tool_python_exec` and writes raw Python that opens
 
 ## 3. Recommended posture
 
-* **Keep `autonomy_level: managed`** (the default) unless you have
-  read every protocol the session might load. `managed` requires
-  per-tool-call user confirmation for write-side tools. `autopilot`
-  trusts the AI to drive end-to-end and only stops on floor-gate
-  violations.
+* **Keep the default `autonomy_level: adaptive`** unless you have
+  read every protocol the session might load. `adaptive` gates every
+  irreversible, expensive, or paid action and tightens to confirm
+  *all* write-side tools on a new or untrusted project. For
+  per-tool-call confirmation regardless of trust, pin
+  `autonomy_level: supervised` (or `manual`). `autopilot` trusts the
+  AI to drive end-to-end and only stops on floor-gate violations.
 * **Treat the workspace as a sandbox.** Run Research-OS from a
   dedicated project directory, not from your home folder. If the AI
   writes a wild file or shells out badly, the blast radius is the
@@ -111,7 +113,7 @@ reads "ignore previous instructions and ...". If the AI follows
 that instruction and the user approves the tool call (or autopilot
 is on), the attack succeeds.
 
-**Mitigation:** keep `autonomy_level: managed`, review tool calls
+**Mitigation:** pin `autonomy_level: supervised`, review tool calls
 when ingesting untrusted content, and don't run the MCP server with
 credentials in env vars you wouldn't want logged.
 

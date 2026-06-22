@@ -87,7 +87,7 @@ my-tool/                  ← Research OS governance workspace
 ├── milestones.md           roadmap of shippable increments (acceptance = a passing check, not a date)
 ├── governance.md           how the whole thing fits together
 ├── CHANGELOG.md            what changed, milestone by milestone
-├── inputs/                 immutable — reference material, fixtures you bring in
+├── inputs/                 source-of-truth: raw_data/ + literature/ soft-guarded; context/ + config AI-maintained
 ├── workspace/scratch/      AI sandbox for throw-away probes
 └── project/               ← THE ACTUAL TOOL — its own git repo (name = inner_repo)
 ```

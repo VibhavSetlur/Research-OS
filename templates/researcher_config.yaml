@@ -76,12 +76,25 @@ research_goal:
 
 # ── How the AI should behave — the AI's operating contract ──────────────
 # Treat this block as a secondary AGENTS.md. The AI READS it every session
-# (via sys_boot) and FOLLOWS it, and it KEEPS IT IN SYNC with what you ask:
-# say "just be autonomous" → it sets autonomy_level: autopilot; "ask before
-# big moves" → supervised; "teach me as we go" → coaching. It never
-# silently overrides a value you set by hand.
+# (via sys_boot) and FOLLOWS it, and it KEEPS IT IN SYNC with what you ask.
+#
+# You do NOT have to pick a mode. The default — `adaptive` — infers the
+# right posture for EACH action: it flows silently through anything cheap +
+# reversible (writing scripts, drafting, EDA, figures) and pauses to confirm
+# ONLY on the handful of moves that are genuinely irreversible, expensive,
+# or external-cost (final PDF compile, abandoning a path, rolling back,
+# installing packages, paid tools, long GPU jobs, force-overwriting a
+# deliverable). The pause set tightens as the project earns rigor (clean
+# audits, grounded claims), so good projects get more flow over time.
+#
+# Override only if you want a fixed posture: say "ask before every move" →
+# supervised; "just go, never stop" → autopilot; "teach me as we go" →
+# coaching; "I'll drive each step" → manual. The AI never silently
+# overrides a value you set by hand.
 interaction:
-  autonomy_level: "supervised"   # manual | supervised | autopilot | coaching
+  autonomy_level: "adaptive"   # adaptive(default) | manual | supervised | autopilot | coaching
+  # adaptive  → DEFAULT. Per-action risk gating: flow on reversible/cheap,
+  #            pause on irreversible/expensive/external-cost. No mode to pick.
   # coaching → AI doesn't auto-execute; surfaces pedagogical preludes,
   #            explains WHY each gate exists, asks the researcher to draft
   #            then critiques. Great for graduate students / new PIs

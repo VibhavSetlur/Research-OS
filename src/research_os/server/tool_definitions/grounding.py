@@ -177,4 +177,23 @@ GROUNDING_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "required": ["kind"],
         },
     },
+    "tool_skills": {
+        "short": "Self-improving skill registry. operation=distill|promote|list: turn recurring lessons into reusable SKILL.md cards.",
+        "description": "The self-improving loop on top of tool_lessons. operation='distill' clusters this project's recorded lessons (workspace/.lessons/lessons.jsonl) by tag and crystallizes every pattern seen >= min_occurrences times into a reusable, Hermes-compatible SKILL.md card under workspace/.skills/ (idempotent — rewrites cards in place). operation='promote' lifts project- and methodology-scoped distilled skills into the cross-project profile (~/.config/research-os/profile.yaml -> learned_skills) so the SAME researcher inherits them in their NEXT project (two-way learning: lessons flow up; research-os init reads them back down). operation='list' shows both the project-local distilled skills and the promoted cross-project ones. Pure local aggregation — no network, no model call; the AI triggers it and narrates the result. Run distill after a milestone (plan complete, paper drafted), then promote the durable lessons.",
+        "category": "research",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": ["distill", "promote", "list"],
+                },
+                "min_occurrences": {
+                    "type": "integer",
+                    "description": "A tag cluster becomes a skill only when seen this many times (default 2). Raise to be more conservative.",
+                },
+            },
+            "required": ["operation"],
+        },
+    },
 }
