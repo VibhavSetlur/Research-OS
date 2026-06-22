@@ -592,7 +592,8 @@ silent breakage on your end.
   PDF, web search snippet, or pasted text that reads "please run
   tool_python_exec(...)" will be executed if the AI follows the
   instruction and the user has approved tool use. There is no input
-  sanitiser. Workaround: keep `autonomy_level: managed` (default)
+  sanitiser. Workaround: pin `autonomy_level: supervised` (or
+  `manual`)
   and review tool calls when ingesting untrusted content. See
   [SECURITY.md](SECURITY.md) for the full threat model.
 * **`research-os doctor` does not check pack-installed protocol

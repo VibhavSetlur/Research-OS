@@ -55,6 +55,13 @@ protocol keeps working; the new behaviour is additive.
 ### Bumped
 - Router index `version:` 33 → 34 (adds the `distill_skills` shortcut).
 
+### Documentation
+- Documented the new `adaptive` default across SETUP, RESEARCHER_GUIDE,
+  SECURITY, and FAQ, and corrected stale `autonomy_level: managed`
+  references (never a valid value) to the real enum
+  (`adaptive | manual | supervised | autopilot`).
+- Added a `research-os hermes` section to the CLI reference.
+
 ---
 
 ## [3.2.10] — security, data/IO, durability & literature-integrity hardening (2026-06-21)
