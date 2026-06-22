@@ -6,6 +6,55 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.11.0] — step report adoption (2026-06-22)
+
+A MINOR release that makes the **step report** (added in 3.10.0)
+discoverable and frictionless. Fully backward-compatible — every new
+behaviour is additive guidance the AI may act on, never a hard step.
+
+### Added
+
+- **Deliverable chooser surfaces step reports.** `deliverable_chooser`
+  now returns an `interim_artifacts` list alongside the gated
+  final-deliverable recommendations. A step report is offered there
+  (never in `research_goal.output_types` — it isn't a scope commitment)
+  once at least one step has conclusions worth presenting. Pure read of
+  the existing on-disk counts; nothing forced.
+- **End-of-step nudge.** `finalize_path` now returns a
+  `step_report_nudge`. When a step has substantive conclusions AND at
+  least one figure, it suggests a step report with the exact
+  `tool_synthesis_scaffold(kind='step_report', step=…)` call and an
+  explicit "offer it, don't auto-build — ask first" instruction. Stays
+  silent when the step isn't presentation-ready.
+- **Figure staging.** Scaffolding a step report now stages that step's
+  figures into `synthesis/updates/figures/` (new `stage_step_figures`
+  helper), flags the focal figure, and reports the relative
+  `figures/…` paths so the page travels as one self-contained file with
+  no `workspace/` references. Steps with no figures are handled
+  gracefully — the report can still be authored.
+
+### Improved
+
+- **Updates index polish.** The auto-generated
+  `synthesis/updates/index.html` diary now shows a per-entry date (from
+  file mtime) and a one-line headline (the report's first paragraph,
+  truncated), so it reads as a real changelog rather than a bare link
+  list. Still navigation-only, still offline-safe, still derived purely
+  from disk.
+- **Protocol doctrine.** `docs/PROTOCOL_DOCTRINE.md` now cites
+  `synthesis_step_report` as the canonical **guidance-first** protocol
+  (no `required_structure`/archetype menu) contrasted against
+  `synthesis_dashboard`'s deliberate prescription — a reference example
+  for future protocol authors.
+
+### Bumped
+
+- Version → 3.11.0 across `pyproject.toml`, `__init__.py`,
+  `CITATION.cff`; `synthesis_step_report.yaml` protocol version → 3.11.0
+  (behaviour changed: figure staging + nudge + index).
+
+---
+
 ## [3.10.0] — step reports (2026-06-22)
 
 A MINOR release adding a new synthesis deliverable: the **step report** —
