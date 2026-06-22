@@ -127,9 +127,9 @@ write any of these paths.
 
 ```
 <project>/
-├── inputs/                      # immutable inputs
-│   ├── raw_data/                # NEVER written to after intake
-│   ├── literature/              # NEVER written to after intake
+├── inputs/                      # source-of-truth + AI-maintained intake
+│   ├── raw_data/                # soft-guarded after intake (force=true to overwrite)
+│   ├── literature/              # soft-guarded after intake (force=true to overwrite)
 │   ├── researcher_config.yaml   # see A.3
 │   ├── intake.md                # filled by tool_intake_autofill
 │   └── …

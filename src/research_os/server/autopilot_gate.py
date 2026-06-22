@@ -1,4 +1,4 @@
-"""Server-side enforcement of autopilot floor gates.
+"""Server-side enforcement of autopilot / adaptive floor gates.
 
 The ``guidance/autopilot.yaml`` protocol lists the mandatory
 confirmation gates that must stop and ask the researcher before they
@@ -17,7 +17,24 @@ The gates intercepted here:
   7. ``sys_checkpoint_rollback``
   8. ``tool_task(operation='run')`` — long-running background jobs
 
-Only triggered when ``interaction.autonomy_level == 'autopilot'``;
+Two autonomy levels engage these gates:
+
+  * ``autopilot`` — STATIC. All 8 gates always fire. The opt-in "be
+    hands-off but stop on the big stuff" posture.
+  * ``adaptive`` — DEFAULT, and the point of v3.3: the researcher never
+    picks a mode. The gate SET flexes with the project's resolved
+    ``gate_strictness`` (which is itself trust-score driven via
+    ``rigor_signals.resolve_gate_strictness``):
+
+        strict  → all 8 gates fire (same as autopilot). Low-trust /
+                  young / messy projects get full protection.
+        normal  → the irreversible + real-cost gates fire; reversible
+                  ones (synthesis force-overwrite — auto-archived; long
+                  background tasks — killable) flow.
+        light   → only the genuinely irreversible / real-money gates
+                  fire (path abandon, package install, paid tools,
+                  rollback). A rigorous project earns flow.
+
 ``supervised`` / ``manual`` / ``coaching`` are untouched (their flows
 already include an explicit ask elsewhere).
 """
@@ -49,9 +66,28 @@ def _read_autonomy_level(root: Path) -> str:
             return "supervised"
         cfg = _yaml.safe_load(cfg_path.read_text()) or {}
         raw = (cfg.get("interaction") or {}).get("autonomy_level")
-        return normalize_autonomy_level(raw)
+        # No explicit level set → the v3.3 default is adaptive.
+        return normalize_autonomy_level(raw, default="adaptive")
     except Exception:
         return "supervised"
+
+
+def _resolved_strictness(root: Path) -> str:
+    """Resolve the project's gate_strictness (light|normal|strict).
+
+    Defaults to 'strict' on any error so adaptive mode fails SAFE — an
+    unreadable project keeps every floor gate active.
+    """
+    try:
+        from research_os.tools.actions.state.rigor_signals import (
+            resolve_gate_strictness,
+        )
+
+        res = resolve_gate_strictness(Path(root))
+        val = res.get("resolved")
+        return val if val in {"light", "normal", "strict"} else "strict"
+    except Exception:
+        return "strict"
 
 
 # Tools that ALWAYS require confirmation in autopilot mode, regardless
@@ -61,41 +97,113 @@ _ALWAYS_GATED: set[str] = {
     "sys_checkpoint_rollback",
 }
 
+# Adaptive-mode gate tiers. A gate fires in adaptive mode when the
+# project's resolved strictness is at or above the gate's floor. Lower
+# index = looser. ``light`` keeps only the truly irreversible / real-money
+# gates; ``normal`` adds the reversible-but-weighty ones; ``strict`` is the
+# full autopilot set.
+#
+# Classification rationale:
+#   light  → irreversible OR spends real money (can't be undone / costs $):
+#            package_install, rollback, path abandon, paid tools.
+#   normal → + final-deliverable compile + reproducibility audit
+#            (expensive, but re-runnable).
+#   strict → + synthesis force-overwrite (auto-archived, fully reversible)
+#            + long background tasks (killable) = every gate.
+_GATE_FLOOR: dict[str, str] = {
+    "tool_package_install": "light",
+    "sys_checkpoint_rollback": "light",
+    "sys_path:abandon": "light",
+    "tool_research_tool:paid": "light",
+    "tool_typst_compile": "normal",
+    "tool_audit:reproducibility": "normal",
+    "sys_file_write:synthesis_force": "strict",
+    "tool_task:run": "strict",
+}
+
+_STRICTNESS_RANK = {"light": 0, "normal": 1, "strict": 2}
+
+
+def _gate_key(tool_name: str, arguments: dict) -> str | None:
+    """Return the canonical gate key for this (tool, args) combo, or None.
+
+    The key is what ``_GATE_FLOOR`` is indexed by; it lets adaptive mode
+    decide per-gate whether the current strictness clears the floor.
+    """
+    args = arguments or {}
+    if tool_name == "tool_package_install":
+        return "tool_package_install"
+    if tool_name == "sys_checkpoint_rollback":
+        return "sys_checkpoint_rollback"
+    if tool_name == "sys_path":
+        return "sys_path:abandon" if (args.get("operation") or "") == "abandon" else None
+    if tool_name == "tool_research_tool":
+        source = str(args.get("source") or "").lower()
+        if source in {"paid", "paid_or_licensed"} or args.get("paid") is True:
+            return "tool_research_tool:paid"
+        return None
+    if tool_name == "tool_typst_compile":
+        return "tool_typst_compile"
+    if tool_name == "tool_audit":
+        scope = str(args.get("scope") or "")
+        dimension = str(args.get("dimension") or "")
+        if scope == "step" and dimension == "reproducibility":
+            return "tool_audit:reproducibility"
+        return None
+    if tool_name == "tool_task":
+        return "tool_task:run" if (args.get("operation") or "") == "run" else None
+    if tool_name == "sys_file_write":
+        return "sys_file_write:synthesis_force" if _is_synthesis_force_write(
+            args, None
+        ) else None
+    return None
+
+
+def _is_synthesis_force_write(args: dict, root: Path | None) -> bool:
+    """True when this sys_file_write force-OVERWRITES an existing synthesis/ file.
+
+    A force-write to a path that does not exist yet destroys nothing, so
+    it is not a floor gate — only an actual overwrite of existing
+    synthesis content is irreversible-ish (and even then auto-archived).
+    """
+    filepath = str(args.get("filepath") or "")
+    force = bool(args.get("force"))
+    if not force:
+        return False
+    if root is not None:
+        try:
+            root_r = Path(root).resolve()
+            target = Path(filepath)
+            cand = target if target.is_absolute() else (root_r / target)
+            cand_r = cand.resolve()
+            rel = cand_r.relative_to(root_r).as_posix()
+        except (ValueError, OSError):
+            return True  # fail-safe: any resolution error → gate
+        if not rel.startswith("synthesis/"):
+            return False
+        # Only gate when we are actually clobbering existing content.
+        return cand_r.exists()
+    # No root to check existence against → fall back to path-shape only.
+    norm = filepath
+    for prefix in ("./", "/"):
+        while norm.startswith(prefix):
+            norm = norm[len(prefix):]
+    return norm.startswith("synthesis/")
+
 
 def _requires_confirmation(tool_name: str, arguments: dict,
                            root: Path | None = None) -> bool:
     """Decide whether this (tool_name, arguments) combo is a floor gate.
 
     Returns ``True`` only for the combinations enumerated in
-    ``guidance/autopilot.yaml`` step ``mandatory_gates``.
+    ``guidance/autopilot.yaml`` step ``mandatory_gates``. (autopilot-static
+    set — adaptive mode further filters this by strictness.)
     """
     if tool_name in _ALWAYS_GATED:
         return True
     args = arguments or {}
     if tool_name == "sys_file_write":
-        filepath = str(args.get("filepath") or "")
-        force = bool(args.get("force"))
-        if not force:
-            return False
-        # Only gate force-overwrites that land inside synthesis/. Resolve the
-        # path the SAME way the write path does so a ../ can't slip a
-        # synthesis/ write past the gate (e.g. workspace/../synthesis/paper.md).
-        if root is not None:
-            try:
-                root_r = Path(root).resolve()
-                target = Path(filepath)
-                cand = target if target.is_absolute() else (root_r / target)
-                rel = cand.resolve().relative_to(root_r).as_posix()
-            except (ValueError, OSError):
-                return True  # fail-safe: any resolution error → gate
-            return rel.startswith("synthesis/")
-        # Fallback (no root): prefix-strip normalization. lstrip() would also
-        # eat a legitimate leading "." (e.g. ".synthesis"), so strip prefixes.
-        norm = filepath
-        for prefix in ("./", "/"):
-            while norm.startswith(prefix):
-                norm = norm[len(prefix):]
-        return norm.startswith("synthesis/")
+        return _is_synthesis_force_write(args, root)
     if tool_name == "sys_path":
         return (args.get("operation") or "") == "abandon"
     if tool_name == "tool_task":
@@ -129,11 +237,13 @@ def _requires_confirmation(tool_name: str, arguments: dict,
 def enforce_autopilot_gate(
     tool_name: str, arguments: dict, root: Path
 ) -> None:
-    """Raise ``RoError`` if this call hits an autopilot floor gate.
+    """Raise ``RoError`` if this call hits a floor gate.
 
     No-op when:
-      * autonomy != 'autopilot'
+      * autonomy is not gate-active (not 'autopilot' / 'adaptive')
       * tool is not in the gated set for these arguments
+      * autonomy is 'adaptive' AND the project's strictness is below the
+        gate's floor (a rigorous project flows through reversible gates)
       * caller passed ``confirmed=true``
 
     The error includes the exact next-action call the AI must make
@@ -142,17 +252,39 @@ def enforce_autopilot_gate(
     if not _requires_confirmation(tool_name, arguments, root):
         return
     level = _read_autonomy_level(root)
-    if level != "autopilot":
+    if level not in {"autopilot", "adaptive"}:
         return
+
     args = arguments or {}
     if args.get("confirmed") is True:
         return
+
+    # Adaptive mode: only fire when the project's resolved strictness
+    # clears this gate's floor. autopilot is always full-strictness.
+    if level == "adaptive":
+        gate_key = _gate_key(tool_name, args)
+        if gate_key is not None:
+            floor = _GATE_FLOOR.get(gate_key, "strict")
+            strictness = _resolved_strictness(root)
+            if _STRICTNESS_RANK[strictness] < _STRICTNESS_RANK[floor]:
+                logger.debug(
+                    "adaptive gate %s skipped: strictness=%s < floor=%s",
+                    gate_key, strictness, floor,
+                )
+                return
+
+    posture = (
+        "adaptive autonomy paused here: this action is irreversible / "
+        "expensive / external-cost at the project's current rigor level"
+        if level == "adaptive"
+        else "autopilot autonomy requires explicit confirmation"
+    )
     raise RoError(
         what="autopilot_gate_blocked",
         why=(
-            f"autopilot autonomy requires explicit confirmation for {tool_name} — "
-            "this is one of 8 mandatory floor gates declared in "
-            "guidance/autopilot.yaml and enforced server-side"
+            f"{posture} for {tool_name} — this is one of the mandatory "
+            "floor gates declared in guidance/autopilot.yaml and enforced "
+            "server-side"
         ),
         next_action=(
             f"researcher must confirm — call {tool_name}(confirmed=true, ...) "

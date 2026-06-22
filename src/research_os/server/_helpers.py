@@ -175,7 +175,7 @@ def _read_profile(root: Path) -> dict:
     cfg = get_config(root)
     if cfg.get("status") != "success":
         return {
-            "autonomy_level": "supervised",
+            "autonomy_level": "adaptive",
             "expertise_level": "intermediate",
             "model_profile": "medium",
             "context_class": "short",
@@ -184,7 +184,7 @@ def _read_profile(root: Path) -> dict:
     ai_block = config.get("ai") or {}
     return {
         "autonomy_level": config.get("interaction", {}).get(
-            "autonomy_level", "supervised"
+            "autonomy_level", "adaptive"
         ),
         "expertise_level": config.get("researcher", {}).get(
             "expertise_level", "intermediate"

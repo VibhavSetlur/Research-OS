@@ -755,6 +755,81 @@ def _print_mcp_results(results: dict[str, str], name: str, action: str, wizard) 
 
 
 # ---------------------------------------------------------------------------
+# hermes subcommand — wire Research-OS into Hermes Agent (~/.hermes/config.yaml)
+# ---------------------------------------------------------------------------
+
+
+def cmd_hermes(args: argparse.Namespace) -> int:
+    """Wire / unwire / inspect Research-OS inside Hermes Agent."""
+    from research_os import hermes_integration as hi
+    from research_os import wizard
+    if getattr(args, "no_color", False):
+        wizard.disable_color()
+
+    action = args.action
+    cfg = Path(args.config).expanduser() if getattr(args, "config", None) else None
+
+    if action == "status":
+        st = hi.status(config_path=cfg)
+        print()
+        print(f"  {wizard._C.BOLD}Research-OS in Hermes{wizard._C.RESET}")
+        print(f"  {wizard._C.GREY}{wizard._hr()}{wizard._C.RESET}")
+        print(f"  config        {st['config_path']}"
+              f"  {'(exists)' if st['config_exists'] else '(missing)'}")
+        if st["server_registered"]:
+            wizard.ok("MCP server registered", repr(st["server_entry"]))
+        else:
+            wizard.warn("MCP server not registered",
+                        "run `research-os hermes add`")
+        if st["skill_installed"]:
+            wizard.ok("Skill installed", st["skill_path"])
+        else:
+            wizard.warn("Skill not installed", "run `research-os hermes add`")
+        if st["external_dirs"]:
+            print(f"  external_dirs {st['external_dirs']}")
+        return 0
+
+    if action == "add":
+        raw = getattr(args, "mcp_args", None)
+        mcp_args = [a for a in raw.replace(",", " ").split() if a] if raw else None
+        res = hi.add(
+            command=getattr(args, "hermes_command", None),
+            args=mcp_args,
+            url=getattr(args, "url", None),
+            config_path=cfg,
+        )
+        wizard.ok(f"MCP server {res['server_action']}",
+                  f"{res['server_key']} → {res['config_path']}")
+        if res["url"]:
+            print(f"  url     {res['url']}")
+        else:
+            print(f"  command {res['command']} {' '.join(res['args'])}")
+        wizard.ok("Skill installed", res["skill_path"])
+        if res["external_dir_added"]:
+            wizard.ok("Registered skills dir in external_dirs")
+        elif not res["external_dir_needed"]:
+            print("  (skill lives in the built-in Hermes skills tree; "
+                  "no external_dir needed)")
+        print()
+        print("  Restart Hermes to pick up the new MCP server and skill.")
+        return 0
+
+    if action == "remove":
+        res = hi.remove(config_path=cfg)
+        if res["server_removed"]:
+            wizard.ok("MCP server unregistered", res["config_path"])
+        else:
+            wizard.warn("MCP server was not registered", "no changes")
+        if res["external_dir_removed"]:
+            wizard.ok("Removed skills dir from external_dirs")
+        return 0
+
+    wizard.fail(f"Unknown hermes action: {action!r}",
+                "Choose from: add, remove, status")
+    return 2
+
+
+# ---------------------------------------------------------------------------
 # api-key subcommand — manage api_keys in inputs/researcher_config.yaml
 # ---------------------------------------------------------------------------
 
@@ -1461,6 +1536,41 @@ def build_parser() -> argparse.ArgumentParser:
     p_mcp.add_argument("--no-color", action="store_true",
                        help="Disable ANSI styling.")
 
+    # ── hermes ──────────────────────────────────────────────────────────
+    p_hermes = sub.add_parser(
+        "hermes",
+        help="Wire Research-OS into Hermes Agent (~/.hermes/config.yaml).",
+        description=(
+            "Make Research-OS a first-class citizen inside Hermes Agent.\n"
+            "Registers the RO MCP server under mcp_servers: and installs the\n"
+            "canonical RO skill so the agent loads it automatically. The edit\n"
+            "is comment-preserving, idempotent, and reversible.\n\n"
+            "Examples:\n"
+            "  research-os hermes add        # auto-detect launch command\n"
+            "  research-os hermes status\n"
+            "  research-os hermes remove\n"
+            "  research-os hermes add --url http://127.0.0.1:8765/mcp\n"
+            "  research-os hermes add --command research-os --args start"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_hermes.add_argument("action", choices=["add", "remove", "status"],
+                          help="What to do.")
+    p_hermes.add_argument("--command", dest="hermes_command",
+                          help="Command to launch the RO MCP server (stdio). "
+                               "Defaults to the installed `research-os` script "
+                               "or `python -m research_os.server`.")
+    p_hermes.add_argument("--args", dest="mcp_args",
+                          help="Comma- or space-separated args for --command.")
+    p_hermes.add_argument("--url", dest="url",
+                          help="Register an HTTP/SSE endpoint instead of a "
+                               "stdio command.")
+    p_hermes.add_argument("--config", dest="config",
+                          help="Path to the Hermes config (default: "
+                               "$HERMES_CONFIG or ~/.hermes/config.yaml).")
+    p_hermes.add_argument("--no-color", action="store_true",
+                          help="Disable ANSI styling.")
+
     # ── api-key ─────────────────────────────────────────────────────────
     p_api = sub.add_parser(
         "api-key",
@@ -1643,6 +1753,8 @@ def main() -> None:
         if not getattr(args, "name", None) and getattr(args, "name_flag", None):
             args.name = args.name_flag
         sys.exit(cmd_mcp(args))
+    elif args.command == "hermes":
+        sys.exit(cmd_hermes(args))
     elif args.command == "api-key":
         sys.exit(cmd_api_key(args))
     elif args.command == "start":

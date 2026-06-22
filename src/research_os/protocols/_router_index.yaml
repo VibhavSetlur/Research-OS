@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 33
+version: 34
 generated_at: '2026-06-20'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2491,6 +2491,20 @@ shortcut_intents:
               "previous dead ends"]
     tool: tool_lessons
     args: {operation: dead_end}
+
+  distill_skills:
+    triggers: ["distill skills", "crystallize lessons", "save lessons as skills",
+              "what have we learned", "turn lessons into skills",
+              "learn from this project", "build my skill library"]
+    tool: tool_skills
+    args: {operation: distill}
+
+  promote_skills:
+    triggers: ["promote skills", "carry lessons across projects",
+              "remember this for next project", "update my profile from lessons",
+              "learn my preferences"]
+    tool: tool_skills
+    args: {operation: promote}
 
   list_protocols:
     triggers: ["list protocols", "what protocols", "available protocols"]
