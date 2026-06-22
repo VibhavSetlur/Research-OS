@@ -55,11 +55,20 @@ def _file_kind(path: Path) -> str:
         if "slide" in name:
             return "slides"
         try:
-            head = path.read_text(encoding="utf-8", errors="replace")[:4000]
+            full = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
-            head = ""
+            full = ""
+        head = full[:4000]
         if any(marker in head for marker in _SLIDES_HTML_MARKERS):
             return "slides"
+        # A per-step report is an HTML artefact stamped by the scaffold with
+        # data-archetype="step-report" on <body>. It shares the dashboard shell
+        # but is checked against a DIFFERENT bar (one step, not whole project),
+        # so it must route to its own validator. The shell is large, so the
+        # stamp can sit well past the 4000-char slides window — scan the whole
+        # file for it.
+        if re.search(r'<body[^>]*\bdata-archetype\s*=\s*["\']step-report["\']', full, re.I):
+            return "step_report"
         return "dashboard"
     if suffix in {".typ", ".md", ".tex"}:
         if "slide" in name:
@@ -700,6 +709,139 @@ def _check_dashboard(text: str, root: Path) -> dict[str, Any]:
     }
 
 
+def _check_step_report(text: str, root: Path) -> dict[str, Any]:
+    """Validate a per-step meeting report.
+
+    DESIGN STANCE: this gate checks the INVARIANTS that make the artefact
+    trustworthy and shareable — it does NOT check layout, section names, or
+    ordering. The AI designs the page; the check only enforces the hard
+    constraints the scaffold's author brief promised would be enforced:
+      * offline / self-contained (no external script/stylesheet URLs)
+      * accessibility (alt text on every image; colour not the only cue is
+        guided, not mechanically enforced)
+      * honesty (no placeholders / lorem / unfilled tokens / un-deleted
+        author brief / leftover scaffold comments)
+      * emailability (sane bundle size)
+      * actually authored (the body isn't still the empty shell)
+
+    Unlike the dashboard check, a step report is ABOUT one step, so 'Step NN'
+    headings and a single referenced step directory are expected and never
+    penalised.
+    """
+    blockers: list[str] = []
+    warnings: list[str] = []
+    visible = _strip_script_style(text)
+    scan_text = _strip_html_comments(text)
+    byte_count = len(text)
+
+    # --- Authored-at-all: the empty shell must have been replaced. ----------
+    # The seed ships an author brief comment + a "Compose freely below" marker
+    # and an otherwise empty <main>. If the visible body is essentially empty,
+    # the AI hasn't written the report yet.
+    main_match = re.search(r"<main\b[^>]*>(.*?)</main>", scan_text, re.I | re.S)
+    main_visible = (main_match.group(1) if main_match else scan_text).strip()
+    # Strip tags to measure actual authored prose.
+    main_prose = re.sub(r"<[^>]+>", " ", main_visible)
+    main_prose = re.sub(r"\s+", " ", main_prose).strip()
+    if len(main_prose) < 80:
+        blockers.append(
+            "Step report body is still essentially empty — the scaffold is a "
+            "shell, not a finished page. Author the step's update (its story, "
+            "numbers, and focal figure) before sharing."
+        )
+
+    # --- Left-in author brief / scaffold guidance. -------------------------
+    # The brief lives in an HTML comment; it MUST be deleted before sharing.
+    if "STEP REPORT — author brief" in text or "Compose freely below" in text:
+        blockers.append(
+            "Step report still contains the scaffold's author-brief comment. "
+            "Delete the guidance comment block before sharing."
+        )
+
+    # --- Offline / self-contained. -----------------------------------------
+    if re.search(r'<script[^>]+src\s*=\s*["\']https?:', scan_text, re.I):
+        blockers.append(
+            "Step report loads an external script. It must be self-contained "
+            "and work offline (screen-shared / emailed with no network)."
+        )
+    if re.search(r'<link[^>]+href\s*=\s*["\']https?:', scan_text, re.I):
+        warnings.append(
+            "Step report references an external stylesheet — embed it so the "
+            "file works offline."
+        )
+    if re.search(r'<img[^>]+src\s*=\s*["\']https?:', scan_text, re.I):
+        blockers.append(
+            "Step report embeds an image by network URL. Use a local relative "
+            "path under figures/ or a base64 data URI so the file travels intact."
+        )
+
+    # --- Accessibility: alt text on every image. ---------------------------
+    imgs = re.findall(r"<img[^>]+>", scan_text, re.I)
+    missing_alt = [i for i in imgs if not re.search(r'(?<![\w-])alt\s*=\s*["\']', i)]
+    if missing_alt:
+        blockers.append(
+            f"{len(missing_alt)}/{len(imgs)} <img> tag(s) missing alt text. "
+            "Every figure needs descriptive alt text."
+        )
+    # A meeting report with zero figures is usually a missed opportunity, not
+    # an error — surface as a gentle nudge, never a blocker (a blocked step may
+    # legitimately have nothing to show yet).
+    if len(imgs) == 0:
+        warnings.append(
+            "Step report has no figures. If this step produced a plot or table, "
+            "embedding the single most informative one makes the update land "
+            "faster. (Fine to omit for a purely narrative / blocked update.)"
+        )
+
+    # --- Honesty: placeholders / lorem / unfilled tokens. ------------------
+    placeholders = _TODO_RE.findall(visible)
+    if placeholders:
+        blockers.append(
+            f"Step report contains {len(placeholders)} placeholder marker(s) "
+            f"(e.g. {placeholders[0]!r}). Replace before sharing."
+        )
+    tokens = _TOKEN_RE.findall(visible)
+    if tokens:
+        warnings.append(
+            f"Step report has {len(tokens)} unfilled token(s) in body text "
+            f"(e.g. {tokens[0]!r}). These look like un-substituted templates."
+        )
+    # Un-replaced figure stub from any example markup the AI may have left.
+    if re.search(r'<img[^>]+src\s*=\s*["\']figures/fig01\.png', scan_text, re.I):
+        warnings.append(
+            "Step report still points at the example figure path "
+            "'figures/fig01.png'. Replace it with this step's real figure(s)."
+        )
+
+    # --- Path leaks in visible prose. --------------------------------------
+    path_leaks = re.findall(r"workspace/[\w/.-]+\.\w+", visible)
+    if path_leaks:
+        warnings.append(
+            f"{len(path_leaks)} filesystem path(s) in body text. The reader "
+            "should not see raw workspace paths."
+        )
+
+    # --- Emailability: bundle size. ----------------------------------------
+    mb = byte_count / (1024 * 1024)
+    if mb > 5:
+        blockers.append(
+            f"Step report is {mb:.1f}MB. >5MB is too large to email; downsample "
+            "the embedded figure(s)."
+        )
+    elif mb > 2:
+        warnings.append(
+            f"Step report is {mb:.1f}MB. Consider downsampling embedded figures."
+        )
+
+    return {
+        "blockers": blockers,
+        "warnings": warnings,
+        "img_count": len(imgs),
+        "byte_count": byte_count,
+        "mb": round(mb, 2),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Top-level dispatcher
 # ---------------------------------------------------------------------------
@@ -797,6 +939,11 @@ def synthesis_check(
         blockers.extend(r["blockers"])
         warnings.extend(r["warnings"])
         sub["dashboard"] = r
+    elif kind == "step_report":
+        r = _check_step_report(text, root)
+        blockers.extend(r["blockers"])
+        warnings.extend(r["warnings"])
+        sub["step_report"] = r
     else:
         return {
             "status": "error",
@@ -1011,6 +1158,7 @@ _KIND_TO_OUTPUT_TYPE: dict[str, str] = {
     "slides": "slides",
     "poster": "poster",
     "dashboard": "dashboard",
+    "step_report": "step_report",
     "report": "report",
     "grant": "grant",
     "lay_summary": "lay_summary",

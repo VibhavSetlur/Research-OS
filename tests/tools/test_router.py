@@ -1126,3 +1126,18 @@ def test_shape_boost_fires_for_inferred_shape(tmp_path):
         R._protocol_workflow_shape = orig
     assert scored, "expected the protocol to score"
     assert scored[0]["shape_boost"] > 0
+
+
+def test_route_step_report_prompt_resolves(tmp_path):
+    """v3.10.0: 'step report' prompts route to synthesis_step_report."""
+    scaffold_minimal_workspace(tmp_path, "Step Report Test")
+    for prompt in (
+        "write a step report for step 21",
+        "make a visual for this step I can screen-share at the meeting",
+    ):
+        res = route_request(prompt, tmp_path)
+        assert res["status"] == "success", (prompt, res)
+        assert res["primary_protocol"] == "synthesis/synthesis_step_report", (
+            prompt, res["primary_protocol"]
+        )
+        assert res["ask_user"] is None

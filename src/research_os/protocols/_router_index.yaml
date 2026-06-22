@@ -41,8 +41,8 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 34
-generated_at: '2026-06-20'
+version: 35
+generated_at: '2026-06-22'
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -1475,6 +1475,16 @@ protocols:
     sub_intent: dashboard
     summary: "AI authors single-file offline dashboard.html."
     triggers: ["dashboard", "executive summary", "html report", "lab meeting"]
+    shortcut_tool: tool_synthesis_scaffold
+
+  synthesis/synthesis_step_report:
+    intent_class: synthesize
+    sub_intent: step_report
+    summary: "AI designs a self-contained visual artefact for ONE step (meeting-grade)."
+    triggers: ["step report", "report for this step", "write up step",
+               "visual for this step", "page for what i just did",
+               "show this step at the meeting", "step update i can screen-share",
+               "polish this step's results"]
     shortcut_tool: tool_synthesis_scaffold
 
   synthesis/synthesis_grant:
