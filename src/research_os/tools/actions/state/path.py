@@ -931,6 +931,59 @@ def _figure_table_inventory(exp_dir: Path) -> dict[str, list[str]]:
     return out
 
 
+def _step_report_nudge(
+    path_name: str,
+    conc_path: Path,
+    n_figures: int,
+) -> dict[str, Any]:
+    """Suggest (never auto-build) a step report when a step is presentable.
+
+    A step report is worth offering once a step has substantive
+    conclusions AND at least one figure — i.e. there's a result with a
+    visual worth screen-sharing at a meeting or attaching to a milestone
+    email. This is a GUIDANCE nudge only: it returns the suggestion + the
+    exact tool call, and explicitly tells the AI to ASK first. It writes
+    nothing and decides nothing. ``suggested`` is False when the step
+    isn't presentation-ready yet, so the AI stays quiet.
+    """
+    try:
+        has_conclusions = bool(
+            conc_path.exists() and conc_path.stat().st_size > 80
+        )
+    except OSError:
+        has_conclusions = False
+    suggested = has_conclusions and n_figures >= 1
+    if not suggested:
+        return {
+            "suggested": False,
+            "reason": (
+                "Step not presentation-ready yet "
+                f"(conclusions={'yes' if has_conclusions else 'no'}, "
+                f"figures={n_figures}). No step report offered."
+            ),
+        }
+    return {
+        "suggested": True,
+        "reason": (
+            "This step has substantive conclusions and a figure — it's the "
+            "kind of result worth showing at a meeting or in a milestone "
+            "email."
+        ),
+        "what_it_is": (
+            "A self-contained, offline, presentation-grade HTML page about "
+            "THIS step alone — the AI designs the layout; nothing templated."
+        ),
+        "build_with": (
+            f"tool_synthesis_scaffold(kind='step_report', step='{path_name}')"
+        ),
+        "advice": (
+            "OFFER this, don't auto-build it. Ask the researcher whether "
+            "they want a shareable page for this step; only scaffold if "
+            "they say yes."
+        ),
+    }
+
+
 def finalize_path(
     path_name: str | None,
     root: Path,
@@ -1741,6 +1794,11 @@ def finalize_path(
             len(out_files) + len(inv["figures"]) + len(inv["tables"]) + len(inv["reports"])
         ),
         "plain_english_summary_present": bool(plain_summary_from_context),
+        "step_report_nudge": _step_report_nudge(
+            path_name=path_name,
+            conc_path=conc_path,
+            n_figures=len(inv["figures"]),
+        ),
     }
 
 
