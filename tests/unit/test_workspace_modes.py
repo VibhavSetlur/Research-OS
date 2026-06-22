@@ -426,3 +426,76 @@ def test_mode_to_shape_derives_from_registry():
     expected = {m: e.shape for m, e in MODE_ROUTING.items() if e.shape}
     assert _MODE_TO_SHAPE == expected
 
+
+# ── canonical directory layout (single source of truth) ───────────
+# The layout is now declared once in LAYOUT_SPEC and composed; SCAFFOLD_PROFILES
+# is derived. These lock the canonical contract so a future edit can't silently
+# break the safety backbone or let a profile drift out of the spec.
+
+# The mode-agnostic safety backbone that MUST appear in every profile.
+_BACKBONE = (
+    ".os_state",
+    "docs",
+    "inputs",
+    "inputs/raw_data",
+    "inputs/literature",
+    "inputs/context",
+    "workspace",
+    "workspace/logs",
+    "workspace/scratch",
+    "environment",
+)
+
+
+def test_scaffold_profiles_is_derived_from_layout_spec():
+    """SCAFFOLD_PROFILES must be the composition of LAYOUT_SPEC — no hand-
+    written tuple may sneak back in and drift from the declarative source."""
+    from research_os.project_ops import (
+        LAYOUT_SPEC,
+        SCAFFOLD_PROFILES,
+        _compose_layout,
+    )
+    assert set(SCAFFOLD_PROFILES) == set(LAYOUT_SPEC)
+    for mode, spec in LAYOUT_SPEC.items():
+        assert SCAFFOLD_PROFILES[mode] == _compose_layout(spec)
+
+
+def test_safety_backbone_present_in_every_mode():
+    """Every workspace mode carries the full safety backbone in its
+    top_level_dirs — the contract that .os_state/inputs/workspace/environment
+    mean the same thing everywhere."""
+    for mode, prof in SCAFFOLD_PROFILES.items():
+        top = prof["top_level_dirs"]
+        for d in _BACKBONE:
+            assert d in top, f"{mode} missing backbone dir {d!r}"
+
+
+def test_eager_plus_lazy_partition_top_level():
+    """eager_dirs and lazy_dirs partition top_level_dirs exactly — nothing
+    created twice, nothing forgotten. Guards the composer's set logic."""
+    for mode, prof in SCAFFOLD_PROFILES.items():
+        top = set(prof["top_level_dirs"])
+        eager = set(prof["eager_dirs"])
+        lazy = set(prof["lazy_dirs"])
+        assert eager.isdisjoint(lazy), f"{mode}: dir is both eager and lazy"
+        assert eager | lazy == top, f"{mode}: eager+lazy != top_level"
+
+
+def test_describe_layout_covers_every_mode():
+    """describe_layout renders for every mode and names the mode + its
+    eager/lazy split — the single doc/sys_boot rendering path can't break
+    silently for a mode."""
+    from research_os.project_ops import LAYOUT_SPEC, describe_layout
+    for mode in LAYOUT_SPEC:
+        text = describe_layout(mode)
+        assert text.startswith(f"{mode}:")
+        assert "created at init (eager):" in text
+        assert "created on first use (lazy):" in text
+
+
+def test_describe_layout_rejects_unknown_mode():
+    from research_os.project_ops import describe_layout
+    import pytest
+    with pytest.raises(KeyError):
+        describe_layout("nope_not_a_mode")
+

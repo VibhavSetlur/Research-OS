@@ -6,6 +6,40 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.9.0] — canonical project layout (2026-06-22)
+
+A MINOR release that makes the project directory layout a single source of
+truth and documents it in one place. Fully backward-compatible — the
+folders an existing project gets at `init` are byte-identical to before.
+
+### Added
+- **`docs/PROJECT_LAYOUT.md`** — the canonical reference for the project
+  directory layout: the mode-agnostic safety backbone (`.os_state`,
+  `inputs/`, `workspace/`, `environment`, …) plus what each workspace mode
+  adds on top. Wired into the docs index. This is the single doc to read
+  for "what lives where."
+- **`LAYOUT_SPEC`** + **`describe_layout(mode)`** in `project_ops` — a
+  declarative layout definition and a render helper, so docs / `sys_boot` /
+  the wizard can describe the directory contract without re-listing folder
+  names inline.
+
+### Improved
+- The per-mode directory layout was hand-duplicated across six profiles —
+  every mode restated the same ~7 safety dirs, so the contract was
+  *implicit* and could silently drift. It is now **declared once** in
+  `LAYOUT_SPEC` and composed (`_compose_layout`); `SCAFFOLD_PROFILES` and
+  the back-compat constants (`TOP_LEVEL_DIRS` / `EAGER_DIRS` / `LAZY_DIRS`)
+  derive from it. ~190 lines of duplicated tuples removed; the safety
+  backbone can no longer drift between modes.
+
+### Fixed
+- (none)
+
+### Bumped
+- Version → 3.9.0.
+
+---
+
 ## [3.8.0] — adaptive-primary autonomy gates (2026-06-22)
 
 A MINOR release that makes the **adaptive** autonomy mode visibly primary
