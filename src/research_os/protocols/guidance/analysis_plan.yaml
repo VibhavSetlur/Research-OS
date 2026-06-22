@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -57,9 +57,8 @@ steps:
 
       AUTONOMY GATE:
         Risk: reversible + cheap — scoping the step writes no analysis yet.
-        adaptive (default) → state the scope and proceed; do NOT ask.
-        manual / supervised → present the scope; ask for confirmation.
-        autopilot           → state the scope and proceed; do NOT ask.
+        proceed (adaptive default, autopilot) → state the scope and proceed; do NOT ask.
+        confirm first (manual / supervised) → present the scope; ask for confirmation.
 
       SIZE GATE: if scope mentions >3 distinct methods OR multiple subgroups
       OR custom pipelines, you MUST call tool_plan_step before coding. The
@@ -222,16 +221,12 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — a step-intent classification is logged and can
         be re-labelled; nothing downstream is locked by it.
-        adaptive (default) → pick the closest fit and proceed; log the
+        proceed (adaptive default, autopilot) → pick the closest fit and proceed; log the
           rationale in workspace/logs/step_intent_choices.md so a later
           audit can review it.
-        manual / supervised → suggest the classification; ask for
+        confirm first (manual / supervised) → suggest the classification; ask for
                               confirmation when ambiguous (e.g. a
                               step that fits BOTH analyse + visualise).
-        autopilot           → pick the closest fit and proceed; log
-                              the rationale in workspace/logs/
-                              step_intent_choices.md so a later audit
-                              can replay it.
 
   - id: create_step_folder
     name: Create the Numbered Experiment Folder
@@ -806,17 +801,12 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — presenting results and choosing the next step
         commits nothing irreversible; the concern is researcher steering.
-        adaptive (default) → present the summary + options; if
+        proceed (adaptive default, autopilot) → present the summary + options; if
                               would_benefit_from_revision is False AND
                               audit warnings == 0, proceed to decide_next
                               in the SAME turn. Otherwise surface the
                               decision and wait for the researcher.
-        manual / supervised → wait for the researcher's reply (a/b/c/d).
-        autopilot           → present the summary + options; if
-                              would_benefit_from_revision is False
-                              AND audit warnings == 0, proceed to
-                              decide_next in the SAME turn. Otherwise
-                              still wait for the researcher.
+        confirm first (manual / supervised) → wait for the researcher's reply (a/b/c/d).
 
       ONE-SHOT GUARD: if the AI calls `sys_path` immediately
       after `tool_path_finalize` without calling
@@ -851,13 +841,10 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — the choice was already surfaced in
         present_to_researcher; this just acts on it.
-        adaptive (default) → proceed to the chosen action (already decided
+        proceed (adaptive default, autopilot) → proceed to the chosen action (already decided
           in present_to_researcher).
-        manual / supervised → wait for the explicit answer from
+        confirm first (manual / supervised) → wait for the explicit answer from
                               `present_to_researcher`.
-        autopilot           → already-confirmed in
-                              `present_to_researcher`; proceed to the
-                              chosen action.
 
       Log the decision as a ReAct trace entry so future audit can
       reconstruct WHY each step branched / proceeded / died:

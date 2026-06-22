@@ -6,6 +6,51 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.8.0] — adaptive-primary autonomy gates (2026-06-22)
+
+A MINOR release that makes the **adaptive** autonomy mode visibly primary
+across the protocol catalogue and tightens every autonomy gate. No behaviour
+changes — same modes, same tools, same floors — just a clearer, leaner gate
+idiom plus better protocol connectivity.
+
+### Improved
+
+- **Autonomy gates collapsed to two behaviour lines.** Every `AUTONOMY GATE`
+  block used to spell out four modes (`adaptive (default) →`, `manual /
+  supervised →`, `autopilot →`), restating the proceed-path twice because
+  adaptive and autopilot almost always said the same thing. All 28 well-formed
+  gate blocks now lead with a single primary line —
+  `proceed (adaptive default, autopilot) →` — followed by
+  `confirm first (manual / supervised) →`. This makes adaptive the obvious
+  default instead of one of four co-equal options, and trims ~40% of each
+  gate's prose.
+- **Autopilot nuance preserved inline.** In the three blocks where autopilot
+  legitimately bypassed a confirm-floor that adaptive honours
+  (`build/spec_and_design`, `build/test_strategy`,
+  `build/release_and_changelog`), that deviation is kept as a parenthetical
+  "(Under autopilot, …)" clause rather than dropped — no floor is lost in the
+  collapse.
+- **Protocol connectivity.** Linked the two genuinely orphaned guidance
+  protocols: `glossary_update` now `see_also` writing_core + analysis_plan;
+  `hypothesis_tracking` now `see_also` analysis_plan + research_design +
+  synthesis_paper. (The rest of the catalogue already resolved cleanly —
+  preflight's `check_routing_targets_resolve` continues to guard against
+  dangling `see_also` / `next_protocol` pointers.)
+
+### Added
+
+- `tests/unit/test_gate_idiom_collapsed.py` — locks the collapsed gate idiom
+  catalogue-wide (no verbose four-mode lines survive, every proceed-line has a
+  matching confirm-line, autopilot nuance preserved in the three special
+  blocks).
+
+### Bumped
+
+- Version → 3.8.0 (`pyproject.toml`, `__init__.py`, `CITATION.cff`).
+- `version:` field on the 20 touched protocol YAMLs → 3.8.0.
+
+---
+
 ## [3.7.0] — first-class workspace modes (2026-06-22)
 
 A MINOR release that makes the workspace **mode** axis coherent and

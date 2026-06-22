@@ -1,7 +1,7 @@
 id: scope_clarification
 tier: 'intake'
 name: Scope Clarification (vague intent → workable scope)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -131,12 +131,9 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — choosing how to read an ambiguous scope commits
         nothing; the researcher can redirect.
-        adaptive (default) → pick the highest-likelihood option, state it,
+        proceed (adaptive default, autopilot) → pick the highest-likelihood option, state it,
                               and proceed with "say stop to redirect".
-        manual / supervised → ask + wait.
-        autopilot           → pick the highest-likelihood option,
-                              state it, and proceed with "say stop to
-                              redirect".
+        confirm first (manual / supervised) → ask + wait.
 
       AMBIGUITY POSTURE GATE:
         ask_when_uncertain → ask + wait (default).
