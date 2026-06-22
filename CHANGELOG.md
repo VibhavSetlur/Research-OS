@@ -6,6 +6,114 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.2.10] — security, data/IO, durability & literature-integrity hardening (2026-06-21)
+
+A PATCH release from an adversarially-verified audit of five under-covered
+dimensions — input/SSRF & supply-chain security, data-pipeline correctness,
+crash/concurrency durability, bibliography integrity, and resource-bound edge
+cases. 39 findings confirmed and fixed across four gated waves. No tool or
+protocol was removed and no schema broke.
+
+### Fixed — security
+- **Local-file read / SSRF via literature download.** `download_literature`
+  passed a raw URL to `urlopen`, so a `file://` / `ftp://` URL (reachable from
+  untrusted provider data) could read arbitrary local files. Now only
+  `http`/`https` schemes are accepted.
+- **API keys / author PII leaked into the share archive.** `researcher_config.yaml`
+  (plaintext `api_keys` + author PII) is now excluded from the share archive and
+  the export script — both in the template and for existing projects (the export
+  script is always regenerated).
+- **LaTeX shell-escape.** `tool_latex_compile` now runs pdflatex/bibtex with
+  `-no-shell-escape` and a hardened TeX env (`shell_escape=f`, `openin/out_any=p`).
+- **pip flag injection.** `package_install` rejected nothing — a package name
+  starting with `-` was treated as a pip option. Names beginning with `-` are
+  rejected and a `--` end-of-options separator is inserted.
+- **Cytoscape `.cys` zip-slip / zip-bomb.** The `.cys` reader gained a per-member
+  uncompressed-size cap (100 MiB) and project-root containment for both the input
+  archive and the output path.
+- **Autopilot gate `../` bypass.** The synthesis-write confirmation gate resolved
+  the path naively; `workspace/../synthesis/paper.md` slipped through. The path is
+  now resolved against the project root before the check.
+
+### Fixed — data-pipeline correctness
+- **Invalid JSON from non-finite stats.** `data_profile` emitted `NaN`/`Infinity`
+  tokens (invalid JSON). Fixed at the source and systemically — the result
+  envelope now serializes with `allow_nan=False` plus a recursive non-finite
+  sanitizer, so no tool can emit invalid JSON.
+- **`data_profile` crash on nested cells.** A `.jsonl`/`.json` with list/dict
+  cells raised a bare `unhashable type`; `nunique`/`value_counts` are now guarded
+  per-column.
+- **Non-UTF-8 CSV/TSV crash.** Data tools raised a raw `UnicodeDecodeError`; added
+  an encoding fallback (`utf-8-sig → cp1252 → latin-1 → replace`) with a surfaced
+  `encoding_note`.
+- **Nullable / datetime columns missing stats.** pandas nullable `Int64`/`Float64`
+  and datetime columns now get descriptive stats (dtype introspection).
+- **Whole-file memory reads.** `data_sample`/`data_profile` gained the project-root
+  containment guard `data_convert` already had + a 500 MB read cap; `data_sample`
+  head now streams via `nrows`. `_classify_domain` and the intake row-counter
+  stream the header/rows instead of loading multi-GB files.
+- **Missing optional engine UX.** parquet/feather/excel reads & writes now surface
+  a one-line `pip install` hint instead of a raw pandas `ImportError`; added the
+  `[data]` extra.
+- **`data_sample` negative/zero `n_rows`** is rejected; empty-CSV intake reports
+  `n_rows=0` (was `-1`); `context_intake` now consults size+mtime so a changed
+  same-named file is re-imported (never silently skipped or overwritten).
+
+### Fixed — durability & concurrency
+- **Crashed background tasks looked successful.** A task's exit code was discarded;
+  `task_status`/`task_list` now keep the `waitpid` status word, derive `exit_code`,
+  and report `task_status='failed'` + `succeeded=False` on a non-zero exit.
+- **Cross-session lost updates.** `save_state` and the ledger mutators
+  (`update`/`set_phase`/`complete_phase`/`track_tokens`/`save_ctm`, memory
+  hypothesis add/update, path abandon/rename/group, numbered-step creation) did
+  unlocked read-modify-write. All now route through a locked mutator (the slow
+  disk-blob + STATE.md regeneration stay outside the lock; `flock` is
+  non-reentrant, so no deadlock).
+- **Orphan checkpoint snapshots.** An interrupted snapshot left a dir invisible to
+  repair. Snapshot/rollback-backup now drop an `.incomplete` sentinel during the
+  copy; rollback refuses a sentinel'd checkpoint; `workspace_repair` quarantines
+  manifest-less/sentinel dirs (never deletes) and `list` marks them.
+- **`group_paths` half-move.** A mid-loop failure left steps half-moved; completed
+  moves now roll back and the empty container is removed.
+- **Non-atomic state writes.** `current_tier.json`, `active_plan.json` (3 sites),
+  and researcher certifications (self-bricking) now use temp-file + `os.replace`.
+
+### Fixed — bibliography integrity
+- **Empty bibliographies (CRITICAL).** Every Typst paper compiled with an empty
+  bibliography: `generate_citations_md` emits `### \`key\`` + `- Field: value`,
+  but the Hayagriva converter expected `@key`. The parser now reads the canonical
+  back-ticked-key format (strips bullets/backticks, aliases `authors`→`author`).
+- **Citation-verify laundering.** `verify_citation_key` "verified" any keyword
+  match; it now requires the Crossref hit to match the key's first-author surname
+  + year, refusing otherwise.
+- **arxiv abstract page saved as a PDF.** `search_arxiv` rewrites `abs/<id>` →
+  `/pdf/<id>.pdf` for the download target (abstract URL kept as `abs_url`).
+- **False "verified" badge.** `generate_citations_md` reserved the ✅ badge for an
+  explicit truthy `verified` flag; an identifier alone reads "not yet verified".
+- **Lenient PDF magic check.** `is_valid_pdf` matched `%PDF-` anywhere in the first
+  64 bytes (HTML/JSON tokens slipped through); it now anchors after one BOM +
+  leading whitespace.
+- **Citation-key collisions.** Two distinct references sharing a key clobbered each
+  other; entries now dedup identical refs and suffix `a/b/c` on a real collision.
+- **Dangling-citation audit.** Added `audit_bibliography_resolution` (WARN-only)
+  reconciling cited keys against the bibliography, wired into substantiveness,
+  `audit_synthesis`, and the synthesis check.
+- **Paywall key over-collapse.** `paywall_memory` collapsed every DOI-bearing URL
+  to one key (a 403 on one mirror vetoed all); DOI-scoping is now reason-aware.
+- **doi/url YAML escaping.** doi/url values are escaped, so quotes/backslashes no
+  longer produce invalid Hayagriva YAML.
+
+### Fixed — resource-bound edge cases
+- `sys_workspace_tree` depth is coerced + clamped to `[0, 12]` (a negative/garbage
+  depth no longer recurses unbounded or crashes).
+- The router fall-through path now normalizes the prompt (hyphen-insensitive
+  matching consistent with the main path).
+- The HTTP Retry-After sleep is capped at 30 s (an untrusted header can't stall).
+- Adapter `run_all` counts only actually-run adapters (+ `total_skipped`).
+
+
+---
+
 ## [3.2.9] — scientific rigor + reproducibility integrity + universality (2026-06-20)
 
 A PATCH release from an adversarially-verified audit of five under-covered,
