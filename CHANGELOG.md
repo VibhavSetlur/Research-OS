@@ -6,6 +6,50 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.10.0] — step reports (2026-06-22)
+
+A MINOR release adding a new synthesis deliverable: the **step report** —
+a single self-contained, presentation-grade HTML page about ONE analysis
+step, the kind you screen-share in a meeting or attach to a milestone
+email. Fully backward-compatible — nothing changes for existing
+deliverables.
+
+### Added
+- **`synthesis/synthesis_step_report` protocol** — guidance-first (no
+  mandated section list): the AI designs the page each step deserves. The
+  protocol carries `design_principles` + `quality_standards` (the
+  honesty / grounding / accessibility bar) instead of a rigid
+  `required_structure`. Routed via new triggers ("step report", "visual
+  for this step", "show this step at the meeting", …).
+- **`tool_synthesis_scaffold` `kind="step_report"`** — seeds a MINIMAL
+  shell only (Research-OS palette tokens + accessibility baseline +
+  offline guarantee + an author brief in comments). No fixed sections,
+  no status pills, no archetype menu — the AI composes the layout
+  freely. Files land in `synthesis/updates/step-NN-<slug>.html`, folding
+  in the real workspace step name so the diary sorts chronologically.
+- **`synthesis/updates/index.html` diary index** — auto-regenerated on
+  every step-report write (`rebuild_updates_index`). Navigation only:
+  derived purely from disk, makes no claims, embeds nothing, works
+  offline.
+
+### Improved
+- **`synthesis/synthesis_progress_update`** now points at the step report
+  as its visual companion: when an update is really about one step, the
+  right attachment is a step report (linked), not a loose figure inlined
+  into the prose.
+
+### Validated
+- New `_check_step_report` gate enforces the trust invariants
+  (authored-at-all, no left-in author brief, offline/self-contained, alt
+  text on every image, no placeholders, emailable bundle size) and
+  **never** a heading list — "Step NN" headings and single-step focus are
+  expected, not penalised. `_file_kind` reads the whole file to detect the
+  `data-archetype="step-report"` stamp (it sits ~9KB in, past any head
+  slice). 13 new tests (`tests/unit/test_step_report.py` +
+  router resolution).
+
+---
+
 ## [3.9.0] — canonical project layout (2026-06-22)
 
 A MINOR release that makes the project directory layout a single source of
