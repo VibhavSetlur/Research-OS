@@ -907,6 +907,102 @@ def _step_report_slug(root: Path, step: str | None) -> str:
     return f"step-{clean}" if clean else "step-report"
 
 
+def stage_step_figures(root: Path, step: str | None) -> dict[str, Any]:
+    """Copy a step's figures into ``synthesis/updates/figures/`` so a step
+    report can reference them with portable relative ``figures/...`` paths.
+
+    A step report is meant to TRAVEL as a single self-contained file — so
+    its images must live next to it, not point back into ``workspace/``.
+    This helper resolves the step directory, copies every figure from its
+    ``outputs/figures/`` into ``synthesis/updates/figures/`` (skipping
+    unchanged files), and flags the focal figure (filename starting with
+    the step number, else alphabetically first) so the AI knows which one
+    leads. It NEVER edits the report HTML or invents a figure — it only
+    stages what the step actually produced. Returns ``status='empty'``
+    when the step has no figures (the report can still be authored).
+    """
+    import re
+    import shutil
+
+    figures_dir = root / "synthesis" / "updates" / "figures"
+    workspace = root / "workspace"
+    if not workspace.is_dir():
+        return {"status": "empty", "staged": [], "reason": "no workspace/"}
+
+    # Resolve the step directory (reuse the same matching as the slug helper).
+    step_dir: Path | None = None
+    if step:
+        num_match = re.search(r"(\d+)", str(step))
+        try:
+            from research_os.project_ops import discover_step_dirs
+
+            step_dirs = discover_step_dirs(workspace, include_dead=False)
+        except Exception:
+            step_dirs = []
+        if num_match:
+            target_num = int(num_match.group(1))
+            for d in step_dirs:
+                dm = re.match(r"(\d+)[_-](.+)", d.name)
+                if dm and int(dm.group(1)) == target_num:
+                    step_dir = d
+                    break
+        if step_dir is None:
+            # Exact directory name passed?
+            cand = workspace / str(step)
+            if cand.is_dir():
+                step_dir = cand
+    if step_dir is None:
+        return {
+            "status": "empty",
+            "staged": [],
+            "reason": f"no step directory resolved for step={step!r}",
+        }
+
+    src_figs = step_dir / "outputs" / "figures"
+    suffixes = {".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"}
+    candidates = (
+        [
+            f for f in sorted(src_figs.iterdir())
+            if f.is_file() and f.suffix.lower() in suffixes
+        ]
+        if src_figs.is_dir() else []
+    )
+    if not candidates:
+        return {
+            "status": "empty",
+            "staged": [],
+            "reason": f"{step_dir.name} has no figures in outputs/figures/",
+        }
+
+    step_num = step_dir.name.split("_", 1)[0]
+    focal = next(
+        (f for f in candidates if f.name.startswith(step_num + "_")),
+        candidates[0],
+    )
+
+    figures_dir.mkdir(parents=True, exist_ok=True)
+    staged: list[dict[str, Any]] = []
+    for f in candidates:
+        dest = figures_dir / f.name
+        try:
+            if not dest.exists() or dest.stat().st_mtime < f.stat().st_mtime:
+                shutil.copy2(f, dest)
+        except OSError:
+            continue
+        staged.append({
+            "filename": f.name,
+            "rel_path": f"figures/{f.name}",
+            "focal": (f == focal),
+        })
+    return {
+        "status": "success" if staged else "empty",
+        "staged": staged,
+        "focal": (f"figures/{focal.name}" if staged else None),
+        "figures_dir": str(figures_dir),
+        "source_step": step_dir.name,
+    }
+
+
 def rebuild_updates_index(root: Path) -> dict[str, Any]:
     """(Re)generate ``synthesis/updates/index.html`` — the project's visual
     diary landing page that lists every step report in chronological order.
@@ -923,6 +1019,7 @@ def rebuild_updates_index(root: Path) -> dict[str, Any]:
     """
     import html
     import re as _re
+    from datetime import date
 
     updates = root / "synthesis" / "updates"
     index_path = updates / "index.html"
@@ -930,7 +1027,8 @@ def rebuild_updates_index(root: Path) -> dict[str, Any]:
         return {"status": "empty", "count": 0}
 
     # Collect step reports — every .html under updates/ except the index.
-    reports: list[tuple[int, str, str, str]] = []  # (sort_key, slug, title, filename)
+    # Row tuple: (sort_key, slug, title, filename, headline, datestr)
+    reports: list[tuple[int, str, str, str, str, str]] = []
     for f in sorted(updates.glob("*.html")):
         if f.name == "index.html":
             continue
@@ -950,10 +1048,28 @@ def rebuild_updates_index(root: Path) -> dict[str, Any]:
             title = html.unescape(_re.sub(r"\s+", " ", title))
         else:
             title = f.stem
+        # Headline: first <p> AFTER the <h1> (the step's one-line takeaway).
+        # Skip the author-brief comment block — search only authored body.
+        headline = ""
+        after = txt[m.end():] if m else txt
+        pm = _re.search(r"<p[^>]*>(.*?)</p>", after, _re.I | _re.S)
+        if pm:
+            raw = _re.sub(r"<[^>]+>", "", pm.group(1))
+            raw = html.unescape(_re.sub(r"\s+", " ", raw)).strip()
+            if len(raw) > 160:
+                raw = raw[:157].rstrip() + "…"
+            headline = raw
+        # Date: file modification time, ISO yyyy-mm-dd (best-effort).
+        try:
+            datestr = date.fromtimestamp(f.stat().st_mtime).isoformat()
+        except OSError:
+            datestr = ""
         # Sort by leading step number when present, else push to the end.
         num_m = _re.search(r"step-(\d+)", f.stem)
         sort_key = int(num_m.group(1)) if num_m else 10**6
-        reports.append((sort_key, f.stem, title or f.stem, f.name))
+        reports.append(
+            (sort_key, f.stem, title or f.stem, f.name, headline, datestr)
+        )
 
     if not reports:
         # Nothing to index — drop a stale index so the folder stays honest.
@@ -962,9 +1078,24 @@ def rebuild_updates_index(root: Path) -> dict[str, Any]:
         return {"status": "empty", "count": 0}
 
     reports.sort(key=lambda r: (r[0], r[1]))
+
+    def _row(title: str, fn: str, headline: str, datestr: str) -> str:
+        date_html = (
+            f'<span class="date">{html.escape(datestr)}</span>' if datestr else ""
+        )
+        head_html = (
+            f'<span class="headline">{html.escape(headline)}</span>'
+            if headline else ""
+        )
+        return (
+            f'      <li><a href="{html.escape(fn)}">'
+            f'<span class="t">{html.escape(title)}</span>'
+            f"{date_html}{head_html}</a></li>"
+        )
+
     rows = "\n".join(
-        f'      <li><a href="{html.escape(fn)}">{html.escape(title)}</a></li>'
-        for _sk, _slug, title, fn in reports
+        _row(title, fn, headline, datestr)
+        for _sk, _slug, title, fn, headline, datestr in reports
     )
     doc = f"""<!DOCTYPE html>
 <html lang="en">
@@ -973,17 +1104,22 @@ def rebuild_updates_index(root: Path) -> dict[str, Any]:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Step reports</title>
 <style>
-  :root {{ --ink: #1a1a1a; --paper: #FBF8F3; --rule: #d8d2c6; --accent: #3a5a40; }}
+  :root {{ --ink: #1a1a1a; --paper: #FBF8F3; --rule: #d8d2c6; --accent: #3a5a40; --muted: #5b5b5b; }}
   body {{ background: var(--paper); color: var(--ink); margin: 0;
          font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
   main {{ max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem; }}
   h1 {{ font-weight: 600; letter-spacing: -0.01em; margin: 0 0 0.25rem; }}
-  p.sub {{ color: #5b5b5b; margin: 0 0 2rem; }}
+  p.sub {{ color: var(--muted); margin: 0 0 2rem; }}
   ul {{ list-style: none; padding: 0; margin: 0; }}
   li {{ border-bottom: 1px solid var(--rule); }}
   li a {{ display: block; padding: 0.85rem 0.25rem; color: var(--accent);
-          text-decoration: none; font-weight: 500; }}
+          text-decoration: none; }}
   li a:hover, li a:focus {{ text-decoration: underline; }}
+  .t {{ font-weight: 600; }}
+  .date {{ color: var(--muted); font-size: 0.82rem; font-weight: 400;
+           margin-left: 0.6rem; }}
+  .headline {{ display: block; color: var(--ink); font-weight: 400;
+               font-size: 0.92rem; margin-top: 0.15rem; }}
 </style>
 </head>
 <body data-archetype="updates-index">
@@ -1124,6 +1260,15 @@ def synthesis_scaffold(
         result["palette"] = palette
     if kind == "step_report":
         result["step"] = step
+        # Stage this step's figures next to the report so it travels as one
+        # self-contained file (relative figures/ paths, no workspace/ refs).
+        staged = stage_step_figures(root, step)
+        if staged.get("status") == "success":
+            result["staged_figures"] = staged.get("staged")
+            result["focal_figure"] = staged.get("focal")
+        else:
+            result["staged_figures"] = []
+            result["figures_note"] = staged.get("reason", "")
         # Refresh the diary landing page so synthesis/updates/index.html
         # always lists the full chain of step reports. Pure navigation —
         # derived from disk, no claims of its own.

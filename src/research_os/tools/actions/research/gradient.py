@@ -17,7 +17,11 @@ Two public functions back the gradient MCP tools:
   recommends which deliverable(s) to build with rationale. CRUCIALLY it
   respects output_types gating: it never pushes a deliverable the
   researcher didn't opt into, and when output_types is empty it ASKS
-  rather than assuming a paper.
+  rather than assuming a paper. Alongside the gated final-deliverable
+  recommendations it also surfaces ``interim_artifacts`` — chiefly the
+  step report — which are NOT output_types-gated because they're cheap,
+  reversible, per-step artefacts, not a scope commitment. These are
+  offered (never auto-built) once a step has conclusions worth showing.
 
 Both are read-mostly. ``explain_scaffold`` has no side effects.
 ``deliverable_chooser`` only reads state + config (no writes), so it is
@@ -215,6 +219,40 @@ _DELIVERABLE_BLURB: dict[str, str] = {
     "handout": "A printable one/two-page handout.",
 }
 
+# Step reports are NOT a declared final deliverable (they never belong in
+# research_goal.output_types). They're an interim, per-step artefact: a
+# self-contained presentation-grade page about ONE analysis step, for a
+# meeting screen-share or a milestone email. Cheap + reversible, so the
+# chooser may always SURFACE it as available without it being scope creep —
+# but it never auto-builds one or pushes it as "the" next deliverable.
+_INTERIM_STEP_REPORT: dict[str, str] = {
+    "kind": "step_report",
+    "what_it_is": (
+        "A self-contained visual page about ONE analysis step — the kind "
+        "you screen-share in a meeting or attach to a milestone email."
+    ),
+    "protocol": "synthesis/synthesis_step_report",
+    "scope": "interim",
+}
+
+
+def _interim_artifacts(counts: dict[str, int]) -> list[dict[str, Any]]:
+    """Interim artefacts the chooser may always offer (not output_types-gated).
+
+    Returns the step-report option only once at least one step has
+    conclusions worth presenting — otherwise there's nothing to report on
+    yet. Pure read of the already-computed counts; never raises.
+    """
+    if counts.get("steps_with_conclusions", 0) < 1:
+        return []
+    entry = dict(_INTERIM_STEP_REPORT)
+    entry["rationale"] = (
+        "Optional + interim: not a final deliverable and not in "
+        "output_types. Offer it when a step's results are worth showing "
+        "(meeting, milestone email). Never auto-build — ask first."
+    )
+    return [entry]
+
 
 def _count_artifacts(root: Path) -> dict[str, int]:
     """Tally what's actually on disk — steps w/ conclusions, figures, citations.
@@ -357,6 +395,7 @@ def deliverable_chooser(root: Path) -> dict[str, Any]:
             "artifact_counts": counts,
             "declared_output_types": [],
             "options": options,
+            "interim_artifacts": _interim_artifacts(counts),
             "ask_user": (
                 "No deliverable is declared in researcher_config.yaml "
                 "(research_goal.output_types is empty). What would you like "
@@ -418,6 +457,7 @@ def deliverable_chooser(root: Path) -> dict[str, Any]:
         "artifact_counts": counts,
         "declared_output_types": declared,
         "recommendations": recommendations,
+        "interim_artifacts": _interim_artifacts(counts),
         "pending_count": len(pending),
         "next_deliverable": (pending[0]["kind"] if pending else None),
         "scope_note": (

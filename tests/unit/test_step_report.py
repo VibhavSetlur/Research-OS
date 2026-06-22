@@ -172,3 +172,127 @@ def test_index_empty_returns_empty(tmp_path: Path):
     assert out["status"] == "empty"
     assert out["count"] == 0
     assert not (tmp_path / "synthesis" / "updates" / "index.html").exists()
+
+
+# ---------------------------------------------------------------------------
+# v3.11.0 — step-report adoption: chooser, end-of-step nudge, index polish,
+# figure staging.
+# ---------------------------------------------------------------------------
+
+
+def test_interim_artifacts_gated_on_conclusions():
+    """deliverable_chooser surfaces step_report only once a step has results."""
+    from research_os.tools.actions.research.gradient import _interim_artifacts
+
+    assert _interim_artifacts({"steps_with_conclusions": 0}) == []
+    out = _interim_artifacts({"steps_with_conclusions": 1})
+    assert len(out) == 1
+    assert out[0]["kind"] == "step_report"
+    assert out[0]["scope"] == "interim"
+    assert out[0]["protocol"] == "synthesis/synthesis_step_report"
+    # Never framed as a final/declared deliverable.
+    assert "interim" in out[0]["rationale"].lower()
+
+
+def test_step_report_nudge_only_when_presentable(tmp_path):
+    """finalize_path's nudge fires only with conclusions AND a figure."""
+    from research_os.tools.actions.state.path import _step_report_nudge
+
+    conc = tmp_path / "conclusions.md"
+    # No conclusions yet.
+    assert _step_report_nudge("01_eda", conc, 0)["suggested"] is False
+    # Conclusions but no figure.
+    conc.write_text("# Findings\n" + "x" * 200, encoding="utf-8")
+    assert _step_report_nudge("01_eda", conc, 0)["suggested"] is False
+    # Conclusions + figure → suggested, with the exact tool call + ask-first.
+    out = _step_report_nudge("01_eda", conc, 2)
+    assert out["suggested"] is True
+    assert "tool_synthesis_scaffold(kind='step_report'" in out["build_with"]
+    assert "01_eda" in out["build_with"]
+    assert "ask" in out["advice"].lower() or "offer" in out["advice"].lower()
+
+
+def test_updates_index_has_headline_and_date(tmp_path):
+    """Index rows carry the first <p> headline + an ISO mtime date, offline."""
+    from research_os.tools.actions.synthesis.scaffold import rebuild_updates_index
+
+    u = tmp_path / "synthesis" / "updates"
+    u.mkdir(parents=True)
+    (u / "step-03-eda.html").write_text(
+        '<!doctype html><html lang="en">'
+        '<body data-archetype="step-report">'
+        "<h1>Step 3 — baseline EDA</h1>"
+        "<p>Accuracy reached 0.84, a 6pp lift over baseline.</p>"
+        "</body></html>",
+        encoding="utf-8",
+    )
+    out = rebuild_updates_index(tmp_path)
+    assert out["status"] == "success"
+    idx = (u / "index.html").read_text(encoding="utf-8")
+    assert "Accuracy reached 0.84" in idx          # headline pulled
+    assert 'class="date"' in idx                   # date span rendered
+    assert 'class="headline"' in idx
+    # Still offline + still stamped as the navigation index (not a report).
+    assert "http://" not in idx and "https://" not in idx
+    assert 'data-archetype="updates-index"' in idx
+
+
+def test_updates_index_headline_truncated(tmp_path):
+    """A long first paragraph is clipped with an ellipsis."""
+    from research_os.tools.actions.synthesis.scaffold import rebuild_updates_index
+
+    u = tmp_path / "synthesis" / "updates"
+    u.mkdir(parents=True)
+    long_p = "y" * 400
+    (u / "step-01-x.html").write_text(
+        '<!doctype html><html lang="en"><body data-archetype="step-report">'
+        f"<h1>Step 1</h1><p>{long_p}</p></body></html>",
+        encoding="utf-8",
+    )
+    rebuild_updates_index(tmp_path)
+    idx = (u / "index.html").read_text(encoding="utf-8")
+    assert "…" in idx
+    assert "y" * 400 not in idx
+
+
+def test_stage_step_figures_picks_focal_and_copies(tmp_path):
+    """stage_step_figures copies a step's figures + flags the focal one."""
+    from research_os.tools.actions.synthesis.scaffold import stage_step_figures
+
+    figs = tmp_path / "workspace" / "03_baseline_eda" / "outputs" / "figures"
+    figs.mkdir(parents=True)
+    (figs / "03_main.png").write_bytes(b"\x89PNG focal")
+    (figs / "aux_hist.png").write_bytes(b"\x89PNG aux")
+
+    out = stage_step_figures(tmp_path, "3")
+    assert out["status"] == "success"
+    assert out["focal"] == "figures/03_main.png"
+    staged_names = {s["filename"] for s in out["staged"]}
+    assert staged_names == {"03_main.png", "aux_hist.png"}
+    focal_flags = {s["filename"]: s["focal"] for s in out["staged"]}
+    assert focal_flags["03_main.png"] is True
+    assert focal_flags["aux_hist.png"] is False
+    # Files actually landed next to where the report will live.
+    dest = tmp_path / "synthesis" / "updates" / "figures"
+    assert (dest / "03_main.png").exists()
+    assert (dest / "aux_hist.png").exists()
+
+
+def test_stage_step_figures_empty_when_no_figures(tmp_path):
+    """No figures → empty status, never raises, report can still be authored."""
+    from research_os.tools.actions.synthesis.scaffold import stage_step_figures
+
+    (tmp_path / "workspace" / "01_x").mkdir(parents=True)
+    out = stage_step_figures(tmp_path, "1")
+    assert out["status"] == "empty"
+    assert out["staged"] == []
+
+
+def test_stage_step_figures_unresolvable_step(tmp_path):
+    """An unknown step resolves to empty, not an error."""
+    from research_os.tools.actions.synthesis.scaffold import stage_step_figures
+
+    (tmp_path / "workspace").mkdir(parents=True)
+    out = stage_step_figures(tmp_path, "99")
+    assert out["status"] == "empty"
+    assert out["staged"] == []

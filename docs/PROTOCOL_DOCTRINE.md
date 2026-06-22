@@ -162,6 +162,36 @@ Scaffold:
     a positive justification, not a default.
 ```
 
+### A whole protocol as scaffold — `synthesis_step_report`
+
+The same principle scales from a single step to an entire deliverable
+protocol. The two synthesis protocols that produce visual artefacts sit
+at opposite ends on purpose:
+
+* **`synthesis_dashboard`** carries a `required_structure` and an
+  archetype menu. That's deliberate prescription (see *When prescription
+  IS the right answer*): a dashboard is a known genre with load-bearing
+  conventions — a filter bar, an evidence grid, drill-downs — and a
+  researcher reaching for one expects that shape.
+
+* **`synthesis_step_report`** is the canonical **guidance-first**
+  protocol. It has **no `required_structure`, no `forbidden_structure`,
+  no archetype menu**. It frames the work entirely through
+  `design_principles` (honesty, grounding, one-glance hierarchy,
+  travels-as-one-file) and `quality_standards` (a11y baseline, offline
+  safety, no placeholders, every number traceable to the step's
+  `conclusions.md`). The scaffold the tool writes is a *minimal shell* —
+  palette tokens, an accessibility baseline, offline safety, and the RO
+  house identity — with the design intent left in comments only. The AI
+  invents the layout and sections that tell THIS step's story fastest.
+
+The lesson: prescribe structure only when the genre's conventions are
+load-bearing. When the right shape depends on the specific findings —
+as it does for a per-step report — give the AI principles and a quality
+bar, then get out of its way. The gate (`_check_step_report`) enforces
+the *bar* (honesty, grounding, accessibility, offline, no placeholders),
+never a heading list.
+
 ## `next_protocol_kind` — how the AI should interpret `next_protocol`
 
 `next_protocol:` alone is ambiguous: does the AI **advance forward** to
