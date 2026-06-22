@@ -1,7 +1,7 @@
 id: synthesis_title_workshop
 tier: 'synthesize'
 name: Synthesis — Title Workshop (the single most-read sentence)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -199,11 +199,9 @@ steps:
 
       AUTONOMY GATE:
         Risk: reversible — a title is trivially changed later.
-        adaptive (default) → pick the recommended option; tell the
+        proceed (adaptive default, autopilot) → pick the recommended option; tell the
                               researcher in one line.
-        manual / supervised → wait for the researcher to pick.
-        autopilot           → pick the recommended option; tell
-                              the researcher in one line.
+        confirm first (manual / supervised) → wait for the researcher to pick.
 
   - id: stress_test_the_winner
     name: Stress-test the winning title

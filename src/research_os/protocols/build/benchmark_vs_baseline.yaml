@@ -1,7 +1,7 @@
 id: benchmark_vs_baseline
 tier: 'execute'
 name: Benchmark vs Baseline (fair measurement against the right comparator)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -118,14 +118,12 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — recording a verdict changes no artefact that
         can't be re-judged; the real hazard is overclaiming on noise.
-        adaptive (default) → record the verdict with its evidence and flag
+        proceed (adaptive default, autopilot) → record the verdict with its evidence and flag
           any claim that rests on a within-noise difference; surface the
           call to the researcher when the result reverses a prior claim or
           drives an irreversible downstream decision.
-        manual / supervised → present the result + uncertainty + your
+        confirm first (manual / supervised) → present the result + uncertainty + your
           read; let the researcher judge whether the claim holds.
-        autopilot → record the verdict with its evidence and flag any
-          claim that rests on a within-noise difference.
 
 expected_outputs:
   - eval/ benchmark harness + results (with conditions + versions pinned)

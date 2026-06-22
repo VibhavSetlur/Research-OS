@@ -1,7 +1,7 @@
 id: exploration_promote
 tier: 'execute'
 name: Promote a Probe to a Real Step
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -60,12 +60,10 @@ steps:
       AUTONOMY GATE:
         Risk: reversible + cheap — promote-or-iterate keeps work in scratch
         until it's earned a real step; nothing here is hard to undo.
-        adaptive (default) → if the observation is reproducible and
+        proceed (adaptive default, autopilot) → if the observation is reproducible and
           material, promote; otherwise iterate once more in scratch.
-        manual / supervised → state your recommendation (promote / one
+        confirm first (manual / supervised) → state your recommendation (promote / one
           more probe) and wait for the researcher.
-        autopilot → if the observation is reproducible and material,
-          promote; otherwise iterate once more in scratch.
 
   - id: state_the_hypothesis
     name: Turn the probe's question into a hypothesis
@@ -133,10 +131,9 @@ steps:
       AUTONOMY GATE:
         Risk: reversible + cheap — entering analysis_plan on the new step
         runs no expensive or irreversible action by itself.
-        adaptive (default) → proceed into analysis_plan on the new step.
-        manual / supervised → present the new step + the planned
+        proceed (adaptive default, autopilot) → proceed into analysis_plan on the new step.
+        confirm first (manual / supervised) → present the new step + the planned
           analysis_plan entry; wait before running the loop.
-        autopilot → proceed into analysis_plan on the new step.
 
 expected_outputs:
   - workspace/<NN_slug>/  (the promoted numbered step)

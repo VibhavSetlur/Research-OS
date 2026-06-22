@@ -1,7 +1,7 @@
 id: notebook_workflow
 tier: 'execute'
 name: Notebook Workflow (the cell as the unit of work)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -73,10 +73,9 @@ steps:
 
       AUTONOMY GATE:
         Risk: reversible + cheap — scoping the notebook writes no cells yet.
-        adaptive (default) → state the scope and proceed.
-        manual / supervised → present the scope + planned notebook;
+        proceed (adaptive default, autopilot) → state the scope and proceed.
+        confirm first (manual / supervised) → present the scope + planned notebook;
           confirm before building it.
-        autopilot → state the scope and proceed.
 
   - id: structure_cells
     name: Structure the notebook so cells are the provenance unit
@@ -152,11 +151,9 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — logging the finding and moving on commits
         nothing that can't be revisited.
-        adaptive (default) → log the finding; proceed to the next notebook
+        proceed (adaptive default, autopilot) → log the finding; proceed to the next notebook
           or to synthesis per the researcher's stated output goal.
-        manual / supervised → present the finding + options; wait.
-        autopilot → log the finding; proceed to the next notebook or to
-          synthesis per the researcher's stated output goal.
+        confirm first (manual / supervised) → present the finding + options; wait.
 
 expected_outputs:
   - notebooks/*.ipynb  (top-to-bottom-runnable)

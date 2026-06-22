@@ -1,7 +1,7 @@
 id: deep_domain_research
 tier: 'plan'
 name: Deep Domain Research (subfield-canonical pipeline)
-version: '3.5.0'
+version: '3.8.0'
 last_reviewed: '2026-06-16'
 schema_version: '2.0'
 scope_tags:
@@ -227,14 +227,10 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — switching to an alternative method changes the
         plan, not any committed result; the guard is reporting consistency.
-        adaptive (default) → only branch if the tool returned
+        proceed (adaptive default, autopilot) → only branch if the tool returned
           `branch_to_alternative` AND the alternative does not change the
           primary reporting standard; otherwise present and wait.
-        manual / supervised → present + wait.
-        autopilot           → only branch if the tool returned
-                              `branch_to_alternative` AND the
-                              alternative does not change the
-                              primary reporting standard.
+        confirm first (manual / supervised) → present + wait.
 
       Hard rule: never propose more than ONE alternative per step.
       Two-alternative comparisons happen via repeated calls AFTER

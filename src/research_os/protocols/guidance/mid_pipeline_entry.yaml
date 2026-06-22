@@ -1,7 +1,7 @@
 id: mid_pipeline_entry
 tier: 'intake'
 name: Mid-Pipeline Entry (entering an in-progress project)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -86,16 +86,11 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — inferring the entry state reads files and
         confirms; it changes nothing on its own.
-        adaptive (default) → infer from sys_file_list across inputs/,
+        proceed (adaptive default, autopilot) → infer from sys_file_list across inputs/,
                               workspace/, docs/, plus any non-RO folders
                               the researcher hints at; assume the
                               maximum-plausible state and confirm in one line.
-        manual / supervised → wait for the researcher.
-        autopilot           → infer from sys_file_list across inputs/,
-                              workspace/, docs/, plus any non-RO
-                              folders the researcher hints at; assume
-                              the maximum-plausible state and confirm
-                              in one line.
+        confirm first (manual / supervised) → wait for the researcher.
 
   - id: classify_the_entry_point
     name: Classify the entry point

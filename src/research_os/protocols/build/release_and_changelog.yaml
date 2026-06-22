@@ -1,7 +1,7 @@
 id: release_and_changelog
 tier: 'finalize'
 name: Release & Changelog (cut a versioned, reproducible release)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -74,14 +74,12 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — choosing the bump and writing the CHANGELOG
         changes nothing published; it can be re-edited before the tag.
-        adaptive (default) → choose the bump, state the reasoning (which
+        proceed (adaptive default, autopilot) → choose the bump, state the reasoning (which
           commits forced major vs minor vs patch), and proceed; flag any
           commit whose classification was ambiguous.
-        manual / supervised → present the proposed bump + the reasoning
+        confirm first (manual / supervised) → present the proposed bump + the reasoning
           (which commits forced major vs minor vs patch); confirm before
           tagging.
-        autopilot → choose the bump, state the reasoning, and proceed; flag
-          any commit whose classification was ambiguous.
 
   - id: write_changelog
     name: Write the changelog FROM the commit history
@@ -158,16 +156,15 @@ steps:
       AUTONOMY GATE:
         Risk: publishing to an external registry is irreversible — a
         published version can't be unpublished; tagging is local and cheap.
-        adaptive (default) → tag and build the artefact locally; PAUSE
+        proceed (adaptive default, autopilot) → tag and build the artefact locally; PAUSE
           before any PUBLISH to an external registry (PyPI, npm, a public
           release) and confirm, because that step can't be undone. This is
-          a hard floor, not a judgement call.
-        manual / supervised → present the version + changelog + artefact
+          a hard floor, not a judgement call. (Under autopilot, pause before
+          any PUBLISH to an external registry unless the researcher opted
+          into autopilot publishing.)
+        confirm first (manual / supervised) → present the version + changelog + artefact
           plan; tag and publish only on explicit confirmation (publishing is
           hard to undo).
-        autopilot → tag and build the artefact; pause before any PUBLISH to
-          an external registry unless the researcher opted into autopilot
-          publishing.
 
 expected_outputs:
   - A version bump in the project's single source of truth
