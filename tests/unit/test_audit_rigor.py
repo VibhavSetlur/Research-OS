@@ -62,52 +62,146 @@ def test_integer_claims_flagged_is_int():
     assert by_tok["0.84"]["is_int"] is False
 
 
-# -- A3 / A4: power is test-family aware ------------------------------------
+# -- v3.6.0: power gate VERIFIES a recorded justification (does not compute) --
 
 
-def test_power_differs_by_test_family():
-    pytest.importorskip("statsmodels")
+def _write(root, name, text):
+    p = root / name
+    p.write_text(text)
+    return name
+
+
+def test_power_verifies_complete_justification():
     from research_os.tools.actions.audit.audit import audit_power
     r = _root()
-    two = audit_power("f.py", 0.5, 0.05, 30, r, test="two_sample_t")["report"]["power"]
-    paired = audit_power("f.py", 0.5, 0.05, 30, r, test="paired_t")["report"]["power"]
-    assert abs(two - paired) > 0.05  # a paired design is NOT the two-sample figure
+    fp = _write(
+        r, "power.md",
+        "# Power analysis\n"
+        "Test: two-sample t-test.\n"
+        "Effect size d=0.5, taken from the Smith 2021 pilot study.\n"
+        "alpha = 0.05, target power = 0.80.\n"
+        "Required n = 64 per group; we enrolled 70 per group.\n"
+        "Conclusion: the study is adequately powered for d>=0.5.\n",
+    )
+    res = audit_power(fp, r)
+    assert res["status"] == "success"
+    assert not res["missing"]
 
 
-def test_power_anova_requires_k_groups():
-    pytest.importorskip("statsmodels")
+def test_power_flags_missing_elements():
     from research_os.tools.actions.audit.audit import audit_power
     r = _root()
-    assert audit_power("f.py", 0.4, 0.05, 20, r, test="anova")["status"] == "error"
-    ok = audit_power("f.py", 0.4, 0.05, 20, r, test="anova", k_groups=3)
-    assert ok["status"] in ("success", "warning")
-    assert ok["report"]["assumed_test"] == "anova"
+    # No effect size, no power target, no test family.
+    fp = _write(r, "power.md", "We used alpha 0.05 and n=30.\n")
+    res = audit_power(fp, r)
+    assert res["status"] == "warning"
+    assert res["missing"]  # names what is absent
 
 
-def test_power_report_stamps_assumed_test():
-    pytest.importorskip("statsmodels")
+def test_power_flags_effect_size_without_source():
     from research_os.tools.actions.audit.audit import audit_power
     r = _root()
-    res = audit_power("f.py", 0.5, 0.05, 30, r)
-    assert res["report"]["assumed_test"] == "two_sample_t"
+    # Effect size present but pulled from thin air (no pilot / prior / SESOI).
+    fp = _write(
+        r, "power.md",
+        "Two-sample t-test, effect size d=0.5, alpha 0.05, "
+        "power 0.80, n=64 per group.\n",
+    )
+    res = audit_power(fp, r)
+    # Recorded but the provenance note fires (effect size needs a source).
+    assert res["status"] == "warning"
+    assert any("source" in n.lower() or "provenance" in n.lower()
+               or "pilot" in n.lower() for n in res["notes"])
 
 
-# -- C1: power handler coerces stringified numeric args ----------------------
+def test_power_does_not_compute_anything():
+    from research_os.tools.actions.audit.audit import audit_power
+    r = _root()
+    fp = _write(
+        r, "power.md",
+        "Test: ANOVA. Effect f=0.25 from prior literature (Jones 2019). "
+        "alpha=0.05, power=0.80, n=52 per cell.\n",
+    )
+    res = audit_power(fp, r)
+    # No computed power figure is returned — the gate only verifies recording.
+    assert "power" not in res.get("report", {})
+    assert "recorded" in res
 
 
-def test_power_handler_coerces_string_args():
-    pytest.importorskip("statsmodels")
+def test_power_handler_ignores_legacy_numeric_args():
     import json
 
     import research_os.server as srv
+    r = _root()
+    _write(
+        r, "power.md",
+        "Two-sample t-test, d=0.5 from the pilot, alpha 0.05, "
+        "power 0.80, n=64 per group.\n",
+    )
+    # Legacy stringified numeric args must NOT crash — accepted + ignored.
     out = srv._handle_tool_call(
         "tool_audit",
-        {"scope": "step", "dimension": "power", "filepath": "f.py",
+        {"scope": "step", "dimension": "power", "filepath": "power.md",
          "effect_size": "0.5", "alpha": "0.05", "n": "30"},
-        _root(),
+        r,
     )
     env = json.loads(out[0].text)
-    assert env["status"] in ("success", "warning")  # not a TypeError crash
+    assert env["status"] in ("success", "warning")  # no TypeError crash
+
+
+def test_assumptions_verifies_recorded_diagnostics():
+    from research_os.tools.actions.audit.audit import audit_assumptions
+    r = _root()
+    fp = _write(
+        r, "diagnostics.md",
+        "# Model diagnostics\n"
+        "Shapiro-Wilk on residuals: W=0.99, p=0.4 — no evidence against "
+        "normality.\n"
+        "Breusch-Pagan: p=0.6 — homoscedastic.\n"
+        "Durbin-Watson = 2.0 — no autocorrelation.\n"
+        "VIF all < 2 — no multicollinearity.\n"
+        "Cook's distance: no influential points.\n",
+    )
+    res = audit_assumptions(fp, r)
+    assert res["status"] == "success"
+    assert "normality" in res["recorded"]
+
+
+def test_assumptions_flags_violation_without_response():
+    from research_os.tools.actions.audit.audit import audit_assumptions
+    r = _root()
+    fp = _write(
+        r, "diagnostics.md",
+        "Breusch-Pagan p=0.001 — residuals are heteroscedastic and the "
+        "normality assumption is violated.\n",
+    )
+    res = audit_assumptions(fp, r)
+    # Violation mentioned, no response recorded -> warns.
+    assert res["status"] == "warning"
+    assert res["notes"]
+
+
+def test_assumptions_raw_csv_is_not_a_record():
+    from research_os.tools.actions.audit.audit import audit_assumptions
+    r = _root()
+    fp = _write(r, "residuals.csv", "residual\n0.1\n-0.2\n0.05\n")
+    res = audit_assumptions(fp, r)
+    assert res["status"] == "warning"  # data dump, no interpretation
+
+
+def test_assumptions_does_not_run_any_test():
+    from research_os.tools.actions.audit.audit import audit_assumptions
+    r = _root()
+    fp = _write(
+        r, "diagnostics.md",
+        "Ran Shapiro-Wilk, Levene, Breusch-Pagan; interpretation recorded; "
+        "used HC3 robust standard errors in response to mild "
+        "heteroscedasticity.\n",
+    )
+    res = audit_assumptions(fp, r)
+    # No statistic is ever computed by the gate — it only reports what it found.
+    assert "W" not in str(res.get("report", {}))
+    assert "recorded" in res
 
 
 # -- A5: E-value scale conversion -------------------------------------------
