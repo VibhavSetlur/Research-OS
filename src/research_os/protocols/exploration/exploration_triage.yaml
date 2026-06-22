@@ -1,7 +1,7 @@
 id: exploration_triage
 tier: 'plan'
 name: Exploration Triage (what's cheaply worth probing first)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -94,6 +94,10 @@ steps:
       triage.md as the backlog.
 
       AUTONOMY GATE:
+        Risk: reversible + cheap — running the top probe is scratch work
+        and the backlog stays available to reorder later.
+        adaptive (default) → run the top probe via exploration_loop; keep
+          the rest as the backlog.
         manual / supervised → present the ranked list; let the researcher
           pick which probe to run first (they may reorder).
         autopilot → run the top probe via exploration_loop; keep the rest

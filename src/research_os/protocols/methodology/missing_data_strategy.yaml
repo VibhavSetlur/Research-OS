@@ -1,7 +1,7 @@
 id: missing_data_strategy
 tier: 'plan'
 name: Missing-Data Strategy (MCAR/MAR/MNAR → handling → sensitivity)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -305,9 +305,11 @@ quality_bar:
   rubin_pooling_used_for_multiple_imputation: true
   preregistered_if_confirmatory: true
 
-# AUTONOMY GATE: in manual / supervised / coaching, surface
-# "Next: audit/audit_and_validation" as a SUGGESTION; only autopilot
-# auto-chains. A missing-data strategy decision ≠ a full project audit.
+# AUTONOMY GATE: chaining to a full project audit is reversible (it just
+# loads the next protocol), but a missing-data strategy decision is its own
+# deliverable, not automatically a trigger for a full audit. adaptive
+# (default) + manual / supervised surface "Next: audit/audit_and_validation"
+# as a SUGGESTION; only autopilot auto-chains.
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

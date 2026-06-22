@@ -1,7 +1,7 @@
 id: visualization_workflow
 tier: 'synthesize'
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -71,6 +71,10 @@ steps:
       caption depth, and palette discipline.
 
       AUTONOMY GATE:
+        Risk: reversible — inferring a figure's shape/destination produces
+        a plan, not a committed figure.
+        adaptive (default) → infer + proceed; tell the researcher the
+                              inferred shape in one line.
         manual / supervised → ask before assuming a shape or destination.
         autopilot           → infer + proceed; tell the researcher the
                               inferred shape in one line.
@@ -270,6 +274,10 @@ steps:
                       (route to the matching synthesis/* protocol)
 
       AUTONOMY GATE:
+        Risk: reversible — curating vs showing-all is a presentation choice
+        on a plan, fully changeable.
+        adaptive (default) → curate by default; surface the choice as a
+                              one-line suggestion.
         manual / supervised → wait for the researcher to choose.
         autopilot           → curate by default; surface the choice as
                               a one-line suggestion.

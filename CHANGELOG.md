@@ -6,6 +6,36 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.5.0] — adaptive-aware autonomy gates (2026-06-22)
+
+A MINOR release that teaches every protocol's autonomy gate to speak the
+language of `adaptive` — the default autonomy mode since 3.3.0. Fully
+backwards-compatible.
+
+### Improved
+- **Every `AUTONOMY GATE` block now names the risk dimension it guards**
+  (reversible/cheap, irreversible, expensive, or real-money) and leads
+  with how `adaptive` — the default — resolves it, instead of describing
+  only `manual` / `supervised` / `autopilot` and leaving the default-level
+  AI to infer. 34 gate blocks across 22 protocols updated, spanning the
+  build, exploration, methodology, guidance, notebook, program,
+  synthesis, reproducibility, and visualization tracks.
+- **Doctrine codified.** `docs/PROTOCOL_DOCTRINE.md` gains a section,
+  "Autonomy gates — name the risk, let adaptive resolve it," defining the
+  canonical gate idiom so future protocols stay consistent: gates name the
+  dimension to reason over, never hardcode a fixed proceed/ask rule.
+
+### Fixed
+- Protocol-version assertions in the dashboard-style test suite now check
+  `>= 3.0.0` instead of pinning an exact string, so legitimate protocol
+  bumps no longer break the suite.
+
+### Bumped
+- 22 protocol `version:` fields → `3.5.0` (gate behavior changed).
+- Package version → `3.5.0`.
+
+---
+
 ## [3.4.0] — terminal-facing router preview (2026-06-22)
 
 A MINOR release that lets you drive the protocol router straight from the
