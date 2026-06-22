@@ -830,6 +830,101 @@ def cmd_hermes(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------
+# route subcommand — preview the protocol router from the terminal
+# ---------------------------------------------------------------------------
+
+
+def cmd_route(args: argparse.Namespace) -> int:
+    """Run the runtime protocol router on a prompt and print the decision.
+
+    This is the same ``route_request`` the MCP ``tool_route`` calls, exposed
+    so a researcher (or a non-MCP agent) can preview what Research-OS would
+    do for a given request without loading an IDE. Read-only: never persists
+    an active plan.
+    """
+    import json as _json
+
+    from research_os import wizard
+    from research_os.tools.actions.router import route_request
+
+    if getattr(args, "no_color", False):
+        wizard.disable_color()
+
+    prompt = (args.prompt or "").strip()
+    if not prompt:
+        wizard.fail("Empty prompt", 'Usage: research-os route "<your request>"')
+        return 2
+
+    root = _find_workspace_root() or Path.cwd()
+
+    result = route_request(prompt, root, persist_plan=False)
+
+    if getattr(args, "json", False):
+        print(_json.dumps(result, indent=2, default=str))
+        return 0 if result.get("status") == "success" else 1
+
+    if result.get("status") != "success":
+        wizard.fail("Routing failed", result.get("message", "unknown error"))
+        return 1
+
+    C = wizard._C
+    level = result.get("resolved_level")
+    intent = result.get("intent_class") or "—"
+    sub = result.get("sub_intent") or "—"
+    primary = result.get("primary_protocol")
+    shortcut = result.get("shortcut_tool")
+    complexity = result.get("complexity") or "—"
+    tier = result.get("tier")
+    why = result.get("why_matched") or result.get("why") or ""
+    ask = result.get("ask_user")
+    decomposition = result.get("decomposition") or []
+    alternatives = result.get("alternatives") or []
+    triggers = result.get("matched_triggers") or []
+
+    print()
+    print(f"  {C.BOLD}Route for:{C.RESET} {prompt}")
+    print(f"  {C.GREY}{wizard._hr()}{C.RESET}")
+    print(f"  {C.BOLD}intent{C.RESET}        {intent} / {sub}")
+    if primary:
+        print(f"  {C.BOLD}protocol{C.RESET}      {C.GREEN}{primary}{C.RESET}")
+    if shortcut:
+        print(f"  {C.BOLD}shortcut{C.RESET}      {C.GREEN}{shortcut}{C.RESET}")
+    print(f"  {C.BOLD}level{C.RESET}         L{level}   "
+          f"complexity={complexity}" + (f"   tier={tier}" if tier else ""))
+    if triggers:
+        print(f"  {C.BOLD}triggers{C.RESET}      {', '.join(str(t) for t in triggers)}")
+    if why:
+        print(f"  {C.BOLD}why{C.RESET}           {C.GREY}{why}{C.RESET}")
+    if ask:
+        print(f"  {C.BOLD}{C.YELLOW}ask first{C.RESET}     {ask}")
+
+    if decomposition:
+        print()
+        print(f"  {C.BOLD}planned tool sequence{C.RESET}")
+        for i, step in enumerate(decomposition, 1):
+            tool = step.get("tool") if isinstance(step, dict) else str(step)
+            note = step.get("why", "") if isinstance(step, dict) else ""
+            line = f"    {i:>2}. {tool}"
+            if note:
+                line += f"   {C.GREY}{note}{C.RESET}"
+            print(line)
+
+    if alternatives:
+        print()
+        print(f"  {C.BOLD}alternatives{C.RESET}")
+        for alt in alternatives[:4]:
+            if isinstance(alt, dict):
+                aid = alt.get("name") or alt.get("protocol") or alt.get("primary_protocol") or "—"
+                ascore = alt.get("score")
+            else:
+                aid, ascore = str(alt), None
+            sc = f"  ({ascore})" if ascore is not None else ""
+            print(f"    - {aid}{C.GREY}{sc}{C.RESET}")
+    print()
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # api-key subcommand — manage api_keys in inputs/researcher_config.yaml
 # ---------------------------------------------------------------------------
 
@@ -1186,8 +1281,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 # the fish completion script and the argparse subparser registry stay in
 # sync (the test suite cross-checks these).
 SUBCOMMANDS_FOR_COMPLETION = (
-    "init", "ide", "mcp", "api-key", "start", "doctor", "refresh",
-    "completion",
+    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "doctor",
+    "refresh", "completion",
 )
 
 
@@ -1571,6 +1666,28 @@ def build_parser() -> argparse.ArgumentParser:
     p_hermes.add_argument("--no-color", action="store_true",
                           help="Disable ANSI styling.")
 
+    # ── route ───────────────────────────────────────────────────────────
+    p_route = sub.add_parser(
+        "route",
+        help="Preview the protocol router for a prompt (no IDE needed).",
+        description=(
+            "Run the same hierarchical router the MCP `tool_route` uses and\n"
+            "print the routing decision: matched protocol, intent class,\n"
+            "planned tool sequence, and alternatives. Read-only — never\n"
+            "persists an active plan. Run inside a workspace for state-aware\n"
+            "routing, or anywhere for a stateless preview.\n\n"
+            "Examples:\n"
+            '  research-os route "fit a mixed-effects model to my data"\n'
+            '  research-os route "draft the methods section" --json'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_route.add_argument("prompt", help="The request to route.")
+    p_route.add_argument("--json", action="store_true",
+                         help="Emit the raw routing decision as JSON.")
+    p_route.add_argument("--no-color", action="store_true",
+                         help="Disable ANSI styling.")
+
     # ── api-key ─────────────────────────────────────────────────────────
     p_api = sub.add_parser(
         "api-key",
@@ -1755,6 +1872,8 @@ def main() -> None:
         sys.exit(cmd_mcp(args))
     elif args.command == "hermes":
         sys.exit(cmd_hermes(args))
+    elif args.command == "route":
+        sys.exit(cmd_route(args))
     elif args.command == "api-key":
         sys.exit(cmd_api_key(args))
     elif args.command == "start":
