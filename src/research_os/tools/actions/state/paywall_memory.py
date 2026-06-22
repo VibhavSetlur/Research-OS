@@ -81,7 +81,7 @@ def record_failure(
         }
         path = _failures_path(root)
         with open(path, "a") as f:
-            f.write(json.dumps(record, separators=(",", ":")) + "\n")
+            f.write(json.dumps(record, separators=(",", ":")) + "\n")  # codeql[py/clear-text-storage-sensitive-data] -- paper URL/DOI cached for retry-avoidance; not a secret.
         return {"status": "success", "record": record}
     except Exception as e:
         logger.exception("record_failure failed")

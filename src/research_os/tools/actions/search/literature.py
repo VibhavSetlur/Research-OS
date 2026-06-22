@@ -332,7 +332,7 @@ def download_literature(
                 log_path = root / "workspace" / "logs" / "errors.log"
                 log_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(log_path, "a") as f:
-                    f.write(f"Paywall warning for {url}: {oa['reason']}\n")
+                    f.write(f"Paywall warning for {url}: {oa['reason']}\n")  # codeql[py/clear-text-storage-sensitive-data] -- paper URL/DOI cached for retry-avoidance; not a secret.
                 if record_failure:
                     try:
                         record_failure(
