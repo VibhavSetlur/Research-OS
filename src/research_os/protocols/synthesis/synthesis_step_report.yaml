@@ -1,0 +1,197 @@
+id: synthesis_step_report
+tier: 'synthesize'
+name: Synthesis — Step Report (one step, meeting-grade visual artefact)
+version: '3.10.0'
+schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher]
+  workflow_shape: [any]
+last_reviewed: '2026-06-22'
+see_also:
+  - synthesis/synthesis_progress_update   # the text-only sibling; the narrative update
+  - synthesis/synthesis_dashboard         # whole-project surface; this is ONE step
+  - synthesis/deliverable_design          # palette / visual-identity skill (shared shell)
+  - synthesis/synthesis_paper             # the eventual linear argument these steps build toward
+description: |
+  Guide the AI to author a **self-contained, presentation-grade visual
+  artefact for a SINGLE analysis step** — the page a researcher screen-shares
+  or emails when they walk into a lab meeting and need to show "here is what
+  step 21 did, what it found, what it means." It lands as one portable
+  `.html` file under `synthesis/updates/step-NN-<slug>.html`, sharing the
+  dashboard's palette engine so the chain of step reports reads as one
+  cohesive project diary.
+
+  **Why this exists.** The whole-project dashboard / paper / poster answer
+  "what did the PROJECT find?". They are the wrong shape mid-flight: the
+  researcher is on step 21 of 30, has no project-wide narrative yet, and has
+  a meeting in an hour. `synthesis_progress_update` covers the *text* update;
+  this protocol covers the *visual* one — a single beautiful, honest, offline
+  page about one step that a busy PI can read at a glance.
+
+  **What it IS.** Whatever this step needs it to be. The scaffold ships a
+  SHELL — RO palette tokens, accessibility baseline, offline guarantee, and
+  an author brief in comments — and then gets out of the way. The AI invents
+  the entire layout, sections, order, and visual rhythm to fit THIS step. A
+  blocked debugging step, a clean win, and a three-way method comparison
+  should look nothing alike.
+
+  **What it IS NOT.** NOT a fill-in-the-blanks template. There is no required
+  section list, no mandated order, no status-pill markup baked in. Freezing a
+  section sequence into the seed would produce slop, which the protocol
+  doctrine forbids. The rigor lives in the QUALITY BAR (honesty, grounding,
+  accessibility, offline-safety) — never in a heading checklist.
+
+trigger: |
+  Researcher says any of: "step report", "report for this step", "write up
+  step NN", "visual for step NN", "something to show at the meeting for this
+  step", "make a slide / page for what I just did", "polish this step's
+  results to present", "step-NN update I can screen-share"; OR they ask for a
+  shareable visual about ONE step rather than the whole project.
+
+prerequisites:
+  - The step to report on has substantive outputs to show — typically a
+    `conclusions.md` with Findings, and/or figures/tables under the step's
+    workspace folder. (A blocked step with nothing to show yet is a candidate
+    for synthesis_progress_update, not this visual artefact.)
+  - "Researcher's research_goal.output_types (in inputs/researcher_config.yaml)
+    is consulted by the gate. step_report is treated as 'open' when the list
+    is empty; if the list is non-empty and excludes step_report,
+    tool_synthesis_scaffold returns status=ask — surface it and re-call with
+    confirmed=true only after the researcher agrees."
+
+design_principles: |
+  These are the design INTENTIONS the scaffold seeds as comments. They guide
+  the AI's judgement; they are NOT a structure to stamp out. Read them, then
+  design the page this step deserves.
+
+  - **Design the page this step deserves — there is no fixed form.** The
+    scaffold is a shell, not a template. Invent the layout that communicates
+    THIS step's story fastest to a busy reader (usually the PI). Use as many
+    or as few sections as the step needs, in whatever order reads best.
+  - **One step, not the project.** Everything on the page is about a single
+    step. Unlike a dashboard, a "Step NN" anchor is welcome here — it is the
+    meeting reference, not a bookkeeping leak. Do not try to narrate the whole
+    project.
+  - **Lead with what changed / what we now know.** The reader knows the
+    project. The first thing they should see is the one thing this step
+    established (a number + a finding), or — if mid-flight — the one thing
+    that moved since the last update.
+  - **Ground every number in the step's outputs.** Each figure, metric, and
+    claim must trace to this step's conclusions.md / outputs / tables. Never
+    invent, round-trip a guess, or carry a number you cannot point to. An
+    honest "we cannot yet claim X" beats an impressive fabrication.
+  - **Show the one most informative figure, read out loud.** Embed the single
+    figure that carries the step's point, with a caption that says what to SEE
+    and what it MEANS — not a bare label. Distinguish FACT (what the data
+    shows) from INTERPRETATION (what you think it means).
+  - **Say what it means AND what it cannot yet claim.** A step update that
+    hides its uncertainty erodes trust at the next meeting. Name the caveat.
+  - **End with what's next + any specific ask.** If there is an ask for the
+    room, make it specific (what / from whom / by when). If there is none,
+    it is fine to have none.
+  - **Visual cohesion with the figures.** Use the palette tokens from the
+    shared shell (var(--accent-green), var(--ink), ...) so embedded figures
+    and page chrome share one identity. Don't hardcode hexes. The RO house
+    palette is the default for cohesion with apply_research_os_style figures,
+    not a mandate — a restrained, AA-contrast, CVD-safe custom palette is fine.
+  - **Self-contained + offline.** One .html file, zero network requests.
+    Figures embedded base64 OR via a relative path under a sibling figures/
+    folder that travels with the file. Emailable as one attachment.
+  - **Accessibility is non-negotiable.** Descriptive alt text on every image;
+    never let colour alone carry meaning (pair it with a word, sign, or icon —
+    also protects projector / print legibility).
+
+quality_standards: |
+  What tool_synthesis_check enforces for a step report. Note what is ABSENT:
+  there is NO required-heading list and NO mandated section set. The gate
+  checks that the artefact is honest, grounded, accessible, and shareable —
+  it never dictates the AI's layout.
+
+  - authored — the body is no longer the empty shell; the author-brief
+    comment block has been deleted (leaving it in is a blocker).
+  - offline — zero `<script src="http`, zero `<img src="http`; an external
+    `<link>` stylesheet is a warning.
+  - accessibility — every `<img>` has descriptive alt text (blocker if
+    missing). Zero figures is a warning, not a blocker (a narrative / blocked
+    step may legitimately have none).
+  - honesty — zero `TODO` / `FIXME` / `XXX` / `Lorem ipsum` / `PLACEHOLDER`;
+    no leftover example figure path (`figures/fig01.png`); no unfilled
+    `{token}` substitutions in body text.
+  - no_path_leaks — `workspace/<step>/...` does not appear in visible prose.
+  - size — under 5MB total (>2MB warns; the embedded figure is likely
+    over-resolution).
+
+steps:
+  - id: verify_intent_and_step
+    name: Confirm intent + identify the step
+    description: |
+      Establish WHICH step this report is for (a number like "21", a
+      zero-padded "07", or the step folder name). Read
+      inputs/researcher_config.yaml#research_goal.output_types: empty →
+      proceed; includes step_report → proceed silently; non-empty and
+      excludes step_report → ask before scaffolding. Do not scaffold until
+      the step is identified.
+
+  - id: gather_step_outputs
+    name: Gather the step's outputs
+    description: |
+      Read, in ONE batch, this step's evidence:
+        - the step's conclusions.md (Findings + any numbers to surface)
+        - the step's figures (and any .caption.md sidecars)
+        - the step's output tables / metrics
+        - mem_hypothesis_list for any hypothesis this step touched
+      Distil the ONE thing this step established (or the one thing that moved
+      since the last update) and the single most informative figure. Every
+      number you plan to show must be traceable to one of these sources.
+
+  - id: scaffold
+    name: Scaffold the step report shell
+    description: |
+      tool_synthesis_scaffold(kind='step_report', step='NN') writes a minimal
+      shell — RO palette tokens, a11y baseline, offline chrome, and an author
+      brief in comments — to synthesis/updates/step-NN-<slug>.html. Idempotent;
+      refuses overwrite without overwrite=true. The shell carries NO fixed
+      sections: the <main> body is the brief plus an empty canvas.
+
+  - id: design_and_author
+    name: Design the page, then author it
+    description: |
+      Read the author brief in the scaffold, then DESIGN the layout this step
+      deserves — there is no required structure. Compose the sections, order,
+      and visual rhythm that tell this step's story fastest. Embed the focal
+      figure(s) via base64 OR a relative path under a sibling figures/ folder
+      (copy the step's figure(s) there so the file travels intact). Write
+      findings as sentences; ground every number in step outputs; name the
+      caveat and the next step / ask. Delete the author-brief comment when done.
+
+  - id: audit
+    name: Audit (honesty, grounding, accessibility, offline)
+    description: |
+      tool_synthesis_check(file='synthesis/updates/step-NN-<slug>.html')
+      catches an un-authored shell, a left-in author brief, missing alt text,
+      external/network resources, placeholders, leftover example paths, and
+      path leaks. It does NOT check your layout. Clear every blocker before
+      sharing.
+
+  - id: share
+    name: Share
+    description: |
+      The file IS the deliverable — no compilation step. Hand the path to the
+      researcher; it is portable (emailable, screen-shareable, single-file).
+      The chain of step reports under synthesis/updates/ is the project's
+      visual diary. For the text-only narrative update, route to
+      synthesis_progress_update; for the whole-project surface, synthesis_dashboard.
+
+tools: |
+  - tool_synthesis_scaffold(kind='step_report', step='NN') — seed the shell (idempotent)
+  - tool_synthesis_check — honesty / grounding / a11y / offline gate (NOT a heading list)
+  - tool_synthesis_curate_figures — copy the step's figure(s) + caption sidecars
+  - tool_figure_palette — colour-blind-safe palette for any inline charts
+
+expected_outputs:
+  - synthesis/updates/step-NN-<slug>.html   # AI-designed, self-contained, one step
+
+next_protocol: null
+next_protocol_kind: terminal
+on_failure: synthesis/synthesis_progress_update

@@ -739,6 +739,99 @@ def _compose_dashboard(archetype: str | None = None, palette: str | None = None)
 _DASHBOARD_HTML = _compose_dashboard(_DASHBOARD_DEFAULT_ARCHETYPE)
 
 
+# ---------------------------------------------------------------------------
+# Per-step report — the meeting-update artefact for a SINGLE analysis step.
+# ---------------------------------------------------------------------------
+#
+# The whole-project dashboard / paper / poster answer "what did the project
+# find?". They are the WRONG shape when a researcher is mid-flight on step 21
+# and has a lab meeting in an hour: they need a self-contained, presentation-
+# grade snapshot of ONE step's outputs. There is no per-step deliverable today.
+#
+# DESIGN STANCE (important): this scaffold gives the AI a SHELL, not a template.
+# It guarantees the things that must be invariant for the artefact to be
+# trustworthy and cohesive — the RO palette tokens, the accessibility baseline,
+# and the offline/self-contained guarantee — and then GETS OUT OF THE WAY. The
+# AI invents the entire layout, the sections, the order, and the visual rhythm
+# to fit THIS step. A blocked debugging step, a breakthrough result, and a
+# three-way method comparison should look nothing alike; freezing one section
+# sequence into the seed would produce fill-in-the-blanks slop, which is exactly
+# what the protocol doctrine forbids. The honesty + grounding + a11y bar is
+# enforced downstream by synthesis_check, NOT by a mandated heading list here.
+#
+# Reusing the dashboard shell (same palette engine, same a11y baseline, same
+# offline guarantee) means the chain of step reports reads as one cohesive
+# project diary, and any single one is emailable / screen-shareable as a
+# standalone .html with zero network requests.
+
+# The seed <main> body is intentionally EMPTY of structure: it carries only an
+# author brief (design intent + hard constraints) as comments and a couple of
+# ready-to-use building blocks the AI may keep, reshape, or delete entirely.
+# Everything visible in the final artefact is the AI's own custom composition.
+_STEP_REPORT_MAIN = """
+<!-- ===================================================================== -->
+<!-- STEP REPORT — author brief (delete this whole comment when done).      -->
+<!--                                                                        -->
+<!-- WHAT THIS IS: a self-contained, presentation-grade page about ONE step -->
+<!-- of this project, meant to be screen-shared or emailed at a meeting.    -->
+<!--                                                                        -->
+<!-- YOUR JOB: design the page THIS step deserves. There is no required     -->
+<!-- structure, section list, or order. Invent the layout that communicates -->
+<!-- this particular step's story fastest to a busy reader (often the PI).  -->
+<!-- A blocked step, a clean win, and a messy diagnostic should each look   -->
+<!-- different. Use as many or as few sections as the step needs.           -->
+<!--                                                                        -->
+<!-- THINGS A GOOD STEP UPDATE USUALLY ANSWERS (pick what's true here, in   -->
+<!-- whatever shape fits — these are prompts, NOT a checklist to stamp out): -->
+<!--   - In one breath: what changed / what we now know since last time?    -->
+<!--   - The headline number(s), with an honest comparison or baseline.     -->
+<!--   - The single most informative figure, read out loud in its caption.  -->
+<!--   - What it means for the project + what it canNOT yet claim.          -->
+<!--   - What's next, and any specific ask for the people in the room.      -->
+<!--                                                                        -->
+<!-- HARD CONSTRAINTS (these the check WILL enforce — everything else free): -->
+<!--   * Every number/claim must come from THIS step's conclusions.md /     -->
+<!--     outputs / tables. Never invent or round-trip a guess.              -->
+<!--   * Figures: relative path under ./figures/ that travels with the file, -->
+<!--     or base64-embedded. No network URLs (the file must work offline).  -->
+<!--     Every <img> needs a real, descriptive alt.                         -->
+<!--   * Never rely on colour alone to carry meaning — pair it with a word, -->
+<!--     sign, or icon (accessibility + projector/print safety).            -->
+<!--   * Use the palette tokens (var(--accent-green) etc.) so embedded      -->
+<!--     figures and page chrome share one identity. Don't hardcode hexes.  -->
+<!--   * No placeholder/lorem text, no AI throat-clearing, no "Results:"     -->
+<!--     label headings — write findings as sentences.                       -->
+<!--                                                                        -->
+<!-- PALETTE TOKENS available from the shared shell:                        -->
+<!--   var(--ink) var(--paper) var(--muted) var(--rule) var(--accent)       -->
+<!--   var(--accent-green) var(--accent-gold) var(--accent-red)             -->
+<!--   var(--serif) var(--sans)  + the .metric-grid/.metric-card helpers     -->
+<!--   from the dashboard shell are available if you want them.             -->
+<!-- ===================================================================== -->
+
+<!-- Compose freely below. Everything here is a STARTING POINT you may keep, -->
+<!-- restructure, or remove. The page is yours to design.                   -->
+
+"""
+
+
+def _compose_step_report(palette: str | None = None) -> str:
+    """Assemble a step report from the shared dashboard shell (palette engine +
+    a11y baseline + offline chrome). The ``<main>`` body is the empty author
+    brief — the AI composes the actual page. ``data-archetype`` is stamped
+    ``step-report`` so the check engine can route on kind without constraining
+    the AI's layout."""
+    return (
+        _DASHBOARD_SHELL
+        .replace("__DASH_TOKENS__", _dashboard_tokens_css(palette))
+        .replace("__DASH_ARCHETYPE__", "step-report")
+        .replace("__DASH_MAIN__", _STEP_REPORT_MAIN.strip("\n"))
+    )
+
+
+_STEP_REPORT_HTML = _compose_step_report()
+
+
 SCAFFOLDS: dict[str, tuple[str, str]] = {
     "paper": ("synthesis/paper.typ", _PAPER_TYP),
     "slides": ("synthesis/slides.typ", _SLIDES_TYP),
@@ -747,6 +840,11 @@ SCAFFOLDS: dict[str, tuple[str, str]] = {
     "grant": ("synthesis/grant.typ", _GRANT_TYP),
     "essay": ("synthesis/essay.typ", _ESSAY_TYP),
     "dashboard": ("synthesis/dashboard.html", _DASHBOARD_HTML),
+    # Per-step meeting update. The path here is the FALLBACK; when a `step`
+    # argument is supplied, synthesis_scaffold rewrites it to
+    # synthesis/updates/step-<NN>-<slug>.html so the chain of updates lives
+    # in one browsable folder (the project diary).
+    "step_report": ("synthesis/updates/step-report.html", _STEP_REPORT_HTML),
 }
 
 # Composable layout archetypes per deliverable kind — the AI picks ONE; the
@@ -757,6 +855,153 @@ ARCHETYPE_MENUS: dict[str, list[str]] = {
 }
 
 
+def _step_report_slug(root: Path, step: str | None) -> str:
+    """Resolve a step identifier into a stable filename stem for a step report.
+
+    Accepts a bare number ("21"), a zero-padded number ("07"), a full step
+    directory name ("21_baseline_eda"), or None. When the workspace has a
+    matching step directory, its descriptive name is folded into the slug so
+    the file reads as ``step-21-baseline-eda`` and sorts chronologically in
+    ``synthesis/updates/``. Falls back to ``step-report`` when nothing matches.
+    """
+    import re
+
+    if not step:
+        return "step-report"
+    raw = str(step).strip()
+    # Pull a leading number if present (handles "21", "21_baseline_eda", "step21").
+    num_match = re.search(r"(\d+)", raw)
+
+    # Try to locate the real step directory so we can use its descriptive tail.
+    descriptive_tail = ""
+    workspace = root / "workspace"
+    if num_match and workspace.is_dir():
+        from research_os.project_ops import discover_step_dirs
+
+        target_num = int(num_match.group(1))
+        try:
+            step_dirs = discover_step_dirs(workspace, include_dead=False)
+        except Exception:
+            step_dirs = []
+        for d in step_dirs:
+            dm = re.match(r"(\d+)[_-](.+)", d.name)
+            if dm and int(dm.group(1)) == target_num:
+                descriptive_tail = dm.group(2)
+                break
+
+    if num_match:
+        num = num_match.group(1).zfill(2)
+        tail = descriptive_tail
+        if not tail:
+            # No matching dir — keep any descriptive text the caller passed.
+            rest = re.sub(r"^\D*\d+[_\-\s]*", "", raw)
+            tail = rest
+        slug = f"step-{num}"
+        if tail:
+            clean = re.sub(r"[^a-z0-9]+", "-", tail.lower()).strip("-")
+            if clean:
+                slug = f"{slug}-{clean}"
+        return slug
+    # No number at all — slugify whatever was passed.
+    clean = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    return f"step-{clean}" if clean else "step-report"
+
+
+def rebuild_updates_index(root: Path) -> dict[str, Any]:
+    """(Re)generate ``synthesis/updates/index.html`` — the project's visual
+    diary landing page that lists every step report in chronological order.
+
+    This is a *navigation* helper, not a deliverable: it is fully derived
+    from the step-report files already on disk, carries no claims of its
+    own, embeds nothing, and makes zero network requests. It is safe to
+    regenerate on every step-report write — it never invents content and
+    is overwritten wholesale each time so it stays in sync with the folder.
+
+    Returns ``status='empty'`` when no step reports exist yet (and removes
+    a stale index if one is present), otherwise ``status='success'`` with
+    the count of reports indexed.
+    """
+    import html
+    import re as _re
+
+    updates = root / "synthesis" / "updates"
+    index_path = updates / "index.html"
+    if not updates.is_dir():
+        return {"status": "empty", "count": 0}
+
+    # Collect step reports — every .html under updates/ except the index.
+    reports: list[tuple[int, str, str, str]] = []  # (sort_key, slug, title, filename)
+    for f in sorted(updates.glob("*.html")):
+        if f.name == "index.html":
+            continue
+        try:
+            txt = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        # Only index files that are actually step reports (stamped shell).
+        if not _re.search(
+            r'<body[^>]*\bdata-archetype\s*=\s*["\']step-report["\']', txt, _re.I
+        ):
+            continue
+        # Title: prefer the authored <h1>, else fall back to the slug.
+        m = _re.search(r"<h1[^>]*>(.*?)</h1>", txt, _re.I | _re.S)
+        if m:
+            title = _re.sub(r"<[^>]+>", "", m.group(1)).strip()
+            title = html.unescape(_re.sub(r"\s+", " ", title))
+        else:
+            title = f.stem
+        # Sort by leading step number when present, else push to the end.
+        num_m = _re.search(r"step-(\d+)", f.stem)
+        sort_key = int(num_m.group(1)) if num_m else 10**6
+        reports.append((sort_key, f.stem, title or f.stem, f.name))
+
+    if not reports:
+        # Nothing to index — drop a stale index so the folder stays honest.
+        if index_path.exists():
+            index_path.unlink()
+        return {"status": "empty", "count": 0}
+
+    reports.sort(key=lambda r: (r[0], r[1]))
+    rows = "\n".join(
+        f'      <li><a href="{html.escape(fn)}">{html.escape(title)}</a></li>'
+        for _sk, _slug, title, fn in reports
+    )
+    doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step reports</title>
+<style>
+  :root {{ --ink: #1a1a1a; --paper: #FBF8F3; --rule: #d8d2c6; --accent: #3a5a40; }}
+  body {{ background: var(--paper); color: var(--ink); margin: 0;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }}
+  main {{ max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem; }}
+  h1 {{ font-weight: 600; letter-spacing: -0.01em; margin: 0 0 0.25rem; }}
+  p.sub {{ color: #5b5b5b; margin: 0 0 2rem; }}
+  ul {{ list-style: none; padding: 0; margin: 0; }}
+  li {{ border-bottom: 1px solid var(--rule); }}
+  li a {{ display: block; padding: 0.85rem 0.25rem; color: var(--accent);
+          text-decoration: none; font-weight: 500; }}
+  li a:hover, li a:focus {{ text-decoration: underline; }}
+</style>
+</head>
+<body data-archetype="updates-index">
+  <main>
+    <h1>Step reports</h1>
+    <p class="sub">{len(reports)} report(s) — the project's visual diary, newest design wins per step.</p>
+    <ul>
+{rows}
+    </ul>
+  </main>
+</body>
+</html>
+"""
+    updates.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(doc, encoding="utf-8")
+    return {"status": "success", "count": len(reports), "path": str(index_path)}
+
+
 def synthesis_scaffold(
     root: Path,
     kind: str = "paper",
@@ -764,6 +1009,7 @@ def synthesis_scaffold(
     confirmed: bool = False,
     archetype: str | None = None,
     palette: str | None = None,
+    step: str | None = None,
 ) -> dict[str, Any]:
     """Write a tiny skeleton synthesis file.
 
@@ -840,6 +1086,13 @@ def synthesis_scaffold(
     elif kind == "poster":
         chosen_archetype = archetype or "classic"
         body = _compose_poster(chosen_archetype, palette)
+    elif kind == "step_report":
+        # Re-compose with the chosen palette so embedded figures + chrome
+        # share one identity, and route the file into synthesis/updates/
+        # under a step-numbered name (the project diary).
+        body = _compose_step_report(palette)
+        slug = _step_report_slug(root, step)
+        rel_path = f"synthesis/updates/{slug}.html"
     target = root / rel_path
     if target.exists() and not overwrite:
         return {
@@ -869,4 +1122,24 @@ def synthesis_scaffold(
         result["available_archetypes"] = ARCHETYPE_MENUS.get(kind, [])
     if palette is not None:
         result["palette"] = palette
+    if kind == "step_report":
+        result["step"] = step
+        # Refresh the diary landing page so synthesis/updates/index.html
+        # always lists the full chain of step reports. Pure navigation —
+        # derived from disk, no claims of its own.
+        idx = rebuild_updates_index(root)
+        if idx.get("status") == "success":
+            result["updates_index"] = idx.get("path")
+            result["updates_index_count"] = idx.get("count")
+        result["message"] = (
+            f"Wrote {rel_path} — a shell only (RO palette, accessibility "
+            "baseline, offline-safe). DESIGN the page this step deserves: "
+            "there is no fixed structure. Read the author brief in the file, "
+            "then compose the layout that tells THIS step's story fastest to a "
+            "busy reader. Ground every number in the step's conclusions.md / "
+            "outputs (never invent), keep figures local under "
+            f"{Path(rel_path).parent}/figures/ so the file travels intact, and "
+            "never let colour be the only cue. When ready, call "
+            "tool_synthesis_check to validate, then open or screen-share the HTML."
+        )
     return result

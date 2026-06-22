@@ -1,15 +1,16 @@
 id: synthesis_progress_update
 tier: 'synthesize'
 name: Synthesis — Progress Update (PI / advisor / lab / weekly)
-version: '3.0.0'
+version: '3.10.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [any]
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-22'
 see_also:
   - synthesis/synthesis_report        # when the update outgrows two minutes
+  - synthesis/synthesis_step_report   # the VISUAL companion: one polished page for a single step
 description: |
   Compile a short progress update — the kind a researcher sends their
   PI / advisor on a Friday afternoon, posts to the lab Slack before a
@@ -202,6 +203,17 @@ steps:
       For pi_long_milestone, advisor_thesis, collaborator_external:
       attach ONE artefact — the headline figure, the dashboard URL,
       or the draft section the reader most needs.
+
+      When the update is really ABOUT one analysis step — "here is what
+      step 21 did, here are the results" — and the reader will want to
+      SEE it (a meeting, a screen-share, a milestone email), the right
+      attachment is a step report, not a loose figure. Route to
+      synthesis/synthesis_step_report to author a single self-contained,
+      offline `synthesis/updates/step-NN-<slug>.html`, then link it from
+      this update (lab_slack: the single end link; pi_long_milestone:
+      under Attachments). The text update stays the narrative; the step
+      report is the visual the reader opens. Don't inline a step report's
+      worth of figures into the prose — link the page instead.
 
       Multi-attachment updates are usually a sign the update is
       trying to be a report. If you find yourself attaching three
