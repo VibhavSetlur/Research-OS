@@ -1,7 +1,7 @@
 id: hypothesis_tracking
 tier: 'plan'
 name: Hypothesis Tracking
-version: '3.0.0'
+version: '3.8.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -10,6 +10,10 @@ scope_tags:
   workflow_shape: [any]
 description: Maintain a clear ledger of active, supported, and refuted hypotheses across the project.
 trigger: Whenever a step generates evidence that confirms / disconfirms / refines a hypothesis.
+see_also:
+  - guidance/analysis_plan
+  - domain/research_design
+  - synthesis/synthesis_paper
 
 steps:
   - id: record_hypothesis

@@ -1,7 +1,7 @@
 id: spec_and_design
 tier: 'plan'
 name: Spec & Design (what the tool must do, and how "done" is judged)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -129,16 +129,16 @@ steps:
       AUTONOMY GATE:
         Risk: irreversible — load-bearing choices ripple through everything
         built on them, so reversing one later is expensive.
-        adaptive (default) → for choices that are genuinely hard to reverse,
+        proceed (adaptive default, autopilot) → for choices that are genuinely hard to reverse,
           present the load-bearing decisions + your recommendation and
           confirm before writing the ADRs as 'accepted'; for a choice that
           is cheap to revisit, write it and move on. Judge from how far the
-          choice ripples, not from a fixed rule.
-        manual / supervised → present the load-bearing decisions + your
+          choice ripples, not from a fixed rule. (Under autopilot, write the
+          ADRs with status 'accepted' and a clear rationale; log them so a
+          later review can challenge any one.)
+        confirm first (manual / supervised) → present the load-bearing decisions + your
           recommendation; ask the researcher to confirm before writing the
           ADRs as 'accepted'.
-        autopilot → write the ADRs with status 'accepted' and a clear
-          rationale; log them so a later review can challenge any one.
 
   - id: ground_design
     name: Ground non-trivial design choices in prior art
@@ -189,12 +189,10 @@ steps:
       AUTONOMY GATE:
         Risk: reversible + cheap — entering the build loop commits nothing
         that can't be unwound; the first increment is itself gated.
-        adaptive (default) → proceed to build/implement_iteration on the
+        proceed (adaptive default, autopilot) → proceed to build/implement_iteration on the
           first milestone; the loop's own gates catch anything weighty.
-        manual / supervised → present the spec summary + proposed first
+        confirm first (manual / supervised) → present the spec summary + proposed first
           milestone; wait for the researcher before entering the loop.
-        autopilot → proceed to build/implement_iteration on the first
-          milestone.
 
 expected_outputs:
   - spec/requirements.md

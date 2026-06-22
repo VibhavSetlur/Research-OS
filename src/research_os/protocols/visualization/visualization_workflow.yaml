@@ -1,7 +1,7 @@
 id: visualization_workflow
 tier: 'synthesize'
 name: Visualization Workflow (figures on demand, no full analysis)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -73,11 +73,9 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — inferring a figure's shape/destination produces
         a plan, not a committed figure.
-        adaptive (default) → infer + proceed; tell the researcher the
+        proceed (adaptive default, autopilot) → infer + proceed; tell the researcher the
                               inferred shape in one line.
-        manual / supervised → ask before assuming a shape or destination.
-        autopilot           → infer + proceed; tell the researcher the
-                              inferred shape in one line.
+        confirm first (manual / supervised) → ask before assuming a shape or destination.
 
   - id: locate_sources
     name: Locate the data the figure(s) will draw from
@@ -276,11 +274,9 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — curating vs showing-all is a presentation choice
         on a plan, fully changeable.
-        adaptive (default) → curate by default; surface the choice as a
+        proceed (adaptive default, autopilot) → curate by default; surface the choice as a
                               one-line suggestion.
-        manual / supervised → wait for the researcher to choose.
-        autopilot           → curate by default; surface the choice as
-                              a one-line suggestion.
+        confirm first (manual / supervised) → wait for the researcher to choose.
 
 expected_outputs:
   - workspace/scratch/figure_plan.md   (or active step's scratch/)

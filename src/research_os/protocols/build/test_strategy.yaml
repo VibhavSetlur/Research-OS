@@ -1,7 +1,7 @@
 id: test_strategy
 tier: 'plan'
 name: Test Strategy (the testing regime that fits THIS tool)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -127,12 +127,12 @@ steps:
       AUTONOMY GATE:
         Risk: reversible but shared — CI config is undoable, but it governs
         everyone's merges, so a bad gate blocks the whole team.
-        adaptive (default) → wire the regime and log the rationale; if the
+        proceed (adaptive default, autopilot) → wire the regime and log the rationale; if the
           CI gate would block merges for collaborators other than yourself,
           present it first. Judge from blast radius, not from a fixed rule.
-        manual / supervised → present the proposed regime + CI gate; wait
+          (Under autopilot, wire it and log the rationale.)
+        confirm first (manual / supervised) → present the proposed regime + CI gate; wait
           for confirmation before wiring CI (it governs everyone's merges).
-        autopilot → wire it and log the rationale.
 
 expected_outputs:
   - The inner repo's test suite + runner config

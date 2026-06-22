@@ -1,7 +1,7 @@
 id: implement_iteration
 tier: 'execute'
 name: Implement Iteration (the inner build loop)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -73,11 +73,10 @@ steps:
 
       AUTONOMY GATE:
         Risk: reversible + cheap — scoping an increment writes no code yet.
-        adaptive (default) → state the increment scope and proceed to
+        proceed (adaptive default, autopilot) → state the increment scope and proceed to
           implement; nothing here needs confirmation.
-        manual / supervised → present the increment scope; confirm before
+        confirm first (manual / supervised) → present the increment scope; confirm before
           writing code.
-        autopilot → state the scope and proceed.
 
   - id: implement
     name: Implement the increment in the inner repo
@@ -174,11 +173,10 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — a local commit is undoable (amend, revert, reset)
         and pushes nothing on its own.
-        adaptive (default) → commit with a well-formed message and log it;
+        proceed (adaptive default, autopilot) → commit with a well-formed message and log it;
           no confirmation needed for a local commit.
-        manual / supervised → show the diff summary + proposed commit
+        confirm first (manual / supervised) → show the diff summary + proposed commit
           message; commit on confirmation.
-        autopilot → commit with a well-formed message; log it.
 
   - id: record_and_decide
     name: Record the change + decide the next increment
@@ -207,14 +205,11 @@ steps:
       AUTONOMY GATE:
         Risk: reversible + cheap — looping to the next increment is just
         more gated build work; the weight sits in the gates it re-enters.
-        adaptive (default) → if the build is green and no risk flag fired,
+        proceed (adaptive default, autopilot) → if the build is green and no risk flag fired,
           loop back to scope_increment for the next increment in the SAME
           turn; if a risk flag fired or the build is red, pause and present.
-        manual / supervised → present the increment summary + the candidate
+        confirm first (manual / supervised) → present the increment summary + the candidate
           next increments; wait for the choice.
-        autopilot → if the build is green and no risk flag fired, loop back
-          to scope_increment for the next increment in the SAME turn;
-          otherwise pause and present.
 
   - id: handoff_when_long
     name: Hand off when the build context gets long

@@ -1,7 +1,7 @@
 id: exploration_loop
 tier: 'execute'
 name: Exploration Loop (probe → observe → decide)
-version: '3.5.0'
+version: '3.8.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -139,13 +139,11 @@ steps:
       AUTONOMY GATE:
         Risk: reversible + cheap — every probe lives in scratch and a
         promote/drop/iterate call commits nothing that can't be redone.
-        adaptive (default) → act on the decision; if promoting, say so and
+        proceed (adaptive default, autopilot) → act on the decision; if promoting, say so and
           load exploration_promote in the same turn.
-        manual / supervised → present the observation + your recommended
+        confirm first (manual / supervised) → present the observation + your recommended
           decision (promote / drop / iterate) and the next probe if
           iterating; wait for the researcher.
-        autopilot → act on the decision; if promoting, say so and load
-          exploration_promote in the same turn.
 
       Log nothing heavyweight here. mem_log is reserved for a genuinely
       surprising finding the researcher wants kept — in exploration mode
