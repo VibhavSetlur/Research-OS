@@ -582,348 +582,317 @@ def audit_synthesis(
 
 
 # ---------------------------------------------------------------------------
-# Statistical power
+# Statistical power — VERIFY the AI recorded a justification (does not solve it)
 # ---------------------------------------------------------------------------
 
 
-# Power solvers by analysis design. The default (two_sample_t) is unchanged;
-# the gate now refuses to silently report a two-sample figure for a different
-# design, which is methodologically wrong (often by a large margin).
-_POWER_TESTS = {
-    "two_sample_t": "two-sample independent t-test (balanced)",
-    "paired_t": "paired t-test",
-    "one_sample_t": "one-sample t-test",
-    "two_proportion": "two-proportion z-test",
-    "anova": "one-way ANOVA (F-test)",
+# Elements a defensible power / sample-size justification has to record.
+# The gate checks that the AI WROTE these down — it does not solve for power
+# itself. The researcher (or the AI on their behalf) runs the power analysis
+# in their own code; Research-OS only verifies the justification is on record.
+_POWER_REQUIRED_ELEMENTS = {
+    "test": (
+        r"\btest[\s_]*(family|design)?\b|two[\s_-]*sample|paired|one[\s_-]*sample|"
+        r"two[\s_-]*proportion|anova|regression|chi[\s_-]*squared?|survival|"
+        r"log[\s_-]*rank|mixed[\s_-]*model"
+    ),
+    "effect_size": (
+        r"\beffect[\s_]*size\b|cohen'?s?\s*[dfhw]\b|\bodds[\s_]*ratio\b|"
+        r"\brisk[\s_]*ratio\b|\bhazard[\s_]*ratio\b|\bf2\b|\beta[\s_]*squared\b|"
+        r"\bmde\b|minimum[\s_]*detectable"
+    ),
+    "alpha": r"\balpha\b|significance[\s_]*level|type[\s_]*i[\s_]*error|α",
+    "n": (
+        r"\bn\s*[=:]|sample[\s_]*size|nobs|per[\s_-]*group|\bN\s*[=:]|"
+        r"number[\s_]*of[\s_]*(participants|subjects|observations|samples)"
+    ),
+    "power": r"\bpower\b|1\s*-\s*beta|1\s*-\s*β|type[\s_]*ii[\s_]*error",
 }
-# Families whose `n` argument is PER-GROUP (group 1), not total N.
-_POWER_PER_GROUP = {"two_sample_t", "two_proportion"}
 
 
-def audit_power(
-    filepath: str, effect_size: float, alpha: float, n: int, root: Path,
-    test: str = "two_sample_t", k_groups: int | None = None,
-) -> dict[str, Any]:
-    root = Path(root)
-    try:
-        from statsmodels.stats import power as smp  # type: ignore
-    except ImportError:
-        return {
-            "status": "error",
-            "message": "statsmodels required (pip install statsmodels)",
-        }
-    if test not in _POWER_TESTS:
-        return {
-            "status": "error",
-            "message": f"unknown test '{test}'. Valid: {', '.join(_POWER_TESTS)}.",
-        }
-    power_value: float | None = None
-    try:
-        if test == "two_sample_t":
-            power_value = smp.tt_ind_solve_power(
-                effect_size=effect_size, nobs1=n, alpha=alpha, power=None)
-        elif test in ("paired_t", "one_sample_t"):
-            power_value = smp.tt_solve_power(
-                effect_size=effect_size, nobs=n, alpha=alpha, power=None)
-        elif test == "two_proportion":
-            power_value = smp.NormalIndPower().solve_power(
-                effect_size=effect_size, nobs1=n, alpha=alpha, power=None)
-        elif test == "anova":
-            if not k_groups or int(k_groups) < 2:
-                return {"status": "error",
-                        "message": "test='anova' requires k_groups>=2 (number of groups)."}
-            power_value = smp.FTestAnovaPower().solve_power(
-                effect_size=effect_size, nobs=n, alpha=alpha,
-                k_groups=int(k_groups), power=None)
-    except Exception as e:
-        logger.exception("audit_power solve failed")
-        return {"status": "error",
-                "message": f"power solve failed for test='{test}': {e}"}
-    # A non-finite / out-of-range power means the inputs were nonsensical —
-    # don't silently report nan as "passed".
-    if power_value is None or not (0.0 <= float(power_value) <= 1.0):
-        return {"status": "error",
-                "message": (f"power solver returned a non-finite value "
-                            f"({power_value}) for test='{test}'; check "
-                            "effect_size / alpha / n.")}
-    power_value = float(power_value)
-    test_label = _POWER_TESTS[test]
-    n_label = "Per-group n (nobs1)" if test in _POWER_PER_GROUP else "n"
-    out = _report_path(root, "power_report.md")
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        "# Power Analysis Report\n\n"
-        f"- Assumed test family: {test_label}\n"
-        f"- Effect size: {effect_size}\n"
-        f"- Alpha: {alpha}\n"
-        f"- {n_label}: {n}\n"
-        + (f"- Groups (k): {k_groups}\n" if test == "anova" else "")
-        + f"- Computed power: {power_value:.4f}\n"
-        f"- Source file: {filepath}\n\n"
-        "> This power is valid ONLY for the assumed test family above. For a "
-        "different design (paired / ANOVA / regression / proportion / "
-        "survival) pass test=<family>. For the two-sample / two-proportion "
-        "families `n` is the PER-GROUP size (nobs1), not total N.\n"
-    )
-    report = {
-        "power": power_value,
-        "alpha": alpha,
-        "effect_size": effect_size,
-        "n": n,
-        "assumed_test": test,
-    }
-    return {
-        "status": "warning" if power_value < 0.8 else "success",
-        "report": report,
-        "report_path": str(out.relative_to(root)),
-        "message": (
-            f"Low power ({power_value:.2f} < 0.8, {test_label}) — consider larger n."
-            if power_value < 0.8
-            else f"Power analysis passed ({test_label})."
-        ),
-    }
+def audit_power(filepath: str, root: Path, **_legacy: Any) -> dict[str, Any]:
+    """Verify the AI RECORDED a power / sample-size justification.
 
+    Research-OS does not run the power analysis — the AI does that in its
+    own code (statsmodels, pwr, G*Power, a simulation) and writes the
+    justification down. This gate reads that record and confirms every
+    element a reviewer expects is present: the test family, the effect
+    size AND where it came from, alpha, the sample size, and the target
+    power with the AI's conclusion. Missing elements are surfaced; nothing
+    is computed here.
 
-# ---------------------------------------------------------------------------
-# Model-assumption checks (residual normality, equal variance, multicollinearity)
-# ---------------------------------------------------------------------------
-
-
-def audit_assumptions(filepath: str, root: Path) -> dict[str, Any]:
-    """Run a full diagnostic battery on residuals / design / model output.
-
-    Tests run (each optional based on which columns are present):
-
-    * **Shapiro-Wilk** — residual normality.
-    * **Levene** — homogeneity of variance across groups.
-    * **Breusch-Pagan** — heteroscedasticity (residual vs fitted).
-    * **Durbin-Watson** — residual autocorrelation (target ≈ 2.0).
-    * **Variance Inflation Factor (VIF)** — multicollinearity per
-      predictor (target < 5.0; > 10.0 = severe).
-    * **Cook's distance** — influential observations (target < 4/n).
-
-    Expected column conventions (any subset triggers the matching test):
-
-    * ``residual`` / ``residuals`` — residual values.
-    * ``fitted`` / ``predicted`` — fitted values (enables BP, scale-loc).
-    * ``group`` + ``value`` — for Levene.
-    * any other numeric columns — interpreted as design matrix for VIF.
-    * ``cooks_distance`` or ``leverage`` if pre-computed.
+    Accepts a markdown / text / yaml file. Extra legacy kwargs
+    (effect_size, alpha, n, test, k_groups) are ignored — the numbers live
+    in the AI's record now, not in the tool call.
     """
     root = Path(root)
     try:
         p = root / filepath
         if not p.exists():
-            return {"status": "error", "message": f"File not found: {filepath}"}
+            return {
+                "status": "error",
+                "message": (
+                    f"Power justification not found: {filepath}. Write your "
+                    "power / sample-size reasoning to a file (test family, "
+                    "effect size + its source, alpha, n, target power, "
+                    "conclusion), then re-run this gate to verify it."
+                ),
+            }
+        text = p.read_text(errors="ignore")
+        low = text.lower()
 
-        import pandas as pd  # type: ignore
+        recorded: list[str] = []
+        missing: list[str] = []
+        for element, pattern in _POWER_REQUIRED_ELEMENTS.items():
+            if re.search(pattern, low, flags=re.IGNORECASE):
+                recorded.append(element)
+            else:
+                missing.append(element)
 
-        df = pd.read_csv(p)
-        report: dict[str, Any] = {}
-        warnings: list[str] = []
+        # An effect size with no stated provenance is the most common gap —
+        # flag it specifically so the AI cites a pilot / prior study / SESOI
+        # rather than picking a convenient number.
+        has_effect = "effect_size" in recorded
+        effect_sourced = bool(
+            re.search(
+                r"pilot|prior|previous|literature|published|meta[\s_-]*analy|"
+                r"smallest[\s_]*effect|sesoi|clinically[\s_]*meaningful|"
+                r"observed[\s_]*in|based[\s_]*on|derived[\s_]*from",
+                low,
+            )
+        )
+        notes: list[str] = []
+        if has_effect and not effect_sourced:
+            notes.append(
+                "An effect size is recorded but its SOURCE is not stated. "
+                "Cite the pilot / prior study / meta-analysis it came from, "
+                "or justify it as the smallest effect of interest (SESOI)."
+            )
 
-        from scipy import stats as sst  # type: ignore
-
-        res_col = next((c for c in ("residual", "residuals") if c in df.columns), None)
-        fitted_col = next((c for c in ("fitted", "predicted") if c in df.columns), None)
-
-        # --- 1. Shapiro-Wilk normality ---
-        if res_col:
-            res = df[res_col].dropna()
-            try:
-                n = len(res)
-                # Shapiro-Wilk caps at 5000; take a SEEDED RANDOM subsample, not
-                # the first 5000 rows — a head-slice is systematically biased
-                # when residuals are ordered by time / a sorted predictor / group.
-                sample = res.sample(n=5000, random_state=0) if n > 5000 else res
-                w, p_value = sst.shapiro(sample)
-                # At large n Shapiro-Wilk rejects normality for practically
-                # irrelevant deviations, but the CLT makes OLS/GLS coefficient
-                # inference robust — so the verdict is n-aware.
-                LARGE_N = 300
-                if p_value < 0.05 and n >= LARGE_N:
-                    interp = (
-                        f"Shapiro-Wilk rejects normality (p={p_value:.3g}), but "
-                        f"with n={n} the CLT makes coefficient inference robust "
-                        "to non-normal residuals — inspect a Q-Q plot before "
-                        "switching methods."
-                    )
-                elif p_value < 0.05:
-                    interp = "residuals NOT normal at α=0.05"
-                else:
-                    interp = "no evidence against normality"
-                report["shapiro_wilk"] = {
-                    "W": float(w), "p_value": float(p_value),
-                    "n": n, "n_tested": int(len(sample)),
-                    "interpretation": interp,
-                }
-                # Only push the hard "use rank/bootstrap" warning at small n.
-                if p_value < 0.05 and n < LARGE_N:
-                    warnings.append(
-                        f"Residuals fail Shapiro-Wilk normality (p={p_value:.3g}, "
-                        f"n={n}). Consider rank-based or bootstrap inference."
-                    )
-            except Exception as e:
-                report["shapiro_wilk"] = f"failed: {e}"
-
-        # --- 2. Levene's equality-of-variance ---
-        if "group" in df.columns and "value" in df.columns:
-            try:
-                groups = [g["value"].dropna() for _, g in df.groupby("group")]
-                stat, p_value = sst.levene(*groups)
-                report["levene"] = {
-                    "statistic": float(stat), "p_value": float(p_value),
-                    "interpretation": "heteroscedastic" if p_value < 0.05
-                                       else "homoscedastic",
-                }
-                if p_value < 0.05:
-                    warnings.append(
-                        f"Heteroscedasticity (Levene p={p_value:.3g}). "
-                        "Welch's t / robust SEs recommended."
-                    )
-            except Exception as e:
-                report["levene"] = f"failed: {e}"
-
-        # --- 3. Breusch-Pagan + scale-location summary ---
-        if res_col and fitted_col:
-            try:
-                from statsmodels.stats.diagnostic import het_breuschpagan  # type: ignore
-                import numpy as np  # type: ignore
-
-                resid = df[res_col].dropna().to_numpy()
-                fitted = df[fitted_col].loc[df[res_col].dropna().index].to_numpy()
-                # Design matrix = [1, fitted]
-                X = np.column_stack([np.ones_like(fitted), fitted])
-                lm_stat, lm_p, _f_stat, _f_p = het_breuschpagan(resid, X)
-                report["breusch_pagan"] = {
-                    "lm_statistic": float(lm_stat),
-                    "p_value": float(lm_p),
-                    "interpretation": "heteroscedastic" if lm_p < 0.05
-                                       else "homoscedastic",
-                }
-                if lm_p < 0.05:
-                    warnings.append(
-                        f"Breusch-Pagan p={lm_p:.3g} — residual variance "
-                        "depends on the fitted value. Robust (HC3) SEs "
-                        "or weighted least squares recommended."
-                    )
-            except ImportError:
-                report["breusch_pagan"] = "statsmodels not installed"
-            except Exception as e:
-                report["breusch_pagan"] = f"failed: {e}"
-
-        # --- 4. Durbin-Watson autocorrelation ---
-        if res_col:
-            try:
-                from statsmodels.stats.stattools import durbin_watson  # type: ignore
-
-                dw = float(durbin_watson(df[res_col].dropna()))
-                report["durbin_watson"] = {
-                    "statistic": dw,
-                    "interpretation":
-                        "positive autocorrelation" if dw < 1.5
-                        else "negative autocorrelation" if dw > 2.5
-                        else "no strong autocorrelation",
-                }
-                if dw < 1.5 or dw > 2.5:
-                    warnings.append(
-                        f"Durbin-Watson = {dw:.2f} (target ≈ 2.0); "
-                        "consider time-series / clustered SE adjustment."
-                    )
-            except ImportError:
-                pass
-            except Exception as e:
-                report["durbin_watson"] = f"failed: {e}"
-
-        # --- 5. VIF (multicollinearity) ---
-        numeric_cols = [
-            c for c in df.columns
-            if c not in {res_col, fitted_col, "group", "value",
-                          "cooks_distance", "leverage"}
-            and pd.api.types.is_numeric_dtype(df[c])
+        out = _report_path(root, "power_report.md")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        lines = [
+            "# Power Justification Audit",
+            "",
+            f"- Source file: `{filepath}`",
+            f"- Elements recorded: {', '.join(recorded) or 'none'}",
+            f"- Elements missing: {', '.join(missing) or 'none'}",
+            "",
+            "> This gate VERIFIES the AI recorded a complete power / "
+            "sample-size justification. It does not compute power — run the "
+            "power analysis in your own code (statsmodels / pwr / simulation) "
+            "and record the inputs and the resulting power here.",
         ]
-        if len(numeric_cols) >= 2:
-            try:
-                from statsmodels.stats.outliers_influence import variance_inflation_factor  # type: ignore
-                import numpy as np  # type: ignore
+        if notes:
+            lines += ["", "## Notes"] + [f"- {x}" for x in notes]
+        out.write_text("\n".join(lines) + "\n")
 
-                X = df[numeric_cols].dropna().to_numpy()
-                vifs = {}
-                if X.shape[0] > X.shape[1] + 1:
-                    for i, name in enumerate(numeric_cols):
-                        try:
-                            v = float(variance_inflation_factor(X, i))
-                            vifs[name] = round(v, 2)
-                        except Exception:
-                            continue
-                    report["vif"] = vifs
-                    bad = {k: v for k, v in vifs.items() if v > 10}
-                    moderate = {k: v for k, v in vifs.items()
-                                if 5 < v <= 10}
-                    if bad:
-                        warnings.append(
-                            "Severe multicollinearity (VIF > 10): "
-                            + ", ".join(f"{k}={v}" for k, v in bad.items())
-                            + ". Drop or combine these predictors."
-                        )
-                    elif moderate:
-                        warnings.append(
-                            "Moderate multicollinearity (5 < VIF ≤ 10): "
-                            + ", ".join(f"{k}={v}" for k, v in moderate.items())
-                            + ". Inspect predictor pairs."
-                        )
-            except ImportError:
-                pass
-            except Exception as e:
-                report["vif"] = f"failed: {e}"
+        ok = not missing and not notes
+        return {
+            "status": "success" if ok else "warning",
+            "recorded": recorded,
+            "missing": missing,
+            "notes": notes,
+            "report_path": str(out.relative_to(root)),
+            "message": (
+                "Power justification is complete and recorded."
+                if ok
+                else (
+                    "Power justification incomplete — "
+                    + (f"missing: {', '.join(missing)}. " if missing else "")
+                    + (" ".join(notes) if notes else "")
+                ).strip()
+            ),
+        }
+    except Exception as e:
+        logger.exception("audit_power failed")
+        return {"status": "error", "message": str(e)}
 
-        # --- 6. Cook's distance influential observations ---
-        if "cooks_distance" in df.columns:
-            try:
-                cd = df["cooks_distance"].dropna()
-                n = max(1, len(cd))
-                thr = 4.0 / n
-                n_influential = int((cd > thr).sum())
-                report["cooks_distance"] = {
-                    "threshold_4_over_n": round(thr, 4),
-                    "n_influential": n_influential,
-                    "pct_influential": round(100 * n_influential / n, 2),
-                }
-                if n_influential / n > 0.05:
-                    warnings.append(
-                        f"{n_influential} observations exceed Cook's D "
-                        f"threshold (4/n = {thr:.4f}); inspect / report "
-                        "leave-one-out sensitivity."
-                    )
-            except Exception as e:
-                report["cooks_distance"] = f"failed: {e}"
+
+# ---------------------------------------------------------------------------
+# Model-assumption diagnostics — VERIFY the AI recorded them (does not run them)
+# ---------------------------------------------------------------------------
+
+
+# Diagnostic checks a defensible model-assumption audit records. The gate
+# verifies the AI RAN these and wrote down the statistic + interpretation +
+# its response to any violation. Research-OS never runs the diagnostic — the
+# AI does that in its own code (statsmodels, scipy, R, a permutation test).
+_ASSUMPTION_CHECKS = {
+    "normality": (
+        r"shapiro|q-?q[\s_]*plot|normal(it)?y|anderson|kolmogorov|jarque|"
+        r"d'?agostino|skew|kurtosis"
+    ),
+    "homoscedasticity": (
+        r"levene|breusch|bartlett|white'?s?[\s_]*test|heteroscedpast|"
+        r"homoscedast|equal[\s_]*variance|scale[\s_-]*location|residual[\s_]*vs"
+    ),
+    "independence": (
+        r"durbin|watson|autocorrelat|ljung|breusch[\s_-]*godfrey|"
+        r"independen(t|ce)|serial[\s_]*correlat|acf\b"
+    ),
+    "multicollinearity": (
+        r"\bvif\b|variance[\s_]*inflation|multicollinear|condition[\s_]*number|"
+        r"correlation[\s_]*matrix|tolerance"
+    ),
+    "influence": (
+        r"cook'?s?[\s_]*(distance|d)|leverage|influential|dffits|outlier|"
+        r"hat[\s_]*value|studentized"
+    ),
+}
+
+
+def audit_assumptions(filepath: str, root: Path, **_legacy: Any) -> dict[str, Any]:
+    """Verify the AI RECORDED its model-assumption diagnostics.
+
+    Research-OS does not run Shapiro-Wilk, Levene, Breusch-Pagan,
+    Durbin-Watson, VIF, or Cook's distance — the AI runs whatever
+    diagnostics the chosen model requires, in its own code, and writes
+    the results down. This gate reads that record and confirms each
+    relevant assumption was checked, that a statistic / verdict is on
+    record, and that the AI stated its RESPONSE when an assumption was
+    violated (the part reviewers actually care about).
+
+    Accepts a markdown / text / yaml diagnostics record. The optional
+    legacy CSV path still works — if a CSV of residuals is passed, the
+    gate notes that raw numbers exist but reminds the AI to record the
+    interpretation, because a column of residuals is not a diagnostic.
+    """
+    root = Path(root)
+    try:
+        p = root / filepath
+        if not p.exists():
+            return {
+                "status": "error",
+                "message": (
+                    f"Diagnostics record not found: {filepath}. Run your "
+                    "model's assumption checks in your own code, then write "
+                    "the results (which checks, the statistics, your reading, "
+                    "and your response to any violation) to a file and re-run "
+                    "this gate to verify it."
+                ),
+            }
+
+        text = p.read_text(errors="ignore")
+        low = text.lower()
+
+        # A raw residual CSV is data, not a diagnostic record. Detect it and
+        # steer the AI to record interpretations rather than dump numbers.
+        is_raw_csv = filepath.lower().endswith(".csv") and not re.search(
+            r"interpret|conclu|verdict|violat|response|because|therefore", low
+        )
+        if is_raw_csv:
+            out = _report_path(root, "assumption_report.md")
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                "# Assumption Audit\n\n"
+                f"- Source file: `{filepath}`\n"
+                "- Status: raw data, no interpretation recorded\n\n"
+                "> A CSV of residuals is not a diagnostics record. Run the "
+                "assumption checks your model needs (normality, "
+                "homoscedasticity, independence, multicollinearity, "
+                "influence) in your own code, then write down each "
+                "statistic, your interpretation, and your response to any "
+                "violation. Re-run this gate against that record.\n"
+            )
+            return {
+                "status": "warning",
+                "recorded": [],
+                "missing": list(_ASSUMPTION_CHECKS),
+                "report_path": str(out.relative_to(root)),
+                "message": (
+                    "A residual CSV is not a diagnostics record. Record which "
+                    "assumption checks you ran, their statistics, your "
+                    "interpretation, and your response to violations."
+                ),
+            }
+
+        recorded: list[str] = []
+        missing: list[str] = []
+        for check, pattern in _ASSUMPTION_CHECKS.items():
+            if re.search(pattern, low, flags=re.IGNORECASE):
+                recorded.append(check)
+            else:
+                missing.append(check)
+
+        # The load-bearing question for a reviewer: when an assumption was
+        # flagged AS VIOLATED, did the AI say what it DID about it? Only treat
+        # genuine problem language as a violation — naming a diagnostic
+        # ("no autocorrelation", "VIF") is not a violation. Guard against the
+        # negated forms ("not violated", "no heteroscedasticity").
+        violation_terms = (
+            r"violat|reject|fail(ed|s|ure)?|heteroscedast|non-?normal|"
+            r"serial(ly)?[\s_]*correlat|severe[\s_]*(multicollinear|"
+            r"inflation|influence)|influential[\s_]*point|"
+            r"assumption[s]?[\s_]*(is|are|was|were)?[\s_]*(not[\s_]*met|"
+            r"broken|breached)"
+        )
+        flagged_violation = False
+        for m in re.finditer(violation_terms, low, flags=re.IGNORECASE):
+            # Look 18 chars back for a negation that flips the meaning.
+            prefix = low[max(0, m.start() - 18):m.start()]
+            if re.search(r"\bno\b|\bnot\b|\bn't\b|without|free[\s_]*of|"
+                         r"do(es)?[\s_]*not", prefix):
+                continue
+            flagged_violation = True
+            break
+        stated_response = bool(
+            re.search(
+                r"robust[\s_]*(se|standard[\s_]*error)|hc[0-3]\b|welch|"
+                r"bootstrap|rank-?based|weighted[\s_]*least|wls|gls|"
+                r"transform|log[\s_-]*transform|drop(ped)?|cluster|"
+                r"sensitivity|re-?ran|switched|instead[\s_]*used|"
+                r"non-?parametric|mixed[\s_]*model|robust[\s_]*regression", low
+            )
+        )
+        notes: list[str] = []
+        if flagged_violation and not stated_response:
+            notes.append(
+                "An assumption violation is mentioned but no RESPONSE is "
+                "recorded. State what you did about it (robust/HC SEs, "
+                "Welch, transform, non-parametric, drop influential points, "
+                "sensitivity analysis) or why it is acceptable to ignore."
+            )
 
         out = _report_path(root, "assumption_report.md")
         out.parent.mkdir(parents=True, exist_ok=True)
-        lines = ["# Assumption Audit", "",
-                 f"- Source file: `{filepath}`", ""]
-        for k, v in report.items():
-            lines.append(f"### {k}")
-            if isinstance(v, dict):
-                for kk, vv in v.items():
-                    lines.append(f"- **{kk}**: {vv}")
-            else:
-                lines.append(f"- {v}")
-            lines.append("")
-        if warnings:
-            lines.append("## Warnings")
-            for w in warnings:
-                lines.append(f"- {w}")
+        lines = [
+            "# Assumption Audit",
+            "",
+            f"- Source file: `{filepath}`",
+            f"- Checks recorded: {', '.join(recorded) or 'none'}",
+            f"- Checks not found: {', '.join(missing) or 'none'}",
+            "",
+            "> This gate VERIFIES the AI recorded its assumption "
+            "diagnostics. It does not run any test — run the diagnostics "
+            "your model requires in your own code and record each "
+            "statistic, your interpretation, and your response to "
+            "violations here. Not every model needs every check; record "
+            "the ones that apply and why the others do not.",
+        ]
+        if notes:
+            lines += ["", "## Notes"] + [f"- {x}" for x in notes]
         out.write_text("\n".join(lines) + "\n")
 
+        # Surface incompleteness as a warning, but do not demand all five —
+        # the AI judges which apply. The hard signal is an unanswered
+        # violation, which always warns.
+        ok = bool(recorded) and not notes
         return {
-            "status": "warning" if warnings else "success",
-            "report": report,
-            "warnings": warnings,
+            "status": "success" if ok else "warning",
+            "recorded": recorded,
+            "missing": missing,
+            "notes": notes,
             "report_path": str(out.relative_to(root)),
             "message": (
-                "Assumption checks raised warnings." if warnings
-                else "All assumption checks passed."
+                "Assumption diagnostics recorded with responses."
+                if ok
+                else (
+                    ("No assumption checks found in the record. "
+                     if not recorded else "")
+                    + (" ".join(notes) if notes else "")
+                ).strip()
+                or "Assumption diagnostics recorded."
             ),
         }
     except Exception as e:

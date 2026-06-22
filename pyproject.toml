@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "3.5.0"
+version = "3.6.0"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -56,7 +56,7 @@ Documentation = "https://github.com/VibhavSetlur/Research-OS/tree/main/docs"
 web = ["firecrawl-py", "beautifulsoup4", "tenacity", "trafilatura"]
 literature = ["metapub", "semanticscholar"]
 viz = ["matplotlib", "seaborn", "plotly", "Pillow"]
-audit = ["statsmodels", "scipy", "Pillow"]
+audit = ["Pillow"]
 ml = ["scikit-learn", "xgboost", "shap"]
 notebook = ["jupyter", "nbconvert"]
 # Tabular IO engines for the data tools — Parquet/Feather (pyarrow) and

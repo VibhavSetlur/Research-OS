@@ -279,6 +279,36 @@ writing a figure, scoping an increment), it does not need a gate at all;
 adaptive flows through it. Reserve gates for the moves where pausing
 actually protects something.
 
+## Tools verify recorded work — they never do the science
+
+Research-OS tools provide **state, provenance, gates, routing, and
+search**. They do NOT perform the researcher's analysis. A tool must
+never compute a finding, run a statistical test, solve for a quantity,
+or decide a verdict from raw data — that is the AI's job to create, on
+the researcher's behalf, in the AI's own code.
+
+The audit gates make this concrete. They follow the `audit_citations`
+shape: read the artefact the AI produced, check that each expected
+element is present and interpreted, write a report, and return
+`recorded` / `missing` (or `verified` / `unverified`). They do not
+generate the artefact.
+
+- `audit_power` does NOT solve for power. It reads the AI's power /
+  sample-size justification and verifies it records the test family,
+  the effect size **and its source**, alpha, n, and the target power
+  with a conclusion.
+- `audit_assumptions` does NOT run Shapiro / Levene / Breusch-Pagan /
+  Durbin-Watson / VIF / Cook's. It reads the AI's diagnostics record
+  and verifies each named check has a statistic, an interpretation,
+  and — for any violation — a recorded response.
+
+The litmus test: **if removing the tool would change a scientific
+result, the tool was doing the science and is wrong.** Removing a
+verify-gate only removes the check that the work was recorded — the
+result itself is untouched, because the AI computed it. Arithmetic
+conversions that merely restate the AI's own inputs (e.g. an E-value
+from a reported risk ratio) are not "doing the science" and are fine.
+
 ## No version commentary in live bodies
 
 Protocol bodies, MCP tool descriptions, and code docstrings/comments

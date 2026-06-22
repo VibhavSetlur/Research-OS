@@ -149,34 +149,17 @@ def _handle_tool_audit_synthesis(name, arguments, root):
 def _handle_tool_audit_power(name, arguments, root):
     from research_os.tools.actions.audit import audit_power
 
-    # alpha/n are schema-optional — give a clear directed error / default
-    # instead of a generic KeyError (F8).
+    # The gate VERIFIES the AI recorded a power / sample-size justification;
+    # it does not solve for power. So it needs only the file to check. Legacy
+    # numeric args (effect_size/alpha/n/test/k_groups) are accepted and
+    # ignored for back-compat — the numbers now live in the AI's record.
     filepath = arguments.get("filepath")
     if not filepath:
-        return _text(_error("dimension='power' requires filepath="))
-    n = arguments.get("n")
-    if n is None:
         return _text(_error(
-            "dimension='power' requires n= (PER-GROUP sample size / nobs1 for "
-            "the two-sample families, not total N)"))
-    # Coerce numeric args at the boundary — MCP JSON-schema types are advisory
-    # and clients commonly stringify numbers; statsmodels then raises a cryptic
-    # TypeError. Mirror the e-value handler precedent (C1).
-    try:
-        ef = float(arguments.get("effect_size", 0.5))
-        al = float(arguments.get("alpha", 0.05))
-        nn = int(float(n))
-        kg = arguments.get("k_groups")
-        kg = int(float(kg)) if kg is not None else None
-    except (TypeError, ValueError) as e:
-        return _text(_error(
-            "tool_audit(dimension='power') needs numeric effect_size, alpha, n "
-            f"(and k_groups for anova). Could not parse: {e}. "
-            "NEXT: e.g. effect_size=0.5, alpha=0.05, n=64, test='two_sample_t'."))
-    res = audit_power(
-        filepath, ef, al, nn, root,
-        test=arguments.get("test", "two_sample_t"), k_groups=kg,
-    )
+            "dimension='power' requires filepath= pointing at your power / "
+            "sample-size justification (test family, effect size + its "
+            "source, alpha, n, target power, conclusion)."))
+    res = audit_power(filepath, root)
     if res.get("status") != "error":
         return _text(_success(res))
     return _text(_error(res.get("message", "audit failed")))
