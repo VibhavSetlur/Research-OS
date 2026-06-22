@@ -354,12 +354,18 @@ benefits from the right files being in the right place.
 
 ---
 
-## Protocol categories (100+ protocols, organised in 9)
+## Protocol categories (130+ protocols)
 
 Every protocol carries `scope_tags: {domain, audience, workflow_shape}`
 + a `tier` annotation. `tool_route` surfaces both in
 `why_matched`, so when the router returns alternatives you can rank
-them by tier compatibility.
+them by tier compatibility. The table below groups by router
+intent_class (a slightly higher-level view than the on-disk folders —
+e.g. `discover` is a virtual class backed by a shortcut tool, and
+`audit + reproducibility` merges two folders). For the exact on-disk
+folder roster + per-category counts, see
+[PROTOCOLS.md](PROTOCOLS.md); for the live flat list call
+`tool_protocols_list`.
 
 | Category | What it covers |
 |---|---|
@@ -370,7 +376,10 @@ them by tier compatibility.
 | literature | search + systematic review + evidence synthesis + comparative review + `literature_per_step` (per-step findings_vs_literature.md loop) |
 | writing | per-section drafting (methods / results / discussion / limitations / end_matter) |
 | visualization | figures (rules / workflow / critique / multi-panel / arc / a11y / interactive) |
-| synthesis | final deliverables (paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable / deliverable_design / humanities_essay_structure / reviewer_response) |
+| synthesis | final deliverables (paper / abstract / poster / dashboard / slides / lay / handout / report / grant / progress / from_inputs / null / cover_letter / title / manuscript_outline / journal_selection / defense_prep / printable / deliverable_design / synthesis_step_report / humanities_essay_structure / reviewer_response) |
+| build | the `tool_build` workspace mode lifecycle (spec_and_design / implement_iteration / test_strategy / benchmark_vs_baseline / release_and_changelog) |
+| exploration | the exploration workspace mode (loop / triage / promote) |
+| notebook + program | interactive notebook-driven analysis + multi-project program scaffolding |
 | audit + reproducibility | quality audit + pre-submission checklist + provenance completeness + repro audit + `tool_audit(scope='step', dimension='literature')` gate |
 
 If a category looks like it should have a folder but you can't find one

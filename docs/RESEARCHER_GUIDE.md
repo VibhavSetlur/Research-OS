@@ -183,6 +183,12 @@ above stay editable.
 
 ## 4. A typical session (narrative)
 
+> This section sketches the *shape* of a session with placeholder data.
+> For seven fully concrete, named-researcher walkthroughs — a messy
+> ecology CSV to a paper, reproducing a published bioinformatics result,
+> an R01 between meetings, benchmarking a Rust tool, 18 interview
+> transcripts to publication — see [SCENARIOS.md](SCENARIOS.md).
+
 ### 4.1 First time — set up the project
 
 > **You:** I dropped my CSV and a couple of papers in inputs/. Fill out

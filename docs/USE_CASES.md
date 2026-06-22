@@ -7,6 +7,13 @@ your role, find your situation, see the protocol the AI will route to.
 You don't need to memorise this. Just talk in plain English; `tool_route`
 picks the protocol. This page exists so you know what's possible.
 
+> **Want to see it on a real project instead of a lookup table?**
+> [SCENARIOS.md](SCENARIOS.md) walks seven complete projects end-to-end —
+> a messy CSV to a paper, reproducing a published result, prepping an
+> R01, benchmarking your own tool, interview transcripts to publication —
+> with the exact prompts and what lands on disk. Read the one closest to
+> your situation, then come back here for the full map.
+
 ---
 
 ## Common first prompts (start here)

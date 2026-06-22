@@ -1,16 +1,20 @@
 # Research OS — CLI reference
 
-`research-os` ships these top-level commands. Three set up + run the
-MCP server; the others diagnose health and emit shell completions.
+`research-os` ships ten top-level commands. A few set up + run the MCP
+server; the rest wire integrations, preview routing, diagnose health,
+keep project templates fresh, and emit shell completions.
 
 | Command            | What it does                                         |
 | ------------------ | ---------------------------------------------------- |
 | `research-os init` | Scaffold a workspace ready for any AI IDE.           |
 | `research-os ide`  | Add / remove / list AI IDE MCP configs.              |
 | `research-os mcp`  | Compose third-party MCP servers into IDE configs.    |
+| `research-os hermes` | Wire Research-OS into Hermes Agent (`~/.hermes/config.yaml`). |
+| `research-os route` | Preview the protocol router for a prompt (no IDE needed). |
 | `research-os api-key` | Manage api_keys in `inputs/researcher_config.yaml`. |
 | `research-os start`| Run the MCP server (your IDE auto-launches it).      |
 | `research-os doctor` | Diagnose install + workspace health (this page).   |
+| `research-os refresh` | Refresh project copies of bundled templates (drift check). |
 | `research-os completion` | Print a sourceable shell-completion script.    |
 
 See `research-os <command> --help` for full flag reference.
@@ -286,6 +290,40 @@ research-os doctor --workspace /path/to/my-research
 Every check entry has `name`, `status`, `message`, and `scope`
 (`install` or `workspace`). When a check produced a fix hint, the
 entry also carries a `fix` field.
+
+---
+
+## `research-os refresh`
+
+Detects drift between a project's copies of the bundled templates
+(`AGENTS.md`, `CLAUDE.md`, `.claude/rules/research-os.md`, and the
+per-IDE rule files) and the versions shipped with the installed
+`research-os`. The wizard copies templates once at init, so a project
+that has lived across a few releases can be teaching the AI a stale tool
+surface or out-of-date hard rules. `refresh` shows the gap and, with
+`--write`, overwrites the project copies in place.
+
+Read-only by default. `--check` exits non-zero on drift so CI can fail
+when a project falls out of sync.
+
+```bash
+research-os refresh                 # report drift (default, read-only)
+research-os refresh --check         # report + exit 1 if any drift
+research-os refresh --write         # prompt per-file, then overwrite
+research-os refresh --write --yes   # overwrite every drifted file, no prompts
+research-os refresh --regen-readme  # also regenerate project-root README.md
+research-os refresh --json          # machine-readable report
+```
+
+| Flag             | Meaning                                                            |
+| ---------------- | ----------------------------------------------------------------- |
+| `--check`        | Report only; exit non-zero if any project copy has drifted.       |
+| `--write`        | Overwrite drifted project copies with the bundled template.       |
+| `-y`, `--yes`    | With `--write`, skip the per-file confirmation prompt.            |
+| `--regen-readme` | Also regenerate the project-root `README.md` with the current step inventory + synthesis deliverable list (use at finalize). |
+| `--workspace`    | Explicit workspace path (default: walk up from CWD).              |
+| `--json`         | Emit JSON instead of the human-readable report.                  |
+| `--no-color`     | Disable ANSI styling (auto-disabled when `NO_COLOR` is set).      |
 
 ---
 

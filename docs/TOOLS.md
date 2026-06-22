@@ -124,6 +124,8 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_audit` | `scope` + `dimension` | step/project/synthesis × completeness, code_quality, prose, claims, citations, coherence, cross_deliverable, dashboard_content, evalue, figure, figure_coverage, figure_full, figure_interactivity, power, reproducibility, reviewer_responses, step_literature, version_coherence, cliches, all | `tool_audit_assumptions`, `tool_audit_citations`, `tool_audit_claims`, `tool_audit_cliches`, `tool_audit_code_quality`, `tool_audit_coherence`, `tool_audit_cross_deliverable_consistency`, `tool_audit_dashboard_content`, `tool_audit_evalue`, `tool_audit_figure`, `tool_audit_figure_coverage`, `tool_audit_figure_full`, `tool_audit_figure_interactivity`, `tool_audit_figure_quality`, `tool_audit_power`, `tool_audit_prose`, `tool_audit_reproducibility`, `tool_audit_reviewer_responses`, `tool_audit_statistical_power`, `tool_audit_step_completeness`, `tool_audit_step_literature`, `tool_audit_synthesis`, `tool_audit_version_coherence` |
 | `tool_audit_findings` | `operation` | `query` (filter the ledger), `diff` (compare two snapshots by stable id), `explain` (full chronological history + untruncated suggested_fix for one id — call after a synthesize BLOCK; the BLOCK envelope's `next_recommended_call` points at it) | `tool_audit_findings_query`, `tool_audit_findings_diff` |
 | `tool_audit_quality_full` | — (aggregator) | (standalone) — runs every gate in one call and returns structured per-component verdicts | — |
+| `tool_build` | `operation` | `build`, `test`, `lint` — shells the per-operation command declared in `researcher_config.yaml#workspace.commands.{build,test,lint}` with cwd = the `tool_build` inner repo. The build-mode counterpart of `tool_scratch`. | — |
+| `tool_git` | `operation` | `init`, `status`, `commit`, `branch`, `tag`, `log`, `diff` — provenance-aware git hard-scoped to the `tool_build` inner project repo (`workspace.inner_repo`, default `project`). | — |
 | `tool_data` | `operation` | `sample`, `profile`, `convert` (CSV ↔ Parquet ↔ Feather ↔ RDS) | `tool_data_sample`, `tool_data_profile`, `tool_data_convert` |
 | `tool_ground` | `mode` | `explicit` (register a decision↔evidence binding), `from_context` (extract bindings from a step's conclusions) | **removed**: `tool_grounding_register`, `tool_ground_from_context` |
 | `tool_lessons` | `operation` | `record`, `consult` (cross-session lesson store), `failure_record`, `failure_check`, `failure_list` (URL/DOI paywall / 404 memory), `dead_end` (dead-end summariser), `mistake_replay` (recurring-pattern coaching) | `tool_dead_end_lessons`, `tool_failure_record`, `tool_failure_check`, `tool_failure_list`, `tool_mistake_replay`; **removed**: `tool_lessons_record`, `tool_lessons_consult` |
@@ -154,13 +156,16 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_citations_verify` | Re-verify every `citation_key` in `workspace/citations.md`. |
 | `tool_context_intake` | Route a mid-flow file drop into the right `inputs/` subfolder. Skips scaffold files. |
 | `tool_cytoscape_export_static` | (adapter: `cytoscape`) Render a static PNG / SVG snapshot of one or every network embedded in a `.cys` archive. |
+| `tool_deliverable_chooser` | "I'm done, what now?" — inspects project readiness (steps with conclusions, figures, citations) + `researcher_config.yaml#research_goal.output_types` and recommends which deliverable(s) to build (asks if none declared). Surfaces always-available interim artifacts (e.g. step reports) without forcing them. |
 | `tool_deprecations_summary` | Listed above (Discovery). |
 | `tool_discussion_coverage_audit` | BLOCK gate: every non-AGREES literature verdict must have a Discussion paragraph. |
 | `tool_dry_run` | Listed above (Discovery). |
 | `tool_engineering_fault_tree_render` | (pack: `engineering`) Render a fault tree as Mermaid + optional SVG. |
 | `tool_engineering_fmea_render` | (pack: `engineering`) Render FMEA (Failure Mode & Effects Analysis) from YAML to CSV + Markdown (+ optional `.xlsx`). Computes RPN = severity × occurrence × detection. |
 | `tool_engineering_requirements_matrix` | (pack: `engineering`) Bidirectional requirements ↔ design elements ↔ test cases ↔ test results matrix. |
+| `tool_explain` | Plain-language tutor for any concept / method / topic. Returns a grounded, LAYERED explanation scaffold (intuition → mechanics → caveats), tuned to an optional `depth` — not a memorised answer. |
 | `tool_external_tool_instructions` | Writes a `WORKSHEET.md` when the chosen tool is external (website / paid / GUI). |
+| `tool_finalize_project` | Server-enforced ship gate. `operation='check'\|'finalize'` — the ONE gate that can actually REFUSE "done": aggregates BLOCK-severity findings (unresolved audit blockers, unverified citations, missing provenance) across the whole project. Every other gate is advisory. |
 | `tool_humanities_archive_lookup` | (pack: `humanities`) Query digital archives (Internet Archive / HathiTrust / DPLA / Europeana / Gallica / Library of Congress). |
 | `tool_humanities_citation_chain` | (pack: `humanities`) Chain-of-custody for a quotation: original ms → critical edition → translation → secondary citation. |
 | `tool_humanities_transcribe` | (pack: `humanities`) Scaffold OCR + manual-correction for an archival image. Side-by-side transcription template. |
@@ -206,6 +211,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_semantic_route` | Listed above (Discovery). |
 | `tool_session_resume` | Reconstruct intent + status from logs after any pause / handoff / new chat. |
 | `tool_synthesize_plan` | Inspect workspace + return what's ready to draft (per-section source paths + gaps). Read-only; call before authoring synthesis files. |
+| `tool_skills` | Self-improving skill registry. `operation='distill'\|'promote'\|'list'` — clusters this project's recorded lessons (`workspace/.lessons/lessons.jsonl`) by tag and crystallizes recurring patterns into reusable, Hermes-compatible `SKILL.md` cards. The self-improving loop on top of `tool_lessons`. |
 | `tool_slurm_estimate_cost` | (adapter: `slurm`) Estimate compute cost from `#SBATCH walltime + nodes × $/node-hour`. |
 | `tool_slurm_fetch` | (adapter: `slurm`) Block until a SLURM job finishes; return stdout / stderr paths. |
 | `tool_slurm_job_status` | (adapter: `slurm`) Query Slurm (`squeue --json`) or PBS (`qstat -f`) for a job's status. |
@@ -227,7 +233,9 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_tools_list` | Listed above (Discovery). |
 | `tool_web_scrape` | Scrape a URL to markdown. |
 | `tool_wet_lab_plate_map_render` | (pack: `wet_lab`) Render a 96- or 384-well plate layout as PNG / SVG from a YAML spec. |
+| `tool_wet_lab_checksum_raw` | (pack: `wet_lab`) Compute the SHA-256 + size of a raw instrument output file (never trust an operator-typed checksum) and, given `run_log_path`, append the `{path, sha256, size_bytes}` entry to that run log. Streams the file for large sequencer/imaging output. |
 | `tool_wet_lab_reagent_query` | (pack: `wet_lab`) Structured query plan + write-into-`reagents.yaml` stub for one reagent. |
+| `tool_wet_lab_run_log_init` | (pack: `wet_lab`) Stub a structured instrument run-log YAML for an instrument family at `workspace/<step>/runs/<family>_<run_label>.yaml`. Pre-fills the family-appropriate parameter fields + capture timestamp with TODO placeholders. |
 | `tool_wet_lab_sample_lineage_export` | (pack: `wet_lab`) Render the parent → split → aliquot → readout tree as JSON + Mermaid. |
 | `tool_workflow_dag` | Build a DAG of numbered steps + data dependencies; write `docs/workflow_dag.mermaid` (+ PNG if `mmdc` present). Auto-refreshed on path create/abandon. |
 | `tool_workspace_repair` | Detect missing dirs / corrupted state / stale paths and (optionally) heal. NEVER deletes. |
