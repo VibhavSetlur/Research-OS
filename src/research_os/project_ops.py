@@ -166,269 +166,176 @@ def resolve_step_dir(workspace: Path, step_id: str) -> Path | None:
 # summarise whatever was deposited so the dashboard's per-step appendix can
 # surface it.
 
-TOP_LEVEL_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "literature",        # project-wide corpus of record (aggregated from every step)
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "synthesis",
-    "environment",
-)
-
-# Directories created EAGERLY (always populated, never empty after init).
-# inputs/{raw_data,literature,context} are eager because GETTING_STARTED
-# tells the researcher to drop files there, and the dirs must exist for
-# that `cp` to work without `mkdir -p` friction. Each is seeded with a
-# tiny README explaining what belongs there so an empty folder isn't a
-# dead end.
-EAGER_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "literature",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "environment",
-)
-
-# Directories created LAZILY (only when the first artefact lands in them).
-# Tools that write into them MUST call ``ensure_lazy_dir`` first.
-LAZY_DIRS = (
-    "synthesis",
-)
-
-
-# ---------------------------------------------------------------------------
-# Scaffold profiles — one per workspace.mode.
+# ===========================================================================
+# CANONICAL DIRECTORY LAYOUT — single source of truth
+# ===========================================================================
+# Every workspace.mode used to hand-duplicate three near-identical directory
+# tuples (top_level / eager / lazy), restating the ~7 mode-agnostic safety
+# dirs in each. That made the layout *implicit* — a change to the safety
+# contract meant editing a dozen copy-pasted tuples, and nothing guaranteed
+# the copies stayed in sync.
 #
-# A *profile* is the directory contract the scaffold builds for a given
-# kind of work. ``analysis`` reproduces today's behaviour BYTE-IDENTICALLY
-# (it literally reuses the module constants above); the others tailor the
-# surface to how that work actually flows.
+# The layout is now DECLARED ONCE here and COMPOSED. Each profile = a fixed
+# backbone (safety prefix + workspace tree + environment) plus a small,
+# mode-specific *work surface*. The composer (`_compose_layout`) builds the
+# three tuples deterministically; `SCAFFOLD_PROFILES` is derived from
+# `LAYOUT_SPEC`, so the safety contract can never drift between modes.
 #
-# Mode-agnostic safety invariants stay constant across every profile:
-# ``.os_state`` (the only hard-locked tree), ``inputs/`` (source-of-truth;
-# the original ``raw_data/`` + ``literature/`` drops are soft-guarded,
-# ``context/`` + ``researcher_config.yaml`` are AI-writable),
-# ``docs`` (overview/glossary), ``environment`` (reproducibility),
-# and ``workspace/scratch`` (the AI sandbox). Profiles only choose how the
-# *work surface* between inputs and outputs is shaped.
+# Anything that needs the canonical layout — the wizard, sys_boot, the
+# README templates, docs — should read `LAYOUT_SPEC` / `SCAFFOLD_PROFILES`
+# / `describe_layout()` rather than re-listing directory names inline.
 #
-#   analysis    → the classic linear numbered-step model. workspace/NN_* +
-#                 synthesis/. UNCHANGED.
-#   tool_build  → Research OS sits ABOVE as a governance layer: spec/ (what
-#                 we're building + design), decisions/ (ADRs), eval/ (the
-#                 benchmark / eval harness that defines "done"), plus
-#                 milestones.md / governance.md / CHANGELOG.md. The actual
-#                 tool lives in an INNER project dir that gets its own
-#                 git init (see scaffold_minimal_workspace).
-#   exploration → scratch-first. workspace/scratch is the home base; gates
-#                 are light; promote a probe to a numbered step when it
-#                 earns it. Everything heavyweight stays lazy.
+# The mode-agnostic safety backbone (constant across EVERY profile):
+#   • ``.os_state``        the only hard-locked tree (provenance / state)
+#   • ``docs``             overview + glossary
+#   • ``inputs/``          source-of-truth drops: raw_data/ + literature/ are
+#                          soft-guarded, context/ + researcher_config.yaml are
+#                          AI-writable
+#   • ``workspace/``       the work surface; ``workspace/logs`` (audit +
+#                          override trail) and ``workspace/scratch`` (the AI
+#                          sandbox) always live underneath
+#   • ``environment``      reproducibility (env exports, lockfiles)
+#
+# Profiles only choose the *work surface* between inputs and outputs, and
+# whether ``synthesis/`` exists (the eventual paper/report/dashboard home).
 # ---------------------------------------------------------------------------
 
-_TOOL_BUILD_TOP_LEVEL_DIRS = (
+# The fixed backbone, declared once.
+_SAFETY_PREFIX: tuple[str, ...] = (
     ".os_state",
     "docs",
     "inputs",
     "inputs/raw_data",
     "inputs/literature",
     "inputs/context",
-    "spec",
-    "decisions",
-    "eval",
+)
+_WORKSPACE_TREE: tuple[str, ...] = (
     "workspace",
     "workspace/logs",
     "workspace/scratch",
-    "environment",
 )
+_ENVIRONMENT: tuple[str, ...] = ("environment",)
 
-_TOOL_BUILD_EAGER_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "spec",
-    "decisions",
-    "eval",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "environment",
-)
 
-_EXPLORATION_TOP_LEVEL_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "synthesis",
-    "environment",
-)
-
-# Exploration is deliberately minimal: scratch is the home base, the
-# numbered-step + log surface materialises only once a probe is promoted.
-_EXPLORATION_EAGER_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "workspace",
-    "workspace/scratch",
-    "environment",
-)
-
-_EXPLORATION_LAZY_DIRS = (
-    "workspace/logs",
-    "synthesis",
-)
-
-# ── notebook ────────────────────────────────────────────────────────────
-# A Jupyter-first layout: the unit of work is a notebook in ``notebooks/``,
-# not a numbered analysis step. ``data/`` holds inputs the notebooks read,
-# ``outputs/`` holds what they emit (figures / tables / exports). The
-# mode-agnostic safety dirs (.os_state, inputs/*, docs, environment,
-# workspace/scratch) hold as in every profile. workspace/logs stays eager
-# so audit/override trails have a home; synthesis is lazy (a notebook
-# project still writes a paper/report eventually, but not at cold init).
-_NOTEBOOK_TOP_LEVEL_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "notebooks",
-    "data",
-    "outputs",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "synthesis",
-    "environment",
-)
-
-_NOTEBOOK_EAGER_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "notebooks",
-    "data",
-    "outputs",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "environment",
-)
-
-_NOTEBOOK_LAZY_DIRS = (
-    "synthesis",
-)
-
-# ── multi_study (program) ───────────────────────────────────────────────
-# A portfolio / program layout. ``studies/`` holds each sub-study (every
-# child is itself a small project surface the researcher fills in). ``shared/``
-# is the program-wide commons: the codebook, the preregistration, the
-# governing protocol every study inherits. ``roll_up/`` is where cross-study
-# synthesis + meta-analysis live. The classic numbered-step ``workspace/``
-# surface stays minimal here — the unit of work is a STUDY, not a step;
-# heavyweight per-study analysis happens inside each ``studies/<child>/``.
-_MULTI_STUDY_TOP_LEVEL_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "studies",
-    "shared",
-    "roll_up",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "synthesis",
-    "environment",
-)
-
-_MULTI_STUDY_EAGER_DIRS = (
-    ".os_state",
-    "docs",
-    "inputs",
-    "inputs/raw_data",
-    "inputs/literature",
-    "inputs/context",
-    "studies",
-    "shared",
-    "roll_up",
-    "workspace",
-    "workspace/logs",
-    "workspace/scratch",
-    "environment",
-)
-
-_MULTI_STUDY_LAZY_DIRS = (
-    "synthesis",
-)
-
-SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
-    # analysis == today's behaviour, byte-identical (reuses the constants).
+# Per-mode declarative spec. Each entry declares ONLY what differs from the
+# backbone:
+#   work     — the mode-specific work-surface dirs (inserted after the safety
+#              prefix, before the workspace tree)
+#   synthesis— whether ``synthesis/`` is part of the layout at all
+#   lazy     — dirs created LAZILY (only when the first artefact lands; tools
+#              must call ``ensure_lazy_dir`` first). Everything else is eager.
+#   summary  — one-line human description (surfaced by ``describe_layout``)
+LAYOUT_SPEC: dict[str, dict] = {
+    # analysis → the classic linear numbered-step model. workspace/NN_* +
+    # synthesis/. ``literature/`` is the project-wide corpus of record
+    # (aggregated from every step).
     "analysis": {
-        "top_level_dirs": TOP_LEVEL_DIRS,
-        "eager_dirs": EAGER_DIRS,
-        "lazy_dirs": LAZY_DIRS,
+        "work": ("literature",),
+        "synthesis": True,
+        "lazy": ("synthesis",),
+        "summary": "Linear numbered-step analysis; synthesis/ holds the paper.",
     },
+    # tool_build → Research OS sits ABOVE as a governance layer: spec/ (what
+    # we're building + design), decisions/ (ADRs), eval/ (the benchmark that
+    # defines "done"). The actual tool lives in an INNER project dir with its
+    # own git init (see scaffold_minimal_workspace). No synthesis/.
     "tool_build": {
-        "top_level_dirs": _TOOL_BUILD_TOP_LEVEL_DIRS,
-        "eager_dirs": _TOOL_BUILD_EAGER_DIRS,
-        "lazy_dirs": (),
+        "work": ("spec", "decisions", "eval"),
+        "synthesis": False,
+        "lazy": (),
+        "summary": "Governance layer over an inner tool repo: spec/decisions/eval.",
     },
+    # exploration → scratch-first. workspace/scratch is the home base; the
+    # numbered-step + log surface materialises only once a probe is promoted,
+    # so workspace/logs and synthesis stay lazy.
     "exploration": {
-        "top_level_dirs": _EXPLORATION_TOP_LEVEL_DIRS,
-        "eager_dirs": _EXPLORATION_EAGER_DIRS,
-        "lazy_dirs": _EXPLORATION_LAZY_DIRS,
+        "work": (),
+        "synthesis": True,
+        "lazy": ("workspace/logs", "synthesis"),
+        "summary": "Scratch-first probing; numbered steps appear on promote.",
     },
+    # notebook → Jupyter-first. The unit of work is a notebook in notebooks/;
+    # data/ holds inputs the notebooks read, outputs/ holds what they emit.
     "notebook": {
-        "top_level_dirs": _NOTEBOOK_TOP_LEVEL_DIRS,
-        "eager_dirs": _NOTEBOOK_EAGER_DIRS,
-        "lazy_dirs": _NOTEBOOK_LAZY_DIRS,
+        "work": ("notebooks", "data", "outputs"),
+        "synthesis": True,
+        "lazy": ("synthesis",),
+        "summary": "Jupyter-first: notebooks/ + data/ + outputs/.",
     },
+    # multi_study → portfolio / program. studies/ holds each sub-study,
+    # shared/ is the program-wide commons (codebook, prereg, governing
+    # protocol), roll_up/ is where cross-study synthesis + meta-analysis live.
     "multi_study": {
-        "top_level_dirs": _MULTI_STUDY_TOP_LEVEL_DIRS,
-        "eager_dirs": _MULTI_STUDY_EAGER_DIRS,
-        "lazy_dirs": _MULTI_STUDY_LAZY_DIRS,
+        "work": ("studies", "shared", "roll_up"),
+        "synthesis": True,
+        "lazy": ("synthesis",),
+        "summary": "Program/portfolio: studies/ + shared/ + roll_up/.",
     },
-    # hybrid (research + software) reuses the analysis layout — the
-    # software lives in its own inner repo / package, detected by
-    # detect_software_components() and surfaced in the workflow DAG +
-    # sys_boot rather than scaffolded as a fixed folder.
+    # hybrid (research + software) reuses the analysis layout — the software
+    # lives in its own inner repo / package, detected by
+    # detect_software_components() and surfaced in the workflow DAG + sys_boot
+    # rather than scaffolded as a fixed folder.
     "hybrid": {
-        "top_level_dirs": TOP_LEVEL_DIRS,
-        "eager_dirs": EAGER_DIRS,
-        "lazy_dirs": LAZY_DIRS,
+        "work": ("literature",),
+        "synthesis": True,
+        "lazy": ("synthesis",),
+        "summary": "Analysis layout + inner software repo (auto-detected).",
     },
 }
+
+
+def _compose_layout(spec: dict) -> dict[str, tuple[str, ...]]:
+    """Build the three directory tuples for one mode from its declarative spec.
+
+    top_level = safety prefix + work surface + workspace tree + [synthesis]
+                + environment
+    eager     = top_level minus the lazy dirs
+    lazy      = the deferred dirs (created on first artefact)
+    """
+    lazy = tuple(spec.get("lazy", ()))
+    top: tuple[str, ...] = (
+        _SAFETY_PREFIX
+        + tuple(spec.get("work", ()))
+        + _WORKSPACE_TREE
+        + (("synthesis",) if spec.get("synthesis") else ())
+        + _ENVIRONMENT
+    )
+    eager = tuple(d for d in top if d not in lazy)
+    return {"top_level_dirs": top, "eager_dirs": eager, "lazy_dirs": lazy}
+
+
+# Derived registry — one composed profile per mode. Keep the same public
+# name + shape downstream code already imports.
+SCAFFOLD_PROFILES: dict[str, dict[str, tuple[str, ...]]] = {
+    mode: _compose_layout(spec) for mode, spec in LAYOUT_SPEC.items()
+}
+
+# Back-compat module constants: ``analysis`` is the default profile, so the
+# historical ``TOP_LEVEL_DIRS`` / ``EAGER_DIRS`` / ``LAZY_DIRS`` names now
+# alias the composed analysis layout (byte-identical to the old hand-written
+# tuples). Existing imports keep working.
+TOP_LEVEL_DIRS: tuple[str, ...] = SCAFFOLD_PROFILES["analysis"]["top_level_dirs"]
+EAGER_DIRS: tuple[str, ...] = SCAFFOLD_PROFILES["analysis"]["eager_dirs"]
+LAZY_DIRS: tuple[str, ...] = SCAFFOLD_PROFILES["analysis"]["lazy_dirs"]
+
+
+def describe_layout(mode: str = "analysis") -> str:
+    """Human-readable one-paragraph description of a mode's canonical layout.
+
+    Single source for docs / sys_boot / the wizard to render the directory
+    contract without re-listing folder names inline.
+    """
+    spec = LAYOUT_SPEC.get(mode)
+    if spec is None:
+        raise KeyError(f"unknown workspace mode: {mode!r}")
+    profile = SCAFFOLD_PROFILES[mode]
+    eager = ", ".join(profile["eager_dirs"])
+    lazy = ", ".join(profile["lazy_dirs"]) or "(none)"
+    return (
+        f"{mode}: {spec['summary']}\n"
+        f"  created at init (eager): {eager}\n"
+        f"  created on first use (lazy): {lazy}"
+    )
 
 # Files whose presence in a directory marks it as a software component.
 _SOFTWARE_MARKERS = {
