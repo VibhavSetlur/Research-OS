@@ -50,7 +50,7 @@ Verify:
 
 ```bash
 research-os --help
-# Seven commands: init / ide / mcp / api-key / start / doctor / completion
+# Ten commands: init / ide / mcp / hermes / route / api-key / start / doctor / refresh / completion
 ```
 
 If `research-os: command not found`, add `~/.local/bin` (or your
@@ -152,7 +152,8 @@ careful collaborator, not an eager autocomplete:
 
 When you're ready for more, the [1-hour walkthrough](#the-1-hour-walkthrough-optional)
 below shows the full arc; [USE_CASES.md](USE_CASES.md) maps "what I want"
-to "what to say".
+to "what to say"; and [SCENARIOS.md](SCENARIOS.md) walks seven complete
+real projects from first prompt to finished `synthesis/` output.
 
 ---
 
@@ -372,7 +373,7 @@ After install + scaffold, your first prompt should be one of:
 
 ## Cheatsheet — every command worth knowing
 
-### CLI (seven commands)
+### CLI (ten commands)
 
 ```bash
 research-os init                          # scaffold THIS folder
@@ -392,6 +393,13 @@ research-os doctor --workspace-only       # skip install-side checks
 research-os start                         # run the MCP server (global)
                                           # you rarely run this by hand —
                                           # your IDE auto-launches it
+
+research-os hermes add                    # wire the Hermes agent (optional)
+research-os route "fit a survival model"  # preview which protocol the router picks
+research-os refresh                       # re-sync this project's template files
+                                          #   (AGENTS.md / CLAUDE.md / IDE rules)
+                                          #   after upgrading research-os
+research-os completion bash               # emit a shell-completion script
 ```
 
 ### Where files go

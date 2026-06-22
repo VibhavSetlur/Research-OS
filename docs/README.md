@@ -10,8 +10,11 @@ You're using Research OS on your own research project.
 
 Start at [**START.md**](START.md) — install, first project, cheatsheet (~15 minutes). Then keep [**RESEARCHER_GUIDE.md**](RESEARCHER_GUIDE.md) open as you work — the full workflow guide.
 
+New here and want to see what a real project looks like? Read [**SCENARIOS.md**](SCENARIOS.md) — seven complete worked examples (messy CSV → paper, reproducing a paper, prepping an R01, benchmarking your own tool, interview transcripts → publication), with the exact prompts and what lands on disk.
+
 Supporting:
 
+- [SCENARIOS.md](SCENARIOS.md) — seven end-to-end worked examples: a named researcher, real data, the words they typed, what Research OS produced.
 - [GLOSSARY.md](GLOSSARY.md) — the vocabulary: step, path, PATH container, plan.md, conclusions.md, the data folders, the literature corpus, audit.md, and more.
 - [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) — the canonical directory layout: the safety backbone (`.os_state`, `inputs/`, `workspace/`, …) and what each workspace mode adds. The single source of truth for what lives where.
 - [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster / reproduce a result" → which protocol fires.

@@ -117,6 +117,8 @@ State, plan, hypotheses, dead-ends, and active drafts persist. Tomorrow's sessio
 
 → Full catalogue: **[USE_CASES.md](docs/USE_CASES.md)** (by role · by goal · by output type)
 
+→ See it on real projects: **[SCENARIOS.md](docs/SCENARIOS.md)** — seven complete worked examples, from a messy CSV to a published paper, with the exact prompts.
+
 ---
 
 ## What you actually see
@@ -274,7 +276,7 @@ system that won't let any of those things land in your final paper.
 | If you're… | Read this |
 |---|---|
 | **New here** | [docs/START.md](docs/START.md) — install + first project in 15 min |
-| **Looking for an example** | [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
+| **Looking for an example** | [docs/SCENARIOS.md](docs/SCENARIOS.md) — seven complete worked projects · [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
 | **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
 | **Wiring an IDE** | [docs/SETUP.md](docs/SETUP.md) — Claude Code, Cursor, VS Code, etc. |
 | **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |
@@ -301,7 +303,7 @@ interaction:
   ambiguity_posture: ask_when_uncertain  # vs take_best_default
 ```
 
-→ Full reference: **[RESEARCHER_GUIDE.md § config](docs/RESEARCHER_GUIDE.md#9-the-config-file)**
+→ Full reference: **[RESEARCHER_GUIDE.md § config](docs/RESEARCHER_GUIDE.md#8-configuration-inputsresearcher_configyaml)**
 
 ---
 

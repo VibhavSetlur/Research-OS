@@ -1,6 +1,6 @@
 # Protocol Reference
 
-Research OS ships **100+ core YAML protocols** organised into nine
+Research OS ships **130+ core YAML protocols** organised into thirteen
 categories, plus pack-specific protocols (humanities, qualitative,
 theory_math, wet_lab, engineering) when those packs are installed.
 Each protocol is a sequence of steps the AI should follow, with
@@ -10,26 +10,34 @@ explicit `expected_outputs`, a `next_protocol` pointer, a
 indexed in `src/research_os/protocols/_router_index.yaml` for
 hierarchical + semantic routing via `tool_route`.
 
+Counts below are accurate as of v3.11.1. The catalogue grows between
+releases; run `tool_protocols_list` for the live, flat list with
+filters rather than trusting a hardcoded number.
+
 | Category | Count | What's in it |
 |---|---|---|
-| `methodology/` | 43 | Method pickers + per-family deep workflows (causal, ML, Bayesian, time-series, clinical, qualitative, mixed-methods, simulation, replication, ablation, pilot, evaluation design, hyperparameter sweep design, ethics review, EDA + hypothesis generation, method comparison, data-quality audit, power analysis, reproduction, methodological consultation), plus the cross-cutting protocols `pick_tool_stack` (R vs Python per sub-task), `mixed_language_orchestration` (Python↔R↔Bash composition), `qualitative_pii_redaction`, `bootstrapping_design`, `cox_ph_diagnostics`, `data_management_plan`, `fairness_audit`, `inter_rater_reliability`, `interview_guide_design`, `mcp_ecosystem_integration`, `missing_data_strategy`, `multiple_comparisons`, `survey_design`, `uncertainty_quantification`. |
-| `synthesis/` | 20 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs, manuscript_outline, journal_selection, defense_prep, printable, `humanities_essay_structure`, `reviewer_response`. |
+| `methodology/` | 44 | Method pickers + per-family deep workflows (causal, ML, Bayesian, time-series, clinical, qualitative, mixed-methods, simulation, replication, ablation, pilot, evaluation design, hyperparameter sweep design, ethics review, EDA + hypothesis generation, method comparison, data-quality audit, power analysis, reproduction, methodological consultation, meta-analysis, spatial, survey psychometrics, preregistration), plus the cross-cutting protocols `pick_tool_stack` (R vs Python per sub-task), `mixed_language_orchestration` (Python↔R↔Bash composition), `qualitative_pii_redaction`, `bootstrapping_design`, `cox_ph_diagnostics`, `data_management_plan`, `fairness_audit`, `inter_rater_reliability`, `interview_guide_design`, `mcp_ecosystem_integration`, `missing_data_strategy`, `multiple_comparisons`, `survey_design`, `uncertainty_quantification`, `tool_discovery`, `external_tool_setup`, `deep_domain_research`. |
+| `synthesis/` | 22 | Paper, abstract, poster, dashboard, grant, report, slides, lay summary, progress update, cover letter, title workshop, handout, null-findings companion, synthesis-from-inputs, manuscript_outline, journal_selection, defense_prep, printable, `deliverable_design`, `synthesis_step_report` (per-step interim report), `humanities_essay_structure`, `reviewer_response`. |
 | `guidance/` | 19 | Session boot / resume / handoff / autopilot / collaboration, intake, iterative planning, dead-end routing, hypothesis + glossary tracking, mid-pipeline entry, code review, peer-review response, scope-clarification, constructive_disagreement, revise_and_resubmit. |
 | `visualization/` | 14 | Figure guidelines, viz workflow, single-figure critique, multi-panel composition, narrative arc, colour-accessibility audit, interactive figure design, animation, distribution comparison, geospatial, interactive dashboard design, network, showcase, uncertainty. |
 | `writing/` | 10 | Per-section drafting (methods / results / discussion / limitations / end-matter), writing core rules, citations ledger, conclusions, analysis log, README. |
 | `literature/` | 5 | Search, systematic review (PRISMA), evidence synthesis (GRADE), comparative paper review, `literature_per_step` (per-step search → download → cite → write `findings_vs_literature.md` with `AGREES \| DISAGREES \| EXTENDS \| DEFERRED \| IMPORTED_AS_CITED` verdicts). |
+| `build/` | 5 | The **tool_build** workspace mode lifecycle: spec_and_design, implement_iteration, test_strategy, benchmark_vs_baseline, release_and_changelog. |
 | `audit/` | 3 | Master audit + validation, pre-submission checklist, provenance completeness. |
+| `exploration/` | 3 | The **exploration** workspace mode: exploration_loop, exploration_triage, exploration_promote (promote a probe to a real step when it earns it). |
 | `domain/` | 2 | Domain classification, research-design + sample-size justification. |
 | `reproducibility/` | 1 | Per-step env lock, seed verification, container generation. |
-| **Core total** | **all** | All protocols carry `tier:` + `scope_tags`. |
+| `notebook/` | 1 | notebook_workflow — interactive notebook-driven analysis. |
+| `program/` | 1 | program_setup — multi-project program scaffolding. |
+| **Core total** | **130** | All protocols carry `tier:` + `scope_tags`. |
 
 Pack-specific protocols (loaded only when the matching pack is
-installed) add ~36 more across `humanities/` (archival, citation,
+installed) add more across `humanities/` (archival, citation,
 method, output, textual), `qualitative/` (coding, method, output,
-validity), and `theory_math/` (conjecture, formal, method, output,
-proof). Run `sys_packs_installed` to see which packs are active in
-your project and `tool_protocols_list` for the flat catalogue with
-filters.
+validity), `theory_math/` (conjecture, formal, method, output,
+proof), `wet_lab/`, and `engineering/`. Run `sys_packs_installed` to
+see which packs are active in your project and `tool_protocols_list`
+for the flat catalogue with filters.
 
 The protocol surface deliberately covers BOTH the canonical
 data → publication pipeline AND the partial / off-axis workflows
@@ -282,7 +290,7 @@ proof", "iterate on the proof", "formalise in Lean / Coq".
 
 Three theory-only tools ship with the pack: `tool_theory_math_lean_check`,
 `tool_theory_math_coq_check`, `tool_theory_math_dep_graph`. See
-[TOOLS.md § Theory + math pack](TOOLS.md#theory--math-pack).
+[TOOLS.md](TOOLS.md#catalogue-alphabetical-by-canonical-name) (alphabetical catalogue).
 
 ### Audit + reproducibility
 
@@ -399,7 +407,7 @@ it via `_router_index.yaml`; load it with `sys_protocol_get`.
 <!-- AUTO:PROTOCOL_CATALOGUE_START -->
 <!-- AUTO-GENERATED by scripts/regen_protocols_doc.py — DO NOT EDIT BY HAND -->
 
-_All core protocols, grouped by category, alphabetised within each._
+_All 130 protocols, grouped by category, alphabetised within each._
 
 ### `audit/` (3 protocols)
 
@@ -409,12 +417,30 @@ _All core protocols, grouped by category, alphabetised within each._
 | `pre_submission_checklist` | Final ready-to-submit gate. Walks the project through every |
 | `provenance_completeness` | Every figure, table, model artefact, and report output in the workspace |
 
+### `build/` (5 protocols)
+
+| Protocol | One-liner |
+|---|---|
+| `benchmark_vs_baseline` | Reason about how to measure the tool honestly against the right |
+| `implement_iteration` | The core build loop for tool_build mode — the analog of |
+| `release_and_changelog` | Turn a set of committed increments into a release a consumer can adopt |
+| `spec_and_design` | The opening move of a tool_build workspace. Before any code, pin down |
+| `test_strategy` | Reason about what testing regime actually fits the tool being built — |
+
 ### `domain/` (2 protocols)
 
 | Protocol | One-liner |
 |---|---|
-| `domain_analysis` | Classify the research domain, surface the relevant reporting standards, and list domain-specific biases to… |
-| `research_design` | Choose the right study design (RCT, cohort, case-control, etc.) and compute / justify the sample size. |
+| `domain_analysis` | Classify the research domain, surface the reporting standard the field actually uses, and list the biases… |
+| `research_design` | Choose the study design that fits the question (interventional vs observational, comparative vs descriptive,… |
+
+### `exploration/` (3 protocols)
+
+| Protocol | One-liner |
+|---|---|
+| `exploration_loop` | The core loop of an exploration-mode workspace: a tight, cheap |
+| `exploration_promote` | The bridge out of exploration mode: take a scratch probe that earned it |
+| `exploration_triage` | The orienting pass for an exploration-mode workspace facing a fresh, |
 
 ### `guidance/` (19 protocols)
 
@@ -428,7 +454,7 @@ _All core protocols, grouped by category, alphabetised within each._
 | `collaboration_handoff` | Package the project for handoff to a human collaborator who is |
 | `constructive_disagreement` | Protocol for the case where the AI's grounded judgement disagrees |
 | `dead_end_routing` | What to do when an experiment path fails or a methodology proves unworkable. Preserves the failed path and… |
-| `glossary_update` | Add or refine a definition in `glossary.md` (in the project's `docs/`). Run this protocol the first time any non-trivial term appears… |
+| `glossary_update` | Add or refine a definition in docs/glossary.md. Run this protocol the first time any non-trivial term appears… |
 | `hypothesis_tracking` | Maintain a clear ledger of active, supported, and refuted hypotheses across the project. |
 | `iterative_planning` | For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state +… |
 | `mid_pipeline_entry` | Routing protocol for researchers entering Research-OS with WORK ALREADY |
@@ -445,12 +471,12 @@ _All core protocols, grouped by category, alphabetised within each._
 | Protocol | One-liner |
 |---|---|
 | `comparative_paper_review` | Compare-and-contrast review of TWO OR MORE papers. Distinct from: |
-| `evidence_synthesis` | Build an evidence table from the literature corpus, grade each entry, and flag contradictions. |
+| `evidence_synthesis` | Build an evidence table from the literature corpus, grade each entry on the field's certainty framework, and… |
 | `literature_per_step` | After every analysis step writes its findings, RO grounds those |
-| `literature_search` | Systematic search across 2-4 academic databases. Produces a |
+| `literature_search` | Multi-database literature search across several academic providers. |
 | `systematic_review` | Full PRISMA workflow for a primary systematic review or meta-analysis project. |
 
-### `methodology/` (43 protocols)
+### `methodology/` (44 protocols)
 
 | Protocol | One-liner |
 |---|---|
@@ -492,11 +518,24 @@ _All core protocols, grouped by category, alphabetised within each._
 | `replication_study` | Re-execute a previously published analysis with explicit comparison to |
 | `reproduction_attempt` | Attempt to REPRODUCE a published analysis — rerun the authors' |
 | `simulation_studies` | Monte Carlo, agent-based, discrete-event, or in-silico studies. Follows |
-| `survey_design` | survey_psychometrics analyses a survey that already exists. THIS |
+| `spatial_analysis` | Reasoning scaffold for analysing data with a spatial structure — |
+| `survey_design` | Distinct from survey_psychometrics, which analyses a survey that |
 | `survey_psychometrics` | Reasoning scaffold for analysing survey / multi-item-scale / |
 | `timeseries_analysis` | First-class protocol for analyses where time order matters: |
 | `tool_discovery` | Find the right Python / R / Julia library for a specific task and verify it can be installed. |
 | `uncertainty_quantification` | Predictive models report point estimates by default. Calibrated |
+
+### `notebook/` (1 protocols)
+
+| Protocol | One-liner |
+|---|---|
+| `notebook_workflow` | The home loop of a notebook (Jupyter-first) workspace. The unit of work |
+
+### `program/` (1 protocols)
+
+| Protocol | One-liner |
+|---|---|
+| `program_setup` | The opening move of a multi_study (program) workspace. Before any single |
 
 ### `reproducibility/` (1 protocols)
 
@@ -504,29 +543,31 @@ _All core protocols, grouped by category, alphabetised within each._
 |---|---|
 | `reproducibility` | Lock down environments, verify the pipeline runs end-to-end, and produce a Dockerfile for full portability. |
 
-### `synthesis/` (20 protocols)
+### `synthesis/` (22 protocols)
 
 | Protocol | One-liner |
 |---|---|
 | `defense_prep` | A dissertation defense, a job talk, or a high-stakes conference |
-| `humanities_essay_structure` | Interpretive-structure protocol for the humanities essay form. The |
+| `deliverable_design` | The design SKILL for shareable research deliverables — the deliverable-level |
+| `humanities_essay_structure` | Guide the AI to author `synthesis/essay.typ` directly as a |
 | `journal_selection` | Picking the wrong venue wastes months. The right venue is the |
 | `manuscript_outline` | Drafting a paper before outlining is the most common source of |
-| `printable` | One protocol for every print-first deliverable. The protocol is |
+| `printable` | Guide the AI to author a printable deliverable directly. One |
 | `reviewer_response` | Run a 7-persona adversarial self-review against the FINISHED paper |
 | `synthesis_abstract` | Generate a structured / unstructured abstract tuned to the target venue. |
 | `synthesis_cover_letter` | Draft the cover letter that accompanies a journal submission. The |
-| `synthesis_dashboard` | Generate a polished single-file HTML dashboard that reads as |
+| `synthesis_dashboard` | Guide the AI to author `synthesis/dashboard.html` as a **custom, |
 | `synthesis_from_inputs` | Synthesis for the case where the researcher has finished analyses, |
-| `synthesis_grant` | Draft a grant proposal narrative tuned to the target funder (NIH / NSF / Wellcome / ERC / DoE / DARPA /… |
-| `synthesis_handout` | Redirect stub. The handout / one-pager content was consolidated |
+| `synthesis_grant` | Guide the AI to author `synthesis/grant.typ` directly as a grant |
+| `synthesis_handout` | Redirect stub. The handout / one-pager content lives in |
 | `synthesis_lay_summary` | Compile a plain-language summary of the project for a NON-EXPERT |
 | `synthesis_null_findings` | Assemble a publishable companion document for findings that DIDN'T |
-| `synthesis_paper` | Compile the final IMRAD paper into synthesis/paper.md (and |
-| `synthesis_poster` | Redirect stub. Poster content was consolidated into |
+| `synthesis_paper` | Guide the AI to author `synthesis/paper.typ` directly, section by |
+| `synthesis_poster` | Redirect stub. Poster content lives in |
 | `synthesis_progress_update` | Compile a short progress update — the kind a researcher sends their |
 | `synthesis_report` | Compile a non-journal report for internal stakeholders, clients, or a technical audience. |
-| `synthesis_slides` | Compile a presentation deck — lab meeting, conference talk, defense, |
+| `synthesis_slides` | Guide the AI to author `synthesis/slides.typ` directly (Touying |
+| `synthesis_step_report` | Guide the AI to author a **self-contained, presentation-grade visual |
 | `synthesis_title_workshop` | Generate, iterate, and pick a title for a paper / abstract / |
 
 ### `visualization/` (14 protocols)
@@ -553,8 +594,8 @@ _All core protocols, grouped by category, alphabetised within each._
 | Protocol | One-liner |
 |---|---|
 | `writing_analysis_log` | Format for structured entries appended to `workspace/analysis.md` — |
-| `writing_citations` | Maintain workspace/citations.md so every claim is grounded and every citation is verified online. |
-| `writing_conclusions` | How to write per-step conclusions.md. Called by analysis_plan's document_conclusions step. |
+| `writing_citations` | Maintain workspace/citations.md so every claim is grounded and every |
+| `writing_conclusions` | How to write per-step `workspace/<step>/conclusions.md`. Called by |
 | `writing_core` | Universal writing rules. Loaded implicitly by every writing/* and |
 | `writing_data_availability` | Draft the Data Availability, Code Availability, Author Contributions |
 | `writing_discussion` | Draft / iterate the Discussion section. The Discussion is where most |
