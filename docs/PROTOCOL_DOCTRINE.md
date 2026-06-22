@@ -244,6 +244,41 @@ DAG. Adding `see_also` to your own protocols today is a low-risk
 investment — the schema accepts the field; downstream tools will pick
 it up when they're built.
 
+## Autonomy gates — name the risk, let adaptive resolve it
+
+Many protocols pause at a decision point with an `AUTONOMY GATE:` block.
+The default autonomy level is **adaptive**: it flows on cheap, reversible
+moves and pauses only on the handful that are irreversible, expensive, or
+spend real money. A gate that only addresses `manual / supervised` and
+`autopilot` leaves the default-level AI to guess — so every gate must
+**name the risk dimension** and say how adaptive resolves it.
+
+The canonical idiom:
+
+```yaml
+AUTONOMY GATE:
+  Risk: <reversible+cheap | irreversible | expensive but re-runnable | spends real money>.
+  adaptive (default) → <flow / pause>, judged from THIS action's
+    reversibility + cost, not from a fixed rule.
+  manual / supervised → <what to present and confirm before acting>.
+  autopilot → <proceed, and what to log / flag>.
+```
+
+This is scaffold language, not a recipe: the gate names the *dimension*
+(is this action reversible? what does it cost?) and leaves the AI to
+judge whether THIS instance clears the bar. Match the verbs to the
+engine's enforced floors (`server/autopilot_gate.py`): truly
+irreversible / real-money actions pause even on the loosest setting;
+expensive-but-re-runnable actions pause at the normal floor; reversible
+actions flow. A gate whose `adaptive` line contradicts the engine's
+floor for the same action is a bug — reconcile the prose to the floor,
+not the floor to the prose.
+
+When a step's action is plainly reversible and cheap (drafting, EDA,
+writing a figure, scoping an increment), it does not need a gate at all;
+adaptive flows through it. Reserve gates for the moves where pausing
+actually protects something.
+
 ## No version commentary in live bodies
 
 Protocol bodies, MCP tool descriptions, and code docstrings/comments

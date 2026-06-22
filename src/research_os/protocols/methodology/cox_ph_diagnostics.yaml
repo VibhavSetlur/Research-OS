@@ -1,7 +1,7 @@
 id: cox_ph_diagnostics
 tier: 'plan'
 name: Cox PH Diagnostics (Proportional Hazards check + fallback routing)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -247,9 +247,11 @@ quality_bar:
   fallback_strategy_chosen_and_logged_if_violated: true
   cox_hazard_ratio_never_reported_without_companion_ph_test: true
 
-# AUTONOMY GATE: in manual / supervised / coaching, surface
-# "Next: audit/audit_and_validation" as a SUGGESTION; only autopilot
-# auto-chains. A targeted diagnostics check ≠ a full project audit.
+# AUTONOMY GATE: chaining to a full project audit is reversible (it just
+# loads the next protocol), but a targeted diagnostics check is its own
+# deliverable, not automatically a trigger for a full audit. adaptive
+# (default) + manual / supervised surface "Next: audit/audit_and_validation"
+# as a SUGGESTION; only autopilot auto-chains.
 next_protocol: audit/audit_and_validation
 next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

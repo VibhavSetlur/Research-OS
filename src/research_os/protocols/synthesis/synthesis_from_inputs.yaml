@@ -1,7 +1,7 @@
 id: synthesis_from_inputs
 tier: 'synthesize'
 name: Synthesis — From Inputs (no workspace analysis required)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -112,6 +112,10 @@ steps:
       step + the provenance manifest are what makes it possible.
 
       AUTONOMY GATE:
+        Risk: reversible — picking the output type shapes the draft, which
+        stays editable.
+        adaptive (default) → pick based on `research_goal.output_types`
+                              when set; otherwise default to `report`.
         manual / supervised → wait for the researcher to pick.
         autopilot           → pick based on `research_goal.output_types`
                               when set; otherwise default to `report`.

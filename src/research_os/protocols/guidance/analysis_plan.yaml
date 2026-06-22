@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.2.1'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -56,6 +56,8 @@ steps:
         - The hypothesis (or hypotheses) this step targets — by ID, e.g. H2.
 
       AUTONOMY GATE:
+        Risk: reversible + cheap — scoping the step writes no analysis yet.
+        adaptive (default) → state the scope and proceed; do NOT ask.
         manual / supervised → present the scope; ask for confirmation.
         autopilot           → state the scope and proceed; do NOT ask.
 
@@ -218,6 +220,11 @@ steps:
       researcher (not the AI) catches it because the wrong gates fire.
 
       AUTONOMY GATE:
+        Risk: reversible — a step-intent classification is logged and can
+        be re-labelled; nothing downstream is locked by it.
+        adaptive (default) → pick the closest fit and proceed; log the
+          rationale in workspace/logs/step_intent_choices.md so a later
+          audit can review it.
         manual / supervised → suggest the classification; ask for
                               confirmation when ambiguous (e.g. a
                               step that fits BOTH analyse + visualise).
@@ -314,6 +321,14 @@ steps:
       append a line to its iteration log if this step changes the plan.
 
       AUTONOMY GATE (read interaction.autonomy_level):
+        Risk: reversible — writing plan.md commits no analysis; the value
+        at stake is design quality, which the researcher may want to shape.
+        - adaptive (default) → WRITE plan.md as your reasoning record, note
+          the decisions you made under "Open questions", and proceed; but
+          when an open decision is consequential and genuinely contested
+          (it changes what the step concludes, not just how it's coded),
+          surface it to the researcher and WAIT. Judge from how much the
+          decision shapes the finding, not from a fixed rule.
         - manual / supervised → PRESENT plan.md's "What this step will do"
           + "Open questions" to the researcher and WAIT. Iterate
           (propose → critique → refine) until the design is agreed, THEN
@@ -789,6 +804,13 @@ steps:
            auto-proceed afterwards is autopilot-dependent.
 
       AUTONOMY GATE:
+        Risk: reversible — presenting results and choosing the next step
+        commits nothing irreversible; the concern is researcher steering.
+        adaptive (default) → present the summary + options; if
+                              would_benefit_from_revision is False AND
+                              audit warnings == 0, proceed to decide_next
+                              in the SAME turn. Otherwise surface the
+                              decision and wait for the researcher.
         manual / supervised → wait for the researcher's reply (a/b/c/d).
         autopilot           → present the summary + options; if
                               would_benefit_from_revision is False
@@ -827,6 +849,10 @@ steps:
           terminal experiment has a publishable finding.
 
       AUTONOMY GATE:
+        Risk: reversible — the choice was already surfaced in
+        present_to_researcher; this just acts on it.
+        adaptive (default) → proceed to the chosen action (already decided
+          in present_to_researcher).
         manual / supervised → wait for the explicit answer from
                               `present_to_researcher`.
         autopilot           → already-confirmed in

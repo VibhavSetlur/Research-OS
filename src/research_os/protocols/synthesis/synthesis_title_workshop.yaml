@@ -1,7 +1,7 @@
 id: synthesis_title_workshop
 tier: 'synthesize'
 name: Synthesis — Title Workshop (the single most-read sentence)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -198,6 +198,9 @@ steps:
       For each: name 2 pros + 1 con. Recommend ONE with rationale.
 
       AUTONOMY GATE:
+        Risk: reversible — a title is trivially changed later.
+        adaptive (default) → pick the recommended option; tell the
+                              researcher in one line.
         manual / supervised → wait for the researcher to pick.
         autopilot           → pick the recommended option; tell
                               the researcher in one line.

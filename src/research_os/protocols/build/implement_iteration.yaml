@@ -1,7 +1,7 @@
 id: implement_iteration
 tier: 'execute'
 name: Implement Iteration (the inner build loop)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -72,6 +72,9 @@ steps:
       increment is fine only when it's ONE coherent thing.
 
       AUTONOMY GATE:
+        Risk: reversible + cheap — scoping an increment writes no code yet.
+        adaptive (default) → state the increment scope and proceed to
+          implement; nothing here needs confirmation.
         manual / supervised → present the increment scope; confirm before
           writing code.
         autopilot → state the scope and proceed.
@@ -169,6 +172,10 @@ steps:
       and, when it advances a milestone, tick it in milestones.md.
 
       AUTONOMY GATE:
+        Risk: reversible — a local commit is undoable (amend, revert, reset)
+        and pushes nothing on its own.
+        adaptive (default) → commit with a well-formed message and log it;
+          no confirmation needed for a local commit.
         manual / supervised → show the diff summary + proposed commit
           message; commit on confirmation.
         autopilot → commit with a well-formed message; log it.
@@ -198,6 +205,11 @@ steps:
       a pause between increments is where the researcher redirects.
 
       AUTONOMY GATE:
+        Risk: reversible + cheap — looping to the next increment is just
+        more gated build work; the weight sits in the gates it re-enters.
+        adaptive (default) → if the build is green and no risk flag fired,
+          loop back to scope_increment for the next increment in the SAME
+          turn; if a risk flag fired or the build is red, pause and present.
         manual / supervised → present the increment summary + the candidate
           next increments; wait for the choice.
         autopilot → if the build is green and no risk flag fired, loop back
