@@ -1,7 +1,7 @@
 id: exploration_loop
 tier: 'execute'
 name: Exploration Loop (probe → observe → decide)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -137,6 +137,10 @@ steps:
           — drop it or promote it to a real step that can.
 
       AUTONOMY GATE:
+        Risk: reversible + cheap — every probe lives in scratch and a
+        promote/drop/iterate call commits nothing that can't be redone.
+        adaptive (default) → act on the decision; if promoting, say so and
+          load exploration_promote in the same turn.
         manual / supervised → present the observation + your recommended
           decision (promote / drop / iterate) and the next probe if
           iterating; wait for the researcher.

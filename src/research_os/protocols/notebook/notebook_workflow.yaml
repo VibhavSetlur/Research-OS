@@ -1,7 +1,7 @@
 id: notebook_workflow
 tier: 'execute'
 name: Notebook Workflow (the cell as the unit of work)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -72,6 +72,8 @@ steps:
       consider exploration tooling instead.
 
       AUTONOMY GATE:
+        Risk: reversible + cheap — scoping the notebook writes no cells yet.
+        adaptive (default) → state the scope and proceed.
         manual / supervised → present the scope + planned notebook;
           confirm before building it.
         autopilot → state the scope and proceed.
@@ -148,6 +150,10 @@ steps:
         - Stop → the question is answered; nothing more owed.
 
       AUTONOMY GATE:
+        Risk: reversible — logging the finding and moving on commits
+        nothing that can't be revisited.
+        adaptive (default) → log the finding; proceed to the next notebook
+          or to synthesis per the researcher's stated output goal.
         manual / supervised → present the finding + options; wait.
         autopilot → log the finding; proceed to the next notebook or to
           synthesis per the researcher's stated output goal.

@@ -1,7 +1,7 @@
 id: iterative_planning
 tier: 'plan'
 name: Iterative Planning
-version: '3.2.0'
+version: '3.5.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -57,6 +57,10 @@ steps:
       constructive_disagreement.
 
       AUTONOMY GATE:
+        Risk: reversible — picking a plan option commits nothing; the
+        researcher can redirect at any time.
+        adaptive (default) → pick OPTION A (your top choice), tell the
+                              researcher "I'm going with A — say stop to switch".
         manual / supervised → wait for the researcher to choose.
         autopilot           → pick OPTION A (your top choice), tell the
                               researcher "I'm going with A — say stop to switch".

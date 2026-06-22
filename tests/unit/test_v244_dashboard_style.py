@@ -178,7 +178,8 @@ def _load_protocol(rel_path: str) -> dict:
 
 def test_figure_guidelines_protocol_bumped():
     data = _load_protocol("visualization/figure_guidelines.yaml")
-    assert data["version"] == "3.0.0"
+    parts = tuple(int(x) for x in str(data["version"]).split("."))
+    assert parts >= (3, 0, 0)
 
 
 def test_figure_guidelines_carries_style_preset_block():
@@ -202,8 +203,11 @@ def test_figure_guidelines_view_loop_is_mandatory():
 
 
 def test_visualization_workflow_protocol_bumped():
+    # The protocol must stay at or above the version where its
+    # verify-render + style steps landed; later bumps are fine.
     data = _load_protocol("visualization/visualization_workflow.yaml")
-    assert data["version"] == "3.0.0"
+    parts = tuple(int(x) for x in str(data["version"]).split("."))
+    assert parts >= (3, 0, 0)
 
 
 def test_visualization_workflow_has_verify_step():
@@ -216,7 +220,8 @@ def test_visualization_workflow_has_verify_step():
 
 def test_synthesis_dashboard_protocol_bumped():
     data = _load_protocol("synthesis/synthesis_dashboard.yaml")
-    assert data["version"] == "3.0.0"
+    parts = tuple(int(x) for x in str(data["version"]).split("."))
+    assert parts >= (3, 0, 0)
 
 
 def test_synthesis_dashboard_references_style_helper():

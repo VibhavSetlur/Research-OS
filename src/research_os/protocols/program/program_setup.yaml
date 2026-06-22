@@ -1,7 +1,7 @@
 id: program_setup
 tier: 'plan'
 name: Program Setup (shared codebook, prereg, how studies roll up)
-version: '3.0.0'
+version: '3.5.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -139,6 +139,10 @@ steps:
       is intact.
 
       AUTONOMY GATE:
+        Risk: reversible — scaffolding the commons + first study writes
+        structure, not findings; everything is re-editable.
+        adaptive (default) → write the commons, scaffold the first study,
+          and enter its analysis loop; log each decision for later review.
         manual / supervised → present the commons (codebook outline +
           prereg + roll-up plan) + the proposed first study; wait for the
           researcher before scaffolding studies.
