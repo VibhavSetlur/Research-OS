@@ -13,6 +13,7 @@ Start at [**START.md**](START.md) — install, first project, cheatsheet (~15 mi
 Supporting:
 
 - [GLOSSARY.md](GLOSSARY.md) — the vocabulary: step, path, PATH container, plan.md, conclusions.md, the data folders, the literature corpus, audit.md, and more.
+- [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) — the canonical directory layout: the safety backbone (`.os_state`, `inputs/`, `workspace/`, …) and what each workspace mode adds. The single source of truth for what lives where.
 - [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster / reproduce a result" → which protocol fires.
 - [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software, not analysing data? The **tool_build** workspace mode: spec → implement → test → ship.
 - [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
