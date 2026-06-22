@@ -24,7 +24,7 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -97,53 +97,120 @@ def _collapse_hyphens(text: str) -> str:
     return re.sub(r"-+", " ", text)
 
 
-# MODE-AWARE ROUTING BIAS. When workspace_mode == 'tool_build', add this
-# to the trigger score of every build/* protocol so build-shaped prompts
-# ("add a feature", "write tests", "cut a release") reliably win over a
-# same-vocabulary analysis protocol. It's a thumb on the scale (a single
-# extra single-word match's worth), never an override: an explicit
-# cross-mode trigger ("write the paper") still out-scores the bias.
-_MODE_BUILD_BOOST = 2
+# ═══════════════════════════════════════════════════════════════════════
+# UNIFIED MODE REGISTRY — one source of truth for how each workspace mode
+# biases routing. Every mode-aware code path (the trigger-score boost, the
+# semantic-deferral override, the workflow-shape fallback) reads from this
+# table instead of hardcoding per-mode branches. Adding a mode = one entry.
+#
+# Each entry describes the routing posture of a workspace.mode:
+#   sub_intents → the protocol sub-intents NATIVE to this mode. A protocol
+#                 carrying one of these gets `boost` added to its trigger
+#                 score when the workspace is in this mode, so a mode's own
+#                 protocols reliably win over a same-vocabulary analysis
+#                 protocol. It's a thumb on the scale, never an override —
+#                 an explicit cross-mode trigger ("write the paper") still
+#                 out-scores the bias.
+#   boost       → score added to a native sub-intent's trigger score. The
+#                 tool_build family carries real risk (shipping software) so
+#                 it earns a firmer thumb (2 ≈ one extra word match); the
+#                 lighter modes nudge with 1 (a single tie-break point) since
+#                 they overlap heavily with ordinary analysis vocabulary and
+#                 we don't want to over-steer.
+#   shape       → the workspace.workflow_shape this mode implies when the
+#                 project never declares one explicitly, so the WORKFLOW-SHAPE
+#                 tiebreak can still fire. None = no clean 1:1 shape (the
+#                 experiment_pipeline shape is broad and shouldn't be
+#                 force-boosted from the default mode).
+#   override    → when True, a STRONG native-sub-intent trigger match (a
+#                 multi-word trigger, base ≥ _MODE_OVERRIDE_MIN_BASE) defers
+#                 the semantic guess to the mode-biased trigger router, so a
+#                 mode's own protocols can't be hijacked by an embedding that
+#                 leans analysis. Reserved for modes whose protocols share
+#                 vocabulary with analysis but mean something different
+#                 (build "test" ≠ analysis "test").
+#
+# analysis/hybrid carry no entry: analysis is the universal baseline and
+# hybrid deliberately reuses the analysis routing surface (it just ALSO
+# surfaces an inner tool component).
+# ═══════════════════════════════════════════════════════════════════════
+_MODE_BUILD_BOOST = 2          # firm thumb: tool_build ships real software
+_MODE_LIGHT_BOOST = 1          # tie-break nudge for the lighter modes
+_MODE_OVERRIDE_MIN_BASE = 4    # "strong" trigger = multi-word match
 
-# Sub-intents that belong to the tool_build workspace mode. Boosted when
-# workspace_mode == 'tool_build'.
-_BUILD_SUB_INTENTS = frozenset({
-    "build_spec", "build_implement", "build_test",
-    "build_benchmark", "build_release",
-})
 
-# Fallback map: when a project never declares an explicit
-# workspace.workflow_shape, infer one from workspace.mode so the
-# WORKFLOW-SHAPE tiebreak can still fire. Only modes with a clean 1:1
-# shape equivalent are mapped; "analysis"/"hybrid" map to None (the
-# experiment_pipeline shape is broad and shouldn't be force-boosted from
-# the default mode).
-_MODE_TO_SHAPE = {
-    "tool_build": "tool_build",
-    "exploration": "exploration",
-    "notebook": "notebook",
-    "multi_study": "multi_study",
+class _ModeRouting(NamedTuple):
+    sub_intents: frozenset
+    boost: int
+    shape: str | None
+    override: bool
+
+
+MODE_ROUTING: dict[str, _ModeRouting] = {
+    # Building software you iterate on. Native build/* family; firm boost;
+    # overrides the semantic guess on a strong build trigger because build
+    # vocabulary ("test", "release", "benchmark") collides with analysis.
+    "tool_build": _ModeRouting(
+        sub_intents=frozenset({
+            "build_spec", "build_implement", "build_test",
+            "build_benchmark", "build_release",
+        }),
+        boost=_MODE_BUILD_BOOST,
+        shape="tool_build",
+        override=True,
+    ),
+    # Scratch-first quick probes. Native exploration/* loop (probe → observe
+    # → decide, triage, promote) plus the analysis-mode lightweight surfaces
+    # (casual / eda) it can fall back to. Light nudge — exploration overlaps
+    # heavily with ordinary analysis vocabulary.
+    "exploration": _ModeRouting(
+        sub_intents=frozenset({
+            "casual", "eda",
+            "explore_probe", "explore_promote", "explore_triage",
+        }),
+        boost=_MODE_LIGHT_BOOST,
+        shape="exploration",
+        override=False,
+    ),
+    # Jupyter-first: the unit of work is a notebook. Native notebook_run plus
+    # eda (notebooks are the natural home for exploratory data analysis).
+    # First-class boost so "run the notebook" leans notebook-shaped rather
+    # than dropping into a numbered analysis step.
+    "notebook": _ModeRouting(
+        sub_intents=frozenset({"notebook_run", "eda"}),
+        boost=_MODE_LIGHT_BOOST,
+        shape="notebook",
+        override=False,
+    ),
+    # A program of sub-studies sharing a codebook + prereg. Native
+    # program_setup so "set up the program" reliably reaches the program
+    # commons protocol rather than a single-study planning protocol.
+    "multi_study": _ModeRouting(
+        sub_intents=frozenset({"program_setup"}),
+        boost=_MODE_LIGHT_BOOST,
+        shape="multi_study",
+        override=False,
+    ),
 }
 
-# EXPLORATION-mode bias. exploration workspaces are scratch-first quick
-# probes — when in that mode, nudge the lightweight / open-ended
-# protocols (casual exploration + open-ended EDA) so an ambiguous
-# "let me poke at this" leans probe-shaped rather than committing to a
-# heavyweight confirmatory loop. Smaller than the build boost: a single
-# tie-break point, since exploration overlaps heavily with normal
-# analysis vocabulary and we don't want to over-steer.
-_EXPLORATION_BOOST = 1
+# Back-compat aliases (external importers may reference the old names).
+_BUILD_SUB_INTENTS = MODE_ROUTING["tool_build"].sub_intents
+_EXPLORATION_SUB_INTENTS = MODE_ROUTING["exploration"].sub_intents
+_EXPLORATION_BOOST = _MODE_LIGHT_BOOST
 
-# Sub-intents that are "quick / scratch / exploratory" shaped. Boosted
-# when workspace_mode == 'exploration'. Includes the native exploration/*
-# family (probe → observe → decide loop, triage, promote) so an
-# exploration-mode workspace leans on its own scratch-first protocols, plus
-# the analysis-mode lightweight surfaces (casual / eda) it can still fall
-# back to.
-_EXPLORATION_SUB_INTENTS = frozenset({
-    "casual", "eda",
-    "explore_probe", "explore_promote", "explore_triage",
-})
+# Fallback map: workspace.mode → implied workflow_shape (derived from the
+# registry; kept as a dict for the existing callers).
+_MODE_TO_SHAPE = {m: r.shape for m, r in MODE_ROUTING.items() if r.shape}
+
+
+def _mode_boost_for(workspace_mode: str, sub_intent: str | None) -> int:
+    """Score boost a protocol earns for matching the active mode's native
+    sub-intents. 0 when the mode has no registry entry (analysis/hybrid) or
+    the protocol isn't native to the mode. Single source for the bias."""
+    entry = MODE_ROUTING.get(workspace_mode)
+    if entry is None or sub_intent is None:
+        return 0
+    return entry.boost if sub_intent in entry.sub_intents else 0
 
 # WORKFLOW-SHAPE TIEBREAK. A light nudge (half the size of a single
 # trigger-word match, so it can only break a tie, never flip a real
@@ -455,24 +522,28 @@ def _try_semantic_route(
     if not semantic.semantic_available():
         return None
 
-    # MODE override (tool_build): if a build/* protocol has a strong
-    # trigger match, defer to the mode-biased trigger router rather than
-    # the semantic guess. "Strong" = a multi-word trigger (base ≥ 4) so a
-    # single stray build word doesn't hijack an analysis prompt.
-    if workspace_mode == "tool_build":
+    # MODE override (registry-driven): if the active mode is marked
+    # override=True and one of its NATIVE-sub-intent protocols has a strong
+    # trigger match, defer to the mode-biased trigger router rather than the
+    # semantic guess. "Strong" = a multi-word trigger (base ≥
+    # _MODE_OVERRIDE_MIN_BASE) so a single stray mode word doesn't hijack an
+    # analysis prompt. Today only tool_build opts in (build vocabulary
+    # collides with analysis), but any future mode can by setting override.
+    _mode_entry = MODE_ROUTING.get(workspace_mode)
+    if _mode_entry is not None and _mode_entry.override:
         # Normalize identically to the main path (the old inline form missed
         # the hyphen collapse, so 'agent-based' never matched 'agent based').
         prompt_norm = _normalize_prompt(prompt)
-        build_scored = [
+        native_scored = [
             s for s in _score_protocols(
                 prompt_norm, protocols,
                 workspace_mode=workspace_mode,
                 project_workflow_shape=project_workflow_shape,
             )
-            if (s["data"].get("sub_intent") in _BUILD_SUB_INTENTS)
-            and s.get("base_score", 0) >= 4
+            if (s["data"].get("sub_intent") in _mode_entry.sub_intents)
+            and s.get("base_score", 0) >= _MODE_OVERRIDE_MIN_BASE
         ]
-        if build_scored:
+        if native_scored:
             return None
 
     sem = semantic.semantic_route(prompt, k=5)
@@ -1921,13 +1992,11 @@ def _score_protocols(
         if score <= 0:
             continue
         base_score = score
-        # ── MODE bias (build/* or exploration probes) ─────────────────
-        mode_boost = 0
+        # ── MODE bias (registry-driven) ───────────────────────────────
+        # Each workspace mode boosts its NATIVE sub-intents (one source of
+        # truth: MODE_ROUTING). analysis/hybrid have no entry → no boost.
         sub = data.get("sub_intent")
-        if workspace_mode == "tool_build" and sub in _BUILD_SUB_INTENTS:
-            mode_boost = _MODE_BUILD_BOOST
-        elif workspace_mode == "exploration" and sub in _EXPLORATION_SUB_INTENTS:
-            mode_boost = _EXPLORATION_BOOST
+        mode_boost = _mode_boost_for(workspace_mode, sub)
         # ── WORKFLOW-SHAPE tiebreak ───────────────────────────────────
         shape_boost = 0
         if project_workflow_shape:
