@@ -15,7 +15,9 @@ they want to skip, returns whether the step has an active skip.
 from __future__ import annotations
 
 import logging
+import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -69,14 +71,32 @@ def _load(root: Path) -> dict[str, Any]:
 
 
 def _save(root: Path, data: dict[str, Any]) -> None:
+    """Persist certifications atomically (temp file + os.replace).
+
+    A non-atomic write would truncate the file on a crash mid-write,
+    after which _load raises _CertParseError and self_certify refuses to
+    proceed — self-bricking the whole certification path with no automated
+    recovery. The atomic write leaves the prior valid file intact if the
+    save is interrupted, so that window vanishes.
+    """
     path = _cert_path(root)
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         import yaml  # type: ignore
-        path.write_text(yaml.safe_dump(data, sort_keys=False))
+        text = yaml.safe_dump(data, sort_keys=False)
+        fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(text)
+            os.replace(tmp, str(path))
+        except Exception:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
     except Exception:
-        import json
-        path.write_text(json.dumps(data, indent=2))
+        # YAML unavailable / dump failure → atomic JSON fallback.
+        from research_os.utils.common import save_json_atomic
+        save_json_atomic(path, data)
 
 
 def self_certify(

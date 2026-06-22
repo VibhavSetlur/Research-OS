@@ -91,3 +91,34 @@ def test_extract_named_papers_excludes_months_and_journals():
     assert not any(r.startswith("Mar ") for r in refs), f"'Mar YYYY' matched: {refs}"
     assert not any(r.startswith("Biology ") for r in refs), f"'Biology YYYY' matched: {refs}"
     assert not any(r.startswith("Genet ") for r in refs), f"'Genet YYYY' matched: {refs}"
+
+
+def test_intake_empty_csv_reports_zero_rows_not_minus_one(tmp_path):
+    """E7: a genuinely empty CSV must inventory as 0 rows, never -1."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    (tmp_path / "inputs" / "raw_data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "inputs" / "raw_data" / "empty.csv").write_text("")
+    res = intake_autofill(tmp_path)
+    assert res["status"] == "success"
+    overview = (tmp_path / "docs" / "research_overview.md").read_text()
+    assert "-1" not in overview
+    # The empty.csv row must show 0 (or "?"), never -1.
+    rows = [ln for ln in overview.splitlines() if "empty.csv" in ln]
+    assert rows and ("| 0 |" in rows[0] or "| ? |" in rows[0]), rows
+
+
+def test_intake_multiline_quoted_cell_row_count_is_accurate(tmp_path):
+    """C6: a CSV with an embedded newline in a quoted cell must count rows via
+    csv.reader (correct), not a naive line count (which over-reports)."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    (tmp_path / "inputs" / "raw_data").mkdir(parents=True, exist_ok=True)
+    # 2 data rows; one cell contains an embedded newline. A naive line count
+    # would report 3.
+    (tmp_path / "inputs" / "raw_data" / "ml.csv").write_text(
+        'id,note\n1,"line one\nline two"\n2,ok\n'
+    )
+    res = intake_autofill(tmp_path)
+    assert res["status"] == "success"
+    overview = (tmp_path / "docs" / "research_overview.md").read_text()
+    row = [ln for ln in overview.splitlines() if "ml.csv" in ln]
+    assert row and "| 2 |" in row[0], row

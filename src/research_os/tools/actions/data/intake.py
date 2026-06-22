@@ -13,6 +13,7 @@ inspects everything and writes:
 
 from __future__ import annotations
 
+import csv
 import logging
 import re
 from collections import Counter
@@ -97,10 +98,14 @@ def _classify_domain(files: list[Path], context_text: str) -> tuple[str, list[st
     for p in files:
         if p.suffix.lower() in {".csv", ".tsv"}:
             try:
-                header = p.read_text(errors="replace").splitlines()[:1]
-                if header:
+                # Read ONLY the first line (O(one line) memory) instead of
+                # read_text().splitlines(), which materialises the entire
+                # (possibly multi-GB) file just to look at the header.
+                with open(p, encoding="utf-8", errors="replace") as fh:
+                    first = fh.readline()
+                if first:
                     sep = "," if p.suffix.lower() == ".csv" else "\t"
-                    for col in header[0].split(sep):
+                    for col in first.rstrip("\n").split(sep):
                         column_set.add(col.strip().strip('"').lower())
             except Exception:
                 pass
@@ -470,10 +475,24 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
                                 else f"{size_kb/1024:.1f} MB")
                     n_rows = ""
                     if f.suffix.lower() in {".csv", ".tsv"}:
+                        # Stream with csv.reader so embedded newlines in
+                        # quoted cells don't inflate the count, and clamp at
+                        # 0 so a genuinely empty file shows 0 (not -1 from the
+                        # naive `count - 1` header subtraction). newline="" is
+                        # the documented csv-module requirement.
                         try:
-                            with open(f, errors="replace") as fh:
-                                n_rows = str(sum(1 for _ in fh) - 1)
-                        except OSError:
+                            sep = "," if f.suffix.lower() == ".csv" else "\t"
+                            with open(
+                                f, newline="", encoding="utf-8", errors="replace"
+                            ) as fh:
+                                n_rows = str(
+                                    max(
+                                        0,
+                                        sum(1 for _ in csv.reader(fh, delimiter=sep))
+                                        - 1,
+                                    )
+                                )
+                        except (OSError, csv.Error):
                             n_rows = "?"
                     rq_body_parts.append(
                         f"| `{f.relative_to(root)}` | {size_str} | {n_rows} |"

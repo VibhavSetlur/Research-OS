@@ -21,6 +21,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -231,8 +232,10 @@ def _fetch_json_with_backoff(
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < max_attempts - 1:
                 retry_after = e.headers.get("Retry-After") if e.headers else None
+                # Cap the server-supplied Retry-After: an untrusted header could
+                # otherwise sleep the call for hours (DoS). 30s is generous.
                 wait = (
-                    float(retry_after)
+                    min(float(retry_after), 30.0)
                     if retry_after and retry_after.isdigit()
                     else min(2 ** attempt, 8)
                 )
@@ -424,12 +427,19 @@ def search_arxiv(query: str, limit: int = 5) -> list[dict[str, Any]]:
             (a.findtext("atom:name", default="", namespaces=ns) or "")
             for a in entry.findall("atom:author", ns)
         ]
+        # atom:id is the arxiv ABSTRACT page (HTML), not the PDF. Rewrite the
+        # download target to the real /pdf/<id>.pdf so the %PDF magic-byte
+        # gate passes; keep the abstract page in metadata for citation use.
+        abs_url = link
+        m = re.search(r"arxiv\.org/abs/(\S+)$", link, re.I)
+        pdf_url = f"https://arxiv.org/pdf/{m.group(1)}.pdf" if m else link
         results.append(
             {
                 "title": title,
                 "authors": authors,
                 "year": published[:4],
-                "url": link,
+                "url": pdf_url,
+                "abs_url": abs_url,
                 "doi": "",
                 "abstract": summary[:1000],
             }

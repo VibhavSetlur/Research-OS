@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 try:
     import yaml  # type: ignore
@@ -745,6 +745,28 @@ def save_state(root: Path, state: dict) -> dict:
     # the on-disk view stays canonical from this point forward.
     ResearchLedger._migrate(state)
     ledger._save(state)
+    _write_os_state_summary(root)
+    return state
+
+
+def mutate_state(root: Path | None, fn: "Callable[[dict], None]") -> dict:
+    """Atomic load→mutate→save under the ledger's exclusive lock.
+
+    The unguarded ``load_state(...)`` → mutate → ``save_state(...)`` pattern
+    has its lock window only around the final write, so two concurrent
+    sessions on one workspace (the server is global + per-request
+    root-resolved) can read the same state and clobber each other's
+    mutation. ``mutate_state`` runs ``fn`` (which edits the state dict
+    in-place) INSIDE the flock, serialising the whole read-modify-write.
+
+    ``fn`` must not call back into ``load_state`` / ``save_state`` /
+    ``mutate_state`` (it already holds the lock). ``updated_at`` is stamped
+    by the ledger. ``STATE.md`` is regenerated OUTSIDE the lock afterwards
+    (it re-reads state) so we never nest the lock.
+    """
+    root = _resolve_root(root)
+    ledger = ResearchLedger(state_json_path(root))
+    state = ledger.locked_update(fn)
     _write_os_state_summary(root)
     return state
 
@@ -1952,6 +1974,8 @@ _SHARE_EXCLUDE_NAMES = (
     "AGENTS.md",
     "CLAUDE.md",
     "GETTING_STARTED.md",
+    # Secret-bearing: plaintext api_keys + author PII. NEVER ship it.
+    "researcher_config.yaml",
     ".os_state",
     ".claude",
     ".cursor",
@@ -2059,6 +2083,8 @@ EXCLUDE_NAMES = {
     ".os_state", ".claude", ".cursor", ".vscode",
     ".antigravity", ".opencode",
     "mcp_config.json", ".mcp.json", "opencode.json",
+    # Secret-bearing: holds plaintext api_keys + author PII. NEVER ship it.
+    "researcher_config.yaml",
     "__pycache__", ".pytest_cache", ".DS_Store",
     "node_modules", "venv", ".venv", "env",
 }
@@ -3586,8 +3612,10 @@ def create_numbered_experiment(
 
     _seed_step_subfolder_readmes(exp_dir, root, branch_id, next_num, from_step)
 
-    # State update
-    state = load_state(root)
+    # State update — under the ledger lock so a concurrent step-create /
+    # hypothesis-add on another session can't clobber the new paths[] entry
+    # (the folder is already on disk above; the lock closes the
+    # lost-paths-entry / orphaned-folder window).
     path_entry: dict[str, Any] = {
         "path_id": branch_id,
         "experiment_number": next_num,
@@ -3600,12 +3628,15 @@ def create_numbered_experiment(
         path_entry["path_lineage"] = lineage
     if parent_id:
         path_entry["branch_of"] = parent_id
-    state["paths"][branch_id] = path_entry
-    state["current_path"] = branch_id
-    state["step"] = next_num
-    if state.get("pipeline_stage") in (None, "init", "planned"):
-        state["pipeline_stage"] = "execution"
-    save_state(root, state)
+
+    def _record_step(state: dict) -> None:
+        state.setdefault("paths", {})[branch_id] = path_entry
+        state["current_path"] = branch_id
+        state["step"] = next_num
+        if state.get("pipeline_stage") in (None, "init", "planned"):
+            state["pipeline_stage"] = "execution"
+
+    mutate_state(root, _record_step)
     _update_manifest(root)
     _update_workflow_mermaid(root)
     _prune_old_checkpoints(root, keep=5)
@@ -3914,6 +3945,70 @@ def _update_workflow_mermaid(root: Path) -> None:
             pass
 
 
+def _citation_identity(meta: dict) -> tuple:
+    """Best-effort identity for a bibliography entry, used to tell a true
+    duplicate (same reference seen twice) from a key COLLISION (two
+    distinct references that happen to derive the same citation key).
+
+    A duplicate should be deduped (keep first); a collision must be
+    disambiguated so the second reference is not silently clobbered.
+    """
+    doi = (meta.get("doi") or "").strip().lower()
+    if doi:
+        return ("doi", doi)
+    sha = (meta.get("sha256") or "").strip().lower()
+    if sha:
+        return ("sha", sha)
+    fn = (meta.get("filename") or "").strip().lower()
+    if fn:
+        return ("file", fn)
+    title = (meta.get("title") or "").strip().lower()
+    return ("title", title)
+
+
+def _insert_citation_entry(entries: dict, key: str, meta: dict) -> str:
+    """Insert ``meta`` under ``key`` into ``entries`` with collision-safe
+    disambiguation. Returns the key actually used.
+
+    - If ``key`` is free → use it.
+    - If ``key`` is taken by the SAME reference (matching identity) →
+      keep the existing entry (dedup, mirrors the old ``setdefault``).
+    - If ``key`` is taken by a DIFFERENT reference → append a ``a``/``b``/…
+      suffix to the new key so neither reference is lost.
+    """
+    if key not in entries:
+        entries[key] = meta
+        return key
+    incoming_id = _citation_identity(meta)
+    # Walk the base key and any existing suffixed siblings; if we already
+    # hold this exact reference, keep it (dedup).
+    suffixes = ["", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
+    for sfx in suffixes:
+        cand = f"{key}{sfx}"
+        if cand in entries:
+            if _citation_identity(entries[cand]) == incoming_id:
+                return cand  # same reference already recorded
+            continue
+        # First free suffixed slot for a genuinely different reference.
+        meta = dict(meta)
+        meta["citation_key"] = cand
+        entries[cand] = meta
+        return cand
+    # Exhausted the suffix alphabet (pathological); fall back to a numeric
+    # tail so we still never clobber.
+    n = 0
+    while True:
+        cand = f"{key}_{n}"
+        if cand not in entries:
+            meta = dict(meta)
+            meta["citation_key"] = cand
+            entries[cand] = meta
+            return cand
+        if _citation_identity(entries[cand]) == incoming_id:
+            return cand
+        n += 1
+
+
 def generate_citations_md(root: Path) -> str:
     """Regenerate workspace/citations.md from project + per-step literature.
 
@@ -3939,7 +4034,7 @@ def generate_citations_md(root: Path) -> str:
                 meta.setdefault("citation_key", key)
                 meta.setdefault("filename", filename)
                 meta.setdefault("scope", "project")
-                entries[key] = meta
+                _insert_citation_entry(entries, key, meta)
         except Exception:
             pass
 
@@ -3971,7 +4066,7 @@ def generate_citations_md(root: Path) -> str:
                     meta["citation_key"] = key
                     meta["filename"] = pdf.name
                     meta.setdefault("scope", f"corpus:{step_sub.name}")
-                    entries.setdefault(key, meta)
+                    _insert_citation_entry(entries, key, meta)
                     break
 
     # 2. Per-step literature indexes + sidecars + conclusions.md
@@ -4006,7 +4101,7 @@ def generate_citations_md(root: Path) -> str:
                                 key = f"{author_m.group(1).lower()}{year_m.group(0)}"
                             else:
                                 key = "conc_" + re.sub(r"[^a-z0-9]+", "_", ref_text[:30].lower()).strip("_")
-                            entries.setdefault(key, {
+                            _insert_citation_entry(entries, key, {
                                 "citation_key": key,
                                 "title": ref_text,
                                 "scope": f"step:{step_dir.name}",
@@ -4030,8 +4125,9 @@ def generate_citations_md(root: Path) -> str:
                         meta.setdefault("filename", filename)
                         meta.setdefault("scope", f"step:{step_dir.name}")
                         # Don't clobber project entries; step entries are
-                        # secondary.
-                        entries.setdefault(key, meta)
+                        # secondary. Distinct refs sharing a key are
+                        # disambiguated rather than dropped.
+                        _insert_citation_entry(entries, key, meta)
                 except Exception:
                     pass
             # Then fall back to sidecar walk for PDFs that have no index entry.
@@ -4052,7 +4148,7 @@ def generate_citations_md(root: Path) -> str:
                         meta["citation_key"] = key
                         meta["filename"] = pdf.name
                         meta.setdefault("scope", f"step:{step_dir.name}")
-                        entries.setdefault(key, meta)
+                        _insert_citation_entry(entries, key, meta)
                         break
 
     lines = [
@@ -4069,9 +4165,19 @@ def generate_citations_md(root: Path) -> str:
         )
         for key, meta in ordered:
             scope = meta.get("scope", "project")
-            verified = meta.get("verified", bool(meta.get("doi") or meta.get("url")))
+            # "✅ verified" is reserved for entries an actual verifier
+            # (tool_citations_verify / a provider check) marked verified.
+            # Merely carrying a DOI/URL string is NOT verification — a
+            # fabricated identifier would otherwise read as verified.
+            verified = bool(meta.get("verified"))
+            has_id = bool(meta.get("doi") or meta.get("url"))
             sha = (meta.get("sha256") or "")[:12]
-            badge = "✅ verified" if verified else "⏳ pending verification"
+            if verified:
+                badge = "✅ verified"
+            elif has_id:
+                badge = "⏳ identifier present, not yet verified"
+            else:
+                badge = "⏳ pending verification"
             lines.append(f"### `{key}`")
             lines.append(f"- Scope: `{scope}`")
             if meta.get("filename"):

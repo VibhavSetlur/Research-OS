@@ -83,7 +83,16 @@ def _handle_sys_workspace_scaffold(name, arguments, root):
 
 
 def _handle_sys_workspace_tree(name, arguments, root):
-    depth = arguments.get("depth", 3)
+    # Coerce + clamp depth at the boundary: a negative depth never reaches the
+    # `if depth == 0` base case (unbounded recursion / RecursionError on a deep
+    # tree), and a non-int like "3" raises a TypeError on `depth - 1`. MCP arg
+    # types are advisory, so harden here.
+    raw_depth = arguments.get("depth", 3)
+    try:
+        depth = int(raw_depth)
+    except (TypeError, ValueError):
+        depth = 3
+    depth = max(0, min(depth, 12))
     include_files = arguments.get("include_files", True)
     tree = _build_tree(root / "workspace", depth, include_files)
     return _text(_success({"tree": tree}))
@@ -379,14 +388,20 @@ def _handle_sys_export_share_archive(name, arguments, root):
     import sys as _sys
 
     script = root / "scripts" / "export_share_archive.py"
-    if not script.exists():
-        # Lazy-scaffold the script if the project pre-dates the feature.
+    # Always (re)write the export script from the CURRENT template before
+    # running it. Projects scaffolded before a security fix would otherwise
+    # keep running a stale script — e.g. one that bundles the secret-bearing
+    # inputs/researcher_config.yaml into the "share-safe" zip (3.2.10 A2).
+    try:
+        from research_os.project_ops import _EXPORT_PY_TEMPLATE
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text(_EXPORT_PY_TEMPLATE, encoding="utf-8")
         try:
-            from research_os.project_ops import _write_sharing_scripts, load_state
-            project_name = (load_state(root) or {}).get("project_name") or root.name
-            _write_sharing_scripts(root, project_name)
-        except Exception as e:
-            return _text(_error(f"export script missing and could not be scaffolded: {e}"))
+            script.chmod(0o755)
+        except OSError:
+            pass
+    except Exception as e:
+        return _text(_error(f"export script could not be refreshed: {e}"))
 
     cmd = [_sys.executable, str(script)]
     out_arg = arguments.get("out")

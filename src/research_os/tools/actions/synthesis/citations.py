@@ -283,15 +283,45 @@ def _make_key(entry: dict[str, Any]) -> str:
 
 
 def verify_citation_key(key: str) -> dict[str, Any] | None:
-    """Re-verify an existing citation against Crossref by keyword search."""
+    """Re-verify a citation key against Crossref.
+
+    A keyword search that returns SOME paper does NOT prove the cited key is
+    real — returning the first hit would launder a hallucinated citation
+    ("smith2099neural" → verified to whatever Crossref top-ranks). So a hit only
+    counts when it actually matches the key's own first-author surname + year.
+    Keys are ``<surname...><year><titleword>`` (no separators, from _make_key).
+    """
     try:
         from research_os.tools.actions.search.search import search_crossref
 
+        m = re.search(r"^(.*?)((?:19|20)\d{2})", key.lower())
+        key_surname = re.sub(r"[^a-z]", "", m.group(1)) if m else ""
+        key_year = m.group(2) if m else ""
+
         query = key.replace("_", " ")
-        hits = search_crossref(query, limit=3)
+        hits = search_crossref(query, limit=5)
         for h in hits:
-            if h.get("doi") or h.get("url"):
+            if not (h.get("doi") or h.get("url")):
+                continue
+            hit_year = str(h.get("year") or "")
+            authors = h.get("authors") or []
+            raw = authors[0] if authors else ""
+            if isinstance(raw, dict):
+                fam = raw.get("family") or (
+                    (raw.get("name") or "").split()[-1:] or [""])[0]
+            else:
+                toks = str(raw).split()
+                fam = toks[-1] if toks else ""
+            fam = re.sub(r"[^a-z]", "", str(fam).lower())
+            year_ok = (not key_year) or (hit_year == key_year)
+            # Lenient surname overlap (handles "van der X" / initials variance),
+            # but it must be PRESENT — a year-only match isn't enough.
+            author_ok = bool(key_surname) and bool(fam) and (
+                key_surname in fam or fam in key_surname)
+            if year_ok and author_ok:
                 return h
+        # No hit matched the key's author+year — refuse to "verify" (catches
+        # the hallucinated-key case rather than rubber-stamping a keyword hit).
     except Exception as e:
         logger.warning(f"verify_citation_key failed: {e}")
     return None

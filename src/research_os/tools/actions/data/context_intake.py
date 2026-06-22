@@ -94,18 +94,35 @@ def _log_path(root: Path) -> Path:
     return root / ".os_state" / "context_intake_log.jsonl"
 
 
-def _previously_seen(root: Path) -> set[str]:
+def _previously_seen(root: Path) -> dict[str, dict[str, Any]]:
+    """Map ``imported_as`` → the source identity recorded at import time.
+
+    Returns ``{imported_as: {"src_mtime": float|None, "src_size": int|None}}``.
+    Older log entries that predate the mtime/size fields map to ``{}`` so the
+    caller falls back to legacy name-only dedup for them (a previously-seen
+    basename with no recorded identity is still skipped, preserving the
+    never-overwrite contract).
+    """
     log = _log_path(root)
     if not log.exists():
-        return set()
-    seen: set[str] = set()
+        return {}
+    seen: dict[str, dict[str, Any]] = {}
     try:
         for line in log.read_text().splitlines():
             try:
                 entry = json.loads(line)
-                seen.add(entry.get("imported_as", ""))
             except Exception:
                 continue
+            key = entry.get("imported_as", "")
+            if not key:
+                continue
+            identity: dict[str, Any] = {}
+            if "src_mtime" in entry:
+                identity["src_mtime"] = entry.get("src_mtime")
+            if "src_size" in entry:
+                identity["src_size"] = entry.get("src_size")
+            # Last write wins, so a re-imported file's latest identity sticks.
+            seen[key] = identity
     except Exception:
         pass
     return seen
@@ -154,10 +171,30 @@ def context_intake(
                 continue
             except ValueError:
                 pass
-            # Skip files we've already routed before.
+            # Skip files we've already routed before — UNLESS the source's
+            # content changed since (mtime/size differ from what we logged).
+            # A replaced/edited drop-file (same basename) must be re-detected,
+            # or its corrected content is silently dropped. The dest-collision
+            # rename below routes it to `<stem>_imported_N`, honouring the
+            # never-overwrite contract: more files detected, never fewer.
             inputs_target = _route(c.suffix) + "/" + c.name
             if inputs_target in seen:
-                continue
+                recorded = seen[inputs_target]
+                rec_mtime = recorded.get("src_mtime")
+                rec_size = recorded.get("src_size")
+                if rec_mtime is None and rec_size is None:
+                    # Legacy entry without identity — keep name-only dedup.
+                    continue
+                try:
+                    st = c.stat()
+                    changed = (
+                        (rec_size is not None and st.st_size != rec_size)
+                        or (rec_mtime is not None and st.st_mtime > rec_mtime)
+                    )
+                except OSError:
+                    changed = False
+                if not changed:
+                    continue
             new_files.append(c)
 
         if not new_files:
@@ -184,11 +221,17 @@ def context_intake(
                     i += 1
                 dest = target_dir / f"{stem}_imported_{i}{suf}"
 
+            src_stat = src.stat()
             entry = {
                 "timestamp": now_iso(),
                 "src": str(src.relative_to(root)) if src.is_relative_to(root) else str(src),
                 "imported_as": f"{target_subdir}/{dest.name}",
-                "size_bytes": src.stat().st_size,
+                "size_bytes": src_stat.st_size,
+                # Source identity at import time — lets a later run detect a
+                # replaced/edited drop-file (same basename, new content) via
+                # mtime/size change instead of silently skipping it.
+                "src_mtime": src_stat.st_mtime,
+                "src_size": src_stat.st_size,
                 "routing_reason": f"ext={src.suffix.lower()}",
             }
             if not dry_run:

@@ -22,28 +22,37 @@ def hypothesis_add(
 ) -> dict[str, Any]:
     """Add a new hypothesis to state.active_hypotheses[]."""
     try:
-        from research_os.project_ops import load_state, save_state
+        from research_os.project_ops import mutate_state
 
-        state = load_state(root)
-        existing = state.setdefault("active_hypotheses", [])
-        used = {h.get("id") for h in existing if isinstance(h, dict)}
+        # Allocate the id AND append inside the locked mutator so two
+        # concurrent adds serialise and mint distinct H{n} (the previous
+        # unguarded load→mutate→save let both sessions mint the same id and
+        # one clobbered the other).
+        captured: dict[str, Any] = {}
 
-        if not hypothesis_id:
-            n = len(existing) + 1
-            while f"H{n}" in used:
-                n += 1
-            hypothesis_id = f"H{n}"
+        def _add(state: dict) -> None:
+            existing = state.setdefault("active_hypotheses", [])
+            used = {h.get("id") for h in existing if isinstance(h, dict)}
+            hid = hypothesis_id
+            if not hid:
+                n = len(existing) + 1
+                while f"H{n}" in used:
+                    n += 1
+                hid = f"H{n}"
+            entry = {
+                "id": hid,
+                "statement": statement,
+                "status": status,
+                "direction": direction,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "evidence": [],
+            }
+            existing.append(entry)
+            captured["entry"] = entry
 
-        entry = {
-            "id": hypothesis_id,
-            "statement": statement,
-            "status": status,
-            "direction": direction,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "evidence": [],
-        }
-        existing.append(entry)
-        save_state(root, state)
+        mutate_state(root, _add)
+        entry = captured["entry"]
+        hypothesis_id = entry["id"]
 
         # Also log a line to analysis.md so the workflow narrative captures it.
         from research_os.project_ops import now_iso
@@ -67,27 +76,37 @@ def hypothesis_update(
 ) -> dict[str, Any]:
     """Update a hypothesis: status (supported|refuted|inconclusive|testing) + add evidence."""
     try:
-        from research_os.project_ops import load_state, now_iso, save_state
+        from research_os.project_ops import mutate_state, now_iso
 
-        state = load_state(root)
-        hypotheses = state.get("active_hypotheses", []) or []
-        target = next(
-            (h for h in hypotheses if isinstance(h, dict) and h.get("id") == hypothesis_id),
-            None,
-        )
+        # Look up + mutate the target inside the lock so a concurrent add /
+        # update can't clobber the change (was an unguarded RMW).
+        captured: dict[str, Any] = {}
+
+        def _update(state: dict) -> None:
+            hypotheses = state.get("active_hypotheses", []) or []
+            target = next(
+                (h for h in hypotheses
+                 if isinstance(h, dict) and h.get("id") == hypothesis_id),
+                None,
+            )
+            if not target:
+                return
+            if status:
+                target["status"] = status
+            if evidence:
+                target.setdefault("evidence", []).append(
+                    {"step": step or "", "note": evidence, "logged_at": now_iso()}
+                )
+            target["updated_at"] = now_iso()
+            captured["target"] = target
+
+        mutate_state(root, _update)
+        target = captured.get("target")
         if not target:
             return {
                 "status": "error",
                 "message": f"No hypothesis {hypothesis_id}. Use mem_hypothesis_list.",
             }
-        if status:
-            target["status"] = status
-        if evidence:
-            target.setdefault("evidence", []).append(
-                {"step": step or "", "note": evidence, "logged_at": now_iso()}
-            )
-        target["updated_at"] = now_iso()
-        save_state(root, state)
 
         log = root / "workspace" / "analysis.md"
         log.parent.mkdir(parents=True, exist_ok=True)

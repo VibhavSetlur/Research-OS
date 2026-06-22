@@ -230,7 +230,9 @@ def _recommended_action_for_route(res: dict) -> str:
 
 
 def _build_tree(path: Path, depth: int, include_files: bool) -> dict:
-    if depth == 0:
+    # `<= 0` (not `== 0`) so a negative depth that slips past the handler
+    # clamp still terminates instead of recursing the whole subtree.
+    if depth <= 0:
         return {"_truncated": True}
     result: dict = {}
     try:

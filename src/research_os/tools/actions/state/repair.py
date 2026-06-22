@@ -165,6 +165,45 @@ def workspace_repair(root: Path, *, dry_run: bool = False) -> dict[str, Any]:
     except Exception as e:
         actions.append(f"could not audit state.paths: {e}")
 
+    # 8. Checkpoint integrity. An interrupted snapshot leaves a checkpoint
+    #    directory with no checkpoint_manifest.json (and/or a .incomplete
+    #    sentinel) — invisible to rollback, _prune_old_checkpoints, and
+    #    list_checkpoints' usable set. Quarantine (never delete — honour the
+    #    repair invariant) by renaming to <id>.incomplete so it drops out of
+    #    every checkpoint lister and stops accumulating.
+    checkpoints_dir = root / ".os_state" / "checkpoints"
+    if checkpoints_dir.exists():
+        try:
+            for d in sorted(checkpoints_dir.iterdir()):
+                if not d.is_dir():
+                    continue
+                if d.name.endswith(".incomplete"):
+                    continue  # already quarantined
+                manifest = d / "checkpoint_manifest.json"
+                interrupted = (d / ".incomplete").exists() or not manifest.exists()
+                if not interrupted:
+                    continue
+                issues.append(f"incomplete checkpoint (no manifest): {d.name}")
+                if not dry_run:
+                    quarantine = d.with_name(f"{d.name}.incomplete")
+                    try:
+                        if quarantine.exists():
+                            # Disambiguate a name collision; never overwrite.
+                            quarantine = d.with_name(
+                                f"{d.name}.incomplete_{_now().replace(':', '').replace('-', '')}"
+                            )
+                        d.rename(quarantine)
+                        actions.append(
+                            f"quarantined incomplete checkpoint {d.name} → "
+                            f"{quarantine.name}"
+                        )
+                    except OSError as e:
+                        actions.append(
+                            f"could not quarantine checkpoint {d.name}: {e}"
+                        )
+        except OSError as e:
+            actions.append(f"could not audit checkpoints: {e}")
+
     return {
         "status": "success",
         "dry_run": dry_run,

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "research-os"
-version = "3.2.9"
+version = "3.2.10"
 description = "MCP server for reproducible, grounded, citation-verified research — sub-task pipelines, provenance sidecars, publication-grade visualisation, grounded reasoning, and self-tested dashboards."
 readme = "README.md"
 authors = [
@@ -59,6 +59,12 @@ viz = ["matplotlib", "seaborn", "plotly", "Pillow"]
 audit = ["statsmodels", "scipy", "Pillow"]
 ml = ["scikit-learn", "xgboost", "shap"]
 notebook = ["jupyter", "nbconvert"]
+# Tabular IO engines for the data tools — Parquet/Feather (pyarrow) and
+# Excel (openpyxl/xlrd). Core ships only pandas+numpy, so without this
+# extra .parquet/.feather/.xlsx reads + writes raise a directed
+# "pip install 'research-os[data]'" error rather than a raw pandas
+# ImportError.
+data = ["pyarrow", "openpyxl", "xlrd"]
 execution = ["docker"]
 r = ["rpy2"]
 julia = ["julia"]
@@ -132,7 +138,7 @@ dev = [
 
 # "all" pulls everything CI can install cross-platform. R / Julia / Docker
 # need their respective system runtimes and are deliberately excluded.
-all = ["research-os[web,literature,viz,audit,ml,notebook,semantic]"]
+all = ["research-os[web,literature,viz,audit,ml,notebook,semantic,data]"]
 
 # "ci" is the lean install used by GitHub Actions: enough to lint + preflight
 # + run every test (which mocks the heavy bits) WITHOUT pulling shap /

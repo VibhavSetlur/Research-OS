@@ -17,6 +17,7 @@ from typing import Any
 
 from research_os.tools.actions.audit.content_depth import (
     audit_abstract,
+    audit_bibliography_resolution,
     audit_cliches,
     audit_discussion,
     audit_introduction,
@@ -93,14 +94,21 @@ def _section_text_universal(text: str, section: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _check_paper(text: str, root: Path) -> dict[str, Any]:
+def _check_paper(text: str, root: Path, paper_path: str | None = None) -> dict[str, Any]:
+    # A Typst paper points at an external #bibliography(...) file, so the
+    # inline cited-vs-listed reconciliation in audit_references_present must
+    # NOT run with typst=False (it would flag every legit cite as missing).
+    # Detect the format from the path and resolve cited keys against the
+    # real biblio file instead.
+    typst = bool(paper_path and paper_path.lower().endswith(".typ"))
     sub_reports = {
         "abstract": audit_abstract(_section_text_universal(text, "abstract")),
         "introduction": audit_introduction(_section_text_universal(text, "introduction")),
         "methods": audit_methods(_section_text_universal(text, "methods"), root),
         "results": audit_results(_section_text_universal(text, "results"), root),
         "discussion": audit_discussion(_section_text_universal(text, "discussion"), root),
-        "references": audit_references_present(text),
+        "references": audit_references_present(text, typst),
+        "bibliography": audit_bibliography_resolution(text, root, paper_path),
     }
     blockers: list[str] = []
     warnings: list[str] = []
@@ -758,7 +766,12 @@ def synthesis_check(
 
     if kind in ("paper", "essay"):
         if mode in ("all", "substantiveness", "structure"):
-            r = _check_paper(text, root)
+            paper_rel = (
+                str(target.relative_to(root))
+                if target.is_relative_to(root)
+                else str(target)
+            )
+            r = _check_paper(text, root, paper_rel)
             blockers.extend(r["blockers"])
             warnings.extend(r["warnings"])
             sub["sections"] = r["sub_reports"]

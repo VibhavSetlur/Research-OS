@@ -65,6 +65,62 @@ __version__ = "1.8.0"
 log = logging.getLogger(__name__)
 
 
+# A .cys is an untrusted zip a researcher may have downloaded or received
+# from a collaborator. Cap the decompressed size of any single member so a
+# small archive whose member inflates to many GB (zip-bomb / zip-
+# amplification) cannot exhaust memory before parsing. Mirrors the sibling
+# adapters' size-cap pattern.
+_MAX_MEMBER_BYTES = 100 * 1024 * 1024  # 100 MiB
+
+
+def _safe_zip_read(zf: zipfile.ZipFile, name: str) -> bytes | None:
+    """Read a zip member with a hard decompressed-size cap.
+
+    Returns ``None`` (and logs) when the member's declared size exceeds the
+    cap, or when the actual decompressed stream runs past the cap (defends
+    against a spoofed ``ZipInfo.file_size``). Never reads an unbounded
+    amount into memory.
+    """
+    try:
+        info = zf.getinfo(name)
+    except (KeyError, zipfile.BadZipFile):
+        return None
+    if info.file_size > _MAX_MEMBER_BYTES:
+        log.debug(
+            "skipping oversized member %s (%d bytes > cap %d)",
+            name, info.file_size, _MAX_MEMBER_BYTES,
+        )
+        return None
+    try:
+        with zf.open(name) as fh:
+            data = fh.read(_MAX_MEMBER_BYTES + 1)
+    except (KeyError, zipfile.BadZipFile, OSError) as exc:
+        log.debug("could not read %s: %s", name, exc)
+        return None
+    if len(data) > _MAX_MEMBER_BYTES:
+        log.debug("member %s exceeded cap during read; dropping", name)
+        return None
+    return data
+
+
+def _resolve_inside_root(root: Path, candidate: str) -> Path | None:
+    """Resolve ``candidate`` and require it to stay inside ``root``.
+
+    Rejects absolute paths and ``..`` traversal that escape the project
+    root (zip-slip / arbitrary-write), mirroring the central
+    ``server.handlers.meta_workspace._resolve_inside_root`` guard. Returns
+    ``None`` on escape; a resolved absolute Path otherwise.
+    """
+    root_r = root.resolve()
+    p = Path(candidate)
+    resolved = p.resolve() if p.is_absolute() else (root_r / p).resolve()
+    try:
+        resolved.relative_to(root_r)
+    except ValueError:
+        return None
+    return resolved
+
+
 # ── detection ─────────────────────────────────────────────────────────
 
 
@@ -211,10 +267,9 @@ def _parse_cys(path: Path) -> dict[str, Any]:
             names = zf.namelist()
             xgmml_names = [n for n in names if n.lower().endswith(".xgmml")]
             for n in xgmml_names:
-                try:
-                    data = zf.read(n)
-                except (KeyError, zipfile.BadZipFile, OSError) as exc:
-                    log.debug("skipping %s in %s: %s", n, path, exc)
+                data = _safe_zip_read(zf, n)
+                if data is None:
+                    log.debug("skipping unreadable/oversized %s in %s", n, path)
                     continue
                 parsed = _parse_xgmml(data)
                 if parsed is None:
@@ -228,10 +283,10 @@ def _parse_cys(path: Path) -> dict[str, Any]:
                         if not sibling.startswith(net_dir + "/"):
                             continue
                         if sibling.lower().endswith(("properties", ".props", ".txt")):
-                            try:
-                                txt = zf.read(sibling).decode("utf-8", errors="ignore")
-                            except (KeyError, OSError):
+                            sib_data = _safe_zip_read(zf, sibling)
+                            if sib_data is None:
                                 continue
+                            txt = sib_data.decode("utf-8", errors="ignore")
                             layout = _scan_layout(txt)
                             if layout:
                                 break
@@ -241,16 +296,16 @@ def _parse_cys(path: Path) -> dict[str, Any]:
             for n in names:
                 low = n.lower()
                 if low.endswith("vizmap.props") or low.endswith("session_vizmap.xml"):
-                    try:
-                        txt = zf.read(n).decode("utf-8", errors="ignore")
-                    except (KeyError, OSError):
+                    vm_data = _safe_zip_read(zf, n)
+                    if vm_data is None:
                         continue
+                    txt = vm_data.decode("utf-8", errors="ignore")
                     summary["visual_styles"].extend(_scan_visual_style_names(txt))
                 if summary["layout"] is None and low.endswith(("properties", ".props")):
-                    try:
-                        txt = zf.read(n).decode("utf-8", errors="ignore")
-                    except (KeyError, OSError):
+                    pr_data = _safe_zip_read(zf, n)
+                    if pr_data is None:
                         continue
+                    txt = pr_data.decode("utf-8", errors="ignore")
                     summary["layout"] = _scan_layout(txt)
 
             # de-dup visual styles while preserving order
@@ -372,9 +427,12 @@ def _handle_export_static(name: str, arguments: dict, root: Path) -> Any:
     cys_file = (arguments.get("cys_file") or "").strip()
     if not cys_file:
         return _err("cys_file is required")
-    cys_path = Path(cys_file)
-    if not cys_path.is_absolute():
-        cys_path = (root / cys_path).resolve()
+    # Containment: reject absolute paths or ../ traversal that escape the
+    # project root (a .cys is untrusted; the output must not be writable
+    # anywhere on disk).
+    cys_path = _resolve_inside_root(root, cys_file)
+    if cys_path is None:
+        return _err(f"cys_file escapes project root: {cys_file}")
     if not cys_path.exists():
         return _err(f"cys file not found: {cys_path}")
 
@@ -382,9 +440,9 @@ def _handle_export_static(name: str, arguments: dict, root: Path) -> Any:
     network_filter = arguments.get("network")
 
     if output_path:
-        out_path = Path(output_path)
-        if not out_path.is_absolute():
-            out_path = (root / out_path).resolve()
+        out_path = _resolve_inside_root(root, output_path)
+        if out_path is None:
+            return _err(f"output_path escapes project root: {output_path}")
     else:
         out_path = cys_path.with_suffix(".png")
 
@@ -429,10 +487,9 @@ def _handle_export_static(name: str, arguments: dict, root: Path) -> Any:
         if not xgmml_names:
             return _err("no XGMML payloads found inside .cys archive")
         for n in xgmml_names:
-            try:
-                data = zf.read(n)
-            except (KeyError, zipfile.BadZipFile, OSError) as exc:
-                log.debug("skip %s: %s", n, exc)
+            data = _safe_zip_read(zf, n)
+            if data is None:
+                log.debug("skip unreadable/oversized %s", n)
                 continue
             parsed = _xgmml_to_edge_list(data)
             if parsed is None:

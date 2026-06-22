@@ -343,11 +343,41 @@ def _error(
     return env
 
 
+def _sanitize_nonfinite(obj: Any) -> Any:
+    """Recursively replace non-finite floats (NaN/Inf/-Inf) with ``None``.
+
+    ``json.dumps`` defaults to ``allow_nan=True`` and emits the JS-only
+    literals ``NaN``/``Infinity``/``-Infinity`` (invalid per RFC 8259), which
+    strict MCP / non-Python clients reject. The offending floats commonly live
+    inside nested lists/dicts (e.g. a profile's ``columns`` list), so the walk
+    must recurse. ``default=str`` still handles Timestamp / numpy scalars.
+    """
+    import math
+
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {k: _sanitize_nonfinite(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_nonfinite(v) for v in obj]
+    return obj
+
+
 def _text(payload: Any) -> list[TextContent]:
     """Wrap any payload in the MCP TextContent[] shape expected by clients."""
     if isinstance(payload, str):
         return [TextContent(type="text", text=payload)]
-    return [TextContent(type="text", text=json.dumps(payload, indent=2, default=str))]
+    try:
+        # allow_nan=False makes json.dumps RAISE on a NaN/Inf rather than emit
+        # an invalid token, so we can fall back to a sanitised pass only when
+        # needed (the common case has no non-finite floats and serialises
+        # once).
+        text = json.dumps(payload, indent=2, default=str, allow_nan=False)
+    except ValueError:
+        text = json.dumps(
+            _sanitize_nonfinite(payload), indent=2, default=str, allow_nan=False
+        )
+    return [TextContent(type="text", text=text)]
 
 
 # ---------------------------------------------------------------------------

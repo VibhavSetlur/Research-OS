@@ -113,11 +113,15 @@ def is_valid_pdf(path: Path) -> bool:
         return False
     if not head:
         return False
-    # Fast path: header at byte 0. Tolerant path: header within a small
-    # leading window (BOM / stray whitespace before "%PDF-").
+    # Fast path: header at byte 0. Tolerant path: header after at most a
+    # single UTF-8 BOM and stray leading whitespace. We ANCHOR the match
+    # rather than scanning a window, so an HTML/JSON page that merely
+    # *contains* "%PDF-" somewhere near its start is correctly rejected.
     if head.startswith(_PDF_MAGIC):
         return True
-    return _PDF_MAGIC in head[:64]
+    h = head[3:] if head.startswith(b"\xef\xbb\xbf") else head  # one UTF-8 BOM
+    h = h.lstrip(b" \t\r\n\x0c")  # stray leading whitespace before header
+    return h.startswith(_PDF_MAGIC)
 
 
 def count_valid_pdfs(directory: Path) -> int:
@@ -282,6 +286,18 @@ def download_literature(
         if "/" in filename or ".." in filename:
             return {"status": "error",
                     "message": "filename may not contain '/' or '..'"}
+        # SSRF / local-file-read guard: urllib's default opener registers
+        # FileHandler / FTPHandler / DataHandler, so file:// / ftp:// / data:
+        # URLs would resolve and exfiltrate local files into inputs/literature/.
+        # Only http(s) downloads are ever legitimate here. This also covers the
+        # data-driven path (search_and_save feeds provider-supplied URLs here).
+        from urllib.parse import urlparse
+
+        scheme = (urlparse(url).scheme or "").lower()
+        if scheme not in ("http", "https"):
+            return {"status": "error",
+                    "message": (f"refusing to download from a non-http(s) URL "
+                                f"(scheme={scheme!r}); only http/https are allowed.")}
         # Force a .pdf suffix if absent (most callers omit it).
         safe_name = _slugify(Path(filename).name)
         if not safe_name.lower().endswith((".pdf", ".epub", ".djvu", ".ps")):

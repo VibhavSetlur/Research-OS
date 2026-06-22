@@ -62,7 +62,8 @@ _ALWAYS_GATED: set[str] = {
 }
 
 
-def _requires_confirmation(tool_name: str, arguments: dict) -> bool:
+def _requires_confirmation(tool_name: str, arguments: dict,
+                           root: Path | None = None) -> bool:
     """Decide whether this (tool_name, arguments) combo is a floor gate.
 
     Returns ``True`` only for the combinations enumerated in
@@ -74,14 +75,27 @@ def _requires_confirmation(tool_name: str, arguments: dict) -> bool:
     if tool_name == "sys_file_write":
         filepath = str(args.get("filepath") or "")
         force = bool(args.get("force"))
-        # Only gate writes that overwrite (force=true) inside synthesis/.
-        # Strip a leading "./" / "/" as a PREFIX — lstrip() strips characters,
-        # so it would also eat a legitimate leading "." (e.g. ".synthesis").
+        if not force:
+            return False
+        # Only gate force-overwrites that land inside synthesis/. Resolve the
+        # path the SAME way the write path does so a ../ can't slip a
+        # synthesis/ write past the gate (e.g. workspace/../synthesis/paper.md).
+        if root is not None:
+            try:
+                root_r = Path(root).resolve()
+                target = Path(filepath)
+                cand = target if target.is_absolute() else (root_r / target)
+                rel = cand.resolve().relative_to(root_r).as_posix()
+            except (ValueError, OSError):
+                return True  # fail-safe: any resolution error → gate
+            return rel.startswith("synthesis/")
+        # Fallback (no root): prefix-strip normalization. lstrip() would also
+        # eat a legitimate leading "." (e.g. ".synthesis"), so strip prefixes.
         norm = filepath
         for prefix in ("./", "/"):
             while norm.startswith(prefix):
                 norm = norm[len(prefix):]
-        return force and norm.startswith("synthesis/")
+        return norm.startswith("synthesis/")
     if tool_name == "sys_path":
         return (args.get("operation") or "") == "abandon"
     if tool_name == "tool_task":
@@ -125,7 +139,7 @@ def enforce_autopilot_gate(
     The error includes the exact next-action call the AI must make
     after the researcher consents.
     """
-    if not _requires_confirmation(tool_name, arguments):
+    if not _requires_confirmation(tool_name, arguments, root):
         return
     level = _read_autonomy_level(root)
     if level != "autopilot":

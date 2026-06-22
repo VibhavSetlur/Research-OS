@@ -84,3 +84,54 @@ def test_task_run_allow_arbitrary_bypasses_allowlist(tmp_path):
     # exists on most systems.
     res = task_run("printf hi", tmp_path)
     assert res["status"] == "success"
+
+
+# ── D2: exit-code capture — a crashed task must not look like a clean one ──
+
+
+def test_task_status_crashed_task_reports_failed(tmp_path):
+    """A non-zero exit must surface task_status='failed' + exit_code, not the
+    same 'finished' a clean task gets (regression for the discarded status
+    word in _pid_alive)."""
+    res = task_run(["python3", "-c", "import sys; sys.exit(3)"], tmp_path,
+                   description="crasher")
+    assert res["status"] == "success"
+    tid = res["task_id"]
+    time.sleep(0.8)
+    s = task_status(tid, tmp_path)
+    assert s["task_status"] == "failed"
+    assert s["exit_code"] == 3
+    assert s["succeeded"] is False
+
+
+def test_task_status_clean_task_reports_finished_success(tmp_path):
+    res = task_run(["python3", "-c", "import sys; sys.exit(0)"], tmp_path,
+                   description="clean")
+    tid = res["task_id"]
+    time.sleep(0.8)
+    s = task_status(tid, tmp_path)
+    assert s["task_status"] == "finished"
+    assert s["exit_code"] == 0
+    assert s["succeeded"] is True
+
+
+def test_task_status_exit_code_persists_across_polls(tmp_path):
+    """The status word is reapable only once; the exit code must be persisted
+    so a second poll still reports 'failed' rather than reverting."""
+    res = task_run(["python3", "-c", "import sys; sys.exit(7)"], tmp_path)
+    tid = res["task_id"]
+    time.sleep(0.8)
+    first = task_status(tid, tmp_path)
+    assert first["exit_code"] == 7 and first["task_status"] == "failed"
+    second = task_status(tid, tmp_path)
+    assert second["exit_code"] == 7 and second["task_status"] == "failed"
+
+
+def test_task_list_surfaces_failed_status(tmp_path):
+    res = task_run(["python3", "-c", "import sys; sys.exit(5)"], tmp_path)
+    tid = res["task_id"]
+    time.sleep(0.8)
+    listed = task_list(tmp_path)
+    entry = next(t for t in listed["tasks"] if t["task_id"] == tid)
+    assert entry["task_status"] == "failed"
+    assert entry["exit_code"] == 5

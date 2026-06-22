@@ -162,6 +162,17 @@ class ResearchLedger:
             self._write_state_unlocked(state)
             return state
 
+    def locked_update(self, mutator: "Callable[[dict], None]") -> dict:
+        """Public atomic read-modify-write under the exclusive lock.
+
+        Thin wrapper over :meth:`_locked_update` so the tool layer can route
+        its load→mutate→save sequences through the lock (closing the
+        cross-session lost-update window) instead of the unguarded
+        ``load_state``/``save_state`` pattern. The ``mutator`` runs INSIDE
+        the flock and must not call back into any locking method
+        (no nested ``_save`` / ``locked_update``)."""
+        return self._locked_update(mutator)
+
     @staticmethod
     def _default_state() -> dict:
         """Canonical default state — ONE schema, no legacy aliases.
@@ -296,30 +307,27 @@ class ResearchLedger:
         return state.get("current_path", "main")
 
     def update(self, **kwargs) -> dict:
-        state = self._load()
-        state.update(kwargs)
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save(state)
-        return state
+        # Lock across load→mutate→save so a concurrent agent's RMW can't
+        # clobber these fields (was previously an unguarded read-modify-write
+        # — same lost-update class fixed for add_hypothesis/add_dag_node).
+        return self._locked_update(lambda s: s.update(kwargs))
 
     def set_phase(self, phase: str, step: int = 0) -> dict:
         """Backward-compatible name; updates ``pipeline_stage``."""
-        state = self._load()
-        state["pipeline_stage"] = phase
-        state["step"] = step
-        state["checkpoints"][phase] = "in_progress"
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save(state)
-        return state
+        def _mutate(s: dict) -> None:
+            s["pipeline_stage"] = phase
+            s["step"] = step
+            s.setdefault("checkpoints", {})[phase] = "in_progress"
+
+        return self._locked_update(_mutate)
 
     def complete_phase(self, phase: str) -> dict:
-        state = self._load()
-        state["checkpoints"][phase] = "complete"
-        state["resumable_from"] = phase
-        state["last_checkpoint"] = datetime.now(timezone.utc).isoformat()
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save(state)
-        return state
+        def _mutate(s: dict) -> None:
+            s.setdefault("checkpoints", {})[phase] = "complete"
+            s["resumable_from"] = phase
+            s["last_checkpoint"] = datetime.now(timezone.utc).isoformat()
+
+        return self._locked_update(_mutate)
 
     def add_hypothesis(
         self,
@@ -368,10 +376,9 @@ class ResearchLedger:
         own context manager is the authoritative source; this no-op stub
         is kept only so existing callers don't break.
         """
-        state = self._load()
-        state["updated_at"] = datetime.now(timezone.utc).isoformat()
-        self._save(state)
-        return state
+        # No-op stub: just stamp updated_at under the lock so it doesn't
+        # clobber a concurrent mutation via an unguarded RMW.
+        return self._locked_update(lambda s: None)
 
     def add_loaded_data(self, data_path: str) -> dict:
         """Deprecated no-op (3.2). The ``loaded_data`` ledger field was never
@@ -392,14 +399,14 @@ class ResearchLedger:
         CTMs are typically generated at 90% token budget to preserve
         context that doesn't survive structured-state transfer alone.
         """
-        state = self._load()
         now = datetime.now(timezone.utc)
+        # Read the current phase WITHOUT the lock just to default the field;
+        # the authoritative stub-append happens under the lock below.
+        current_phase = self._load().get("pipeline_stage", "unknown")
 
         ctm = {
             "ctm_id": f"ctm_{now.strftime('%Y%m%d_%H%M%S')}",
-            "phase": ctm_data.get(
-                "phase", state.get("pipeline_stage", "unknown"),
-            ),
+            "phase": ctm_data.get("phase", current_phase),
             "token_usage_pct": ctm_data.get("token_usage_pct", 0.9),
             "generated_at": now.isoformat(),
             "abandoned_paths": ctm_data.get("abandoned_paths", []),
@@ -411,22 +418,23 @@ class ResearchLedger:
             "handoff_notes": ctm_data.get("handoff_notes", ""),
         }
 
-        # Disk-side: full blob.
+        # Disk-side: full blob, written OUTSIDE the lock (slow I/O to a
+        # fresh per-ctm_id file that doesn't contend with the state ledger).
         ctm_dir = self._path.parent / "context_transfer_memos"
         ctm_dir.mkdir(parents=True, exist_ok=True)
         ctm_path = ctm_dir / f"{ctm['ctm_id']}.json"
         self._save_to_path(ctm_path, ctm)
 
-        # State-side: stub only.
-        state.setdefault("context_transfer_memo_stubs", []).append({
-            "ctm_id": ctm["ctm_id"],
-            "generated_at": ctm["generated_at"],
-            "phase": ctm["phase"],
-        })
-        state["updated_at"] = now.isoformat()
-        self._save(state)
-
-        return state
+        # State-side: stub only — appended under the lock so a concurrent
+        # mutation can't drop it (the stub points at the blob just written,
+        # so losing it would orphan that file).
+        return self._locked_update(
+            lambda s: s.setdefault("context_transfer_memo_stubs", []).append({
+                "ctm_id": ctm["ctm_id"],
+                "generated_at": ctm["generated_at"],
+                "phase": ctm["phase"],
+            })
+        )
 
     def get_latest_ctm(self) -> Optional[dict]:
         """Load the most recent Context Transfer Memorandum from disk."""
@@ -769,6 +777,18 @@ class ResearchLedger:
         ckpt_dir = root / ".os_state" / "checkpoints" / checkpoint_id
         ckpt_dir.mkdir(parents=True, exist_ok=True)
 
+        # Mark the snapshot incomplete BEFORE the (potentially long) copy
+        # loop. If the process is killed mid-copy the sentinel survives, so
+        # rollback refuses this checkpoint and workspace_repair can detect +
+        # quarantine the orphan dir (which otherwise has no manifest and no
+        # meta sidecar — invisible to every recovery path). Cleared at the
+        # very end once checkpoint_manifest.json is written.
+        incomplete_sentinel = ckpt_dir / ".incomplete"
+        try:
+            incomplete_sentinel.write_text("")
+        except OSError:
+            pass
+
         manifest: list[dict] = []
         workspace = root / "workspace"
         if workspace.exists():
@@ -802,6 +822,11 @@ class ResearchLedger:
         (ckpt_dir / "checkpoint_manifest.json").write_text(
             json.dumps(manifest, indent=2, default=str) + "\n"
         )
+        # Snapshot finished cleanly — clear the incomplete sentinel.
+        try:
+            incomplete_sentinel.unlink(missing_ok=True)
+        except OSError:
+            pass
         return {
             "checkpoint_id": checkpoint_id,
             "path": str(ckpt_dir.absolute()),
@@ -838,6 +863,18 @@ class ResearchLedger:
                 f"Available: {[d.name for d in (root / '.os_state' / 'checkpoints').iterdir()] if (root / '.os_state' / 'checkpoints').exists() else 'none'}"
             )
 
+        # Refuse an interrupted snapshot: the .incomplete sentinel means the
+        # copy loop never finished, so the manifest (even if present) may not
+        # describe a coherent state. Rolling back to it would restore a
+        # partial workspace.
+        if (ckpt_dir / ".incomplete").exists():
+            raise FileNotFoundError(
+                f"Checkpoint '{checkpoint_id}' is incomplete — its snapshot "
+                "was interrupted (a `.incomplete` sentinel is present). "
+                "Cannot roll back to a partial snapshot. Run "
+                "`tool_workspace_repair` to quarantine it."
+            )
+
         # Touch the rollback target's sidecar so the checkpoint GC
         # (_prune_old_checkpoints, which orders by meta.json mtime) treats a
         # checkpoint you keep rolling back to as recently-used and does not
@@ -859,6 +896,14 @@ class ResearchLedger:
         )
         backup_dir = root / ".os_state" / "checkpoints" / backup_id
         backup_dir.mkdir(parents=True, exist_ok=True)
+        # Same incomplete-snapshot guard as snapshot_workspace: mark the
+        # pre_rollback backup incomplete during its copy loop so a crash
+        # mid-backup leaves a detectable orphan rather than a silent partial.
+        backup_incomplete = backup_dir / ".incomplete"
+        try:
+            backup_incomplete.write_text("")
+        except OSError:
+            pass
 
         workspace = root / "workspace"
         backup_manifest: list[dict] = []
@@ -895,6 +940,12 @@ class ResearchLedger:
             (backup_dir / "checkpoint_manifest.json").write_text(
                 json.dumps(backup_manifest, indent=2, default=str) + "\n"
             )
+
+        # Backup copy finished — clear its incomplete sentinel.
+        try:
+            backup_incomplete.unlink(missing_ok=True)
+        except OSError:
+            pass
 
         # Write a .meta.json sidecar (untagged) so the existing checkpoint GC
         # (_prune_old_checkpoints, which scans *.meta.json) manages these

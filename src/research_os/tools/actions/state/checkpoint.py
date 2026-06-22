@@ -137,7 +137,25 @@ def list_checkpoints(root: Path) -> dict[str, Any]:
                 continue
         # Fallback: list directories that have no sidecar
         for d in sorted(checkpoints_dir.iterdir()):
-            if d.is_dir() and not any(c["id"] == d.name for c in out):
+            if not d.is_dir():
+                continue
+            # Quarantined orphans (workspace_repair renames them) are never
+            # rollback targets — don't surface them as checkpoints at all.
+            if d.name.endswith(".incomplete"):
+                continue
+            if any(c["id"] == d.name for c in out):
+                continue
+            manifest_ok = (d / "checkpoint_manifest.json").exists()
+            interrupted = (d / ".incomplete").exists() or not manifest_ok
+            if interrupted:
+                # Surface but flag as unusable so the AI never offers it as a
+                # rollback target (rollback would refuse / FileNotFoundError).
+                out.append({
+                    "id": d.name,
+                    "description": "(incomplete — no manifest)",
+                    "unusable": True,
+                })
+            else:
                 out.append({"id": d.name, "description": "(no metadata)"})
         return {"status": "success", "checkpoints": out}
     except Exception as e:
