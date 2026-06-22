@@ -22,8 +22,24 @@ logger = logging.getLogger("research_os.tools.environment")
 def package_install(packages: list[str]) -> dict[str, Any]:
     """``pip install`` the requested packages."""
     try:
+        # Harden against pip-option injection: a package name beginning
+        # with '-' (e.g. '--index-url=http://attacker/simple') would be
+        # interpreted by pip as an OPTION, not a positional package, which
+        # could redirect the index or alter install behaviour. Reject any
+        # such name outright, and pass a '--' end-of-options separator so
+        # every remaining token is treated as a positional argument.
+        bad = [p for p in packages if isinstance(p, str) and p.startswith("-")]
+        if bad:
+            return {
+                "status": "error",
+                "error": (
+                    "Refusing to install package name(s) that begin with '-' "
+                    "(would be parsed as pip options): " + ", ".join(bad)
+                ),
+                "code": 1,
+            }
         res = subprocess.run(
-            [sys.executable, "-m", "pip", "install", *packages],
+            [sys.executable, "-m", "pip", "install", "--", *packages],
             capture_output=True,
             text=True,
             errors="replace",

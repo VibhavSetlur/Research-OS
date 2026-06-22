@@ -113,11 +113,15 @@ def is_valid_pdf(path: Path) -> bool:
         return False
     if not head:
         return False
-    # Fast path: header at byte 0. Tolerant path: header within a small
-    # leading window (BOM / stray whitespace before "%PDF-").
+    # Fast path: header at byte 0. Tolerant path: header after at most a
+    # single UTF-8 BOM and stray leading whitespace. We ANCHOR the match
+    # rather than scanning a window, so an HTML/JSON page that merely
+    # *contains* "%PDF-" somewhere near its start is correctly rejected.
     if head.startswith(_PDF_MAGIC):
         return True
-    return _PDF_MAGIC in head[:64]
+    h = head[3:] if head.startswith(b"\xef\xbb\xbf") else head  # one UTF-8 BOM
+    h = h.lstrip(b" \t\r\n\x0c")  # stray leading whitespace before header
+    return h.startswith(_PDF_MAGIC)
 
 
 def count_valid_pdfs(directory: Path) -> int:

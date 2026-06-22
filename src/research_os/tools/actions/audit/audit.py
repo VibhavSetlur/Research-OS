@@ -265,6 +265,21 @@ def audit_synthesis(
         recurring_blockers: list[str] = []
         unverified_citations = 0
 
+        # Resolve cited keys against the external bibliography file
+        # (biblio.yml / references.bib). A cited key with no entry is a
+        # dangling citation — caught here at WARN severity (additive,
+        # never blocks). Returns empty for inline-markdown projects so we
+        # don't double-report with audit_references_present.
+        dangling_citation_warnings: list[str] = []
+        try:
+            from research_os.tools.actions.audit.content_depth import (
+                audit_bibliography_resolution,
+            )
+            _bib = audit_bibliography_resolution(text, root, paper_path)
+            dangling_citation_warnings = list(_bib.get("warnings", []))
+        except Exception as e:  # pragma: no cover - best effort
+            logger.debug("bibliography resolution audit skipped: %s", e)
+
         report = {
             "missing_sections": missing_sections,
             "causal_language_hits": causal_hits[:10],
@@ -281,6 +296,7 @@ def audit_synthesis(
             "unverified_citations": unverified_citations,
             "citation_count_pandoc": len(citations_pandoc),
             "citation_count_authoryear": len(set(citations_authoryear)),
+            "dangling_citation_warnings": dangling_citation_warnings,
         }
 
         out = _report_path(root, "synthesis_audit.md")
@@ -517,9 +533,16 @@ def audit_synthesis(
                 "BLOCKERs once total_words ≥ 500. Expand the sections + "
                 "incorporate the workspace figures listed."
             )
-        elif missing_sections or causal_hits or not has_bibliography:
+        elif missing_sections or causal_hits or not has_bibliography or dangling_citation_warnings:
             status = "warning"
-            message = "Synthesis audit produced warnings."
+            message = (
+                "Synthesis audit produced warnings"
+                + (
+                    f" ({len(dangling_citation_warnings)} dangling-citation warning(s))"
+                    if dangling_citation_warnings else ""
+                )
+                + "."
+            )
         else:
             status = "success"
             message = "Synthesis passed audit."

@@ -21,6 +21,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -426,12 +427,19 @@ def search_arxiv(query: str, limit: int = 5) -> list[dict[str, Any]]:
             (a.findtext("atom:name", default="", namespaces=ns) or "")
             for a in entry.findall("atom:author", ns)
         ]
+        # atom:id is the arxiv ABSTRACT page (HTML), not the PDF. Rewrite the
+        # download target to the real /pdf/<id>.pdf so the %PDF magic-byte
+        # gate passes; keep the abstract page in metadata for citation use.
+        abs_url = link
+        m = re.search(r"arxiv\.org/abs/(\S+)$", link, re.I)
+        pdf_url = f"https://arxiv.org/pdf/{m.group(1)}.pdf" if m else link
         results.append(
             {
                 "title": title,
                 "authors": authors,
                 "year": published[:4],
-                "url": link,
+                "url": pdf_url,
+                "abs_url": abs_url,
                 "doi": "",
                 "abstract": summary[:1000],
             }

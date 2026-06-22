@@ -26,6 +26,14 @@ _PERMANENT_REASONS = {
     "permanent_error",
 }
 
+# Verdicts that legitimately apply to the WHOLE DOI (Unpaywall-derived
+# availability), so they should key on the DOI and short-circuit any
+# same-DOI URL. Everything else (permanent_403/404, error, not_a_pdf,
+# download_failed) is URL/host-specific and must key on the full URL —
+# otherwise a transport failure on a publisher landing page would wrongly
+# veto a legitimately different OA-mirror PDF for the same DOI.
+_DOI_SCOPED_REASONS = {"paywall", "no_pdf_found"}
+
 
 def _failures_path(root: Path) -> Path:
     p = root / "workspace" / ".os_state" / "tool_failures.jsonl"
@@ -33,14 +41,21 @@ def _failures_path(root: Path) -> Path:
     return p
 
 
-def _normalise_target(target: str) -> str:
-    """Normalise URL / DOI so cache hits work across casing + trailing slashes."""
+def _normalise_target(target: str, reason: str = "") -> str:
+    """Normalise URL / DOI so cache hits work across casing + trailing slashes.
+
+    For DOI-scoped reasons (see ``_DOI_SCOPED_REASONS``) a URL embedding a
+    DOI collapses to ``doi:<doi>`` so the verdict applies to the whole DOI.
+    For every other (URL/host-specific) reason the full normalised URL is
+    returned so distinct retrievable URLs keep distinct cache identities.
+    """
     if not target:
         return ""
     t = target.strip().rstrip("/").lower()
-    m = re.search(r"(10\.\d{4,9}/[-._;()/:a-z0-9]+)", t)
-    if m:
-        return f"doi:{m.group(1)}"
+    if reason in _DOI_SCOPED_REASONS:
+        m = re.search(r"(10\.\d{4,9}/[-._;()/:a-z0-9]+)", t)
+        if m:
+            return f"doi:{m.group(1)}"
     return t
 
 
@@ -59,7 +74,7 @@ def record_failure(
             "ts": datetime.now(timezone.utc).isoformat(),
             "tool": tool,
             "target": target,
-            "target_key": _normalise_target(target),
+            "target_key": _normalise_target(target, reason),
             "reason": reason,
             "error_text": (error_text or "")[:200],
             "permanent": bool(permanent or reason in _PERMANENT_REASONS),
@@ -92,13 +107,19 @@ def _load_failures(root: Path) -> list[dict[str, Any]]:
 def is_known_bad(root: Path, target: str) -> dict[str, Any]:
     """Return {known_bad, reason, last_attempt_ts} for a URL / DOI."""
     try:
-        key = _normalise_target(target)
-        if not key:
+        # The reader doesn't know the incoming reason, so compute BOTH
+        # candidate key shapes and match either: a DOI-scoped record
+        # (paywall / no_pdf_found) still short-circuits any same-DOI URL,
+        # while a URL-scoped record only short-circuits that exact URL.
+        url_key = _normalise_target(target)  # full-URL form (reason="")
+        doi_key = _normalise_target(target, "paywall")  # DOI-collapsed form
+        candidate_keys = {k for k in (url_key, doi_key) if k}
+        if not candidate_keys:
             return {"known_bad": False}
         records = _load_failures(root)
         permanent_hit = None
         for rec in records:
-            if rec.get("target_key") == key and rec.get("permanent"):
+            if rec.get("target_key") in candidate_keys and rec.get("permanent"):
                 permanent_hit = rec
         if permanent_hit:
             return {
@@ -107,7 +128,7 @@ def is_known_bad(root: Path, target: str) -> dict[str, Any]:
                 "last_attempt_ts": permanent_hit.get("ts"),
                 "tool": permanent_hit.get("tool"),
             }
-        recent = [r for r in records if r.get("target_key") == key]
+        recent = [r for r in records if r.get("target_key") in candidate_keys]
         if len(recent) >= 3:
             return {
                 "known_bad": True,

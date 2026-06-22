@@ -412,6 +412,109 @@ def audit_references_present(text: str, typst: bool = False) -> dict[str, Any]:
     return {"blockers": blockers, "warnings": warnings}
 
 
+# Typst `#cite(<key>)` (and `@key` shorthand, already covered by the shared
+# extractor). The shared extractor handles `@key`, `[@key]`, `\cite{a,b}`.
+_TYPST_CITE_RE = re.compile(r"#cite\(\s*<([\w:.\-]+)>")
+
+
+def _cited_keys(text: str) -> set[str]:
+    """All citation keys referenced in ``text`` across Markdown, LaTeX, and
+    Typst notations. Reuses the robust shared extractor and adds Typst
+    ``#cite(<key>)``.
+    """
+    try:
+        from research_os.tools.actions.audit.cross_deliverable import (
+            _extract_cite_keys,
+        )
+        keys = set(_extract_cite_keys(text))
+    except Exception:
+        keys = set(re.findall(r"@([A-Za-z][\w:.\-]+)", text))
+    keys |= set(_TYPST_CITE_RE.findall(text))
+    return keys
+
+
+def _biblio_defined_keys(root: Path, paper_path: str | None = None) -> set[str] | None:
+    """Top-level keys DEFINED in an external bibliography file.
+
+    Looks for ``synthesis/biblio.yml`` then ``<paper_dir>/biblio.yml`` then
+    ``references.bib`` (synthesis/ + paper dir). Returns the union of keys,
+    or ``None`` when NO external biblio file exists (so callers can fall back
+    to the inline-``## References`` behaviour without false positives).
+    """
+    candidates: list[Path] = []
+    paper_dir = (root / paper_path).parent if paper_path else None
+    for yml in ("synthesis/biblio.yml",):
+        candidates.append(root / yml)
+    if paper_dir:
+        candidates.append(paper_dir / "biblio.yml")
+    bib_candidates: list[Path] = [root / "synthesis" / "references.bib"]
+    if paper_dir:
+        bib_candidates.append(paper_dir / "references.bib")
+
+    found_any = False
+    defined: set[str] = set()
+    for yml in candidates:
+        if yml.is_file():
+            found_any = True
+            try:
+                import yaml as _yaml  # local import; optional dep
+                data = _yaml.safe_load(yml.read_text(encoding="utf-8", errors="replace"))
+                if isinstance(data, dict):
+                    defined |= {str(k) for k in data}
+            except Exception:
+                pass
+    for bib in bib_candidates:
+        if bib.is_file():
+            found_any = True
+            try:
+                txt = bib.read_text(encoding="utf-8", errors="replace")
+                defined |= set(re.findall(r"@\w+\{\s*([^,\s]+)\s*,", txt))
+            except Exception:
+                pass
+    return defined if found_any else None
+
+
+def audit_bibliography_resolution(
+    text: str, root: Path, paper_path: str | None = None
+) -> dict[str, Any]:
+    """Resolve cited keys against the actual bibliography file.
+
+    A cited key with no matching entry in ``biblio.yml`` / ``references.bib``
+    is a dangling (hallucinated / typo'd / lost) citation that points at
+    nothing. The presence-only ``audit_references_present`` check for Typst
+    papers misses this entirely. Reported at WARN severity (additive, never
+    blocking) per the PATCH contract.
+
+    When no external bibliography file exists, returns empty (defer to the
+    inline-``## References`` reconciliation in ``audit_references_present``)
+    so markdown-inline projects are not regressed.
+    """
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not text:
+        return {"blockers": blockers, "warnings": warnings}
+    defined = _biblio_defined_keys(root, paper_path)
+    if not defined:
+        # No external biblio file (or empty) → don't double-report; the
+        # inline reconciliation already covers markdown drafts.
+        return {"blockers": blockers, "warnings": warnings}
+    cited = _cited_keys(text)
+    undefined = sorted(cited - defined)
+    if undefined:
+        warnings.append(
+            f"{len(undefined)} cited key(s) have no bibliography entry "
+            f"(dangling citation): {', '.join(undefined[:5])}"
+            + (f" + {len(undefined) - 5} more" if len(undefined) > 5 else "")
+            + "."
+        )
+    unused = sorted(defined - cited)
+    if unused and len(unused) >= 3:
+        warnings.append(
+            f"{len(unused)} bibliography entry/entries are never cited."
+        )
+    return {"blockers": blockers, "warnings": warnings}
+
+
 # ---------------------------------------------------------------------------
 # Cliché detection (banned phrases + replacement hints)
 # ---------------------------------------------------------------------------
@@ -462,6 +565,7 @@ def section_substantiveness(root: Path, paper_path: str | None = None) -> dict[s
         "results":      audit_results(_section_text(text, "results", typst), root),
         "discussion":   audit_discussion(_section_text(text, "discussion", typst), root, typst),
         "references":   audit_references_present(text, typst),
+        "bibliography": audit_bibliography_resolution(text, root, paper_path),
     }
     cliche = audit_cliches(paper_path, root)
 

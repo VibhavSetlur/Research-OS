@@ -122,3 +122,207 @@ def test_verify_citation_key_requires_author_year_match(monkeypatch):
     assert cit.verify_citation_key("smith2099neural") is None
     # A matching key (mendel 2010) DOES verify.
     assert cit.verify_citation_key("mendel2010peas") == fake_hit[0]
+
+
+# -- B8: %PDF magic-byte check is ANCHORED, not a window scan --------------
+
+
+def test_is_valid_pdf_anchors_after_bom_and_whitespace():
+    from research_os.tools.actions.search.literature import is_valid_pdf
+    r = _root()
+
+    def mk(name: str, data: bytes) -> Path:
+        p = r / name
+        p.write_bytes(data)
+        return p
+
+    # Valid: header at byte 0, after a UTF-8 BOM, after stray whitespace.
+    assert is_valid_pdf(mk("a.pdf", b"%PDF-1.4\nbody")) is True
+    assert is_valid_pdf(mk("b.pdf", b"\xef\xbb\xbf%PDF-1.4")) is True
+    assert is_valid_pdf(mk("c.pdf", b"  \r\n\t%PDF-1.7")) is True
+    # Invalid: an HTML / JSON page that merely CONTAINS "%PDF-" near its
+    # start must be rejected (the old head[:64] window scan accepted these).
+    assert is_valid_pdf(mk("d.pdf", b'<html><script>var x="%PDF-fake";</script></html>')) is False
+    assert is_valid_pdf(mk("e.pdf", b'{"error":"not a %PDF-"}')) is False
+
+
+# -- B6: arxiv abstract URLs are rewritten to the real /pdf/...pdf target --
+
+
+def test_search_arxiv_rewrites_abs_url_to_pdf(monkeypatch):
+    import research_os.tools.actions.search.search as search
+    abs_atom = "http://arxiv.org/abs/2401.12345v1"
+    body = (
+        '<feed xmlns="http://www.w3.org/2005/Atom"><entry>'
+        "<title>Demo</title><summary>S</summary>"
+        f"<id>{abs_atom}</id><published>2024-01-01T00:00:00Z</published>"
+        "<author><name>A. Author</name></author>"
+        "</entry></feed>"
+    ).encode()
+
+    class _Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return body
+
+    monkeypatch.setattr(search, "_read_cache", lambda *a, **k: None)
+    monkeypatch.setattr(search, "_write_cache", lambda *a, **k: None)
+    monkeypatch.setattr(search.urllib.request, "urlopen", lambda *a, **k: _Resp())
+    out = search.search_arxiv("demo", limit=1)
+    assert out, out
+    hit = out[0]
+    # download target is the real PDF; abstract page preserved for metadata.
+    assert hit["url"] == "https://arxiv.org/pdf/2401.12345v1.pdf", hit
+    assert hit["abs_url"] == abs_atom, hit
+
+
+# -- A4: package_install neutralises pip-option injection -----------------
+
+
+def test_package_install_rejects_dash_prefixed_names():
+    from research_os.tools.actions.exec import environment as env
+    res = env.package_install(["--index-url=http://attacker/simple", "requests"])
+    assert res["status"] == "error", res
+    assert "-" in res.get("error", "")  # names beginning with '-' rejected
+
+
+def test_package_install_uses_end_of_options_separator():
+    import research_os.tools.actions.exec.environment as env
+    src = Path(env.__file__).read_text()
+    # The argv must place a '--' end-of-options separator before *packages.
+    assert '"install", "--", *packages' in src
+
+
+# -- A5: cytoscape .cys extractor rejects zip-slip + caps member size -----
+
+
+def test_cytoscape_export_rejects_path_escape():
+    import zipfile
+
+    import research_os_adapter_cytoscape as cy
+    root = _root()
+    (root / "workspace").mkdir()
+    cys = root / "workspace" / "demo.cys"
+    with zipfile.ZipFile(cys, "w") as z:
+        z.writestr(
+            "demo.xgmml",
+            '<graph label="d"><node id="1"/><node id="2"/>'
+            '<edge source="1" target="2"/></graph>',
+        )
+
+    def _msg(envelope) -> str:
+        item = envelope[0] if isinstance(envelope, list) else envelope
+        return getattr(item, "text", str(item))
+
+    # ../ traversal in output_path is rejected.
+    r1 = cy._handle_export_static(
+        "x",
+        {"cys_file": "workspace/demo.cys", "output_path": "../../escape.png"},
+        root,
+    )
+    assert "escapes project root" in _msg(r1)
+    # absolute cys_file outside the project root is rejected.
+    r2 = cy._handle_export_static(
+        "x", {"cys_file": "/etc/passwd", "output_path": "workspace/o.png"}, root
+    )
+    assert "escapes project root" in _msg(r2)
+
+
+def test_cytoscape_safe_zip_read_caps_member_size(monkeypatch):
+    import zipfile
+
+    import research_os_adapter_cytoscape as cy
+    root = _root()
+    z = root / "a.zip"
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("m.txt", b"hello world")
+    monkeypatch.setattr(cy, "_MAX_MEMBER_BYTES", 4)
+    with zipfile.ZipFile(z) as zf:
+        assert cy._safe_zip_read(zf, "m.txt") is None  # over the cap → dropped
+
+
+# -- B7: the "verified" badge reflects real verification, not identifiers --
+
+
+def test_citations_badge_not_verified_from_identifier_alone():
+    yaml = pytest.importorskip("yaml")
+    from research_os.project_ops import generate_citations_md
+    root = _root()
+    idx = root / "inputs" / "literature_index.yaml"
+    idx.parent.mkdir(parents=True, exist_ok=True)
+    idx.write_text(
+        yaml.safe_dump(
+            {
+                "entries": {
+                    "a.pdf": {"citation_key": "hasdoi2024", "title": "X",
+                              "doi": "10.1/a"},
+                    "b.pdf": {"citation_key": "real2024", "title": "Y",
+                              "doi": "10.1/b", "verified": True},
+                }
+            }
+        )
+    )
+    generate_citations_md(root)
+    text = (root / "workspace" / "citations.md").read_text()
+    # An entry that merely has a DOI must NOT read as verified.
+    assert "identifier present, not yet verified" in text
+    # An explicitly-verified entry keeps the ✅ verified badge.
+    assert "✅ verified" in text
+
+
+# -- B4: distinct references sharing a citation key are disambiguated ------
+
+
+def test_citation_key_collision_disambiguated():
+    from research_os.project_ops import _insert_citation_entry
+    entries: dict = {}
+    k1 = _insert_citation_entry(
+        entries, "smith2024", {"title": "Paper A", "doi": "10.1/a"})
+    k2 = _insert_citation_entry(
+        entries, "smith2024", {"title": "Paper B", "doi": "10.1/b"})
+    assert k1 == "smith2024" and k2 == "smith2024a", (k1, k2)
+    assert len(entries) == 2  # neither reference clobbered
+    # The SAME reference seen again is deduped, not re-suffixed.
+    k3 = _insert_citation_entry(
+        entries, "smith2024", {"title": "Paper A", "doi": "10.1/a"})
+    assert k3 == "smith2024" and len(entries) == 2
+
+
+# -- B9: paywall cache key is reason-aware (URL- vs DOI-scoped) ------------
+
+
+def test_paywall_memory_url_scoped_failure_does_not_block_other_url():
+    from research_os.tools.actions.state.paywall_memory import (
+        is_known_bad,
+        record_failure,
+    )
+    root = _root()
+    (root / "workspace" / ".os_state").mkdir(parents=True)
+    pub = "https://publisher.com/doi/full/10.1234/foo"
+    other = "https://mirror.org/article/10.1234/foo"
+    # A URL-scoped 403 blocks only that exact URL.
+    record_failure(root, tool="t", target=pub, reason="permanent_403",
+                   permanent=True)
+    assert is_known_bad(root, pub)["known_bad"] is True
+    assert is_known_bad(root, other).get("known_bad") is False
+
+
+def test_paywall_memory_doi_scoped_failure_still_blocks_same_doi():
+    from research_os.tools.actions.state.paywall_memory import (
+        is_known_bad,
+        record_failure,
+    )
+    root = _root()
+    (root / "workspace" / ".os_state").mkdir(parents=True)
+    pub = "https://publisher.com/doi/full/10.1234/foo"
+    same_doi = "https://doi.org/10.1234/foo"
+    # A paywall verdict (DOI-scoped) blocks any same-DOI URL.
+    record_failure(root, tool="t", target=pub, reason="paywall",
+                   permanent=True)
+    assert is_known_bad(root, pub)["known_bad"] is True
+    assert is_known_bad(root, same_doi)["known_bad"] is True
