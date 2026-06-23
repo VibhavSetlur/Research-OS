@@ -15,6 +15,9 @@ Read-only endpoints (no auth beyond the 127.0.0.1 bind):
   GET  /v1/orient          "standup": narrative of where the project is +
                            ONE recommended next action (field + run journal
                            + staleness synthesis; ?root=, ?limit=)
+  GET  /v1/workflows       detect Snakemake/Nextflow pipelines + preview
+                           the planned DAG via a read-only dry-run when the
+                           engine is installed (?root=, ?introspect=false)
   GET  /v1/lineage         content-addressed run dependency graph (?run_id=)
   GET  /v1/staleness       freshness verdict over the lineage DAG
   GET  /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
@@ -329,6 +332,24 @@ def build_app(daemon: "Daemon"):
             )
         return JSONResponse(payload)
 
+    async def get_workflows(request):
+        # Pipeline DAG awareness (JUDGE-7): detect Snakemake/Nextflow
+        # definitions under the root and, when the engine is installed,
+        # preview the planned steps via a read-only dry-run. ?root=
+        # overrides; ?introspect=false skips the dry-run (detection only).
+        from . import workflows as _wf
+
+        root_q = request.query_params.get("root")
+        root = root_q or getattr(daemon, "root", None)
+        introspect = request.query_params.get("introspect", "true") != "false"
+        try:
+            payload = _wf.survey_workflows(root, introspect=introspect)
+        except Exception as exc:  # noqa: BLE001 - introspection must never 500
+            return JSONResponse(
+                {"service": "research-os", "available": False, "error": str(exc)}
+            )
+        return JSONResponse(payload)
+
     def _runstore_or_none(request):
         # Resolve the runstore for an optional ?root= override, else the
         # daemon's own runstore. Returns (runstore, error_response|None).
@@ -514,6 +535,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/domain", get_domain, methods=["GET"]),
         Route("/v1/capabilities", get_capabilities, methods=["GET"]),
         Route("/v1/orient", get_orient, methods=["GET"]),
+        Route("/v1/workflows", get_workflows, methods=["GET"]),
         Route("/v1/lineage", get_lineage, methods=["GET"]),
         Route("/v1/staleness", get_staleness, methods=["GET"]),
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),

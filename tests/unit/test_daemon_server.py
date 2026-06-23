@@ -73,6 +73,16 @@ def test_orient_endpoint(client):
     assert body["recommended_next_action"]["action"]
 
 
+def test_workflows_endpoint(client):
+    c, _ = client
+    r = c.get("/v1/workflows")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["service"] == "research-os"
+    assert "detected" in body
+    assert isinstance(body["workflows"], list)
+
+
 def test_capabilities_endpoint(client):
     c, _ = client
     r = c.get("/v1/capabilities")

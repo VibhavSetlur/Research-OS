@@ -852,3 +852,50 @@ The daemon now offers a clean arc for any caller: **discover**
 (streaming gateway). That is the shape of a localhost research brain any
 agent can walk up to cold and be productive in three calls.
 
+### Phase log: 2.4 (2026-06-23) — /v1/workflows, pipeline DAG awareness
+
+**Problem (JUDGE-7).** Real computational research is rarely one command;
+it is a *pipeline* — a DAG of steps with file dependencies, driven by
+Snakemake or Nextflow. The universal `SubprocessRunner` (runners.py) can
+already *execute* `snakemake`/`nextflow` as ordinary commands, so the gap
+was never execution. It was **awareness**: before launching a pipeline, a
+researcher (or an agent driving the project) wants to know *what steps
+exist and what would run* — the same read-only "show me the plan" insight
+the daemon already gives for rebuilds (staleness), capabilities, and
+orientation. A pipeline you can run but not inspect is a black box.
+
+**Decision — detect always, introspect when possible.** New pure module
+`daemon/workflows.py`, two read-only layers:
+
+* `detect_workflows(root)` — filesystem-only. Finds `Snakefile`,
+  `workflow/Snakefile`, `*.smk` (snakemake) and `main.nf`, `*.nf`,
+  `nextflow.config` (nextflow), deduped by resolved path. Always works,
+  even with no engine installed — and on a login node / shared host
+  (this one included) the engines usually aren't.
+* `introspect_workflow(root, engine, path)` — probes the driving binary;
+  if present, runs the engine's native dry-run (`snakemake -n -q` /
+  `nextflow run … -preview`, 30s cap) and parses the planned step list
+  (rule/checkpoint names for snakemake, `process > NAME` for nextflow).
+  If the binary is absent, degrades to detection-only with a clear,
+  actionable install note. Never raises, never 500s, never blocks.
+
+`survey_workflows(root, introspect=…)` ties them together for
+`GET /v1/workflows` (`?root=` overrides, `?introspect=false` skips the
+dry-run for a cheap detection-only read). Best-effort throughout;
+`build`-invariant clean (zero top-level reasoning imports, AST-verified).
+
+This mirrors the SLURM decision (schedulers.py): the same graceful-degrade
+posture that keeps Research-OS honest on a host with no Docker and no
+`sbatch` now extends to no `snakemake` / no `nextflow` — it tells you
+exactly what it found and exactly what it would need to show you more,
+rather than pretending or crashing.
+
+**Tested** (12 new): `test_daemon_workflows.py` (11) covers detection of
+both engines, `*.smk` glob, path dedup, empty/missing root, both step
+parsers against captured dry-run samples, the engine-absent degrade path,
+that detection-only never shells out, JSON-serializability, and
+never-raises; `test_daemon_server.py` (+1) covers the live endpoint.
+Verified live against a throwaway Snakefile (detected, degraded with the
+correct install hint since snakemake is absent here). daemon slice 187
+pass; ruff + preflight 34/34 green.
+
