@@ -557,6 +557,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon logs ID  show a run's details + output")
         print("  research-os daemon reproduce ID  re-run + verify outputs match")
         print("  research-os daemon submit SCRIPT  submit to HPC scheduler (SLURM)")
+        print("  research-os daemon diff A B  compare two runs (cmd/context/outputs)")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -613,6 +614,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     if sub == "submit":
         return _daemon_submit(daemon, args)
 
+    if sub == "diff":
+        return _daemon_diff(daemon, args)
+
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
 
@@ -635,10 +639,29 @@ def _daemon_run(daemon, args) -> int:
 
     daemon.tasks.start()
     daemon._start_journal()
+
+    # Decide shell vs argv. A single token carrying shell metacharacters
+    # (pipes, redirects, &&, globs, env-var refs) is what a researcher
+    # means by "run this command line" — exec'ing it as one argv would
+    # look for a file literally named "python x.py | tee log". Pass such a
+    # command to the shell. Explicit --shell forces it; multi-token argv
+    # (the `-- python analyze.py` form) stays exec-style.
+    _SHELL_META = set("|&;<>()$`*?[]{}~#")
+    force_shell = getattr(args, "force_shell", False)
+    use_shell = force_shell
+    cmd_arg: "str | list[str]" = cmd
+    if len(cmd) == 1 and (force_shell or (_SHELL_META & set(cmd[0]))):
+        cmd_arg = cmd[0]
+        use_shell = True
+    elif force_shell:
+        # Explicit --shell on a multi-token command: join into one line.
+        cmd_arg = " ".join(cmd)
+
     jid = daemon.run_command(
-        cmd,
+        cmd_arg,
         name=getattr(args, "name", None),
         cwd=getattr(args, "cwd", None),
+        shell=use_shell,
         track_artifacts=not getattr(args, "no_artifacts", False),
     )
 
@@ -876,6 +899,79 @@ def _daemon_submit(daemon, args) -> int:
         print(f"  scheduler job:   {scheduler_job_id}")
     print(f"  the daemon is now tracking it — 'daemon runs' / 'daemon logs {jid}'")
     return 0
+
+
+def _daemon_diff(daemon, args) -> int:
+    """Compare two recorded runs across command, context, and outputs."""
+    from research_os.daemon import compare as _compare
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+    ma = daemon.runstore.read_manifest(args.run_a)
+    mb = daemon.runstore.read_manifest(args.run_b)
+    if ma is None:
+        print(f"  {_warn_glyph()}  No run found: {args.run_a}")
+        return 1
+    if mb is None:
+        print(f"  {_warn_glyph()}  No run found: {args.run_b}")
+        return 1
+
+    report = _compare.compare_runs(ma, mb)
+    if getattr(args, "as_json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report["same"] else 1
+
+    a_id, b_id = report["ids"]["a"], report["ids"]["b"]
+    print(f"  diff  {a_id}  ->  {b_id}")
+    st = report["status"]
+    print(f"  status:  {st['a']}  ->  {st['b']}")
+
+    if report["same"]:
+        print("  ✓  identical: same command, same context, same outputs")
+        return 0
+
+    cmd = report["command"]
+    if cmd["changed"]:
+        print("  command changed:")
+        for field, ab in cmd["fields"].items():
+            print(f"    {field}:")
+            print(f"      a: {ab['a']}")
+            print(f"      b: {ab['b']}")
+    else:
+        print("  command: (unchanged)")
+
+    ctx = report["context"]
+    if ctx["changed"]:
+        print("  context changed:")
+        for field, ab in ctx["fields"].items():
+            if field in ("inputs", "packages"):
+                print(f"    {field}:")
+                for name, sub in ab.items():
+                    print(f"      {name}:  {sub['a']}  ->  {sub['b']}")
+            else:
+                print(f"    {field}:  {ab['a']}  ->  {ab['b']}")
+    else:
+        print("  context: (unchanged — same git commit + env)")
+
+    out = report["outputs"]
+    oc = out["counts"]
+    if out["changed"] or out["missing"] or out["added"]:
+        print("  outputs changed:")
+        for c in out["changed"]:
+            ra = (c.get("recorded_sha256") or "?")[:10]
+            fa = (c.get("fresh_sha256") or "?")[:10]
+            print(f"    ~ {c['path']}  {ra} -> {fa}")
+        for p in out["missing"]:
+            print(f"    - {p}  (in {a_id[:8]}, not in {b_id[:8]})")
+        for p in out["added"]:
+            print(f"    + {p}  (new in {b_id[:8]})")
+        print(f"    ({oc['matched']} identical, {oc['changed']} changed, "
+              f"{oc['missing']} removed, {oc['added']} added)")
+    else:
+        print(f"  outputs: (unchanged — {oc['matched']} artifacts identical)")
+
+    return 1
 
 
 def _print_daemon_status(status) -> None:
@@ -2167,6 +2263,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Working directory for the command (default: workspace root).")
     pd_run.add_argument("--no-artifacts", dest="no_artifacts", action="store_true",
                         help="Skip output-artifact detection for this run.")
+    pd_run.add_argument("--shell", dest="force_shell", action="store_true",
+                        help="Run the command through a shell (enables pipes, "
+                             "redirects, &&). Auto-detected for single-string "
+                             "commands containing shell metacharacters.")
     pd_run.add_argument("--json", dest="as_json", action="store_true",
                         help="Emit the run manifest as JSON on completion.")
     pd_run.add_argument("cmd", nargs=argparse.REMAINDER,
@@ -2227,6 +2327,18 @@ def build_parser() -> argparse.ArgumentParser:
                            help="Scheduler poll interval in seconds (default: 5).")
     pd_submit.add_argument("--json", dest="as_json", action="store_true",
                            help="Emit the submitted job id as JSON.")
+
+    # diff: compare two recorded runs (the experiment diff).
+    pd_diff = daemon_sub.add_parser(
+        "diff",
+        help="Compare two recorded runs: command, context (git/env), outputs.",
+    )
+    pd_diff.add_argument("run_a", help="Baseline run id.")
+    pd_diff.add_argument("run_b", help="New run id to compare against the baseline.")
+    pd_diff.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_diff.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit the full diff report as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from .artifacts import diff as artifacts_diff
 from .artifacts import snapshot as artifacts_snapshot
+from .compare import compare_runs
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
 from .events import Event, EventBus
@@ -56,6 +57,7 @@ __all__ = [
     "artifacts_snapshot",
     "artifacts_diff",
     "compare_artifacts",
+    "compare_runs",
     "SchedulerRunner",
     "SchedulerResult",
     "SlurmAdapter",
