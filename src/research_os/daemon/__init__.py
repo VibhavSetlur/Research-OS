@@ -34,6 +34,7 @@ from .registry import Workspace, WorkspaceRegistry
 from .reproduce import compare_artifacts
 from .runners import RunResult, SubprocessRunner
 from .runstore import RunJournal, RunStore, build_manifest
+from .schedulers import SchedulerResult, SchedulerRunner, SlurmAdapter, get_adapter
 from .tasks import Job, JobStatus, TaskQueue
 
 __all__ = [
@@ -55,4 +56,8 @@ __all__ = [
     "artifacts_snapshot",
     "artifacts_diff",
     "compare_artifacts",
+    "SchedulerRunner",
+    "SchedulerResult",
+    "SlurmAdapter",
+    "get_adapter",
 ]

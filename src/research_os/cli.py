@@ -556,6 +556,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon runs     list recorded runs (durable history)")
         print("  research-os daemon logs ID  show a run's details + output")
         print("  research-os daemon reproduce ID  re-run + verify outputs match")
+        print("  research-os daemon submit SCRIPT  submit to HPC scheduler (SLURM)")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -608,6 +609,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "reproduce":
         return _daemon_reproduce(daemon, args)
+
+    if sub == "submit":
+        return _daemon_submit(daemon, args)
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -806,6 +810,72 @@ def _daemon_reproduce(daemon, args) -> int:
     }.get(verdict, verdict)
     print(f"  {glyph} {label}")
     return 0 if verdict == _repro.REPRODUCED else 1
+
+
+def _daemon_submit(daemon, args) -> int:
+    """Submit a job to an HPC scheduler and report the handle.
+
+    Non-blocking: the cluster job may run for hours. We wait only long
+    enough to confirm the submission itself succeeded (or failed cleanly),
+    then print the daemon job id + scheduler job id and return — the daemon
+    worker owns the poll-wait, and 'daemon runs/logs' track it from there.
+    """
+    import time as _time
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — cannot record a submission.")
+        return 2
+    daemon.tasks.start()
+    daemon._start_journal()
+    jid = daemon.submit_job(
+        args.script,
+        scheduler=getattr(args, "scheduler", "slurm"),
+        name=getattr(args, "name", None),
+        cwd=getattr(args, "cwd", None),
+        poll_interval=getattr(args, "poll", 5.0),
+    )
+
+    # Briefly poll the job to surface an immediate submission failure (bad
+    # scheduler, sbatch error) without blocking on the cluster run itself.
+    scheduler_job_id = None
+    submit_error = None
+    deadline = _time.time() + 8.0
+    while _time.time() < deadline:
+        job = daemon.tasks.get(jid)
+        if job is None:
+            break
+        res = job.result if isinstance(job.result, dict) else {}
+        if res.get("scheduler_job_id"):
+            scheduler_job_id = res["scheduler_job_id"]
+            break
+        if job.status.value == "failed" or res.get("error"):
+            submit_error = res.get("error") or job.error
+            break
+        # A terminal status with no scheduler id but no error = very fast job.
+        if job.status.value in ("succeeded", "cancelled"):
+            scheduler_job_id = res.get("scheduler_job_id")
+            break
+        _time.sleep(0.25)
+
+    if getattr(args, "as_json", False):
+        print(json.dumps({
+            "job_id": jid,
+            "scheduler": getattr(args, "scheduler", "slurm"),
+            "scheduler_job_id": scheduler_job_id,
+            "error": submit_error,
+        }, default=str))
+        return 1 if submit_error else 0
+
+    if submit_error:
+        print(f"  {_warn_glyph()}  submission failed: {submit_error}")
+        print(f"  daemon run id: {jid}  (see 'daemon logs {jid}')")
+        return 1
+    print(f"  submitted to {getattr(args, 'scheduler', 'slurm')}")
+    print(f"  daemon run id:   {jid}")
+    if scheduler_job_id:
+        print(f"  scheduler job:   {scheduler_job_id}")
+    print(f"  the daemon is now tracking it — 'daemon runs' / 'daemon logs {jid}'")
+    return 0
 
 
 def _print_daemon_status(status) -> None:
@@ -2138,6 +2208,25 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Max seconds to wait for the re-run (0 = no limit).")
     pd_repro.add_argument("--json", dest="as_json", action="store_true",
                           help="Emit the full reproduction report as JSON.")
+
+    # submit: hand a job to an HPC scheduler (SLURM, …).
+    pd_submit = daemon_sub.add_parser(
+        "submit",
+        help="Submit a job to an HPC scheduler (SLURM) with full provenance.",
+    )
+    pd_submit.add_argument("script",
+                           help="Batch script path, or inline command string.")
+    pd_submit.add_argument("--scheduler", default="slurm",
+                           help="Scheduler backend (default: slurm).")
+    pd_submit.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_submit.add_argument("--cwd", default=None,
+                           help="Working directory for the job (default: workspace).")
+    pd_submit.add_argument("--name", default=None, help="Human-friendly job name.")
+    pd_submit.add_argument("--poll", default=5.0, type=float,
+                           help="Scheduler poll interval in seconds (default: 5).")
+    pd_submit.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit the submitted job id as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

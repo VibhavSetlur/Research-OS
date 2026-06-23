@@ -228,6 +228,71 @@ class Daemon:
             provenance=prov,
         )
 
+    def submit_job(
+        self,
+        script: str,
+        *,
+        scheduler: str = "slurm",
+        name: str | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+        root: str | None = None,
+        inputs: "list[str] | None" = None,
+        track_packages: "list[str] | None" = None,
+        track_artifacts: bool = True,
+        poll_interval: float = 5.0,
+    ) -> str:
+        """Submit a job to an HPC scheduler (SLURM, …) as a background run.
+
+        This is the "HPC-native" entry point (JUDGE-6): ``script`` is either
+        a batch script path or an inline command. It is submitted via the
+        scheduler adapter (``sbatch``), and a daemon worker thread owns the
+        wait — polling the scheduler until the cluster job is terminal and
+        streaming each state transition as a ``job.log`` event. Returns the
+        daemon job id immediately; the scheduler's own job id appears in the
+        run's result + journal once submitted.
+
+        Same provenance + artifact capture as run_command, so scheduler jobs
+        get the full journal/reproduce treatment. ``submit_job`` does NOT
+        block: the cluster job may run for hours.
+        """
+        from . import provenance as _prov
+        from .schedulers import SchedulerRunner
+
+        effective_cwd = cwd or (str(self.root) if self.root else None)
+        effective_root = root or (str(self.root) if self.root else None)
+        runner = SchedulerRunner(
+            script,
+            scheduler=scheduler,
+            cwd=effective_cwd,
+            env=env,
+            poll_interval=poll_interval,
+            track_artifacts=track_artifacts,
+        )
+        job_name = name or f"{scheduler}:{script}"
+        prov = _prov.capture(
+            effective_root or effective_cwd or ".",
+            inputs=inputs,
+            packages=track_packages,
+        )
+        spec = {
+            "cmd": [script],
+            "script": script,
+            "scheduler": scheduler,
+            "cwd": effective_cwd,
+            "shell": False,
+            "env_overrides": sorted(env.keys()) if env else [],
+        }
+        self._start_journal()
+        return self.tasks.submit(
+            runner,
+            name=job_name[:120],
+            root=effective_root,
+            kind="scheduler",
+            spec=spec,
+            provenance=prov,
+        )
+
     # ── run journal (durable, Phase 1.7) ──────────────────────────────
     def _start_journal(self) -> None:
         """Begin persisting runs to the durable journal off the event bus.
