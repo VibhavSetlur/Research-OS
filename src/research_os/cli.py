@@ -1078,16 +1078,8 @@ def _daemon_stale(daemon, args) -> int:
     manifests = daemon.runstore.recent_manifests(limit=getattr(args, "limit", 200))
 
     # Resolve input paths relative to the workspace root, then hash current
-    # on-disk state. Injected so staleness logic stays pure/testable.
-    root = getattr(daemon, "root", None)
-
-    def hash_file(path: str) -> "str | None":
-        import os
-        p = path if os.path.isabs(path) else os.path.join(root or ".", path)
-        try:
-            return _prov.hash_file(p)
-        except Exception:
-            return None
+    # on-disk state. Shared helper so CLI + /v1/staleness never diverge.
+    hash_file = _prov.hash_fn_for_root(getattr(daemon, "root", None))
 
     report = _stale.assess(manifests, hash_file)
     as_json = getattr(args, "as_json", False)

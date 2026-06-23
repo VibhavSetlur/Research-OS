@@ -92,3 +92,102 @@ def test_require_web_stack_message():
     from research_os.daemon.server import _INSTALL_HINT
 
     assert "research-os[daemon]" in _INSTALL_HINT
+
+
+# ── lineage / staleness / rebuild-plan endpoints (Phase 1.17) ─────────
+@pytest.fixture
+def chain_client(tmp_path):
+    """A daemon whose journal holds a real 2-run chain A -> B.
+
+    A produces model.txt (hash H1); B records model.txt (H1) as an input
+    and produces result.txt. The content-addressed link falls out of the
+    matching hash, exactly as in production.
+    """
+    from research_os.daemon.runstore import build_manifest
+
+    (tmp_path / ".os_state").mkdir()
+    daemon = Daemon.for_root(tmp_path)
+    store = daemon.runstore
+    assert store is not None
+
+    h1 = "sha256:" + "a" * 64  # A's output == B's input
+    a = build_manifest(
+        run_id="aaaa1111", name="buildA", kind="subprocess",
+        status="succeeded", root=str(tmp_path),
+        provenance={"inputs": {"data.csv": "sha256:" + "d" * 64}},
+        artifacts=[{"path": "model.txt", "sha256": h1, "change": "created"}],
+        submitted_at=100.0,
+    )
+    b = build_manifest(
+        run_id="bbbb2222", name="buildB", kind="subprocess",
+        status="succeeded", root=str(tmp_path),
+        provenance={"inputs": {"model.txt": h1}},
+        artifacts=[{"path": "result.txt",
+                    "sha256": "sha256:" + "c" * 64, "change": "created"}],
+        submitted_at=200.0,
+    )
+    store.write_manifest("aaaa1111", a)
+    store.write_manifest("bbbb2222", b)
+    return TestClient(build_app(daemon)), daemon, tmp_path
+
+
+def test_lineage_endpoint_builds_graph(chain_client):
+    c, _, _ = chain_client
+    r = c.get("/v1/lineage")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["counts"]["runs"] == 2
+    assert body["counts"]["edges"] == 1
+    assert body["counts"]["linked"] == 2
+
+
+def test_lineage_focus_returns_ancestors(chain_client):
+    c, _, _ = chain_client
+    r = c.get("/v1/lineage", params={"run_id": "bbbb2222"})
+    assert r.status_code == 200
+    focus = r.json()["focus"]
+    assert focus["run_id"] == "bbbb2222"
+    assert "aaaa1111" in focus["ancestors"]
+
+
+def test_staleness_endpoint_flags_changed_input(chain_client):
+    c, _, tmp_path = chain_client
+    # data.csv doesn't exist on disk -> A is input-stale (recorded hash,
+    # missing file) -> B is transitive-stale.
+    r = c.get("/v1/staleness")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["counts"]["total"] == 2
+    assert set(body["stale"]) == {"aaaa1111", "bbbb2222"}
+
+
+def test_rebuild_plan_orders_producers_first(chain_client):
+    c, _, _ = chain_client
+    r = c.get("/v1/rebuild/plan")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    # producer (A) must precede consumer (B).
+    assert body["plan"] == ["aaaa1111", "bbbb2222"]
+    assert body["counts"]["planned"] == 2
+    assert "dry-run" in body["note"]
+
+
+def test_lineage_bad_limit_is_400(chain_client):
+    c, _, _ = chain_client
+    r = c.get("/v1/lineage", params={"limit": "xyz"})
+    assert r.status_code == 400
+
+
+def test_endpoints_unavailable_without_runstore(tmp_path):
+    # A daemon with no resolved root has no runstore -> graceful "available: False".
+    daemon = Daemon.for_root(None)
+    if daemon.runstore is not None:
+        pytest.skip("daemon resolved a runstore; not the no-root case")
+    c = TestClient(build_app(daemon))
+    for path in ("/v1/lineage", "/v1/staleness", "/v1/rebuild/plan"):
+        body = c.get(path).json()
+        assert body["available"] is False
+

@@ -11,6 +11,9 @@ Phase 1 endpoints are READ ONLY — no mutation, no auth beyond the
   GET /v1/state           multi-root state snapshot (all registered roots)
   GET /v1/state/{...}     not yet — single-root lookup arrives with auth
   GET /v1/domain          detected research field + field-aware defaults
+  GET /v1/lineage         content-addressed run dependency graph (?run_id=)
+  GET /v1/staleness       freshness verdict over the lineage DAG
+  GET /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
   GET /v1/jobs            background task queue snapshot
   GET /v1/jobs/{job_id}   one job
 
@@ -218,10 +221,118 @@ def build_app(daemon: "Daemon"):
         out["available"] = True
         return JSONResponse(out)
 
+    def _runstore_or_none(request):
+        # Resolve the runstore for an optional ?root= override, else the
+        # daemon's own runstore. Returns (runstore, error_response|None).
+        root_q = request.query_params.get("root")
+        if root_q:
+            ws = daemon.registry.get(root_q) or daemon.registry.register(root_q)
+            store = getattr(ws, "runstore", None)
+        else:
+            store = daemon.runstore
+        return store
+
+    def _limit_param(request, default=200):
+        raw = request.query_params.get("limit")
+        if raw is None:
+            return default, None
+        try:
+            return max(0, int(raw)), None
+        except ValueError:
+            return None, JSONResponse(
+                {"error": "limit must be an integer"}, status_code=400
+            )
+
+    async def get_lineage(request):
+        # The content-addressed run dependency graph (who fed whom).
+        from .lineage import ancestors, build_lineage, descendants
+
+        store = _runstore_or_none(request)
+        if store is None:
+            return JSONResponse({"available": False,
+                                 "error": "no run journal for this root"})
+        limit, err = _limit_param(request)
+        if err is not None:
+            return err
+        manifests = store.recent_manifests(limit=limit or 200)
+        graph = build_lineage(manifests)
+        # Optional focus on one run's up/downstream cone.
+        rid = request.query_params.get("run_id")
+        if rid:
+            graph = dict(graph)
+            graph["focus"] = {
+                "run_id": rid,
+                "ancestors": sorted(ancestors(graph, rid)),
+                "descendants": sorted(descendants(graph, rid)),
+            }
+        graph["available"] = True
+        return JSONResponse(graph)
+
+    async def get_staleness(request):
+        # Freshness verdict over the lineage DAG — which results were built
+        # from inputs that have since changed on disk.
+        from . import provenance as _prov
+        from . import staleness as _stale
+
+        store = _runstore_or_none(request)
+        if store is None:
+            return JSONResponse({"available": False,
+                                 "error": "no run journal for this root"})
+        limit, err = _limit_param(request)
+        if err is not None:
+            return err
+        manifests = store.recent_manifests(limit=limit or 200)
+        # Resolve hashes against the right root (override or daemon root).
+        root_q = request.query_params.get("root")
+        root = root_q or getattr(daemon, "root", None)
+        hash_file = _prov.hash_fn_for_root(root)
+        report = _stale.assess(manifests, hash_file)
+        report["available"] = True
+        return JSONResponse(report)
+
+    async def get_rebuild_plan(request):
+        # The plan only — what WOULD be rebuilt, in dependency order.
+        # Read-only by design: actual rebuild is a mutation and stays on
+        # the CLI / a future authenticated POST.
+        if daemon.runstore is None and not request.query_params.get("root"):
+            return JSONResponse({"available": False,
+                                 "error": "no run journal resolved"})
+        store = _runstore_or_none(request)
+        if store is None:
+            return JSONResponse({"available": False,
+                                 "error": "no run journal for this root"})
+        limit, err = _limit_param(request)
+        if err is not None:
+            return err
+        from . import provenance as _prov
+        from . import staleness as _stale
+        from .lineage import build_lineage, topo_order
+
+        manifests = store.recent_manifests(limit=limit or 200)
+        root_q = request.query_params.get("root")
+        root = root_q or getattr(daemon, "root", None)
+        hash_file = _prov.hash_fn_for_root(root)
+        report = _stale.assess(manifests, hash_file)
+        stale_ids = set(report["stale"])
+        if stale_ids:
+            graph = build_lineage(manifests)
+            plan = topo_order(graph, stale_ids)
+        else:
+            plan = []
+        return JSONResponse({
+            "available": True,
+            "plan": plan,
+            "counts": {"stale": len(stale_ids), "planned": len(plan)},
+            "note": "dry-run only; POST rebuild requires auth (not yet enabled)",
+        })
+
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
         Route("/v1/domain", get_domain, methods=["GET"]),
+        Route("/v1/lineage", get_lineage, methods=["GET"]),
+        Route("/v1/staleness", get_staleness, methods=["GET"]),
+        Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),
         Route("/v1/jobs", get_jobs, methods=["GET"]),
         Route("/v1/jobs/{job_id}", get_job, methods=["GET"]),
         Route("/v1/runs", get_runs, methods=["GET"]),

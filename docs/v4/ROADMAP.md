@@ -599,3 +599,49 @@ complement to the run-lifecycle work, which made it smarter about *what
 it runs*. Next: the read-only HTTP surface for lineage/staleness so the
 dashboard can render both the provenance DAG and the project's field.
 
+### Phase log: 1.17 (2026-06-23) — read-only HTTP surface for lineage / staleness / rebuild-plan
+
+**Problem.** The run-lifecycle correctness loop (lineage → stale →
+rebuild, Phases 1.13–1.15) was CLI-only. The daemon already served
+`/v1/state`, `/v1/runs`, `/v1/domain` — but the provenance DAG and the
+freshness verdict, the most *visual* data in the system, had no
+transport. The dashboard (Phase 5) and the gateway's context injection
+(Phase 2) both need them.
+
+**Decision — expose the SAME pure functions over HTTP, read-only.**
+Added three GET endpoints to `daemon/server.py`, each a thin wrapper over
+the existing pure logic (no new computation, no duplicated rules):
+
+* `GET /v1/lineage` — the content-addressed dependency graph
+  (`lineage.build_lineage`). `?run_id=` adds a `focus` block with that
+  run's ancestors + descendants.
+* `GET /v1/staleness` — the freshness verdict (`staleness.assess`): which
+  results were built from inputs that have since changed on disk, with
+  transitive propagation down the DAG.
+* `GET /v1/rebuild/plan` — what a rebuild WOULD re-run, ordered
+  producers-first (`lineage.topo_order` over the stale set). **Dry-run
+  only by design** — the actual rebuild is a mutation and stays on the
+  CLI / a future authenticated POST. The response says so explicitly.
+
+All three accept an optional `?root=` override (multi-project daemon) and
+a validated `?limit=` (400 on garbage), and degrade gracefully to
+`{"available": false}` when no run journal is resolved — never a 500.
+
+* **DRY refactor.** Extracted `provenance.hash_fn_for_root(root)` — the
+  single source of truth for resolving a recorded (possibly relative)
+  input path against the project root before re-hashing on-disk state.
+  Both `daemon stale` (CLI) and `/v1/staleness` now share it, so their
+  verdicts can never drift apart. CLI output verified byte-identical
+  after the swap.
+* **Tested** (`tests/unit/test_daemon_server.py`, +6 cases over a real
+  2-run A→B chain built via `build_manifest`): graph counts, focus
+  ancestors, staleness flagging (missing input → A input-stale → B
+  transitive-stale), producers-first plan ordering, bad-limit 400, and
+  the no-runstore `available:false` path. Verified e2e against a live
+  mutated workspace via Starlette TestClient.
+
+The reasoning layer still never imports the daemon (preflight invariant
+green). Next BUILD candidate: Phase 2 — the OpenAI-compat
+`/v1/chat/completions` gateway, the big AI-integration win, which can now
+inject domain + lineage + freshness context into every conversation.
+

@@ -122,6 +122,31 @@ def hash_inputs(paths: Sequence[str | Path] | None) -> dict:
     return out
 
 
+def hash_fn_for_root(root: str | Path | None):
+    """Return a ``hash_file(path) -> 'sha256:...' | None`` closure that
+    resolves relative paths against ``root`` before hashing current
+    on-disk state.
+
+    This is the single source of truth for how a recorded input path
+    (which may be relative to the project root) gets re-hashed during a
+    freshness check. Both the CLI (`daemon stale`) and the HTTP surface
+    (`/v1/staleness`) use it so their verdicts can never drift apart.
+    Never raises — unreadable / missing files return None.
+    """
+    import os
+
+    base = str(root) if root else "."
+
+    def _hash(path: str) -> str | None:
+        try:
+            p = path if os.path.isabs(path) else os.path.join(base, path)
+            return hash_file(p)
+        except Exception:  # noqa: BLE001 - a freshness probe must never raise
+            return None
+
+    return _hash
+
+
 def capture(
     root: str | Path,
     *,
