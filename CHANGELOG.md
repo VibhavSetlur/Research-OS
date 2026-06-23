@@ -6,6 +6,70 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [3.12.0] — workspace mode parity + the borrow-it-or-build-it arc (2026-06-23)
+
+A MINOR release. Additive and backwards-compatible — no tools or
+protocols removed, no input schemas changed. Existing projects keep
+working untouched; new structure simply appears.
+
+The theme is **design depth for every workspace mode, not just
+analysis.** Until now `analysis` mode carried a full reasoning
+scaffold (plan → run → synthesize) while `notebook`, `multi_study`,
+`hybrid`, and `tool_build` leaned on a single generic protocol each.
+This release brings the non-analysis modes up to the same standard,
+and adds a dedicated research-engineering arc for adopting external
+methods, papers, and libraries the right way.
+
+### Added
+
+- **Notebook mode lifecycle (3 protocols)** — `notebook_reproduce`,
+  `notebook_promote`, `notebook_synthesize`: reproduce a notebook
+  cleanly, graduate a notebook cell into a real analysis step, and
+  synthesize findings across notebooks.
+- **Multi-study / program mode (3 protocols)** — `study_register`,
+  `cross_study_synthesis`, `codebook_governance`: register a study
+  into a program, synthesize across studies without double-counting,
+  and govern the shared codebook.
+- **Hybrid mode (2 protocols)** — `hybrid_workflow` (the home loop
+  for projects that are BOTH a tool and the research done with it)
+  and `tool_to_analysis_handoff` (the pivot between building and
+  using).
+- **The "borrow it or build it" arc (3 protocols)** —
+  `method_scouting` → `integration_spike` → `dependency_integration`:
+  scout external methods / papers / code for a capability gap, prove
+  a candidate works in a throwaway spike (with the exact version
+  pinned, the environment snapshotted, and the test input hashed
+  before any decision), then promote only what cleared the bar into
+  the real build behind a seam — with provenance carried forward, a
+  version-change re-proof policy, and a rollback checkpoint at the
+  integration boundary.
+- **`package_and_publish`** — the distribution step that closes the
+  build arc (decide registry → complete metadata + licence → verify a
+  clean-environment install → gate the irreversible publish).
+- **`hybrid` is now a first-class routing mode** with its own
+  `MODE_ROUTING` entry, biasing its native sub-intents instead of
+  falling through to the neutral analysis baseline.
+
+### Improved
+
+- Hybrid workspace layout now scaffolds a lazy inner `tool/` repo
+  home so the tool half and the analysis half have clear places to
+  live.
+- `sys_help` modes topic + routing-effect copy rewritten so every
+  mode's bias is described accurately (only `analysis` is the neutral
+  baseline now).
+- Build protocols are cross-linked into the integration arc:
+  `spec_and_design`, `implement_iteration`, and `hybrid_workflow` all
+  branch into `method_scouting` when a capability gap should be
+  scouted rather than reinvented.
+
+### Bumped
+
+- Router index `version: 36 → 37`; embeddings + route sidecar rebuilt
+  (178 protocols).
+
+---
+
 ## [3.11.1] — documentation accuracy + worked-scenarios pass (2026-06-22)
 
 A PATCH release. Docs-only — no code, tool, or protocol behaviour

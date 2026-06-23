@@ -153,7 +153,8 @@ MODE_ROUTING: dict[str, _ModeRouting] = {
     "tool_build": _ModeRouting(
         sub_intents=frozenset({
             "build_spec", "build_implement", "build_test",
-            "build_benchmark", "build_release",
+            "build_benchmark", "build_release", "build_publish",
+            "build_scout", "build_spike", "build_integrate",
         }),
         boost=_MODE_BUILD_BOOST,
         shape="tool_build",
@@ -173,22 +174,44 @@ MODE_ROUTING: dict[str, _ModeRouting] = {
         override=False,
     ),
     # Jupyter-first: the unit of work is a notebook. Native notebook_run plus
-    # eda (notebooks are the natural home for exploratory data analysis).
-    # First-class boost so "run the notebook" leans notebook-shaped rather
-    # than dropping into a numbered analysis step.
+    # the reproduce / promote / synthesize lifecycle, and eda (notebooks are
+    # the natural home for exploratory data analysis). First-class boost so
+    # "run the notebook" leans notebook-shaped rather than dropping into a
+    # numbered analysis step.
     "notebook": _ModeRouting(
-        sub_intents=frozenset({"notebook_run", "eda"}),
+        sub_intents=frozenset({
+            "notebook_run", "notebook_reproduce", "notebook_promote",
+            "notebook_synthesize", "eda",
+        }),
         boost=_MODE_LIGHT_BOOST,
         shape="notebook",
         override=False,
     ),
     # A program of sub-studies sharing a codebook + prereg. Native
     # program_setup so "set up the program" reliably reaches the program
-    # commons protocol rather than a single-study planning protocol.
+    # commons protocol rather than a single-study planning protocol, plus the
+    # study-register / codebook-governance / cross-study-synthesis lifecycle.
     "multi_study": _ModeRouting(
-        sub_intents=frozenset({"program_setup"}),
+        sub_intents=frozenset({
+            "program_setup", "study_register", "codebook_governance",
+            "cross_study_synthesis",
+        }),
         boost=_MODE_LIGHT_BOOST,
         shape="multi_study",
+        override=False,
+    ),
+    # Build a tool AND use it for analysis in one project. Native hybrid home
+    # loop + tool↔analysis handoff; it also leans on the full analysis and
+    # build surfaces depending on which half is active, so the boost is light
+    # (it must not fight the analysis/build vocabulary, only nudge the two
+    # hybrid-specific protocols when their triggers fire).
+    "hybrid": _ModeRouting(
+        sub_intents=frozenset({
+            "hybrid_run", "hybrid_handoff",
+            "build_scout", "build_spike", "build_integrate",
+        }),
+        boost=_MODE_LIGHT_BOOST,
+        shape="hybrid",
         override=False,
     ),
 }
@@ -205,7 +228,7 @@ _MODE_TO_SHAPE = {m: r.shape for m, r in MODE_ROUTING.items() if r.shape}
 
 def _mode_boost_for(workspace_mode: str, sub_intent: str | None) -> int:
     """Score boost a protocol earns for matching the active mode's native
-    sub-intents. 0 when the mode has no registry entry (analysis/hybrid) or
+    sub-intents. 0 when the mode has no registry entry (analysis) or
     the protocol isn't native to the mode. Single source for the bias."""
     entry = MODE_ROUTING.get(workspace_mode)
     if entry is None or sub_intent is None:

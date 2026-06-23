@@ -11,6 +11,7 @@ last_reviewed: '2026-06-16'
 see_also:
   - build/implement_iteration   # the inner loop that builds against this spec
   - build/test_strategy         # turns the acceptance criteria here into a test regime
+  - build/method_scouting       # when a design choice should adopt external prior art, scout it before committing
 description: |
   The opening move of a tool_build workspace. Before any code, pin down
   what the tool must do and how its success will be judged — so the build

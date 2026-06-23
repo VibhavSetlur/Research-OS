@@ -426,19 +426,24 @@ def _handle_sys_help(name, arguments, root):
                     "study that produces a paper / poster / dashboard."
                 ),
                 "hybrid": (
-                    "analysis surface + tool_build governance for projects "
-                    "that BUILD a tool AND publish findings about it. Reuses "
-                    "the analysis routing surface (no separate bias) but the "
-                    "scaffold adds the spec/decisions/eval governance layer."
+                    "analysis surface + a tool-build half for projects that "
+                    "BUILD a tool AND publish findings about it. Keeps the "
+                    "analysis routing surface and ADDS a light bias toward "
+                    "hybrid/* (hybrid_workflow home loop + tool_to_analysis_"
+                    "handoff for crossing the boundary with the tool version "
+                    "pinned). The scaffold is the analysis spine plus a lazy "
+                    "tool/ home for the inner repo (also auto-detected)."
                 ),
                 "tool_build": (
                     "Research OS governs a software build from above: spec/ "
                     "(requirements + design), decisions/ (ADRs), eval/, "
                     "milestones.md, governance.md, CHANGELOG.md, and an INNER "
                     "git repo (workspace.inner_repo, default 'project/'). "
-                    "Routing strongly biases toward build/* protocols; build "
-                    "vocabulary that collides with analysis defers to the "
-                    "build router. Pick this when the deliverable IS the code."
+                    "Routing strongly biases toward build/* protocols "
+                    "(spec → implement → test → benchmark → release → "
+                    "package_and_publish); build vocabulary that collides "
+                    "with analysis defers to the build router. Pick this when "
+                    "the deliverable IS the code."
                 ),
                 "exploration": (
                     "Scratch-first quick probes with light gates. "
@@ -449,17 +454,20 @@ def _handle_sys_help(name, arguments, root):
                 ),
                 "notebook": (
                     "Jupyter-first: notebooks/ + data/ + outputs/ are eager. "
-                    "Routing biases toward notebook/* (the notebook_run "
-                    "sub-intent). Pick this for interactive iterative work "
-                    "that lives in .ipynb rather than numbered step scripts."
+                    "Routing biases toward notebook/* across the lifecycle "
+                    "(notebook_run → notebook_reproduce → notebook_promote → "
+                    "notebook_synthesize). Pick this for interactive iterative "
+                    "work that lives in .ipynb rather than numbered step "
+                    "scripts."
                 ),
                 "multi_study": (
                     "A research PROGRAM spanning several studies: studies/ + "
                     "shared/ (codebook, preregistration, governance) + "
-                    "roll_up/. Routing biases toward program/* (the "
-                    "program_setup sub-intent). Pick this for a portfolio of "
-                    "related studies that share methods and roll up into one "
-                    "synthesis."
+                    "roll_up/. Routing biases toward program/* across the "
+                    "lifecycle (program_setup → study_register → "
+                    "codebook_governance → cross_study_synthesis). Pick this "
+                    "for a portfolio of related studies that share methods and "
+                    "roll up into one synthesis."
                 ),
             },
             "how_to_set": (
@@ -469,11 +477,11 @@ def _handle_sys_help(name, arguments, root):
                 "mode is mirrored into .os_state so tools and routing agree."
             ),
             "routing_effect": (
-                "tool_build / exploration / notebook / multi_study each boost "
-                "their native sub-intents in tool_route. analysis + hybrid "
-                "add NO bias — they use the baseline routing surface. So the "
-                "same prompt can resolve to different protocols depending on "
-                "the active mode."
+                "tool_build / exploration / notebook / multi_study / hybrid "
+                "each boost their native sub-intents in tool_route. Only "
+                "analysis adds NO bias — it uses the baseline routing surface "
+                "(and is the universal fallback). So the same prompt can "
+                "resolve to different protocols depending on the active mode."
             ),
             "inspect": "sys_boot returns the active workspace_mode for the project.",
         }))
