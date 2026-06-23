@@ -552,6 +552,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print()
         print("  research-os daemon status   show daemon + project state")
         print("  research-os daemon start    run the daemon (localhost, read-only API)")
+        print("  research-os daemon run      run a command as a tracked job")
+        print("  research-os daemon runs     list recorded runs (durable history)")
+        print("  research-os daemon logs ID  show a run's details + output")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -593,8 +596,155 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             return 0
         return 0
 
+    if sub == "run":
+        return _daemon_run(daemon, args)
+
+    if sub == "runs":
+        return _daemon_runs(daemon, args)
+
+    if sub == "logs":
+        return _daemon_logs(daemon, args)
+
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
+
+
+def _daemon_run(daemon, args) -> int:
+    """Execute a command as a tracked, provenance-recording run (blocking)."""
+    import time as _time
+
+    cmd = list(getattr(args, "cmd", []) or [])
+    # argparse.REMAINDER keeps a leading "--"; strip it.
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+    if not cmd:
+        print(f"  {_warn_glyph()}  No command given. Use: research-os daemon run -- <cmd>")
+        return 2
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — runs need a project root.")
+        print("  Run inside a research-os project, or pass --workspace <path>.")
+        return 2
+
+    daemon.tasks.start()
+    daemon._start_journal()
+    jid = daemon.run_command(
+        cmd,
+        name=getattr(args, "name", None),
+        cwd=getattr(args, "cwd", None),
+        track_artifacts=not getattr(args, "no_artifacts", False),
+    )
+
+    if not getattr(args, "as_json", False):
+        print(f"  run {jid} started: {' '.join(cmd)}")
+    # Stream log lines as they land by polling the live log file.
+    last = 0
+    while True:
+        job = daemon.tasks.get(jid)
+        if not getattr(args, "as_json", False):
+            lines = daemon.runstore.read_log(jid)
+            for ln in lines[last:]:
+                print(f"    {ln}")
+            last = len(lines)
+        if job and job.status.value in ("succeeded", "failed", "cancelled"):
+            break
+        _time.sleep(0.15)
+
+    # Give the journal a beat to flush the terminal manifest.
+    _time.sleep(0.3)
+    manifest = daemon.runstore.read_manifest(jid) or {}
+    daemon.tasks.shutdown(wait=False)
+
+    if getattr(args, "as_json", False):
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0 if manifest.get("status") == "succeeded" else 1
+
+    status = manifest.get("status", "?")
+    result = manifest.get("result") or {}
+    rc = result.get("returncode")
+    arts = manifest.get("artifacts") or []
+    glyph = "✓" if status == "succeeded" else "✗"
+    print(f"  {glyph} run {jid}: {status}" + (f" (exit {rc})" if rc is not None else ""))
+    if arts:
+        print(f"  artifacts ({len(arts)}):")
+        for a in arts[:20]:
+            h = (a.get("sha256") or "")[:19]
+            print(f"    {a.get('change','?'):8} {a.get('path')}  {a.get('size')}b  {h}")
+        if len(arts) > 20:
+            print(f"    … and {len(arts) - 20} more")
+    print(f"  record: {daemon.runstore._run_dir(jid)}")
+    return 0 if status == "succeeded" else 1
+
+
+def _daemon_runs(daemon, args) -> int:
+    """List the durable run history for the workspace."""
+    if daemon.runstore is None:
+        print("  no workspace resolved — nothing to list.")
+        return 0
+    runs = daemon.runstore.list_runs(limit=getattr(args, "limit", 20))
+    if getattr(args, "as_json", False):
+        print(json.dumps(runs, indent=2, default=str))
+        return 0
+    if not runs:
+        print("  no recorded runs yet.")
+        print(f"  (looked in {daemon.runstore.runs_dir})")
+        return 0
+    print(f"  {len(runs)} run(s) in {daemon.runstore.runs_dir}:")
+    for r in runs:
+        rid = r.get("id") or "?"
+        status = r.get("status", "?")
+        name = r.get("name") or ""
+        nart = r.get("artifact_count") or 0
+        rc = r.get("returncode")
+        glyph = {"succeeded": "✓", "failed": "✗", "cancelled": "⊘"}.get(status, "·")
+        extra = f"  exit={rc}" if rc is not None else ""
+        artx = f"  {nart} artifact(s)" if nart else ""
+        print(f"  {glyph} {rid}  {status:10}{extra}{artx}  {name}")
+    return 0
+
+
+def _daemon_logs(daemon, args) -> int:
+    """Show one run's manifest + captured log."""
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+    rid = args.run_id
+    manifest = daemon.runstore.read_manifest(rid)
+    if manifest is None:
+        print(f"  {_warn_glyph()}  No run found: {rid}")
+        return 1
+    if getattr(args, "as_json", False):
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0
+    print(f"  run {rid}")
+    print(f"  status:   {manifest.get('status','?')}")
+    spec = manifest.get("spec") or {}
+    cmd_val = spec.get("cmd") or spec.get("command")
+    if cmd_val:
+        print(f"  command:  {cmd_val}")
+    prov = manifest.get("provenance") or {}
+    git = prov.get("git") or {}
+    commit = git.get("commit")
+    if commit:
+        dirty = " (dirty)" if git.get("dirty") else ""
+        print(f"  commit:   {commit[:12]}{dirty} [{git.get('branch','?')}]")
+    env = prov.get("env") or {}
+    if env.get("conda_env"):
+        print(f"  env:      {env.get('conda_env')} / python {env.get('python_version','?')}")
+    arts = manifest.get("artifacts") or []
+    if arts:
+        print(f"  artifacts ({len(arts)}):")
+        for a in arts[:20]:
+            print(f"    {a.get('change','?'):8} {a.get('path')}  {a.get('size')}b")
+    tail = getattr(args, "tail", 0) or None
+    lines = daemon.runstore.read_log(rid, tail=tail)
+    if lines:
+        label = f"last {len(lines)}" if tail else f"{len(lines)}"
+        print(f"  log ({label} lines):")
+        for ln in lines:
+            print(f"    {ln}")
+    else:
+        print("  (no log captured)")
+    return 0
 
 
 def _print_daemon_status(status) -> None:
@@ -1855,12 +2005,63 @@ def build_parser() -> argparse.ArgumentParser:
     pd_status.add_argument("--workspace", default=None,
                            help="Explicit workspace path (else auto-resolved).")
     pd_start = daemon_sub.add_parser(
-        "start", help="(Preview) start the daemon serving loop — not yet implemented."
+        "start", help="Start the daemon serving loop (localhost HTTP, read-only API)."
     )
     pd_start.add_argument("--workspace", default=None,
                           help="Explicit workspace path (else auto-resolved).")
     pd_start.add_argument("--host", default=None, help="Bind host (default 127.0.0.1).")
     pd_start.add_argument("--port", default=None, type=int, help="Bind port (default 8787).")
+
+    # run: execute any command as a tracked, provenance-recording run.
+    pd_run = daemon_sub.add_parser(
+        "run",
+        help="Run a command as a tracked job (provenance + artifacts recorded).",
+        description=(
+            "Execute any shell command as a Research OS run. The command's\n"
+            "output streams to your terminal; on completion a durable record\n"
+            "(command, environment, git commit, input/output artifact hashes,\n"
+            "timestamps) is written to .os_state/runs/<id>/. This is the\n"
+            "human door to the same durable-run machinery the daemon API uses.\n\n"
+            "Examples:\n"
+            "  research-os daemon run -- python analyze.py --in data.csv\n"
+            "  research-os daemon run --name fig3 -- Rscript plot.R\n"
+            "  research-os daemon run --json -- snakemake -j4"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_run.add_argument("--workspace", default=None,
+                        help="Explicit workspace path (else auto-resolved).")
+    pd_run.add_argument("--name", default=None, help="Human label for the run.")
+    pd_run.add_argument("--cwd", default=None,
+                        help="Working directory for the command (default: workspace root).")
+    pd_run.add_argument("--no-artifacts", dest="no_artifacts", action="store_true",
+                        help="Skip output-artifact detection for this run.")
+    pd_run.add_argument("--json", dest="as_json", action="store_true",
+                        help="Emit the run manifest as JSON on completion.")
+    pd_run.add_argument("cmd", nargs=argparse.REMAINDER,
+                        help="The command to run (use -- to separate it from flags).")
+
+    # runs: list the durable run history.
+    pd_runs = daemon_sub.add_parser(
+        "runs", help="List recorded runs (durable history) for the workspace."
+    )
+    pd_runs.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_runs.add_argument("--limit", default=20, type=int, help="Max runs to show.")
+    pd_runs.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit machine-readable JSON.")
+
+    # logs: show one run's manifest + captured log.
+    pd_logs = daemon_sub.add_parser(
+        "logs", help="Show a recorded run's details + captured output."
+    )
+    pd_logs.add_argument("run_id", help="The run id (from 'daemon runs').")
+    pd_logs.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_logs.add_argument("--tail", default=0, type=int,
+                         help="Show only the last N log lines (0 = full log).")
+    pd_logs.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit the full manifest as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

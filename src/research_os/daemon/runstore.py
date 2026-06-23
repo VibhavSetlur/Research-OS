@@ -292,11 +292,17 @@ class RunJournal:
                 manifest[fld] = snap[fld]
         if snap.get("result") is not None:
             manifest["result"] = snap["result"]
+        result = snap.get("result")
+        # Hoist output artifacts to the top level so list summaries and the
+        # provenance record surface them without digging into result.
+        if isinstance(result, dict) and result.get("artifacts"):
+            manifest["artifacts"] = result["artifacts"]
+            if result.get("artifacts_truncated"):
+                manifest["artifacts_truncated"] = True
         # Reconcile command success with run success: a subprocess job that
         # *ran* (job status "succeeded") but whose command exited nonzero is a
         # FAILED run from the researcher's point of view. Cancelled runs keep
         # their cancelled status.
-        result = snap.get("result")
         if (
             status == "succeeded"
             and isinstance(result, dict)

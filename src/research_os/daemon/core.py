@@ -178,6 +178,7 @@ class Daemon:
         shell: bool = False,
         inputs: "list[str] | None" = None,
         track_packages: "list[str] | None" = None,
+        track_artifacts: bool = True,
     ) -> str:
         """Submit an external command as a background job and return its id.
 
@@ -201,6 +202,7 @@ class Daemon:
             cwd=effective_cwd,
             env=env,
             shell=shell,
+            track_artifacts=track_artifacts,
         )
         job_name = name or (cmd if isinstance(cmd, str) else " ".join(cmd))
         prov = _prov.capture(
