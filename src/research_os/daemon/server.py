@@ -10,6 +10,7 @@ Phase 1 endpoints are READ ONLY — no mutation, no auth beyond the
   GET /healthz            liveness + version
   GET /v1/state           multi-root state snapshot (all registered roots)
   GET /v1/state/{...}     not yet — single-root lookup arrives with auth
+  GET /v1/domain          detected research field + field-aware defaults
   GET /v1/jobs            background task queue snapshot
   GET /v1/jobs/{job_id}   one job
 
@@ -198,9 +199,29 @@ def build_app(daemon: "Daemon"):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    async def get_domain(request):
+        # Field-awareness: detect (or read) the project's research domain
+        # and return its profile + sensible defaults. Read-only; safe to
+        # poll. ?root= overrides the daemon's resolved root.
+        from pathlib import Path as _Path
+
+        from .domains import detect
+
+        root_q = request.query_params.get("root")
+        root = _Path(root_q) if root_q else daemon.root
+        if root is None:
+            return JSONResponse({"available": False,
+                                 "error": "no project root resolved"})
+        result = detect(root)
+        out = result.as_dict()
+        out["root"] = str(root)
+        out["available"] = True
+        return JSONResponse(out)
+
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
+        Route("/v1/domain", get_domain, methods=["GET"]),
         Route("/v1/jobs", get_jobs, methods=["GET"]),
         Route("/v1/jobs/{job_id}", get_job, methods=["GET"]),
         Route("/v1/runs", get_runs, methods=["GET"]),

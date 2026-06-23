@@ -30,6 +30,14 @@ from .artifacts import snapshot as artifacts_snapshot
 from .compare import compare_runs
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
+from .domains import (
+    GENERIC,
+    DetectionResult,
+    DomainProfile,
+    all_profiles,
+    detect,
+    get_profile,
+)
 from .events import Event, EventBus
 from .lineage import ancestors, build_lineage, descendants, topo_order
 from .registry import Workspace, WorkspaceRegistry
@@ -71,4 +79,10 @@ __all__ = [
     "SchedulerResult",
     "SlurmAdapter",
     "get_adapter",
+    "DomainProfile",
+    "DetectionResult",
+    "detect",
+    "get_profile",
+    "all_profiles",
+    "GENERIC",
 ]

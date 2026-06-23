@@ -557,3 +557,45 @@ right order — the defining capability of a research *OS* over a job
 runner. Next BUILD candidate: the read-only HTTP surface for
 lineage/staleness/rebuild-plan (sets up the dashboard transport without
 touching the CLI-first core).
+
+### Phase log: 1.16 (2026-06-23) — domain profiles (field-awareness)
+
+**Problem.** The protocol library is deliberately mostly `domain: [any]`
+— broad, generic reasoning scaffolds. That breadth is a strength, but it
+left the system field-agnostic: a chemist, an economist, and a historian
+got identical defaults. Hand-authoring 50 protocols per field doesn't
+scale and is the wrong abstraction.
+
+**Decision — a daemon-level domain layer, not protocol sprawl.** Added
+`daemon/domains.py`: a small declarative registry of research-field
+profiles (8 built-ins spanning compbio, data/ML, physical sciences,
+social sciences, qualitative, humanities, clinical/health, and
+geo/environmental) plus a fallback. Each profile carries idiomatic
+languages, the artifacts that are the *real* deliverables, what
+reproducibility means in that field, and a one-line orientation for the
+AI. One profile makes the ENTIRE existing protocol library field-aware
+for that domain — the generic `[any]` protocols inherit sensible
+defaults. Adding a field is a ~30-line entry, not 50 protocols.
+
+* **Auto-detection** (`detect(root)`): declared `domain:` in
+  researcher_config wins (confidence 1.0); otherwise score every profile
+  by marker files (weight 3) + file-glob hits (capped) over a bounded
+  4k-file scan, pick the best, confidence by signal share. Never raises;
+  empty/unknown → neutral GENERIC fallback. Tolerant resolver matches by
+  id, alias, or keyword substring.
+* **Surfaced on every transport.** New `research-os daemon domain`
+  (text + `--json` + `--list`) and a read-only `GET /v1/domain` endpoint
+  (with `?root=` override) so the future gateway + dashboard get
+  field-awareness for free. Strangler-fig respected: lives entirely in
+  `daemon/`; reasoning layer never imports it (preflight invariant still
+  green).
+* **Tested** (`tests/unit/test_daemon_domains.py`, 16 cases): resolution
+  by id/alias/keyword/fallback, file-signal detection, declared-override
+  precedence, garbage-config robustness, serialization shape, frozen
+  profiles. Verified e2e via CLI + Starlette TestClient.
+
+This is the daemon getting smarter about *who it serves* — the
+complement to the run-lifecycle work, which made it smarter about *what
+it runs*. Next: the read-only HTTP surface for lineage/staleness so the
+dashboard can render both the provenance DAG and the project's field.
+

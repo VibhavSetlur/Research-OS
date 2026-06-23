@@ -561,6 +561,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon lineage [ID]  run dependency graph (provenance DAG)")
         print("  research-os daemon stale  flag results built from changed inputs")
         print("  research-os daemon rebuild  re-run only the stale runs (in order)")
+        print("  research-os daemon domain  detect the project's research field + defaults")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -628,6 +629,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "rebuild":
         return _daemon_rebuild(daemon, args)
+
+    if sub == "domain":
+        return _daemon_domain(daemon, args)
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -1164,6 +1168,55 @@ def _daemon_rebuild(daemon, args) -> int:
         print(f"    {g} {r['run_id'][:12]} -> {r['repro_id'][:12]}  ({r['verdict']})")
     for s in report["skipped"]:
         print(f"    · {s['run_id'][:12]}  skipped — {s['reason']}")
+    return 0
+
+
+def _daemon_domain(daemon, args) -> int:
+    """Detect the project's research field and show field-aware defaults."""
+    from research_os.daemon import all_profiles, detect
+
+    if getattr(args, "list_all", False):
+        profs = all_profiles()
+        if getattr(args, "as_json", False):
+            print(json.dumps([p.as_dict() for p in profs], indent=2))
+            return 0
+        print(f"  {len(profs)} built-in domain profiles:\n")
+        for p in profs:
+            aliases = ", ".join(p.aliases) if p.aliases else "—"
+            print(f"  {p.id}")
+            print(f"      {p.label}")
+            print(f"      aliases: {aliases}")
+            print(f"      languages: {', '.join(p.languages) or '—'}")
+            print()
+        return 0
+
+    root = daemon.root or Path.cwd()
+    result = detect(root)
+
+    if getattr(args, "as_json", False):
+        out = result.as_dict()
+        out["root"] = str(root)
+        print(json.dumps(out, indent=2))
+        return 0
+
+    p = result.profile
+    pct = int(round(result.confidence * 100))
+    print(f"  project: {root}")
+    print(f"  field:   {p.label}  [{p.id}]")
+    print(f"  via:     {result.source} ({pct}% confidence)")
+    if result.matched_signals:
+        print(f"  signals: {', '.join(result.matched_signals)}")
+    print()
+    print(f"  languages:        {', '.join(p.languages) or '—'}")
+    print(f"  deliverables:     {', '.join(p.artifacts) or '—'}")
+    print(f"  reproducibility:  {p.reproducibility or '—'}")
+    if p.notes:
+        print(f"  note:             {p.notes}")
+    if result.source == "fallback":
+        print()
+        print("  No strong field signal — set `domain:` in "
+              "inputs/researcher_config.yaml to specialize,")
+        print("  or run `research-os daemon domain --list` to see options.")
     return 0
 
 
@@ -2606,6 +2659,27 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Per-run timeout (seconds) for each re-run.")
     pd_rebuild.add_argument("--json", dest="as_json", action="store_true",
                             help="Emit the rebuild report as JSON.")
+
+    # domain: detect the project's research field + field-aware defaults.
+    pd_domain = daemon_sub.add_parser(
+        "domain",
+        help="Detect the project's research field and show field-aware defaults.",
+        description=(
+            "Infer what field this project is in — from a declared\n"
+            "`domain:` in researcher_config, else by scanning the project's\n"
+            "files (markers + extensions). Prints the resolved profile:\n"
+            "idiomatic languages, the artifacts that are the real\n"
+            "deliverables, what reproducibility means in that field, and a\n"
+            "one-line orientation. Use --list to see every built-in field."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_domain.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_domain.add_argument("--list", dest="list_all", action="store_true",
+                           help="List every built-in domain profile and exit.")
+    pd_domain.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit the detection result as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(
