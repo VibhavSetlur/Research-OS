@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import DaemonConfig
+from .events import EventBus
 from .registry import WorkspaceRegistry
 from .tasks import TaskQueue
 
@@ -73,11 +74,17 @@ class Daemon:
         self.config = config
         # Set True by serve() once the process is actually listening.
         self._serving = False
+        # Event spine (Phase 1.5): append-only bus the task queue, gateway,
+        # dashboard, and MCP sidecar all publish to / subscribe from. This is
+        # the substrate that makes the daemon observable in real time instead
+        # of poll-only. stdlib-only, import-cheap.
+        self.events = EventBus()
         # Multi-root state registry + background task queue (Phase 1).
         # Both are stdlib-only and import-cheap; constructing them here keeps
-        # status() and serve() working off the same engine seams.
+        # status() and serve() working off the same engine seams. The queue
+        # publishes job lifecycle events to the bus.
         self.registry = WorkspaceRegistry(cache_ttl=config.state_cache_ttl)
-        self.tasks = TaskQueue(max_workers=config.task_workers)
+        self.tasks = TaskQueue(max_workers=config.task_workers, bus=self.events)
         if root is not None:
             self.registry.register(root)
 
@@ -149,6 +156,40 @@ class Daemon:
             notes=notes,
             roots=self.registry.roots(),
             jobs=self.tasks.snapshot(limit=10),
+        )
+
+    # ── execution ─────────────────────────────────────────────────────
+    def run_command(
+        self,
+        cmd: "str | list[str]",
+        *,
+        name: str | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+        root: str | None = None,
+        shell: bool = False,
+    ) -> str:
+        """Submit an external command as a background job and return its id.
+
+        This is the "any language" entry point: anything with a CLI
+        (Rscript, julia, bash, snakemake, nextflow, sbatch, …) runs through
+        the SubprocessRunner, streaming output as ``job.log`` events on the
+        bus and recording a bounded result handle. Defaults ``cwd`` to the
+        daemon's root so commands run in the project by default.
+        """
+        from .runners import SubprocessRunner
+
+        runner = SubprocessRunner(
+            cmd,
+            cwd=cwd or (str(self.root) if self.root else None),
+            env=env,
+            shell=shell,
+        )
+        job_name = name or (cmd if isinstance(cmd, str) else " ".join(cmd))
+        return self.tasks.submit(
+            runner,
+            name=job_name[:120],
+            root=root or (str(self.root) if self.root else None),
         )
 
     # ── lifecycle ─────────────────────────────────────────────────────

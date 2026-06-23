@@ -91,12 +91,27 @@ def test_status_includes_config_block(tmp_path):
     assert cfg["enable_gateway"] is False
 
 
-def test_serve_not_implemented_yet(tmp_path):
-    """Phase 0: serve() must fail loudly, not silently no-op."""
+def test_serve_is_implemented(tmp_path):
+    """Phase 1: serve() is real — it must NOT raise NotImplementedError.
+
+    We don't actually bind a port here (that blocks); we assert the method
+    exists, is wired to the lazy server module, and builds a valid ASGI app
+    for this daemon. The real bind/serve loop is exercised via the HTTP
+    endpoint tests (test_daemon_server.py) against a TestClient.
+    """
+    (tmp_path / ".os_state").mkdir()
     d = Daemon.for_root(tmp_path)
-    with pytest.raises(NotImplementedError) as exc:
-        d.serve()
-    assert "Phase 1" in str(exc.value) or "not implemented" in str(exc.value).lower()
+    # serve() must be callable and not the Phase-0 stub.
+    import inspect
+
+    src = inspect.getsource(d.serve)
+    assert "NotImplementedError" not in src
+    # The lazy server module builds a working app from this daemon.
+    pytest.importorskip("starlette")
+    from research_os.daemon.server import build_app
+
+    app = build_app(d)
+    assert app is not None
 
 
 def test_autoresolve_returns_daemon(monkeypatch, tmp_path):

@@ -117,11 +117,17 @@ class TaskQueue:
     thread and report on it. Bounded worker pool; FIFO dispatch.
     """
 
-    def __init__(self, max_workers: int = 2, max_history: int = 200) -> None:
+    def __init__(
+        self,
+        max_workers: int = 2,
+        max_history: int = 200,
+        bus: Any = None,
+    ) -> None:
         if max_workers < 1:
             raise ValueError("max_workers must be >= 1")
         self._max_workers = max_workers
         self._max_history = max_history
+        self._bus = bus  # optional EventBus for lifecycle events
         self._jobs: dict[str, Job] = {}
         self._order: list[str] = []
         self._lock = threading.RLock()
@@ -153,6 +159,24 @@ class TaskQueue:
             executor.shutdown(wait=wait)
             logger.debug("task queue shut down (wait=%s)", wait)
 
+    # ── events ───────────────────────────────────────────────────────
+    def _emit(self, kind: str, job: Job) -> None:
+        """Publish a job lifecycle event if a bus is wired. Never raises."""
+        if self._bus is None:
+            return
+        try:
+            self._bus.publish(
+                kind,
+                data={
+                    "job_id": job.id,
+                    "name": job.name,
+                    "status": job.status.value,
+                },
+                root=job.root,
+            )
+        except Exception:  # noqa: BLE001 - telemetry must never break a job
+            logger.debug("event publish failed for %s", kind, exc_info=True)
+
     # ── submission ───────────────────────────────────────────────────
     def submit(
         self,
@@ -180,6 +204,7 @@ class TaskQueue:
             executor = self._executor
 
         executor.submit(self._run, job, fn, args, kwargs)
+        self._emit("job.submitted", job)
         logger.debug("submitted job %s (%s)", job.id, job.name)
         return job.id
 
@@ -189,17 +214,29 @@ class TaskQueue:
             with self._lock:
                 job.status = JobStatus.CANCELLED
                 job.finished_at = time.time()
+            self._emit("job.cancelled", job)
             return
         with self._lock:
             job.status = JobStatus.RUNNING
             job.started_at = time.time()
+        self._emit("job.started", job)
         # Inject cancel_event only if the callable wants it.
         call_kwargs = dict(kwargs)
         try:
             import inspect
 
-            if "cancel_event" in inspect.signature(fn).parameters:
+            params = inspect.signature(fn).parameters
+            if "cancel_event" in params:
                 call_kwargs["cancel_event"] = job.cancel_event
+            # If the callable can stream progress, give it an emit() bound to
+            # this job's context so its log lines land on the bus tagged with
+            # the job id + root (the foundation for live log tailing).
+            if "emit" in params and self._bus is not None:
+                def _emit_for_job(kind: str, data: dict, _job=job) -> None:
+                    payload = {"job_id": _job.id, "name": _job.name, **data}
+                    self._bus.publish(kind, data=payload, root=_job.root)
+
+                call_kwargs["emit"] = _emit_for_job
         except (TypeError, ValueError):
             pass
         try:
@@ -223,6 +260,8 @@ class TaskQueue:
                 # work doesn't accumulate past max_history (submit-time
                 # eviction can't reclaim jobs that were still queued then).
                 self._evict_history_locked()
+                terminal_status = job.status
+            self._emit(f"job.{terminal_status.value}", job)
 
     # ── cancellation ─────────────────────────────────────────────────
     def cancel(self, job_id: str) -> bool:
@@ -234,10 +273,14 @@ class TaskQueue:
             if job is None or job.status.terminal:
                 return False
             job.cancel_event.set()
+            cancelled_now = False
             if job.status == JobStatus.QUEUED:
                 job.status = JobStatus.CANCELLED
                 job.finished_at = time.time()
-            return True
+                cancelled_now = True
+        if cancelled_now:
+            self._emit("job.cancelled", job)
+        return True
 
     # ── introspection ────────────────────────────────────────────────
     def get(self, job_id: str) -> Job | None:

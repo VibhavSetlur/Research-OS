@@ -27,7 +27,9 @@ from __future__ import annotations
 
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
+from .events import Event, EventBus
 from .registry import Workspace, WorkspaceRegistry
+from .runners import RunResult, SubprocessRunner
 from .tasks import Job, JobStatus, TaskQueue
 
 __all__ = [
@@ -39,4 +41,8 @@ __all__ = [
     "TaskQueue",
     "Job",
     "JobStatus",
+    "EventBus",
+    "Event",
+    "SubprocessRunner",
+    "RunResult",
 ]

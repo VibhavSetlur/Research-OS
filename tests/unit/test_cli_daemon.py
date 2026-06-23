@@ -79,16 +79,43 @@ def test_daemon_status_initialized(tmp_path, capsys):
     assert json.loads(out)["project_initialized"] is True
 
 
-# ── start preview contract ───────────────────────────────────────────────
+# ── start serving contract ───────────────────────────────────────────────
 
 
-def test_daemon_start_preview_not_serving(tmp_path, capsys):
-    """Phase 0: 'start' must exit non-zero and say it's not implemented."""
+def test_daemon_start_serves(tmp_path, capsys, monkeypatch):
+    """Phase 1: 'start' announces the bind + endpoints and calls serve().
+
+    serve() blocks on a real bind, so we patch it to a no-op and assert the
+    CLI drives it (announces base_url, exits 0).
+    """
+    served = {"called": False}
+
+    def fake_serve(self):
+        served["called"] = True
+
+    monkeypatch.setattr("research_os.daemon.Daemon.serve", fake_serve)
+    parser = cli.build_parser()
+    rc = _run(parser, ["daemon", "start", "--workspace", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert served["called"] is True
+    assert "starting on" in out.lower()
+    assert "/healthz" in out
+
+
+def test_daemon_start_missing_extra_hint(tmp_path, capsys, monkeypatch):
+    """If the [daemon] extra is missing, serve() raises RuntimeError and the
+    CLI surfaces a clear hint with exit code 1 (graceful degrade)."""
+
+    def boom(self):
+        raise RuntimeError("the 'research-os[daemon]' extra is required")
+
+    monkeypatch.setattr("research_os.daemon.Daemon.serve", boom)
     parser = cli.build_parser()
     rc = _run(parser, ["daemon", "start", "--workspace", str(tmp_path)])
     out = capsys.readouterr().out
     assert rc == 1
-    assert "not implemented" in out.lower()
+    assert "daemon" in out.lower() and "extra" in out.lower()
 
 
 def test_daemon_start_bind_overrides(tmp_path):

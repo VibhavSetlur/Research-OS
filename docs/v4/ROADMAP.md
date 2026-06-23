@@ -307,6 +307,31 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-23 — Session 2: Phase 1 core + Phase 1.5 event spine (JUDGE→IMPROVE)
+- **Phase 1 BUILD shipped** (`2868a8d`): the daemon now actually serves.
+  Three stdlib-only, import-cheap modules — `registry.py` (multi-root
+  read views over engine helpers), `tasks.py` (bounded worker-pool task
+  queue with cooperative cancel + history eviction), `server.py` (lazy
+  starlette ASGI: `/healthz`, `/v1/state`, `/v1/jobs`, `/v1/jobs/{id}`).
+  `daemon start` wired to serve with graceful degrade when the `[daemon]`
+  extra is absent. 55 daemon tests green; ruff clean; preflight 33/33.
+- **Two real bugs found + fixed during BUILD** (logged so we don't
+  regress): (1) `Daemon.for_root` accepted `str` roots but `config
+  resolution + status()` assumed `Path` → normalize to `Path` early.
+  (2) Task-queue history eviction only ran at submit-time, when newer
+  jobs were still QUEUED and thus non-evictable → completed jobs grew
+  unbounded. Fixed by also evicting in the job's terminal `finally`.
+- **Phase 1.5 IMPROVE — the event spine** (this session, judged in §8):
+  added `events.py` — an append-only, bounded, thread-safe `EventBus`
+  with monotonic seq, ring-buffer backfill, kind/root filtering, and
+  fan-out to live subscribers (slow subscribers drop oldest, never
+  block a job thread). The task queue now publishes
+  `job.{submitted,started,succeeded,failed,cancelled}`. New SSE endpoint
+  `GET /v1/events` (Last-Event-ID / `?after=` resume, `?kinds=` /
+  `?root=` filters, 15s heartbeat) + poll-friendly `GET
+  /v1/events/recent`. This is the substrate Phase 2 streaming, Phase 3
+  telemetry, and Phase 5 dashboard all compose on.
+
 ### 2026-06-23 — Session 1: planning + baseline
 - Established baseline understanding of the 3.12.0 architecture (single
   reactive stdio MCP, JSON ledger state, no HTTP, no Docker sandbox).
@@ -318,3 +343,51 @@ the old one rather than editing history.
   `research-os daemon` CLI subcommand group, additive and opt-in, with
   the lazy-import guard and a `[daemon]` extra. Branch
   `feat/v4-daemon-skeleton` off `dev`.
+
+---
+
+## 8. Design review (the JUDGE log — critique, then improve)
+
+This section is the explicit build→judge→improve record. After each
+BUILD phase we critique it against the end-state bar — **the best
+possible research OS: any language, any research, any researcher, any
+level, any AI** — log the gaps, and feed them back as the next IMPROVE.
+4.0.0 ships only when this log has no open high-severity gaps.
+
+### JUDGE-1 (2026-06-23) — critique of the Phase 1 core
+
+Bar: not "a daemon with endpoints" but a universal research substrate.
+Judged Phase 1 against that and found three gaps:
+
+1. **[ADDRESSED in 1.5] Poll-only observability.** State was readable
+   only by polling `/v1/state`. A research OS that owns multi-hour work
+   must let any client *subscribe*. → Built the event spine (`events.py`
+   + SSE `/v1/events`). This is now the spine every later streaming
+   feature composes on, instead of each phase inventing its own.
+
+2. **[OPEN — high] Python-callable-only execution.** `TaskQueue.submit`
+   takes a `Callable`. That silently fails "any language": real research
+   runs R, Julia, bash, Snakemake, Nextflow, and SLURM/scheduler
+   submissions. The queue needs a **job-kind abstraction** —
+   `python-callable | subprocess | scheduler-submit` — with a uniform
+   lifecycle (stdout/stderr capture, exit code, streamed log lines as
+   `job.log` events, artifact paths) so the daemon can drive the actual
+   tools researchers use, not just in-process Python. This is the single
+   biggest lever toward "any language / any work" and is the next BUILD
+   (Phase 1.6, before the gateway): a `runners/` package behind the
+   existing `submit` seam, additive, each runner emitting the same
+   events. Native first; SLURM/snakemake/nextflow adapters follow; the
+   sandbox (Phase 4) becomes just another runner.
+
+3. **[OPEN — med] Non-durable jobs.** Queue is in-memory; a daemon
+   restart loses job records and breaks the "owns multi-hour work"
+   promise. Decide a `.os_state/jobs/` append-only journal (job spec +
+   status transitions) so the queue rehydrates terminal/running history
+   on restart. Pairs naturally with job-kinds (a subprocess job's PID +
+   logfile are exactly what must persist). Judge again after 1.6.
+
+Lower-severity notes carried forward: SSE backpressure is handled by
+oldest-drop today (fine for tiles, revisit if a client needs lossless
+log tailing — that wants the durable journal from gap 3, replayed via
+`?after=`); `_jsonsafe` truncates non-primitive job results to a type
+name (acceptable — results should be handles/paths, not blobs).
