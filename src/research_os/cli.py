@@ -559,6 +559,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon submit SCRIPT  submit to HPC scheduler (SLURM)")
         print("  research-os daemon diff A B  compare two runs (cmd/context/outputs)")
         print("  research-os daemon lineage [ID]  run dependency graph (provenance DAG)")
+        print("  research-os daemon stale  flag results built from changed inputs")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -620,6 +621,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "lineage":
         return _daemon_lineage(daemon, args)
+
+    if sub == "stale":
+        return _daemon_stale(daemon, args)
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -1052,6 +1056,70 @@ def _daemon_lineage(daemon, args) -> int:
     if graph["orphans"]:
         print(f"  orphans (unlinked): {len(graph['orphans'])} run(s)")
     return 0
+
+
+def _daemon_stale(daemon, args) -> int:
+    """Freshness assessment: which runs were built from changed inputs."""
+    from research_os.daemon import provenance as _prov
+    from research_os.daemon import staleness as _stale
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+
+    manifests = daemon.runstore.recent_manifests(limit=getattr(args, "limit", 200))
+
+    # Resolve input paths relative to the workspace root, then hash current
+    # on-disk state. Injected so staleness logic stays pure/testable.
+    root = getattr(daemon, "root", None)
+
+    def hash_file(path: str) -> "str | None":
+        import os
+        p = path if os.path.isabs(path) else os.path.join(root or ".", path)
+        try:
+            return _prov.hash_file(p)
+        except Exception:
+            return None
+
+    report = _stale.assess(manifests, hash_file)
+    as_json = getattr(args, "as_json", False)
+    if as_json:
+        print(json.dumps(report, indent=2, default=str))
+        return 1 if report["stale"] else 0
+
+    c = report["counts"]
+    print(f"  freshness: {c['total']} run(s) — {c['fresh']} fresh, "
+          f"{c['stale']} stale, {c['unknown']} unknown")
+
+    if not report["stale"]:
+        print("  ✓  all results are fresh (no recorded input has changed on disk)")
+        if getattr(args, "show_all", False):
+            _print_stale_rows(report, _stale, include_fresh=True)
+        return 0
+
+    print("  stale runs (results may no longer be valid):")
+    _print_stale_rows(report, _stale, include_fresh=getattr(args, "show_all", False))
+    print("  → re-run a stale run with: research-os daemon reproduce <ID>")
+    return 1
+
+
+def _print_stale_rows(report, _stale, *, include_fresh: bool) -> None:
+    """Render per-run freshness rows for _daemon_stale."""
+    for rid, v in sorted(report["runs"].items()):
+        st = v["status"]
+        if not include_fresh and st in (_stale.FRESH, _stale.UNKNOWN):
+            continue
+        g = _stale.status_glyph(st)
+        print(f"    {g} {rid[:12]}  {st}  — {v['reason']}")
+        for ch in v["changed"]:
+            r = (ch.get("recorded") or "?")[:18]
+            cur = (ch.get("current") or "?")[:18]
+            print(f"        ~ {ch['path']}  {r} -> {cur}")
+        for p in v["missing"]:
+            print(f"        - {p}  (input now missing)")
+        if v["stale_ancestors"]:
+            anc = ", ".join(a[:12] for a in v["stale_ancestors"])
+            print(f"        ↑ depends on stale: {anc}")
 
 
 def _print_daemon_status(status) -> None:
@@ -2448,6 +2516,27 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Max recent runs to include in the graph.")
     pd_lin.add_argument("--json", dest="as_json", action="store_true",
                         help="Emit the lineage graph as JSON.")
+
+    # stale: freshness check — which results were built from changed inputs.
+    pd_stale = daemon_sub.add_parser(
+        "stale",
+        help="Check which runs are stale (inputs changed, or an upstream run is stale).",
+        description=(
+            "Freshness verdict over the lineage DAG. A run is input-stale when\n"
+            "a file it recorded as an input now hashes differently on disk;\n"
+            "transitive-stale when an upstream run it depends on is stale.\n"
+            "Exit 0 = all fresh, 1 = at least one stale run found."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_stale.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_stale.add_argument("--limit", default=200, type=int,
+                          help="Max recent runs to assess.")
+    pd_stale.add_argument("--all", dest="show_all", action="store_true",
+                          help="Show fresh + unknown runs too (default: only stale).")
+    pd_stale.add_argument("--json", dest="as_json", action="store_true",
+                          help="Emit the full freshness assessment as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

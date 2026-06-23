@@ -37,6 +37,8 @@ from .reproduce import compare_artifacts
 from .runners import RunResult, SubprocessRunner
 from .runstore import RunJournal, RunStore, build_manifest
 from .schedulers import SchedulerResult, SchedulerRunner, SlurmAdapter, get_adapter
+from .staleness import assess as assess_staleness
+from .staleness import check_input_staleness
 from .tasks import Job, JobStatus, TaskQueue
 
 __all__ = [
@@ -62,6 +64,8 @@ __all__ = [
     "build_lineage",
     "ancestors",
     "descendants",
+    "assess_staleness",
+    "check_input_staleness",
     "SchedulerRunner",
     "SchedulerResult",
     "SlurmAdapter",
