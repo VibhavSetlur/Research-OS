@@ -31,6 +31,7 @@ from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
 from .events import Event, EventBus
 from .registry import Workspace, WorkspaceRegistry
+from .reproduce import compare_artifacts
 from .runners import RunResult, SubprocessRunner
 from .runstore import RunJournal, RunStore, build_manifest
 from .tasks import Job, JobStatus, TaskQueue
@@ -53,4 +54,5 @@ __all__ = [
     "build_manifest",
     "artifacts_snapshot",
     "artifacts_diff",
+    "compare_artifacts",
 ]

@@ -555,6 +555,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon run      run a command as a tracked job")
         print("  research-os daemon runs     list recorded runs (durable history)")
         print("  research-os daemon logs ID  show a run's details + output")
+        print("  research-os daemon reproduce ID  re-run + verify outputs match")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -604,6 +605,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "logs":
         return _daemon_logs(daemon, args)
+
+    if sub == "reproduce":
+        return _daemon_reproduce(daemon, args)
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -745,6 +749,63 @@ def _daemon_logs(daemon, args) -> int:
     else:
         print("  (no log captured)")
     return 0
+
+
+def _daemon_reproduce(daemon, args) -> int:
+    """Re-run a recorded run and report whether its outputs still match."""
+    from research_os.daemon import reproduce as _repro
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to reproduce.")
+        return 2
+    timeout = getattr(args, "timeout", 0) or None
+    try:
+        daemon.tasks.start()
+        daemon._start_journal()
+        report = daemon.reproduce_run(
+            args.run_id,
+            cwd=getattr(args, "cwd", None),
+            timeout=timeout,
+        )
+    except ValueError as exc:
+        print(f"  {_warn_glyph()}  {exc}")
+        return 2
+    finally:
+        daemon.tasks.shutdown(wait=False)
+
+    if getattr(args, "as_json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report["verdict"] == _repro.REPRODUCED else 1
+
+    comp = report["comparison"]
+    verdict = report["verdict"]
+    glyph = _repro.verdict_glyph(verdict)
+    print(f"  reproducing {report['original_id']} → run {report['repro_id']}")
+    print(f"  command:  {report['command']}")
+    print(f"  re-run:   {report['repro_status']}")
+    c = comp["counts"]
+    print(
+        f"  outputs:  {c['matched']} matched, {c['changed']} changed, "
+        f"{c['missing']} missing, {c['added']} new"
+    )
+    for ch in comp["changed"][:20]:
+        r = (ch.get("recorded_sha256") or "?")[:19]
+        f = (ch.get("fresh_sha256") or "?")[:19]
+        print(f"    changed  {ch['path']}")
+        print(f"             was {r}  now {f}")
+    for p in comp["missing"][:20]:
+        print(f"    missing  {p}")
+    for p in comp["added"][:20]:
+        print(f"    new      {p}")
+    if comp["unhashed"]:
+        print(f"  ({len(comp['unhashed'])} output(s) compared by size only — too large to hash)")
+    label = {
+        _repro.REPRODUCED: "REPRODUCED — every recorded output came back identical",
+        _repro.DIVERGED: "DIVERGED — at least one output changed",
+        _repro.INCOMPLETE: "INCOMPLETE — an output was not regenerated",
+    }.get(verdict, verdict)
+    print(f"  {glyph} {label}")
+    return 0 if verdict == _repro.REPRODUCED else 1
 
 
 def _print_daemon_status(status) -> None:
@@ -2062,6 +2123,21 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Show only the last N log lines (0 = full log).")
     pd_logs.add_argument("--json", dest="as_json", action="store_true",
                          help="Emit the full manifest as JSON.")
+
+    # reproduce: re-run a recorded run and compare its outputs.
+    pd_repro = daemon_sub.add_parser(
+        "reproduce",
+        help="Re-run a recorded run and check its outputs still match.",
+    )
+    pd_repro.add_argument("run_id", help="The run id to reproduce (from 'daemon runs').")
+    pd_repro.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_repro.add_argument("--cwd", default=None,
+                          help="Override the working directory for the re-run.")
+    pd_repro.add_argument("--timeout", default=0, type=float,
+                          help="Max seconds to wait for the re-run (0 = no limit).")
+    pd_repro.add_argument("--json", dest="as_json", action="store_true",
+                          help="Emit the full reproduction report as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

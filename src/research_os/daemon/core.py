@@ -268,6 +268,89 @@ class Daemon:
         thread.start()
         logger.debug("run journal started under %s", self.runstore.runs_dir)
 
+    # ── reproduce (Phase 1.10) ────────────────────────────────────────
+    def reproduce_run(
+        self,
+        run_id: str,
+        *,
+        cwd: str | None = None,
+        timeout: float | None = None,
+        poll_interval: float = 0.15,
+    ) -> dict:
+        """Re-execute a recorded run and compare its outputs to the original.
+
+        Reads the recorded manifest, re-runs its exact command in its
+        recorded working directory (overridable via ``cwd``), waits for the
+        new run to finish, then compares the fresh artifacts to the recorded
+        ones by path + sha256. Returns a report:
+
+            {
+              "original_id": ..., "repro_id": ...,
+              "original_status": ..., "repro_status": ...,
+              "comparison": {verdict, matched, changed, missing, ...},
+              "verdict": reproduced | diverged | incomplete,
+            }
+
+        Raises ValueError if the run is unknown or has no recorded command.
+        """
+        import time as _time
+
+        from . import reproduce as _repro
+
+        if self.runstore is None:
+            raise ValueError("no workspace resolved — cannot reproduce a run")
+        manifest = self.runstore.read_manifest(run_id)
+        if manifest is None:
+            raise ValueError(f"no recorded run: {run_id}")
+        spec = manifest.get("spec") or {}
+        cmd = spec.get("cmd") or spec.get("command")
+        if not cmd:
+            raise ValueError(
+                f"run {run_id} has no recorded command to reproduce "
+                "(only subprocess runs are reproducible)"
+            )
+        recorded_artifacts = manifest.get("artifacts") or []
+        run_cwd = cwd or spec.get("cwd")
+        shell = bool(spec.get("shell", False))
+
+        # Make sure the queue + journal are live so the re-run is recorded.
+        self.tasks.start()
+        self._start_journal()
+        repro_id = self.run_command(
+            cmd,
+            name=f"reproduce:{run_id}",
+            cwd=run_cwd,
+            shell=shell,
+        )
+
+        # Wait for the re-run to reach a terminal state.
+        deadline = None if timeout is None else _time.time() + timeout
+        while True:
+            job = self.tasks.get(repro_id)
+            status = job.status.value if job else None
+            if status in ("succeeded", "failed", "cancelled"):
+                break
+            if deadline is not None and _time.time() > deadline:
+                break
+            _time.sleep(poll_interval)
+
+        # Let the journal flush the terminal manifest, then read it back.
+        _time.sleep(0.3)
+        repro_manifest = self.runstore.read_manifest(repro_id) or {}
+        fresh_artifacts = repro_manifest.get("artifacts") or []
+
+        comparison = _repro.compare_artifacts(recorded_artifacts, fresh_artifacts)
+        return {
+            "original_id": run_id,
+            "repro_id": repro_id,
+            "original_status": manifest.get("status"),
+            "repro_status": repro_manifest.get("status"),
+            "command": cmd,
+            "cwd": run_cwd,
+            "comparison": comparison,
+            "verdict": comparison["verdict"],
+        }
+
     # ── lifecycle ─────────────────────────────────────────────────────
     def serve(self) -> None:
         """Start the persistent daemon: task queue + read-only HTTP server.
