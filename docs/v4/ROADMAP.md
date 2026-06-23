@@ -462,3 +462,65 @@ Deferred (logged, lower leverage right now): scheduler-aware job-kinds
 valuable for HPC (the target deploy is a shared SLURM box) but it's a
 narrower job-kind extension that builds cleanly on the SubprocessRunner
 + artifact tracking already in place. Revisit after 1.8.
+
+### Phase log: 1.11 – 1.14 (2026-06-23) — the provenance & correctness arc
+
+These four phases complete the single-run + chain story. Each shipped
+green (ruff clean, preflight 34/34) on `feat/v4-daemon-core`.
+
+* **1.11 — SLURM scheduler + `daemon submit`** (`298668d`). A
+  `SchedulerRunner` fitting the same TaskQueue→RunResult seam: sbatch
+  `--parsable` submit + sacct/squeue poll + scancel + artifact capture.
+  Non-blocking (returns a daemon job id immediately; a worker thread
+  owns the poll). `SchedulerAdapter` Protocol keeps PBS/LSF pluggable.
+  Graceful degradation when `sbatch` is absent (this host has none) —
+  clean exit-1, still records a daemon run. Verified via fake-SLURM
+  adapter: PENDING→RUNNING→COMPLETED lifecycle, out.txt captured.
+
+* **1.12 — run comparison `daemon diff` + shell-aware `daemon run`**
+  (`7d16b61`). `compare_runs(a, b)` (pure stdlib) diffs three planes:
+  command (cmd/cwd/scheduler/env), context (git commit+branch+dirty,
+  conda env+python, input hashes, package versions), outputs (artifacts
+  by sha256, reusing `compare_artifacts`). Also fixed a real bug: a
+  single-token command with shell metacharacters (`|`, `>`, `&&`) now
+  auto-routes through a shell (or `--shell`), so `daemon run "py x | tee
+  log"` works. The exec form `daemon run -- python x.py` stays argv.
+
+* **1.13 — content-addressed run lineage graph** (`deb009a`).
+  `build_lineage(manifests)` builds the provenance DAG: run B depends on
+  run A iff one of B's input hashes equals one of A's output artifact
+  hashes — the edges fall out of data already captured, no manual
+  declaration. `ancestors`/`descendants` answer "where did this come
+  from?" (`--upstream`) and "what goes stale if I re-run this?"
+  (`--downstream`). Added `daemon run --input PATH` so input hashes get
+  recorded (the link key). Verified e2e on a 3-run A→B→C chain.
+
+* **1.14 — staleness detection** (`ed67c1e`). `assess(manifests,
+  hash_file)` (pure, injected hasher) turns the passive DAG into an
+  active correctness tool: a run is **input-stale** when a recorded
+  input now hashes differently on disk; **transitive-stale** when any
+  lineage ancestor is stale. `daemon stale` exits 1 if anything is
+  stale, showing the old→new hash and the stale-ancestor chain. This is
+  the question that matters most to a computational scientist: "is this
+  figure still valid, or was it built from data that has since changed?"
+  Verified e2e: mutate an upstream input → its consumer goes input-stale
+  and that consumer's consumer goes transitive-stale.
+
+**Architecture invariant now enforced in CI** (`94d661f`): a new
+preflight check fails the build if the reasoning layer (`server/`,
+`tools/`, `protocols/`) ever imports the daemon. The dependency arrow
+(daemon → server, never the reverse) is the spine of DESIGN_V4.md §6 and
+can no longer silently reverse as the daemon grows.
+
+**Run lifecycle is now complete for single runs + chains:**
+`run`/`submit` → `track` → `journal` → `reproduce` → `diff` →
+`lineage` → `stale`. Local and HPC unified through one path; every stage
+is pure-stdlib-comparable and works without the daemon being up.
+
+**Next BUILD candidates (DESIGN_V4.md):** the lineage + staleness pair
+naturally sets up (a) **selective re-run** — given a stale set, re-run
+only the affected sub-DAG in dependency order (a minimal make/snakemake
+without the DSL, built on data we already have); and (b) the **read-only
+HTTP surface** for lineage/staleness so a future dashboard can render
+the DAG. Re-run leans on existing `reproduce_run`; it's the higher-value
+of the two and keeps the build CLI-first before adding transports.

@@ -560,6 +560,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon diff A B  compare two runs (cmd/context/outputs)")
         print("  research-os daemon lineage [ID]  run dependency graph (provenance DAG)")
         print("  research-os daemon stale  flag results built from changed inputs")
+        print("  research-os daemon rebuild  re-run only the stale runs (in order)")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -624,6 +625,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "stale":
         return _daemon_stale(daemon, args)
+
+    if sub == "rebuild":
+        return _daemon_rebuild(daemon, args)
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -1120,6 +1124,47 @@ def _print_stale_rows(report, _stale, *, include_fresh: bool) -> None:
         if v["stale_ancestors"]:
             anc = ", ".join(a[:12] for a in v["stale_ancestors"])
             print(f"        ↑ depends on stale: {anc}")
+
+
+def _daemon_rebuild(daemon, args) -> int:
+    """Re-run exactly the stale sub-DAG in dependency order."""
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to rebuild.")
+        return 1
+
+    dry = getattr(args, "dry_run", False)
+    report = daemon.rebuild_stale(
+        limit=getattr(args, "limit", 200),
+        dry_run=dry,
+        timeout=getattr(args, "timeout", None),
+    )
+
+    if getattr(args, "as_json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0
+
+    plan = report["plan"]
+    if not plan:
+        print("  ✓  nothing to rebuild — all results are fresh")
+        return 0
+
+    if dry:
+        print(f"  rebuild plan: {len(plan)} stale run(s), in dependency order:")
+        for i, rid in enumerate(plan, 1):
+            print(f"    {i}. {rid[:12]}")
+        print("  → run without --dry-run to execute")
+        return 0
+
+    c = report["counts"]
+    print(f"  rebuild: {c['planned']} planned — {c['rebuilt']} rebuilt, "
+          f"{c['skipped']} skipped")
+    for r in report["rebuilt"]:
+        from research_os.daemon import reproduce as _repro
+        g = _repro.verdict_glyph(r["verdict"])
+        print(f"    {g} {r['run_id'][:12]} -> {r['repro_id'][:12]}  ({r['verdict']})")
+    for s in report["skipped"]:
+        print(f"    · {s['run_id'][:12]}  skipped — {s['reason']}")
+    return 0
 
 
 def _print_daemon_status(status) -> None:
@@ -2537,6 +2582,30 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Show fresh + unknown runs too (default: only stale).")
     pd_stale.add_argument("--json", dest="as_json", action="store_true",
                           help="Emit the full freshness assessment as JSON.")
+
+    # rebuild: re-run exactly the stale sub-DAG in dependency order.
+    pd_rebuild = daemon_sub.add_parser(
+        "rebuild",
+        help="Re-run only the stale runs (in dependency order) to refresh results.",
+        description=(
+            "A minimal 'make' over the lineage DAG: find every stale run\n"
+            "(input-stale or transitive-stale), order it producers-first, and\n"
+            "reproduce each. Fixing an upstream result clears its descendants'\n"
+            "transitive staleness, so a descendant only rebuilds if still stale\n"
+            "when its turn comes. Use --dry-run to preview the plan."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_rebuild.add_argument("--workspace", default=None,
+                            help="Explicit workspace path (else auto-resolved).")
+    pd_rebuild.add_argument("--limit", default=200, type=int,
+                            help="Max recent runs to assess.")
+    pd_rebuild.add_argument("--dry-run", dest="dry_run", action="store_true",
+                            help="Show the rebuild plan without executing.")
+    pd_rebuild.add_argument("--timeout", default=None, type=float,
+                            help="Per-run timeout (seconds) for each re-run.")
+    pd_rebuild.add_argument("--json", dest="as_json", action="store_true",
+                            help="Emit the rebuild report as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

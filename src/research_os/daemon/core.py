@@ -378,6 +378,21 @@ class Daemon:
         run_cwd = cwd or spec.get("cwd")
         shell = bool(spec.get("shell", False))
 
+        # Propagate the original run's input paths so the re-run records its
+        # own provenance.inputs — otherwise the reproduced run drops out of
+        # the lineage graph and freshness checks (it would read as "no
+        # recorded inputs"). Recorded paths may be relative to the run's cwd,
+        # so resolve them to absolute against run_cwd before re-hashing (the
+        # daemon process cwd is not necessarily the run's cwd). Paths are
+        # re-hashed fresh against current disk.
+        import os as _os
+        recorded_inputs = ((manifest.get("provenance") or {}).get("inputs") or {})
+        base = run_cwd or "."
+        input_paths = [
+            p if _os.path.isabs(p) else _os.path.join(base, p)
+            for p in recorded_inputs
+        ] or None
+
         # Make sure the queue + journal are live so the re-run is recorded.
         self.tasks.start()
         self._start_journal()
@@ -386,6 +401,7 @@ class Daemon:
             name=f"reproduce:{run_id}",
             cwd=run_cwd,
             shell=shell,
+            inputs=input_paths,
         )
 
         # Wait for the re-run to reach a terminal state.
@@ -414,6 +430,98 @@ class Daemon:
             "cwd": run_cwd,
             "comparison": comparison,
             "verdict": comparison["verdict"],
+        }
+
+    # ── rebuild (Phase 1.15) ──────────────────────────────────────────
+    def rebuild_stale(
+        self,
+        *,
+        limit: int = 200,
+        dry_run: bool = False,
+        timeout: float | None = None,
+    ) -> dict:
+        """Re-run exactly the stale sub-DAG, in dependency order.
+
+        A minimal ``make`` built on data already captured: assess
+        staleness over the lineage graph, take every input-stale or
+        transitive-stale run, topologically sort it (producers before
+        consumers), and reproduce each in order. After each rebuild the
+        freshness is re-assessed, so fixing an upstream result clears the
+        transitive staleness of its descendants — a descendant only
+        rebuilds if it is still stale by the time its turn comes.
+
+        ``dry_run`` returns the plan (ordered ids + why) without executing.
+        Returns:
+            {
+              "plan":     [run_id, ...],          # topo-ordered stale set
+              "rebuilt":  [{run_id, repro_id, verdict}, ...],
+              "skipped":  [{run_id, reason}, ...], # fixed transitively / no cmd
+              "dry_run":  bool,
+              "counts":   {planned, rebuilt, skipped},
+            }
+        """
+        from . import lineage as _lineage
+        from . import staleness as _stale
+
+        if self.runstore is None:
+            raise ValueError("no workspace resolved — cannot rebuild")
+
+        def _hash(path: str) -> "str | None":
+            import os
+
+            from . import provenance as _prov
+            root = getattr(self, "root", None)
+            p = path if os.path.isabs(path) else os.path.join(root or ".", path)
+            try:
+                return _prov.hash_file(p)
+            except Exception:
+                return None
+
+        manifests = self.runstore.recent_manifests(limit=limit)
+        graph = _lineage.build_lineage(manifests)
+        report = _stale.assess(manifests, _hash)
+        stale_set = set(report["stale"])
+        plan = [r for r in _lineage.topo_order(graph, stale_set) if r in stale_set]
+
+        if dry_run:
+            return {
+                "plan": plan,
+                "rebuilt": [],
+                "skipped": [],
+                "dry_run": True,
+                "counts": {"planned": len(plan), "rebuilt": 0, "skipped": 0},
+            }
+
+        rebuilt: list[dict] = []
+        skipped: list[dict] = []
+        for rid in plan:
+            # Re-assess: an earlier rebuild may have cleared this one's
+            # transitive staleness (its upstream is now fresh).
+            fresh_manifests = self.runstore.recent_manifests(limit=limit)
+            cur = _stale.assess(fresh_manifests, _hash)
+            if rid not in set(cur["stale"]):
+                skipped.append({"run_id": rid, "reason": "no longer stale"})
+                continue
+            try:
+                result = self.reproduce_run(rid, timeout=timeout)
+                rebuilt.append({
+                    "run_id": rid,
+                    "repro_id": result["repro_id"],
+                    "verdict": result["verdict"],
+                })
+            except ValueError as exc:
+                skipped.append({"run_id": rid, "reason": str(exc)})
+
+        return {
+            "plan": plan,
+            "rebuilt": rebuilt,
+            "skipped": skipped,
+            "dry_run": False,
+            "counts": {
+                "planned": len(plan),
+                "rebuilt": len(rebuilt),
+                "skipped": len(skipped),
+            },
         }
 
     # ── lifecycle ─────────────────────────────────────────────────────

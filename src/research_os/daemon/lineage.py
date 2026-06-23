@@ -163,3 +163,49 @@ def descendants(lineage: dict, run_id: str) -> list[str]:
         seen.add(cur)
         stack.extend(children.get(cur, set()))
     return sorted(seen)
+
+
+def topo_order(lineage: dict, subset: "set[str] | None" = None) -> list[str]:
+    """Topologically sort runs so producers come before consumers.
+
+    Restricted to ``subset`` when given (edges to runs outside the subset
+    are ignored for ordering, but still respected as prerequisites already
+    satisfied). Within a dependency tier, ids are sorted for determinism.
+    A cycle (should never happen — lineage is content-addressed and
+    acyclic by construction) degrades gracefully: cyclic remainder is
+    appended in sorted order rather than dropped.
+
+    This is the order a selective re-run must follow: rebuild an upstream
+    result before the downstream run that consumes it.
+    """
+    ids = {n["id"] for n in lineage.get("nodes", [])}
+    if subset is not None:
+        ids = ids & subset
+
+    # parents within the working set
+    parents: dict[str, set[str]] = {i: set() for i in ids}
+    children: dict[str, set[str]] = {i: set() for i in ids}
+    for e in lineage.get("edges", []):
+        frm, to = e["from"], e["to"]
+        if frm in ids and to in ids:
+            parents[to].add(frm)
+            children[frm].add(to)
+
+    # Kahn's algorithm, deterministic tie-break.
+    ready = sorted(i for i in ids if not parents[i])
+    out: list[str] = []
+    indeg = {i: len(parents[i]) for i in ids}
+    while ready:
+        cur = ready.pop(0)
+        out.append(cur)
+        newly: list[str] = []
+        for c in children[cur]:
+            indeg[c] -= 1
+            if indeg[c] == 0:
+                newly.append(c)
+        if newly:
+            ready = sorted(ready + newly)
+
+    if len(out) < len(ids):  # cycle fallback — never expected
+        out.extend(sorted(ids - set(out)))
+    return out

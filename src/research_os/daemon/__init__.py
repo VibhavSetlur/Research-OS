@@ -31,7 +31,7 @@ from .compare import compare_runs
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
 from .events import Event, EventBus
-from .lineage import ancestors, build_lineage, descendants
+from .lineage import ancestors, build_lineage, descendants, topo_order
 from .registry import Workspace, WorkspaceRegistry
 from .reproduce import compare_artifacts
 from .runners import RunResult, SubprocessRunner
@@ -64,6 +64,7 @@ __all__ = [
     "build_lineage",
     "ancestors",
     "descendants",
+    "topo_order",
     "assess_staleness",
     "check_input_staleness",
     "SchedulerRunner",
