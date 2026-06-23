@@ -25,6 +25,8 @@ dashboard.
 """
 from __future__ import annotations
 
+from .artifacts import diff as artifacts_diff
+from .artifacts import snapshot as artifacts_snapshot
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
 from .events import Event, EventBus
@@ -49,4 +51,6 @@ __all__ = [
     "RunStore",
     "RunJournal",
     "build_manifest",
+    "artifacts_snapshot",
+    "artifacts_diff",
 ]

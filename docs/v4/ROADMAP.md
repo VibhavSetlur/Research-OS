@@ -428,3 +428,37 @@ last N runs into the queue's history. New endpoints `GET /v1/runs` and
 becomes the live view; runs are the permanent record). Provenance capture
 is best-effort and never blocks a run (a missing git binary just omits
 the commit). This is strictly additive — no existing behavior changes.
+
+**SHIPPED (Phase 1.7, commit c1d1ffd).** `provenance.py` + `runstore.py`
+(RunStore + RunJournal bridge off the event bus) + `/v1/runs[/{id}]`.
+Gaps 1+2 closed; gap 1 also rehydrates orphaned runs to INTERRUPTED on
+restart. Nonzero subprocess exit now reconciles to a FAILED run.
+
+### JUDGE-3 (2026-06-23) — closing the provenance loop: artifacts
+
+Phase 1.7 records inputs → command+env. The other half of
+reproducibility is **outputs**: a run that says "here is exactly how I
+was made" must also say "here is what I made." Gap 3 (artifact tracking)
+is now the highest-leverage lever — it's universal (every run produces
+files, regardless of language or where it ran) and it's what lets a
+dashboard show "this figure ⇐ this run ⇐ this code@commit ⇐ these
+inputs." It also composes forward: a SLURM/snakemake job (a later
+job-kind) still produces artifacts the same way.
+
+**IMPROVE — artifact detection by working-dir diff (Phase 1.8, next
+BUILD).** Snapshot the run's cwd file fingerprints (path → mtime+size)
+at job start; diff at job end; record created/modified files as
+artifacts (path, size, sha256, mtime) on the run manifest. Bounded:
+cap the artifact count, skip files over a size threshold (hash is
+skipped, file still listed), ignore VCS/cache dirs (`.git`, `.os_state`,
+`__pycache__`, `node_modules`, `.venv`). Best-effort, off the hot path,
+never blocks or fails a run. Config knobs: max artifacts, max hash
+bytes, ignore globs. Endpoint: artifacts ride inside the existing
+`run.json`, so `GET /v1/runs/{id}` already surfaces them — no new route.
+Strictly additive.
+
+Deferred (logged, lower leverage right now): scheduler-aware job-kinds
+(SLURM `sbatch`/`squeue` polling, snakemake/nextflow DAG awareness) —
+valuable for HPC (the target deploy is a shared SLURM box) but it's a
+narrower job-kind extension that builds cleanly on the SubprocessRunner
++ artifact tracking already in place. Revisit after 1.8.

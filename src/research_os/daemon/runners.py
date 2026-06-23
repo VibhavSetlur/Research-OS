@@ -42,7 +42,8 @@ class RunResult:
     stderr_tail: list[str] = field(default_factory=list)
     truncated: bool = False
     cancelled: bool = False
-    artifacts: list[str] = field(default_factory=list)
+    artifacts: list[dict] = field(default_factory=list)
+    artifacts_truncated: bool = False
 
     @property
     def ok(self) -> bool:
@@ -60,6 +61,7 @@ class RunResult:
             "truncated": self.truncated,
             "cancelled": self.cancelled,
             "artifacts": self.artifacts,
+            "artifacts_truncated": self.artifacts_truncated,
         }
 
 
@@ -86,6 +88,7 @@ class SubprocessRunner:
         tail_lines: int = 200,
         kill_grace_s: float = 5.0,
         shell: bool = False,
+        track_artifacts: bool = True,
     ) -> None:
         if isinstance(cmd, str) and not shell:
             self.cmd = shlex.split(cmd)
@@ -99,6 +102,7 @@ class SubprocessRunner:
         self.tail_lines = max(1, tail_lines)
         self.kill_grace_s = kill_grace_s
         self.shell = shell
+        self.track_artifacts = track_artifacts
 
     def __call__(
         self,
@@ -114,6 +118,16 @@ class SubprocessRunner:
         stderr_tail: deque[str] = deque(maxlen=self.tail_lines)
         line_count = 0
         start = time.time()
+
+        # Artifact tracking (Phase 1.8): fingerprint the working dir before
+        # the run so we can report created/modified files afterwards. The
+        # diff is best-effort and never blocks or fails the run.
+        art_root = self.cwd or os.getcwd()
+        art_before: dict = {}
+        if self.track_artifacts:
+            from . import artifacts as _artifacts
+
+            art_before = _artifacts.snapshot(art_root)
 
         run_env = None
         if self.env is not None:
@@ -171,6 +185,16 @@ class SubprocessRunner:
         t_out.join(timeout=2)
         t_err.join(timeout=2)
 
+        # Diff the working dir to surface artifacts the run produced.
+        art_list: list[dict] = []
+        art_trunc = False
+        if self.track_artifacts:
+            from . import artifacts as _artifacts
+
+            art = _artifacts.diff(art_root, art_before)
+            art_list = art.get("artifacts", [])
+            art_trunc = art.get("truncated", False)
+
         result = RunResult(
             returncode=proc.returncode if proc.returncode is not None else -1,
             cmd=self.cmd,
@@ -180,6 +204,8 @@ class SubprocessRunner:
             stderr_tail=list(stderr_tail),
             truncated=line_count > (len(stdout_tail) + len(stderr_tail)),
             cancelled=cancelled,
+            artifacts=art_list,
+            artifacts_truncated=art_trunc,
         )
         return result.to_dict()
 
