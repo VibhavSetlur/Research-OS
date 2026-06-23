@@ -1312,6 +1312,48 @@ def check_coherence():
 # ---------------------------------------------------------------------------
 
 
+def check_reasoning_layer_independent_of_daemon():
+    """Architecture invariant (DESIGN_V4.md §6.1): the reasoning layer never
+    imports the transport/execution layer.
+
+    The dependency arrow points ONE way: ``daemon/`` may import ``server/``
+    (it fronts ``_handle_tool_call``), but ``server/``, ``tools/`` and the
+    protocol loaders must never import ``daemon/``. If they did, the pure
+    reasoning core (152 tools, 142 protocols) would become coupled to HTTP /
+    sessions / concurrency — the exact thing v4 exists to undo. This check
+    fails the build the moment that arrow gets reversed.
+    """
+    import re as _re
+
+    src = REPO_ROOT / "src" / "research_os"
+    reasoning_dirs = [src / "server", src / "tools"]
+    # Match `import research_os.daemon`, `from research_os.daemon ...`,
+    # `from ..daemon ...`, `from .daemon ...` — but NOT comments/strings
+    # mentioning the word daemon.
+    pat = _re.compile(
+        r"^\s*(?:from\s+(?:\.+|research_os\.)?daemon[\s.]"
+        r"|import\s+research_os\.daemon)"
+    )
+    offenders: list[str] = []
+    for d in reasoning_dirs:
+        if not d.exists():
+            continue
+        for py in d.rglob("*.py"):
+            try:
+                for i, line in enumerate(py.read_text().splitlines(), 1):
+                    if pat.match(line):
+                        rel = py.relative_to(REPO_ROOT)
+                        offenders.append(f"{rel}:{i}: {line.strip()}")
+            except Exception:
+                continue
+    if offenders:
+        return False, (
+            "reasoning layer imports daemon (arrow reversed): "
+            + "; ".join(offenders[:5])
+        )
+    return True, "server/ + tools/ never import daemon/ (arrow points daemon→server)"
+
+
 def main() -> int:
     # Make src importable when called from a clean checkout.
     sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -1352,6 +1394,7 @@ def main() -> int:
     tally.check("CITATION.cff cff-version valid", check_citation_cff_valid)
     tally.check("Every tool definition has 'short' field <=120 chars", check_tool_short_field_length)
     tally.check("Every pack dir in both bundled lists (loader + pyproject)", check_packs_in_both_lists)
+    tally.check("Reasoning layer independent of daemon (v4 arrow)", check_reasoning_layer_independent_of_daemon)
 
     print()
     print(f"Summary: {tally.passed} passed · {tally.failed} failed")
