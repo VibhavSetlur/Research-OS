@@ -524,3 +524,36 @@ without the DSL, built on data we already have); and (b) the **read-only
 HTTP surface** for lineage/staleness so a future dashboard can render
 the DAG. Re-run leans on existing `reproduce_run`; it's the higher-value
 of the two and keeps the build CLI-first before adding transports.
+
+### Phase log: 1.15 (2026-06-23) — selective rebuild (the minimal make)
+
+* **1.15 — `daemon rebuild`** (`1d26dd6`). Closes the correctness loop:
+  detect stale → fix exactly what's stale, in order. `lineage.topo_order`
+  (Kahn's algorithm, subset-restricted, deterministic tie-break) orders
+  the stale set producers-first; `core.rebuild_stale` reproduces each in
+  turn, **re-assessing freshness between steps** so fixing an upstream
+  result clears its descendants' transitive staleness — a descendant only
+  rebuilds if still stale when its turn comes. `--dry-run` previews the
+  plan. This is a minimal `make`/snakemake built entirely on
+  content-addressing — no DSL, no manual dependency graph; the DAG comes
+  from input/output hashes already captured.
+
+* **fix(reproduce) — reproduced runs stay in the provenance graph.**
+  Found while building rebuild (exactly what JUDGE is for): `reproduce_run`
+  (Phase 1.10) re-ran the recorded command but did NOT forward the
+  original run's input paths, so every reproduced run recorded zero
+  `provenance.inputs` and dropped out of lineage + freshness as "no
+  recorded inputs". Now it propagates the original input paths (resolved
+  to absolute against the run's cwd, then re-hashed fresh against current
+  disk). Verified e2e: a rebuilt A→B→C chain produces a fresh, properly
+  linked repro sub-DAG, and the new repro runs read each other's fresh
+  outputs (repro-C consumes repro-B's new output, hash-matched → fresh).
+
+**Run lifecycle is now a complete correctness loop:**
+`run`/`submit` → `track` → `journal` → `reproduce` → `diff` →
+`lineage` → `stale` → `rebuild`. A researcher edits a data file and
+`daemon rebuild` re-runs precisely the affected downstream work in the
+right order — the defining capability of a research *OS* over a job
+runner. Next BUILD candidate: the read-only HTTP surface for
+lineage/staleness/rebuild-plan (sets up the dashboard transport without
+touching the CLI-first core).
