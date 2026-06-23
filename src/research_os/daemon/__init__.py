@@ -16,14 +16,27 @@ DESIGN STANCE (read docs/v4/ROADMAP.md before extending this):
   that need it, so ``import research_os.daemon`` stays cheap and never
   fails on a core-only install.
 
-Phase 0 (this file): the skeleton — config, a ``Daemon`` holder, and a
-status report. No serving yet. Later phases fill in the core loop, the
-OpenAI-compatible gateway, the MCP telemetry sidecar, the sandbox, and
-the dashboard.
+Phase 0: the skeleton — config, a ``Daemon`` holder, and a status report.
+Phase 1 (current): the persistent core loop — a multi-root state registry,
+a background task queue ("master loop owns execution"), and read-only HTTP
+endpoints (``/healthz``, ``/v1/state``, ``/v1/jobs``). Later phases add the
+OpenAI-compatible gateway, the MCP telemetry sidecar, the sandbox, and the
+dashboard.
 """
 from __future__ import annotations
 
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
+from .registry import Workspace, WorkspaceRegistry
+from .tasks import Job, JobStatus, TaskQueue
 
-__all__ = ["Daemon", "DaemonConfig", "DaemonStatus"]
+__all__ = [
+    "Daemon",
+    "DaemonConfig",
+    "DaemonStatus",
+    "WorkspaceRegistry",
+    "Workspace",
+    "TaskQueue",
+    "Job",
+    "JobStatus",
+]

@@ -43,6 +43,12 @@ class DaemonConfig:
     # runtime and falls back to native; "native" forces host execution;
     # "off" disables agent code execution entirely.
     sandbox_mode: str = "auto"
+    # Background task queue worker count (Phase 1). The "master loop owns
+    # execution" primitive runs jobs off the request thread on this pool.
+    task_workers: int = 2
+    # TTL (seconds) for the registry's per-root state cache. Avoids
+    # hammering the filesystem under rapid polling (e.g. a dashboard).
+    state_cache_ttl: float = 1.0
 
     _VALID_SANDBOX_MODES = ("auto", "native", "off")
 
@@ -54,6 +60,12 @@ class DaemonConfig:
             )
         if not (0 < self.port < 65536):
             raise ValueError(f"port must be in 1..65535, got {self.port}")
+        if self.task_workers < 1:
+            raise ValueError(f"task_workers must be >= 1, got {self.task_workers}")
+        if self.state_cache_ttl < 0:
+            raise ValueError(
+                f"state_cache_ttl must be >= 0, got {self.state_cache_ttl}"
+            )
 
     @property
     def base_url(self) -> str:
@@ -74,7 +86,7 @@ class DaemonConfig:
         """Build a config from defaults -> project file -> env -> overrides."""
         cfg = cls()
         if root is not None:
-            cfg = cfg.with_overrides(**_from_project_file(root))
+            cfg = cfg.with_overrides(**_from_project_file(Path(root)))
         cfg = cfg.with_overrides(**_from_env())
         cfg = cfg.with_overrides(**overrides)
         return cfg
@@ -110,6 +122,8 @@ def _from_env() -> dict:
         "enable_gateway": os.environ.get("RESEARCH_OS_DAEMON_GATEWAY"),
         "enable_dashboard": os.environ.get("RESEARCH_OS_DAEMON_DASHBOARD"),
         "sandbox_mode": os.environ.get("RESEARCH_OS_DAEMON_SANDBOX"),
+        "task_workers": os.environ.get("RESEARCH_OS_DAEMON_WORKERS"),
+        "state_cache_ttl": os.environ.get("RESEARCH_OS_DAEMON_CACHE_TTL"),
     }
     return _coerce({k: v for k, v in env.items() if v is not None})
 
@@ -129,6 +143,16 @@ def _coerce(block: dict) -> dict:
             out[flag] = _as_bool(block[flag])
     if "sandbox_mode" in block and block["sandbox_mode"] is not None:
         out["sandbox_mode"] = str(block["sandbox_mode"]).strip().lower()
+    if "task_workers" in block and block["task_workers"] is not None:
+        try:
+            out["task_workers"] = int(block["task_workers"])
+        except (TypeError, ValueError):
+            pass
+    if "state_cache_ttl" in block and block["state_cache_ttl"] is not None:
+        try:
+            out["state_cache_ttl"] = float(block["state_cache_ttl"])
+        except (TypeError, ValueError):
+            pass
     return out
 
 

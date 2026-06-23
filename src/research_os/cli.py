@@ -539,18 +539,19 @@ def cmd_start(args: argparse.Namespace) -> None:
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Run / inspect the v4 multi-protocol gateway daemon.
 
-    Phase 0 (preview): ``status`` reports daemon + active-project state
-    (read-only); ``start`` is not serving yet and exits with a clear
-    pointer to the roadmap. See docs/v4/ROADMAP.md.
+    ``status`` reports daemon + active-project state (read-only). ``start``
+    runs the persistent daemon: a background task queue plus read-only HTTP
+    endpoints (/healthz, /v1/state, /v1/jobs) on localhost. The HTTP stack
+    needs the optional ``research-os[daemon]`` extra. See docs/v4/ROADMAP.md.
     """
     from research_os.daemon import Daemon
 
     sub = getattr(args, "daemon_command", None)
     if sub is None:
-        print("  Research OS daemon (preview — v4 multi-protocol gateway)")
+        print("  Research OS daemon (v4 multi-protocol gateway)")
         print()
         print("  research-os daemon status   show daemon + project state")
-        print("  research-os daemon start    (preview) not serving yet")
+        print("  research-os daemon start    run the daemon (localhost, read-only API)")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -577,12 +578,20 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     if sub == "start":
-        # Phase 0: the serving loop is not implemented. Report clearly
-        # rather than appearing to start and doing nothing.
-        print(f"  {_warn_glyph()}  The daemon serving loop is not implemented yet (Phase 0).")
-        print("  Phase 0 ships the skeleton + 'research-os daemon status'.")
-        print("  Track progress and the phase plan in docs/v4/ROADMAP.md.")
-        return 1
+        print(f"  Research OS daemon starting on {daemon.config.base_url}")
+        print(f"  root: {daemon.root or '(none resolved)'}")
+        print("  endpoints: GET /healthz  /v1/state  /v1/jobs   (read-only)")
+        print("  Ctrl-C to stop.")
+        try:
+            daemon.serve()
+        except RuntimeError as exc:
+            # Missing [daemon] extra (or other startup failure) — clear hint.
+            print(f"  {_warn_glyph()}  {exc}")
+            return 1
+        except KeyboardInterrupt:
+            print("\n  daemon stopped.")
+            return 0
+        return 0
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -590,13 +599,14 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
 def _print_daemon_status(status) -> None:
     """Pretty-print a DaemonStatus for the terminal."""
-    serving = "yes" if status.serving else "no (preview — Phase 0)"
+    serving = "yes" if status.serving else "no"
     print(f"  Research OS daemon v{status.version}")
     print(f"  serving:     {serving}")
     print(f"  bind:        {status.config.get('base_url')}")
     print(f"  gateway:     {'on' if status.config.get('enable_gateway') else 'off'}")
     print(f"  dashboard:   {'on' if status.config.get('enable_dashboard') else 'off'}")
     print(f"  sandbox:     {status.config.get('sandbox_mode')}")
+    print(f"  workers:     {status.config.get('task_workers')}")
     print(f"  root:        {status.root or '(none resolved)'}")
     print(f"  initialized: {'yes' if status.project_initialized else 'no'}")
     if status.active_protocol:
@@ -606,6 +616,13 @@ def _print_daemon_status(status) -> None:
         total = status.progress.get("total") or status.progress.get("steps_total")
         if done is not None and total is not None:
             print(f"  progress:    {done}/{total} steps")
+    jobs = status.jobs or {}
+    if jobs.get("total"):
+        counts = jobs.get("counts", {})
+        summary = ", ".join(f"{v} {k}" for k, v in sorted(counts.items()))
+        print(f"  jobs:        {jobs['total']} ({summary})")
+    if len(status.roots) > 1:
+        print(f"  roots:       {len(status.roots)} registered")
     for note in status.notes:
         print(f"  {_warn_glyph()}  {note}")
 

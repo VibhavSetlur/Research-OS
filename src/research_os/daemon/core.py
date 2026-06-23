@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import DaemonConfig
+from .registry import WorkspaceRegistry
+from .tasks import TaskQueue
 
 logger = logging.getLogger("research-os.daemon")
 
@@ -40,6 +42,8 @@ class DaemonStatus:
     active_protocol: str | None = None
     progress: dict = field(default_factory=dict)
     notes: list = field(default_factory=list)
+    roots: list = field(default_factory=list)
+    jobs: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {
@@ -51,6 +55,8 @@ class DaemonStatus:
             "active_protocol": self.active_protocol,
             "progress": self.progress,
             "notes": self.notes,
+            "roots": self.roots,
+            "jobs": self.jobs,
         }
 
 
@@ -65,9 +71,15 @@ class Daemon:
     def __init__(self, root: Path | None, config: DaemonConfig) -> None:
         self.root = root
         self.config = config
-        # Set True by Phase 1's core loop once the process is actually
-        # listening. Phase 0 never serves.
+        # Set True by serve() once the process is actually listening.
         self._serving = False
+        # Multi-root state registry + background task queue (Phase 1).
+        # Both are stdlib-only and import-cheap; constructing them here keeps
+        # status() and serve() working off the same engine seams.
+        self.registry = WorkspaceRegistry(cache_ttl=config.state_cache_ttl)
+        self.tasks = TaskQueue(max_workers=config.task_workers)
+        if root is not None:
+            self.registry.register(root)
 
     # ── construction helpers ──────────────────────────────────────────
     @classmethod
@@ -82,7 +94,11 @@ class Daemon:
         return cls.for_root(root, **overrides)
 
     @classmethod
-    def for_root(cls, root: Path | None, **overrides: object) -> "Daemon":
+    def for_root(cls, root: Path | str | None, **overrides: object) -> "Daemon":
+        # Normalize to Path early so config resolution, status(), and the
+        # registry all get a real Path (callers may pass a str).
+        if root is not None and not isinstance(root, Path):
+            root = Path(root)
         config = DaemonConfig.resolve(root=root, **overrides)
         return cls(root=root, config=config)
 
@@ -123,27 +139,42 @@ class Daemon:
                 "enable_gateway": self.config.enable_gateway,
                 "enable_dashboard": self.config.enable_dashboard,
                 "sandbox_mode": self.config.sandbox_mode,
+                "task_workers": self.config.task_workers,
+                "state_cache_ttl": self.config.state_cache_ttl,
             },
             root=str(root) if root else None,
             project_initialized=initialized,
             active_protocol=active_protocol,
             progress=progress,
             notes=notes,
+            roots=self.registry.roots(),
+            jobs=self.tasks.snapshot(limit=10),
         )
 
-    # ── lifecycle (filled in by later phases) ─────────────────────────
+    # ── lifecycle ─────────────────────────────────────────────────────
     def serve(self) -> None:
-        """Start serving. Not implemented in the Phase 0 skeleton.
+        """Start the persistent daemon: task queue + read-only HTTP server.
 
-        Phase 1 implements the persistent core loop + read-only HTTP
-        endpoints here. Until then this raises a clear, actionable error
-        rather than silently doing nothing.
+        Blocks until interrupted. The HTTP layer (starlette/uvicorn) is in
+        the optional ``[daemon]`` extra and imported lazily; if it's absent
+        this raises a clear "install research-os[daemon]" error rather than
+        a bare ImportError.
+
+        The stdio MCP server is untouched — this is a separate, additive,
+        opt-in surface (strangler-fig).
         """
-        raise NotImplementedError(
-            "The Research OS daemon serving loop is not implemented yet "
-            "(Phase 1). Phase 0 ships the skeleton + 'research-os daemon "
-            "status'. Track progress in docs/v4/ROADMAP.md."
-        )
+        from . import server as _server
+
+        # Fail fast with the actionable hint BEFORE we start the queue, so a
+        # missing extra doesn't leave a worker pool dangling.
+        _server._require_web_stack()
+        self.tasks.start()
+        self._serving = True
+        try:
+            _server.serve(self)
+        finally:
+            self._serving = False
+            self.tasks.shutdown(wait=False)
 
 
 # ── private helpers: reuse the existing engine, never reimplement ──────
