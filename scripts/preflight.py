@@ -474,6 +474,8 @@ def check_protocols_referenced_tools_resolve():
         "tool_discovery",   # protocol name (methodology/tool_discovery)
         "tool_list",        # word appearing in prose ("tool list")
         "tool_build",       # workspace.mode name (build/* protocols, scope_tags)
+        "tool_to_analysis_handoff",  # protocol name (hybrid/tool_to_analysis_handoff)
+        "tool_and_analysis",         # workflow_shape value for hybrid mode
     }
     refs: dict[str, set[str]] = {}
     # Match a tool name, but reject the match if the very next char is `*`

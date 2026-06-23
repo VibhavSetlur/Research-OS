@@ -271,15 +271,19 @@ LAYOUT_SPEC: dict[str, dict] = {
         "lazy": ("synthesis",),
         "summary": "Program/portfolio: studies/ + shared/ + roll_up/.",
     },
-    # hybrid (research + software) reuses the analysis layout — the software
-    # lives in its own inner repo / package, detected by
-    # detect_software_components() and surfaced in the workflow DAG + sys_boot
-    # rather than scaffolded as a fixed folder.
+    # hybrid (research + software) = analysis spine + a first-class home for
+    # the tool half. It keeps the analysis layout (numbered steps + literature
+    # + synthesis) AND declares a lazy ``tool/`` surface: the inner software
+    # repo / package lives there once the build half starts, giving the hybrid
+    # protocols (hybrid_workflow, tool_to_analysis_handoff) a stable path to
+    # point at instead of relying purely on detect_software_components(). The
+    # dir is lazy, so a hybrid project that hasn't built anything yet looks
+    # exactly like an analysis project until the first tool artefact appears.
     "hybrid": {
-        "work": ("literature",),
+        "work": ("literature", "tool"),
         "synthesis": True,
-        "lazy": ("synthesis",),
-        "summary": "Analysis layout + inner software repo (auto-detected).",
+        "lazy": ("tool", "synthesis"),
+        "summary": "Analysis spine + lazy tool/ home for the inner software repo (also auto-detected).",
     },
 }
 

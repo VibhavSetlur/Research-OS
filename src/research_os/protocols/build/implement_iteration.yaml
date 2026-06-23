@@ -195,6 +195,7 @@ steps:
         - Continue → loop back to scope_increment for the next increment.
         - Test regime unsettled → build/test_strategy.
         - Performance/quality claim to substantiate → build/benchmark_vs_baseline.
+        - A capability gap that prior work plausibly solves → build/method_scouting (scout it, spike it, then integrate) rather than reinventing it.
         - Increment set is release-worthy → build/release_and_changelog.
 
       MANDATORY PAUSE (anti-one-shot): after a committed increment, present

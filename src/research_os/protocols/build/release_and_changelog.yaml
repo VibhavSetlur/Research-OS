@@ -11,6 +11,7 @@ last_reviewed: '2026-06-16'
 see_also:
   - build/implement_iteration    # where the next increment set re-enters after a release
   - build/benchmark_vs_baseline  # supplies the evidence behind any performance claim shipped
+  - build/package_and_publish    # distributes the cut release to a registry (optional next step)
 description: |
   Turn a set of committed increments into a release a consumer can adopt
   with confidence: a version that signals what changed, a changelog
@@ -173,6 +174,6 @@ expected_outputs:
   - Pinned dependencies + recorded build environment
   - A git tag + release artefact (+ CITATION/DOI when the tool is citable)
 
-next_protocol: null
-next_protocol_kind: terminal
+next_protocol: build/package_and_publish
+next_protocol_kind: forward_default
 on_failure: guidance/dead_end_routing

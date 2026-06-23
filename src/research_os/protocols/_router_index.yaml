@@ -41,8 +41,8 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 35
-generated_at: '2026-06-22'
+version: 37
+generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -71,6 +71,8 @@ hierarchy:
       next_step:      "Propose the best next experiment"
       casual:         "Lightweight exploration"
       program_setup:  "multi_study: shared codebook + prereg + how studies roll up"
+      study_register:  "multi_study: register a new sub-study against the program commons"
+      codebook_governance: "multi_study: amend the shared commons safely after studies started"
   execute:
     label: "Experiment execution"
     sub_intents:
@@ -83,9 +85,14 @@ hierarchy:
       build_test:      "tool_build: design the testing regime + CI gate for the tool"
       build_benchmark: "tool_build: measure the tool against the right baseline(s)"
       build_release:   "tool_build: cut a versioned, reproducible release + changelog"
+      build_publish:   "tool_build: publish the cut release to a registry (PyPI/crates/npm/conda)"
       explore_probe:   "exploration: one probe → observe → decide cycle in scratch"
       explore_promote: "exploration: graduate a probe into a real numbered step"
       notebook_run:    "notebook: author + run a notebook with cell-provenance discipline"
+      notebook_reproduce: "notebook: harden a notebook so anyone can re-run it (pin env, declare inputs, parameterize)"
+      notebook_promote: "notebook: graduate a trustworthy notebook into a script / step / figure"
+      hybrid_run:      "hybrid: build a tool and use it for analysis in one project, provenance spanning both"
+      hybrid_handoff:  "hybrid: cross the tool↔analysis boundary with the tool version pinned"
   methodology:
     label: "Methodology choice + study design"
     sub_intents:
@@ -170,6 +177,8 @@ hierarchy:
       defense:   "Defense / talk Q&A preparation"
       humanities_essay: "Non-IMRAD humanities essay (thesis + close readings + counter)"
       reviewer_sim: "Pre-submission adversarial self-review (7 personas)"
+      notebook_synthesize: "notebook: weave notebook outputs into the requested deliverable"
+      cross_study_synthesis: "multi_study: roll the studies up into one program-level claim"
   audit_wrap:
     label: "Audit + reproducibility"
     sub_intents:
@@ -686,6 +695,122 @@ protocols:
       - tool: mem_log
         purpose: "Record the release (version + headline + tag)."
 
+  build/package_and_publish:
+    intent_class: execute
+    sub_intent: build_publish
+    summary: "Distribute a cut release so others can install it: decide whether + where to publish, complete the packaging metadata + licence, verify a clean-environment install, then gate the irreversible publish to the registry."
+    triggers:
+      - "publish to pypi"
+      - "publish to npm"
+      - "publish to crates"
+      - "publish to conda"
+      - "put it on pypi"
+      - "make it pip installable"
+      - "make it pip-installable"
+      - "distribute the package"
+      - "publish the package"
+      - "ship it to the registry"
+      - "release it publicly"
+    token_estimate: 1700
+    decomposition:
+      - protocol: build/package_and_publish
+        purpose: "Decide registry, complete metadata + licence, verify a clean-env install, gate the publish, verify the public install."
+      - tool: tool_bash_exec
+        purpose: "Build the artefact, install into a clean env, publish (staging first), verify the published install."
+      - tool: mem_log
+        purpose: "Record the publish (name + version + registry + clean-install verified)."
+
+  build/method_scouting:
+    intent_class: plan
+    sub_intent: build_scout
+    summary: "Scout external methods / papers / code worth adopting for a build: frame the capability gap, collect candidates with provenance + licence + integration cost, rank by value vs risk, and decide what to spike (or to build in-house)."
+    triggers:
+      - "is there a method for this"
+      - "is there a library for this"
+      - "is there a paper for this"
+      - "how do others solve this"
+      - "find prior art"
+      - "prior art for this"
+      - "can we reuse"
+      - "research how to do this"
+      - "find a method to"
+      - "find an approach for"
+      - "what's the state of the art"
+      - "borrow or build"
+      - "build it or borrow it"
+    token_estimate: 1500
+    decomposition:
+      - protocol: build/method_scouting
+        purpose: "Frame the gap, scout candidates, rank by value vs risk, decide what gets spiked vs built in-house."
+      - tool: tool_research_method
+        purpose: "Surface the algorithm / technique / published method behind the gap."
+      - tool: tool_research_tool
+        purpose: "Surface candidate libraries / frameworks / reference implementations."
+      - tool: mem_log
+        purpose: "Record the scout outcome, the pick, and the rejection reasons."
+
+  build/integration_spike:
+    intent_class: execute
+    sub_intent: build_spike
+    summary: "Prove a scouted candidate works before building on it: set a falsifiable pass/fail bar, pin the exact version + snapshot the env, run a throwaway spike on a real input (hashed), judge against the bar, checkpoint the verdict, and route adopt / reject / needs-more."
+    triggers:
+      - "spike it"
+      - "spike this"
+      - "try it first"
+      - "try x first"
+      - "prototype this"
+      - "prototype it first"
+      - "see if it actually works"
+      - "see if this works"
+      - "test the library"
+      - "test this approach"
+      - "throwaway test"
+      - "proof of concept"
+      - "validate the approach"
+      - "kick the tires"
+    token_estimate: 1700
+    decomposition:
+      - protocol: build/integration_spike
+        purpose: "Set the falsifiable bar, pin + snapshot, build a throwaway spike on a real (hashed) input, judge, checkpoint the verdict, decide its fate."
+      - tool: sys_env_snapshot
+        purpose: "Capture the interpreter + dependency versions the spike ran under."
+      - tool: tool_scratch_run
+        purpose: "Run the throwaway spike in the scratch surface, never in the real tree."
+      - tool: sys_checkpoint_create
+        purpose: "Snapshot the spike + env at the decision moment so it's re-runnable / reversible."
+      - tool: mem_log
+        purpose: "Record (version, input-hash, bar, result, verdict)."
+
+  build/dependency_integration:
+    intent_class: execute
+    sub_intent: build_integrate
+    summary: "Promote a proven candidate into the real build: carry the spike provenance forward, pin the exact proven version + record licence, wire it in behind a seam, test through the seam, set a version-change + re-proof policy, and commit with provenance behind a rollback checkpoint."
+    triggers:
+      - "integrate it"
+      - "integrate the library"
+      - "wire it in"
+      - "wire it up"
+      - "add this dependency"
+      - "add the dependency for real"
+      - "promote the spike"
+      - "make it part of the tool"
+      - "adopt the dependency"
+      - "pin the version"
+      - "version policy"
+      - "how do we handle upgrades"
+    token_estimate: 1800
+    decomposition:
+      - protocol: build/dependency_integration
+        purpose: "Carry provenance forward, pin the proven version, integrate behind a seam, test through it, set a version-change policy, commit with provenance behind a checkpoint."
+      - tool: tool_package_install
+        purpose: "Pin the dependency at the exact proven version in the manifest/lockfile."
+      - tool: sys_dep_inventory
+        purpose: "Confirm the dependency tree + surface transitive surprises."
+      - tool: sys_checkpoint_create
+        purpose: "Snapshot the integration boundary so it can be rolled back if it goes wrong."
+      - tool: mem_log
+        purpose: "Tie gap → scout → spike → integrated version into one durable record."
+
 # ─────────────────────────────────────────────────────────────────────
 # EXPLORATION protocols (exploration workspace mode)
 # Scratch-first quick probes — the unit of work is a PROBE in
@@ -768,6 +893,53 @@ protocols:
         purpose: "Log the promotion (probe question → step)."
 
 # ─────────────────────────────────────────────────────────────────────
+# HYBRID protocols (hybrid workspace mode)
+# Build a tool AND use it for analysis in one project. The home loop
+# decides which half to advance; the handoff crosses the boundary with
+# the tool version pinned so the analysis stays reproducible.
+# ─────────────────────────────────────────────────────────────────────
+
+  hybrid/hybrid_workflow:
+    intent_class: execute
+    sub_intent: hybrid_run
+    summary: "The hybrid-mode home loop: hold one project that both builds a tool and uses it for analysis, decide which half is the bottleneck each pass, and keep a provenance thread spanning both halves."
+    triggers:
+      - "build a tool and use it"
+      - "build it and analyze with it"
+      - "build it and analyse with it"
+      - "tool and analysis together"
+      - "hybrid project"
+      - "hybrid workflow"
+      - "develop the method and apply it"
+      - "i'm building the thing i'm studying"
+    token_estimate: 1600
+    decomposition:
+      - protocol: hybrid/hybrid_workflow
+        purpose: "Identify the bottleneck half, advance it, decide when to cross, keep the cross-boundary provenance thread."
+      - tool: mem_log
+        purpose: "Log which half advanced + any boundary crossing this pass."
+
+  hybrid/tool_to_analysis_handoff:
+    intent_class: execute
+    sub_intent: hybrid_handoff
+    summary: "Cross the tool↔analysis boundary deliberately: pin the exact tool version an analysis depends on (forward), or triage an analysis finding into a tool change and flag affected past steps (backward)."
+    triggers:
+      - "use the tool for the analysis"
+      - "the tool's ready, run it"
+      - "the tool is ready, run it"
+      - "feed this back into the tool"
+      - "the analysis shows the tool is wrong"
+      - "pin the tool version"
+      - "hand off to analysis"
+      - "the analysis needs the tool to change"
+    token_estimate: 1500
+    decomposition:
+      - protocol: hybrid/tool_to_analysis_handoff
+        purpose: "Name the direction, confirm the increment is ready, pin + record the version (or triage the finding into a tool change), carry the narrative."
+      - tool: mem_log
+        purpose: "Log the crossing (analysis step ↔ tool version dependency / feedback)."
+
+# ─────────────────────────────────────────────────────────────────────
 # NOTEBOOK protocols (notebook workspace mode)
 # Jupyter-first — the unit of work is a notebook in notebooks/, run
 # top-to-bottom; outputs are derived into outputs/.
@@ -795,6 +967,71 @@ protocols:
         purpose: "Author + run notebook cells; validate with a clean-kernel run."
       - tool: mem_log
         purpose: "Log the notebook's headline finding for later synthesis."
+
+  notebook/notebook_reproduce:
+    intent_class: execute
+    sub_intent: notebook_reproduce
+    summary: "Harden a notebook so anyone can re-run it: pin the environment, declare every input path, make execution deterministic, lift hand-tuned values into a parameters cell, verify against a clean kernel."
+    triggers:
+      - "make this notebook reproducible"
+      - "make the notebook reproducible"
+      - "pin the environment"
+      - "parameterize this notebook"
+      - "parameterise this notebook"
+      - "will this run for anyone"
+      - "run this headless"
+      - "run the notebook in ci"
+      - "harden the notebook"
+    token_estimate: 1500
+    decomposition:
+      - protocol: notebook/notebook_reproduce
+        purpose: "Pin the env, declare inputs, make deterministic, parameterize, verify against a fresh kernel."
+      - tool: sys_env
+        purpose: "Snapshot the interpreter + library versions into an environment file."
+      - tool: tool_notebook_exec
+        purpose: "Restart-and-run-all from a clean kernel; run headless with default params."
+      - tool: mem_log
+        purpose: "Record what makes the notebook reproducible (env file, inputs, params)."
+
+  notebook/notebook_promote:
+    intent_class: execute
+    sub_intent: notebook_promote
+    summary: "Graduate a trustworthy notebook into a durable form — a reusable script, a numbered analysis step, or a traced figure feeding synthesis — re-applying the rigor a notebook makes easy to skip."
+    triggers:
+      - "promote this notebook"
+      - "promote the notebook"
+      - "turn this notebook into a script"
+      - "extract this into the pipeline"
+      - "make this notebook a real step"
+      - "this notebook produced the figure"
+      - "graduate the notebook"
+    token_estimate: 1500
+    decomposition:
+      - protocol: notebook/notebook_promote
+        purpose: "Decide the durable form, extract reusable logic / create the step, trace artefacts, hand off."
+      - tool: sys_path
+        purpose: "Create the numbered step when promoting a notebook to an analysis step."
+      - tool: mem_log
+        purpose: "Record the promotion (notebook → script / step / figure)."
+
+  notebook/notebook_synthesize:
+    intent_class: synthesize
+    sub_intent: notebook_synthesize
+    summary: "Weave the figures, tables, and findings the notebooks produced into the requested deliverable (paper / report / dashboard / slides), selecting honestly and qualifying every input before synthesis."
+    triggers:
+      - "write up the notebooks"
+      - "turn these notebooks into a paper"
+      - "turn the notebooks into a report"
+      - "synthesize the notebook results"
+      - "synthesise the notebook results"
+      - "make the slides from the notebooks"
+      - "notebook deliverable"
+    token_estimate: 1500
+    decomposition:
+      - protocol: notebook/notebook_synthesize
+        purpose: "Inventory outputs, select for the story, qualify each input, hand to the synthesis engine."
+      - tool: mem_log
+        purpose: "Record the selected outputs + the deliverable built."
 
 # ─────────────────────────────────────────────────────────────────────
 # PROGRAM protocols (multi_study workspace mode)
@@ -829,6 +1066,70 @@ protocols:
         purpose: "Scaffold the first sub-study under studies/."
       - tool: mem_log
         purpose: "Record the program-setup decision (shared commons frozen)."
+
+  program/study_register:
+    intent_class: plan
+    sub_intent: study_register
+    summary: "Register a new sub-study against the program commons: bind it to the shared codebook + program prereg, declare what it contributes to the roll-up, and scaffold it so it harmonizes by construction."
+    triggers:
+      - "add a study"
+      - "add a sub-study"
+      - "new study in the program"
+      - "register a study"
+      - "start another study"
+      - "next study in the program"
+      - "add a site"
+      - "add a cohort"
+    token_estimate: 1600
+    decomposition:
+      - protocol: program/study_register
+        purpose: "Bind the study to the codebook + prereg, declare its roll-up contribution, scaffold it harmonized."
+      - tool: sys_path
+        purpose: "Scaffold the new sub-study directory under studies/."
+      - tool: mem_log
+        purpose: "Record the study registration (bound to commons vX)."
+
+  program/cross_study_synthesis:
+    intent_class: synthesize
+    sub_intent: cross_study_synthesis
+    summary: "Roll the completed studies up into one program-level claim: confirm they're commensurable, choose pooling vs narrative honestly, examine heterogeneity as a finding, and qualify the synthesis to the evidence."
+    triggers:
+      - "combine the studies"
+      - "roll up the studies"
+      - "pool the studies"
+      - "meta-analyze the studies"
+      - "meta-analyse the studies"
+      - "cross-study synthesis"
+      - "what do the studies say together"
+      - "program-level finding"
+    token_estimate: 1800
+    decomposition:
+      - protocol: program/cross_study_synthesis
+        purpose: "Check commensurability, choose pool vs narrative, treat heterogeneity as signal, qualify the claim."
+      - tool: mem_log
+        purpose: "Record the program-level synthesis (method + heterogeneity + claim strength)."
+
+  program/codebook_governance:
+    intent_class: plan
+    sub_intent: codebook_governance
+    summary: "Amend the shared commons safely after studies have started coding: assess blast radius across studies, version the change, and decide re-coding vs crosswalk so the codebook stays a true common denominator."
+    triggers:
+      - "change the codebook"
+      - "amend the codebook"
+      - "update the shared codebook"
+      - "the codebook is wrong"
+      - "add a code to the program"
+      - "the studies coded differently"
+      - "harmonize the codes"
+      - "harmonise the codes"
+    token_estimate: 1600
+    decomposition:
+      - protocol: program/codebook_governance
+        purpose: "Assess blast radius, version the change, decide re-code vs crosswalk, propagate to studies."
+      - tool: sys_file_write
+        purpose: "Write the versioned codebook amendment + changelog into shared/."
+      - tool: mem_log
+        purpose: "Record the codebook amendment (version + affected studies + decision)."
 
 # ─────────────────────────────────────────────────────────────────────
 # DOMAIN + METHODOLOGY protocols
