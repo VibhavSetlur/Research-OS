@@ -287,3 +287,38 @@ def test_capabilities_gateway_readiness_no_secrets():
     blob = json.dumps(cap)
     assert "RESEARCH_OS_GATEWAY_TOKEN" not in blob or "token_set" in blob
 
+
+def test_to_stream_chunks_shape():
+    result = {
+        "id": "chatcmpl-x",
+        "created": 123,
+        "model": "gpt-test",
+        "choices": [
+            {"message": {"role": "assistant", "content": "hello world"},
+             "finish_reason": "stop"}
+        ],
+        "x_research_os": {"domain": "chemistry"},
+    }
+    frames = list(gateway.to_stream_chunks(result))
+    # role-prime + content + terminal + [DONE]
+    assert len(frames) == 4
+    assert all(f.startswith("data: ") and f.endswith("\n\n") for f in frames)
+    assert frames[-1] == "data: [DONE]\n\n"
+    role = json.loads(frames[0][6:])
+    assert role["object"] == "chat.completion.chunk"
+    assert role["choices"][0]["delta"]["role"] == "assistant"
+    content = json.loads(frames[1][6:])
+    assert content["choices"][0]["delta"]["content"] == "hello world"
+    final = json.loads(frames[2][6:])
+    assert final["choices"][0]["finish_reason"] == "stop"
+    assert final["x_research_os"]["domain"] == "chemistry"
+
+
+def test_to_stream_chunks_empty_content_skips_content_frame():
+    result = {"choices": [{"message": {"role": "assistant", "content": ""},
+                           "finish_reason": "stop"}]}
+    frames = list(gateway.to_stream_chunks(result))
+    # role-prime + terminal + [DONE] (no content frame)
+    assert len(frames) == 3
+    assert frames[-1] == "data: [DONE]\n\n"
+

@@ -757,3 +757,48 @@ Why this first in the improvement pass: an agent that can *see* the whole
 system is the precondition for everything else (streaming, sandboxing,
 dashboards). Discoverability compounds.
 
+### Phase log: 2.2 (2026-06-23) — streaming gateway (stream:true → SSE)
+
+**Problem (JUDGE).** Phase 2's gateway only returned a single JSON blob.
+Every modern chat UI and most agent runtimes (the OpenAI SDK, LangChain,
+LiteLLM, Open WebUI) default to `stream:true` and expect a
+`text/event-stream` of `chat.completion.chunk` frames. Without it, those
+clients either error or hang — a hard blocker for "any agent can point at
+the daemon."
+
+**Decision — stream the resolved answer, honestly.** The gateway runs a
+*multi-round tool-call loop* (it may call several Research-OS tools before
+the model produces a final answer), so it cannot truthfully stream tokens
+token-by-token mid-loop — there is no single upstream token stream to
+relay. Rather than fake it, `gateway.to_stream_chunks(result)` runs the
+loop to completion, then re-emits the final assistant message as the
+standard OpenAI chunk sequence:
+
+1. role-priming chunk (`delta={"role":"assistant"}`)
+2. one content chunk with the full answer
+3. a terminal chunk carrying `finish_reason` + the `x_research_os` routing
+   metadata mirrored onto the chunk (streaming clients still see routing)
+4. the `data: [DONE]` sentinel
+
+`chat_completions` branches on `body.get("stream")`: truthy → a starlette
+`StreamingResponse(media_type="text/event-stream")` with
+`Cache-Control: no-cache` and `X-Accel-Buffering: no` (so reverse proxies
+don't buffer); falsy → the existing `JSONResponse`. **Auth, enable-flag,
+and body validation all run before any stream is opened** — error paths
+stay JSON, never a half-open stream.
+
+`to_stream_chunks` yields plain strings (pure, fully testable); only the
+server wraps it in the ASGI response. No new top-level imports of the
+reasoning layer; the strangler-fig invariant holds.
+
+**Tested** (4 new): `test_daemon_gateway.py` (+2) covers the chunk shape
+(4 frames: role / content / terminal-with-metadata / [DONE]) and the
+empty-content case (content frame skipped); `test_daemon_server.py` (+2)
+covers the live SSE endpoint (`text/event-stream`, chunks present, ends
+with `[DONE]`) and that streaming still enforces auth (401 stays JSON).
+
+With this, the daemon speaks the full OpenAI streaming contract — you can
+point Open WebUI, the OpenAI SDK, or any streaming agent client straight
+at it and watch field-aware, protocol-routed, tool-using answers stream
+back.
+

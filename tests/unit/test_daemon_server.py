@@ -326,3 +326,55 @@ def test_gateway_upstream_error_returns_502(tmp_path, monkeypatch):
     assert r.status_code == 502
     assert r.json()["error"]["type"] == "upstream_error"
 
+
+def test_gateway_streaming_returns_sse(tmp_path, monkeypatch):
+    """stream:true -> text/event-stream of chat.completion.chunk frames."""
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    import research_os.daemon.server as srv
+
+    def fake_factory(cfg):
+        def fake_forward(body, headers):
+            return {
+                "id": "chatcmpl-fake",
+                "object": "chat.completion",
+                "choices": [
+                    {"index": 0,
+                     "message": {"role": "assistant", "content": "streamed answer"},
+                     "finish_reason": "stop"}
+                ],
+            }
+        return fake_forward
+
+    monkeypatch.setattr(srv, "_make_upstream_forwarder", fake_factory)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret-123"},
+        json={"model": "x", "stream": True,
+              "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/event-stream")
+    text = r.text
+    assert "chat.completion.chunk" in text
+    assert "streamed answer" in text
+    assert text.rstrip().endswith("data: [DONE]")
+
+
+def test_gateway_streaming_still_enforces_auth(tmp_path, monkeypatch):
+    """Auth is checked before any stream is opened."""
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer wrong"},
+        json={"model": "x", "stream": True,
+              "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 401
+    # Error path is JSON, not a stream.
+    assert "event-stream" not in r.headers.get("content-type", "")
+
+

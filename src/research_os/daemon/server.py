@@ -29,7 +29,9 @@ and an explicit enable_gateway flag; off by default):
                              domain + freshness + protocol context, forwards
                              to the configured upstream LLM, and executes
                              any Research-OS tool calls through the dispatch
-                             seam, looping until the model answers.
+                             seam, looping until the model answers. Supports
+                             stream:true (Server-Sent Events of
+                             chat.completion.chunk frames).
 
 The transport sits behind this thin module by design (docs/v4/ROADMAP.md
 §6) so a judge phase can swap starlette for something else without
@@ -118,7 +120,7 @@ def build_app(daemon: "Daemon"):
     """
     _require_web_stack()
     from starlette.applications import Starlette
-    from starlette.responses import JSONResponse
+    from starlette.responses import JSONResponse, StreamingResponse
     from starlette.routing import Route
 
     from research_os import __version__
@@ -471,6 +473,16 @@ def build_app(daemon: "Daemon"):
                 _gw.error_response(f"upstream completion failed: {exc}",
                                    code="upstream_error"),
                 status_code=502,
+            )
+        # Streaming: re-emit the resolved completion as OpenAI-compatible
+        # SSE chunks. The tool-call loop runs to completion first (we can't
+        # honestly stream tokens mid-loop), then the answer streams as
+        # chat.completion.chunk frames every streaming client understands.
+        if body.get("stream"):
+            return StreamingResponse(
+                _gw.to_stream_chunks(result),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
             )
         return JSONResponse(result)
 

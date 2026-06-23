@@ -39,7 +39,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 # Type alias for the injected upstream forwarder. Given a fully-formed
@@ -471,6 +471,60 @@ def run_completion(
         }
     )
     return response
+
+
+def to_stream_chunks(result: dict) -> Iterator[str]:
+    """Render a finished completion as OpenAI-compatible SSE frames.
+
+    The gateway runs a *multi-round tool-call loop*, so it cannot honestly
+    stream token-by-token from the upstream mid-loop. Instead, once the loop
+    resolves to a final assistant message, this re-emits that result as the
+    standard ``chat.completion.chunk`` event stream every OpenAI streaming
+    client understands:
+
+      1. a role-priming chunk (``delta={"role": "assistant"}``)
+      2. one content chunk carrying the full answer text
+      3. a final chunk with ``finish_reason`` + the ``x_research_os`` routing
+         metadata mirrored onto the chunk (so streaming clients still see it)
+      4. the terminal ``data: [DONE]`` sentinel
+
+    Each frame is a ``data: <json>\\n\\n`` line. Yielding strings keeps this
+    pure + fully testable; the server wraps it in a StreamingResponse.
+    """
+    cid = result.get("id") or f"chatcmpl-ro-{uuid.uuid4().hex[:12]}"
+    created = result.get("created") or int(time.time())
+    model = result.get("model") or "research-os-gateway"
+    choices = result.get("choices") or [{}]
+    message = (choices[0].get("message") or {}) if choices else {}
+    text = message.get("content") or ""
+    finish = choices[0].get("finish_reason") or "stop" if choices else "stop"
+
+    def _frame(delta: dict, *, finish_reason=None, extra: dict | None = None) -> str:
+        chunk = {
+            "id": cid,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [
+                {"index": 0, "delta": delta, "finish_reason": finish_reason}
+            ],
+        }
+        if extra:
+            chunk.update(extra)
+        return f"data: {json.dumps(chunk)}\n\n"
+
+    # 1. role priming.
+    yield _frame({"role": "assistant"})
+    # 2. content (single chunk — we have the whole answer already).
+    if text:
+        yield _frame({"content": text})
+    # 3. terminal chunk: finish_reason + mirror routing metadata.
+    extra = {}
+    if "x_research_os" in result:
+        extra["x_research_os"] = result["x_research_os"]
+    yield _frame({}, finish_reason=finish, extra=extra)
+    # 4. SSE done sentinel.
+    yield "data: [DONE]\n\n"
 
 
 def error_response(message: str, *, code: str = "research_os_error") -> dict:
