@@ -237,17 +237,30 @@ def _requires_confirmation(tool_name: str, arguments: dict,
 def enforce_autopilot_gate(
     tool_name: str, arguments: dict, root: Path
 ) -> None:
-    """Raise ``RoError`` if this call hits a floor gate.
+    """Raise ``RoError`` if this call hits a floor gate without consent.
 
     No-op when:
       * autonomy is not gate-active (not 'autopilot' / 'adaptive')
       * tool is not in the gated set for these arguments
       * autonomy is 'adaptive' AND the project's strictness is below the
         gate's floor (a rigorous project flows through reversible gates)
-      * caller passed ``confirmed=true``
+      * consent is satisfied (see below)
 
-    The error includes the exact next-action call the AI must make
-    after the researcher consents.
+    Consent has TWO modes:
+
+      * NO daemon running (stdio-only, the default for most users) →
+        DEGRADE to the historical behaviour: the agent's own
+        ``confirmed=true`` clears the gate. Nothing is hardened, nothing
+        is broken.
+      * A daemon IS running for this project → it is the consent
+        AUTHORITY. The agent's ``confirmed=true`` no longer suffices; the
+        call must carry a ``consent_token`` the daemon minted for THIS
+        exact (gate_key, argument-fingerprint). This is the un-skippable
+        layer: the agent cannot grade its own homework when a daemon is
+        watching.
+
+    The error includes the exact next-action the AI must take — either
+    self-confirm (no daemon) or request consent from the daemon.
     """
     if not _requires_confirmation(tool_name, arguments, root):
         return
@@ -256,22 +269,63 @@ def enforce_autopilot_gate(
         return
 
     args = arguments or {}
-    if args.get("confirmed") is True:
-        return
 
     # Adaptive mode: only fire when the project's resolved strictness
     # clears this gate's floor. autopilot is always full-strictness.
-    if level == "adaptive":
-        gate_key = _gate_key(tool_name, args)
-        if gate_key is not None:
-            floor = _GATE_FLOOR.get(gate_key, "strict")
-            strictness = _resolved_strictness(root)
-            if _STRICTNESS_RANK[strictness] < _STRICTNESS_RANK[floor]:
-                logger.debug(
-                    "adaptive gate %s skipped: strictness=%s < floor=%s",
-                    gate_key, strictness, floor,
-                )
-                return
+    gate_key = _gate_key(tool_name, args)
+    if level == "adaptive" and gate_key is not None:
+        floor = _GATE_FLOOR.get(gate_key, "strict")
+        strictness = _resolved_strictness(root)
+        if _STRICTNESS_RANK[strictness] < _STRICTNESS_RANK[floor]:
+            logger.debug(
+                "adaptive gate %s skipped: strictness=%s < floor=%s",
+                gate_key, strictness, floor,
+            )
+            return
+
+    # The gate is active for this call. Decide whether consent is satisfied.
+    from .consent import (
+        arg_fingerprint,
+        consume_grant,
+        daemon_present,
+        find_valid_grant,
+    )
+
+    if daemon_present(Path(root)):
+        # HARD mode: the daemon is the consent authority. A token the
+        # daemon minted for this exact action is required; the agent's
+        # self-asserted confirmed=true is intentionally NOT honored.
+        token = args.get("consent_token")
+        fp = arg_fingerprint(tool_name, args)
+        key = gate_key or tool_name
+
+        grant = find_valid_grant(Path(root), key, fp, token)
+        if grant is not None:
+            # Burn the token before returning so a single authorization
+            # clears exactly ONE action — the agent cannot replay one
+            # human approval across many gated calls.
+            consume_grant(Path(root), token)
+            return
+        raise RoError(
+            what="consent_required",
+            why=(
+                f"a daemon is enforcing floor gates for this project, so "
+                f"{tool_name} needs a daemon-minted consent token bound to "
+                "this exact action — the agent's own confirmed=true is not "
+                "sufficient while a daemon is present"
+            ),
+            next_action=(
+                "request consent from the daemon "
+                f"(POST /v1/consent/request with gate_key='{key}'); on "
+                f"approval retry {tool_name}(consent_token='<minted>', ...). "
+                "Only request if the researcher authorized this action"
+            ),
+        )
+
+    # DEGRADE mode: no daemon → historical behaviour, agent self-confirm
+    # clears the gate so stdio-only users are unaffected.
+    if args.get("confirmed") is True:
+        return
 
     posture = (
         "adaptive autonomy paused here: this action is irreversible / "

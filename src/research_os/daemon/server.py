@@ -552,6 +552,167 @@ def build_app(daemon: "Daemon"):
             )
         return JSONResponse(result)
 
+    # ── consent authority (un-skippable gates) ──────────────────────────
+    # The daemon is the consent AUTHORITY for floor gates. The reasoning
+    # layer reads the granted ledger by shape (server/consent.py) and
+    # refuses a gate unless a daemon-minted token is present. Here the
+    # daemon mints/approves/denies/consumes those tokens. Read surfaces
+    # (pending, grants) are ungated telemetry so a client can show them;
+    # mutating surfaces require the same enable_gateway + bearer auth as
+    # the chat gateway, because they decide whether dangerous actions may
+    # proceed.
+    def _consent_store(request):
+        from pathlib import Path as _Path
+
+        from .consent import ConsentStore
+
+        root_q = request.query_params.get("root")
+        root = _Path(root_q) if root_q else daemon.root
+        return ConsentStore(root)
+
+    def _consent_auth_error(request):
+        """Return a JSONResponse if the mutating consent surface is blocked.
+
+        Mirrors chat_completions: enable_gateway must be on and a bearer
+        token matching $gateway_token_env must be presented. Returns None
+        when authorized.
+        """
+        cfg = daemon.config
+        if not getattr(cfg, "enable_gateway", False):
+            return JSONResponse(
+                {"error": "consent mutation disabled; set "
+                          "daemon.enable_gateway=true to use it",
+                 "code": "gateway_disabled"},
+                status_code=503,
+            )
+        expected = os.environ.get(getattr(cfg, "gateway_token_env", ""), "")
+        if not expected:
+            return JSONResponse(
+                {"error": "gateway token not configured", "code":
+                 "gateway_unconfigured"},
+                status_code=503,
+            )
+        presented = _bearer_token(request.headers.get("authorization", ""))
+        if presented != expected:
+            return JSONResponse(
+                {"error": "invalid or missing bearer token",
+                 "code": "unauthorized"},
+                status_code=401,
+            )
+        return None
+
+    async def get_consent_pending(request):
+        store = _consent_store(request)
+        return JSONResponse({"pending": store.list_pending()})
+
+    async def get_consent_grants(request):
+        store = _consent_store(request)
+        include = request.query_params.get("include_spent") == "true"
+        return JSONResponse(
+            {"grants": store.list_grants(include_spent=include)}
+        )
+
+    async def post_consent_request(request):
+        # The agent REQUESTS consent (it cannot self-grant). Open without
+        # bearer auth: requesting is harmless (it only queues), and the
+        # agent must be able to ask. Approval is what requires authority.
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {"error": "body must be valid JSON", "code": "bad_request"},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": "body must be a JSON object", "code": "bad_request"},
+                status_code=400,
+            )
+        gate_key = body.get("gate_key")
+        fingerprint = body.get("arg_fingerprint")
+        if not gate_key or not fingerprint:
+            return JSONResponse(
+                {"error": "gate_key and arg_fingerprint are required",
+                 "code": "bad_request"},
+                status_code=400,
+            )
+        store = _consent_store(request)
+        req = store.request(
+            gate_key=str(gate_key),
+            tool=str(body.get("tool", "")),
+            arg_fingerprint=str(fingerprint),
+            reason=str(body.get("reason", "")),
+        )
+        return JSONResponse({"request": req}, status_code=201)
+
+    async def post_consent_approve(request):
+        # MUTATING + authority-bearing: mints a token. Requires auth.
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {"error": "body must be valid JSON", "code": "bad_request"},
+                status_code=400,
+            )
+        request_id = (body or {}).get("request_id")
+        if not request_id:
+            return JSONResponse(
+                {"error": "request_id is required", "code": "bad_request"},
+                status_code=400,
+            )
+        store = _consent_store(request)
+        ttl = (body or {}).get("ttl_seconds")
+        kwargs = {}
+        if isinstance(ttl, int) and ttl > 0:
+            kwargs["ttl_seconds"] = ttl
+        grant = store.approve(str(request_id), **kwargs)
+        if grant is None:
+            return JSONResponse(
+                {"error": "unknown or already-resolved request_id",
+                 "code": "not_found"},
+                status_code=404,
+            )
+        return JSONResponse({"grant": grant}, status_code=201)
+
+    async def post_consent_deny(request):
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        request_id = (body or {}).get("request_id")
+        if not request_id:
+            return JSONResponse(
+                {"error": "request_id is required", "code": "bad_request"},
+                status_code=400,
+            )
+        store = _consent_store(request)
+        ok = store.deny(str(request_id))
+        return JSONResponse({"denied": ok})
+
+    async def post_consent_consume(request):
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        token = (body or {}).get("token")
+        if not token:
+            return JSONResponse(
+                {"error": "token is required", "code": "bad_request"},
+                status_code=400,
+            )
+        store = _consent_store(request)
+        ok = store.consume(str(token))
+        return JSONResponse({"consumed": ok})
+
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
@@ -570,6 +731,12 @@ def build_app(daemon: "Daemon"):
         Route("/v1/runs/{run_id}", get_run, methods=["GET"]),
         Route("/v1/events", stream_events, methods=["GET"]),
         Route("/v1/events/recent", get_events_recent, methods=["GET"]),
+        Route("/v1/consent/pending", get_consent_pending, methods=["GET"]),
+        Route("/v1/consent/grants", get_consent_grants, methods=["GET"]),
+        Route("/v1/consent/request", post_consent_request, methods=["POST"]),
+        Route("/v1/consent/approve", post_consent_approve, methods=["POST"]),
+        Route("/v1/consent/deny", post_consent_deny, methods=["POST"]),
+        Route("/v1/consent/consume", post_consent_consume, methods=["POST"]),
     ]
     return Starlette(routes=routes)
 
