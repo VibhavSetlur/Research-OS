@@ -645,3 +645,68 @@ green). Next BUILD candidate: Phase 2 — the OpenAI-compat
 `/v1/chat/completions` gateway, the big AI-integration win, which can now
 inject domain + lineage + freshness context into every conversation.
 
+### Phase log: 2.0 (2026-06-23) — OpenAI-compatible chat-completions gateway
+
+**The keystone.** Every prior phase made the daemon a better *backend* —
+this one makes it an *AI endpoint*. `POST /v1/chat/completions` accepts an
+OpenAI-format request from any client (the OpenAI SDK, Hermes, Claude
+Code, Cursor, `curl`, a notebook), and turns it into a field-aware,
+provenance-aware research agent without the client knowing anything about
+Research-OS.
+
+**The request lifecycle** (all in `daemon/gateway.py`, network-free core):
+
+1. **Route.** The latest user turn goes through the existing protocol
+   router (`route_request`) — same engine the MCP server uses. It picks
+   the primary protocol, decomposition, and active tools.
+2. **Inject context.** `build_context_block` assembles a system message
+   from three live signals: the detected **research field** (domain
+   profile + confidence), the **protocol guidance** (what good reasoning
+   looks like for this intent), and **result freshness** (how many recorded
+   results are stale vs. their inputs). This is the value-add: a generic
+   LLM suddenly knows it's doing *this kind of research, in this field,
+   against results in this state*.
+3. **Advertise tools.** `TOOL_DEFINITIONS` (all engine tools) convert to
+   OpenAI tool-schema and ride along, so the model can call them.
+4. **Forward.** The enriched request goes to a configured upstream
+   (any OpenAI-compatible server: OpenAI, vLLM, Ollama, a local model)
+   via a swappable forwarder (`_make_upstream_forwarder`, urllib).
+5. **Hook tool calls.** When the model returns `tool_calls` for
+   Research-OS tools, the gateway executes them through the dispatch
+   seam (`server/dispatch._handle_tool_call`) and loops — up to
+   `gateway_max_tool_rounds` — until the model answers. The final
+   response is stamped with `x_research_os` routing metadata.
+
+**Security — mutating surface, so it's locked down by default.** The
+gateway is OFF unless `enable_gateway` is set, and it REFUSES to serve
+without a per-session bearer token (`RESEARCH_OS_GATEWAY_TOKEN`).
+Status codes are precise: 503 disabled / 503 unconfigured-token / 401
+bad token / 400 bad body / 502 upstream error / 200 success. Tokens and
+the upstream API key live in **environment variables, never in config
+files**.
+
+**Config.** New `daemon:` knobs (project file + env, all validated):
+`enable_gateway`, `gateway_upstream_base_url`, `gateway_upstream_model`,
+`gateway_api_key_env`, `gateway_token_env`, `gateway_max_tool_rounds`,
+`gateway_timeout`.
+
+**CLI.** `research-os daemon gateway` prints a readiness checklist
+(enabled / session token / upstream key set) with `--json`, and
+`--mint-token` generates a strong token. `daemon status` already shows
+`gateway: on/off`.
+
+**Tested** (22 new, all green): `tests/unit/test_daemon_gateway.py` (14)
+covers the context builder, tool-schema conversion, and the tool-call
+loop with a fake upstream; `tests/unit/test_daemon_server.py` (+8) covers
+the HTTP endpoint — auth gating, disabled/unconfigured, bad body, happy
+path (with metadata stamped), and upstream error. The gateway module has
+**zero top-level imports of the reasoning layer** (AST-verified +
+preflight invariant green) — the strangler-fig arrow still points
+daemon → server, never the reverse.
+
+This is the moment Research-OS stops being "an MCP server you wire into
+one IDE" and becomes "a localhost research brain any agent can call."
+Next: the design-improvement pass — making the system the best possible
+substrate for researchers and AI agents across every field, depth, and
+mode of work.
+

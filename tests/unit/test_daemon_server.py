@@ -191,3 +191,115 @@ def test_endpoints_unavailable_without_runstore(tmp_path):
         body = c.get(path).json()
         assert body["available"] is False
 
+
+# ── gateway (POST /v1/chat/completions) ───────────────────────────────
+
+
+def _gw_daemon(tmp_path, **over):
+    (tmp_path / ".os_state").mkdir(exist_ok=True)
+    return Daemon.for_root(tmp_path, **over)
+
+
+def test_gateway_disabled_returns_503(tmp_path):
+    daemon = _gw_daemon(tmp_path, enable_gateway=False)
+    c = TestClient(build_app(daemon))
+    r = c.post("/v1/chat/completions",
+               json={"model": "x", "messages": [{"role": "user", "content": "hi"}]})
+    assert r.status_code == 503
+    assert r.json()["error"]["type"] == "gateway_disabled"
+
+
+def test_gateway_unconfigured_token_returns_503(tmp_path, monkeypatch):
+    monkeypatch.delenv("RESEARCH_OS_GATEWAY_TOKEN", raising=False)
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post("/v1/chat/completions",
+               json={"model": "x", "messages": [{"role": "user", "content": "hi"}]})
+    assert r.status_code == 503
+    assert r.json()["error"]["type"] == "gateway_unconfigured"
+
+
+def test_gateway_rejects_bad_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer wrong"},
+        json={"model": "x", "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 401
+    assert r.json()["error"]["type"] == "unauthorized"
+
+
+def test_gateway_rejects_missing_messages(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret-123"},
+        json={"model": "x"},
+    )
+    assert r.status_code == 400
+    assert r.json()["error"]["type"] == "bad_request"
+
+
+def test_gateway_happy_path_with_fake_upstream(tmp_path, monkeypatch):
+    """End-to-end through the endpoint with the network forwarder faked."""
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+
+    # Replace the real urllib forwarder with a fake that echoes a final answer.
+    import research_os.daemon.server as srv
+
+    def fake_factory(cfg):
+        def fake_forward(body, headers):
+            return {
+                "id": "chatcmpl-fake",
+                "object": "chat.completion",
+                "choices": [
+                    {"index": 0,
+                     "message": {"role": "assistant", "content": "hello from fake"},
+                     "finish_reason": "stop"}
+                ],
+            }
+        return fake_forward
+
+    monkeypatch.setattr(srv, "_make_upstream_forwarder", fake_factory)
+
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret-123"},
+        json={"model": "client-model",
+              "messages": [{"role": "user", "content": "explain pca"}]},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["choices"][0]["message"]["content"] == "hello from fake"
+    # Routing metadata stamped by the gateway.
+    assert "x_research_os" in body
+    assert body["x_research_os"]["tool_rounds"] == 0
+
+
+def test_gateway_upstream_error_returns_502(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    import research_os.daemon.server as srv
+
+    def boom_factory(cfg):
+        def boom(body, headers):
+            raise RuntimeError("upstream 500: kaboom")
+        return boom
+
+    monkeypatch.setattr(srv, "_make_upstream_forwarder", boom_factory)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/chat/completions",
+        headers={"Authorization": "Bearer secret-123"},
+        json={"model": "x", "messages": [{"role": "user", "content": "hi"}]},
+    )
+    assert r.status_code == 502
+    assert r.json()["error"]["type"] == "upstream_error"
+

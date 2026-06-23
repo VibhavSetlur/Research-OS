@@ -562,6 +562,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon stale  flag results built from changed inputs")
         print("  research-os daemon rebuild  re-run only the stale runs (in order)")
         print("  research-os daemon domain  detect the project's research field + defaults")
+        print("  research-os daemon gateway  OpenAI-compatible chat gateway: status + token")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -632,6 +633,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "domain":
         return _daemon_domain(daemon, args)
+
+    if sub == "gateway":
+        return _daemon_gateway(daemon, args)
 
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
@@ -1209,6 +1213,79 @@ def _daemon_domain(daemon, args) -> int:
         print("  No strong field signal — set `domain:` in "
               "inputs/researcher_config.yaml to specialize,")
         print("  or run `research-os daemon domain --list` to see options.")
+    return 0
+
+
+def _daemon_gateway(daemon, args) -> int:
+    """Show the OpenAI-compatible gateway's config + readiness, or mint a token.
+
+    Tokens and API keys live in environment variables by design (never in
+    config files). This command tells you exactly which env vars to set and
+    whether the gateway is ready to serve, and can generate a strong token.
+    """
+    import os
+    import secrets
+
+    cfg = daemon.config
+
+    if getattr(args, "mint_token", False):
+        token = secrets.token_urlsafe(32)
+        print(f"  export {cfg.gateway_token_env}={token}")
+        print()
+        print("  Set this on the daemon process, then clients send it in the")
+        print("  Authorization header as a Bearer token on POST "
+              "/v1/chat/completions.")
+        return 0
+
+    token_set = bool(os.environ.get(cfg.gateway_token_env, ""))
+    key_set = bool(os.environ.get(cfg.gateway_api_key_env, ""))
+
+    if getattr(args, "as_json", False):
+        print(json.dumps({
+            "enabled": cfg.enable_gateway,
+            "endpoint": f"{cfg.base_url}/v1/chat/completions",
+            "upstream_base_url": cfg.gateway_upstream_base_url,
+            "upstream_model": cfg.gateway_upstream_model,
+            "max_tool_rounds": cfg.gateway_max_tool_rounds,
+            "timeout": cfg.gateway_timeout,
+            "token_env": cfg.gateway_token_env,
+            "token_set": token_set,
+            "api_key_env": cfg.gateway_api_key_env,
+            "api_key_set": key_set,
+            "ready": cfg.enable_gateway and token_set and key_set,
+        }, indent=2))
+        return 0
+
+    ok = _check()
+    warn = _warn_glyph()
+    print("  Research OS gateway (OpenAI-compatible chat completions)")
+    print()
+    print(f"  endpoint:        {cfg.base_url}/v1/chat/completions  [POST]")
+    print(f"  enabled:         {'yes' if cfg.enable_gateway else 'no'}")
+    print(f"  upstream:        {cfg.gateway_upstream_base_url}")
+    print(f"  upstream model:  {cfg.gateway_upstream_model}")
+    print(f"  max tool rounds: {cfg.gateway_max_tool_rounds}")
+    print(f"  timeout:         {cfg.gateway_timeout:.0f}s")
+    print()
+    print("  readiness:")
+    print(f"    {ok if cfg.enable_gateway else warn}  gateway enabled "
+          f"({'set daemon.enable_gateway=true' if not cfg.enable_gateway else 'ok'})")
+    print(f"    {ok if token_set else warn}  session token  "
+          f"(${cfg.gateway_token_env}{' set' if token_set else ' MISSING'})")
+    print(f"    {ok if key_set else warn}  upstream key   "
+          f"(${cfg.gateway_api_key_env}{' set' if key_set else ' MISSING'})")
+    print()
+    if not (cfg.enable_gateway and token_set and key_set):
+        print("  Not ready. To enable:")
+        if not cfg.enable_gateway:
+            print("    1. set daemon.enable_gateway=true (config or "
+                  "RESEARCH_OS_DAEMON_GATEWAY=1)")
+        if not token_set:
+            print("    2. mint a token:  research-os daemon gateway --mint-token")
+        if not key_set:
+            print(f"    3. export {cfg.gateway_api_key_env}=<your upstream API key>")
+    else:
+        print(f"  {ok}  Gateway is ready to serve.")
     return 0
 
 
@@ -2672,6 +2749,35 @@ def build_parser() -> argparse.ArgumentParser:
                            help="List every built-in domain profile and exit.")
     pd_domain.add_argument("--json", dest="as_json", action="store_true",
                            help="Emit the detection result as JSON.")
+
+    # gateway: OpenAI-compatible chat-completions gateway status + token.
+    pd_gateway = daemon_sub.add_parser(
+        "gateway",
+        help="Show the OpenAI-compatible chat gateway's status, or mint a token.",
+        description=(
+            "Inspect and provision the gateway — the daemon's\n"
+            "OpenAI-compatible POST /v1/chat/completions endpoint. It routes\n"
+            "a prompt through the protocol router, injects the project's\n"
+            "research field + result freshness + protocol context, forwards\n"
+            "to your configured upstream LLM, and runs any Research-OS tool\n"
+            "calls back through the engine — so any OpenAI client becomes a\n"
+            "field-aware, provenance-aware research agent.\n\n"
+            "Prints a readiness checklist (enabled / session token / upstream\n"
+            "key). Tokens and API keys live in environment variables by\n"
+            "design, never in config files.\n\n"
+            "Examples:\n"
+            "  research-os daemon gateway              # status + readiness\n"
+            "  research-os daemon gateway --mint-token # generate a session token\n"
+            "  research-os daemon gateway --json       # machine-readable"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_gateway.add_argument("--workspace", default=None,
+                            help="Explicit workspace path (else auto-resolved).")
+    pd_gateway.add_argument("--mint-token", dest="mint_token", action="store_true",
+                            help="Generate a strong session token and exit.")
+    pd_gateway.add_argument("--json", dest="as_json", action="store_true",
+                            help="Emit gateway config + readiness as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(

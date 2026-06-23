@@ -1,21 +1,32 @@
-"""Daemon HTTP server — the lazy ASGI layer (Phase 1, read-only endpoints).
+"""Daemon HTTP server — the lazy ASGI layer (read-only + gateway).
 
 This module is the ONLY place that touches starlette/uvicorn, and it does
 so lazily: importing `research_os.daemon.server` must not import the web
 stack. The deps live in the optional `[daemon]` extra; if they're missing
 we raise a clear, actionable error telling the user to install it.
 
-Phase 1 endpoints are READ ONLY — no mutation, no auth beyond the
-127.0.0.1 bind:
-  GET /healthz            liveness + version
-  GET /v1/state           multi-root state snapshot (all registered roots)
-  GET /v1/state/{...}     not yet — single-root lookup arrives with auth
-  GET /v1/domain          detected research field + field-aware defaults
-  GET /v1/lineage         content-addressed run dependency graph (?run_id=)
-  GET /v1/staleness       freshness verdict over the lineage DAG
-  GET /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
-  GET /v1/jobs            background task queue snapshot
-  GET /v1/jobs/{job_id}   one job
+Read-only endpoints (no auth beyond the 127.0.0.1 bind):
+  GET  /healthz            liveness + version
+  GET  /v1/state           multi-root state snapshot (all registered roots)
+  GET  /v1/domain          detected research field + field-aware defaults
+  GET  /v1/lineage         content-addressed run dependency graph (?run_id=)
+  GET  /v1/staleness       freshness verdict over the lineage DAG
+  GET  /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
+  GET  /v1/jobs            background task queue snapshot
+  GET  /v1/jobs/{job_id}   one job
+  GET  /v1/runs            durable run journal (the permanent archive)
+  GET  /v1/runs/{run_id}   one run manifest (?log=1&tail=N for output)
+  GET  /v1/events          SSE stream of daemon events
+  GET  /v1/events/recent   poll-friendly recent-events snapshot
+
+Gateway endpoint (Phase 2 — MUTATING, requires a per-session bearer token
+and an explicit enable_gateway flag; off by default):
+  POST /v1/chat/completions  OpenAI-compatible chat completions. Routes the
+                             prompt through the protocol router, injects
+                             domain + freshness + protocol context, forwards
+                             to the configured upstream LLM, and executes
+                             any Research-OS tool calls through the dispatch
+                             seam, looping until the model answers.
 
 The transport sits behind this thin module by design (docs/v4/ROADMAP.md
 §6) so a judge phase can swap starlette for something else without
@@ -25,6 +36,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime web import
@@ -45,6 +57,55 @@ def _require_web_stack():
         import uvicorn  # noqa: F401
     except ImportError as exc:  # pragma: no cover - exercised via missing dep
         raise RuntimeError(_INSTALL_HINT) from exc
+
+
+def _bearer_token(authorization: str) -> str:
+    """Extract the token from an ``Authorization: Bearer <token>`` header."""
+    if not authorization:
+        return ""
+    parts = authorization.split(None, 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        return parts[1].strip()
+    return authorization.strip()
+
+
+def _make_upstream_forwarder(cfg):
+    """Build the network forwarder the gateway calls to reach the LLM.
+
+    Uses stdlib ``urllib`` (no httpx dependency) to POST the OpenAI-shaped
+    body to the configured upstream. Returns a ``forward_fn(body, headers)``
+    closure so the gateway core stays network-agnostic and testable.
+    """
+    import urllib.error
+    import urllib.request
+
+    base = (getattr(cfg, "gateway_upstream_base_url", "") or "").rstrip("/")
+    url = f"{base}/chat/completions"
+    api_key = os.environ.get(getattr(cfg, "gateway_api_key_env", ""), "")
+    upstream_model = getattr(cfg, "gateway_upstream_model", "") or ""
+    timeout = float(getattr(cfg, "gateway_timeout", 120) or 120)
+
+    def forward(body: dict, headers: dict) -> dict:
+        payload = dict(body)
+        # Force the configured upstream model (the client's model name is a
+        # routing hint to us, not necessarily a valid upstream model id).
+        if upstream_model:
+            payload["model"] = upstream_model
+        data = json.dumps(payload).encode("utf-8")
+        req_headers = {"Content-Type": "application/json", **(headers or {})}
+        if api_key:
+            req_headers["Authorization"] = f"Bearer {api_key}"
+        req = urllib.request.Request(url, data=data, headers=req_headers, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:500]
+            raise RuntimeError(f"upstream {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            raise RuntimeError(f"cannot reach upstream {url}: {exc.reason}") from exc
+
+    return forward
 
 
 def build_app(daemon: "Daemon"):
@@ -326,6 +387,70 @@ def build_app(daemon: "Daemon"):
             "note": "dry-run only; POST rebuild requires auth (not yet enabled)",
         })
 
+    async def chat_completions(request):
+        # OpenAI-compatible gateway (Phase 2). Mutating surface -> requires
+        # a per-session bearer token. Off unless config.enable_gateway.
+        from . import gateway as _gw
+
+        cfg = daemon.config
+        if not getattr(cfg, "enable_gateway", False):
+            return JSONResponse(
+                _gw.error_response(
+                    "gateway disabled; set daemon.enable_gateway=true to use it",
+                    code="gateway_disabled",
+                ),
+                status_code=503,
+            )
+
+        # Auth: a token MUST be configured, and the client MUST present it.
+        expected = os.environ.get(getattr(cfg, "gateway_token_env", ""), "")
+        if not expected:
+            return JSONResponse(
+                _gw.error_response(
+                    "gateway token not configured; set "
+                    f"${cfg.gateway_token_env} on the daemon",
+                    code="gateway_unconfigured",
+                ),
+                status_code=503,
+            )
+        presented = _bearer_token(request.headers.get("authorization", ""))
+        if presented != expected:
+            return JSONResponse(
+                _gw.error_response("invalid or missing bearer token",
+                                   code="unauthorized"),
+                status_code=401,
+            )
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                _gw.error_response("request body must be valid JSON",
+                                   code="bad_request"),
+                status_code=400,
+            )
+        if not isinstance(body, dict) or not body.get("messages"):
+            return JSONResponse(
+                _gw.error_response("body must include a 'messages' array",
+                                   code="bad_request"),
+                status_code=400,
+            )
+
+        forward = _make_upstream_forwarder(cfg)
+        try:
+            result = _gw.run_completion(
+                body, daemon, forward,
+                max_tool_rounds=getattr(cfg, "gateway_max_tool_rounds", 6),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("gateway completion failed")
+            return JSONResponse(
+                _gw.error_response(f"upstream completion failed: {exc}",
+                                   code="upstream_error"),
+                status_code=502,
+            )
+        return JSONResponse(result)
+
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
@@ -333,6 +458,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/lineage", get_lineage, methods=["GET"]),
         Route("/v1/staleness", get_staleness, methods=["GET"]),
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),
+        Route("/v1/chat/completions", chat_completions, methods=["POST"]),
         Route("/v1/jobs", get_jobs, methods=["GET"]),
         Route("/v1/jobs/{job_id}", get_job, methods=["GET"]),
         Route("/v1/runs", get_runs, methods=["GET"]),
