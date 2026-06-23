@@ -31,6 +31,7 @@ from .compare import compare_runs
 from .config import DaemonConfig
 from .core import Daemon, DaemonStatus
 from .events import Event, EventBus
+from .lineage import ancestors, build_lineage, descendants
 from .registry import Workspace, WorkspaceRegistry
 from .reproduce import compare_artifacts
 from .runners import RunResult, SubprocessRunner
@@ -58,6 +59,9 @@ __all__ = [
     "artifacts_diff",
     "compare_artifacts",
     "compare_runs",
+    "build_lineage",
+    "ancestors",
+    "descendants",
     "SchedulerRunner",
     "SchedulerResult",
     "SlurmAdapter",

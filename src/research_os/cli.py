@@ -558,6 +558,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon reproduce ID  re-run + verify outputs match")
         print("  research-os daemon submit SCRIPT  submit to HPC scheduler (SLURM)")
         print("  research-os daemon diff A B  compare two runs (cmd/context/outputs)")
+        print("  research-os daemon lineage [ID]  run dependency graph (provenance DAG)")
         print()
         print("  Architecture + roadmap: docs/v4/ROADMAP.md")
         return 0
@@ -617,6 +618,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     if sub == "diff":
         return _daemon_diff(daemon, args)
 
+    if sub == "lineage":
+        return _daemon_lineage(daemon, args)
+
     print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
     return 2
 
@@ -662,6 +666,7 @@ def _daemon_run(daemon, args) -> int:
         name=getattr(args, "name", None),
         cwd=getattr(args, "cwd", None),
         shell=use_shell,
+        inputs=getattr(args, "inputs", None) or None,
         track_artifacts=not getattr(args, "no_artifacts", False),
     )
 
@@ -972,6 +977,81 @@ def _daemon_diff(daemon, args) -> int:
         print(f"  outputs: (unchanged — {oc['matched']} artifacts identical)")
 
     return 1
+
+
+def _daemon_lineage(daemon, args) -> int:
+    """Show the run dependency graph, or one run's up/downstream lineage."""
+    from research_os.daemon import lineage as _lin
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+
+    manifests = daemon.runstore.recent_manifests(limit=getattr(args, "limit", 200))
+    graph = _lin.build_lineage(manifests)
+    rid = getattr(args, "run_id", None)
+    as_json = getattr(args, "as_json", False)
+
+    # ── focused: one run's ancestors or descendants ──────────────────
+    if rid:
+        known = {n["id"] for n in graph["nodes"]}
+        if rid not in known:
+            # accept a unique short-prefix match
+            cands = [i for i in known if i.startswith(rid)]
+            if len(cands) == 1:
+                rid = cands[0]
+            elif not cands:
+                print(f"  {_warn_glyph()}  No run found: {rid}")
+                return 1
+            else:
+                print(f"  {_warn_glyph()}  Ambiguous prefix {rid!r}: {', '.join(cands[:5])}")
+                return 1
+        up = _lin.ancestors(graph, rid)
+        down = _lin.descendants(graph, rid)
+        if as_json:
+            print(json.dumps({"run": rid, "ancestors": up, "descendants": down},
+                             indent=2, default=str))
+            return 0
+        want_up = getattr(args, "upstream", False)
+        want_down = getattr(args, "downstream", False)
+        if not want_up and not want_down:
+            want_up = want_down = True  # default: both
+        if want_up:
+            print(f"  upstream of {rid[:12]} (provenance — where it came from):")
+            print("    " + (", ".join(a[:12] for a in up) if up else "(none — this is a source run)"))
+        if want_down:
+            print(f"  downstream of {rid[:12]} (impact — stale if re-run):")
+            print("    " + (", ".join(d[:12] for d in down) if down else "(none — this is a terminal result)"))
+        return 0
+
+    # ── whole graph ──────────────────────────────────────────────────
+    if as_json:
+        print(json.dumps(graph, indent=2, default=str))
+        return 0
+
+    c = graph["counts"]
+    print(f"  run lineage: {c['runs']} run(s), {c['edges']} dependency edge(s), "
+          f"{c['linked']} linked")
+    if not graph["edges"]:
+        print("  (no links yet — runs become linked when one's input hash "
+              "matches another's output)")
+        return 0
+    print("  edges (producer -> consumer):")
+    name_by_id = {n["id"]: n["name"] for n in graph["nodes"]}
+    for e in graph["edges"]:
+        frm, to = e["from"], e["to"]
+        paths = ", ".join(sorted({m["producer_path"] for m in e["via"]}))
+        fn = (name_by_id.get(frm, "") or "")[:28]
+        tn = (name_by_id.get(to, "") or "")[:28]
+        print(f"    {frm[:12]} ({fn})  ->  {to[:12]} ({tn})")
+        print(f"        via: {paths}")
+    if graph["roots"]:
+        print(f"  roots (sources): {', '.join(r[:12] for r in graph['roots'])}")
+    if graph["leaves"]:
+        print(f"  leaves (final results): {', '.join(lf[:12] for lf in graph['leaves'])}")
+    if graph["orphans"]:
+        print(f"  orphans (unlinked): {len(graph['orphans'])} run(s)")
+    return 0
 
 
 def _print_daemon_status(status) -> None:
@@ -2263,6 +2343,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Working directory for the command (default: workspace root).")
     pd_run.add_argument("--no-artifacts", dest="no_artifacts", action="store_true",
                         help="Skip output-artifact detection for this run.")
+    pd_run.add_argument("--input", dest="inputs", action="append", default=[],
+                        metavar="PATH",
+                        help="Declare an input file (hashed for provenance + "
+                             "lineage linking). Repeatable.")
     pd_run.add_argument("--shell", dest="force_shell", action="store_true",
                         help="Run the command through a shell (enables pipes, "
                              "redirects, &&). Auto-detected for single-string "
@@ -2339,6 +2423,31 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Explicit workspace path (else auto-resolved).")
     pd_diff.add_argument("--json", dest="as_json", action="store_true",
                          help="Emit the full diff report as JSON.")
+
+    # lineage: the content-addressed run dependency graph.
+    pd_lin = daemon_sub.add_parser(
+        "lineage",
+        help="Show the run dependency graph (which run's output fed which run).",
+        description=(
+            "Build the provenance DAG: run B depends on run A when one of B's\n"
+            "input hashes matches one of A's output artifact hashes. With a\n"
+            "run id, show that run's ancestors (--upstream) or the runs that\n"
+            "would go stale if you re-ran it (--downstream)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_lin.add_argument("run_id", nargs="?", default=None,
+                        help="Focus on one run's lineage (omit for whole graph).")
+    pd_lin.add_argument("--workspace", default=None,
+                        help="Explicit workspace path (else auto-resolved).")
+    pd_lin.add_argument("--upstream", action="store_true",
+                        help="With run_id: show transitive ancestors (provenance).")
+    pd_lin.add_argument("--downstream", action="store_true",
+                        help="With run_id: show transitive descendants (impact).")
+    pd_lin.add_argument("--limit", default=200, type=int,
+                        help="Max recent runs to include in the graph.")
+    pd_lin.add_argument("--json", dest="as_json", action="store_true",
+                        help="Emit the lineage graph as JSON.")
 
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(
