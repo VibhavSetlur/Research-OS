@@ -26,6 +26,22 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "routing",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
+    "sys_daemon": {
+        "short": "Is a daemon running for this project? Return its live telemetry (jobs, freshness, next action).",
+        "compare_to": "sys_where (state-file orientation, no daemon). sys_daemon adds awareness of a RUNNING daemon's live jobs + freshness.",
+        "description": "Bridge between the MCP session and a running Research-OS daemon. The daemon is a separate, optional persistent process that runs long jobs, tracks run provenance/freshness, and serves an HTTP surface. This tool discovers it WITHOUT coupling: it reads the daemon's self-advertised descriptor at .os_state/daemon.json, confirms the process is alive, then GETs the daemon's read-only /v1/orient (narrative + ONE recommended next action) and /v1/jobs (running/queued/done counts). Returns {running: bool, ...}. When no daemon is running it returns running=false with a one-line hint on how to start one ('research-os daemon start'). Read-only and fast; never mutates. Use it at session start or mid-session to answer 'is anything running in the background, and what should I do next?' — the same continuity an HTTP agent gets from /v1/orient, now inside MCP.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeout": {
+                    "type": "number",
+                    "description": "Per-request HTTP timeout in seconds when probing the daemon (default 2.0). Kept small so a hung daemon never stalls the session.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
     "tool_route": {
         "short": "Prompt → protocol + decomposition + recommended_action. Call after every researcher message.",
         "then": "sys_protocol_get(protocol_name=<resolved>, format=<lean|summary|full per model_profile>)",

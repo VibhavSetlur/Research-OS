@@ -544,11 +544,58 @@ class Daemon:
         self.tasks.start()
         self._start_journal()
         self._serving = True
+        # Discovery handshake: advertise this daemon to the MCP surface and
+        # any local client by dropping a descriptor in the project's
+        # .os_state/. Best-effort — a write failure must not stop serving.
+        #
+        # Cleanup contract: the finally block below removes the descriptor on
+        # a clean in-process return, but uvicorn's own SIGTERM/SIGINT handling
+        # can terminate the process WITHOUT unwinding back here (and SIGKILL
+        # never can). So the descriptor is NOT a reliable liveness signal on
+        # its own — the READER (sys_daemon / any client) is the source of
+        # truth: it confirms the advertised PID is actually alive before
+        # treating the daemon as running, and reports a stale descriptor
+        # otherwise. A leftover file is therefore harmless.
+        self._write_discovery()
         try:
             _server.serve(self)
         finally:
             self._serving = False
+            self._clear_discovery()
             self.tasks.shutdown(wait=False)
+
+    # ── discovery handshake (Phase 3) ─────────────────────────────────
+    def _write_discovery(self) -> None:
+        """Advertise the running daemon via <root>/.os_state/daemon.json."""
+        if self.root is None:
+            return
+        try:
+            from datetime import datetime, timezone
+
+            from research_os import __version__ as _v
+
+            from .discovery import write_discovery
+
+            write_discovery(
+                self.root,
+                host=self.config.host,
+                port=self.config.port,
+                version=str(_v),
+                started_at=datetime.now(timezone.utc).isoformat(),
+            )
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger.debug("discovery write failed: %s", exc)
+
+    def _clear_discovery(self) -> None:
+        """Remove the discovery descriptor on shutdown (best-effort)."""
+        if self.root is None:
+            return
+        try:
+            from .discovery import clear_discovery
+
+            clear_discovery(self.root)
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger.debug("discovery clear failed: %s", exc)
 
 
 # ── private helpers: reuse the existing engine, never reimplement ──────

@@ -899,3 +899,68 @@ Verified live against a throwaway Snakefile (detected, degraded with the
 correct install hint since snakemake is absent here). daemon slice 187
 pass; ruff + preflight 34/34 green.
 
+### Phase log: 3 (2026-06-23) — the MCP↔daemon bridge (`sys_daemon`)
+
+**Problem.** Everything Phases 2.1–2.4 added — capabilities, orient,
+workflows, lineage, staleness, the run journal — lives behind the
+daemon's HTTP surface. A researcher working through MCP (Claude Code,
+Cursor) got *none* of it: the MCP session was blind to a running daemon.
+The two surfaces had diverged. Ask "is anything running in the
+background, and what should I do next?" inside MCP and there was no
+answer, even with a daemon actively serving the same project.
+
+**Decision — a discovery handshake + a read-only bridge tool, with the
+seam intact.** The daemon and an MCP session are separate processes, so
+they need a rendezvous that does NOT couple the reasoning layer to the
+daemon package (the preflight-enforced v4 invariant: `server/` + `tools/`
+never import `daemon/`).
+
+* **Writer (daemon side).** New stdlib-only `daemon/discovery.py`:
+  `write_discovery()` does an atomic temp-then-`os.replace` write of
+  `<root>/.os_state/daemon.json` (schema, host, port, pid, version,
+  started_at, base_url) on `serve()` start; `clear_discovery()` removes
+  it on clean exit; plus `read_discovery()` and `pid_alive()`.
+* **Reader (MCP side).** New `sys_daemon` tool. Its handler lives in the
+  reasoning layer, so it must not import the daemon — it re-implements the
+  trivial descriptor read (same on-disk *shape*, no import) with stdlib
+  `json`, confirms the advertised PID is alive (`os.kill(pid, 0)`), then
+  GETs the daemon's read-only `/v1/orient` + `/v1/jobs` over localhost
+  with stdlib `urllib`, treating the daemon as an opaque HTTP service
+  exactly as any external client would. Returns compact telemetry
+  (narrative, the ONE recommended next action, detected field, live job
+  counts by status). Degrades across every failure mode: no descriptor →
+  `running:false` + start hint; corrupt/non-dict → not running; **stale
+  PID → not running + stale hint**; alive-but-HTTP-silent →
+  `running:true, reachable:false`.
+
+**Cleanup contract (a real finding, documented in code).** Live testing
+showed uvicorn intercepts SIGTERM/SIGINT and exits the process *without*
+unwinding back through `serve()`'s `finally` (and an `atexit` hook didn't
+fire either) — so the descriptor can outlive the daemon, and SIGKILL can
+always orphan it. Rather than fight uvicorn's signal machinery, the
+design makes **the reader the source of truth**: a descriptor is only
+ever a *hint*, and liveness is confirmed by checking the PID on every
+read. This is exactly how `/var/run/*.pid` files work. A leftover file is
+harmless — `sys_daemon` reports it stale.
+
+The payoff: both surfaces now see the same world. An HTTP agent walks the
+discover → orient → converse arc; an MCP session calls `sys_daemon` and
+gets the same orientation + background-job awareness, inside the protocol
+it already speaks. Cross-surface continuity, zero seam violation.
+
+**Tested** (16 new): `test_daemon_discovery.py` (9) covers the
+write/read round-trip, atomic-write (no `.tmp` left), idempotent clear,
+missing/corrupt/non-dict reads, and PID-liveness (self alive, dead PID,
+garbage). `test_sys_daemon_tool.py` (7) covers no-descriptor,
+corrupt-descriptor, stale-PID, alive-but-unreachable, the full reachable
+telemetry path, the jobs-count fallback when the daemon omits `counts`,
+and timeout clamping. Verified **live end-to-end**: started a real daemon
+→ confirmed `.os_state/daemon.json` written with the true PID → called
+the `sys_daemon` handler against the live root → got `running:true,
+reachable:true` with real `/v1/orient` telemetry (field, narrative,
+`record_first_result` recommendation, job counts) → killed the daemon →
+handler correctly reported `running:false` with the stale-descriptor
+hint. daemon + bridge slice 203 pass; ruff + preflight 34/34 green;
+seam check "server/ + tools/ never import daemon/" still green.
+
+

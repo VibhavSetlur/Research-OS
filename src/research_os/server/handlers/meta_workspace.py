@@ -58,6 +58,7 @@ __all__ = [
     "_handle_sys_checkpoint_list",
     "_handle_sys_path",
     "_handle_sys_where",
+    "_handle_sys_daemon",
 ]
 
 def _handle_sys_workspace_scaffold(name, arguments, root):
@@ -612,6 +613,129 @@ def _handle_sys_path(name, arguments, root):
     return _text(_error(f"Unknown sys_path operation '{operation}'"))
 
 
+def _daemon_http_get(base_url, path, timeout):
+    """GET base_url+path and return parsed JSON, or None on any failure.
+
+    Pure stdlib (urllib). Used to probe a running daemon's read-only HTTP
+    surface WITHOUT importing the daemon package — the MCP/reasoning layer
+    must never import research_os.daemon (preflight-enforced seam). The
+    daemon is treated as an opaque local HTTP service, exactly as an
+    external client would.
+    """
+    import json as _json
+    import urllib.request
+
+    url = base_url.rstrip("/") + path
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 - localhost only
+            if resp.status != 200:
+                return None
+            return _json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _handle_sys_daemon(name, arguments, root):
+    """Bridge the MCP session to a running daemon (Phase 3).
+
+    Discovers the daemon via its self-advertised descriptor at
+    <root>/.os_state/daemon.json, confirms the PID is alive, then pulls
+    the read-only /v1/orient + /v1/jobs telemetry over localhost HTTP.
+    Degrades to running=false with a start hint when nothing is running.
+
+    Stdlib-only by design: the reasoning layer must not import the daemon
+    package, so this re-implements the trivial descriptor read rather than
+    importing research_os.daemon.discovery (same on-disk SHAPE, no import).
+    """
+    timeout = arguments.get("timeout")
+    try:
+        timeout = float(timeout) if timeout is not None else 2.0
+    except (TypeError, ValueError):
+        timeout = 2.0
+    timeout = max(0.1, min(timeout, 30.0))
+
+    not_running = {
+        "running": False,
+        "hint": "No daemon running for this project. Start one with "
+        "'research-os daemon start' to enable background jobs, live "
+        "freshness, and a recommended next action.",
+    }
+
+    desc_path = Path(root) / ".os_state" / "daemon.json"
+    try:
+        if not desc_path.exists():
+            return _text(_success(not_running))
+        desc = json.loads(desc_path.read_text(encoding="utf-8"))
+        if not isinstance(desc, dict):
+            return _text(_success(not_running))
+    except (OSError, ValueError):
+        return _text(_success(not_running))
+
+    # Confirm the advertised PID is actually alive — a stale descriptor
+    # (daemon crashed without cleanup) must not read as "running".
+    pid = desc.get("pid")
+    if isinstance(pid, int):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            stale = dict(not_running)
+            stale["hint"] = (
+                "Found a stale daemon descriptor (pid %s not alive). "
+                "Start a fresh daemon with 'research-os daemon start'." % pid
+            )
+            return _text(_success(stale))
+        except PermissionError:
+            pass  # alive, owned by another user
+        except OSError:
+            pass
+
+    base_url = desc.get("base_url") or f"http://{desc.get('host')}:{desc.get('port')}"
+    orient = _daemon_http_get(base_url, "/v1/orient", timeout)
+    jobs = _daemon_http_get(base_url, "/v1/jobs", timeout)
+
+    if orient is None and jobs is None:
+        # Descriptor present + pid alive but HTTP unreachable: the daemon
+        # is starting up or bound elsewhere. Report reachable=false rather
+        # than pretend it is fully up.
+        return _text(_success({
+            "running": True,
+            "reachable": False,
+            "base_url": base_url,
+            "version": desc.get("version"),
+            "pid": pid,
+            "hint": "Daemon process is alive but its HTTP surface did not "
+            "answer in time; it may still be starting.",
+        }))
+
+    payload: dict[str, Any] = {
+        "running": True,
+        "reachable": True,
+        "base_url": base_url,
+        "version": desc.get("version"),
+        "pid": pid,
+        "started_at": desc.get("started_at"),
+    }
+    if isinstance(orient, dict):
+        payload["narrative"] = orient.get("narrative")
+        payload["recommended_next_action"] = orient.get("recommended_next_action")
+        payload["field"] = orient.get("field")
+    if isinstance(jobs, dict):
+        items = jobs.get("jobs") or jobs.get("items") or []
+        # The daemon already computes status counts; prefer them, fall
+        # back to counting the returned items if absent.
+        counts = jobs.get("counts")
+        if not isinstance(counts, dict):
+            counts = {}
+            for j in items if isinstance(items, list) else []:
+                st = str((j or {}).get("status", "unknown")).lower()
+                counts[st] = counts.get(st, 0) + 1
+        payload["jobs"] = {
+            "total": jobs.get("total", len(items) if isinstance(items, list) else 0),
+            "by_status": counts,
+        }
+    return _text(_success(payload))
+
+
 HANDLERS = {
     "sys_workspace_scaffold": _handle_sys_workspace_scaffold,
     "sys_workspace_tree": _handle_sys_workspace_tree,
@@ -630,4 +754,5 @@ HANDLERS = {
     "sys_checkpoint_list": _handle_sys_checkpoint_list,
     "sys_path": _handle_sys_path,
     "sys_where": _handle_sys_where,
+    "sys_daemon": _handle_sys_daemon,
 }
