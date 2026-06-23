@@ -44,6 +44,7 @@ class RunResult:
     cancelled: bool = False
     artifacts: list[dict] = field(default_factory=list)
     artifacts_truncated: bool = False
+    sandbox: dict | None = None
 
     @property
     def ok(self) -> bool:
@@ -62,6 +63,7 @@ class RunResult:
             "cancelled": self.cancelled,
             "artifacts": self.artifacts,
             "artifacts_truncated": self.artifacts_truncated,
+            "sandbox": self.sandbox,
         }
 
 
@@ -89,6 +91,9 @@ class SubprocessRunner:
         kill_grace_s: float = 5.0,
         shell: bool = False,
         track_artifacts: bool = True,
+        sandbox: str | None = None,
+        sandbox_network: bool = False,
+        sandbox_limits=None,
     ) -> None:
         if isinstance(cmd, str) and not shell:
             self.cmd = shlex.split(cmd)
@@ -103,6 +108,15 @@ class SubprocessRunner:
         self.kill_grace_s = kill_grace_s
         self.shell = shell
         self.track_artifacts = track_artifacts
+        # Phase 4 sandbox policy: when requested, the command is wrapped for
+        # the strongest isolation tier the host supports (container →
+        # namespace → resource) and rlimits are applied via a preexec_fn.
+        # ``sandbox=None`` keeps the original native-execution behaviour.
+        self.sandbox = sandbox
+        self.sandbox_network = sandbox_network
+        self.sandbox_limits = sandbox_limits
+        self._sandbox_meta: dict | None = None
+        self._preexec = None
 
     def __call__(
         self,
@@ -118,6 +132,12 @@ class SubprocessRunner:
         stderr_tail: deque[str] = deque(maxlen=self.tail_lines)
         line_count = 0
         start = time.time()
+
+        # Phase 4: resolve the sandbox policy ONCE per run, before launch.
+        # This may rewrite the command (container/namespace wrappers) and/or
+        # build a preexec_fn that applies rlimits in the child. Native
+        # execution (sandbox=None) leaves cmd/preexec untouched.
+        self._resolve_sandbox()
 
         # Artifact tracking (Phase 1.8): fingerprint the working dir before
         # the run so we can report created/modified files afterwards. The
@@ -145,6 +165,9 @@ class SubprocessRunner:
         # (POSIX). On Windows this is a no-op fallback.
         if os.name == "posix":
             popen_kwargs["start_new_session"] = True
+            # Phase 4 resource tier: apply rlimits in the forked child.
+            if self._preexec is not None:
+                popen_kwargs["preexec_fn"] = self._preexec
 
         if self.shell and isinstance(self._raw_cmd, str):
             proc = subprocess.Popen(self._raw_cmd, shell=True, **popen_kwargs)
@@ -206,8 +229,82 @@ class SubprocessRunner:
             cancelled=cancelled,
             artifacts=art_list,
             artifacts_truncated=art_trunc,
+            sandbox=self._sandbox_meta,
         )
         return result.to_dict()
+
+    def _resolve_sandbox(self) -> None:
+        """Apply the sandbox policy to self.cmd / self._preexec (Phase 4).
+
+        No-op when ``sandbox is None`` (native execution). Otherwise probes
+        the host's isolation tiers, degrades the requested tier to the
+        strongest the host supports, wraps the command accordingly, and —
+        for the resource tier — builds a preexec_fn that caps rlimits in the
+        child. Records what actually happened in ``self._sandbox_meta`` so a
+        caller sees the effective tier (which may be weaker than requested).
+
+        Shell mode and the sandbox are mutually exclusive: wrapping a
+        ``shell=True`` string would break the argv transform, so in that case
+        we apply only the resource tier (preexec + wallclock) and note it.
+        """
+        if self.sandbox is None:
+            return
+        from . import sandbox as _sb
+
+        caps = _sb.detect_sandbox()
+        limits = self.sandbox_limits or _sb.ResourceLimits()
+        effective = caps.resolve_tier(self.sandbox)
+
+        if effective == "none":
+            self._sandbox_meta = {
+                "requested": self.sandbox,
+                "effective": "none",
+                "isolated": False,
+                "note": "no sandbox tier available on this host",
+                "limits": limits.to_dict(),
+            }
+            return
+
+        # The resource tier always applies its rlimit preexec. Stronger
+        # tiers also get it as defense-in-depth (a container with rlimits).
+        self._preexec = _sb.make_preexec(limits)
+
+        # "downgraded" = host couldn't honour the requested tier and fell to
+        # a weaker one. Only meaningful when a specific tier was requested.
+        requested = self.sandbox if self.sandbox in _sb.TIERS else None
+        downgraded = bool(
+            requested
+            and _sb.TIERS.index(effective) > _sb.TIERS.index(requested)
+        )
+        note = None
+        if self.shell and effective in ("container", "namespace"):
+            # Can't argv-wrap a shell string; fall back to resource tier.
+            effective = "resource"
+            note = "shell=True is incompatible with command wrapping; applied resource tier only"
+
+        if effective in ("container", "namespace"):
+            self.cmd = _sb.wrap_command(
+                self.cmd,
+                tier=effective,
+                caps=caps,
+                limits=limits,
+                cwd=self.cwd,
+                network=self.sandbox_network,
+            )
+        else:  # resource tier — argv only gets a wallclock guard
+            self.cmd = _sb._with_wall_timeout(self.cmd, limits)
+
+        self._sandbox_meta = {
+            "requested": self.sandbox,
+            "effective": effective,
+            "downgraded": downgraded,
+            "isolated": effective in ("container", "namespace"),
+            "runtime": caps.container_runtime,
+            "namespace_tool": caps.namespace_tool,
+            "network": self.sandbox_network,
+            "limits": limits.to_dict(),
+            "note": note,
+        }
 
     def _terminate(self, proc: subprocess.Popen) -> None:
         """SIGTERM the process group, then SIGKILL after a grace period."""

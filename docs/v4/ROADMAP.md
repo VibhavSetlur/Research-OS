@@ -963,4 +963,68 @@ handler correctly reported `running:false` with the stale-descriptor
 hint. daemon + bridge slice 203 pass; ruff + preflight 34/34 green;
 seam check "server/ + tools/ never import daemon/" still green.
 
+### Phase log: 4 (2026-06-23) — the tiered execution sandbox
+
+**Problem.** The daemon runs untrusted-ish code on a researcher's behalf
+— a downloaded analysis script, an LLM-generated snippet, a
+collaborator's pipeline. It should bound the blast radius. The textbook
+answer is "run it in an ephemeral Docker container," and the original
+Phase 4 plan said exactly that: *Docker/Podman sandbox with native
+fallback.* But probing the actual host this is built on (a shared
+Argonne node, representative of the HPC/login boxes Research-OS targets)
+killed that framing on contact: **docker is installed but its daemon is
+unreachable/permission-denied, Podman/bwrap/nsjail are absent, and
+unprivileged user namespaces are blocked** (`unshare --map-root-user` →
+EPERM) despite permissive-looking sysctls. On a large fraction of real
+research hosts the container path is simply not available, and
+advertising a jail that doesn't exist is the same dishonesty
+Research-OS refuses for no-sbatch / no-snakemake.
+
+**Design.** `daemon/sandbox.py` (stdlib only) detects the strongest
+isolation the host *actually* offers and degrades transparently through
+three tiers, strongest first:
+
+  1. **container** — a working docker/podman runtime (verified by probing
+     `info`, not just `which`): ephemeral `--rm` container, `--network
+     none`, `--memory`, volume-mounted workdir, configurable image
+     (`$RESEARCH_OS_SANDBOX_IMAGE`).
+  2. **namespace** — bwrap or `unshare` *with usable userns* (tested by
+     actually attempting the uid-map, since sysctls lie): filesystem +
+     network isolation, no runtime needed.
+  3. **resource** — ALWAYS available on POSIX: hard rlimit caps
+     (RLIMIT_AS / CPU / FSIZE / NOFILE) applied via a `preexec_fn` plus a
+     wallclock `timeout` guard. No FS/net isolation, but a bounded blast
+     radius even where everything else is denied.
+
+`SandboxCapabilities.resolve_tier(requested)` degrades **down** to the
+strongest supported tier ≤ requested, never silently **up**. The
+detector is cached and never raises (a failed probe is a legitimate
+"tier unavailable" answer). `SubprocessRunner` gained an opt-in
+`sandbox=` policy: it wraps the argv per tier, applies the rlimit
+preexec, and records the *effective* tier (which may be weaker than
+requested) on `RunResult.sandbox`. New read-only `GET /v1/sandbox`
+reports the host's tiers + default limits so an agent discovers
+isolation *before* submitting work; also surfaced in `/v1/capabilities`
+endpoints (alongside the previously-missing `orient` + `workflows`).
+
+**Shared-host lesson (baked into the defaults).** The first live run
+failed with `timeout: fork: Resource temporarily unavailable` — the
+default RLIMIT_NPROC=256 counts *all of the user's* processes, not this
+run's tree, so on a busy shared node the very fork that launches the
+workload dies. RLIMIT_NPROC now defaults **OFF** (opt-in only on a
+dedicated host); a footgun that's safe on a laptop is a denial-of-self
+on HPC.
+
+**Tested** (18 new — `test_sandbox.py` + 1 server test): tier
+degrade-down/never-up logic, host-independent detection via mocked
+probes (incl. the "docker installed but daemon dead → resource floor +
+explanatory note" case), per-tier command wrapping, and a **genuine
+end-to-end rlimit that bites** — a 512 MB allocation under a 128 MB
+RLIMIT_AS cap is killed, proving the preexec is enforced not cosmetic.
+Verified **live**: `GET /v1/sandbox` on this host returns `best_tier:
+resource` with the honest container-unusable + userns-blocked notes and
+`processes: null`. daemon slice green; ruff + preflight 34/34; seam
+check still green (sandbox is daemon-side only — reasoning never imports
+it).
+
 

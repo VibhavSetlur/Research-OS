@@ -83,6 +83,19 @@ def test_workflows_endpoint(client):
     assert isinstance(body["workflows"], list)
 
 
+def test_sandbox_endpoint(client):
+    c, _ = client
+    r = c.get("/v1/sandbox")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["service"] == "research-os"
+    assert body["best_tier"] in ("container", "namespace", "resource", "none")
+    assert "tiers_available" in body
+    assert "default_limits" in body
+    # On any POSIX CI/dev host the resource floor must be present.
+    assert "resource" in body["tiers_available"]
+
+
 def test_capabilities_endpoint(client):
     c, _ = client
     r = c.get("/v1/capabilities")
