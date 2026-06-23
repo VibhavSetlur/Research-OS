@@ -9,6 +9,9 @@ Read-only endpoints (no auth beyond the 127.0.0.1 bind):
   GET  /healthz            liveness + version
   GET  /v1/state           multi-root state snapshot (all registered roots)
   GET  /v1/domain          detected research field + field-aware defaults
+  GET  /v1/capabilities    agent front door: identity + field + tool/protocol
+                           inventory + work-state freshness + gateway readiness
+                           (?tools=full embeds OpenAI tool schemas)
   GET  /v1/lineage         content-addressed run dependency graph (?run_id=)
   GET  /v1/staleness       freshness verdict over the lineage DAG
   GET  /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
@@ -282,6 +285,26 @@ def build_app(daemon: "Daemon"):
         out["available"] = True
         return JSONResponse(out)
 
+    async def get_capabilities(request):
+        # The agent front door: one read-only call that fully describes
+        # Research-OS to any AI agent — identity, detected field, tool +
+        # protocol inventory, work-state freshness, gateway readiness.
+        # ?root= overrides; ?tools=full embeds the OpenAI tool schemas.
+        from . import gateway as _gw
+
+        want_schemas = request.query_params.get("tools") == "full"
+        root_q = request.query_params.get("root")
+        target = daemon
+        if root_q:
+            target = daemon.registry.get(root_q) or daemon.registry.register(root_q)
+        try:
+            payload = _gw.build_capabilities(target, include_tool_schemas=want_schemas)
+        except Exception as exc:  # noqa: BLE001 - orientation must never 500
+            return JSONResponse(
+                {"service": "research-os", "available": False, "error": str(exc)}
+            )
+        return JSONResponse(payload)
+
     def _runstore_or_none(request):
         # Resolve the runstore for an optional ?root= override, else the
         # daemon's own runstore. Returns (runstore, error_response|None).
@@ -455,6 +478,7 @@ def build_app(daemon: "Daemon"):
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
         Route("/v1/domain", get_domain, methods=["GET"]),
+        Route("/v1/capabilities", get_capabilities, methods=["GET"]),
         Route("/v1/lineage", get_lineage, methods=["GET"]),
         Route("/v1/staleness", get_staleness, methods=["GET"]),
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),

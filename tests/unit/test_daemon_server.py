@@ -63,6 +63,29 @@ def test_jobs_empty(client):
     assert r.json()["total"] == 0
 
 
+def test_capabilities_endpoint(client):
+    c, _ = client
+    r = c.get("/v1/capabilities")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["service"] == "research-os"
+    assert body["available"] is True
+    assert body["tools"]["total"] > 0
+    assert body["protocols"]["total"] > 0
+    assert body["field"]["id"]
+    # Lean by default: no full schemas unless asked.
+    assert "schemas" not in body["tools"]
+
+
+def test_capabilities_tools_full(client):
+    c, _ = client
+    r = c.get("/v1/capabilities", params={"tools": "full"})
+    assert r.status_code == 200
+    schemas = r.json()["tools"]["schemas"]
+    assert isinstance(schemas, list) and schemas
+    assert schemas[0]["type"] == "function"
+
+
 def test_jobs_reflects_submitted_job(client):
     c, daemon = client
     daemon.tasks.start()

@@ -710,3 +710,50 @@ Next: the design-improvement pass — making the system the best possible
 substrate for researchers and AI agents across every field, depth, and
 mode of work.
 
+### Phase log: 2.1 (2026-06-23) — `/v1/capabilities`, the agent front door
+
+**Problem (JUDGE).** Phase 2 made the daemon callable, but an AI agent
+arriving cold (Hermes, Claude Code, Cursor, a bare OpenAI client) had no
+way to *orient* in one shot. "What is this? What field is my project?
+What tools and protocols exist? Is my recorded work fresh or stale? Is
+the chat endpoint even live?" — all of that was scattered across
+`/v1/domain`, `/v1/state`, `/v1/staleness`, and tool-call trial-and-error.
+Discoverability is the single highest-leverage ergonomics win for the
+"any agent, any field" goal: an agent that can introspect the system uses
+it correctly without a human pre-briefing it.
+
+**Decision — one read-only, self-describing GET.** `GET /v1/capabilities`
+returns a complete orientation snapshot, assembled by a new pure
+`gateway.build_capabilities(daemon)`:
+
+* **identity** — service, version, tagline, and the full endpoint map
+  (so the agent learns every other route from this one call).
+* **field** — the project's detected research domain + confidence +
+  detection source + languages + deliverables (chemistry vs. history vs.
+  ML get oriented differently).
+* **tools** — a categorized inventory (counts + names by category;
+  152 tools / 34 categories on this repo). Full OpenAI schemas ride along
+  only with `?tools=full`, keeping the default payload cheap.
+* **protocols** — counts of reasoning scaffolds grouped by category
+  (142 / many categories), globbed straight from the protocol dir.
+* **work_state** — recorded-result count + fresh/stale split, so the
+  agent knows whether it's walking into clean or stale work.
+* **gateway** — readiness booleans only (enabled / token_set /
+  api_key_set / model). **No secret value ever appears in the payload.**
+
+Every section is best-effort and degrades to `null` rather than raising —
+orientation must never 500. `?root=` overrides for the multi-project
+daemon. Like the rest of the daemon, `build_capabilities` does pure
+read-only orchestration over engine + daemon public surfaces with
+**zero top-level reasoning imports** (AST-verified, preflight green).
+
+**Tested** (10 new): `test_daemon_gateway.py` (+4) covers no-root
+self-description, field+state with a root, opt-in schemas, and the
+no-secrets guarantee; `test_daemon_server.py` (+2) covers the endpoint
+lean + `?tools=full`. Verified live against this repo (field=ML 0.31,
+152 tools, 142 protocols, work-state fresh/stale split).
+
+Why this first in the improvement pass: an agent that can *see* the whole
+system is the precondition for everything else (streaming, sandboxing,
+dashboards). Discoverability compounds.
+

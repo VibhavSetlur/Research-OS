@@ -235,3 +235,55 @@ def test_error_response_is_openai_shaped():
     assert err["choices"][0]["message"]["role"] == "assistant"
     assert "no token configured" in err["choices"][0]["message"]["content"]
     assert err["error"]["message"] == "no token configured"
+
+
+# ── capabilities (agent front door) ──────────────────────────────────
+
+
+def test_capabilities_no_root():
+    """No workspace -> still self-describes (identity + tools + protocols)."""
+    daemon = Daemon.for_root(None)
+    cap = gateway.build_capabilities(daemon)
+    assert cap["service"] == "research-os"
+    assert cap["available"] is False
+    assert cap["version"]
+    # Endpoints + tool/protocol inventory are root-independent.
+    assert "chat" in cap["endpoints"]
+    assert cap["tools"]["total"] > 0
+    assert cap["tools"]["by_category"]
+    assert cap["protocols"]["total"] > 0
+
+
+def test_capabilities_with_root_has_field_and_state(tmp_path):
+    """A resolved root adds field detection + work-state freshness."""
+    daemon = Daemon.for_root(tmp_path)
+    cap = gateway.build_capabilities(daemon)
+    assert cap["available"] is True
+    assert cap["field"]["id"]  # GENERIC fallback at minimum
+    assert "confidence" in cap["field"]
+    # Empty project: zero recorded results, never crashes.
+    assert cap["work_state"]["recorded_results"] == 0
+
+
+def test_capabilities_tool_schemas_opt_in():
+    """Full OpenAI schemas only ride along when explicitly requested."""
+    daemon = Daemon.for_root(None)
+    lean = gateway.build_capabilities(daemon)
+    full = gateway.build_capabilities(daemon, include_tool_schemas=True)
+    assert "schemas" not in lean["tools"]
+    assert isinstance(full["tools"]["schemas"], list)
+    assert full["tools"]["schemas"][0]["type"] == "function"
+
+
+def test_capabilities_gateway_readiness_no_secrets():
+    """Gateway block reports booleans only — never the token/key value."""
+    daemon = Daemon.for_root(None, enable_gateway=True)
+    cap = gateway.build_capabilities(daemon)
+    gw = cap["gateway"]
+    assert gw["enabled"] is True
+    assert gw["token_set"] in (True, False)
+    assert gw["api_key_set"] in (True, False)
+    # No raw secret leaks into the payload.
+    blob = json.dumps(cap)
+    assert "RESEARCH_OS_GATEWAY_TOKEN" not in blob or "token_set" in blob
+
