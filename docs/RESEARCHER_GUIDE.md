@@ -43,7 +43,10 @@ router treats as a unit of work and as "done":
 |---|---|---|---|
 | **analysis** *(default)* | a numbered experiment step (`workspace/NN_*`) | grounded figures + tables + conclusions | `workspace/`, `synthesis/`, `docs/` |
 | **tool_build** | a commit / iteration in the inner repo | tests + build + eval pass | `spec/`, `decisions/`, `eval/`, `milestones.md`, `governance.md`, an inner git repo |
+| **hybrid** | a tool change *and* the analysis that uses it | the dual deliverable (a releasable tool + findings whose provenance names the tool version) | analysis spine + a lazy `tool/` home for the inner repo |
 | **exploration** | a throw-away probe in `workspace/scratch/` | you learned what you needed | scratch-first, light gates |
+| **notebook** | an iteration in a `.ipynb` | the notebook reproduces clean + its finding is captured | `notebooks/`, `data/`, `outputs/` eager |
+| **multi_study** | a sub-study against a shared codebook | the study registers + rolls up into the program synthesis | `studies/`, `shared/` (codebook, prereg, governance), `roll_up/` |
 
 `sys_boot` reports the active mode as `workspace_mode`, and the router
 uses it: in **tool_build** it favours the `build/*` arc

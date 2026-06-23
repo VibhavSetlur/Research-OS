@@ -357,19 +357,19 @@ def test_unknown_mode_still_falls_back_to_analysis_byte_identical():
 # ---------------------------------------------------------------------------
 # Mode routing registry — the single source of truth that biases routing.
 # Every mode-aware code path reads from MODE_ROUTING; these tests lock the
-# contract so notebook / multi_study stay first-class and analysis / hybrid
-# stay neutral.
+# contract so notebook / multi_study / hybrid stay first-class and analysis
+# stays the neutral baseline.
 # ---------------------------------------------------------------------------
 
 
 def test_mode_routing_registry_covers_every_biased_mode():
-    """Every non-baseline mode (all VALID modes except analysis + hybrid,
-    which deliberately reuse the analysis routing surface) has a registry
-    entry. This is what makes notebook + multi_study first-class instead of
-    relying only on the indirect workflow-shape tiebreak."""
+    """Every non-baseline mode (all VALID modes except analysis, which is the
+    universal baseline routing surface) has a registry entry. This is what
+    makes notebook + multi_study + hybrid first-class instead of relying only
+    on the indirect workflow-shape tiebreak."""
     from research_os.tools.actions.router import MODE_ROUTING
     from research_os.tools.actions.state.config import VALID_WORKSPACE_MODES
-    baseline = {"analysis", "hybrid"}
+    baseline = {"analysis"}
     biased = set(VALID_WORKSPACE_MODES) - baseline
     assert biased == set(MODE_ROUTING), (
         f"registry/enum drift: enum-biased={biased} registry={set(MODE_ROUTING)}"
@@ -390,23 +390,21 @@ def test_mode_boost_is_registry_driven_for_every_native_sub_intent():
 
 
 def test_notebook_and_multi_study_are_first_class():
-    """The fix this release ships: notebook + multi_study now carry a real
-    routing boost on their native sub-intents (notebook_run / program_setup),
-    not just the indirect shape tiebreak."""
+    """notebook + multi_study + hybrid carry a real routing boost on their
+    native sub-intents (not just the indirect shape tiebreak)."""
     from research_os.tools.actions.router import _mode_boost_for
     assert _mode_boost_for("notebook", "notebook_run") > 0
     assert _mode_boost_for("multi_study", "program_setup") > 0
+    assert _mode_boost_for("hybrid", "hybrid_run") > 0
 
 
-def test_analysis_and_hybrid_get_no_mode_boost():
-    """analysis is the universal baseline; hybrid reuses the analysis routing
-    surface. Neither may boost ANY sub-intent — that would silently re-rank
-    the default workspace."""
+def test_analysis_gets_no_mode_boost():
+    """analysis is the universal baseline; it may not boost ANY sub-intent —
+    that would silently re-rank the default workspace."""
     from research_os.tools.actions.router import MODE_ROUTING, _mode_boost_for
     every_sub = {s for e in MODE_ROUTING.values() for s in e.sub_intents}
-    for mode in ("analysis", "hybrid"):
-        for sub in every_sub | {"eda", "casual", "notebook_run"}:
-            assert _mode_boost_for(mode, sub) == 0, f"{mode} boosted {sub}"
+    for sub in every_sub | {"eda", "casual", "notebook_run"}:
+        assert _mode_boost_for("analysis", sub) == 0, f"analysis boosted {sub}"
 
 
 def test_tool_build_is_the_only_override_mode():
