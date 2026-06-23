@@ -1,0 +1,316 @@
+"""Run journal — the durable, queryable record of every run.
+
+JUDGE-2 (docs/v4/ROADMAP.md §8): three needs collapse into one primitive.
+The RunStore persists each run to ``<root>/.os_state/runs/<run_id>/`` as:
+
+  - ``run.json``  — the manifest: spec + provenance + status transitions +
+                    result + artifacts. Written atomically (temp+rename) on
+                    every lifecycle transition so a crash never corrupts it.
+  - ``log.txt``   — the full captured stdout/stderr (the bounded tail in
+                    run.json is for quick reads; this is the complete log).
+
+This makes jobs survive a daemon restart (durability), makes every run
+reproducible (provenance), and gives the gateway/dashboard a permanent,
+queryable history (observability) — all from one file format.
+
+stdlib only (json, os, time, pathlib, tempfile). No locking beyond atomic
+rename: each run owns its own directory, so concurrent runs never touch
+the same files.
+"""
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+import time
+from pathlib import Path
+from typing import Any
+
+RUNS_DIRNAME = "runs"
+MANIFEST_NAME = "run.json"
+LOG_NAME = "log.txt"
+
+
+class RunStore:
+    """Read/write the durable run journal under a project root."""
+
+    def __init__(self, root: str | Path) -> None:
+        self.root = Path(root)
+
+    @property
+    def runs_dir(self) -> Path:
+        return self.root / ".os_state" / RUNS_DIRNAME
+
+    def _run_dir(self, run_id: str) -> Path:
+        return self.runs_dir / run_id
+
+    # ── writing ────────────────────────────────────────────────────────
+    def write_manifest(self, run_id: str, manifest: dict) -> Path:
+        """Atomically write a run's manifest. Creates the run dir if needed."""
+        run_dir = self._run_dir(run_id)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        target = run_dir / MANIFEST_NAME
+        # Atomic: write to a temp file in the same dir, then rename.
+        fd, tmp = tempfile.mkstemp(dir=str(run_dir), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(manifest, fh, indent=2, default=str)
+            os.replace(tmp, target)
+        finally:
+            if os.path.exists(tmp):
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+        return target
+
+    def append_log(self, run_id: str, line: str) -> None:
+        """Append one line to a run's full log. Best-effort, never raises."""
+        run_dir = self._run_dir(run_id)
+        try:
+            run_dir.mkdir(parents=True, exist_ok=True)
+            with (run_dir / LOG_NAME).open("a", encoding="utf-8") as fh:
+                fh.write(line.rstrip("\n") + "\n")
+        except OSError:
+            pass
+
+    # ── reading ────────────────────────────────────────────────────────
+    def read_manifest(self, run_id: str) -> dict | None:
+        """Read one run's manifest, or None if missing/corrupt."""
+        target = self._run_dir(run_id) / MANIFEST_NAME
+        if not target.exists():
+            return None
+        try:
+            with target.open(encoding="utf-8") as fh:
+                return json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    def read_log(self, run_id: str, *, tail: int | None = None) -> list[str]:
+        """Read a run's full log (or the last ``tail`` lines)."""
+        target = self._run_dir(run_id) / LOG_NAME
+        if not target.exists():
+            return []
+        try:
+            with target.open(encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            return []
+        if tail is not None and tail >= 0:
+            return lines[-tail:]
+        return lines
+
+    def list_runs(self, *, limit: int = 50) -> list[dict]:
+        """List run manifests, newest first (by submitted_at, then dir mtime).
+
+        Returns lightweight summaries (no full provenance/result) so a list
+        call stays cheap even with thousands of runs.
+        """
+        if not self.runs_dir.exists():
+            return []
+        entries: list[tuple[float, dict]] = []
+        for child in self.runs_dir.iterdir():
+            if not child.is_dir():
+                continue
+            manifest = self.read_manifest(child.name)
+            if manifest is None:
+                continue
+            sort_key = manifest.get("submitted_at")
+            if not isinstance(sort_key, (int, float)):
+                try:
+                    sort_key = child.stat().st_mtime
+                except OSError:
+                    sort_key = 0.0
+            entries.append((float(sort_key), self._summarize(manifest)))
+        entries.sort(key=lambda e: e[0], reverse=True)
+        return [summary for _key, summary in entries[:limit]]
+
+    @staticmethod
+    def _summarize(manifest: dict) -> dict:
+        """Lightweight view for list endpoints."""
+        return {
+            "id": manifest.get("id"),
+            "name": manifest.get("name"),
+            "kind": manifest.get("kind"),
+            "status": manifest.get("status"),
+            "submitted_at": manifest.get("submitted_at"),
+            "started_at": manifest.get("started_at"),
+            "finished_at": manifest.get("finished_at"),
+            "duration_s": manifest.get("duration_s"),
+            "root": manifest.get("root"),
+            "returncode": (manifest.get("result") or {}).get("returncode"),
+            "artifact_count": len(manifest.get("artifacts") or []),
+        }
+
+    # ── rehydration ────────────────────────────────────────────────────
+    def recent_manifests(self, *, limit: int = 100) -> list[dict]:
+        """Full manifests for the most recent runs (for restart rehydration)."""
+        summaries = self.list_runs(limit=limit)
+        out: list[dict] = []
+        for s in summaries:
+            rid = s.get("id")
+            if not rid:
+                continue
+            full = self.read_manifest(rid)
+            if full is not None:
+                out.append(full)
+        return out
+
+    def detect_orphans(self) -> list[str]:
+        """Run ids whose last persisted status was non-terminal.
+
+        After an unclean shutdown these runs were RUNNING/QUEUED but the
+        process died — they can never resume, so the daemon should mark them
+        INTERRUPTED on startup rather than leave them looking live forever.
+        """
+        orphans: list[str] = []
+        terminal = {"succeeded", "failed", "cancelled", "interrupted"}
+        for s in self.list_runs(limit=10_000):
+            status = (s.get("status") or "").lower()
+            if status and status not in terminal:
+                rid = s.get("id")
+                if rid:
+                    orphans.append(rid)
+        return orphans
+
+    def mark_interrupted(self, run_id: str) -> None:
+        """Rewrite an orphaned run's manifest as INTERRUPTED. Best-effort."""
+        manifest = self.read_manifest(run_id)
+        if manifest is None:
+            return
+        manifest["status"] = "interrupted"
+        manifest.setdefault("finished_at", time.time())
+        transitions = manifest.setdefault("transitions", [])
+        transitions.append({"status": "interrupted", "at": time.time(),
+                             "note": "daemon restarted while run was active"})
+        try:
+            self.write_manifest(run_id, manifest)
+        except OSError:
+            pass
+
+
+def build_manifest(
+    *,
+    run_id: str,
+    name: str,
+    kind: str,
+    status: str,
+    root: str | None,
+    spec: dict | None = None,
+    provenance: dict | None = None,
+    submitted_at: float | None = None,
+    **extra: Any,
+) -> dict:
+    """Construct a fresh run manifest with the standard fields."""
+    manifest: dict = {
+        "id": run_id,
+        "name": name,
+        "kind": kind,
+        "status": status,
+        "root": root,
+        "submitted_at": submitted_at if submitted_at is not None else time.time(),
+        "spec": spec or {},
+        "provenance": provenance or {},
+        "transitions": [{"status": status, "at": time.time()}],
+        "artifacts": [],
+    }
+    manifest.update(extra)
+    return manifest
+
+
+class RunJournal:
+    """Drives a RunStore from the event bus — the strangler-fig bridge.
+
+    The task queue already emits ``job.{submitted,started,succeeded,failed,
+    cancelled}`` (each carrying a full job snapshot) and ``job.log`` line
+    events. RunJournal subscribes to those and persists them to the durable
+    store, so the queue needs zero knowledge of the journal. Wiring is a
+    single ``daemon.bus.subscribe`` consumed on a background thread.
+
+    Each run is keyed by job id. The first event for a job writes the
+    manifest (with provenance from the job spec); subsequent transitions
+    rewrite it; ``job.log`` lines append to the full log file and grow the
+    bounded ``log_tail``.
+    """
+
+    LOG_TAIL_MAX = 200
+
+    def __init__(self, store: RunStore) -> None:
+        self.store = store
+        self._tails: dict[str, list[str]] = {}
+
+    def handle(self, event: Any) -> None:
+        """Process one event object (must have .kind and .data). Never raises."""
+        try:
+            kind = getattr(event, "kind", None)
+            data = getattr(event, "data", None) or {}
+            if kind == "job.log":
+                self._on_log(data)
+            elif isinstance(kind, str) and kind.startswith("job."):
+                self._on_transition(kind, data)
+        except Exception:  # noqa: BLE001 - journal must never break the bus
+            pass
+
+    def _on_log(self, data: dict) -> None:
+        job_id = data.get("job_id") or data.get("id")
+        line = data.get("line")
+        if not job_id or line is None:
+            return
+        self.store.append_log(job_id, str(line))
+        tail = self._tails.setdefault(job_id, [])
+        tail.append(str(line))
+        if len(tail) > self.LOG_TAIL_MAX:
+            del tail[: len(tail) - self.LOG_TAIL_MAX]
+
+    def _on_transition(self, kind: str, data: dict) -> None:
+        snap = data.get("job") or {}
+        job_id = data.get("job_id") or snap.get("id")
+        if not job_id:
+            return
+        status = (snap.get("status") or data.get("status") or "").lower()
+        existing = self.store.read_manifest(job_id)
+        if existing is None:
+            manifest = build_manifest(
+                run_id=job_id,
+                name=snap.get("name", "run"),
+                kind=snap.get("kind", "callable"),
+                status=status or "queued",
+                root=snap.get("root"),
+                spec=snap.get("spec") or {},
+                provenance=snap.get("provenance") or {},
+                submitted_at=snap.get("submitted_at"),
+            )
+        else:
+            manifest = existing
+            manifest["status"] = status or manifest.get("status")
+            manifest.setdefault("transitions", []).append(
+                {"status": status, "at": time.time()}
+            )
+        # Timing + result mirror the snapshot.
+        for fld in ("started_at", "finished_at", "duration_s", "error"):
+            if snap.get(fld) is not None:
+                manifest[fld] = snap[fld]
+        if snap.get("result") is not None:
+            manifest["result"] = snap["result"]
+        # Reconcile command success with run success: a subprocess job that
+        # *ran* (job status "succeeded") but whose command exited nonzero is a
+        # FAILED run from the researcher's point of view. Cancelled runs keep
+        # their cancelled status.
+        result = snap.get("result")
+        if (
+            status == "succeeded"
+            and isinstance(result, dict)
+            and result.get("returncode") not in (None, 0)
+        ):
+            if result.get("cancelled"):
+                manifest["status"] = "cancelled"
+            else:
+                manifest["status"] = "failed"
+            status = manifest["status"]
+        tail = self._tails.get(job_id)
+        if tail:
+            manifest["log_tail"] = list(tail)
+        self.store.write_manifest(job_id, manifest)
+        # Free the in-memory tail once the run is terminal.
+        if status in {"succeeded", "failed", "cancelled"}:
+            self._tails.pop(job_id, None)

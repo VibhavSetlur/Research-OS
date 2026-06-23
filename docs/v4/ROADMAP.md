@@ -391,3 +391,40 @@ oldest-drop today (fine for tiles, revisit if a client needs lossless
 log tailing — that wants the durable journal from gap 3, replayed via
 `?after=`); `_jsonsafe` truncates non-primitive job results to a type
 name (acceptable — results should be handles/paths, not blobs).
+
+### JUDGE-2 (2026-06-23) — what a research OS needs *beyond* execution
+
+Phase 1.6 made the daemon able to run anything. But a task runner is not
+a research OS. The researcher's real lifecycle is: ask → run → **produce
+artifacts** → **record provenance** → **reproduce** → **report**. Right
+now everything after "run" evaporates when a job ends. Three gaps, and
+they collapse into ONE primitive:
+
+1. **[OPEN — high] No durable run journal.** (Carried from JUDGE-1 gap
+   3.) Jobs live in memory; a restart loses all history and breaks the
+   "owns multi-hour work" promise.
+
+2. **[OPEN — high] No provenance / reproducibility.** This is the single
+   most important property in research — a result you can't reproduce is
+   worthless. We capture exit code + a log tail but NOT: the exact
+   command, cwd, the project's git commit (dirty?), the environment
+   (conda env name, python version, key package versions), input file
+   hashes, output artifact hashes, and precise timestamps. Without this
+   the daemon is a fancy `&`, not a research OS.
+
+3. **[OPEN — med] No artifact tracking.** Runs produce files; nothing
+   records what was produced or links it back to the run that made it.
+
+**IMPROVE — the run journal as the provenance record (Phase 1.7, next
+BUILD).** One primitive serves all three: each job persists to
+`.os_state/runs/<job_id>/` a `run.json` manifest (spec + provenance +
+status transitions + artifacts) plus a full `log.txt`. This makes jobs
+survive restart (gap 1), makes every run reproducible (gap 2), and gives
+the gateway/dashboard a queryable, durable history (gap 3) — three needs,
+one file format. A `RunStore` reads/writes the journal; the queue writes
+on each lifecycle transition; on daemon start the store rehydrates the
+last N runs into the queue's history. New endpoints `GET /v1/runs` and
+`GET /v1/runs/{id}` serve the durable record (the in-memory `/v1/jobs`
+becomes the live view; runs are the permanent record). Provenance capture
+is best-effort and never blocks a run (a missing git binary just omits
+the commit). This is strictly additive — no existing behavior changes.

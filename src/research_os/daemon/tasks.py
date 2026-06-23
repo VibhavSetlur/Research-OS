@@ -76,6 +76,12 @@ class Job:
     result: Any = None
     error: str | None = None
     cancel_event: threading.Event = field(default_factory=threading.Event)
+    # Provenance metadata (Phase 1.7) — populated for runs that want a durable
+    # journal entry. The queue treats these as opaque; the run journal reads
+    # them. ``kind`` distinguishes python-callable from subprocess/scheduler.
+    kind: str = "callable"
+    spec: dict = field(default_factory=dict)
+    provenance: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         """JSON-serializable view. Result is included only if it's trivially
@@ -96,6 +102,9 @@ class Job:
             ),
             "result": _jsonsafe(self.result),
             "error": self.error,
+            "kind": self.kind,
+            "spec": _jsonsafe(self.spec),
+            "provenance": _jsonsafe(self.provenance),
         }
 
 
@@ -171,6 +180,9 @@ class TaskQueue:
                     "job_id": job.id,
                     "name": job.name,
                     "status": job.status.value,
+                    # Full snapshot so durable consumers (run journal) have
+                    # everything they need without re-querying the queue.
+                    "job": job.to_dict(),
                 },
                 root=job.root,
             )
@@ -184,6 +196,9 @@ class TaskQueue:
         *args: Any,
         name: str | None = None,
         root: str | None = None,
+        kind: str = "callable",
+        spec: dict | None = None,
+        provenance: dict | None = None,
         **kwargs: Any,
     ) -> str:
         """Schedule ``fn(*args, **kwargs)`` to run on a worker thread.
@@ -191,13 +206,24 @@ class TaskQueue:
         Returns the job id immediately. If ``fn`` accepts a ``cancel_event``
         keyword, the job's event is injected so the work can cooperatively
         bail when cancelled.
+
+        ``kind``/``spec``/``provenance`` are opaque metadata recorded on the
+        job for the durable run journal (Phase 1.7); the queue does not
+        interpret them.
         """
         with self._lock:
             if not self._started or self._executor is None:
                 raise RuntimeError("TaskQueue.submit() before start()")
             if self._closed:
                 raise RuntimeError("TaskQueue is closed")
-            job = Job(id=uuid.uuid4().hex[:12], name=name or getattr(fn, "__name__", "job"), root=root)
+            job = Job(
+                id=uuid.uuid4().hex[:12],
+                name=name or getattr(fn, "__name__", "job"),
+                root=root,
+                kind=kind,
+                spec=spec or {},
+                provenance=provenance or {},
+            )
             self._jobs[job.id] = job
             self._order.append(job.id)
             self._evict_history_locked()

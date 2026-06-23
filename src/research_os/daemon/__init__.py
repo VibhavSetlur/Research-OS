@@ -30,6 +30,7 @@ from .core import Daemon, DaemonStatus
 from .events import Event, EventBus
 from .registry import Workspace, WorkspaceRegistry
 from .runners import RunResult, SubprocessRunner
+from .runstore import RunJournal, RunStore, build_manifest
 from .tasks import Job, JobStatus, TaskQueue
 
 __all__ = [
@@ -45,4 +46,7 @@ __all__ = [
     "Event",
     "SubprocessRunner",
     "RunResult",
+    "RunStore",
+    "RunJournal",
+    "build_manifest",
 ]

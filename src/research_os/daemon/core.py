@@ -22,6 +22,7 @@ from pathlib import Path
 from .config import DaemonConfig
 from .events import EventBus
 from .registry import WorkspaceRegistry
+from .runstore import RunStore
 from .tasks import TaskQueue
 
 logger = logging.getLogger("research-os.daemon")
@@ -85,6 +86,13 @@ class Daemon:
         # publishes job lifecycle events to the bus.
         self.registry = WorkspaceRegistry(cache_ttl=config.state_cache_ttl)
         self.tasks = TaskQueue(max_workers=config.task_workers, bus=self.events)
+        # Durable run journal (Phase 1.7): persists every run to
+        # <root>/.os_state/runs/ as a provenance manifest + full log, driven
+        # off the event bus so the queue stays journal-agnostic. Only active
+        # when we have a concrete root to write under.
+        self.runstore = RunStore(root) if root is not None else None
+        self._journal = None
+        self._journal_thread = None
         if root is not None:
             self.registry.register(root)
 
@@ -168,6 +176,8 @@ class Daemon:
         env: dict | None = None,
         root: str | None = None,
         shell: bool = False,
+        inputs: "list[str] | None" = None,
+        track_packages: "list[str] | None" = None,
     ) -> str:
         """Submit an external command as a background job and return its id.
 
@@ -176,21 +186,85 @@ class Daemon:
         the SubprocessRunner, streaming output as ``job.log`` events on the
         bus and recording a bounded result handle. Defaults ``cwd`` to the
         daemon's root so commands run in the project by default.
+
+        Provenance (git commit, environment, input hashes) is captured at
+        submit time and recorded on the job so the durable run journal can
+        make the run reproducible. Capture is best-effort and never blocks.
         """
+        from . import provenance as _prov
         from .runners import SubprocessRunner
 
+        effective_cwd = cwd or (str(self.root) if self.root else None)
+        effective_root = root or (str(self.root) if self.root else None)
         runner = SubprocessRunner(
             cmd,
-            cwd=cwd or (str(self.root) if self.root else None),
+            cwd=effective_cwd,
             env=env,
             shell=shell,
         )
         job_name = name or (cmd if isinstance(cmd, str) else " ".join(cmd))
+        prov = _prov.capture(
+            effective_root or effective_cwd or ".",
+            inputs=inputs,
+            packages=track_packages,
+        )
+        spec = {
+            "cmd": cmd,
+            "cwd": effective_cwd,
+            "shell": shell,
+            "env_overrides": sorted(env.keys()) if env else [],
+        }
+        # Ensure the durable journal is capturing before we submit, so even
+        # programmatic use (no serve()) gets a persistent record.
+        self._start_journal()
         return self.tasks.submit(
             runner,
             name=job_name[:120],
-            root=root or (str(self.root) if self.root else None),
+            root=effective_root,
+            kind="subprocess",
+            spec=spec,
+            provenance=prov,
         )
+
+    # ── run journal (durable, Phase 1.7) ──────────────────────────────
+    def _start_journal(self) -> None:
+        """Begin persisting runs to the durable journal off the event bus.
+
+        Idempotent. Also rehydrates: any run whose last persisted status was
+        non-terminal (the daemon died mid-run) is marked INTERRUPTED so the
+        history reflects reality instead of showing a phantom live run.
+        """
+        if self.runstore is None or self._journal is not None:
+            return
+        import threading as _threading
+
+        from .runstore import RunJournal
+
+        # Rehydrate: mark orphaned (non-terminal) runs from a prior crash.
+        try:
+            for rid in self.runstore.detect_orphans():
+                self.runstore.mark_interrupted(rid)
+        except Exception:  # noqa: BLE001 - rehydration must not block startup
+            logger.debug("run journal rehydration failed", exc_info=True)
+
+        journal = RunJournal(self.runstore)
+        self._journal = journal
+
+        def _pump() -> None:
+            # Backfill any events already on the bus (defensive — the journal
+            # starts before HTTP accepts requests, but a programmatic submit
+            # could race), then stream live. Skip heartbeat sentinels.
+            for event in self.events.subscribe(backfill=1000):
+                if getattr(event, "kind", None) == "heartbeat":
+                    continue
+                journal.handle(event)
+
+        thread = _threading.Thread(
+            target=_pump, name="ro-daemon-journal", daemon=True
+        )
+        self._journal_thread = thread
+        thread.start()
+        logger.debug("run journal started under %s", self.runstore.runs_dir)
 
     # ── lifecycle ─────────────────────────────────────────────────────
     def serve(self) -> None:
@@ -210,6 +284,7 @@ class Daemon:
         # missing extra doesn't leave a worker pool dangling.
         _server._require_web_stack()
         self.tasks.start()
+        self._start_journal()
         self._serving = True
         try:
             _server.serve(self)

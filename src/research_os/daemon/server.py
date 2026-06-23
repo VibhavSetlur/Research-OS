@@ -91,6 +91,38 @@ def build_app(daemon: "Daemon"):
             return JSONResponse({"error": "job not found"}, status_code=404)
         return JSONResponse(job.to_dict())
 
+    async def get_runs(request):
+        # Durable run journal — the permanent record (survives restarts).
+        # /v1/jobs is the live in-memory view; /v1/runs is the archive.
+        if daemon.runstore is None:
+            return JSONResponse({"runs": [], "available": False})
+        limit_raw = request.query_params.get("limit", "50")
+        try:
+            limit = max(0, int(limit_raw))
+        except ValueError:
+            return JSONResponse({"error": "limit must be an integer"}, status_code=400)
+        return JSONResponse({"runs": daemon.runstore.list_runs(limit=limit), "available": True})
+
+    async def get_run(request):
+        if daemon.runstore is None:
+            return JSONResponse({"error": "run journal unavailable"}, status_code=404)
+        run_id = request.path_params["run_id"]
+        manifest = daemon.runstore.read_manifest(run_id)
+        if manifest is None:
+            return JSONResponse({"error": "run not found"}, status_code=404)
+        # Optional full log via ?log=1 (&tail=N for the last N lines).
+        if request.query_params.get("log"):
+            tail_raw = request.query_params.get("tail")
+            tail = None
+            if tail_raw is not None:
+                try:
+                    tail = max(0, int(tail_raw))
+                except ValueError:
+                    return JSONResponse({"error": "tail must be an integer"}, status_code=400)
+            manifest = dict(manifest)
+            manifest["log"] = daemon.runstore.read_log(run_id, tail=tail)
+        return JSONResponse(manifest)
+
     async def get_events_recent(request):
         # JSON snapshot of recent events (poll-friendly fallback for clients
         # that can't hold an SSE stream open).
@@ -171,6 +203,8 @@ def build_app(daemon: "Daemon"):
         Route("/v1/state", get_state, methods=["GET"]),
         Route("/v1/jobs", get_jobs, methods=["GET"]),
         Route("/v1/jobs/{job_id}", get_job, methods=["GET"]),
+        Route("/v1/runs", get_runs, methods=["GET"]),
+        Route("/v1/runs/{run_id}", get_run, methods=["GET"]),
         Route("/v1/events", stream_events, methods=["GET"]),
         Route("/v1/events/recent", get_events_recent, methods=["GET"]),
     ]
