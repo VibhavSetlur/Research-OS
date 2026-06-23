@@ -100,25 +100,44 @@ native+cluster execution. We keep what works and add what's missing.
 
 ---
 
-## 2. The version stance for v4
+## 2. The version stance for v4 — the build→judge→improve loop
 
-Vibhav has GRANTED a **4.0.0 MAJOR** for this overhaul (this supersedes
-the standing "under 4.0.0 forever" mandate, **for this work only**). We
-may break/rename the public surface where the daemon architecture truly
-requires it — but staged safely:
+**Execution model (Vibhav directive, 2026-06): do NOT release 4.0.0
+early.** 4.0.0 is the destination, not a milestone we rush to. The plan
+is a long iterative loop — on the order of **20–30 phases** (~10 to
+*build* the architecture out, then ~20 to *judge → redesign → improve*)
+— and we keep going until 4.0.0 is **the best possible system that could
+exist**, not merely "feature complete."
 
-- **Phases 0–5 ship as MINOR 3.x releases** wherever they are
-  back-compat additive (the daemon is opt-in, MCP untouched). This is
-  most of the work.
-- **4.0.0 is reserved for the deliberate cut**: when the daemon is the
-  proven primary surface and we choose to retire legacy paths / change
-  the default `research-os start` behaviour / rename tools the new
-  architecture obsoletes. 4.0.0 lands with a MIGRATION section in the
-  CHANGELOG and a `docs/v4/MIGRATION.md`.
-- A breaking change mid-stream that we are NOT ready to release as 4.0.0
+What this means concretely:
+
+- **Build phases** (roughly Phases 0–9): stand up each layer of the
+  gateway daemon — skeleton, core loop + state bridge, OpenAI-compat
+  gateway, MCP telemetry sidecar, sandbox, dashboard, and the
+  cross-cutting concerns they expose (auth, multi-root, streaming,
+  observability, persistence of long jobs).
+- **Judge/improve phases** (roughly Phases 10–30): for each built layer,
+  step back and critique it hard — security, ergonomics, performance,
+  failure modes, API quality, test depth, docs — then redesign and
+  re-implement the weak parts. Do NOT lock into the first design that
+  works. Every judge phase should produce a written critique (in this
+  doc's design-review log) and concrete improvement PRs.
+- **Each phase still ships green on its own `feat/v4-<slug>` branch →
+  dev.** The gate (preflight + pytest + ruff) is non-negotiable per
+  phase. But the package **version stays pre-4.0.0** the whole way —
+  intermediate phases land as MINOR/PATCH `3.x` releases (the daemon is
+  opt-in, MCP untouched), and the **4.0.0 tag waits until the entire
+  system is judged maximal**.
+- A breaking change mid-stream that we are NOT ready to crown as 4.0.0
   gets the back-compat treatment (alias the old name, keep old schema
   accepting, default-off the new behaviour) and ships MINOR until the
-  4.0.0 cut collects them.
+  final 4.0.0 cut collects them.
+- **4.0.0 is the deliberate final cut**: daemon is the proven primary
+  surface, every layer has survived a judge pass, legacy paths retire
+  with a `docs/v4/MIGRATION.md` + CHANGELOG Migration section.
+
+The standing "under 4.0.0 forever" mandate is superseded **for this work
+only**.
 
 ---
 
@@ -249,22 +268,40 @@ complete).
 
 ---
 
-## 6. Open design questions (resolve as we go, record the decision)
+## 6. Design decisions (resolve as we go, record the decision)
 
-- **Web framework for the gateway** (Phase 2): stdlib `http.server` is
-  zero-dep but painful for streaming/SSE; `starlette`/`uvicorn` or
-  `aiohttp` are clean but heavy. Leaning: put it in `[daemon]` extra and
-  use a lightweight ASGI stack. DECIDE before Phase 2.
-- **State backend**: keep JSON `ResearchLedger` (proven, file-locked) vs.
-  move to SQLite (the diagram's suggestion) for concurrent multi-client
-  reads. Leaning: keep JSON for now; revisit if concurrency bites. The
-  ledger is already atomic + locked.
-- **Multi-project daemon vs. one-daemon-per-project**: does one daemon
-  serve many roots, or one per workspace? Leaning: one daemon, many
-  roots keyed by path, since the gateway resolves root per-request
-  already.
-- **Auth on the localhost endpoints**: bind to 127.0.0.1 only + a
-  per-session token. DECIDE before exposing any mutating endpoint.
+Decisions are append-only with a date + rationale. A judge phase may
+REVISIT a decision — when it does, add a new dated entry that supersedes
+the old one rather than editing history.
+
+- **[RESOLVED 2026-06-23] Web framework for the gateway (Phase 1–2):**
+  `starlette` + `uvicorn`, in the `[daemon]` optional extra, imported
+  lazily. Rationale: Phase 2 needs SSE streaming for
+  `/v1/chat/completions`, which stdlib `http.server` makes painful;
+  starlette is a thin ASGI layer and uvicorn is the de-facto server.
+  Mitigation for the "heavy dep" worry: it's opt-in (extra), lazy, and
+  the daemon degrades with a clear "install research-os[daemon]" message
+  when absent. The HTTP layer lives behind a thin `daemon/server.py` so
+  the transport stays swappable if a judge phase wants to reconsider.
+- **[RESOLVED 2026-06-23] Multi-project model:** ONE daemon, MANY roots
+  keyed by absolute path. Rationale: the gateway already resolves root
+  per-request (`_resolve_project_root`), so a root registry is the
+  natural fit and avoids a port-per-project explosion. A `Workspace
+  registry` maps root → cached engine handles (ledger view, last status).
+- **[RESOLVED 2026-06-23] State backend:** keep JSON `ResearchLedger`
+  (proven, file-locked, atomic, self-healing on corruption). Do NOT move
+  to SQLite now. Revisit ONLY if concurrent multi-client writes prove the
+  lock contention is real (a judge-phase candidate, not a build blocker).
+- **[OPEN] Auth on localhost endpoints:** bind 127.0.0.1 only (done in
+  DaemonConfig) + a per-session bearer token for any MUTATING endpoint.
+  Read-only endpoints (Phase 1) are localhost-bind-only for now. DECIDE
+  the token scheme before the first mutating endpoint (Phase 2 tool
+  dispatch). Candidate: a token minted at daemon start, written to
+  `.os_state/daemon_token` (0600), required as `Authorization: Bearer`.
+- **[OPEN] Long-job persistence:** the Phase-1 task queue is in-memory.
+  Decide whether jobs must survive a daemon restart (persist queue to
+  `.os_state/`) — likely yes for the "master loop owns multi-hour work"
+  promise. Judge-phase candidate once the queue has real jobs.
 
 ---
 
