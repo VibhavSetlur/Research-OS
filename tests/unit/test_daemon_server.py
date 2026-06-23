@@ -63,6 +63,16 @@ def test_jobs_empty(client):
     assert r.json()["total"] == 0
 
 
+def test_orient_endpoint(client):
+    c, _ = client
+    r = c.get("/v1/orient")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["service"] == "research-os"
+    assert "narrative" in body and body["narrative"]
+    assert body["recommended_next_action"]["action"]
+
+
 def test_capabilities_endpoint(client):
     c, _ = client
     r = c.get("/v1/capabilities")

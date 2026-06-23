@@ -12,6 +12,9 @@ Read-only endpoints (no auth beyond the 127.0.0.1 bind):
   GET  /v1/capabilities    agent front door: identity + field + tool/protocol
                            inventory + work-state freshness + gateway readiness
                            (?tools=full embeds OpenAI tool schemas)
+  GET  /v1/orient          "standup": narrative of where the project is +
+                           ONE recommended next action (field + run journal
+                           + staleness synthesis; ?root=, ?limit=)
   GET  /v1/lineage         content-addressed run dependency graph (?run_id=)
   GET  /v1/staleness       freshness verdict over the lineage DAG
   GET  /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
@@ -307,6 +310,25 @@ def build_app(daemon: "Daemon"):
             )
         return JSONResponse(payload)
 
+    async def get_orient(request):
+        # The "standup" endpoint: where are we + what should I do next.
+        # A read-only synthesis over field + run journal + staleness, with
+        # ONE recommended next action. ?root= overrides; ?limit= caps the
+        # run scan. Best-effort: never 500.
+        from . import orient as _orient
+
+        root_q = request.query_params.get("root")
+        limit, err = _limit_param(request, default=50)
+        if err is not None:
+            return err
+        try:
+            payload = _orient.build_orientation(daemon, root=root_q, limit=limit or 50)
+        except Exception as exc:  # noqa: BLE001 - orientation must never 500
+            return JSONResponse(
+                {"service": "research-os", "available": False, "error": str(exc)}
+            )
+        return JSONResponse(payload)
+
     def _runstore_or_none(request):
         # Resolve the runstore for an optional ?root= override, else the
         # daemon's own runstore. Returns (runstore, error_response|None).
@@ -491,6 +513,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/state", get_state, methods=["GET"]),
         Route("/v1/domain", get_domain, methods=["GET"]),
         Route("/v1/capabilities", get_capabilities, methods=["GET"]),
+        Route("/v1/orient", get_orient, methods=["GET"]),
         Route("/v1/lineage", get_lineage, methods=["GET"]),
         Route("/v1/staleness", get_staleness, methods=["GET"]),
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),

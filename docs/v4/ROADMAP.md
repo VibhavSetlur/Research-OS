@@ -802,3 +802,53 @@ point Open WebUI, the OpenAI SDK, or any streaming agent client straight
 at it and watch field-aware, protocol-routed, tool-using answers stream
 back.
 
+### Phase log: 2.3 (2026-06-23) — /v1/orient, the "standup" endpoint
+
+**Problem (JUDGE).** `/v1/capabilities` answers *"what can this system
+do?"*. It does not answer the other half a returning researcher — or a
+fresh agent picking up someone else's project — needs first: *"where are
+we, and what should I do next?"* That state was reconstructable (field +
+run journal + staleness all exist as separate endpoints), but only by an
+agent that already knew to call three endpoints and synthesize them. The
+single highest-leverage ergonomics win for **cross-session /
+cross-agent continuity** is to do that synthesis server-side and hand back
+a brief plus ONE concrete next step.
+
+**Decision — synthesize, don't store.** New pure module `daemon/orient.py`
+composes data that already exists into:
+
+* **field** — detected research domain + confidence + source.
+* **work** — run-journal activity: total, counts by status, the newest few.
+* **freshness** — fresh/stale split over the lineage DAG, plus the
+  dependency-ordered rebuild plan when anything is stale.
+* **narrative** — one short human-readable paragraph ("This is a
+  Data science / machine learning project with N recorded run(s); X fresh
+  and Y stale…").
+* **recommended_next_action** — a small, transparent decision tree (NOT a
+  model call), in priority order: stale results → `rebuild_stale` (with
+  the exact plan); a failed run → `investigate_failure`; empty journal →
+  `record_first_result`; all clear → `proceed`. Each carries `why` + `how`
+  so it's actionable or overridable.
+
+`GET /v1/orient` exposes it (`?root=` overrides, `?limit=` caps the run
+scan). Every section is best-effort and degrades to a sensible empty value
+rather than raising — orientation must never 500. With no journal,
+`available=false` but field + recommendation (`record_first_result`) are
+still returned. `build_orientation` does pure read-only orchestration over
+engine + daemon public surfaces with **zero top-level reasoning imports**
+(AST-verified, preflight green).
+
+**Tested** (7 new): `test_daemon_orient.py` (6) covers no-root
+self-orientation, empty-journal → record-first, and each recommendation
+branch (rebuild / investigate / proceed) plus JSON-serializability;
+`test_daemon_server.py` (+1) covers the live endpoint. Verified live
+against this repo (field = Data science / machine learning, 2 recorded
+runs, correctly recommending investigation of the 2 failed runs). Fixed
+one bug found in live verification: the detected field label is nested
+under `profile` in `DetectionResult.as_dict()`, not flat.
+
+The daemon now offers a clean arc for any caller: **discover**
+(`/v1/capabilities`) → **orient** (`/v1/orient`) → **converse with tools**
+(streaming gateway). That is the shape of a localhost research brain any
+agent can walk up to cold and be productive in three calls.
+
