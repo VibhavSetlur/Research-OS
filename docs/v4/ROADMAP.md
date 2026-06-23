@@ -1,0 +1,283 @@
+# Research OS v4 — The Multi-Protocol Gateway Daemon
+
+> **This file is the canonical handoff document for the v4 overhaul.**
+> Any agent or maintainer picking up this work reads this FIRST, top to
+> bottom, before touching code. It carries the architecture, the
+> invariants, the phase plan, and a running progress log so quality does
+> not degrade across sessions. Update the Progress Log at the bottom of
+> every working session.
+
+---
+
+## 0. Why this exists (the architectural problem)
+
+Research OS today (3.x) is a **single, reactive, stdio MCP server**. It
+is excellent at what it does, but the design has a structural ceiling:
+
+- **MCP is reactive.** A server cannot do anything until a host client
+  sends a request. Long-running research work (batch-fetching hundreds
+  of papers, running a multi-hour simulation, a multi-step pipeline) has
+  no home — there is no master loop that owns execution independently of
+  whichever chat client happens to be connected.
+- **It is bound to one transport.** stdio MCP means one client at a
+  time, no shared state across clients, no way for a web UI and an IDE
+  to observe the same project simultaneously.
+- **Chat is the only surface.** Natural-language chat is a poor place to
+  review a 200-row table, a citation graph, or a multi-page draft.
+- **Execution is native.** Agent-written code runs on the host. That is
+  a security and reproducibility liability.
+
+The v4 model resolves this by making Research OS a **persistent headless
+localhost daemon acting as a multi-protocol gateway**: one backend that
+owns the master state machine and exposes standardized interfaces to any
+client (Cursor, Open WebUI, Claude Desktop, Hermes, the CLI) at once.
+
+```
+              ┌────────────────────────────────────────┐
+              │           FRONTEND CLIENTS              │
+              │ (Cursor, Open WebUI, Claude, CLI, etc.) │
+              └───────────────────┬────────────────────┘
+                                  │
+           ┌──────────────────────┴──────────────────────┐
+           ▼                                             ▼
+ [ OpenAI/Anthropic-compat API ]                      [ MCP ]
+ (Completions & Agent Tool Hooks)          (Read-Only Sidecar Telemetry)
+           │                                             │
+           └──────────────────────┬──────────────────────┘
+                                  ▼
+              ┌────────────────────────────────────────┐
+              │        RESEARCH OS CORE DAEMON          │
+              │  (State Engine, Ledger, Sandbox, DAG)   │
+              └───────────────────┬────────────────────┘
+                                  ▼
+              ┌────────────────────────────────────────┐
+              │           PROJECT WORKSPACE             │
+              │     (inputs, workspace, synthesis)      │
+              └────────────────────────────────────────┘
+```
+
+The architecture diagram above is **intent, not spec**. We have free
+rein to redesign for the best possible system. The diagram says
+"SQLite / Docker"; the actual engine uses a JSON `ResearchLedger` and
+native+cluster execution. We keep what works and add what's missing.
+
+---
+
+## 1. Hard invariants (never violate, every phase)
+
+1. **Strangler-fig, not rewrite.** The daemon WRAPS the same engine
+   functions the MCP handlers already call. We never re-implement
+   routing, state, or protocol logic in a parallel codebase. One engine,
+   many faces.
+2. **The existing stdio MCP server keeps working until the very end.**
+   Every phase ships additive and opt-in. `research-os start` (stdio)
+   stays functional through the entire 3.x line. We only retire legacy
+   paths at the deliberate 4.0.0 cut, and even then with migration notes.
+3. **The release gate is sacred.** `python scripts/preflight.py` (33/33+)
+   + `python -m pytest -q` (2200+ pass) + `ruff check src/ tests/
+   scripts/` clean. No push / no tag / no version bump if any fails.
+4. **Branch model unchanged.** feat/<slug> → dev (squash) → dev→main
+   Release PR (squash) → tag from main triggers PyPI + GH release. See
+   `docs/RELEASING.md` and CLAUDE.md.
+5. **No new heavy hard dependency in core.** The daemon's web stack
+   (HTTP server, etc.) goes in a new optional extra `[daemon]`, never in
+   `dependencies`. Core must still boot with only the stdlib + current
+   deps. The daemon imports its web libs lazily and degrades with a clear
+   "install research-os[daemon]" message.
+6. **Graceful degradation everywhere.** Vibhav's dev server has NO
+   Docker. The sandbox MUST fall back to native execution (with a loud
+   audit note) when no container runtime is present. The daemon must run
+   without a sandbox, without a dashboard, without provider keys — each
+   layer is independently optional.
+7. **Tools never do the science.** The doctrine still holds (see
+   `docs/PROTOCOL_DOCTRINE.md`): tools verify recorded work, gate, route,
+   and manage state/provenance. The daemon orchestrates; it does not
+   compute findings.
+8. **Provider keys are the client's / user's, scoped to the daemon.**
+   When the daemon forwards to a provider it uses the user's configured
+   key, never bundles one. Research data-source keys keep their existing
+   injection path (`server/entry.py:_inject_api_keys`).
+
+---
+
+## 2. The version stance for v4
+
+Vibhav has GRANTED a **4.0.0 MAJOR** for this overhaul (this supersedes
+the standing "under 4.0.0 forever" mandate, **for this work only**). We
+may break/rename the public surface where the daemon architecture truly
+requires it — but staged safely:
+
+- **Phases 0–5 ship as MINOR 3.x releases** wherever they are
+  back-compat additive (the daemon is opt-in, MCP untouched). This is
+  most of the work.
+- **4.0.0 is reserved for the deliberate cut**: when the daemon is the
+  proven primary surface and we choose to retire legacy paths / change
+  the default `research-os start` behaviour / rename tools the new
+  architecture obsoletes. 4.0.0 lands with a MIGRATION section in the
+  CHANGELOG and a `docs/v4/MIGRATION.md`.
+- A breaking change mid-stream that we are NOT ready to release as 4.0.0
+  gets the back-compat treatment (alias the old name, keep old schema
+  accepting, default-off the new behaviour) and ships MINOR until the
+  4.0.0 cut collects them.
+
+---
+
+## 3. Engine reuse seams (the strangler-fig anchors)
+
+The daemon is thin glue over these existing functions. Do NOT duplicate
+their logic.
+
+| Capability | Existing engine entry point |
+|---|---|
+| Route a prompt → protocol + plan | `tools/actions/router.py:route_request(prompt, root, persist_plan=)` |
+| Read the active plan | `tools/actions/router.py:_load_active_plan(root)` |
+| Progress digest | `tools/actions/research/planning.py:progress_digest(root)` |
+| Master state ledger (atomic, file-locked) | `state/state_ledger.py:ResearchLedger` |
+| Dispatch a tool call by name | `server/dispatch.py:_handle_tool_call(name, args, root)` |
+| Tool catalogue + schemas | `server/registry.py:TOOL_DEFINITIONS`, `_HANDLERS` |
+| Protocol load | `tools/actions/protocol.py` (loader) / `sys_protocol_get` handler |
+| Autopilot floor gates | `server/autopilot_gate.py:enforce_autopilot_gate` |
+| Project root resolution | `server/entry.py:_resolve_project_root` |
+| Research-data API key injection | `server/entry.py:_inject_api_keys` |
+
+**The key insight:** `_handle_tool_call(name, arguments, root)` is a
+pure, transport-agnostic function. The stdio MCP server is just one
+caller of it. The daemon's HTTP gateway becomes a second caller of the
+exact same function. That is the whole strangler-fig in one sentence.
+
+---
+
+## 4. Phase plan
+
+Each phase is a shippable release. Sub-tasks within a phase may be their
+own PRs. "DoD" = Definition of Done (the gate for declaring the phase
+complete).
+
+### Phase 0 — Daemon skeleton (additive, no behaviour change)
+- New package `src/research_os/daemon/` with `__init__.py`, a `Daemon`
+  class stub that holds config + a reference to the resolved root, and a
+  `research-os daemon` CLI subcommand group (`start`/`stop`/`status`)
+  that currently just reports "not yet serving".
+- New optional extra `[daemon]` in pyproject (web server lib TBD in
+  Phase 2; Phase 0 adds the extra empty/with only what's needed).
+- Lazy-import guard: importing `research_os.daemon` must not pull heavy
+  web deps at module load.
+- DoD: preflight+pytest+ruff green; `research-os daemon status` runs;
+  zero change to any existing surface; new `tests/unit/test_daemon_*`.
+
+### Phase 1 — Daemon core loop + state bridge (read path)
+- A persistent process that holds the master loop and a read-only view
+  over `ResearchLedger` + active plan + progress digest for one or more
+  project roots.
+- A localhost control socket / HTTP health endpoint (`/healthz`,
+  `/v1/state`) — READ ONLY. No mutation yet.
+- Background task queue abstraction (the "master loop owns execution"
+  primitive) — enqueue a long-running job, run it off the request
+  thread, expose status. Jobs call existing engine functions.
+- DoD: daemon starts, serves read-only state for a real RO project,
+  survives client disconnect; task queue runs a trivial job to
+  completion and reports status.
+
+### Phase 2 — OpenAI-compatible gateway (`/v1/chat/completions`)
+- The interception pipeline: receive a chat request → resolve project
+  root → `route_request` to pick the protocol → inject protocol
+  constraints + directory context as system/context messages → forward
+  to the user-configured provider → stream/return the completion.
+- Tool-call hooking: when the upstream model emits a tool call, the
+  daemon dispatches it through `_handle_tool_call` and feeds the result
+  back across the API boundary (the agent loop).
+- Provider abstraction (OpenAI / Anthropic / local) reusing the user's
+  configured keys; no bundled key.
+- DoD: a generic OpenAI client (e.g. `curl`, the `openai` python lib,
+  Open WebUI pointed at `localhost`) can hold a research conversation
+  that is protocol-constrained and can execute RO tools end-to-end.
+
+### Phase 3 — Read-only MCP sidecar telemetry
+- Re-expose the EXISTING MCP server in a read-only mode that reflects
+  the running daemon's state (state, logs, task progress) so a chat
+  client connected via MCP can observe what the daemon is doing.
+- This is a thin re-projection, not a new server: same tools, filtered
+  to the read-only/telemetry subset, pointed at the daemon's state view.
+- DoD: with the daemon running, an MCP client sees live task/progress/
+  state telemetry; write tools are absent or refuse in sidecar mode.
+
+### Phase 4 — Ephemeral sandbox interface (Docker/Podman + native fallback)
+- A standard sandbox interface: map `workspace/` as a bounded volume
+  into a disposable container, run agent code, capture stdout/stderr to
+  the audit trail, tear down.
+- Runtime detection: Docker → Podman → native fallback (with a loud
+  audit note that execution was unsandboxed). MUST work on a host with
+  no container runtime (Vibhav's dev box).
+- Wire into the existing exec tools (`tools/actions/exec/scripts.py`
+  etc.) behind a config flag so native stays the default until proven.
+- DoD: code runs in a container when one exists; falls back cleanly when
+  not; audit trail records which mode was used and the full logs.
+
+### Phase 5 — Read-only local web dashboard
+- A lightweight, offline-safe, read-only dashboard served by the daemon:
+  project execution step progress, interactive visualization trees,
+  citation lists, file audit log. Mirrors the existing synthesis
+  dashboard design tokens / a11y / offline-safety conventions.
+- DoD: `localhost:<port>` shows live project status; no network
+  requests; renders for a real project; updates as tasks progress.
+
+### The 4.0.0 cut (after Phase 5 is proven)
+- Make the daemon the default `research-os start` behaviour (stdio MCP
+  becomes `research-os start --stdio` or a sidecar mode).
+- Collect any deferred breaking renames.
+- `docs/v4/MIGRATION.md` + CHANGELOG Migration section.
+- Bump to 4.0.0, tag, release.
+
+---
+
+## 5. How to work this safely (process for every session)
+
+1. Read this file. Read the Progress Log (section 7).
+2. `source /scratch/vsetlur/anaconda3/etc/profile.d/conda.sh && conda
+   activate research-os`. Confirm the baseline gate is green BEFORE
+   starting (so you know any breakage is yours).
+3. Work on a `feat/v4-<slug>` branch off `dev`. Small, reviewable PRs.
+4. Re-run the full gate before every push.
+5. For big design-heavy steps, dispatch parallel subagents to draft the
+   design / explore options, synthesize into a spec, THEN implement.
+6. Update the Progress Log at the bottom of this file before ending the
+   session. Record: what shipped, what's half-done, the next concrete
+   step, and any landmine discovered. This is the anti-degradation
+   mechanism — be specific enough that a cold session can resume.
+7. Keep memory (the Hermes memory store) in sync with the high-level
+   status, but the DETAIL lives here in the repo where it's versioned.
+
+---
+
+## 6. Open design questions (resolve as we go, record the decision)
+
+- **Web framework for the gateway** (Phase 2): stdlib `http.server` is
+  zero-dep but painful for streaming/SSE; `starlette`/`uvicorn` or
+  `aiohttp` are clean but heavy. Leaning: put it in `[daemon]` extra and
+  use a lightweight ASGI stack. DECIDE before Phase 2.
+- **State backend**: keep JSON `ResearchLedger` (proven, file-locked) vs.
+  move to SQLite (the diagram's suggestion) for concurrent multi-client
+  reads. Leaning: keep JSON for now; revisit if concurrency bites. The
+  ledger is already atomic + locked.
+- **Multi-project daemon vs. one-daemon-per-project**: does one daemon
+  serve many roots, or one per workspace? Leaning: one daemon, many
+  roots keyed by path, since the gateway resolves root per-request
+  already.
+- **Auth on the localhost endpoints**: bind to 127.0.0.1 only + a
+  per-session token. DECIDE before exposing any mutating endpoint.
+
+---
+
+## 7. Progress log (append-only; newest at top)
+
+### 2026-06-23 — Session 1: planning + baseline
+- Established baseline understanding of the 3.12.0 architecture (single
+  reactive stdio MCP, JSON ledger state, no HTTP, no Docker sandbox).
+- Vibhav granted 4.0.0 for this overhaul (staged across many PRs).
+- Wrote this ROADMAP as the canonical multi-session handoff doc.
+- Confirmed the release gate is green on `main` @ 3.12.0 (preflight
+  33/33; pytest + ruff verification in progress at time of writing).
+- NEXT CONCRETE STEP: Phase 0 — scaffold `src/research_os/daemon/` +
+  `research-os daemon` CLI subcommand group, additive and opt-in, with
+  the lazy-import guard and a `[daemon]` extra. Branch
+  `feat/v4-daemon-skeleton` off `dev`.

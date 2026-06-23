@@ -1,0 +1,138 @@
+"""Daemon configuration — bind address, port, runtime knobs.
+
+Kept stdlib-only and dependency-free so it imports cheaply. Values
+resolve in this order (later wins):
+
+1. Built-in defaults (localhost-only, conservative).
+2. ``inputs/researcher_config.yaml`` -> ``daemon:`` block, when a
+   project root is provided.
+3. Environment variables (``RESEARCH_OS_DAEMON_*``).
+4. Explicit overrides passed to :meth:`DaemonConfig.resolve`.
+
+SECURITY DEFAULT: the daemon binds to ``127.0.0.1`` only. It is a local
+research assistant, not a network service. Phases that add mutating
+endpoints MUST add a per-session token on top of this (see ROADMAP §6).
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, replace
+from pathlib import Path
+
+
+# Localhost only, by design. See module docstring.
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8787
+
+
+@dataclass(frozen=True)
+class DaemonConfig:
+    """Immutable daemon runtime configuration.
+
+    Frozen so a running daemon can hold a stable snapshot; use
+    :meth:`with_overrides` to derive a modified copy.
+    """
+
+    host: str = DEFAULT_HOST
+    port: int = DEFAULT_PORT
+    # Enable the OpenAI-compatible gateway (Phase 2). Off until built.
+    enable_gateway: bool = False
+    # Enable the read-only web dashboard (Phase 5). Off until built.
+    enable_dashboard: bool = False
+    # Sandbox execution mode (Phase 4): "auto" detects a container
+    # runtime and falls back to native; "native" forces host execution;
+    # "off" disables agent code execution entirely.
+    sandbox_mode: str = "auto"
+
+    _VALID_SANDBOX_MODES = ("auto", "native", "off")
+
+    def __post_init__(self) -> None:
+        if self.sandbox_mode not in self._VALID_SANDBOX_MODES:
+            raise ValueError(
+                f"sandbox_mode must be one of {self._VALID_SANDBOX_MODES}, "
+                f"got {self.sandbox_mode!r}"
+            )
+        if not (0 < self.port < 65536):
+            raise ValueError(f"port must be in 1..65535, got {self.port}")
+
+    @property
+    def base_url(self) -> str:
+        return f"http://{self.host}:{self.port}"
+
+    def with_overrides(self, **kwargs: object) -> "DaemonConfig":
+        """Return a copy with the given fields replaced (ignores ``None``)."""
+        clean = {k: v for k, v in kwargs.items() if v is not None}
+        return replace(self, **clean) if clean else self
+
+    # ── resolution ────────────────────────────────────────────────────
+    @classmethod
+    def resolve(
+        cls,
+        root: Path | None = None,
+        **overrides: object,
+    ) -> "DaemonConfig":
+        """Build a config from defaults -> project file -> env -> overrides."""
+        cfg = cls()
+        if root is not None:
+            cfg = cfg.with_overrides(**_from_project_file(root))
+        cfg = cfg.with_overrides(**_from_env())
+        cfg = cfg.with_overrides(**overrides)
+        return cfg
+
+
+def _from_project_file(root: Path) -> dict:
+    """Read a ``daemon:`` block from ``inputs/researcher_config.yaml``.
+
+    Best-effort: any read/parse error yields an empty override set so the
+    daemon still starts on defaults.
+    """
+    try:
+        import yaml  # lazy: yaml is a core dep but keep this import local
+    except Exception:
+        return {}
+    for rel in ("inputs/researcher_config.yaml", "researcher_config.yaml"):
+        path = root / rel
+        if path.exists():
+            try:
+                cfg = yaml.safe_load(path.read_text()) or {}
+            except Exception:
+                return {}
+            block = cfg.get("daemon") or {}
+            return _coerce(block)
+    return {}
+
+
+def _from_env() -> dict:
+    """Pull ``RESEARCH_OS_DAEMON_*`` env vars into an override dict."""
+    env = {
+        "host": os.environ.get("RESEARCH_OS_DAEMON_HOST"),
+        "port": os.environ.get("RESEARCH_OS_DAEMON_PORT"),
+        "enable_gateway": os.environ.get("RESEARCH_OS_DAEMON_GATEWAY"),
+        "enable_dashboard": os.environ.get("RESEARCH_OS_DAEMON_DASHBOARD"),
+        "sandbox_mode": os.environ.get("RESEARCH_OS_DAEMON_SANDBOX"),
+    }
+    return _coerce({k: v for k, v in env.items() if v is not None})
+
+
+def _coerce(block: dict) -> dict:
+    """Coerce a raw config dict to the typed fields DaemonConfig accepts."""
+    out: dict = {}
+    if "host" in block and block["host"] is not None:
+        out["host"] = str(block["host"])
+    if "port" in block and block["port"] is not None:
+        try:
+            out["port"] = int(block["port"])
+        except (TypeError, ValueError):
+            pass
+    for flag in ("enable_gateway", "enable_dashboard"):
+        if flag in block and block[flag] is not None:
+            out[flag] = _as_bool(block[flag])
+    if "sandbox_mode" in block and block["sandbox_mode"] is not None:
+        out["sandbox_mode"] = str(block["sandbox_mode"]).strip().lower()
+    return out
+
+
+def _as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")

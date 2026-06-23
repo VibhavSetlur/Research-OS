@@ -536,6 +536,80 @@ def cmd_start(args: argparse.Namespace) -> None:
     server_main()
 
 
+def cmd_daemon(args: argparse.Namespace) -> int:
+    """Run / inspect the v4 multi-protocol gateway daemon.
+
+    Phase 0 (preview): ``status`` reports daemon + active-project state
+    (read-only); ``start`` is not serving yet and exits with a clear
+    pointer to the roadmap. See docs/v4/ROADMAP.md.
+    """
+    from research_os.daemon import Daemon
+
+    sub = getattr(args, "daemon_command", None)
+    if sub is None:
+        print("  Research OS daemon (preview — v4 multi-protocol gateway)")
+        print()
+        print("  research-os daemon status   show daemon + project state")
+        print("  research-os daemon start    (preview) not serving yet")
+        print()
+        print("  Architecture + roadmap: docs/v4/ROADMAP.md")
+        return 0
+
+    overrides: dict = {}
+    if getattr(args, "host", None):
+        overrides["host"] = args.host
+    if getattr(args, "port", None):
+        overrides["port"] = args.port
+
+    workspace = getattr(args, "workspace", None)
+    if workspace:
+        root = Path(workspace).expanduser().resolve()
+        daemon = Daemon.for_root(root, **overrides)
+    else:
+        daemon = Daemon.autoresolve(**overrides)
+
+    if sub == "status":
+        status = daemon.status()
+        if getattr(args, "as_json", False):
+            print(json.dumps(status.to_dict(), indent=2, default=str))
+            return 0
+        _print_daemon_status(status)
+        return 0
+
+    if sub == "start":
+        # Phase 0: the serving loop is not implemented. Report clearly
+        # rather than appearing to start and doing nothing.
+        print(f"  {_warn_glyph()}  The daemon serving loop is not implemented yet (Phase 0).")
+        print("  Phase 0 ships the skeleton + 'research-os daemon status'.")
+        print("  Track progress and the phase plan in docs/v4/ROADMAP.md.")
+        return 1
+
+    print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
+    return 2
+
+
+def _print_daemon_status(status) -> None:
+    """Pretty-print a DaemonStatus for the terminal."""
+    serving = "yes" if status.serving else "no (preview — Phase 0)"
+    print(f"  Research OS daemon v{status.version}")
+    print(f"  serving:     {serving}")
+    print(f"  bind:        {status.config.get('base_url')}")
+    print(f"  gateway:     {'on' if status.config.get('enable_gateway') else 'off'}")
+    print(f"  dashboard:   {'on' if status.config.get('enable_dashboard') else 'off'}")
+    print(f"  sandbox:     {status.config.get('sandbox_mode')}")
+    print(f"  root:        {status.root or '(none resolved)'}")
+    print(f"  initialized: {'yes' if status.project_initialized else 'no'}")
+    if status.active_protocol:
+        print(f"  protocol:    {status.active_protocol}")
+    if status.progress:
+        done = status.progress.get("completed") or status.progress.get("steps_done")
+        total = status.progress.get("total") or status.progress.get("steps_total")
+        if done is not None and total is not None:
+            print(f"  progress:    {done}/{total} steps")
+    for note in status.notes:
+        print(f"  {_warn_glyph()}  {note}")
+
+
 # ---------------------------------------------------------------------------
 # ide subcommand
 # ---------------------------------------------------------------------------
@@ -1281,8 +1355,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 # the fish completion script and the argparse subparser registry stay in
 # sync (the test suite cross-checks these).
 SUBCOMMANDS_FOR_COMPLETION = (
-    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "doctor",
-    "refresh", "completion",
+    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "daemon",
+    "doctor", "refresh", "completion",
 )
 
 
@@ -1735,6 +1809,42 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--transport", choices=["stdio", "sse"], default="stdio",
                         help="MCP transport (default: stdio).")
 
+    # ── daemon ──────────────────────────────────────────────────────────
+    # v4 multi-protocol gateway daemon. Phase 0: skeleton + status only.
+    # See docs/v4/ROADMAP.md for the full architecture + phase plan.
+    p_daemon = sub.add_parser(
+        "daemon",
+        help="Run / inspect the v4 multi-protocol gateway daemon (preview).",
+        description=(
+            "The Research OS daemon is a persistent, headless, localhost\n"
+            "service that owns the master execution state machine and (in\n"
+            "later phases) exposes an OpenAI-compatible gateway, a read-only\n"
+            "MCP telemetry sidecar, a sandbox, and a web dashboard.\n\n"
+            "PREVIEW: Phase 0 ships the skeleton. 'daemon status' works now;\n"
+            "'daemon start' is not serving yet. Track docs/v4/ROADMAP.md.\n\n"
+            "Examples:\n"
+            "  research-os daemon status            # show daemon + project state\n"
+            "  research-os daemon status --json     # machine-readable\n"
+            "  research-os daemon start             # (preview) not serving yet"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    daemon_sub = p_daemon.add_subparsers(dest="daemon_command")
+    pd_status = daemon_sub.add_parser(
+        "status", help="Show daemon + active-project state (read-only)."
+    )
+    pd_status.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit machine-readable JSON.")
+    pd_status.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_start = daemon_sub.add_parser(
+        "start", help="(Preview) start the daemon serving loop — not yet implemented."
+    )
+    pd_start.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_start.add_argument("--host", default=None, help="Bind host (default 127.0.0.1).")
+    pd_start.add_argument("--port", default=None, type=int, help="Bind port (default 8787).")
+
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(
         "doctor",
@@ -1878,6 +1988,8 @@ def main() -> None:
         sys.exit(cmd_api_key(args))
     elif args.command == "start":
         cmd_start(args)
+    elif args.command == "daemon":
+        sys.exit(cmd_daemon(args))
     elif args.command == "doctor":
         from research_os.cli_doctor import cmd_doctor
         sys.exit(cmd_doctor(args))

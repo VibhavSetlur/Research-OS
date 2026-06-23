@@ -66,6 +66,11 @@ notebook = ["jupyter", "nbconvert"]
 # ImportError.
 data = ["pyarrow", "openpyxl", "xlrd"]
 execution = ["docker"]
+# v4 multi-protocol gateway daemon (preview). The serving stack is
+# imported LAZILY by research_os.daemon — core stays importable without
+# these. Phase 0 (skeleton + 'daemon status') needs none of them; they
+# land as the gateway (Phase 2) + dashboard (Phase 5) are built.
+daemon = ["starlette", "uvicorn", "httpx", "sse-starlette"]
 r = ["rpy2"]
 julia = ["julia"]
 # Semantic routing — local ONNX embedder (BAAI/bge-small-en-v1.5,
