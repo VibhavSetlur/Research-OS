@@ -22,6 +22,7 @@ Supporting:
 - [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
 - [FAQ.md](FAQ.md) — common questions.
 - [CLI.md](CLI.md) — every `research-os` CLI sub-command.
+- [DAEMON.md](DAEMON.md) — the optional daemon: long jobs without blocking the chat, run provenance + freshness, hard human-approved gates, a resource budget the machine enforces, and completion notifications. Skip it for quick work; start it for big / long-lived projects.
 - [SHARING.md](SHARING.md) — how to hand off a workspace to a collaborator.
 
 ---

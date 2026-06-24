@@ -102,6 +102,29 @@ surveys any field's pipeline from the literature). Detail + full list:
 `sys_help(topic='packs')`. Diagnostics: `sys_packs_installed`,
 `tool_adapters_list`.
 
+## Daemon (optional — present on some projects)
+
+A project may run a **daemon**: a separate persistent process that executes
+long jobs, tracks run provenance/freshness, enforces hard gates, and
+notifies the researcher. It's OPTIONAL — when none runs, everything below
+degrades to the stdio behaviour and you act exactly as today.
+
+* **Check it when continuity matters.** `sys_daemon` answers "is anything
+  running in the background, what's the recommended next action, what's the
+  resource budget, were there undelivered notifications?" — call it at
+  session start or before a heavy run. `running:false` = no daemon; proceed
+  normally.
+* **A gate may return `what='consent_required'`.** With a daemon present,
+  your own `confirmed=true` is NOT enough for a floor gate — only a
+  human-authorised, one-shot token clears it. The error carries a
+  `gate_key` + `arg_fingerprint`. Do this: tell the researcher exactly what
+  needs approval and why → `sys_consent(action='request', gate_key=…,
+  arg_fingerprint=…, tool=…, reason=…)` → after they approve
+  (`research-os daemon consent approve <id>`) →
+  `sys_consent(action='token', gate_key=…, arg_fingerprint=…)` → retry the
+  tool with `consent_token=<minted>`. NEVER request consent the researcher
+  didn't actually authorise.
+
 ## Hard rules (NEVER violate)
 
 1. **`.os_state/` is never hand-edited.** `inputs/` is editable, but

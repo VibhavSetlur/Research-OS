@@ -198,6 +198,46 @@ research-os start --workspace /path/to/project
 
 ---
 
+## `research-os daemon <subcommand>`
+
+The **optional** persistent process: long jobs without blocking the chat,
+run provenance + freshness, hard human-approved gates, an enforced resource
+budget, and completion notifications. Full guide: [DAEMON.md](DAEMON.md).
+Research OS works fully without it — start it for big / long-lived projects.
+
+```bash
+research-os daemon start          # serve the localhost API + job queue
+research-os daemon status         # is it running? which project is active?
+
+# long jobs + provenance
+research-os daemon run "<cmd>"    # run a command as a tracked job
+research-os daemon runs           # list recorded runs
+research-os daemon logs <run_id>  # a run's details + captured output
+research-os daemon submit "<cmd>" # submit to SLURM with provenance
+research-os daemon reproduce <id> # re-run a recorded run, check outputs match
+research-os daemon diff <a> <b>   # compare two runs (command, env, outputs)
+
+# freshness
+research-os daemon lineage        # the run dependency graph
+research-os daemon stale          # which runs are stale
+research-os daemon rebuild        # re-run only the stale sub-graph
+
+# the human side of hard gates
+research-os daemon consent                # list pending approval requests + grants
+research-os daemon consent approve <id>   # mint a one-shot, argument-bound token
+research-os daemon consent deny <id>      # refuse
+
+# notifications + misc
+research-os daemon notifications  # the outbox + delivery status (--undelivered)
+research-os daemon domain         # detected research field + defaults
+research-os daemon gateway        # OpenAI-compatible chat gateway status / mint token
+```
+
+Every subcommand takes `--help` for its own flags. The daemon binds
+`127.0.0.1` only.
+
+---
+
 ## `research-os doctor`
 
 Runs a battery of health checks against the install and (if invoked
