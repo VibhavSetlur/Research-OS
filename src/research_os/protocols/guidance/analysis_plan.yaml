@@ -18,6 +18,21 @@ prerequisites:
   - workspace/methods.md exists with at least one substantive entry
   - workspace/citations.md exists (literature_search has run, even if minimally)
 
+# Machine-checkable subset of the prose prerequisites above. The verifier
+# (server/preconditions.py) confirms these against the workspace; the prose
+# keeps the fuzzy judgement ("substantive entry"). Compiled into
+# protocols/_precondition_meta.json; surfaced to the AI on protocol load,
+# and gateable by a daemon. Existence is checkable; substance is the AI's call.
+requires:
+  checks:
+    - kind: file_exists
+      path: workspace/methods.md
+      non_empty: true
+      because: the analysis plan builds each step on recorded methods
+    - kind: file_exists
+      path: workspace/citations.md
+      because: each step grounds its choices in the gathered literature
+
 steps:
   - id: orient_lean
     name: Orient Cheaply Before the Loop

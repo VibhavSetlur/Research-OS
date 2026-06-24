@@ -934,6 +934,48 @@ def check_gate_meta():
     )
 
 
+def check_precondition_meta():
+    """The compiled precondition sidecar must be fresh + reference real protocols.
+
+    docs/v4/PRECONDITION_GATE.md: protocols declare mechanically checkable
+    entry conditions in ``requires.checks``; the build compiles them into
+    ``protocols/_precondition_meta.json``, which server/preconditions.py
+    reads to tell the AI exactly which preconditions are unmet. A stale
+    sidecar = the AI is told the wrong thing; a dangling protocol_completed
+    reference = a precondition that can never be satisfied. The build itself
+    rejects dangling refs, so here we assert freshness.
+
+    Fix when this fails:
+        python scripts/build_precondition_meta.py
+    """
+    import json as _json
+
+    meta = PROTOCOLS_DIR / "_precondition_meta.json"
+    if not meta.exists():
+        return False, "missing _precondition_meta.json — run python scripts/build_precondition_meta.py"
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        bpm = __import__("build_precondition_meta")
+    except Exception as exc:  # noqa: BLE001
+        return False, f"failed to import scripts/build_precondition_meta.py: {exc}"
+    try:
+        on_disk = _json.loads(meta.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not parse _precondition_meta.json: {exc}"
+    try:
+        fresh = bpm.build_precondition_meta()
+    except SystemExit as exc:
+        return False, f"precondition-meta build error: {exc}"
+    if on_disk.get("source_hash") != fresh.get("source_hash"):
+        return False, (
+            "STALE — recompile: python scripts/build_precondition_meta.py "
+            f"(on-disk={str(on_disk.get('source_hash'))[:12]}…, "
+            f"now={str(fresh.get('source_hash'))[:12]}…)"
+        )
+    n = sum(len(v) for v in fresh.get("protocols", {}).values())
+    return True, f"{n} precondition check(s) across {len(fresh.get('protocols', {}))} protocol(s), fresh"
+
+
 def check_routing_targets_resolve():
     """Every next_protocol / on_failure / see_also target must be a real protocol.
 
@@ -1524,6 +1566,7 @@ def main() -> int:
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
     tally.check("Compiled floor-gate sidecar (_gate_meta.json) fresh + engine agrees", check_gate_meta)
+    tally.check("Compiled precondition sidecar (_precondition_meta.json) fresh", check_precondition_meta)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
     tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)

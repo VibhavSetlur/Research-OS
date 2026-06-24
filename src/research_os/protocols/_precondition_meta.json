@@ -1,0 +1,19 @@
+{
+  "protocols": {
+    "guidance/analysis_plan": [
+      {
+        "because": "the analysis plan builds each step on recorded methods",
+        "kind": "file_exists",
+        "non_empty": true,
+        "path": "workspace/methods.md"
+      },
+      {
+        "because": "each step grounds its choices in the gathered literature",
+        "kind": "file_exists",
+        "path": "workspace/citations.md"
+      }
+    ]
+  },
+  "schema": 1,
+  "source_hash": "81b7361b0239e3b3aae9e204a9dcb534592c96e33ca69b8544b176d9038aad50"
+}
