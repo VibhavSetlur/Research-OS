@@ -92,6 +92,25 @@ requires:
       min: 1
       because: the paper reports findings from completed steps
 
+# Floor gate (precondition gate tier 2): under a daemon, scaffolding the
+# paper is BLOCKED until the foundations above exist — the most damaging
+# premature-synthesis error (writing up a paper before there are recorded
+# methods, citations, or findings) becomes un-skippable, not just advised.
+# No daemon → degrades to the AI's own confirmed=true, exactly as today.
+enforcement:
+  gates:
+    - key: tool_synthesis_scaffold:paper_preconditions
+      tool: tool_synthesis_scaffold
+      when:
+        world_state:
+          kind: preconditions_met
+          protocol: synthesis/synthesis_paper
+      floor: normal
+      reason: >-
+        cannot scaffold the paper before its foundations exist (recorded
+        methods, gathered citations, at least one step's conclusions);
+        produce them first or override
+
 design_principles: |
   - Every quantitative claim is grounded in a real workspace artefact.
     The reader can audit the path (claim → conclusions.md → script →

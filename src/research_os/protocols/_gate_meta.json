@@ -1,6 +1,7 @@
 {
   "built_from": [
-    "guidance/autopilot"
+    "guidance/autopilot",
+    "synthesis/synthesis_paper"
   ],
   "gates": [
     {
@@ -77,6 +78,19 @@
       }
     },
     {
+      "floor": "normal",
+      "key": "tool_synthesis_scaffold:paper_preconditions",
+      "reason": "cannot scaffold the paper before its foundations exist (recorded methods, gathered citations, at least one step's conclusions); produce them first or override",
+      "source_protocol": "synthesis/synthesis_paper",
+      "tool": "tool_synthesis_scaffold",
+      "when": {
+        "world_state": {
+          "kind": "preconditions_met",
+          "protocol": "synthesis/synthesis_paper"
+        }
+      }
+    },
+    {
       "floor": "strict",
       "key": "tool_task:run",
       "reason": "long-running background jobs spend compute (but are killable)",
@@ -106,5 +120,5 @@
     }
   ],
   "schema": 1,
-  "source_hash": "302d441eafba57e708a97eda096025a74b9ef9a039355abfed683e226d0c0035"
+  "source_hash": "b035c85ae090262634cd1a1d2ce8cf652d75ee3aa8daf691bde80a553fd54f32"
 }

@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from research_os.server import preconditions as pc
 
 
@@ -203,3 +205,38 @@ def test_world_state_scalar_form_still_works(tmp_path):
 
     # no stale verdict on disk → does not fire
     assert gs._match_predicate({"world_state": "no_stale_inputs"}, {}, tmp_path) is False
+
+
+def test_synthesis_scaffold_blocked_under_daemon_when_preconditions_unmet(tmp_path):
+    """Live tier-2: under a daemon, scaffolding a paper is blocked until
+    synthesis_paper's foundations exist; confirmed=true does not bypass."""
+    import os
+
+    import yaml
+
+    from research_os.server.autopilot_gate import enforce_autopilot_gate
+    from research_os.server.errors import RoError
+
+    (tmp_path / "inputs").mkdir(parents=True)
+    (tmp_path / "inputs" / "researcher_config.yaml").write_text(
+        yaml.safe_dump({"interaction": {"autonomy_level": "autopilot"}})
+    )
+    st = tmp_path / ".os_state"
+    st.mkdir(exist_ok=True)
+    (st / "daemon.json").write_text(json.dumps({"pid": os.getpid(), "port": 8787}))
+
+    # Foundations missing → blocked, even with confirmed=true.
+    with pytest.raises(RoError) as exc:
+        enforce_autopilot_gate(
+            "tool_synthesis_scaffold", {"kind": "paper", "confirmed": True}, tmp_path
+        )
+    assert exc.value.what == "consent_required"
+
+    # Provide the foundations → gate stops firing.
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    (ws / "methods.md").write_text("methods")
+    (ws / "citations.md").write_text("[1]")
+    (ws / "01").mkdir()
+    (ws / "01" / "conclusions.md").write_text("## Findings\nx")
+    enforce_autopilot_gate("tool_synthesis_scaffold", {"kind": "paper"}, tmp_path)

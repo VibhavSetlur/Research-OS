@@ -131,6 +131,12 @@ _LEGACY_GATE_FLOOR: dict[str, str] = {
     # gate degrades OFF — exactly today's behaviour (no staleness gating).
     # The gate is live only via the declared/compiled path.
     "tool_typst_compile:stale_inputs": "normal",
+    # World-state gate (precondition gate tier 2): paper scaffolding blocked
+    # until synthesis_paper's foundations exist. Same as above — the legacy
+    # matcher can't evaluate a world_state predicate, so it degrades OFF
+    # when the sidecar is absent (no precondition gating, today's behaviour);
+    # live only via the declared/compiled path.
+    "tool_synthesis_scaffold:paper_preconditions": "normal",
     "tool_audit:reproducibility": "normal",
     "sys_file_write:synthesis_force": "strict",
     "tool_task:run": "strict",
