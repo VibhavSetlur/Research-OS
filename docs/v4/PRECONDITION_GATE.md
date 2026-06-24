@@ -108,12 +108,13 @@ behaves exactly as today.
    AI is told precisely what is missing instead of a vague sentence. This
    alone is a large UX win and breaks nothing.
 
-2. **Hard gate when a daemon is enforcing.** A daemon-present project can
-   treat an unmet precondition as a floor gate on the protocol's first
-   mutating action: like the consent/staleness gates, it requires the AI to
-   either satisfy the precondition (do X) or obtain a daemon-minted override
-   token. The agent cannot simply proceed past a missing foundation. This
-   reuses the existing consent authority — no new enforcement machinery.
+2. **Hard gate when a daemon is enforcing.** SHIPPED as the
+   `world_state: preconditions_met` gate predicate (parameterised form:
+   `{kind: preconditions_met, protocol: <id>}`). A protocol can declare a
+   floor gate on its own first mutating tool that fires when its
+   preconditions are unmet — riding the existing consent authority, so the
+   AI must satisfy the foundation or obtain a daemon-minted override. Reuses
+   the gate machinery from the hybrid layer; no new enforcement code.
 
 Tier 1 ships first (pure win, zero risk). Tier 2 composes the precondition
 verdict into the declared-gate `world_state` predicate family

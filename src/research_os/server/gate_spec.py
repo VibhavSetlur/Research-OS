@@ -128,11 +128,16 @@ def _match_predicate(
     for k, expected in when.items():
         if k == "world_state":
             # World-state predicate: the gate fires based on DETECTED state
-            # (not the call's args). The only kind today is
-            # ``no_stale_inputs`` — matches (gate fires) when a daemon has
-            # currently determined the project has stale inputs. Needs root
-            # to read the verdict; with no root, no claim → does not fire.
-            if not _match_world_state(str(expected), root):
+            # (not the call's args). Two forms:
+            #   world_state: no_stale_inputs            (scalar kind)
+            #   world_state: {kind: preconditions_met,  (parameterised)
+            #                 protocol: guidance/analysis_plan}
+            # Needs root to read the verdict/checks; with no root, no claim.
+            if isinstance(expected, dict):
+                kind = str(expected.get("kind") or "")
+                if not _match_world_state(kind, root, params=expected):
+                    return False
+            elif not _match_world_state(str(expected), root):
                 return False
             continue
         if k == "any_of":
@@ -212,17 +217,24 @@ def _match_path_clause(
     return norm.startswith(prefix)
 
 
-def _match_world_state(kind: str, root: Path | None) -> bool:
+def _match_world_state(
+    kind: str, root: Path | None, params: dict[str, Any] | None = None
+) -> bool:
     """Evaluate a world-state predicate. True = the gate should fire.
 
-    ``no_stale_inputs`` is the only kind today: it fires when a daemon has
-    CURRENTLY determined the project has stale inputs (a verdict sidecar
-    asserting status='stale', newer than the freshest run). Reads via
-    server.staleness_state (no daemon import — the on-disk contract). With
-    no root, or no current staleness claim, returns False (gate does not
-    fire) — fail toward NOT blocking, per the design's deliberate
-    direction. An unknown world_state kind fails CLOSED (returns False):
-    we never invent a gate from a predicate the engine can't read.
+    Kinds:
+      * ``no_stale_inputs`` — fires when a daemon has CURRENTLY determined
+        the project has stale inputs (verdict sidecar, via
+        server.staleness_state).
+      * ``preconditions_met`` — fires when a named protocol's declared
+        mechanical preconditions are NOT all satisfied (via
+        server.preconditions). The protocol is named in ``params['protocol']``.
+        "fires" = the gate blocks because a foundation is missing.
+
+    All read by shape (no daemon import). With no root, or no positive
+    claim, returns False (gate does not fire) — fail toward NOT blocking,
+    per the design's deliberate direction. An unknown kind fails CLOSED
+    (returns False): we never invent a gate from a predicate we can't read.
     """
     if root is None:
         return False
@@ -230,6 +242,14 @@ def _match_world_state(kind: str, root: Path | None) -> bool:
         from .staleness_state import is_currently_stale
 
         return is_currently_stale(Path(root))
+    if kind == "preconditions_met":
+        protocol = str((params or {}).get("protocol") or "")
+        if not protocol:
+            return False
+        from .preconditions import unmet_preconditions
+
+        # The gate FIRES when preconditions are NOT met (foundation missing).
+        return bool(unmet_preconditions(protocol, Path(root)))
     return False
 
 

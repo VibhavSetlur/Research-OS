@@ -164,3 +164,42 @@ def test_sys_protocol_get_no_unmet_when_satisfied(tmp_path):
     )
     payload = json.loads(resp[0].text)["payload"]
     assert "unmet_preconditions" not in payload
+
+
+# --- tier 2: world_state: preconditions_met gate predicate ----------------
+
+def test_world_state_preconditions_met_fires_when_unmet(tmp_path):
+    """The gate predicate FIRES (blocks) when a protocol's preconditions
+    are not satisfied — empty project, analysis_plan needs methods.md."""
+    from research_os.server import gate_spec as gs
+
+    when = {"world_state": {"kind": "preconditions_met",
+                            "protocol": "guidance/analysis_plan"}}
+    assert gs._match_predicate(when, {}, tmp_path) is True
+
+
+def test_world_state_preconditions_met_silent_when_satisfied(tmp_path):
+    from research_os.server import gate_spec as gs
+
+    ws = tmp_path / "workspace"
+    ws.mkdir()
+    (ws / "methods.md").write_text("methods")
+    (ws / "citations.md").write_text("refs")
+    when = {"world_state": {"kind": "preconditions_met",
+                            "protocol": "guidance/analysis_plan"}}
+    assert gs._match_predicate(when, {}, tmp_path) is False
+
+
+def test_world_state_preconditions_no_protocol_does_not_fire(tmp_path):
+    from research_os.server import gate_spec as gs
+
+    when = {"world_state": {"kind": "preconditions_met"}}  # no protocol
+    assert gs._match_predicate(when, {}, tmp_path) is False
+
+
+def test_world_state_scalar_form_still_works(tmp_path):
+    """The original scalar world_state form (staleness) is unaffected."""
+    from research_os.server import gate_spec as gs
+
+    # no stale verdict on disk → does not fire
+    assert gs._match_predicate({"world_state": "no_stale_inputs"}, {}, tmp_path) is False
