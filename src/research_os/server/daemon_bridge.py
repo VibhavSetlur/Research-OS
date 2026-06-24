@@ -139,3 +139,36 @@ def http_get(base_url: str, path: str, timeout: float = 2.0) -> dict[str, Any] |
             return json.loads(resp.read().decode("utf-8"))
     except Exception:  # noqa: BLE001 - any probe failure → None (fail-safe)
         return None
+
+
+def http_post(
+    base_url: str, path: str, payload: dict[str, Any], timeout: float = 2.0
+) -> tuple[int | None, dict[str, Any] | None]:
+    """POST JSON to base_url+path. Returns (status_code, parsed_json_or_None).
+
+    Stdlib only; localhost only. Unlike http_get this surfaces the status
+    code so a caller can distinguish 201 (created) from 4xx (bad request) —
+    the consent-request flow needs that. On a transport failure returns
+    (None, None) — fail-safe, never raises.
+    """
+    import urllib.error
+    import urllib.request
+
+    url = base_url.rstrip("/") + path
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(  # noqa: S310 - localhost only
+        url, data=data, headers={"Content-Type": "application/json"}, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - localhost only
+            body = resp.read().decode("utf-8")
+            parsed = json.loads(body) if body else None
+            return resp.status, (parsed if isinstance(parsed, dict) else None)
+    except urllib.error.HTTPError as exc:  # structured error body, keep the code
+        try:
+            parsed = json.loads(exc.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            parsed = None
+        return exc.code, (parsed if isinstance(parsed, dict) else None)
+    except Exception:  # noqa: BLE001 - transport failure → (None, None)
+        return None, None

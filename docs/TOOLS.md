@@ -106,6 +106,7 @@ under the new canonical tool. Hard-removed names (return
 | `sys_tool_describe` | Listed above (Discovery). |
 | `sys_where` | ~30-token mid-session "where am I?" snapshot (root, tier, plan position, blocks, last protocol). Cheaper than `sys_boot`. |
 | `sys_daemon` | Discover a running Research-OS daemon for this project and return its live telemetry (jobs, freshness, recommended next action) — the same continuity an HTTP agent gets from `/v1/orient`, inside MCP. Read-only; degrades cleanly when no daemon is running. |
+| `sys_consent` | Request or check researcher consent for a daemon-gated action when a floor gate returns `consent_required`. Bridges the MCP session to the daemon's consent authority over localhost (request a one-shot, argument-bound token; check pending/granted; fetch a minted token to retry). The agent cannot self-grant — only an authorized human mints. Degrades to `available=false` when no daemon is enforcing. |
 | `sys_workspace_scaffold` | Re-create the directory tree. |
 | `sys_workspace_tree` | Structured workspace listing. |
 

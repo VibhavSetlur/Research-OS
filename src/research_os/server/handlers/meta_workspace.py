@@ -59,6 +59,7 @@ __all__ = [
     "_handle_sys_path",
     "_handle_sys_where",
     "_handle_sys_daemon",
+    "_handle_sys_consent",
 ]
 
 def _handle_sys_workspace_scaffold(name, arguments, root):
@@ -753,6 +754,117 @@ def _handle_sys_daemon(name, arguments, root):
     return _text(_success(payload))
 
 
+def _handle_sys_consent(name, arguments, root):
+    """In-band consent loop with a running daemon (the consent_required path).
+
+    A floor gate under a daemon returns what='consent_required' with a
+    gate_key + arg_fingerprint. This tool lets the agent (a) request consent
+    for that exact action, (b) check pending/granted status, (c) fetch a
+    minted token once the researcher approves — all over the daemon's
+    localhost HTTP surface, WITHOUT importing the daemon package.
+
+    When no daemon is running, returns available=false (the gate degrades to
+    confirmed=true anyway, so there's nothing to request).
+    """
+    from research_os.server import daemon_bridge as _bridge
+
+    action = (arguments.get("action") or "").strip().lower()
+    timeout = arguments.get("timeout")
+    try:
+        timeout = float(timeout) if timeout is not None else 2.0
+    except (TypeError, ValueError):
+        timeout = 2.0
+    timeout = max(0.1, min(timeout, 30.0))
+
+    base_url = _bridge.daemon_base_url(root)
+    if not base_url:
+        return _text(_success({
+            "available": False,
+            "hint": "No daemon is enforcing consent for this project. If a "
+                    "floor gate blocked you, it degrades to confirmed=true — "
+                    "retry with confirmed=true once the researcher authorizes.",
+        }))
+
+    if action == "request":
+        gate_key = arguments.get("gate_key")
+        fingerprint = arguments.get("arg_fingerprint")
+        if not gate_key or not fingerprint:
+            return _text(_error(
+                "gate_key and arg_fingerprint are required for action='request' "
+                "(both are in the consent_required error's next step)"
+            ))
+        status, body = _bridge.http_post(base_url, "/v1/consent/request", {
+            "gate_key": str(gate_key),
+            "arg_fingerprint": str(fingerprint),
+            "tool": str(arguments.get("tool", "")),
+            "reason": str(arguments.get("reason", "")),
+        }, timeout)
+        if status == 201 and isinstance(body, dict):
+            req = body.get("request") or {}
+            return _text(_success({
+                "available": True,
+                "requested": True,
+                "request_id": req.get("id"),
+                "next": "Tell the researcher exactly what needs approval and "
+                        "why. They approve with 'research-os daemon consent "
+                        "approve <request_id>'. Then call "
+                        "sys_consent(action='token', gate_key=..., "
+                        "arg_fingerprint=...) and retry with the token.",
+            }))
+        return _text(_error(
+            f"consent request failed (status={status}): "
+            f"{(body or {}).get('error', 'unknown')}"
+        ))
+
+    if action == "status":
+        pending = _bridge.http_get(base_url, "/v1/consent/pending", timeout) or {}
+        grants = _bridge.http_get(base_url, "/v1/consent/grants", timeout) or {}
+        return _text(_success({
+            "available": True,
+            "pending": pending.get("requests") or pending.get("pending") or [],
+            "grants": grants.get("grants") or [],
+        }))
+
+    if action == "token":
+        gate_key = arguments.get("gate_key")
+        fingerprint = arguments.get("arg_fingerprint")
+        if not gate_key or not fingerprint:
+            return _text(_error(
+                "gate_key and arg_fingerprint are required for action='token'"
+            ))
+        grants = _bridge.http_get(base_url, "/v1/consent/grants", timeout) or {}
+        token = None
+        for g in (grants.get("grants") or []):
+            if not isinstance(g, dict):
+                continue
+            # Match the exact action; skip grants the daemon already marked
+            # consumed. (The gate does the authoritative one-shot check via
+            # its spent-log on retry; this is the best-available token.)
+            if (g.get("gate_key") == str(gate_key)
+                    and g.get("arg_fingerprint") == str(fingerprint)
+                    and not g.get("consumed")):
+                token = g.get("token")
+                break
+        if token:
+            return _text(_success({
+                "available": True,
+                "consent_token": token,
+                "next": "Retry the blocked tool with consent_token=<this>. "
+                        "It is one-shot — burned on first use.",
+            }))
+        return _text(_success({
+            "available": True,
+            "consent_token": None,
+            "hint": "No minted token yet for this action. The researcher has "
+                    "not approved, or it was already consumed. Check "
+                    "sys_consent(action='status').",
+        }))
+
+    return _text(_error(
+        f"unknown action {action!r}; use 'request', 'status', or 'token'"
+    ))
+
+
 HANDLERS = {
     "sys_workspace_scaffold": _handle_sys_workspace_scaffold,
     "sys_workspace_tree": _handle_sys_workspace_tree,
@@ -772,4 +884,5 @@ HANDLERS = {
     "sys_path": _handle_sys_path,
     "sys_where": _handle_sys_where,
     "sys_daemon": _handle_sys_daemon,
+    "sys_consent": _handle_sys_consent,
 }

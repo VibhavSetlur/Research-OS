@@ -42,6 +42,44 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "additionalProperties": False,
         },
     },
+    "sys_consent": {
+        "short": "Request/check researcher consent for a daemon-gated action (when a floor gate returned consent_required).",
+        "compare_to": "Plain confirmed=true works only when NO daemon is enforcing. sys_consent is the in-band path when a daemon IS present and a floor gate demands a real, human-authorized, one-shot token.",
+        "description": "Bridge to a running daemon's consent authority. When a floor gate returns what='consent_required', the agent's own confirmed=true is not honored — a daemon-minted, one-shot, argument-bound token is required, and only an authorized human can mint it. This tool is the agent's in-band path through that loop, WITHOUT importing the daemon (it POSTs/GETs the daemon's /v1/consent endpoints over localhost). Actions: action='request' (gate_key, arg_fingerprint, tool, reason) queues a consent request for the researcher and returns its request_id — requesting is harmless, it cannot self-grant; action='status' lists pending requests + granted tokens so the agent can see whether the researcher has approved; action='token' (gate_key, arg_fingerprint) returns a minted, unspent token matching that exact action if one exists, else null. Typical loop: hit a gate → sys_consent(request) → tell the researcher what needs approval → they approve (CLI: 'research-os daemon consent approve <id>') → sys_consent(token) → retry the tool with consent_token=<minted>. Returns {available: bool, ...}; when no daemon is running, available=false (the gate degrades to confirmed=true anyway). NEVER request consent the researcher did not actually authorize.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["request", "status", "token"],
+                    "description": "request: queue a consent request. status: list pending + granted. token: fetch a minted unspent token for a (gate_key, arg_fingerprint).",
+                },
+                "gate_key": {
+                    "type": "string",
+                    "description": "The gate key from the consent_required error (e.g. 'tool_typst_compile'). Required for request + token.",
+                },
+                "arg_fingerprint": {
+                    "type": "string",
+                    "description": "The arg_fingerprint from the consent_required error — binds consent to this EXACT action. Required for request + token.",
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "The tool name the gate blocked (for request; helps the researcher see what they're approving).",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Short human-readable reason shown to the researcher when they review the request.",
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "Per-request HTTP timeout in seconds (default 2.0).",
+                },
+            },
+            "required": ["action"],
+            "additionalProperties": False,
+        },
+    },
     "tool_route": {
         "short": "Prompt → protocol + decomposition + recommended_action. Call after every researcher message.",
         "then": "sys_protocol_get(protocol_name=<resolved>, format=<lean|summary|full per model_profile>)",

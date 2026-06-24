@@ -393,10 +393,14 @@ def enforce_autopilot_gate(
                 "sufficient while a daemon is present"
             ),
             next_action=(
-                "request consent from the daemon "
-                f"(POST /v1/consent/request with gate_key='{key}'); on "
-                f"approval retry {tool_name}(consent_token='<minted>', ...). "
-                "Only request if the researcher authorized this action"
+                f"call sys_consent(action='request', gate_key='{key}', "
+                f"arg_fingerprint='{fp}', tool='{tool_name}', reason='<why>') "
+                "to queue a consent request for the researcher; once they "
+                f"approve (CLI: research-os daemon consent approve, or any "
+                "authorized client), call sys_consent(action='token', "
+                f"gate_key='{key}', arg_fingerprint='{fp}') to fetch the "
+                f"minted token, then retry {tool_name}(consent_token='<minted>', "
+                "...). Only request if the researcher authorized this action"
             ),
         )
 
