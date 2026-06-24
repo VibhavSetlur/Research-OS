@@ -631,6 +631,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     if sub == "notifications":
         return _daemon_notifications(daemon, args)
 
+    if sub == "consent":
+        return _daemon_consent(daemon, args)
+
     if sub == "rebuild":
         return _daemon_rebuild(daemon, args)
 
@@ -1170,6 +1173,81 @@ def _daemon_notifications(daemon, args) -> int:
         det = (r.get("delivery") or {}).get("detail")
         if not delivered and det:
             print(f"        delivery: {det}")
+    return 0
+
+
+def _daemon_consent(daemon, args) -> int:
+    """Review + approve/deny consent requests — the researcher's half of the
+    un-skippable-gate loop (docs/v4/UNSKIPPABLE_GATES.md).
+
+    When the AI hits a floor gate under a daemon it calls
+    sys_consent(action='request'), which queues a request here. This is how
+    the human authorizes (or refuses) it:
+
+        research-os daemon consent              # list pending + active grants
+        research-os daemon consent approve <id> # mint a one-shot token
+        research-os daemon consent deny <id>    # refuse
+
+    The agent can never self-grant — minting authority lives only here.
+    """
+    from research_os.daemon.consent import ConsentStore
+
+    root = getattr(daemon, "root", None)
+    if not root:
+        print(f"  {_warn_glyph()}  No workspace resolved — no consent ledger.")
+        return 1
+    store = ConsentStore(root)
+    action = (getattr(args, "consent_action", None) or "list").lower()
+
+    if action == "approve":
+        rid = getattr(args, "request_id", None)
+        if not rid:
+            print("  usage: research-os daemon consent approve <request_id>")
+            return 1
+        grant = store.approve(rid)
+        if grant is None:
+            print(f"  {_warn_glyph()}  No pending request with id {rid!r} "
+                  "(already resolved, or wrong id). Run 'consent' to list.")
+            return 1
+        print(f"  ✓ approved {rid} — minted a one-shot token for "
+              f"{grant.get('gate_key')} (expires {grant.get('expires_at','')[:19]}).")
+        print("    The agent can now fetch it via sys_consent(action='token').")
+        return 0
+
+    if action == "deny":
+        rid = getattr(args, "request_id", None)
+        if not rid:
+            print("  usage: research-os daemon consent deny <request_id>")
+            return 1
+        ok = store.deny(rid)
+        print(f"  ✓ denied {rid}." if ok else
+              f"  {_warn_glyph()}  No pending request with id {rid!r}.")
+        return 0 if ok else 1
+
+    # default: list pending requests + active grants
+    pending = store._live_pending()
+    grants = store._live_grants()
+    if getattr(args, "as_json", False):
+        print(json.dumps({"pending": pending, "grants": grants}, indent=2, default=str))
+        return 0
+    if not pending and not grants:
+        print("  no consent requests or active grants.")
+        return 0
+    if pending:
+        print(f"  {len(pending)} pending request(s) — approve with "
+              "'research-os daemon consent approve <id>':")
+        for r in pending:
+            ts = (r.get("requested_at") or "")[:19].replace("T", " ")
+            print(f"    • {r.get('id')}  [{ts}]  {r.get('gate_key')}"
+                  f"  ({r.get('tool','')})")
+            if r.get("reason"):
+                print(f"        reason: {r.get('reason')}")
+    if grants:
+        print(f"  {len(grants)} active grant(s):")
+        for g in grants:
+            mark = "spent" if g.get("consumed") else "live"
+            print(f"    • {g.get('gate_key')}  [{mark}]  "
+                  f"expires {g.get('expires_at','')[:19].replace('T',' ')}")
     return 0
 
 
@@ -2771,6 +2849,30 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Max recent notifications to show.")
     pd_ntfy.add_argument("--json", dest="as_json", action="store_true",
                          help="Emit the outbox records as JSON.")
+
+    # consent: the researcher's half of the un-skippable-gate loop.
+    pd_consent = daemon_sub.add_parser(
+        "consent",
+        help="Review + approve/deny agent consent requests for gated actions.",
+        description=(
+            "When the AI hits a floor gate under a daemon it queues a consent\n"
+            "request (sys_consent). This is how YOU authorize it:\n"
+            "  research-os daemon consent              list pending + grants\n"
+            "  research-os daemon consent approve <id> mint a one-shot token\n"
+            "  research-os daemon consent deny <id>    refuse\n"
+            "The agent can never self-grant — minting authority lives here."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_consent.add_argument("consent_action", nargs="?", default="list",
+                            choices=["list", "approve", "deny"],
+                            help="list (default), approve, or deny.")
+    pd_consent.add_argument("request_id", nargs="?", default=None,
+                            help="Request id (for approve/deny).")
+    pd_consent.add_argument("--workspace", default=None,
+                            help="Explicit workspace path (else auto-resolved).")
+    pd_consent.add_argument("--json", dest="as_json", action="store_true",
+                            help="Emit pending + grants as JSON.")
 
     # rebuild: re-run exactly the stale sub-DAG in dependency order.
     pd_rebuild = daemon_sub.add_parser(
