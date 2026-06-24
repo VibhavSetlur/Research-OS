@@ -31,6 +31,23 @@ Read-only endpoints (no auth beyond the 127.0.0.1 bind):
   GET  /v1/runs/{run_id}   one run manifest (?log=1&tail=N for output)
   GET  /v1/events          SSE stream of daemon events
   GET  /v1/events/recent   poll-friendly recent-events snapshot
+  GET  /v1/consent/pending pending consent requests awaiting a human verdict
+  GET  /v1/consent/grants  minted consent grants (?include_spent=true)
+  GET  /v1/notifications   the notification outbox — what the daemon told the
+                           researcher + delivery outcome (?undelivered=true)
+
+Mutating endpoints (require enable_gateway + a per-session bearer token,
+the consent/staleness authority surface; off by default):
+  POST /v1/consent/request the agent asks for consent (open; cannot grant)
+  POST /v1/consent/approve mints a one-shot, TTL'd, arg-bound token (auth)
+  POST /v1/consent/deny    rejects a pending request (auth)
+  POST /v1/consent/consume burns a token (auth)
+  POST /v1/staleness/verdict  assess freshness + persist the verdict sidecar
+                              the floor gate reads (auth)
+
+NOTE: this list is drift-guarded — scripts/preflight.py (check_daemon_
+endpoints_documented) fails the build if a registered Route is missing
+from this docstring or vice versa. Keep them in sync.
 
 Gateway endpoint (Phase 2 — MUTATING, requires a per-session bearer token
 and an explicit enable_gateway flag; off by default):

@@ -1398,6 +1398,57 @@ def check_coherence():
 # ---------------------------------------------------------------------------
 
 
+def check_daemon_endpoints_documented():
+    """The daemon server's documented endpoint list must match the routes.
+
+    server.py carries a hand-readable endpoint catalogue in its module
+    docstring AND registers the actual Route() objects. A drift between the
+    two is the classic "stale hand-maintained list" bug: a new endpoint
+    ships undocumented, or a removed one lingers in the docs. This check
+    parses both from the source (no import — daemon deps are optional) and
+    asserts they cover the same path set.
+
+    Fix when this fails: update the docstring endpoint list in
+    src/research_os/daemon/server.py to match the registered Route()s.
+    """
+    import re as _re
+
+    server_py = REPO_ROOT / "src" / "research_os" / "daemon" / "server.py"
+    if not server_py.exists():
+        return True, "daemon/server.py absent; skipped"
+    text = server_py.read_text(encoding="utf-8")
+
+    # Registered routes: Route("/v1/...", handler, methods=[...]).
+    registered = set(_re.findall(r'Route\(\s*"([^"]+)"', text))
+    # /healthz is registered via a non-Route helper in some stacks; include
+    # any add_route / explicit mention too.
+    registered |= set(_re.findall(r'\.add_route\(\s*"([^"]+)"', text))
+
+    # Documented paths: the module docstring lists "GET /path" / "POST /path".
+    doc = text.split('"""')[1] if '"""' in text else ""
+    documented = set(_re.findall(r'(?:GET|POST|PUT|DELETE)\s+(/\S+)', doc))
+
+    # Normalise: ignore trailing descriptive punctuation, keep path shape.
+    def _norm(s: str) -> str:
+        return s.rstrip(".,;:")
+
+    registered = {_norm(r) for r in registered}
+    documented = {_norm(d) for d in documented}
+
+    undocumented = sorted(registered - documented)
+    phantom = sorted(documented - registered)
+    bad = []
+    if undocumented:
+        bad.append(f"registered but undocumented: {undocumented}")
+    if phantom:
+        bad.append(f"documented but not registered: {phantom}")
+    return (not bad), (
+        f"{len(registered)} daemon endpoints documented + registered in sync"
+        if not bad
+        else "; ".join(bad)
+    )
+
+
 def check_reasoning_layer_independent_of_daemon():
     """Architecture invariant (DESIGN_V4.md §6.1): the reasoning layer never
     imports the transport/execution layer.
@@ -1482,6 +1533,7 @@ def main() -> int:
     tally.check("Every tool definition has 'short' field <=120 chars", check_tool_short_field_length)
     tally.check("Every pack dir in both bundled lists (loader + pyproject)", check_packs_in_both_lists)
     tally.check("Reasoning layer independent of daemon (v4 arrow)", check_reasoning_layer_independent_of_daemon)
+    tally.check("Daemon endpoints documented ⇆ registered (no drift)", check_daemon_endpoints_documented)
 
     print()
     print(f"Summary: {tally.passed} passed · {tally.failed} failed")
