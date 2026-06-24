@@ -934,6 +934,49 @@ def check_gate_meta():
     )
 
 
+def check_daemon_contract_paths_agree():
+    """The daemon writers and the reasoning-side bridge must point at the
+    SAME .os_state/ paths — the load-bearing cross-process contract.
+
+    docs/v4/DAEMON_BRIDGE.md. server/daemon_bridge.py defines the canonical
+    contract paths the MCP/reasoning side READS; the daemon WRITES them via
+    its own path helpers. If the two drift (a rename on one side only), the
+    AI reads an empty consent ledger / never sees a notification / misses a
+    staleness verdict — silently. This check builds each contract path BOTH
+    ways for the same root and asserts equality, so a drift can't merge.
+    """
+    from pathlib import Path as _Path
+
+    try:
+        from research_os.daemon import consent as _dc
+        from research_os.daemon import notifications as _dn
+        from research_os.daemon import runstore as _dr
+        from research_os.daemon import staleness as _ds
+        from research_os.server import daemon_bridge as _db
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not import contract modules: {exc}"
+
+    r = _Path("/tmp/_ro_contract_probe")
+    pairs = {
+        "consent/granted.json": (_dc._granted_path(r),
+                                 _db.state_path(r, _db.CONSENT_GRANTED)),
+        "notifications/outbox.jsonl": (_dn._outbox_path(r),
+                                       _db.state_path(r, _db.NOTIFICATIONS_OUTBOX)),
+        "staleness/verdict.json": (_ds._verdict_path(r),
+                                   _db.state_path(r, _db.STALENESS_VERDICT)),
+        "runs/": (r / ".os_state" / _dr.RUNS_DIRNAME,
+                  _db.state_path(r, _db.RUNS_DIR)),
+    }
+    drift = [
+        f"{name}: daemon={daemon_p} vs bridge={bridge_p}"
+        for name, (daemon_p, bridge_p) in pairs.items()
+        if str(daemon_p) != str(bridge_p)
+    ]
+    if drift:
+        return False, "contract drift — " + "; ".join(drift)
+    return True, f"{len(pairs)} .os_state contract paths agree (daemon ⇆ bridge)"
+
+
 def check_precondition_meta():
     """The compiled precondition sidecar must be fresh + reference real protocols.
 
@@ -1567,6 +1610,7 @@ def main() -> int:
     tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
     tally.check("Compiled floor-gate sidecar (_gate_meta.json) fresh + engine agrees", check_gate_meta)
     tally.check("Compiled precondition sidecar (_precondition_meta.json) fresh", check_precondition_meta)
+    tally.check("Daemon ⇆ bridge .os_state contract paths agree", check_daemon_contract_paths_agree)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
     tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)
