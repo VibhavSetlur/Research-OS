@@ -1162,9 +1162,11 @@ def check_docs_code_consistency():
     """Scan docs/, CLAUDE.md, README.md for drift-prone patterns vs code reality.
 
     Catches: tool names mentioned in docs that don't exist in code, broken
-    scripts/ references, broken docs/*.md cross-references. Also logs every
-    'N-step' / 'N commands' / 'N-check' literal so a maintainer can audit
-    count drift in one pass.
+    scripts/ references, and broken docs/*.md cross-references (real Markdown
+    link targets — ``](docs/X.md)`` — not bare path mentions, which may name
+    files the AI writes into an end-user project). Also logs every 'N-step' /
+    'N commands' / 'N-check' literal so a maintainer can audit count drift in
+    one pass.
     """
     import re
 
@@ -1184,6 +1186,18 @@ def check_docs_code_consistency():
     known_aliases = set(_ALIASES)
     removed = set(_REMOVED_TOOLS)
 
+    # A handful of protocol IDs legitimately start with ``tool_`` (e.g.
+    # ``hybrid/tool_to_analysis_handoff``). They match the tool-name regex but
+    # are protocols, not tools — collect their bare IDs so docs that name them
+    # in the protocol catalogue aren't mis-flagged as references to phantom
+    # tools.
+    protocol_ids: set[str] = set()
+    protocols_dir = REPO_ROOT / "src" / "research_os" / "protocols"
+    if protocols_dir.exists():
+        for p in protocols_dir.rglob("*.yaml"):
+            if not p.name.startswith("_"):
+                protocol_ids.add(p.stem)
+
     # Patterns / placeholders that look like tools but aren't (template
     # filler, prose, search wildcards).
     false_positives = {
@@ -1192,9 +1206,22 @@ def check_docs_code_consistency():
         "tool_definitions",  # python module dir, not a tool
     }
 
+    # PLUGIN_AUTHORING.md teaches the ``tool_<pack>_<action>`` naming rule by
+    # inventing hypothetical pack tools (``tool_mypack_*``, ``tool_myinfra_*``,
+    # ``mem_subjects_*``, ...). Those deliberately do NOT exist in core, so the
+    # unknown-tool-name check is skipped for this one file; its scripts/ and
+    # xref references are still validated.
+    tool_check_skip = {"docs/PLUGIN_AUTHORING.md"}
+
     tool_pattern = re.compile(r"\b((?:sys|tool|mem)_[a-z][a-z0-9_]+)\b")
     script_pattern = re.compile(r"\bscripts/([A-Za-z0-9_\-]+\.py)\b")
-    docs_xref_pattern = re.compile(r"\bdocs/([A-Za-z0-9_\-]+\.md)\b")
+    # An xref is a real Markdown link target — ``](docs/NAME.md`` — not any
+    # string that happens to match ``docs/NAME.md``. Protocol descriptions and
+    # scenario walkthroughs legitimately mention paths the AI writes INTO a
+    # researcher's project (``docs/research_overview.md``, ``docs/glossary.md``);
+    # those live in the end-user project, never in this repo's docs/, so a bare
+    # mention must not be treated as a broken maintainer-doc cross-reference.
+    docs_xref_pattern = re.compile(r"\]\(docs/([A-Za-z0-9_\-]+\.md)")
     count_pattern = re.compile(
         r"\b(\d+)[-\s](?:step|command|commands|check|checks|protocols?|tools?)\b",
         re.IGNORECASE,
@@ -1211,18 +1238,22 @@ def check_docs_code_consistency():
         except (OSError, UnicodeDecodeError):
             continue
         rel = f.relative_to(REPO_ROOT).as_posix()
+        skip_tool_check = rel in tool_check_skip
         for lineno, line in enumerate(lines, 1):
-            for m in tool_pattern.finditer(line):
-                name = m.group(1)
-                if name in false_positives or name.endswith("_"):
-                    continue
-                # A tool ref is OK if it's a real tool, an alias, a
-                # removed-tool placeholder, or resolves via the dispatcher.
-                if (name in known_tools or name in known_aliases
-                        or name in removed
-                        or _resolve_tool_name(name) in known_tools):
-                    continue
-                unknown_tools.append(f"{rel}:{lineno}: {name}")
+            if not skip_tool_check:
+                for m in tool_pattern.finditer(line):
+                    name = m.group(1)
+                    if name in false_positives or name.endswith("_"):
+                        continue
+                    # A tool ref is OK if it's a real tool, an alias, a
+                    # removed-tool placeholder, a protocol ID that happens to
+                    # start with tool_/sys_/mem_, or resolves via the dispatcher.
+                    if (name in known_tools or name in known_aliases
+                            or name in removed
+                            or name in protocol_ids
+                            or _resolve_tool_name(name) in known_tools):
+                        continue
+                    unknown_tools.append(f"{rel}:{lineno}: {name}")
             for m in script_pattern.finditer(line):
                 script_name = m.group(1)
                 if not (REPO_ROOT / "scripts" / script_name).exists():

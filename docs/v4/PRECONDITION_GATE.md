@@ -1,6 +1,9 @@
 # Precondition gate — protocols declare what must be true, the daemon verifies
 
-Status: design / implementing
+Status: shipped (both tiers) — `requires:` blocks compile to
+`_precondition_meta.json`; `server/preconditions.py` surfaces unmet checks
+(tier 1, always on); `world_state: preconditions_met` gates them when a
+daemon enforces (tier 2). Guarded by preflight `check_precondition_meta`.
 Branch: feat/v4-daemon-core
 Date: 2026-06-24
 
