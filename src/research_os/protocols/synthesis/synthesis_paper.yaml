@@ -75,6 +75,23 @@ prerequisites:
     confirmed=true after they say yes. Empty output_types is treated
     as 'open' so unfilled projects don't trip the gate."
 
+# Machine-checkable subset (precondition gate): the foundation files must
+# exist. "Real content" / "substantive" / output_types stay prose — those
+# are the AI's judgement, only existence is hardened.
+requires:
+  checks:
+    - kind: file_exists
+      path: workspace/methods.md
+      non_empty: true
+      because: the paper's methods section builds on recorded methods
+    - kind: file_exists
+      path: workspace/citations.md
+      because: the paper grounds claims in gathered citations
+    - kind: glob_min
+      pattern: workspace/**/conclusions.md
+      min: 1
+      because: the paper reports findings from completed steps
+
 design_principles: |
   - Every quantitative claim is grounded in a real workspace artefact.
     The reader can audit the path (claim → conclusions.md → script →

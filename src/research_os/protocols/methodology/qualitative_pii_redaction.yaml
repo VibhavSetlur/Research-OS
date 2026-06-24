@@ -66,6 +66,18 @@ prerequisites:
   - "`inputs/raw_data/` contains at least one transcript file."
   - "A PII policy exists at `inputs/policy/pii_policy.md` (template at templates/qualitative/pii_policy.md). It declares which identifier classes are removed, which are generalised, and which are pseudonymised."
 
+# Machine-checkable subset (precondition gate): redaction needs raw data
+# to redact AND a policy declaring how. Both are checkable existence facts.
+requires:
+  checks:
+    - kind: glob_min
+      pattern: inputs/raw_data/**/*
+      min: 1
+      because: there must be raw data to redact
+    - kind: file_exists
+      path: inputs/policy/pii_policy.md
+      because: redaction follows a declared PII policy
+
 editorial_voice:
   mode: prescription
   rules:

@@ -47,6 +47,18 @@ prerequisites:
   - synthesis/paper.md exists and has been through `tool_audit(scope='synthesis', dimension='all')`.
   - At least one experiment step has a substantive conclusions.md.
 
+# Machine-checkable subset (precondition gate). The audit having run stays
+# prose; the paper + at least one step's conclusions are checkable.
+requires:
+  checks:
+    - kind: file_exists
+      path: synthesis/paper.md
+      because: a reviewer response addresses comments on a written paper
+    - kind: glob_min
+      pattern: workspace/**/conclusions.md
+      min: 1
+      because: responses cite the study's recorded findings
+
 editorial_voice:
   mode: hybrid
   rules:

@@ -52,6 +52,14 @@
         "path": "synthesis/paper.md"
       }
     ],
+    "methodology/meta_analysis": [
+      {
+        "because": "a meta-analysis pools effect sizes from the extraction table",
+        "kind": "glob_min",
+        "min": 1,
+        "pattern": "**/data_extraction.csv"
+      }
+    ],
     "methodology/preregistration": [
       {
         "because": "a preregistration freezes the methods that must already exist",
@@ -59,8 +67,61 @@
         "non_empty": true,
         "path": "workspace/methods.md"
       }
+    ],
+    "methodology/qualitative_pii_redaction": [
+      {
+        "because": "there must be raw data to redact",
+        "kind": "glob_min",
+        "min": 1,
+        "pattern": "inputs/raw_data/**/*"
+      },
+      {
+        "because": "redaction follows a declared PII policy",
+        "kind": "file_exists",
+        "path": "inputs/policy/pii_policy.md"
+      }
+    ],
+    "synthesis/reviewer_response": [
+      {
+        "because": "a reviewer response addresses comments on a written paper",
+        "kind": "file_exists",
+        "path": "synthesis/paper.md"
+      },
+      {
+        "because": "responses cite the study's recorded findings",
+        "kind": "glob_min",
+        "min": 1,
+        "pattern": "workspace/**/conclusions.md"
+      }
+    ],
+    "synthesis/synthesis_paper": [
+      {
+        "because": "the paper's methods section builds on recorded methods",
+        "kind": "file_exists",
+        "non_empty": true,
+        "path": "workspace/methods.md"
+      },
+      {
+        "because": "the paper grounds claims in gathered citations",
+        "kind": "file_exists",
+        "path": "workspace/citations.md"
+      },
+      {
+        "because": "the paper reports findings from completed steps",
+        "kind": "glob_min",
+        "min": 1,
+        "pattern": "workspace/**/conclusions.md"
+      }
+    ],
+    "writing/writing_results": [
+      {
+        "because": "the results section writes up recorded step findings",
+        "kind": "glob_min",
+        "min": 1,
+        "pattern": "workspace/**/conclusions.md"
+      }
     ]
   },
   "schema": 1,
-  "source_hash": "5e062e9b597d7f92c4f4fd1ca235a2a2976d91517b3118811371dee17f2a21d8"
+  "source_hash": "ee1657abe16b8605d0fdc002d0e583d46d3a76b991cf11f7d82e88e8b7332462"
 }
