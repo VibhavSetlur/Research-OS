@@ -649,6 +649,28 @@ def build_app(daemon: "Daemon"):
             {"grants": store.list_grants(include_spent=include)}
         )
 
+    async def get_notifications(request):
+        # Read-only view of the notification outbox (the spine, intent #4):
+        # what the daemon told the researcher, and whether delivery
+        # succeeded. ?undelivered=true filters to records that did not reach
+        # the configured channel, so a client/AI can surface what was missed.
+        from . import notifications as _ntfy
+
+        root_q = request.query_params.get("root")
+        root = root_q or getattr(daemon, "root", None)
+        if not root:
+            return JSONResponse({"available": False,
+                                 "error": "no project root resolved"})
+        undelivered = request.query_params.get("undelivered") == "true"
+        limit, err = _limit_param(request)
+        if err is not None:
+            return err
+        records = _ntfy.read_outbox(
+            root, undelivered_only=undelivered, limit=limit or 100
+        )
+        return JSONResponse({"available": True, "notifications": records,
+                             "count": len(records)})
+
     async def post_consent_request(request):
         # The agent REQUESTS consent (it cannot self-grant). Open without
         # bearer auth: requesting is harmless (it only queues), and the
@@ -771,6 +793,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/events/recent", get_events_recent, methods=["GET"]),
         Route("/v1/consent/pending", get_consent_pending, methods=["GET"]),
         Route("/v1/consent/grants", get_consent_grants, methods=["GET"]),
+        Route("/v1/notifications", get_notifications, methods=["GET"]),
         Route("/v1/consent/request", post_consent_request, methods=["POST"]),
         Route("/v1/consent/approve", post_consent_approve, methods=["POST"]),
         Route("/v1/consent/deny", post_consent_deny, methods=["POST"]),

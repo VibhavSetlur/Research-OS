@@ -131,12 +131,17 @@ class TaskQueue:
         max_workers: int = 2,
         max_history: int = 200,
         bus: Any = None,
+        notify_command: str = "",
     ) -> None:
         if max_workers < 1:
             raise ValueError("max_workers must be >= 1")
         self._max_workers = max_workers
         self._max_history = max_history
         self._bus = bus  # optional EventBus for lifecycle events
+        # Researcher-notification delivery command (notification spine).
+        # When set, terminal job events also push a notification so the
+        # researcher learns a long job finished without polling.
+        self._notify_command = notify_command or ""
         self._jobs: dict[str, Job] = {}
         self._order: list[str] = []
         self._lock = threading.RLock()
@@ -171,6 +176,19 @@ class TaskQueue:
     # ── events ───────────────────────────────────────────────────────
     def _emit(self, kind: str, job: Job) -> None:
         """Publish a job lifecycle event if a bus is wired. Never raises."""
+        # Terminal events also feed the notification spine so the researcher
+        # learns a long job finished without polling (intent #4). Best-effort
+        # and fully isolated: a notification failure never affects the job or
+        # the event publish.
+        if kind in ("job.succeeded", "job.failed", "job.cancelled") and job.root:
+            try:
+                from . import notifications as _ntfy
+
+                _ntfy.emit_job_terminal(
+                    job.root, job.to_dict(), notify_command=self._notify_command
+                )
+            except Exception:  # noqa: BLE001 - notify must never break a job
+                logger.debug("job notification failed for %s", kind, exc_info=True)
         if self._bus is None:
             return
         try:

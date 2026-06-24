@@ -12,13 +12,32 @@ logger = logging.getLogger("research_os.tools.interaction")
 
 
 def notify_researcher(message: str, level: str, root: Path) -> dict[str, Any]:
-    """Log a notification under ``workspace/logs/notifications.log``."""
+    """Notify the researcher: durable log file + daemon spine when present.
+
+    Always appends to ``workspace/logs/notifications.log`` (the historical,
+    daemon-free behaviour). When a daemon is running for this project, ALSO
+    drops the message onto the daemon's notification outbox (by shape, no
+    daemon import) so it actually reaches the researcher through their
+    configured channel instead of sitting in a log file nobody tails.
+    """
     try:
         log_path = root / "workspace" / "logs" / "notifications.log"
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with open(log_path, "a") as f:
             f.write(f"[{now_iso()}] [{level.upper()}] {message}\n")
-        return {"status": "success", "message": "Notification logged."}
+        pushed = False
+        try:
+            from research_os.server.notify_sink import sink_notification
+
+            pushed = sink_notification(root, message, level)
+        except Exception:  # noqa: BLE001 - spine is best-effort; log is durable
+            pushed = False
+        msg = (
+            "Notification logged and queued for delivery via the daemon."
+            if pushed
+            else "Notification logged."
+        )
+        return {"status": "success", "message": msg, "delivered_to_spine": pushed}
     except Exception as e:
         logger.error(f"Notify failed: {e}")
         return {"status": "error", "message": str(e)}

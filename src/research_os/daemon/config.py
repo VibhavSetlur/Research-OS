@@ -65,6 +65,13 @@ class DaemonConfig:
     # TTL (seconds) for the registry's per-root state cache. Avoids
     # hammering the filesystem under rapid polling (e.g. a dashboard).
     state_cache_ttl: float = 1.0
+    # Researcher-notification delivery command (notification spine, intent
+    # #4). A shell command the daemon runs once per notification, with the
+    # notification JSON on stdin. Empty → persist-only (outbox still
+    # written; nothing pushed). The researcher wires this to their own
+    # channel (Hermes→Slack, mailx, a webhook…). Read from project config /
+    # env — never from an agent-writable surface at request time.
+    notify_command: str = ""
 
     _VALID_SANDBOX_MODES = ("auto", "native", "off")
 
@@ -148,6 +155,7 @@ def _from_env() -> dict:
         "sandbox_mode": os.environ.get("RESEARCH_OS_DAEMON_SANDBOX"),
         "task_workers": os.environ.get("RESEARCH_OS_DAEMON_WORKERS"),
         "state_cache_ttl": os.environ.get("RESEARCH_OS_DAEMON_CACHE_TTL"),
+        "notify_command": os.environ.get("RESEARCH_OS_DAEMON_NOTIFY_COMMAND"),
     }
     return _coerce({k: v for k, v in env.items() if v is not None})
 
@@ -170,6 +178,7 @@ def _coerce(block: dict) -> dict:
         "gateway_upstream_model",
         "gateway_api_key_env",
         "gateway_token_env",
+        "notify_command",
     ):
         if skey in block and block[skey] is not None:
             out[skey] = str(block[skey])

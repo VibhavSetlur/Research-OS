@@ -85,7 +85,11 @@ class Daemon:
         # status() and serve() working off the same engine seams. The queue
         # publishes job lifecycle events to the bus.
         self.registry = WorkspaceRegistry(cache_ttl=config.state_cache_ttl)
-        self.tasks = TaskQueue(max_workers=config.task_workers, bus=self.events)
+        self.tasks = TaskQueue(
+            max_workers=config.task_workers,
+            bus=self.events,
+            notify_command=getattr(config, "notify_command", "") or "",
+        )
         # Durable run journal (Phase 1.7): persists every run to
         # <root>/.os_state/runs/ as a provenance manifest + full log, driven
         # off the event bus so the queue stays journal-agnostic. Only active

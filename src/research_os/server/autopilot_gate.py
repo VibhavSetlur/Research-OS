@@ -124,6 +124,13 @@ _LEGACY_GATE_FLOOR: dict[str, str] = {
     "sys_path:abandon": "light",
     "tool_research_tool:paid": "light",
     "tool_typst_compile": "normal",
+    # World-state gate (stale inputs feeding the final compile). The floor
+    # is recorded for parity with the declared set, but the legacy
+    # fail-safe matcher below CANNOT evaluate a world_state predicate (it
+    # has no verdict reader), so when the compiled sidecar is absent this
+    # gate degrades OFF — exactly today's behaviour (no staleness gating).
+    # The gate is live only via the declared/compiled path.
+    "tool_typst_compile:stale_inputs": "normal",
     "tool_audit:reproducibility": "normal",
     "sys_file_write:synthesis_force": "strict",
     "tool_task:run": "strict",
