@@ -110,6 +110,57 @@ def test_jobs_counts_fallback_when_no_counts_key(tmp_path, monkeypatch):
     assert r["payload"]["jobs"]["by_status"] == {"queued": 2}
 
 
+def test_surfaces_budget_and_undelivered_notifications(tmp_path, monkeypatch):
+    """sys_daemon surfaces the resource budget + undelivered pages in one call.
+
+    Closes the MCP<->daemon connection gap: the AI sees the budget it must
+    cite and what the researcher was paged about without extra calls.
+    """
+    _write_descriptor(tmp_path, pid=os.getpid())
+
+    def fake_get(base_url, path, timeout):
+        if path == "/v1/sandbox":
+            return {
+                "best_tier": "resource",
+                "resource_budget": {"configured": True,
+                                    "limits": {"address_space_mb": 16384}},
+                "effective_limits": {"address_space_mb": 16384,
+                                     "cpu_seconds": 7200},
+            }
+        if path.startswith("/v1/notifications"):
+            return {"notifications": [
+                {"level": "action_required", "title": "Job 'fit' FAILED",
+                 "ts": "2026-06-24T00:00:00Z"},
+            ]}
+        if path == "/v1/jobs":
+            return {"jobs": [], "total": 0}
+        return None  # orient unreachable
+
+    monkeypatch.setattr(mw, "_daemon_http_get", fake_get)
+    r = _payload(mw._handle_sys_daemon("sys_daemon", {}, tmp_path))
+    p = r["payload"]
+    assert p["sandbox"]["best_tier"] == "resource"
+    assert p["sandbox"]["resource_budget"]["limits"]["address_space_mb"] == 16384
+    assert p["sandbox"]["effective_limits"]["cpu_seconds"] == 7200
+    assert len(p["undelivered_notifications"]) == 1
+    assert p["undelivered_notifications"][0]["level"] == "action_required"
+
+
+def test_no_undelivered_notifications_omits_field(tmp_path, monkeypatch):
+    _write_descriptor(tmp_path, pid=os.getpid())
+
+    def fake_get(base_url, path, timeout):
+        if path.startswith("/v1/notifications"):
+            return {"notifications": []}
+        if path == "/v1/jobs":
+            return {"jobs": [], "total": 0}
+        return None
+
+    monkeypatch.setattr(mw, "_daemon_http_get", fake_get)
+    r = _payload(mw._handle_sys_daemon("sys_daemon", {}, tmp_path))
+    assert "undelivered_notifications" not in r["payload"]
+
+
 def test_timeout_arg_is_clamped(tmp_path, monkeypatch):
     _write_descriptor(tmp_path, pid=os.getpid())
     seen = {}

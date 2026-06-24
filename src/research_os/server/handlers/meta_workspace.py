@@ -692,6 +692,14 @@ def _handle_sys_daemon(name, arguments, root):
     base_url = desc.get("base_url") or f"http://{desc.get('host')}:{desc.get('port')}"
     orient = _daemon_http_get(base_url, "/v1/orient", timeout)
     jobs = _daemon_http_get(base_url, "/v1/jobs", timeout)
+    # Also surface the execution bound (resource budget) and any
+    # undelivered researcher notifications, so the AI sees — in ONE call —
+    # the budget it must cite before a big run and what the researcher was
+    # paged about. Both are read-only; failures degrade to absent fields.
+    sandbox = _daemon_http_get(base_url, "/v1/sandbox", timeout)
+    notifications = _daemon_http_get(
+        base_url, "/v1/notifications?undelivered=true&limit=10", timeout
+    )
 
     if orient is None and jobs is None:
         # Descriptor present + pid alive but HTTP unreachable: the daemon
@@ -733,6 +741,24 @@ def _handle_sys_daemon(name, arguments, root):
             "total": jobs.get("total", len(items) if isinstance(items, list) else 0),
             "by_status": counts,
         }
+    if isinstance(sandbox, dict):
+        # The execution bound: strongest isolation tier + the resource
+        # budget the AI must respect (and cite) before a heavy run.
+        payload["sandbox"] = {
+            "best_tier": sandbox.get("best_tier"),
+            "resource_budget": sandbox.get("resource_budget"),
+            "effective_limits": sandbox.get("effective_limits"),
+        }
+    if isinstance(notifications, dict):
+        undelivered = notifications.get("notifications") or []
+        if undelivered:
+            # Surface what the researcher was paged about but may not have
+            # received — high-signal for the AI to repeat or escalate.
+            payload["undelivered_notifications"] = [
+                {"level": n.get("level"), "title": n.get("title"),
+                 "ts": n.get("ts")}
+                for n in undelivered if isinstance(n, dict)
+            ]
     return _text(_success(payload))
 
 
