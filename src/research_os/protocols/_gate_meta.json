@@ -93,8 +93,18 @@
       "source_protocol": "guidance/autopilot",
       "tool": "tool_typst_compile",
       "when": {}
+    },
+    {
+      "floor": "normal",
+      "key": "tool_typst_compile:stale_inputs",
+      "reason": "the final deliverable would embed results built from inputs that changed on disk; re-run the affected steps (or override) first",
+      "source_protocol": "guidance/autopilot",
+      "tool": "tool_typst_compile",
+      "when": {
+        "world_state": "no_stale_inputs"
+      }
     }
   ],
   "schema": 1,
-  "source_hash": "0d16ad71ea74b4080288ddb419c24c24935a59050aa223f2d612d1818ee2683e"
+  "source_hash": "302d441eafba57e708a97eda096025a74b9ef9a039355abfed683e226d0c0035"
 }

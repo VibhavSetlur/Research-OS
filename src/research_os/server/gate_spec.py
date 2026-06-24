@@ -110,6 +110,12 @@ def _match_predicate(
             sub-predicate matches. Used for one dangerous action that has
             two distinct argument signatures (e.g. paid tool via
             source='paid' OR paid=true).
+      * {"world_state": "<kind>"} → fires based on DETECTED world state
+            (not the call's args). ``no_stale_inputs`` fires when a daemon
+            has currently determined the project has stale inputs (read via
+            server.staleness_state, no daemon import). Lets a gate ask "is
+            the world safe for this action?", not only "is this action
+            dangerous?".
 
     Any unrecognised clause shape fails CLOSED for THIS clause (returns
     False → the gate does not fire on a predicate the engine can't read),
@@ -120,6 +126,15 @@ def _match_predicate(
     if not when:
         return True
     for k, expected in when.items():
+        if k == "world_state":
+            # World-state predicate: the gate fires based on DETECTED state
+            # (not the call's args). The only kind today is
+            # ``no_stale_inputs`` — matches (gate fires) when a daemon has
+            # currently determined the project has stale inputs. Needs root
+            # to read the verdict; with no root, no claim → does not fire.
+            if not _match_world_state(str(expected), root):
+                return False
+            continue
         if k == "any_of":
             # ``any_of`` is a list of sub-predicates; the clause holds if
             # ANY sub-predicate matches (logical OR). Lets a single gate
@@ -197,6 +212,27 @@ def _match_path_clause(
     return norm.startswith(prefix)
 
 
+def _match_world_state(kind: str, root: Path | None) -> bool:
+    """Evaluate a world-state predicate. True = the gate should fire.
+
+    ``no_stale_inputs`` is the only kind today: it fires when a daemon has
+    CURRENTLY determined the project has stale inputs (a verdict sidecar
+    asserting status='stale', newer than the freshest run). Reads via
+    server.staleness_state (no daemon import — the on-disk contract). With
+    no root, or no current staleness claim, returns False (gate does not
+    fire) — fail toward NOT blocking, per the design's deliberate
+    direction. An unknown world_state kind fails CLOSED (returns False):
+    we never invent a gate from a predicate the engine can't read.
+    """
+    if root is None:
+        return False
+    if kind == "no_stale_inputs":
+        from .staleness_state import is_currently_stale
+
+        return is_currently_stale(Path(root))
+    return False
+
+
 def resolve_declared_gate(
     tool_name: str,
     args: dict[str, Any],
@@ -206,19 +242,34 @@ def resolve_declared_gate(
 ) -> dict[str, Any] | None:
     """Return the declared gate matching this call, or None.
 
-    Iterates the compiled gates for ``tool_name`` and returns the first
-    whose ``when`` predicate matches. Returns the gate dict (carrying
-    ``key`` and ``floor``) so the caller can apply adaptive-floor logic.
-    None when no declared gate matches (the caller then consults its
-    legacy tables for fail-safe coverage).
+    A tool may have MORE than one declared gate (e.g. tool_typst_compile has
+    an unconditional "is this shareable?" gate AND a conditional "are inputs
+    stale?" gate). When several match, the MOST SPECIFIC wins: a gate with a
+    non-empty ``when`` predicate is preferred over an unconditional
+    (``when: {}``) gate, so the firing reason the AI/human sees reflects the
+    real, specific risk (stale inputs) rather than the generic one. Among
+    gates of equal specificity, declaration order (sorted by key in the
+    compiled sidecar) is the tiebreak.
+
+    Returns the gate dict (carrying ``key`` and ``floor``) so the caller can
+    apply adaptive-floor logic. None when no declared gate matches (the
+    caller then consults its legacy tables for fail-safe coverage).
     """
     pool = gates if gates is not None else _load_gate_meta()
+    specific_match: dict[str, Any] | None = None
+    unconditional_match: dict[str, Any] | None = None
     for g in pool:
         if g["tool"] != tool_name:
             continue
-        if _match_predicate(g["when"], args, root):
-            return g
-    return None
+        if not _match_predicate(g["when"], args, root):
+            continue
+        if g["when"]:
+            # First specific (conditional) match wins outright.
+            specific_match = g
+            break
+        if unconditional_match is None:
+            unconditional_match = g
+    return specific_match or unconditional_match
 
 
 def declared_floor_map(

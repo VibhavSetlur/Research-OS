@@ -160,3 +160,85 @@ def status_glyph(status: str) -> str:
         TRANSITIVE_STALE: "≈",
         UNKNOWN: "·",
     }.get(status, "·")
+
+
+# ── verdict sidecar (the cross-process contract the gate reads) ───────────
+
+VERDICT_SCHEMA = 1
+
+
+def _verdict_path(root):
+    """Path to the daemon-owned staleness verdict sidecar for this project."""
+    from pathlib import Path
+
+    return Path(root) / ".os_state" / "staleness" / "verdict.json"
+
+
+def verdict_from_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Distil an ``assess()`` report into the compact gate-facing verdict.
+
+    The gate doesn't need the full per-run detail — it needs one question
+    answered: is the project currently stale? We surface ``status``
+    (stale|fresh), the counts, the stale run ids, and the stale outputs (so
+    a human approving an override sees exactly which artefacts are at risk).
+    A project with zero runs or only UNKNOWN runs is reported ``fresh`` —
+    there is no affirmative staleness claim to block on.
+    """
+    counts = report.get("counts") or {}
+    stale_runs = list(report.get("stale") or [])
+    runs = report.get("runs") or {}
+    stale_outputs: list[str] = []
+    for rid in stale_runs:
+        info = runs.get(rid) or {}
+        for c in info.get("changed") or []:
+            p = c.get("path")
+            if p:
+                stale_outputs.append(p)
+        stale_outputs.extend(info.get("missing") or [])
+    status = "stale" if stale_runs else "fresh"
+    return {
+        "schema": VERDICT_SCHEMA,
+        "status": status,
+        "counts": {
+            "total": counts.get("total", len(runs)),
+            "stale": counts.get("stale", len(stale_runs)),
+            "fresh": counts.get("fresh", 0),
+            "unknown": counts.get("unknown", 0),
+        },
+        "stale_runs": sorted(stale_runs),
+        "stale_outputs": sorted(set(stale_outputs)),
+    }
+
+
+def write_verdict(root, report: dict[str, Any]) -> Any:
+    """Atomically persist the staleness verdict sidecar for the gate to read.
+
+    Mirrors RunStore's temp-file + ``os.replace`` atomicity so a concurrent
+    reader never sees a half-written file. The daemon OWNS this file; the
+    reasoning-side gate only reads it (the on-disk contract, same pattern as
+    consent). Adds ``assessed_at`` so the reader can compare the verdict's
+    age against the freshest run and ignore a stale verdict.
+    """
+    import json
+    import os
+    import tempfile
+    from datetime import datetime, timezone
+
+    verdict = verdict_from_report(report)
+    verdict["assessed_at"] = (
+        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    )
+    path = _verdict_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(verdict, fh, indent=2, default=str)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+    return path

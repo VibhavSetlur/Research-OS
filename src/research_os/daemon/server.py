@@ -478,6 +478,43 @@ def build_app(daemon: "Daemon"):
             "note": "dry-run only; POST rebuild requires auth (not yet enabled)",
         })
 
+    async def post_staleness_verdict(request):
+        # MUTATING: assess freshness over the lineage DAG and PERSIST the
+        # verdict sidecar (.os_state/staleness/verdict.json) that the
+        # reasoning-side staleness gate reads by shape. Gateway-gated like
+        # the other mutating endpoints — writing the verdict is an authority
+        # action (it can block the final-deliverable compile).
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        from . import provenance as _prov
+        from . import staleness as _stale
+
+        store = _runstore_or_none(request)
+        if store is None:
+            return JSONResponse(
+                {"error": "no run journal for this root", "code": "not_found"},
+                status_code=404,
+            )
+        limit, err = _limit_param(request)
+        if err is not None:
+            return err
+        manifests = store.recent_manifests(limit=limit or 200)
+        root_q = request.query_params.get("root")
+        root = root_q or getattr(daemon, "root", None)
+        if not root:
+            return JSONResponse(
+                {"error": "no project root resolved", "code": "bad_request"},
+                status_code=400,
+            )
+        hash_file = _prov.hash_fn_for_root(root)
+        report = _stale.assess(manifests, hash_file)
+        path = _stale.write_verdict(root, report)
+        verdict = _stale.verdict_from_report(report)
+        return JSONResponse(
+            {"verdict": verdict, "path": str(path)}, status_code=201
+        )
+
     async def chat_completions(request):
         # OpenAI-compatible gateway (Phase 2). Mutating surface -> requires
         # a per-session bearer token. Off unless config.enable_gateway.
@@ -723,6 +760,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/sandbox", get_sandbox, methods=["GET"]),
         Route("/v1/lineage", get_lineage, methods=["GET"]),
         Route("/v1/staleness", get_staleness, methods=["GET"]),
+        Route("/v1/staleness/verdict", post_staleness_verdict, methods=["POST"]),
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),
         Route("/v1/chat/completions", chat_completions, methods=["POST"]),
         Route("/v1/jobs", get_jobs, methods=["GET"]),

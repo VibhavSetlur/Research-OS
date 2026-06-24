@@ -67,6 +67,14 @@ enforcement:
       when: {}
       floor: normal
       reason: compiling the final deliverable makes the artefact shareable
+    - key: tool_typst_compile:stale_inputs
+      tool: tool_typst_compile
+      when:
+        world_state: no_stale_inputs
+      floor: normal
+      reason: >-
+        the final deliverable would embed results built from inputs that
+        changed on disk; re-run the affected steps (or override) first
     - key: tool_audit:reproducibility
       tool: tool_audit
       when:
