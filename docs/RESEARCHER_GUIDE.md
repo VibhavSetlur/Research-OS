@@ -595,6 +595,14 @@ runtime:
   max_memory_mb: 4096                   # per-subprocess RSS cap (4 GiB)
   max_file_size_mb: 100                 # per-output-file size cap
 
+# Optional daemon block — only read when you run `research-os daemon start`
+# (the stdio MCP path ignores it). See docs/DAEMON.md.
+daemon:
+  notify_command: ""                    # script run per notification; gets the
+                                        # notification JSON on stdin (wire to
+                                        # Slack/email/webhook). Blank → outbox only.
+  task_workers: 2                       # parallel background job workers
+
 # Top-level helpers read by various tools (all optional):
 # domain: ""                       # short label (e.g. "neuroscience")
 # research_question: ""            # convenience mirror of research_goal.primary_question

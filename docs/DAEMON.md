@@ -98,15 +98,18 @@ research-os daemon submit "<cmd>"    # submit to SLURM with full provenance
 
 A tracked job records its inputs, command, and outputs. When it finishes,
 the daemon emits a notification. To have notifications actually reach you,
-set a delivery command (it receives the notification as JSON on stdin):
+set a delivery command — a script that receives the notification as JSON on
+stdin and posts it wherever you want (Slack, email, a webhook):
 
 ```yaml
 # inputs/researcher_config.yaml
-# (delivery is configured per-daemon, e.g. via the RESEARCH_OS_DAEMON_NOTIFY_CMD
-#  env var pointing at a script that posts to Slack / sends mail / hits a webhook)
+daemon:
+  notify_command: "/home/me/bin/ro-notify.sh"   # gets the notification JSON on stdin
 ```
 
-Review what was sent (and what delivery missed) any time:
+With no `notify_command`, notifications are still **recorded** to the
+outbox — you just have to pull them rather than be pushed. Review what was
+sent (and what delivery missed) any time:
 
 ```bash
 research-os daemon notifications               # the outbox + delivery status

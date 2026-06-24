@@ -245,6 +245,19 @@ runtime:
     file_size_mb:                # RLIMIT_FSIZE ceiling (e.g. 51200)
     open_files:                  # RLIMIT_NOFILE ceiling (e.g. 4096)
 
+# ── Daemon (optional persistent process) ───────────────────────────────
+# Only read when you run `research-os daemon start` (the stdio MCP path
+# ignores this whole block). The daemon runs long jobs, tracks provenance,
+# enforces hard human-approved gates, and notifies you on completion. See
+# docs/DAEMON.md. Every field is optional; blank = built-in default.
+daemon:
+  # Shell command run once per notification (job done, gate page). It
+  # receives the notification as JSON on stdin — wire it to Slack / email /
+  # a webhook. Blank = notifications are still recorded to the outbox
+  # (research-os daemon notifications), just not pushed anywhere.
+  notify_command: ""             # e.g. "/home/me/bin/ro-notify.sh"
+  task_workers: 2                # parallel job workers
+
 # ── Figure defaults ────────────────────────────────────────────────────
 # What companions the AI ships with every figure. SVG companions double
 # disk and audit noise. The opinionated default is: one .png + one
