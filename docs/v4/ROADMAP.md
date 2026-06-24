@@ -1028,3 +1028,68 @@ check still green (sandbox is daemon-side only — reasoning never imports
 it).
 
 
+### Phase log: enforcement-kernel arc (2026-06-24) — the daemon becomes a real authority layer
+
+A reframe-driven arc (not a numbered phase): the daemon stops being a
+read-only observability surface and becomes the **enforcement + execution
++ notification layer between the client and the work** — the role the
+intent always described. Five commits, each green (pytest 0 / preflight
+36 / ruff / seam clean), each mapping to a named researcher pain. Full
+designs in `docs/v4/{UNSKIPPABLE_GATES,HYBRID_ARCHITECTURE,STALENESS_GATE,
+NOTIFICATION_SPINE}.md`.
+
+* **Un-skippable gates — daemon as consent authority** (`653f0a6`). The
+  floor gates were enforced in-process via the agent's own
+  `confirmed=true` — the lock's key taped to the door. Now when a daemon
+  runs it is the consent AUTHORITY: clearing a gate needs a daemon-minted
+  token (one-shot, TTL'd, bound to gate_key + arg fingerprint) the agent
+  cannot forge. `server/consent.py` reads the daemon-owned ledger by
+  shape; `daemon/consent.py` mints; gate burns the token (spent sidecar)
+  so one approval clears exactly one action. No daemon → degrade to
+  today's `confirmed=true`. Live-verified the full round trip; one-shot
+  defect caught by live verification, not unit tests.
+
+* **Hybrid gate layer — protocols declare, engine enforces** (`35378de`).
+  Floor gates lived in two hand-synced sources (protocol prose +
+  `autopilot_gate.py` Python). Now protocols DECLARE gates in an
+  `enforcement.gates` YAML block; `scripts/build_gate_meta.py` compiles
+  every block into `protocols/_gate_meta.json`; the engine derives its
+  tables from it (legacy tables kept only as a sidecar-absent fallback).
+  Preflight `check_gate_meta` guards prose↔code drift. Proven
+  behaviour-preserving via a 108-cell autonomy×strictness×tool matrix
+  (byte-identical). The partition (per PROTOCOL_DOCTRINE): keep reasoning
+  soft, make system rules hard — never harden reasoning.
+
+* **Staleness gate — block deliverables built on changed data**
+  (`4ea3bed`). Generalises the gate from "is this action dangerous?" to
+  "is the world safe for this action?" New `world_state: no_stale_inputs`
+  predicate fires on `tool_typst_compile` when a daemon has determined
+  results were built from inputs that changed on disk. Daemon writes a
+  verdict sidecar (`POST /v1/staleness/verdict`); `server/staleness_state.py`
+  reads it by shape with a freshness-of-the-freshness-check (a verdict
+  older than the newest run is ignored). Fail-safe direction is
+  *deliberately* toward NOT blocking when there is no current claim — no
+  false positives for the default no-daemon flow.
+
+* **Notification spine — tell the researcher when work finishes**
+  (`a019c3b`). Intent #4 had no implementation: long jobs finished
+  silently and `sys_notify` only appended to a log file. Now one durable
+  append-only outbox (`.os_state/notifications/outbox.jsonl`) + a
+  pluggable `notify_command` (researcher wires their own channel —
+  Hermes→Slack, mailx, webhook). Terminal job events feed it; `sys_notify`
+  also feeds it when a daemon is present (by shape, no daemon import).
+  `GET /v1/notifications` + `research-os daemon notifications` surface it.
+  Best-effort delivery, recorded per record, never breaks the job.
+
+* **Drift guards + CLI parity** (`cc2ba83`, `3b66a13`). The daemon
+  endpoint catalogue in the server docstring is now preflight-guarded
+  (`check_daemon_endpoints_documented`) so docs can't drift from routes;
+  the notification spine got a CLI surface matching `daemon stale` /
+  `daemon lineage`.
+
+The seam invariant held throughout: the reasoning layer (`server/`,
+`tools/`) never imports `daemon/`; every cross-process contract is an
+on-disk sidecar read by shape, fail-safe, with a legacy fallback. This is
+the reusable pattern for any future daemon-enforced rule.
+
+
