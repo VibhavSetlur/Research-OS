@@ -195,6 +195,9 @@ def build_orientation(daemon: Any, *, root: Any = None, limit: int = 50) -> dict
         store = getattr(daemon, "runstore", None)
 
     field = _safe(lambda: _field_summary(resolved_root), {})
+    # The execution bound the researcher declared (if any) — so the brief
+    # tells the AI what compute/memory ceiling its runs sit under.
+    budget = _safe(lambda: _budget_summary(resolved_root), {"configured": False})
 
     if store is None:
         recommendation = _recommend(field, {"total": 0, "by_status": {}}, {})
@@ -205,6 +208,7 @@ def build_orientation(daemon: Any, *, root: Any = None, limit: int = 50) -> dict
             "field": field,
             "work": {"total": 0, "by_status": {}, "recent": []},
             "freshness": {"counts": {}, "stale": [], "rebuild_plan": []},
+            "budget": budget,
             "narrative": _narrative(field, {"total": 0}, {}, available=False),
             "recommended_next_action": recommendation,
         }
@@ -222,6 +226,16 @@ def build_orientation(daemon: Any, *, root: Any = None, limit: int = 50) -> dict
         "field": field,
         "work": runs,
         "freshness": freshness,
+        "budget": budget,
         "narrative": _narrative(field, runs, freshness, available=True),
         "recommended_next_action": recommendation,
     }
+
+
+def _budget_summary(root: Any) -> dict:
+    """The declared resource budget for this project (or 'not configured')."""
+    if not root:
+        return {"configured": False}
+    from . import resource_budget as _budget
+
+    return _budget.budget_summary(root)

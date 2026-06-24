@@ -27,6 +27,26 @@ def test_orient_recommends_record_when_journal_empty(tmp_path):
     assert out["recommended_next_action"]["priority"] == "normal"
 
 
+def test_orient_reports_budget_not_configured(tmp_path):
+    daemon = Daemon.for_root(str(tmp_path))
+    out = orient.build_orientation(daemon)
+    assert out["budget"]["configured"] is False
+
+
+def test_orient_reports_declared_budget(tmp_path):
+    import yaml
+
+    (tmp_path / "inputs").mkdir(parents=True)
+    (tmp_path / "inputs" / "researcher_config.yaml").write_text(
+        yaml.safe_dump({"resource_budget": {"memory_mb": 8192, "cpu_seconds": 3600}})
+    )
+    daemon = Daemon.for_root(str(tmp_path))
+    out = orient.build_orientation(daemon)
+    assert out["budget"]["configured"] is True
+    assert out["budget"]["limits"]["address_space_mb"] == 8192
+    assert out["budget"]["limits"]["cpu_seconds"] == 3600
+
+
 def test_recommend_rebuild_when_stale():
     """Stale results dominate the recommendation, with the plan attached."""
     field = {"label": "chemistry"}
