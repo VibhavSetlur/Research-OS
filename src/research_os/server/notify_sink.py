@@ -27,37 +27,20 @@ _OUTBOX_SCHEMA = 1
 
 
 def _outbox_path(root: Path) -> Path:
-    return Path(root) / ".os_state" / "notifications" / "outbox.jsonl"
+    from . import daemon_bridge as _bridge
 
-
-def _daemon_descriptor_path(root: Path) -> Path:
-    return Path(root) / ".os_state" / "daemon.json"
+    return _bridge.state_path(root, _bridge.NOTIFICATIONS_OUTBOX)
 
 
 def _daemon_present(root: Path) -> bool:
     """True iff a daemon is running for this project (descriptor + live PID).
 
-    Mirrors server/consent.daemon_present — discovery by shape, no daemon
+    Delegates to the canonical daemon_bridge.daemon_present — no daemon
     import. Any error → False (degrade: the log-file path still runs).
     """
-    desc = _daemon_descriptor_path(root)
-    try:
-        if not desc.exists():
-            return False
-        data = json.loads(desc.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return False
-        pid = data.get("pid")
-        if not isinstance(pid, int):
-            return False
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except (OSError, ValueError):
-        return False
-    return True
+    from . import daemon_bridge as _bridge
+
+    return _bridge.daemon_present(root)
 
 
 def sink_notification(

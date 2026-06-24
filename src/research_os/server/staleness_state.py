@@ -43,11 +43,15 @@ _VERDICT_SCHEMA = 1
 
 def _verdict_path(root: Path) -> Path:
     """Path to the daemon-owned staleness verdict sidecar for this project."""
-    return Path(root) / ".os_state" / "staleness" / "verdict.json"
+    from . import daemon_bridge as _bridge
+
+    return _bridge.state_path(root, _bridge.STALENESS_VERDICT)
 
 
 def _runs_dir(root: Path) -> Path:
-    return Path(root) / ".os_state" / "runs"
+    from . import daemon_bridge as _bridge
+
+    return _bridge.state_path(root, _bridge.RUNS_DIR)
 
 
 def _parse_iso(ts: str) -> datetime | None:

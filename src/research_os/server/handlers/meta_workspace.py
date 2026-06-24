@@ -616,23 +616,14 @@ def _handle_sys_path(name, arguments, root):
 def _daemon_http_get(base_url, path, timeout):
     """GET base_url+path and return parsed JSON, or None on any failure.
 
-    Pure stdlib (urllib). Used to probe a running daemon's read-only HTTP
-    surface WITHOUT importing the daemon package — the MCP/reasoning layer
-    must never import research_os.daemon (preflight-enforced seam). The
-    daemon is treated as an opaque local HTTP service, exactly as an
-    external client would.
+    Thin wrapper over the canonical ``daemon_bridge.http_get`` (kept as a
+    local name so existing tests that monkeypatch ``mw._daemon_http_get``
+    keep working). Pure stdlib; the daemon is an opaque local HTTP service —
+    the reasoning layer never imports research_os.daemon.
     """
-    import json as _json
-    import urllib.request
+    from research_os.server import daemon_bridge as _bridge
 
-    url = base_url.rstrip("/") + path
-    try:
-        with urllib.request.urlopen(url, timeout=timeout) as resp:  # noqa: S310 - localhost only
-            if resp.status != 200:
-                return None
-            return _json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
+    return _bridge.http_get(base_url, path, timeout)
 
 
 def _handle_sys_daemon(name, arguments, root):

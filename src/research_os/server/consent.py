@@ -46,12 +46,16 @@ from pathlib import Path
 
 def _consent_path(root: Path) -> Path:
     """Path to the daemon-owned consent ledger for this project."""
-    return Path(root) / ".os_state" / "consent" / "granted.json"
+    from . import daemon_bridge as _bridge
+
+    return _bridge.state_path(root, _bridge.CONSENT_GRANTED)
 
 
 def _daemon_descriptor_path(root: Path) -> Path:
-    """Path to the daemon self-advertised descriptor (same as meta_workspace)."""
-    return Path(root) / ".os_state" / "daemon.json"
+    """Path to the daemon self-advertised descriptor (canonical: daemon_bridge)."""
+    from . import daemon_bridge as _bridge
+
+    return _bridge.descriptor_path(root)
 
 
 def _canonical_args(arguments: dict) -> dict:
@@ -88,37 +92,14 @@ def arg_fingerprint(tool_name: str, arguments: dict) -> str:
 def daemon_present(root: Path) -> bool:
     """True iff a daemon is running for this project (descriptor + live PID).
 
-    Mirrors the discovery-by-shape check in ``handlers/meta_workspace.py``:
-    read ``.os_state/daemon.json``, confirm the advertised PID is alive. No
-    import of the daemon package. Any error → False (degrade to today's
-    in-process behaviour, never block stdio-only users).
+    Delegates to the canonical ``daemon_bridge.daemon_present`` — one
+    definition of "is the daemon here?" shared across every reasoning-side
+    reader. No import of the daemon package. Any error → False (degrade to
+    today's in-process behaviour, never block stdio-only users).
     """
-    desc_path = _daemon_descriptor_path(root)
-    try:
-        if not desc_path.exists():
-            return False
-        desc = json.loads(desc_path.read_text(encoding="utf-8"))
-        if not isinstance(desc, dict):
-            return False
-    except (OSError, ValueError):
-        return False
+    from . import daemon_bridge as _bridge
 
-    pid = desc.get("pid")
-    if not isinstance(pid, int):
-        # A descriptor without a checkable PID is not trustworthy as
-        # "running" — fail toward degrade (no daemon enforcement).
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        # PID exists but is owned by another user — it IS a live process
-        # (POSIX kill(pid, 0) semantics), so the daemon is running.
-        return True
-    except OSError:
-        return False
-    return True
+    return _bridge.daemon_present(root)
 
 
 def _parse_iso(ts: str) -> datetime | None:
