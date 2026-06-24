@@ -233,6 +233,17 @@ runtime:
   long_running_threshold_seconds: 60
   compute_environment: ""        # e.g. "conda env: myproj" / "module load cuda/12" / "docker: myimg"
   package_manager: ""            # pip | conda | uv | poetry  (blank → AI infers)
+  # Resource budget — a ceiling the OPTIONAL daemon enforces on every run it
+  # launches (turns the autopilot "stay within budget" guidance into a real
+  # rlimit). Only used when a daemon is running; the stdio MCP path ignores
+  # it. Blank/0/null on a field = uncapped (the sandbox default applies).
+  # Especially useful on shared HPC where a runaway job hurts everyone.
+  resource_budget:
+    memory_mb:                   # RLIMIT_AS ceiling per run (e.g. 16384)
+    cpu_seconds:                 # RLIMIT_CPU ceiling per run (e.g. 7200)
+    wall_seconds:                # wallclock kill per run (e.g. 7200)
+    file_size_mb:                # RLIMIT_FSIZE ceiling (e.g. 51200)
+    open_files:                  # RLIMIT_NOFILE ceiling (e.g. 4096)
 
 # ── Figure defaults ────────────────────────────────────────────────────
 # What companions the AI ships with every figure. SVG companions double

@@ -79,7 +79,16 @@ def load_budget(root: str | Path) -> dict[str, Any]:
                 cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             except Exception:  # noqa: BLE001
                 return {}
-            block = (cfg.get("resource_budget") if isinstance(cfg, dict) else None)
+            block = None
+            if isinstance(cfg, dict):
+                # Documented home is runtime.resource_budget (it's a compute
+                # ceiling); also accept a top-level resource_budget for
+                # back-compat. The nested form wins when both are present.
+                rt = cfg.get("runtime")
+                if isinstance(rt, dict) and isinstance(rt.get("resource_budget"), dict):
+                    block = rt["resource_budget"]
+                elif isinstance(cfg.get("resource_budget"), dict):
+                    block = cfg["resource_budget"]
             break
     if not isinstance(block, dict):
         return {}

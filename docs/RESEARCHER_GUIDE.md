@@ -571,6 +571,14 @@ runtime:
   shared_server: false                  # true on HPC / shared boxes
                                         # — flips long_running default
   long_running_threshold_seconds: 60    # tool_task(operation='run') vs inline cutoff
+  resource_budget:                      # ceiling the OPTIONAL daemon enforces as a real
+                                        # rlimit on every run it launches (ignored on the
+                                        # stdio path). Blank/0 on a field = uncapped.
+    memory_mb:                          # RLIMIT_AS  (e.g. 16384) — esp. useful on shared HPC
+    cpu_seconds:                        # RLIMIT_CPU (e.g. 7200)
+    wall_seconds:                       # wallclock kill (e.g. 7200)
+    file_size_mb:                       # RLIMIT_FSIZE (e.g. 51200)
+    open_files:                         # RLIMIT_NOFILE (e.g. 4096)
   cluster_defaults:                     # SLURM defaults for tool_slurm_submit
     partition: ""                       # blank → no --partition flag
     time: "01:00:00"                    # wall clock per job

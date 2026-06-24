@@ -35,6 +35,24 @@ def test_no_budget_block_is_empty(tmp_path):
     assert rb.load_budget(tmp_path) == {}
 
 
+def test_nested_under_runtime_is_read(tmp_path):
+    """The DOCUMENTED home is runtime.resource_budget — must be read."""
+    (tmp_path / "inputs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "inputs" / "researcher_config.yaml").write_text(yaml.safe_dump({
+        "runtime": {"resource_budget": {"memory_mb": 4096}},
+    }))
+    assert rb.load_budget(tmp_path)["address_space_mb"] == 4096
+
+
+def test_nested_runtime_wins_over_top_level(tmp_path):
+    (tmp_path / "inputs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "inputs" / "researcher_config.yaml").write_text(yaml.safe_dump({
+        "resource_budget": {"memory_mb": 1024},
+        "runtime": {"resource_budget": {"memory_mb": 8192}},
+    }))
+    assert rb.load_budget(tmp_path)["address_space_mb"] == 8192
+
+
 def test_memory_mb_aliases_address_space(tmp_path):
     _write_cfg(tmp_path, {"memory_mb": 16384})
     b = rb.load_budget(tmp_path)
