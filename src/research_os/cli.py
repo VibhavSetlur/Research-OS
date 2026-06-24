@@ -628,6 +628,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     if sub == "stale":
         return _daemon_stale(daemon, args)
 
+    if sub == "notifications":
+        return _daemon_notifications(daemon, args)
+
     if sub == "rebuild":
         return _daemon_rebuild(daemon, args)
 
@@ -1124,6 +1127,50 @@ def _print_stale_rows(report, _stale, *, include_fresh: bool) -> None:
         if v["stale_ancestors"]:
             anc = ", ".join(a[:12] for a in v["stale_ancestors"])
             print(f"        ↑ depends on stale: {anc}")
+
+
+def _daemon_notifications(daemon, args) -> int:
+    """Show the notification outbox — what the daemon told the researcher.
+
+    The notification spine (docs/v4/NOTIFICATION_SPINE.md) records every
+    completion / page in .os_state/notifications/outbox.jsonl. This surfaces
+    it so a researcher can see what happened (and what delivery missed)
+    without tailing a file. --undelivered filters to records that did not
+    reach the configured channel.
+    """
+    from research_os.daemon import notifications as _ntfy
+
+    root = getattr(daemon, "root", None)
+    if not root:
+        print(f"  {_warn_glyph()}  No workspace resolved — no outbox to read.")
+        return 1
+    undelivered = getattr(args, "undelivered", False)
+    records = _ntfy.read_outbox(
+        root, undelivered_only=undelivered, limit=getattr(args, "limit", 100)
+    )
+    if getattr(args, "as_json", False):
+        print(json.dumps(records, indent=2, default=str))
+        return 0
+    if not records:
+        scope = "undelivered " if undelivered else ""
+        print(f"  no {scope}notifications recorded.")
+        return 0
+    _level_glyph = {"info": "·", "warn": "▲", "action_required": "!"}
+    print(f"  {len(records)} notification(s)"
+          + (" (undelivered only)" if undelivered else "") + ":")
+    for r in records:
+        g = _level_glyph.get(r.get("level", "info"), "·")
+        ts = (r.get("ts") or "")[:19].replace("T", " ")
+        delivered = r.get("delivered")
+        mark = "✓" if delivered else ("✗" if r.get("delivery", {}).get("attempted") else "·")
+        print(f"    {g} [{ts}] {mark} {r.get('title', '')}")
+        body = r.get("body", "")
+        if body and body != r.get("title"):
+            print(f"        {body}")
+        det = (r.get("delivery") or {}).get("detail")
+        if not delivered and det:
+            print(f"        delivery: {det}")
+    return 0
 
 
 def _daemon_rebuild(daemon, args) -> int:
@@ -2704,6 +2751,26 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Show fresh + unknown runs too (default: only stale).")
     pd_stale.add_argument("--json", dest="as_json", action="store_true",
                           help="Emit the full freshness assessment as JSON.")
+
+    # notifications: the spine outbox — what the daemon told the researcher.
+    pd_ntfy = daemon_sub.add_parser(
+        "notifications",
+        help="Show the notification outbox (job completions, gate pages) + delivery.",
+        description=(
+            "The notification spine records every completion / page the daemon\n"
+            "emitted, with whether delivery through the configured channel\n"
+            "succeeded. Use --undelivered to see only what did NOT reach you."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_ntfy.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_ntfy.add_argument("--undelivered", action="store_true",
+                         help="Only show notifications that did not reach the channel.")
+    pd_ntfy.add_argument("--limit", default=100, type=int,
+                         help="Max recent notifications to show.")
+    pd_ntfy.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit the outbox records as JSON.")
 
     # rebuild: re-run exactly the stale sub-DAG in dependency order.
     pd_rebuild = daemon_sub.add_parser(
