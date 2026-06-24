@@ -384,6 +384,18 @@ def build_app(daemon: "Daemon"):
             payload = caps.to_dict()
             payload["service"] = "research-os"
             payload["default_limits"] = _sb.ResourceLimits().to_dict()
+            # Surface the project's declared resource budget (if any) + the
+            # effective limits a run would actually get, so an agent can see
+            # the bound BEFORE submitting and cite it when paging.
+            from . import resource_budget as _budget
+
+            root_q = request.query_params.get("root")
+            root = root_q or getattr(daemon, "root", None)
+            if root:
+                payload["resource_budget"] = _budget.budget_summary(root)
+                payload["effective_limits"] = _budget.resolve_run_limits(
+                    root, base=_sb.ResourceLimits()
+                ).to_dict()
         except Exception as exc:  # noqa: BLE001 - detection must never 500
             return JSONResponse(
                 {"service": "research-os", "available": False, "error": str(exc)}

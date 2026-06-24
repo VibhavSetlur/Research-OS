@@ -252,7 +252,14 @@ class SubprocessRunner:
         from . import sandbox as _sb
 
         caps = _sb.detect_sandbox()
-        limits = self.sandbox_limits or _sb.ResourceLimits()
+        # Resolve the effective limits: an explicit per-run limit wins, then
+        # the project's declared resource_budget overlays any dimension it
+        # sets, then the sandbox default backs the rest. Turns the autopilot
+        # protocol's "stay within budget" prose into an enforced rlimit.
+        from . import resource_budget as _budget
+
+        budget_root = self.cwd or "."
+        limits = _budget.resolve_run_limits(budget_root, base=self.sandbox_limits)
         effective = caps.resolve_tier(self.sandbox)
 
         if effective == "none":
