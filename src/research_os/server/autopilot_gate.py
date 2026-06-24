@@ -91,7 +91,11 @@ def _resolved_strictness(root: Path) -> str:
 
 
 # Tools that ALWAYS require confirmation in autopilot mode, regardless
-# of arguments.
+# of arguments. LEGACY fail-safe table — used only when the compiled
+# _gate_meta.json sidecar is missing/garbage (see gate_spec). The live
+# source of truth is guidance/autopilot.yaml's `enforcement.gates`, which
+# compiles into the sidecar and is what _requires_confirmation /
+# _gate_key / _GATE_FLOOR consult first.
 _ALWAYS_GATED: set[str] = {
     "tool_package_install",
     "sys_checkpoint_rollback",
@@ -103,6 +107,10 @@ _ALWAYS_GATED: set[str] = {
 # gates; ``normal`` adds the reversible-but-weighty ones; ``strict`` is the
 # full autopilot set.
 #
+# LEGACY fail-safe mirror of the declared gates. Kept so the engine never
+# loses its floor if the compiled sidecar is absent. The live values come
+# from gate_spec.declared_floor_map() (sourced from autopilot.yaml).
+#
 # Classification rationale:
 #   light  → irreversible OR spends real money (can't be undone / costs $):
 #            package_install, rollback, path abandon, paid tools.
@@ -110,7 +118,7 @@ _ALWAYS_GATED: set[str] = {
 #            (expensive, but re-runnable).
 #   strict → + synthesis force-overwrite (auto-archived, fully reversible)
 #            + long background tasks (killable) = every gate.
-_GATE_FLOOR: dict[str, str] = {
+_LEGACY_GATE_FLOOR: dict[str, str] = {
     "tool_package_install": "light",
     "sys_checkpoint_rollback": "light",
     "sys_path:abandon": "light",
@@ -124,12 +132,51 @@ _GATE_FLOOR: dict[str, str] = {
 _STRICTNESS_RANK = {"light": 0, "normal": 1, "strict": 2}
 
 
+def _declared_gates() -> list:
+    """Load the compiled declared gates (cached in gate_spec). May be []."""
+    from .gate_spec import _load_gate_meta
+
+    return _load_gate_meta()
+
+
+def _GATE_FLOOR_resolved() -> dict[str, str]:
+    """key → floor from the compiled sidecar, or the legacy table if empty.
+
+    Fail-safe: an absent/garbage sidecar yields the built-in legacy floors
+    so the engine keeps enforcing exactly today's set.
+    """
+    from .gate_spec import declared_floor_map
+
+    declared = declared_floor_map(_declared_gates())
+    return declared or dict(_LEGACY_GATE_FLOOR)
+
+
+# Back-compat module attribute: some callers/tests read _GATE_FLOOR
+# directly. Resolve it once at import from the compiled sidecar (falling
+# back to legacy). This is a snapshot; the live decision path uses
+# _GATE_FLOOR_resolved() so a rebuilt sidecar is picked up on reload.
+_GATE_FLOOR: dict[str, str] = _GATE_FLOOR_resolved()
+
+
 def _gate_key(tool_name: str, arguments: dict) -> str | None:
     """Return the canonical gate key for this (tool, args) combo, or None.
 
-    The key is what ``_GATE_FLOOR`` is indexed by; it lets adaptive mode
-    decide per-gate whether the current strictness clears the floor.
+    The key is what the adaptive-floor logic is indexed by. Resolves from
+    the compiled declared gates (the live source of truth); if the sidecar
+    is empty, falls back to the legacy hand-coded matcher so the floor is
+    never lost.
     """
+    from .gate_spec import resolve_declared_gate
+
+    gates = _declared_gates()
+    if gates:
+        g = resolve_declared_gate(tool_name, arguments or {}, None, gates=gates)
+        return g["key"] if g else None
+    return _legacy_gate_key(tool_name, arguments)
+
+
+def _legacy_gate_key(tool_name: str, arguments: dict) -> str | None:
+    """Fail-safe hand-coded gate-key matcher (sidecar-absent fallback)."""
     args = arguments or {}
     if tool_name == "tool_package_install":
         return "tool_package_install"
@@ -194,6 +241,24 @@ def _is_synthesis_force_write(args: dict, root: Path | None) -> bool:
 def _requires_confirmation(tool_name: str, arguments: dict,
                            root: Path | None = None) -> bool:
     """Decide whether this (tool_name, arguments) combo is a floor gate.
+
+    Resolves from the compiled declared gates (the live source of truth in
+    guidance/autopilot.yaml's enforcement block, evaluated with ``root`` so
+    the synthesis-force existence check works). Falls back to the legacy
+    hand-coded matcher only when the compiled sidecar is absent, so the
+    floor is never lost.
+    """
+    from .gate_spec import resolve_declared_gate
+
+    gates = _declared_gates()
+    if gates:
+        return resolve_declared_gate(tool_name, arguments or {}, root, gates=gates) is not None
+    return _legacy_requires_confirmation(tool_name, arguments, root)
+
+
+def _legacy_requires_confirmation(tool_name: str, arguments: dict,
+                                  root: Path | None = None) -> bool:
+    """Fail-safe hand-coded gate matcher (sidecar-absent fallback).
 
     Returns ``True`` only for the combinations enumerated in
     ``guidance/autopilot.yaml`` step ``mandatory_gates``. (autopilot-static

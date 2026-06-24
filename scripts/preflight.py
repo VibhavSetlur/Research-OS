@@ -848,6 +848,92 @@ def check_route_meta():
     )
 
 
+def check_gate_meta():
+    """The compiled floor-gate sidecar must be fresh + agree with the engine.
+
+    The HYBRID layer (docs/v4/HYBRID_ARCHITECTURE.md): protocols declare
+    their hard floor gates in ``enforcement.gates``; the build compiles them
+    into ``protocols/_gate_meta.json``, which the engine
+    (server/gate_spec.py + autopilot_gate.py) reads to decide which actions
+    are floor gates. A stale or inconsistent sidecar = the engine enforces a
+    different floor than the protocol declares (silent corner-cutting OR a
+    surprise gate). This check makes that impossible to merge.
+
+    Asserts:
+      1. _gate_meta.json exists and is fresh (re-derive + compare hash).
+      2. Every declared gate key resolves through autopilot_gate to the
+         SAME floor (declaration ⇆ engine agree).
+      3. The legacy fail-safe table covers exactly the declared gate keys
+         with the same floors (so the sidecar-absent fallback can't enforce
+         a different floor than the live declaration).
+
+    Fix when this fails:
+        python scripts/build_gate_meta.py
+    """
+    import json as _json
+
+    gate_meta = PROTOCOLS_DIR / "_gate_meta.json"
+    if not gate_meta.exists():
+        return False, "missing _gate_meta.json — run python scripts/build_gate_meta.py"
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        bgm = __import__("build_gate_meta")
+    except Exception as exc:  # noqa: BLE001
+        return False, f"failed to import scripts/build_gate_meta.py: {exc}"
+    try:
+        on_disk = _json.loads(gate_meta.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not parse _gate_meta.json: {exc}"
+    try:
+        fresh = bgm.build_gate_meta()
+    except SystemExit as exc:
+        return False, f"gate-meta build error: {exc}"
+    if on_disk.get("source_hash") != fresh.get("source_hash"):
+        return False, (
+            "STALE — recompile: python scripts/build_gate_meta.py "
+            f"(on-disk={str(on_disk.get('source_hash'))[:12]}…, "
+            f"now={str(fresh.get('source_hash'))[:12]}…)"
+        )
+
+    bad: list[str] = []
+    # 2. declaration ⇆ engine floor agreement.
+    try:
+        from research_os.server import autopilot_gate as ag
+
+        engine_floor = ag._GATE_FLOOR_resolved()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not load autopilot_gate floor map: {exc}"
+    declared = {g["key"]: g["floor"] for g in fresh.get("gates", [])}
+    for key, floor in declared.items():
+        if engine_floor.get(key) != floor:
+            bad.append(
+                f"gate {key!r}: declared floor {floor!r} != engine "
+                f"{engine_floor.get(key)!r}"
+            )
+    # 3. legacy fallback covers the same keys + floors (so the safe
+    #    fallback can never enforce a DIFFERENT floor than the declaration).
+    legacy = getattr(ag, "_LEGACY_GATE_FLOOR", {})
+    if set(legacy) != set(declared):
+        only_legacy = sorted(set(legacy) - set(declared))
+        only_decl = sorted(set(declared) - set(legacy))
+        bad.append(
+            f"legacy fallback keys differ from declared "
+            f"(legacy-only={only_legacy[:3]}, declared-only={only_decl[:3]})"
+        )
+    else:
+        for key, floor in declared.items():
+            if legacy.get(key) != floor:
+                bad.append(
+                    f"gate {key!r}: declared {floor!r} != legacy fallback "
+                    f"{legacy.get(key)!r}"
+                )
+    return (not bad), (
+        f"{len(declared)} declared gate(s) fresh; engine + legacy agree"
+        if not bad
+        else "; ".join(bad[:3])
+    )
+
+
 def check_routing_targets_resolve():
     """Every next_protocol / on_failure / see_also target must be a real protocol.
 
@@ -1386,6 +1472,7 @@ def main() -> int:
     tally.check("Routing targets resolve (next_protocol/on_failure/see_also)", check_routing_targets_resolve)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
+    tally.check("Compiled floor-gate sidecar (_gate_meta.json) fresh + engine agrees", check_gate_meta)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
     tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)

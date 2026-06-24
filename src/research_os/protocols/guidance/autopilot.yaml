@@ -25,6 +25,71 @@ prerequisites:
   - inputs/intake.md exists (researcher won't be available to fix gaps)
   - research_overview.md is non-placeholder
 
+# Machine-readable mirror of the `mandatory_gates` step below. The engine
+# (server/gate_spec.py + autopilot_gate.py) compiles this block into
+# protocols/_gate_meta.json and enforces it; the prose in
+# `mandatory_gates` is the human-readable rationale. This block is the
+# single source of truth for WHICH actions are floor gates and at which
+# adaptive-strictness floor each fires (light ⊂ normal ⊂ strict). Keep the
+# two in sync — preflight (check_gate_meta) fails the build if the
+# compiled gates and the engine's resolution disagree. `floor` semantics:
+#   light  → irreversible OR spends real money (fires at every strictness)
+#   normal → expensive but re-runnable (fires at normal + strict)
+#   strict → reversible-but-weighty (fires only at strict / autopilot)
+enforcement:
+  gates:
+    - key: tool_package_install
+      tool: tool_package_install
+      when: {}
+      floor: light
+      reason: installs mutate the environment irreversibly
+    - key: sys_checkpoint_rollback
+      tool: sys_checkpoint_rollback
+      when: {}
+      floor: light
+      reason: workspace mutation, reversible only by another rollback
+    - key: sys_path:abandon
+      tool: sys_path
+      when:
+        operation: abandon
+      floor: light
+      reason: dead-end declarations are loud and semantically irreversible
+    - key: tool_research_tool:paid
+      tool: tool_research_tool
+      when:
+        any_of:
+          - source: [paid, paid_or_licensed]
+          - paid: {truthy: true}
+      floor: light
+      reason: paid / licensed candidates spend real money
+    - key: tool_typst_compile
+      tool: tool_typst_compile
+      when: {}
+      floor: normal
+      reason: compiling the final deliverable makes the artefact shareable
+    - key: tool_audit:reproducibility
+      tool: tool_audit
+      when:
+        scope: step
+        dimension: reproducibility
+      floor: normal
+      reason: reproducibility audits are slow and expensive
+    - key: sys_file_write:synthesis_force
+      tool: sys_file_write
+      when:
+        synthesis_force:
+          path_prefix: synthesis/
+          exists: true
+          when_arg: force
+      floor: strict
+      reason: force-overwriting existing synthesis content (auto-archived)
+    - key: tool_task:run
+      tool: tool_task
+      when:
+        operation: run
+      floor: strict
+      reason: long-running background jobs spend compute (but are killable)
+
 steps:
   - id: declare_scope
     name: Declare Scope + End Condition
