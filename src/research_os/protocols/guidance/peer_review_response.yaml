@@ -32,6 +32,15 @@ prerequisites:
   - synthesis/paper.md exists (the paper that was reviewed).
   - The reviewer report text is available (paste, file, or PDF).
 
+# Machine-checkable subset (precondition gate). The reviewer-report
+# availability stays prose — it can arrive by paste, so it isn't a file
+# the verifier can check.
+requires:
+  checks:
+    - kind: file_exists
+      path: synthesis/paper.md
+      because: a response addresses comments on a written paper
+
 editorial_voice:
   mode: hybrid
   rules:

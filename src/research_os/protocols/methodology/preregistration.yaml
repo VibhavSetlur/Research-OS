@@ -35,6 +35,16 @@ prerequisites:
   - At least one hypothesis has been registered via mem_hypothesis_add
   - inputs/researcher_config.yaml has the research question + design
 
+# Machine-checkable subset (precondition gate). "Substantive entry" and
+# the hypothesis registration stay prose (substance is the AI's call);
+# the methods file existing is checkable.
+requires:
+  checks:
+    - kind: file_exists
+      path: workspace/methods.md
+      non_empty: true
+      because: a preregistration freezes the methods that must already exist
+
 editorial_voice:
   rules:
     - "Confirmatory ≠ exploratory. Use mem_hypothesis_add kind='confirmatory'

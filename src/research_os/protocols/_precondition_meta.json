@@ -1,5 +1,30 @@
 {
   "protocols": {
+    "audit/audit_and_validation": [
+      {
+        "because": "the audit validates recorded step conclusions",
+        "kind": "glob_min",
+        "min": 1,
+        "pattern": "workspace/**/conclusions.md"
+      },
+      {
+        "because": "the audit checks claims against gathered citations",
+        "kind": "file_exists",
+        "path": "workspace/citations.md"
+      }
+    ],
+    "audit/pre_submission_checklist": [
+      {
+        "because": "the pre-submission checklist reviews a written paper",
+        "kind": "file_exists",
+        "path": "synthesis/paper.md"
+      },
+      {
+        "because": "the checklist builds on the prior quality audit's report",
+        "kind": "file_exists",
+        "path": "workspace/logs/audit_report.md"
+      }
+    ],
     "guidance/analysis_plan": [
       {
         "because": "the analysis plan builds each step on recorded methods",
@@ -12,8 +37,30 @@
         "kind": "file_exists",
         "path": "workspace/citations.md"
       }
+    ],
+    "guidance/peer_review_response": [
+      {
+        "because": "a response addresses comments on a written paper",
+        "kind": "file_exists",
+        "path": "synthesis/paper.md"
+      }
+    ],
+    "guidance/revise_and_resubmit": [
+      {
+        "because": "a revision rewrites the submitted manuscript",
+        "kind": "file_exists",
+        "path": "synthesis/paper.md"
+      }
+    ],
+    "methodology/preregistration": [
+      {
+        "because": "a preregistration freezes the methods that must already exist",
+        "kind": "file_exists",
+        "non_empty": true,
+        "path": "workspace/methods.md"
+      }
     ]
   },
   "schema": 1,
-  "source_hash": "81b7361b0239e3b3aae9e204a9dcb534592c96e33ca69b8544b176d9038aad50"
+  "source_hash": "5e062e9b597d7f92c4f4fd1ca235a2a2976d91517b3118811371dee17f2a21d8"
 }

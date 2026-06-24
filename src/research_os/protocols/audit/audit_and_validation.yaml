@@ -34,6 +34,17 @@ prerequisites:
   - At least one workspace/<step>/conclusions.md exists
   - workspace/citations.md exists
 
+# Machine-checkable subset (precondition gate), surfaced on protocol load.
+requires:
+  checks:
+    - kind: glob_min
+      pattern: workspace/**/conclusions.md
+      min: 1
+      because: the audit validates recorded step conclusions
+    - kind: file_exists
+      path: workspace/citations.md
+      because: the audit checks claims against gathered citations
+
 steps:
   - id: audit_master
     name: Master Quality Audit — one call, every gate (PREFERRED)

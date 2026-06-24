@@ -44,6 +44,18 @@ prerequisites:
   - audit/audit_and_validation has run (workspace/logs/audit_report.md
     exists).
 
+# Machine-checkable subset of the prose prerequisites (precondition gate):
+# verified by server/preconditions.py, surfaced on protocol load. Prose
+# keeps any fuzzy judgement; these are pure existence/completion facts.
+requires:
+  checks:
+    - kind: file_exists
+      path: synthesis/paper.md
+      because: the pre-submission checklist reviews a written paper
+    - kind: file_exists
+      path: workspace/logs/audit_report.md
+      because: the checklist builds on the prior quality audit's report
+
 editorial_voice:
   mode: prescription
   rules:
