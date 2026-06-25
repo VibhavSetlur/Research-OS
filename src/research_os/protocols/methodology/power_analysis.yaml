@@ -1,7 +1,7 @@
 id: power_analysis
 tier: 'plan'
 name: Power Analysis / Sample Size Justification (standalone)
-version: '3.0.0'
+version: '3.0.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -160,8 +160,9 @@ steps:
 
         - effect size: low / planned / high (the planned value plus
           a range that brackets the assumption uncertainty)
-        - alpha: typically 0.05; include 0.025 / 0.01 when the
-          field uses them
+        - alpha: the significance level the field / regulator requires for
+          this design — cite it; sweep the stricter levels the audience
+          expects rather than assuming a single conventional value
         - allocation ratio (for two-group): 1:1 + the unequal ratio
           when that's a real constraint
         - attrition: 0% / planned / pessimistic

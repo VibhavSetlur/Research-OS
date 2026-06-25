@@ -1,7 +1,7 @@
 id: missing_data_strategy
 tier: 'plan'
 name: Missing-Data Strategy (MCAR/MAR/MNAR → handling → sensitivity)
-version: '3.5.0'
+version: '3.5.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -265,8 +265,11 @@ steps:
     name: Append to methods.md + conclusions.md
     description: |
       mem_log:
-        method="<primary handling, e.g. MICE-IterativeImputer m=20>"
-        parameters="m=20; auxiliaries=[<list>]; max_iter=10; ..."
+        method="<primary handling, e.g. multiple imputation by chained
+                 equations — name the imputation model>"
+        parameters="m=<number of imputations, justified from the FMI per
+                     the cited rule>; auxiliaries=[<list>];
+                     <other params, each with its justification>"
         justification="<mechanism claim with cited evidence>"
         assumptions=["MAR conditional on <auxiliary set>"]
 
