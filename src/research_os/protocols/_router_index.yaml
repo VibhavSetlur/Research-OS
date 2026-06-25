@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 40
+version: 41
 generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -385,6 +385,34 @@ protocols:
         purpose: "Infer domain + question + hypotheses from inputs."
       - tool: sys_state_get
         purpose: "Confirm registered hypotheses + new docs."
+
+  guidance/agent_setup:
+    intent_class: discover
+    sub_intent: intake
+    summary: "Architect the AI agent layer above RO for THIS project: pick a self-improving, project-aware layer (Hermes ref), wire RO in, tailor + align skills with protocols."
+    triggers:
+      - "set up my ai for this"
+      - "set up my agent"
+      - "configure my agent"
+      - "how should i configure my agent"
+      - "best setup for research"
+      - "best ai setup"
+      - "optimize my agent"
+      - "optimise my agent"
+      - "make my ai better at my project"
+      - "should i use hermes"
+      - "should i use claude code"
+      - "wire up the ai"
+      - "wire up hermes"
+      - "set up hermes"
+      - "how do i get the most out of this"
+      - "improve my ai setup"
+    token_estimate: 1400
+    decomposition:
+      - protocol: guidance/agent_setup
+        purpose: "Assess current setup, name needed capabilities, wire RO into the chosen layer, tailor researcher_config, align skills with protocols."
+      - tool: sys_config
+        purpose: "Record the model class + project knobs the agent reads every session."
 
   guidance/analysis_plan:
     intent_class: execute

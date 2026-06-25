@@ -1,0 +1,195 @@
+id: agent_setup
+tier: 'intake'
+name: Agent Setup (architect the AI layer above Research-OS for THIS project)
+version: '3.12.0'
+schema_version: '2.0'
+scope_tags:
+  domain: [any]
+  audience: [researcher, naive_ai]
+  workflow_shape: [any]
+last_reviewed: '2026-06-24'
+see_also:
+  - guidance/project_startup       # the project intake this complements (setup vs content)
+  - writing/voice_calibration      # one concrete way the agent learns the researcher
+description: |
+  Research-OS is the GUIDANCE + enforcement + provenance layer for a
+  research project; it deliberately does not try to be the agent, the model,
+  or the editor. The best research setup pairs RO with a capable AI agent
+  layer ABOVE it — one that is tailored to the researcher's project, learns
+  over time, and stays aligned with RO's protocols. This protocol scaffolds
+  the decisions that produce that setup, so the researcher's AI is optimized
+  for their actual work instead of generic.
+
+  The architecture this guides toward (intent, not mandate):
+
+    researcher ── AI agent layer (self-improving, project-aware)
+                     │  drives, and learns the researcher + the project
+                     ▼
+                 Research-OS (MCP: protocols · gates · ledger · synthesis)
+                     │  guides reasoning, enforces rigor, records provenance
+                     ▼
+                 the project workspace (inputs · workspace · synthesis)
+
+  Why a self-improving agent layer on top matters: a plain coding agent
+  (whatever model) restarts cold every session and re-derives the same
+  context. An agent layer with persistent memory + a skill ecosystem learns
+  the researcher's conventions, accumulates domain skills, and gets better at
+  THIS project over time — while RO keeps the science rigorous and
+  reproducible underneath. Hermes (the Nous Research agent,
+  https://hermes-agent.nousresearch.com) is the reference implementation and
+  the smoothest fit (RO ships a first-class Hermes integration), but the
+  PRINCIPLES below apply to any agent layer the researcher prefers — the goal
+  is the capability set, not a specific product.
+
+  This is a SCAFFOLD. It names the capabilities a good research agent layer
+  should have and how to align it with RO; it does not force one tool. Pick
+  the layer that gives the researcher the capabilities, then wire RO in.
+
+trigger: |
+  Researcher says any of: "set up my AI for this", "how should I configure my
+  agent", "what's the best setup for research", "optimize my agent", "should I
+  use Hermes / Claude Code / Cursor", "make my AI better at my project", "wire
+  up the AI layer", "how do I get the most out of this". Also offered at the
+  end of `research-os init` and from project_startup when no agent layer is
+  wired yet.
+
+prerequisites:
+  - A Research-OS workspace exists (inputs/researcher_config.yaml present), or
+    the researcher is about to create one.
+
+steps:
+  - id: assess_current_setup
+    name: Assess what the researcher already runs
+    description: |
+      Find out what's already in place before recommending anything — the
+      best setup builds on the researcher's habits, it doesn't replace them
+      wholesale. Establish:
+        - which AI client/IDE they use today (Claude Code, Cursor, Codex,
+          Antigravity, Windsurf, a chat app, a bare API), and on what model
+          class — this maps to researcher_config model_profile.
+        - whether they have any agent layer with PERSISTENT memory + a skill
+          system, or just a stateless coding assistant.
+        - whether Research-OS is wired into that client yet (for an MCP-capable
+          client, is the RO server connected?).
+      Record the model class in researcher_config (model_profile) so RO sizes
+      its protocol loads + step batching to the model.
+
+  - id: name_the_capabilities
+    name: Name the capabilities a research agent layer should have
+    description: |
+      The setup is good to the extent the agent layer can do these — reason
+      over them against whatever the researcher uses, and note the gaps:
+        - PERSISTENT MEMORY across sessions, so the agent doesn't re-learn the
+          researcher's conventions every time.
+        - A SKILL ECOSYSTEM the agent can pull from on demand (domain skills,
+          tool wrappers) and ADD to as it learns — ideally gateway-style
+          (index huge external skill libraries, fetch what's needed) rather
+          than bundling everything.
+        - MCP support, so Research-OS (and other servers) plug in as tools.
+        - SELF-IMPROVEMENT: a loop that turns recurring lessons into reusable
+          skills, so the setup compounds.
+        - The ability to run ABOVE whatever model the researcher wants, so
+          they're not locked to one provider.
+      Hermes provides all of these; if the researcher uses something else,
+      name which capabilities it has and which it lacks — the lacks are where
+      RO's own mechanisms (its skill registry, agent_notes, protocols) carry
+      more of the load.
+
+  - id: choose_and_wire_the_layer
+    name: Choose the agent layer and wire Research-OS into it
+    description: |
+      Recommend the layer that gives the most of the capabilities above for
+      the researcher's constraints (offer Hermes as the reference fit, but
+      respect a strong existing preference). Then connect RO:
+        - HERMES: run `research-os hermes add` — it registers the RO MCP
+          server + installs the RO skill into ~/.hermes/config.yaml
+          (non-destructive, idempotent), so every RO tool + the workflow
+          guidance is available. Confirm with `research-os hermes status`,
+          then restart Hermes. If Hermes isn't installed yet, point the
+          researcher to https://hermes-agent.nousresearch.com to install it.
+        - ANOTHER MCP CLIENT (Claude Code / Cursor / Antigravity / Windsurf):
+          wire the RO server with `research-os ide add <name>` (drops the
+          per-IDE rules + MCP config). Only wire the IDE(s) actually used.
+        - A NON-MCP / chat-only setup: the researcher drives RO via the
+          `research-os` CLI; RO's guidance still applies, the agent just can't
+          call RO tools directly. Recommend moving to an MCP-capable layer
+          when feasible.
+      Wire ONLY what the researcher uses — extra IDE configs are clutter.
+
+  - id: tailor_to_the_project
+    name: Tailor the agent layer to THIS project
+    description: |
+      A generic agent is worse than a tailored one. Set the project-shaping
+      knobs so the agent behaves correctly for this work (all in
+      researcher_config, read every session via sys_boot):
+        - model_profile — match the model class (sizes protocol loads + how
+          many steps per turn).
+        - autonomy_level — adaptive by default; only override if the
+          researcher wants a fixed posture.
+        - research_goal.output_types + target_venue — so synthesis builds the
+          right deliverables and nothing they didn't ask for.
+        - runtime.compute_environment + shared_server — so runs + scheduling
+          decisions are right (especially on shared HPC).
+        - interaction.agent_notes — seed any standing project preferences the
+          agent should obey, and record new ones via sys_config(operation=
+          'note') as the researcher corrects the agent (the learn-the-user
+          loop).
+      Where the agent layer has its own memory (e.g. Hermes), the durable,
+      cross-project facts live there; the project-specific contract lives in
+      researcher_config. Keep both in sync.
+
+  - id: align_skills_with_protocols
+    name: Align the skill ecosystem with Research-OS protocols
+    description: |
+      The agent's skills and RO's protocols are complementary, not rivals:
+        - PROTOCOLS (RO) scaffold the REASONING — what questions to ask, what
+          to ground, what to record. They are the rigor layer.
+        - SKILLS (the agent layer) carry HOW-TO for specific tools, domains,
+          and tasks — fetched on demand, accumulated over time.
+      Make them reinforce each other:
+        - When a domain skill exists for the researcher's field (e.g. a
+          bioinformatics / drug-discovery / domain-intel skill library), pull
+          it in for the tool-level know-how, and let RO protocols govern the
+          method choice + grounding + reproducibility around it. The skill
+          says HOW to run the tool; the protocol says WHETHER it's the right
+          method and demands the evidence.
+        - Run RO's self-improving skill registry after milestones (distill the
+          project's lessons into reusable SKILL.md cards, promote the durable
+          ones to the cross-project profile) so the setup compounds and the
+          agent gets better at the researcher's work over time. Distilled
+          cards are Hermes-format, so they install into the agent layer
+          verbatim.
+      The throughline: the agent layer + its skills make the setup capable and
+      self-improving; RO's protocols keep it rigorous and reproducible. Best
+      research happens when both are on.
+
+  - id: verify_and_record
+    name: Verify the setup works end to end + record it
+    description: |
+      Confirm the loop is live: the agent can route a request through RO
+      (tool_route), read project state (sys_boot), and the workspace contract
+      is respected. For an MCP setup, a single round-trip — route an ask, load
+      the recommended protocol summary — proves the wiring. Record the chosen
+      setup (agent layer, wired clients, model_profile) so a future session or
+      collaborator can reproduce it; note any capability gaps the researcher
+      accepted so expectations are set.
+
+expected_outputs:
+  - researcher_config.yaml reflecting the model class + project knobs
+  - a wired agent layer (RO MCP server connected, or the CLI path documented)
+
+quality_bar: |
+  - Only the agent layer(s) / IDE(s) the researcher actually uses are wired —
+    no clutter.
+  - The agent layer's capabilities (memory, skills, MCP, self-improvement) are
+    named, with gaps made explicit.
+  - researcher_config is tailored to the project (model_profile, output_types,
+    compute env, agent_notes), not left at defaults.
+  - Skills and protocols are aligned: skills carry tool/domain how-to,
+    protocols govern method choice + grounding + reproducibility.
+  - The setup is verified with a live RO round-trip and recorded so it's
+    reproducible.
+
+next_protocol: guidance/project_startup
+next_protocol_kind: forward_default
+on_failure: guidance/scope_clarification

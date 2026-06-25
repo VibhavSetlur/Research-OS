@@ -285,6 +285,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         detected_inputs=raw_data_sources,
         workspace_mode=getattr(args, "workspace_mode", None) or "analysis",
         mcp_scope=getattr(args, "mcp_scope", None) or "workspace",
+        wire_hermes=bool(getattr(args, "hermes", None)),
     )
     _execute(result, run_preflight_repo=args.preflight, quiet_banner=True)
 
@@ -443,6 +444,26 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     # 9. Optional: kick off the MCP server in the background.
     if r.start_server:
         _try_start_server(target_dir)
+
+    # 10. Optional: wire Research-OS into Hermes (the self-improving agent
+    # layer). Registers the RO MCP server + skill in ~/.hermes/config.yaml,
+    # non-destructively and idempotently. Best-effort: a failure here never
+    # aborts a successful scaffold.
+    if getattr(r, "wire_hermes", False):
+        try:
+            from research_os import hermes_integration as _hi
+
+            summary = _hi.add()
+            wizard.ok(
+                "Hermes wired",
+                f"server '{summary['server_key']}' {summary['server_action']} "
+                f"in {summary['config_path']} — restart Hermes to load it.",
+            )
+        except Exception as exc:  # noqa: BLE001 - never abort scaffold on this
+            wizard.warn(
+                "Hermes wiring skipped",
+                f"{exc}. Run `research-os hermes add` manually when ready.",
+            )
 
     # NOTE: `CONTRIBUTORS.md` is not created automatically at init time.
     # It only gets written when an action explicitly logs to it (e.g.
@@ -2467,6 +2488,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # Attach argcomplete completer hook (no-op when argcomplete absent).
     _ide_arg.completer = lambda **kw: list(IDE_CHOICES_FOR_COMPLETION)
+    p_init.add_argument(
+        "--hermes", dest="hermes", action="store_true", default=None,
+        help="Wire Research-OS into Hermes (the self-improving agent layer) "
+             "after scaffolding: registers the RO MCP server + skill in "
+             "~/.hermes/config.yaml. Default: ask in the wizard.",
+    )
+    p_init.add_argument(
+        "--no-hermes", dest="hermes", action="store_false",
+        help="Skip wiring Research-OS into Hermes during init.",
+    )
     p_init.add_argument("--force", action="store_true",
                         help="Re-scaffold even if the workspace already exists.")
     p_init.add_argument("-y", "--yes", action="store_true",
