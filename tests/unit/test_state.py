@@ -436,3 +436,46 @@ def test_numbered_experiments_auto_increment(tmp_path):
     r2 = create_numbered_experiment(tmp_path, "second", enforce_predecessor_finalized=False)
     assert r1["path_id"].startswith("01_")
     assert r2["path_id"].startswith("02_")
+
+
+def test_sys_boot_surfaces_in_flight_roadmap(tmp_path):
+    """C2/M3: a mid-roadmap /compact must surface the roadmap + re-enter advice,
+    not route the AI back to the linear pipeline."""
+    from research_os.tools.actions.state import init_config
+    from research_os.tools.actions.router import sys_boot
+    from research_os.tools.actions.protocol import log_protocol_execution
+
+    scaffold_minimal_workspace(tmp_path, "Roadmap")
+    init_config(tmp_path)
+    (tmp_path / "inputs").mkdir(exist_ok=True)
+    (tmp_path / "inputs" / "research_plan.md").write_text("# Roadmap\n1. a\n2. b\n")
+    log_protocol_execution(tmp_path, "guidance/roadmap_execution", "started")
+
+    b = sys_boot(tmp_path)
+    assert b["roadmap"]["present"] is True
+    assert b["roadmap"]["in_progress"] is True
+    assert b["pause_classification"] == "mid_roadmap"
+    assert "roadmap" in b["advice"].lower()
+
+
+def test_sys_boot_advice_leads_with_daemon_block(tmp_path):
+    """H1: a daemon BLOCK-level finding must lead the advice line."""
+    import json
+    from research_os.tools.actions.state import init_config
+    from research_os.tools.actions.router import sys_boot
+
+    scaffold_minimal_workspace(tmp_path, "Blocked")
+    init_config(tmp_path)
+    notes = {
+        "schema": 1, "ok": False,
+        "counts": {"block": 1, "warn": 0, "info": 0},
+        "findings": [{"severity": "block", "source": "structure",
+                      "message": "missing core dir"}],
+    }
+    (tmp_path / ".os_state").mkdir(exist_ok=True)
+    (tmp_path / ".os_state" / "daemon_notes.json").write_text(json.dumps(notes))
+
+    b = sys_boot(tmp_path)
+    assert "BLOCK" in b["advice"]
+    assert "tool_structure_audit" in b["advice"] or "tool_workspace_repair" in b["advice"]
+

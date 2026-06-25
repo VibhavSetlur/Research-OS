@@ -995,6 +995,12 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
 
         _mode_info = _boot_mode_info(root)
 
+        # Compute these ONCE so both the boot payload and the advice line agree.
+        # (C2) the durable roadmap — an in-flight autonomous loop the AI must
+        # re-enter after a /compact; (H1) daemon block escalation.
+        _daemon_notes = _boot_daemon_notes(root)
+        _roadmap = _boot_roadmap(root, entries)
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -1040,7 +1046,7 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             # problems / interrupted runs / unframed intake it noticed and
             # wrote to .os_state/daemon_notes.json. Read by-shape (no daemon
             # import). The AI should ACT on any block/warn here before building.
-            "daemon_notes": _boot_daemon_notes(root),
+            "daemon_notes": _daemon_notes,
             # The behavioural contract from researcher_config, surfaced
             # compactly so the AI FOLLOWS it every session AND keeps it in
             # sync (a secondary AGENTS.md). See config_reconcile_hint.
@@ -1069,7 +1075,11 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             # governs the research in workspace/ AND the code via tool_git /
             # tool_build on the inner repo.
             "software_components": _boot_software_components(root),
-            "advice": _boot_advice(pause, active_plan, state, cfg),
+            # (C2) durable roadmap pointer — surfaced so an autonomous loop
+            # survives a /compact and the AI re-enters it instead of the linear
+            # pipeline.
+            "roadmap": _roadmap,
+            "advice": _boot_advice(pause, active_plan, state, cfg, _daemon_notes, _roadmap),
         }
     except Exception as e:
         logger.exception("sys_boot failed")
@@ -1110,6 +1120,12 @@ def _boot_daemon_notes(root: Path) -> dict:
             f"[{f.get('severity', 'info')}] {f.get('message', '')}"
             for f in findings
         ][:8]
+        # (M2) tell the AI when findings were truncated so it knows to read the
+        # full note rather than assuming it saw everything.
+        if len(findings) > 8:
+            msgs.append(
+                f"...and {len(findings) - 8} more — see .os_state/daemon_notes.md"
+            )
         hint = ""
         if counts.get("block"):
             hint = (
@@ -1268,6 +1284,10 @@ def _classify_pause(entries: list[dict], root: Path) -> str:
         except OSError:
             pass
     if status == "started":
+        # (M3) distinguish a mid-roadmap pause from a mid-analysis-step pause so
+        # boot advice can reconstruct the roadmap thread, not just say "resume".
+        if "roadmap_execution" in proto or "deep_planning" in proto:
+            return "mid_roadmap"
         return "mid_step"
     if "dead_end" in proto:
         return "dead_end"
@@ -1276,8 +1296,39 @@ def _classify_pause(entries: list[dict], root: Path) -> str:
     return "unknown"
 
 
-def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -> str:
-    """One-line guidance the AI should follow next."""
+def _boot_advice(
+    pause: str,
+    active_plan: dict | None,
+    state: dict,
+    cfg: dict,
+    daemon_notes: dict | None = None,
+    roadmap: dict | None = None,
+) -> str:
+    """One-line guidance the AI should follow next.
+
+    Priority order (most urgent first):
+      1. daemon BLOCK-level integrity issues — fix before anything (H1).
+      2. an in-flight autonomous roadmap — re-enter it, don't restart (C2).
+      3. an in-progress tactical plan.
+      4. pause/resume signals, then the normal fresh/continue advice.
+    """
+    # (H1) Daemon found block-level problems — lead with them; the AI must not
+    # build on a broken workspace just because the linear advice says "fresh".
+    if daemon_notes and (daemon_notes.get("counts") or {}).get("block"):
+        n = daemon_notes["counts"]["block"]
+        return (
+            f"\u26d4 The daemon found {n} BLOCK-level integrity issue(s). Run "
+            "tool_structure_audit / tool_workspace_repair and resolve them "
+            "BEFORE any other action (see sys_boot.daemon_notes)."
+        )
+    # (C2) An autonomous roadmap is in progress — re-enter the loop, don't let
+    # the linear pipeline route the AI back to project_startup.
+    if roadmap and roadmap.get("present") and roadmap.get("in_progress"):
+        return (
+            "An autonomous roadmap is in progress \u2014 re-load "
+            "guidance/roadmap_execution and re-read inputs/research_plan.md "
+            "before anything else; continue the loop from where it paused."
+        )
     if active_plan and active_plan.get("status") == "in_progress":
         cur = active_plan.get("current_step", 1)
         total = len(active_plan.get("decomposition", []))
@@ -1287,6 +1338,11 @@ def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -
         )
     if pause == "ctx_exhaustion":
         return "Recent handoff doc found — call tool_session_resume."
+    if pause == "mid_roadmap":
+        return (
+            "Previous session paused mid-roadmap \u2014 re-load "
+            "guidance/roadmap_execution + inputs/research_plan.md and resume."
+        )
     if pause == "mid_step":
         return "Previous session left work in-flight — call tool_session_resume."
     if state.get("pipeline_stage", "init") == "init":
@@ -1298,6 +1354,41 @@ def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -
         "Wait for researcher's message, then call tool_route(prompt) before "
         "loading any protocol."
     )
+
+
+def _boot_roadmap(root: Path, entries: list) -> dict:
+    """(C2) Detect a durable autonomous roadmap (inputs/research_plan.md) and
+    whether a roadmap loop is in flight, so sys_boot can point the AI back into
+    it after a context reset. Fail-safe: absence → {present: False}."""
+    try:
+        plan_path = Path(root) / "inputs" / "research_plan.md"
+        if not plan_path.exists():
+            return {"present": False}
+        # In-flight if the most recent protocol log entry is a plan-tier
+        # protocol (deep_planning / roadmap_execution) that isn't completed.
+        in_progress = False
+        last_logged = None
+        for e in reversed(entries or []):
+            proto = (e.get("protocol") or e.get("protocol_name") or "")
+            if not proto:
+                continue
+            last_logged = proto
+            if "roadmap_execution" in proto or "deep_planning" in proto:
+                in_progress = (e.get("status") or "").lower() != "completed"
+            break
+        return {
+            "present": True,
+            "path": "inputs/research_plan.md",
+            "in_progress": in_progress,
+            "last_logged_protocol": last_logged,
+            "advice": (
+                "An autonomous roadmap exists — re-read inputs/research_plan.md "
+                "and re-load guidance/roadmap_execution to continue the loop."
+            ),
+        }
+    except Exception:
+        return {"present": False}
+
 
 
 def _dep_inventory() -> dict:
