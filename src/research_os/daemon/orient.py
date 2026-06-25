@@ -133,8 +133,10 @@ def _recommend(field: dict, runs: dict, freshness: dict) -> dict:
                 "Their work did not complete and may have left partial output."
             ),
             "how": (
-                "inspect: research-os runs   (GET /v1/runs?status=interrupted) "
-                "then re-run the affected step so it completes cleanly"
+                "inspect: research-os runs   (GET /v1/runs?status=interrupted), "
+                "then RESUME it (POST /v1/runs/<id>/resume) to continue from its "
+                "recorded spec \\u2014 checkpoint-aware jobs pick up where they "
+                "left off; otherwise re-run the affected step cleanly"
             ),
             "priority": "high",
         }

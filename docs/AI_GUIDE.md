@@ -150,6 +150,13 @@ back-to-back before doing anything else:
      `sys_protocol_history` / `sys_protocol_next` /
      `sys_dep_inventory` separately while `sys_boot`'s payload is
      fresh.
+   - **Read `sys_boot.daemon_notes` if present.** When a daemon is
+     running it leaves a startup self-check there (structure drift,
+     interrupted runs, an unframed intake). Address any `block`-level
+     finding (e.g. via `tool_workspace_repair` / `tool_structure_audit`)
+     **before** building on the project — this is how nothing gets lost
+     across sessions. Also act on `sys_boot.freshness` (stale inputs) and
+     any `resume_interrupted` recommendation.
 2. **`tool_route(prompt=<their verbatim message>)`** — your SECOND
    MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns:
    - `primary_protocol` — name of the best-matching protocol
