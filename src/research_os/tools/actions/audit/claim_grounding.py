@@ -182,27 +182,44 @@ def extract_claims(md_path: Path) -> list[dict[str, Any]]:
     return claims
 
 
+_CORPUS_EXTS = {".csv", ".tsv", ".json", ".md", ".txt", ".yaml", ".yml"}
+
+
 def _gather_output_corpus(workspace: Path) -> str:
     """Concatenate the bodies of every output file the AI could have
-    pulled numbers from. CSV/TSV/JSON/MD/TXT only — model pickles and
-    PNGs are skipped (numbers there can't be substring-matched)."""
+    pulled numbers from. CSV/TSV/JSON/MD/TXT/YAML only — model pickles and
+    PNGs are skipped (numbers there can't be substring-matched).
+
+    We walk the WHOLE ``outputs/`` tree (not just ``outputs/tables`` +
+    ``outputs/reports``) plus the data-output dirs. A result JSON dropped in
+    ``outputs/`` directly, a model-metrics file in ``outputs/models/``, and —
+    critically — the ``<figure>.caption.md`` siblings the synthesis embeds
+    (which carry the figure's headline statistics) all live OUTSIDE the two
+    legacy subdirs. Missing them produced false-positive ungrounded-claim
+    BLOCKERS: a number the reviewer can plainly see in an output file was
+    flagged as a hallucination, eroding trust in the gate. This walker now
+    mirrors how ``step_provenance_inventory`` + RO-Crate treat ``outputs/``."""
     chunks: list[str] = []
     for step in sorted(workspace.iterdir()):
         if not (step.is_dir() and re.match(r"^\d{2,3}_", step.name)):
             continue
         if step.name.endswith("__DEAD_END"):
             continue
-        # Scan both the 3.2 output dir name and the pre-3.2 legacy name.
-        for sub in ("outputs/reports", "outputs/tables",
-                    "data/next_step_output", "data/output"):
+        # Scan the entire outputs/ tree + both 3.2 and legacy data-output dirs.
+        for sub in ("outputs", "data/next_step_output", "data/output"):
             d = step / sub
             if not d.exists():
                 continue
             for f in d.rglob("*"):
                 if not f.is_file():
                     continue
-                if f.suffix.lower() not in {".csv", ".tsv", ".json",
-                                              ".md", ".txt"}:
+                if f.suffix.lower() not in _CORPUS_EXTS:
+                    continue
+                # Skip provenance sidecars: their sha256 / size_bytes / wall
+                # seconds are machine metadata, not analysis results. Letting
+                # them into the corpus would spuriously "ground" a hallucinated
+                # number against a hash digit — weakening the gate.
+                if f.name.endswith(".prov.json"):
                     continue
                 try:
                     chunks.append(f.read_text(errors="replace"))
