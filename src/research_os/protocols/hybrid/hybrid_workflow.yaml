@@ -11,6 +11,7 @@ last_reviewed: '2026-06-23'
 see_also:
   - hybrid/tool_to_analysis_handoff              # the transition this loop pivots through
   - build/spec_and_design                         # the tool-building discipline the inner repo follows
+  - build/tool_evaluation_loop                    # evaluate the tool half to decide its next increment from evidence
   - build/method_scouting                         # when the tool half needs an external method/library, scout → spike → integrate
   - guidance/analysis_plan                        # the analysis discipline the outer research follows
 description: |
@@ -70,9 +71,12 @@ steps:
         TOOL increment → the analysis needs a capability the tool lacks. Scope
           the SMALLEST tool increment that unblocks the next analysis (not the
           whole feature backlog), and build it under the build discipline
-          (build/spec_and_design → build/implement_and_iterate →
+          (build/spec_and_design → build/implement_iteration →
           build/test_strategy) inside the inner repo. Version the increment so
-          analysis can pin it.
+          analysis can pin it. When the tool RUNS but you're not sure which
+          improvement is most worth it, evaluate it first via
+          build/tool_evaluation_loop — let evidence on where it falls short
+          rank the next increment, rather than guessing.
         ANALYSIS step → the tool can already do what's needed. Run an ordinary
           analysis step under guidance/analysis_plan, USING the tool — and
           record which tool version the step used.

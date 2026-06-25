@@ -471,11 +471,17 @@ def check_protocols_referenced_tools_resolve():
     # Add known false positives that aren't tool calls
     false_positive_strings = {
         "tool_name",        # field inside tool_external_tool_instructions
-        "tool_discovery",   # protocol name (methodology/tool_discovery)
         "tool_list",        # word appearing in prose ("tool list")
         "tool_build",       # workspace.mode name (build/* protocols, scope_tags)
-        "tool_to_analysis_handoff",  # protocol name (hybrid/tool_to_analysis_handoff)
         "tool_and_analysis",         # workflow_shape value for hybrid mode
+    }
+    # Protocol IDs that start with tool_/sys_/mem_ (e.g.
+    # methodology/tool_discovery, hybrid/tool_to_analysis_handoff,
+    # build/tool_evaluation_loop) match the tool-name regex but are protocol
+    # references, not tool calls. Collect them so the check is self-maintaining
+    # — a new tool_-prefixed protocol no longer needs a hand-added exemption.
+    protocol_id_stems = {
+        p.stem for p in PROTOCOLS_DIR.rglob("*.yaml") if not p.name.startswith("_")
     }
     refs: dict[str, set[str]] = {}
     # Match a tool name, but reject the match if the very next char is `*`
@@ -492,7 +498,7 @@ def check_protocols_referenced_tools_resolve():
         text = f.read_text()
         for m in pattern.finditer(text):
             name = m.group(1)
-            if name in false_positive_strings:
+            if name in false_positive_strings or name in protocol_id_stems:
                 continue
             # Reject bare prefixes like `tool_search_` that end in `_`
             # (always a truncation/wildcard mention in prose).

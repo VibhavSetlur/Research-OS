@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 38
+version: 39
 generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -664,6 +664,37 @@ protocols:
         purpose: "Run the benchmark harness (tool_task for long sweeps); write harness + results into eval/."
       - tool: mem_log
         purpose: "Log the performance claim-with-evidence (baseline + metric + uncertainty)."
+
+  build/tool_evaluation_loop:
+    intent_class: execute
+    sub_intent: build_evaluate
+    summary: "Probe the tool to find where it falls short, rank an evidence-based improvement backlog, feed the top fix back to the build loop, re-measure. The iterative evaluate→improve heartbeat."
+    triggers:
+      - "evaluate the tool"
+      - "evaluate my tool"
+      - "where does it fail"
+      - "where does the tool fail"
+      - "stress test it"
+      - "stress test the tool"
+      - "find the weak spots"
+      - "find the failure modes"
+      - "probe the failure modes"
+      - "profile it"
+      - "what should i improve next"
+      - "what to improve next"
+      - "what's the biggest problem with the tool"
+      - "characterise its behaviour"
+      - "characterize its behavior"
+      - "is it good enough yet"
+      - "improve the tool"
+    token_estimate: 1700
+    decomposition:
+      - protocol: build/tool_evaluation_loop
+        purpose: "Define the bar, hypothesise weak spots, run fixed-condition evaluations, rank by evidenced impact, feed back + re-measure."
+      - tool: tool_bash_exec
+        purpose: "Run the evaluation experiments (tool_task for long sweeps); write scripts + results into the eval reports."
+      - tool: mem_log
+        purpose: "Log each evaluation round + the chosen next increment so the tool's development history is auditable."
 
   build/release_and_changelog:
     intent_class: execute
