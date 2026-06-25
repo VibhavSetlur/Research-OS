@@ -95,8 +95,8 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "mode": {
                     "type": "string",
-                    "enum": ["all", "substantiveness", "structure", "accessibility", "cliches"],
-                    "description": "Which audit to run. Default 'all' (every check appropriate to the file type).",
+                    "enum": ["all", "substantiveness", "structure", "accessibility", "cliches", "grounding"],
+                    "description": "Which audit to run. Default 'all' (every check appropriate to the file type, including 'grounding'). 'grounding' (paper/essay) flags numeric claims absent from every workspace output — hallucination candidates — during authoring, not just at the ship gate.",
                 },
             },
         },

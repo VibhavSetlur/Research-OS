@@ -860,8 +860,10 @@ def synthesis_check(
         existing of synthesis/{paper,slides,poster,essay}.typ or
         synthesis/dashboard.html.
       mode: 'all' (default), 'substantiveness', 'structure',
-        'accessibility', 'cliches'. 'all' runs every check appropriate
-        to the file type.
+        'accessibility', 'cliches', 'grounding'. 'all' runs every check
+        appropriate to the file type. 'grounding' (paper/essay) flags
+        numeric claims not found in any workspace output — hallucination
+        candidates — during authoring, not just at the ship gate.
     """
     if file:
         target = Path(file)
@@ -924,6 +926,37 @@ def synthesis_check(
             )
             warnings.extend(c.get("warnings", []))
             sub["cliches"] = c
+        if mode in ("all", "grounding"):
+            # Numeric grounding DURING authoring, not just at the ship gate.
+            # Surfaces ungrounded numbers (hallucination candidates) per
+            # check so the AI catches them while the section is fresh, instead
+            # of only when tool_finalize_project runs much later. WARN-level
+            # here (the hard BLOCK stays at the ship gate) so the authoring
+            # loop is informed without being halted mid-draft.
+            from research_os.tools.actions.audit.claim_grounding import (
+                audit_claims,
+            )
+
+            paper_rel2 = (
+                str(target.relative_to(root))
+                if target.is_relative_to(root)
+                else str(target)
+            )
+            g = audit_claims(root, paper_rel2)
+            if g.get("status") in ("success", "error"):
+                ung = g.get("ungrounded", 0)
+                if ung:
+                    warnings.append(
+                        f"{ung} numeric claim(s) not found in any workspace "
+                        f"output ({g.get('coverage_pct', 0)}% grounded) — "
+                        f"review before shipping; see {g.get('report_path')}"
+                    )
+                sub["grounding"] = {
+                    "total_claims": g.get("total_claims"),
+                    "grounded": g.get("grounded"),
+                    "ungrounded": ung,
+                    "coverage_pct": g.get("coverage_pct"),
+                }
     elif kind == "slides":
         r = _check_slides(text)
         blockers.extend(r["blockers"])

@@ -206,7 +206,12 @@ steps:
     description: |
       tool_synthesis_check(file='synthesis/paper.typ',
       mode='substantiveness') after every section. Address blockers
-      before continuing.
+      before continuing. At least once before compiling — and any time a
+      section reports numbers — also run
+      tool_synthesis_check(file='synthesis/paper.typ', mode='grounding')
+      (or mode='all') to catch numeric claims that don't trace to any
+      workspace output while the section is still fresh, instead of
+      discovering them at the ship gate.
 
   - id: embed_figures
     name: Embed figures
@@ -250,8 +255,19 @@ steps:
   - id: pre_submission
     name: Pre-submission gate
     description: |
-      Load audit/pre_submission_checklist. Walks every check a journal
-      will run, returns GREEN / YELLOW / RED + punch list.
+      Load audit/pre_submission_checklist — it walks every check a journal
+      will run and returns GREEN / YELLOW / RED + a punch list.
+
+      Then run the HARD ship gate, do not stop at a compiled PDF:
+        tool_finalize_project(operation='check')
+      surfaces every unresolved blocker (ungrounded numbers, fake/missing
+      cited PDFs, stub markers, bare decisions) WITHOUT finalizing. The paper
+      is NOT done while any blocker stands — a clean compile is necessary, not
+      sufficient. Resolve each blocker (or, only on an explicit researcher
+      ask, override with a logged rationale), then
+        tool_finalize_project(operation='finalize')
+      is the true "ship it" gate. This step is reachable even in autopilot:
+      compiling the PDF is the start of finalization, never the end of it.
 
 tools: |
   - tool_synthesize_plan — what's ready in the workspace
@@ -262,6 +278,7 @@ tools: |
   - tool_discussion_coverage_audit — gate, every DISAGREES/EXTENDS verdict addressed
   - tool_typst_compile — render synthesis/paper.pdf
   - tool_latex_compile — only when the journal requires .tex submission
+  - tool_finalize_project — the hard ship gate (operation='check' then 'finalize')
 
 expected_outputs:
   - synthesis/paper.typ            # AI-authored
