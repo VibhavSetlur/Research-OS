@@ -1696,9 +1696,18 @@ def scaffold_minimal_workspace(
     if not intake.exists():
         intake.write_text(
             "# Research Intake\n\n"
-            "Drop data into `inputs/raw_data/`, PDFs into `inputs/literature/`, "
-            "notes into `inputs/context/`, then ask the AI to **fill out the "
-            "intake** — `tool_intake_autofill` rewrites this file.\n"
+            "<!-- ro:intake-template -->\n"
+            "You have two easy ways to set this up — pick whichever suits you:\n\n"
+            "1. **Just tell the AI in chat.** Say something like \"my question "
+            "is X, my data is at <path>, hypotheses are H1/H2\" and ask it to "
+            "**fill out the intake** — it captures what you said into this file "
+            "(no need to edit anything yourself).\n"
+            "2. **Drop files, then ask.** Put data in `inputs/raw_data/`, PDFs "
+            "in `inputs/literature/`, notes in `inputs/context/`, then ask the "
+            "AI to **fill out the intake** — it reads them and proposes the "
+            "question + domain + hypotheses.\n\n"
+            "Either way, `tool_intake_autofill` rewrites this file and shows you "
+            "the result to approve or refine. You can also mix both.\n"
         )
 
     # 8-rp. inputs/research_plan.md — the OVERALL project plan the AI and

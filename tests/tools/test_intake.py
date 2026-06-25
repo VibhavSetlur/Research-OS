@@ -122,3 +122,38 @@ def test_intake_multiline_quoted_cell_row_count_is_accurate(tmp_path):
     overview = (tmp_path / "docs" / "research_overview.md").read_text()
     row = [ln for ln in overview.splitlines() if "ml.csv" in ln]
     assert row and "| 2 |" in row[0], row
+
+
+def test_intake_chat_fill_with_empty_inputs(tmp_path):
+    """The chat-first path: a researcher who never touches inputs/ files but
+    describes the project in chat still gets a real intake. Explicit args win
+    over (absent) file inference."""
+    scaffold_minimal_workspace(tmp_path, "Chat Project")
+    res = intake_autofill(
+        tmp_path,
+        question="Does drug X reduce tumor size in mice?",
+        domain="biology",
+        hypotheses=["H1: drug X reduces tumor volume", "H2: effect is dose-dependent"],
+        context_note="RCT, 3 dose arms + vehicle control, n=10/arm, day 21 readout.",
+    )
+    assert res["status"] == "success"
+    assert res["proposed_domain"] == "biology"
+    assert "tumor" in res["proposed_research_question"].lower()
+    # Both chat hypotheses are carried through, not file-inferred.
+    assert any("dose-dependent" in h for h in res["proposed_hypotheses"])
+    # The written intake + overview capture the chat framing verbatim.
+    intake = (tmp_path / "inputs" / "intake.md").read_text()
+    assert "drug X reduce tumor size" in intake
+    overview = (tmp_path / "docs" / "research_overview.md").read_text()
+    assert "vehicle control" in overview
+
+
+def test_intake_chat_question_beats_file_inference(tmp_path):
+    """An explicit chat question overrides what would be inferred from files."""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    ctx = tmp_path / "inputs" / "context"
+    ctx.mkdir(parents=True, exist_ok=True)
+    (ctx / "note.md").write_text("Research question: Is the sky blue?\n")
+    res = intake_autofill(tmp_path, question="What drives protein folding rates?")
+    assert res["proposed_research_question"] == "What drives protein folding rates?"
+

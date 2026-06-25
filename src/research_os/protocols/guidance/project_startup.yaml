@@ -37,9 +37,16 @@ steps:
         - sys_file_list directory="inputs/raw_data"
         - sys_file_list directory="inputs/literature"
         - sys_file_list directory="inputs/context"
-      If all three are empty, ask the researcher to drop their data + papers +
-      notes into the relevant folders. Do NOT proceed further until at least
-      one input exists.
+      If all three are empty, do NOT dead-end. Many researchers never touch
+      inputs/ files — they just describe the project in chat. So:
+        - If the researcher already TOLD you the question / domain / data
+          location / hypotheses conversationally, capture it now via the chat
+          path of autofill_intake (below) — don't make them write files.
+        - Only if you have neither files NOR any chat description, ask them in
+          one line: "Describe your project (question + what data you have), or
+          drop files into inputs/raw_data, inputs/literature, inputs/context."
+      Either input path is fine; proceed once you have files OR a chat
+      description.
 
   - id: check_intake_freshness
     name: Skip / refresh / regenerate based on intake freshness
@@ -66,24 +73,38 @@ steps:
       resuming, not starting.
 
   - id: autofill_intake
-    name: Auto-fill Intake from Researcher Dumps
+    name: Auto-fill Intake from Files AND/OR Chat
     description: |
       ONLY when check_intake_freshness returned recommended_depth='full'.
       Skip otherwise.
 
-      Call tool_intake_autofill (no args).
-      This:
+      tool_intake_autofill takes TWO input paths, combinable:
+
+      CHAT path (use whenever the researcher described the project in chat —
+      most common): pass what they SAID directly so they never have to edit a
+      file —
+        tool_intake_autofill(
+          question="<their research question>",
+          domain="<their field, if stated>",
+          hypotheses=["<H1>", "<H2>", ...],
+          context_note="<design / data location / constraints they mentioned>")
+      Explicit args win over inference, so this works even with an empty
+      inputs/ folder.
+
+      FILE path (when they dropped files): call tool_intake_autofill() with no
+      args. It:
         - infers domain from columns / file extensions / context keywords
-        - extracts research_question from context notes (looks for explicit
-          "Research question:" / "Aim:" / "Objective:" or the first
-          sentence ending in "?")
+        - extracts research_question from context notes ("Research question:" /
+          "Aim:" / "Objective:" or the first sentence ending in "?")
         - extracts hypotheses (H1/H2/H3 lines, or "Hypothesis:")
-        - rewrites inputs/intake.md with the proposal
-        - fills the BLANK fields in researcher_config.yaml
-        - registers each inferred hypothesis in state.active_hypotheses
+
+      You can combine both (pass the chat fields AND let it read the files).
+      Either way it rewrites inputs/intake.md + docs/research_overview.md and
+      registers each hypothesis in state.active_hypotheses.
+
       Then show the researcher the proposed (question, domain, hypotheses) in
-      one short message and ask "Approve, or refine?"
-      Wait for approval before any code is written.
+      one short message and ask "Approve, or refine?" Wait for approval before
+      any code is written.
 
   - id: profile_each_dataset
     name: Profile Each Data File (sampled)

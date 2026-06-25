@@ -293,8 +293,26 @@ def _extract_named_papers(context_text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
-    """Read inputs/, infer project metadata, and populate intake + config."""
+def intake_autofill(
+    root: Path,
+    *,
+    overwrite: bool = False,
+    question: str | None = None,
+    domain: str | None = None,
+    hypotheses: list[str] | None = None,
+    context_note: str | None = None,
+) -> dict[str, Any]:
+    """Read inputs/, infer project metadata, and populate intake + config.
+
+    The chat-first path: many researchers never edit inputs/ files — they
+    just describe the project in chat ("my question is X, data's at /path,
+    hypotheses H1/H2"). Pass what the researcher SAID via ``question`` /
+    ``domain`` / ``hypotheses`` / ``context_note`` and those take precedence
+    over file-inference, so a project with no context/*.md still gets a real
+    intake. ``context_note`` is also folded into the corpus so the research
+    overview captures the researcher's framing verbatim. With no explicit
+    fields, behaviour is unchanged: infer everything from inputs/ files.
+    """
     try:
         from research_os.project_ops import (
             load_state,
@@ -302,6 +320,10 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
             regenerate_intake,
             save_state,
         )
+
+        # Capture the chat-provided hypotheses before the local `hypotheses`
+        # var (file-inferred) shadows the parameter below.
+        hyp_arg = [h.strip() for h in (hypotheses or []) if h and h.strip()]
 
         inputs_dir = root / "inputs"
         if not inputs_dir.exists():
@@ -329,6 +351,14 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
                 except Exception:
                     pass
         context_text = "\n\n".join(context_text_parts)
+        # Chat-provided framing joins the corpus so the research overview +
+        # question/hypothesis inference see what the researcher SAID, even when
+        # no context/*.md file exists.
+        if context_note and context_note.strip():
+            context_text = (
+                (context_text + "\n\n" + context_note.strip()).strip()
+                if context_text else context_note.strip()
+            )
 
         # Classify + propose. Respect existing state when already set —
         # init's --domain / --question flags land in state before this
@@ -338,17 +368,28 @@ def intake_autofill(root: Path, *, overwrite: bool = False) -> dict[str, Any]:
         existing_domain = (state_pre.get("domain") or "").strip()
         existing_question = (state_pre.get("research_question") or "").strip()
         domain_auto, domain_why = _classify_domain(raw_files, context_text)
-        domain = existing_domain or domain_auto
-        if existing_domain:
+        # Precedence: explicit chat arg > deliberate existing state > inference.
+        arg_domain = (domain or "").strip()
+        domain = arg_domain or existing_domain or domain_auto
+        if arg_domain:
+            domain_why = [f"set by the researcher in chat = {arg_domain!r}"]
+        elif existing_domain:
             domain_why = [f"preserved from state.domain = {existing_domain!r}"]
         question_auto = _propose_question(context_text, raw_files)
-        # Keep state's question unless it was the placeholder.
+        arg_question = (question or "").strip()
+        # Keep state's question unless it was the placeholder; a chat-provided
+        # question always wins.
         question = (
-            existing_question if existing_question
-            and "*(AI-proposed placeholder" not in existing_question
-            else question_auto
+            arg_question or (
+                existing_question if existing_question
+                and "*(AI-proposed placeholder" not in existing_question
+                else question_auto
+            )
         )
         hypotheses = _propose_hypotheses(context_text)
+        # Chat-provided hypotheses take precedence over inference.
+        if hyp_arg:
+            hypotheses = hyp_arg
         # Fallback: if context yields zero hypotheses but we DO have a
         # research question (from --question flag or context inference),
         # at least register the question itself as the central testable

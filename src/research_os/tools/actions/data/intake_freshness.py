@@ -27,6 +27,7 @@ _INTAKE_TEMPLATE_MARKERS = (
     "[fill in",
     "tbd",
     "todo",
+    "ro:intake-template",  # the unfilled scaffold template (chat-or-files guide)
 )
 
 

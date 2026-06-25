@@ -302,8 +302,8 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_intake_autofill": {
-        "short": "Propose project metadata from inputs/ + fill researcher_config blanks. Use during onboarding.",
-        "description": "Read inputs/ (data + literature + context notes) and propose project metadata (research question, domain, hypotheses). Fills blanks in researcher_config.yaml and rewrites inputs/intake.md.",
+        "short": "Fill the intake from inputs/ AND/OR what the researcher said in chat. Use during onboarding.",
+        "description": "Populate the project intake (research question, domain, hypotheses) into inputs/intake.md, docs/research_overview.md, and state. TWO input paths, combinable: (1) FILE path — reads inputs/ (data + literature + context notes) and infers metadata; (2) CHAT path — pass what the researcher TOLD you conversationally via question / domain / hypotheses / context_note. Many researchers never edit inputs/ files; they just describe the project in chat. Capture that here instead of forcing them to write files. Explicit args take precedence over file-inference, so a project with NO context/*.md still gets a real intake. Always show the researcher the resulting (question, domain, hypotheses) and ask to approve/refine.",
         "category": "intake",
         "inputSchema": {
             "type": "object",
@@ -311,7 +311,24 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "overwrite": {
                     "type": "boolean",
                     "description": "If true, overwrite even non-blank config fields (default false).",
-                }
+                },
+                "question": {
+                    "type": "string",
+                    "description": "The research question the researcher stated in chat. Takes precedence over inference. Use this instead of asking them to edit a file.",
+                },
+                "domain": {
+                    "type": "string",
+                    "description": "The research domain/field the researcher stated in chat (e.g. 'genomics', 'public health'). Takes precedence over auto-classification.",
+                },
+                "hypotheses": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Hypotheses the researcher stated in chat (each a testable claim). Takes precedence over inference; each is registered in state.",
+                },
+                "context_note": {
+                    "type": "string",
+                    "description": "Free-text project framing the researcher gave in chat (design, data location, constraints). Folded into the corpus so research_overview captures it verbatim — no context/*.md file required.",
+                },
             },
         },
     },
