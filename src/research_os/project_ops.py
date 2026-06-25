@@ -748,7 +748,7 @@ def _write_os_state_summary(root: Path) -> None:
         *(
             ["- **Research question(s):**"] + [f"  - {q}" for q in questions]
             if len(questions) > 1
-            else [f"- **Research question:** {question or '_(not yet set — run `tool_intake_autofill` or set in `inputs/researcher_config.yaml`)_'}"]
+            else [f"- **Research question:** {question or '_(not yet set — just tell the AI what you’re studying, e.g. “I want to know if X affects Y”)_'}"]
         ),
         f"- **Domain:** {domain or '_(unset)_'}",
         f"- **Pipeline phase:** `{stage}`",
@@ -2516,7 +2516,31 @@ This is a Research OS workspace. Two files matter most to you:
 * `inputs/researcher_config.yaml` — how the AI should behave for **you**.
   Every field is optional; defaults work.
 
-## 1. Drop your files
+## 1. Open your AI IDE on this folder
+
+The MCP config was already dropped for whichever IDE you use:
+Claude Code, OpenCode, Antigravity, Cursor, Claude Desktop, VS Code,
+Windsurf, Continue, Aider. Restart your IDE if it doesn't auto-detect.
+
+The MCP server should show as connected. If it doesn't, run
+`research-os start` in a terminal at the project root.
+
+## 2. Just tell the AI what you're studying
+
+The fastest way to start — no files required. In chat, say something like:
+
+```
+I want to know if sleep duration affects test scores. My data's a CSV
+at ~/data/students.csv. Hypotheses: more sleep → higher scores, and the
+effect is stronger for younger students.
+```
+
+The AI captures your question, domain, and hypotheses into the project and
+shows you what it understood to approve or refine. You never have to edit a
+file to get going.
+
+**Prefer to drop files?** That works too — put them here, then say
+"fill out the intake":
 
 | Where | What goes here |
 |---|---|
@@ -2528,19 +2552,10 @@ This is a Research OS workspace. Two files matter most to you:
 the AI maintains the rest of `inputs/` for you. Only `.os_state/` is hard-locked.
 Derived data lives under `workspace/`.
 
-## 2. Open your AI IDE on this folder
-
-The MCP config was already dropped for whichever IDE you use:
-Claude Code, OpenCode, Antigravity, Cursor, Claude Desktop, VS Code,
-Windsurf, Continue, Aider. Restart your IDE if it doesn't auto-detect.
-
-The MCP server should show as connected. If it doesn't, run
-`research-os start` in a terminal at the project root.
-
-## 3. Start a chat. Try any of:
+## 3. Then just chat. Try any of:
 
 ```
-fill out the intake               (AI reads inputs/, proposes question + hypotheses)
+describe my project              (tell it your question + data — it sets everything up)
 what should I do next?            (iterative planning — AI assesses + searches + proposes)
 run a baseline EDA                (creates workspace/01_baseline_eda/ with figures + report)
 fit a logistic regression         (methodology selection → analysis_plan)
@@ -2580,8 +2595,8 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 
 | Problem | Say to the AI... |
 |---|---|
-| Something seems broken | "Run `tool_workspace_repair`." |
-| Lost work | "Show me checkpoints and roll back to <id>." |
+| Something seems broken | "Fix my workspace." |
+| Lost work | "Show me checkpoints and roll back to the last good one." |
 | Conversation too long | "Hand off the session." |
 | AI making bad calls | "Switch to manual mode and walk me through each step." |
 

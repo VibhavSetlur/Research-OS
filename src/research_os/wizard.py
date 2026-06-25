@@ -865,11 +865,6 @@ def _next_steps(r: WizardResult) -> None:
     if r.target_dir != cwd:
         print(f"  {_C.CYAN}{n}.{_C.RESET}  cd {_C.BOLD}{r.target_dir}{_C.RESET}")
         n += 1
-    print(f"  {_C.CYAN}{n}.{_C.RESET}  Drop more files into:")
-    print(f"        {_C.DIM}inputs/raw_data/{_C.RESET}     data (CSV / Parquet / FASTQ / NIfTI / ...)")
-    print(f"        {_C.DIM}inputs/literature/{_C.RESET}   PDFs of papers")
-    print(f"        {_C.DIM}inputs/context/{_C.RESET}      notes, drafts, screenshots, prior reports")
-    n += 1
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Open your AI IDE on this folder — the MCP server auto-launches.")
     print(f"        {_C.BOLD}⚠ Already have it open? RESTART the IDE / reload the window{_C.RESET}")
     print(f"        {_C.DIM}so the research-os MCP tools load — they won't appear until you do.{_C.RESET}")
@@ -882,9 +877,14 @@ def _next_steps(r: WizardResult) -> None:
         except Exception:
             pass
     n += 1
+    print(f"  {_C.CYAN}{n}.{_C.RESET}  Just tell the AI what you're studying — no files needed:")
+    print(f"        {_C.DIM}\"I want to know if X affects Y. My data's at <path>. Hypotheses: ...\"{_C.RESET}")
+    print(f"        {_C.DIM}It captures your question + hypotheses and shows you to approve.{_C.RESET}")
+    print(f"        {_C.DIM}Prefer files? Drop them in inputs/raw_data, inputs/literature, inputs/context.{_C.RESET}")
+    n += 1
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Start chatting. Try:")
     for line in [
-        '"fill out the intake"           — AI reads inputs/, drafts question + hypotheses',
+        '"here\'s my project: ..."        — describe it; AI sets up question + hypotheses',
         '"what should I do next?"         — iterative planning',
         '"run a baseline EDA"             — creates workspace/01_*, scripts + figures',
         '"write the paper for a journal"  — verified citations only',
