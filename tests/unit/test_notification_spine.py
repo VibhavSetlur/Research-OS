@@ -205,3 +205,41 @@ def test_emit_runs_interrupted_writes_action_required_record(tmp_path):
 def test_emit_runs_interrupted_noop_on_empty(tmp_path):
     assert ntfy.emit_runs_interrupted(tmp_path, []) is None
     assert ntfy.read_outbox(tmp_path) == []
+
+
+# --- gate-block paging (the away user must learn an unattended gate blocked) ---
+
+def test_notify_gate_blocked_pages_when_daemon_present(tmp_path):
+    from research_os.server.notify_sink import notify_gate_blocked
+
+    _write_daemon_descriptor(tmp_path)
+    ok = notify_gate_blocked(
+        tmp_path, tool="tool_finalize_project", gate_key="ship_gate",
+        arg_fingerprint="fp1", reason="stale inputs",
+    )
+    assert ok is True
+    out = ntfy.read_outbox(tmp_path)
+    assert len(out) == 1
+    assert out[0]["level"] == "action_required"
+
+
+def test_notify_gate_blocked_dedups_same_action(tmp_path):
+    """A retry-loop on the same blocked (gate_key, fingerprint) pages once."""
+    from research_os.server.notify_sink import notify_gate_blocked
+
+    _write_daemon_descriptor(tmp_path)
+    for _ in range(3):
+        notify_gate_blocked(
+            tmp_path, tool="t", gate_key="g", arg_fingerprint="fp", reason="r"
+        )
+    assert len(ntfy.read_outbox(tmp_path)) == 1
+
+
+def test_notify_gate_blocked_noop_without_daemon(tmp_path):
+    from research_os.server.notify_sink import notify_gate_blocked
+
+    ok = notify_gate_blocked(
+        tmp_path, tool="t", gate_key="g", arg_fingerprint="fp", reason="r"
+    )
+    assert ok is False
+    assert ntfy.read_outbox(tmp_path) == []

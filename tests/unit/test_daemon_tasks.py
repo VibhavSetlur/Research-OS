@@ -51,6 +51,47 @@ def test_job_failure_is_captured_not_raised():
         q.shutdown()
 
 
+def test_result_ok_false_is_recorded_as_failed():
+    """A callable that RETURNS a result dict with ok=False (a subprocess that
+    exited non-zero / was OOM-killed / timed out) must be marked FAILED, not
+    SUCCEEDED — otherwise a researcher who walked away sees a green run that
+    actually died."""
+    q = TaskQueue(max_workers=1)
+    q.start()
+    try:
+        jid = q.submit(lambda: {"ok": False, "returncode": 137}, name="oom")
+        job = _drain(q, jid)
+        assert job.status == JobStatus.FAILED
+        assert job.error and "137" in job.error
+    finally:
+        q.shutdown()
+
+
+def test_result_ok_true_still_succeeds():
+    q = TaskQueue(max_workers=1)
+    q.start()
+    try:
+        jid = q.submit(lambda: {"ok": True, "returncode": 0}, name="good")
+        job = _drain(q, jid)
+        assert job.status == JobStatus.SUCCEEDED
+    finally:
+        q.shutdown()
+
+
+def test_non_dict_result_still_succeeds():
+    """Plain (non-subprocess) callables returning a non-dict keep succeeding —
+    the ok=False check must not change their semantics."""
+    q = TaskQueue(max_workers=1)
+    q.start()
+    try:
+        jid = q.submit(lambda: 42, name="plain")
+        job = _drain(q, jid)
+        assert job.status == JobStatus.SUCCEEDED
+        assert job.result == 42
+    finally:
+        q.shutdown()
+
+
 def test_cooperative_cancel_of_running_job():
     q = TaskQueue(max_workers=1)
     q.start()

@@ -288,6 +288,22 @@ class TaskQueue:
             with self._lock:
                 if job.cancel_event.is_set():
                     job.status = JobStatus.CANCELLED
+                    job.result = result if isinstance(result, dict) else job.result
+                elif isinstance(result, dict) and result.get("ok") is False:
+                    # A subprocess-style result that reports failure (non-zero
+                    # returncode, OOM-killed by the resource budget, wallclock
+                    # timeout) must NOT be recorded as succeeded — otherwise a
+                    # researcher who walked away comes back to a green
+                    # "succeeded" on a job that actually died. The callable
+                    # returned normally (it captured the failure in its result),
+                    # so there's no exception to catch; inspect the result.
+                    job.status = JobStatus.FAILED
+                    job.result = result
+                    rc = result.get("returncode")
+                    job.error = (
+                        result.get("error")
+                        or f"command exited with returncode {rc}"
+                    )
                 else:
                     job.status = JobStatus.SUCCEEDED
                     job.result = result

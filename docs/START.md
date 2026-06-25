@@ -491,9 +491,11 @@ synthesis/            ← final outputs (only created when you ask)
 
 | Mode | What the AI does without asking | Best for |
 |---|---|---|
+| `adaptive` *(default)* | per-action risk gating: flows on cheap/reversible work, pauses before irreversible/expensive actions (deleting data, paid API calls, long jobs) | most people — you rarely need to change it |
 | `manual` | nothing — asks before every tool call | learning / debugging |
-| `supervised` *(default)* | reads + searches autonomously; asks before creating experiments, writing to `synthesis/`, long jobs | day-to-day |
-| `autopilot` | runs end-to-end; asks only before final synthesis | well-scoped projects |
+| `supervised` | reads + searches autonomously; asks before creating experiments, writing to `synthesis/`, long jobs | when you want a tighter leash than adaptive |
+| `autopilot` | runs end-to-end; asks only before the final ship gate | well-scoped projects you trust it to drive |
+| `coaching` | like supervised, plus pedagogical preludes that explain the *why* before each move | learning the method as you go |
 
 Switch mid-session: *"switch to autopilot"* / *"switch to manual"*.
 

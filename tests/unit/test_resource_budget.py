@@ -175,3 +175,95 @@ def test_runner_resolves_budget_into_effective_limits(tmp_path):
     meta = result.get("sandbox") or {}
     # The effective limits recorded for the run reflect the budget.
     assert meta.get("limits", {}).get("address_space_mb") == 256
+
+
+# --- resolve_sandbox_tier (the universal-floor decision) -------------------
+
+def _write_runtime(root: Path, runtime: dict) -> None:
+    (root / "inputs").mkdir(parents=True, exist_ok=True)
+    (root / "inputs" / "researcher_config.yaml").write_text(
+        yaml.safe_dump({"runtime": runtime})
+    )
+
+
+def test_tier_off_means_unbounded_opt_out(tmp_path):
+    assert rb.resolve_sandbox_tier(tmp_path, sandbox_mode="off") is None
+
+
+def test_tier_native_is_resource_floor(tmp_path):
+    assert rb.resolve_sandbox_tier(tmp_path, sandbox_mode="native") == "resource"
+
+
+def test_tier_auto_default_still_bounds(tmp_path):
+    """Auto with no runtime hints must STILL return a bounding tier — a daemon
+    background run is never left completely unbounded by default."""
+    tier = rb.resolve_sandbox_tier(tmp_path, sandbox_mode="auto")
+    assert tier is not None
+
+
+def test_tier_shared_server_forces_resource(tmp_path):
+    """shared_server=true => resource floor (no futile Docker/userns probe on a
+    locked-down shared HPC node)."""
+    _write_runtime(tmp_path, {"shared_server": True})
+    assert rb.resolve_sandbox_tier(tmp_path, sandbox_mode="auto") == "resource"
+
+
+def test_tier_conda_env_forces_resource(tmp_path):
+    _write_runtime(tmp_path, {"compute_environment": "conda"})
+    assert rb.resolve_sandbox_tier(tmp_path, sandbox_mode="auto") == "resource"
+
+
+def test_load_runtime_reads_shared_server_bool(tmp_path):
+    _write_runtime(tmp_path, {"shared_server": "true", "compute_environment": "Conda"})
+    rt = rb.load_runtime(tmp_path)
+    assert rt["shared_server"] is True
+    assert rt["compute_environment"] == "conda"
+
+
+def test_load_runtime_empty_on_missing(tmp_path):
+    assert rb.load_runtime(tmp_path) == {}
+
+
+def test_budget_root_looks_up_under_project_not_cwd(tmp_path):
+    """The budget must bind from the PROJECT ROOT even when the run's cwd is a
+    subdirectory (regression: budget was looked up under cwd)."""
+    from research_os.daemon.runners import SubprocessRunner
+
+    _write_cfg(tmp_path, {"memory_mb": 256})
+    subdir = tmp_path / "workspace" / "01_step"
+    subdir.mkdir(parents=True, exist_ok=True)
+    runner = SubprocessRunner(
+        "echo hi", cwd=str(subdir), sandbox="resource",
+        budget_root=str(tmp_path),
+    )
+    result = runner()
+    meta = result.get("sandbox") or {}
+    assert meta.get("limits", {}).get("address_space_mb") == 256
+
+
+def test_run_command_bounds_a_runaway_job(tmp_path):
+    """End-to-end: a daemon run_command honoring a tight memory budget kills a
+    runaway allocation instead of letting it take down a shared node."""
+    import time as _time
+
+    from research_os.daemon.core import Daemon
+    from research_os.daemon.config import DaemonConfig
+
+    _write_cfg(tmp_path, {"memory_mb": 256, "wall_seconds": 5})
+    cfg = DaemonConfig.resolve(root=tmp_path)
+    daemon = Daemon(tmp_path, cfg)
+    # Allocate ~1GB then touch it — must be killed by RLIMIT_AS (256MB), not
+    # run to a clean success.
+    code = "x = bytearray(1024*1024*1024); x[-1] = 1; print(len(x))"
+    job_id = daemon.run_command(["python", "-c", code], track_artifacts=False)
+    deadline = _time.time() + 30
+    job = None
+    while _time.time() < deadline:
+        job = daemon.tasks.get(job_id)
+        if job and job.status.value in ("succeeded", "failed", "cancelled"):
+            break
+        _time.sleep(0.1)
+    assert job is not None and job.status.value == "failed", (
+        "runaway allocation should be killed by the resource budget "
+        f"(got status={getattr(job, 'status', None)})"
+    )
