@@ -932,20 +932,16 @@ This is a Research OS workspace in **exploration mode** — scratch-first,
 light gates. The home base is `workspace/scratch/`: poke at the data,
 run quick probes, throw things away freely.
 
-## 1. Drop your files
+## 1. Bring in your project — chat or files
+
+Just tell the AI what you're poking at ("quick look at whether X relates to Y
+in this CSV at <path>") — no files required. Or drop them in:
 
 | Where | What goes here |
 |---|---|
 | `inputs/raw_data/`  | Data files (CSV, Parquet, FASTQ, NIfTI, JSON, Excel, ...) |
 | `inputs/literature/`| PDFs of papers you want the AI to know about |
 | `inputs/context/`   | Notes, drafts, prior reports — anything text |
-
-Your original drops — `inputs/raw_data/` and `inputs/literature/` — are
-**source-of-truth**: soft-guarded so the AI only overwrites them with
-`force=true` plus your OK. Everything else under `inputs/` is fair game —
-the AI fills out `inputs/context/`, `inputs/intake.md`, and
-`inputs/researcher_config.yaml` for you, whether you drop files in or just
-describe the project in chat. Only `.os_state/` is ever hard-locked.
 
 ## 2. Probe in scratch
 
@@ -1046,7 +1042,10 @@ See `GETTING_STARTED.md` for the workflow.
 This is a Research OS workspace in **notebook mode** — Jupyter-first. The
 unit of work is a notebook in `notebooks/`, not a numbered analysis step.
 
-## 1. Drop your files
+## 1. Bring in your project — chat or files
+
+Tell the AI what the notebook is for ("explore whether X drives Y in this
+dataset at <path>") — no files required. Or drop them in:
 
 | Where | What goes here |
 |---|---|
