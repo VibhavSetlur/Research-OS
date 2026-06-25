@@ -539,7 +539,8 @@ walks. Three HIGH findings closed, all gate-green.
   (async/sync mismatch); (2) sys_boot is daemon-blind — fold a best-effort
   daemon orient/jobs summary into it so every session inherits continuity
   (daemon report HIGH #2); (3) sys_daemon is a read-only peek — add action=
-  verbs (lineage/runs/staleness) + a sys_job submit/poll tool (daemon MED);
+  verbs (lineage/runs/staleness) + a job submit/poll verb on `sys_daemon`
+  (daemon MED);
   (4) no deliverable/output registry (synthesis MED #7 + 'remember outputs');
   (5) missing output-type protocols: registered_report, software_paper,
   data_paper, PRISMA, preprint_thread, policy_brief, notebook-deliverable
@@ -1021,8 +1022,8 @@ Research-OS.
 4. **Forward.** The enriched request goes to a configured upstream
    (any OpenAI-compatible server: OpenAI, vLLM, Ollama, a local model)
    via a swappable forwarder (`_make_upstream_forwarder`, urllib).
-5. **Hook tool calls.** When the model returns `tool_calls` for
-   Research-OS tools, the gateway executes them through the dispatch
+5. **Hook tool calls.** When the model returns OpenAI-style tool-call
+   entries for Research-OS tools, the gateway executes them through the dispatch
    seam (`server/dispatch._handle_tool_call`) and loops — up to
    `gateway_max_tool_rounds` — until the model answers. The final
    response is stamped with `x_research_os` routing metadata.

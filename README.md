@@ -186,7 +186,7 @@ The full experience ships in the base install — no extras to remember. A handf
 
 ## Two layers, and why they matter
 
-**1. The reasoning core (always on).** The MCP server every command above talks to. Three tool namespaces — `sys_*` (workspace / files / state), `tool_*` (research work), `mem_*` (append-only memory) — plus ~145 protocols the AI routes to via `tool_route`. The core is *reactive*: it runs in your IDE, responds to each prompt, and never blocks. Most projects need nothing more.
+**1. The reasoning core (always on).** The MCP server every command above talks to. Three tool namespaces — `sys_*` (workspace / files / state), `tool_*` (research work), `mem_*` (append-only memory) — plus ~146 protocols the AI routes to via `tool_route`. The core is *reactive*: it runs in your IDE, responds to each prompt, and never blocks. Most projects need nothing more.
 
 **2. The enforcement daemon (optional).** For big or long-lived projects, a local daemon adds what a reactive server can't:
 

@@ -14,9 +14,9 @@ Two numbers frame everything:
 
 | Surface | Size | Role |
 |---|---|---|
-| `server/` (MCP) | **154 tools**, 16 handler modules | The reasoning engine. Tools + protocols + router + ledger. |
-| `daemon/` | 13 modules | The execution + transport spine. Runs, schedulers, journal, provenance. |
-| `protocols/` | **~146 YAMLs**, 14 categories | Scaffolds for reasoning — the "how to think" layer. |
+| `server/` (MCP) | **154 tools**, 15 handler modules | The reasoning engine. Tools + protocols + router + ledger. |
+| `daemon/` | execution + transport spine | Runs, schedulers, journal, provenance, recovery. |
+| `protocols/` | **146 YAMLs**, 14 categories | Scaffolds for reasoning — the "how to think" layer. |
 
 The critical property of this split: there is **exactly one seam** between
 them, and it is clean.
@@ -75,6 +75,45 @@ directly. They should be rewired to call `daemon.run_command` so that:
 - there is one execution audit trail, not two.
 
 That is the *only* thing that "moves." Everything else *fronts*.
+
+---
+
+## 2a. Background-safety guarantees (what the daemon actually promises)
+
+The daemon's reason to exist is that research jobs are long and people walk
+away from them. So the execution spine ships with a concrete safety
+contract — these are guarantees, not aspirations, and each maps to a
+running piece of `daemon/`:
+
+| Guarantee | Mechanism | Where |
+|---|---|---|
+| **Long jobs survive disconnect** | the daemon owns the process, not the IDE's MCP session; closing the chat doesn't kill the run | `runners`, `tasks` |
+| **Everything that runs is journaled** | inputs/command/outputs + artifact hashes recorded per run; lineage DAG linked by content hash | `runstore`, `provenance`, `lineage` |
+| **Runaway jobs are bounded** | per-run `rlimit`s (mem/CPU/wall/fsize/nofile) from `runtime.resource_budget`; a real kernel ceiling on a shared node | `resource_budget`, `sandbox` |
+| **Consent gates hold unattended** | a floor gate needs a one-shot, argument-bound token only a human can mint; the AI can request but never grant | `consent` |
+| **Stale results can't ship** | freshness verdict over the lineage DAG; compiling the final deliverable is blocked while inputs it depends on have changed | `staleness`, `lineage` |
+| **You find out what happened** | every run-finish / interrupt emits a notification, delivered via `notify_command` or held in the outbox | `notifications`, `events` |
+| **Interrupted runs recover** | on start, any run whose last persisted status was non-terminal is rehydrated as `INTERRUPTED`, the researcher is notified, and *orient* recommends `resume_interrupted` | `core` (rehydrate), `runstore` (`mark_interrupted`), `orient` |
+
+### The interrupted-run recovery path (the "box rebooted" case)
+
+This is the newest of the seven and the one that makes "walk away" safe.
+The flow is entirely server-side and needs no client present:
+
+```
+daemon start
+   └─ runstore.recent_manifests()            # read the run journal
+        └─ any run with non-terminal status?  # it looked live; the daemon is fresh ⇒ it died mid-run
+             └─ runstore.mark_interrupted(id) # rewrite manifest status → INTERRUPTED (+ transition)
+                  └─ notifications.emit_runs_interrupted(ids)   # push or outbox
+                       └─ orient: action="resume_interrupted"   # surfaced FIRST among run states
+```
+
+Rehydration is idempotent and best-effort — a failure to rehydrate logs at
+debug level and never blocks startup. The *orient* logic deliberately ranks
+an interrupted run **above** a failed one: a half-finished job that *looks*
+complete is the most dangerous thing a returning researcher can build on,
+so the AI is told about it first and steered to finish it before proceeding.
 
 ---
 
@@ -187,8 +226,11 @@ single BUILD phase. ✅ = already shipped (1.7–1.12).
     availability, disk, env, port, ledger integrity.
 39. **Log aggregation & tail** — `daemon logs --follow` live-tail any run,
     `daemon logs --grep`.
-40. **Crash recovery** — daemon restart re-attaches to in-flight SLURM
-    jobs (poll by recorded scheduler job id) instead of orphaning them.
+40. **Crash recovery** — ✅ interrupted-run rehydration shipped (daemon
+    restart marks orphaned non-terminal runs `INTERRUPTED`, notifies, and
+    *orient* recommends `resume_interrupted`). Still to do: re-attach to
+    in-flight SLURM jobs by recorded scheduler job id instead of orphaning
+    them.
 
 ### F. Collaboration & sharing
 41. **Run export / import** — bundle a run (manifest + artifacts + env) as

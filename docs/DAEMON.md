@@ -23,6 +23,12 @@ want any of:
   wallclock ceiling once and every run the daemon launches is held to it
   (a real `rlimit`, not a suggestion). Especially valuable on a shared
   cluster.
+- **Work that survives you walking away** — a long job keeps running after
+  you close the chat (the daemon owns the process, not your IDE session),
+  and if the daemon itself dies mid-run — the box rebooted overnight, the
+  node was preempted — the next start **rehydrates** that run as
+  `INTERRUPTED`, notifies you, and tells the AI to recommend resuming it.
+  Nothing silently vanishes. (See *"When you walk away"* below.)
 
 If you never start a daemon, none of this is in your way: gates fall back
 to a simple confirmation, jobs run inline, nothing changes.
@@ -96,6 +102,15 @@ research-os daemon logs <run_id>     # a run's details + captured output
 research-os daemon submit "<cmd>"    # submit to SLURM with full provenance
 ```
 
+The AI can launch a background run the same way, without blocking the chat:
+when the gateway is enabled it `POST`s to **`/v1/jobs`** (the single
+agent-initiated execution path, so an AI-launched run and a CLI-launched run
+share one journal, one provenance trail, one lineage graph). The job queue
+is visible read-only at `GET /v1/jobs`; the durable archive of finished runs
+is `GET /v1/runs`. Submitting a journaled job is gated — it needs the
+gateway flag plus a per-session bearer token — so the AI can never spawn
+unbounded background work on its own.
+
 A tracked job records its inputs, command, and outputs. When it finishes,
 the daemon emits a notification. To have notifications actually reach you,
 set a delivery command — a script that receives the notification as JSON on
@@ -161,6 +176,111 @@ and cite it before launching anything heavy.
 
 ---
 
+## When you walk away
+
+This is the case the daemon is built for: you kick off a long job, close
+the laptop, and come back tomorrow — or the shared node reboots overnight,
+or your SLURM allocation gets preempted at 3am. The daemon is designed so
+that **nothing you started silently disappears** and the AI knows exactly
+how to pick the work back up.
+
+What actually happens, step by step:
+
+1. **The job outlives the chat.** Because the daemon owns the process — not
+   your IDE's MCP session — closing the chat (or losing the connection)
+   doesn't kill the run. It keeps going, journaling as it does.
+2. **The daemon dies anyway.** If the daemon itself is taken down
+   mid-run — the box reboots, the node is preempted, someone `kill`s it —
+   the run was non-terminal when its last status was persisted.
+3. **Rehydrate on the next start.** The next time the daemon starts, it
+   reads the run journal, finds any run whose last persisted status was
+   non-terminal (i.e. it *looked* live but the daemon is fresh), and
+   rewrites that manifest as **`INTERRUPTED`** — with a status transition
+   recorded, so the timeline shows exactly when it stalled. Rehydration is
+   best-effort and never blocks startup.
+4. **You get told.** The daemon emits a `runs_interrupted` notification on
+   that same start — delivered via your `notify_command` if set, otherwise
+   waiting in the outbox (`research-os daemon notifications`). You learn the
+   work stopped without having to go looking.
+5. **The AI orients to it.** When the AI next calls `sys_daemon` (its
+   standard situational-awareness call), the daemon's *orient* logic
+   surfaces interrupted runs **as a high-priority recommended next action**,
+   `resume_interrupted`: "*N run(s) were interrupted (the daemon stopped
+   mid-run — e.g. the machine rebooted while you were away); their work did
+   not complete and may have left partial output.*" The recommended move is
+   to inspect them and re-run the affected step so it completes cleanly,
+   **before** building anything on a partial result.
+
+Inspect and resume manually any time:
+
+```bash
+research-os daemon runs                 # interrupted runs show status=interrupted
+research-os daemon logs <run_id>        # what it managed to produce before it stalled
+# then re-run the affected step (the AI does this for you on resume_interrupted)
+```
+
+The point of the whole flow is that a partial result can't quietly become
+the foundation of a paper. An interrupted run is *louder* than a failed
+one in the orient ordering — it's the first run-state the AI is told about —
+precisely because a half-finished job that *looks* done is the most
+dangerous thing a returning researcher can build on.
+
+---
+
+## Shared servers & HPC
+
+The daemon's design assumptions are a shared login node, not a personal
+laptop: no Docker, a conda environment, other people's jobs on the same box,
+and a scheduler in front of the real compute. Everything above is built to
+behave well there.
+
+**Tell Research OS it's shared.** Set this once and the whole system shifts
+to shared-node behaviour — long work gets backgrounded instead of blocking,
+and the AI is told to respect the resource budget before launching anything
+heavy:
+
+```yaml
+# inputs/researcher_config.yaml
+runtime:
+  shared_server: true
+```
+
+**No Docker required.** Isolation comes from `rlimit`s + the command
+allowlist + (where the host supports it) namespaces/cgroups — not
+containers. `GET /v1/sandbox` reports the strongest isolation tier this
+host actually supports, so a caller knows the bounding before submitting
+work. The whole stack installs and runs from a plain conda env; there is no
+container build step.
+
+**Hand heavy compute to the scheduler.** Research OS ships adapters for the
+tools you already run on a cluster — they're detected and used
+automatically when present:
+
+- **SLURM** — `research-os daemon submit "<cmd>"` (or `tool_slurm_submit`)
+  submits a job with full provenance and polls it to completion. Defaults
+  (partition, walltime, cpus, mem) come from `runtime.cluster_defaults` in
+  your config. If the daemon restarts while a SLURM job is in flight, it
+  re-attaches by the recorded scheduler job id rather than orphaning it.
+- **Snakemake / Nextflow** — a pipeline is detected as a workflow run-kind;
+  `GET /v1/workflows` previews the planned DAG via a read-only dry-run when
+  the engine is installed, and each pipeline gets one journal entry with
+  per-rule/per-process sub-runs.
+
+**Disk hygiene on a shared filesystem.** Runs are content-addressed and
+artifact hashes are recorded, so re-running identical work doesn't duplicate
+outputs. The resource budget's `file_size_mb` (`RLIMIT_FSIZE`) caps how
+large any single run's output can grow — a real ceiling against a runaway
+job filling a shared scratch volume. Keep `inputs/raw_data/` and
+`inputs/literature/` immutable (the server enforces this); large derived
+artifacts live under `workspace/` and `.os_state/`, which are yours to prune
+between studies.
+
+The resource budget (above) is the other half of being a good citizen on a
+shared box: a per-run memory / CPU / wallclock ceiling the kernel enforces,
+so one experiment can't starve everyone else's.
+
+---
+
 ## Other subcommands
 
 ```bash
@@ -183,7 +303,7 @@ and a per-session bearer token. Most researchers never need it.
 | You | the researcher | drop files in `inputs/`, talk in natural language, **approve** gated actions |
 | The AI | your IDE's model | plans, reasons, calls tools, requests approval |
 | The MCP server | in-process | executes + records every research action |
-| The daemon | optional process | runs long work, tracks provenance, **enforces** hard gates, notifies you |
+| The daemon | optional process | runs long work, tracks provenance, **enforces** hard gates, notifies you, **recovers interrupted runs** |
 
 The daemon never replaces the MCP server — it sits alongside it as the part
 that persists, executes in the background, and holds the authority the AI
