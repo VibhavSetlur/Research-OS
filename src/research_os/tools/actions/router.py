@@ -1128,7 +1128,9 @@ def _config_reconcile_hint(cfg: dict) -> str:
     # to re-list them here and pay for it on every boot.
     base = (
         "Follow config_directives; update via sys_config(operation='set') when "
-        "intent shifts (autonomy / output / citation style / compute env)."
+        "intent shifts (autonomy / output / citation style / compute env). When "
+        "the researcher corrects you or states a standing preference, record it "
+        "with sys_config(operation='note') so the next session inherits it."
     )
     if gaps:
         base += " Fill from the conversation: " + "; ".join(gaps) + "."

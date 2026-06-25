@@ -11,6 +11,7 @@ __all__ = [
     "_handle_sys_config_get",
     "_handle_sys_config_set",
     "_handle_sys_config_validate",
+    "_handle_sys_config_note",
     "_handle_sys_notify",
     "_handle_sys_session_handoff",
     "_handle_sys_env_snapshot",
@@ -47,6 +48,19 @@ def _handle_sys_config_validate(name, arguments, root):
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "validate failed")))
+
+
+def _handle_sys_config_note(name, arguments, root):
+    """Append a learned researcher preference to interaction.agent_notes.
+
+    The 'learn the user' write-back: APPENDS (never clobbers) so corrections
+    accumulate across sessions and are inherited at the next boot.
+    """
+    note = (arguments or {}).get("note") or (arguments or {}).get("value") or ""
+    res = append_agent_note(note, root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "note failed")))
 
 
 def _handle_sys_notify(name, arguments, root):
@@ -115,6 +129,8 @@ def _handle_sys_config(name, arguments, root):
         return _handle_sys_config_set(name, arguments, root)
     if operation == "validate":
         return _handle_sys_config_validate(name, arguments, root)
+    if operation == "note":
+        return _handle_sys_config_note(name, arguments, root)
     return _text(_error(f"Unknown sys_config operation '{operation}'"))
 
 

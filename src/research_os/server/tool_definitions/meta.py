@@ -543,15 +543,15 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "sys_config": {
-        "short": "Unified researcher-config tool. operation=get|set|validate.",
-        "description": "Unified researcher-config dispatcher for inputs/researcher_config.yaml. operation='get' reads the full config (autonomy level, expertise, model profile, research goal, API keys masked). operation='set' writes a single value via dot notation (e.g. key='researcher.expertise_level', value='advanced'). operation='validate' checks the schema and reports which API keys are present. Every legacy sys_config_get / sys_config_set / sys_config_validate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
+        "short": "Unified researcher-config tool. operation=get|set|validate|note.",
+        "description": "Unified researcher-config dispatcher for inputs/researcher_config.yaml. operation='get' reads the full config (autonomy level, expertise, model profile, research goal, API keys masked). operation='set' writes a single value via dot notation (e.g. key='researcher.expertise_level', value='advanced'). operation='validate' checks the schema and reports which API keys are present. operation='note' APPENDS a learned, durable researcher preference or correction to interaction.agent_notes (e.g. note='always segregate transport reactions', 'prefer DRFP over structural fingerprints', 'never touch the prod DB') — this is the learn-the-user loop: record it when the researcher corrects you or states a standing preference, and the next session inherits it (agent_notes is surfaced at every boot). Appends rather than clobbers, and is idempotent (re-recording the same preference is a no-op). Use 'note' for free-form standing preferences; use 'set' for the structured knobs (autonomy_level, output_types, citation_style, compute_environment). Every legacy sys_config_get / sys_config_set / sys_config_validate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "config",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["get", "set", "validate"],
+                    "enum": ["get", "set", "validate", "note"],
                     "description": "Which config sub-operation to invoke.",
                 },
                 # operation='set' kwargs
@@ -562,6 +562,11 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "value": {
                     "type": "string",
                     "description": "operation='set' — REQUIRED. New value as a string.",
+                },
+                # operation='note' kwargs
+                "note": {
+                    "type": "string",
+                    "description": "operation='note' — REQUIRED. A learned researcher preference / correction to append to interaction.agent_notes, in plain language.",
                 },
             },
             "required": ["operation"],

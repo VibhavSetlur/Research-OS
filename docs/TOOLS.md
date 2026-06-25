@@ -80,7 +80,7 @@ under the new canonical tool. Hard-removed names (return
 | `sys_checkpoint_create` | Workspace snapshot (hardlinked, fast). |
 | `sys_checkpoint_list` | List checkpoints with descriptions + timestamps. |
 | `sys_checkpoint_rollback` | Restore the workspace to a checkpoint. Files created after the checkpoint are removed (except large ref-only data extensions the snapshot skips) so it is a true restore-to, not an overlay; the current state is backed up to a pre-rollback checkpoint first and is recoverable. |
-| `sys_config` | **Unified config dispatcher.** `operation='get'\|'set'\|'validate'`. Aliases: `sys_config_get`, `sys_config_set`, `sys_config_validate` (still callable). Operates on `inputs/researcher_config.yaml`. |
+| `sys_config` | **Unified config dispatcher.** `operation='get'\|'set'\|'validate'\|'note'`. Aliases: `sys_config_get`, `sys_config_set`, `sys_config_validate` (still callable). Operates on `inputs/researcher_config.yaml`. `operation='note'` appends a learned researcher preference / correction to `interaction.agent_notes` (the learn-the-user loop — append-only, idempotent; surfaced at every boot). |
 | `sys_dep_inventory` | Listed above (Discovery). |
 | `sys_env` | **Unified environment dispatcher.** `operation='snapshot'\|'docker_generate'`. Aliases: `sys_env_snapshot`, `sys_env_docker_generate` (still callable). Capture + containerise the env. |
 | `sys_export_ro_crate` | Emit `ro-crate-metadata.json` + `codemeta.json` at project root. FAIR-aligned discoverability for downstream tools (Zenodo, OSF). |

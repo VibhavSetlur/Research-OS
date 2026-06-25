@@ -7,6 +7,7 @@ from research_os.tools.actions.state.checkpoint import (  # noqa: F401
     rollback_checkpoint,
 )
 from research_os.tools.actions.state.config import (  # noqa: F401
+    append_agent_note,
     get_config,
     get_inner_repo_dir,
     get_interaction_policy,

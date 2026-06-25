@@ -719,6 +719,60 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
         return {"status": "error", "message": str(e)}
 
 
+def append_agent_note(note: str, root: Path) -> dict[str, Any]:
+    """Append a learned researcher preference to ``interaction.agent_notes``.
+
+    The learning loop: when the researcher corrects the AI or states a
+    durable, project-specific preference ("always segregate transport
+    reactions", "prefer DRFP over structural fingerprints", "never touch the
+    prod DB"), the AI records it HERE so the next session inherits it
+    (``agent_notes`` is surfaced at every boot via ``config_directives``).
+
+    Unlike ``set_config``, this APPENDS rather than clobbers — the notes are
+    an accumulating store, not a single value. Each note becomes a dated
+    bullet. A note whose text already appears (case-insensitive substring)
+    is a no-op, so the AI re-recording the same preference across sessions
+    doesn't duplicate it. Comments in the YAML survive (ruamel round-trip).
+    """
+    note = (note or "").strip()
+    if not note:
+        return {"status": "error", "message": "note is empty"}
+    try:
+        cfg_path = _config_path(root)
+        config = _load_config_roundtrip(cfg_path) if cfg_path.exists() else {}
+        config = config or {}
+        interaction = config.get("interaction")
+        if not isinstance(interaction, dict):
+            interaction = {}
+            config["interaction"] = interaction
+        existing = interaction.get("agent_notes")
+        existing_str = existing if isinstance(existing, str) else ""
+        # Idempotent: don't re-append a preference already recorded.
+        if note.lower() in existing_str.lower():
+            return {
+                "status": "success",
+                "note": note,
+                "appended": False,
+                "reason": "already recorded",
+            }
+        from datetime import date
+
+        bullet = f"- [{date.today().isoformat()}] {note}"
+        interaction["agent_notes"] = (
+            f"{existing_str.rstrip()}\n{bullet}" if existing_str.strip() else bullet
+        )
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        _dump_config_roundtrip(cfg_path, config)
+        try:
+            os.chmod(cfg_path, 0o600)
+        except OSError:
+            pass
+        return {"status": "success", "note": note, "appended": True}
+    except Exception as e:
+        logger.exception("append_agent_note failed")
+        return {"status": "error", "message": str(e)}
+
+
 def init_config(root: Path, overrides: dict | None = None) -> dict[str, Any]:
     """Create ``inputs/researcher_config.yaml`` if missing, then merge overrides.
 
