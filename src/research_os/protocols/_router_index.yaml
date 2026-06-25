@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 42
+version: 43
 generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -334,6 +334,26 @@ protocols:
         purpose: "Stage the review skeleton."
       - protocol: guidance/quick_paper_review
         purpose: "Walk through the appraisal."
+
+  guidance/organize_existing_project:
+    intent_class: discover
+    sub_intent: intake
+    summary: "Bring an existing messy project into RO format safely (audit→plan→copy→verify)."
+    triggers:
+      - "organize this into research-os"
+      - "organize my project"
+      - "organize this project"
+      - "i have a messy folder"
+      - "i have a messy project"
+      - "migrate my project"
+      - "migrate this to research-os"
+      - "move my project into research-os"
+      - "bring my project into research-os"
+      - "structure my existing project"
+      - "i already have data and scripts everywhere"
+      - "import my existing project"
+      - "convert this folder to research-os"
+      - "clean up my project structure"
 
   guidance/project_startup:
     intent_class: discover

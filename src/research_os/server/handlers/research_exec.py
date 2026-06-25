@@ -27,6 +27,9 @@ __all__ = [
     "_handle_tool_scratch_list",
     "_handle_tool_scratch_clear",
     "_handle_tool_workspace_repair",
+    "_handle_tool_migrate_audit",
+    "_handle_tool_migrate_apply",
+    "_handle_tool_structure_audit",
 ]
 
 def _handle_tool_python_exec(name, arguments, root):
@@ -360,6 +363,44 @@ def _handle_tool_workspace_repair(name, arguments, root):
     return _text(_error(res.get("message", "workspace_repair failed")))
 
 
+def _handle_tool_migrate_audit(name, arguments, root):
+    from research_os.tools.actions.state.migrate import audit_chaos, plan_migration
+
+    src = arguments.get("source_dir")
+    if not src:
+        return _text(_error("source_dir is required"))
+    dest = arguments.get("dest_dir")
+    if dest:
+        res = plan_migration(src, dest)
+    else:
+        res = audit_chaos(src)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "migrate_audit failed")))
+
+
+def _handle_tool_migrate_apply(name, arguments, root):
+    from research_os.tools.actions.state.migrate import apply_migration
+
+    src = arguments.get("source_dir")
+    dest = arguments.get("dest_dir")
+    if not src or not dest:
+        return _text(_error("source_dir and dest_dir are required"))
+    res = apply_migration(src, dest, verify=bool(arguments.get("verify", True)))
+    if res.get("status") in ("success", "partial"):
+        return _text(_success(res))
+    return _text(_error(res.get("message", "migrate_apply failed")))
+
+
+def _handle_tool_structure_audit(name, arguments, root):
+    from research_os.tools.actions.state.structure_audit import audit_structure
+
+    res = audit_structure(root)
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "structure_audit failed")))
+
+
 HANDLERS = {
     "tool_python_exec": _handle_tool_python_exec,
     "tool_r_exec": _handle_tool_script_exec,
@@ -375,4 +416,7 @@ HANDLERS = {
     "tool_rmarkdown_render": _handle_tool_rmarkdown_render,
     "tool_scratch": _handle_tool_scratch,
     "tool_workspace_repair": _handle_tool_workspace_repair,
+    "tool_migrate_audit": _handle_tool_migrate_audit,
+    "tool_migrate_apply": _handle_tool_migrate_apply,
+    "tool_structure_audit": _handle_tool_structure_audit,
 }

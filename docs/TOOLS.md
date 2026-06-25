@@ -241,6 +241,9 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_wet_lab_sample_lineage_export` | (pack: `wet_lab`) Render the parent → split → aliquot → readout tree as JSON + Mermaid. |
 | `tool_workflow_dag` | Build a DAG of numbered steps + data dependencies; write `docs/workflow_dag.mermaid` (+ PNG if `mmdc` present). Auto-refreshed on path create/abandon. |
 | `tool_workspace_repair` | Detect missing dirs / corrupted state / stale paths and (optionally) heal. NEVER deletes. |
+| `tool_migrate_audit` | Read-only audit of an existing messy project dir: classify every file + show its proposed RO home (pass `dest_dir` for the exact copy plan with collisions). Nothing moved. |
+| `tool_migrate_apply` | Safely COPY a messy project into an RO project: copy-only (source never moved/deleted), skips collisions, verifies every copy, writes an auditable migration manifest. |
+| `tool_structure_audit` | Verify an RO project is structurally sound: steps well-formed, state ledger ⇆ disk aligned, no orphaned outputs. Read-only; severity-tagged findings. |
 | `tool_writing_discussion_from_verdicts` | Append one Discussion paragraph per non-AGREES verdict in any step's `findings_vs_literature.md`. |
 
 ---

@@ -448,6 +448,39 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "properties": {"dry_run": {"type": "boolean"}},
         },
     },
+    "tool_migrate_audit": {
+        "short": "Audit an existing messy project dir + show how each file maps into RO format. Read-only. Use to bring chaos into RO.",
+        "description": "Read-only audit of an existing (non-RO) project directory: classify every file (data / code / notebook / doc / figure / environment) and show the proposed RO home for each. Pass dest to also produce the exact source→destination copy plan with collisions flagged. Nothing is moved.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_dir": {"type": "string"},
+                "dest_dir": {"type": "string"},
+            },
+            "required": ["source_dir"],
+        },
+    },
+    "tool_migrate_apply": {
+        "short": "Safely COPY a messy project into an RO project (source untouched; every copy verified). Use after tool_migrate_audit.",
+        "description": "Execute a chaos→RO migration: COPY each file from source_dir into its RO home under dest_dir. Copy-only (the original is never moved or deleted), skips collisions (never overwrites), verifies every copy by size + hash, and writes an auditable migration_manifest.json. Run tool_workspace_repair / the structure audit afterward to confirm the RO structure is sound.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_dir": {"type": "string"},
+                "dest_dir": {"type": "string"},
+                "verify": {"type": "boolean"},
+            },
+            "required": ["source_dir", "dest_dir"],
+        },
+    },
+    "tool_structure_audit": {
+        "short": "Verify an RO project is structurally sound (steps, ledger⇆disk, no orphans). Read-only. Use after migration.",
+        "description": "Read-only integrity check of an RO project: verifies numbered steps are well-formed (no duplicate numbers, outputs have conclusions), the state ledger matches what's on disk, and there are no orphaned output dirs. Returns severity-tagged findings (block/warn/info) and ok=True only when there are zero breaks. tool_workspace_repair heals scaffold/state; content findings need the AI to act.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
     "tool_context_intake": {
         "short": "Route stray files into inputs/ subfolders (logs moves, never overwrites). Use after dropping files.",
         "description": "Detect new files dropped anywhere in the project and route each into the right inputs/ subfolder (literature / raw_data / context). Logs every move; never overwrites.",
