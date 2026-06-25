@@ -308,6 +308,24 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Plain install + practical doc rewrites
+Two changes. (1) **Packaging:** folded the old `[all]` extra set (web /
+literature / viz / audit / ml / notebook / semantic / data) into base
+`dependencies`, so `pip install research-os` now gives the full Python
+experience — no extras to remember. Kept the per-feature extras + `[all]` as
+no-op back-compat aliases; system-runtime features (r / julia / execution /
+daemon serving) stay real opt-in extras. Updated the now-stale directed-install
+hints in code (data/semantic/all import guards) to `pip install --upgrade
+research-os`. (2) **Docs:** scrubbed every `[all]`/extras install line across
+docs → plain `pip install research-os`; deep-rewrote the README to lead with a
+real 30-second worked example, sharpened the problem framing (failure-mode →
+guarantee table), real researcher vignettes, the two-layer (reactive core +
+optional enforcement daemon) story, and the self-improving-agent-layer (Hermes)
+pairing — all six modes named. Added a 'Your first ten minutes' end-to-end
+walkthrough to START.md. Collapsed SETUP's redundant Default/Minimal split;
+fixed FAQ's synthesis/extras answers. No broken links; round-trip + xref guards
+green. Gate: preflight 38/38, pytest 2751, ruff clean.
+
 ### 2026-06-24/25 — Doc accuracy sweep: every doc matched to the live system
 After the docs/v4 consolidation, audited all user/AI/architecture docs against
 ground truth (v3.12.0, 154 tools, 146 protocols, 14 categories, 6 modes, 25
