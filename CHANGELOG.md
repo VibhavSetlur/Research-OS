@@ -6,6 +6,95 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.0.0] — the resilient, autonomous, self-organizing daemon (2026-06-25)
+
+A MAJOR release. The daemon graduates from an execution helper into a
+true enforcement + execution + notification **kernel**, and the whole
+system gains the machinery for long, hard, unattended, autonomous
+research on shared infrastructure — while staying fully functional with
+**no daemon and no Hermes** (stdio users and bare clients are unaffected).
+Additive: no tools or protocols were removed and no input schemas changed,
+so existing projects keep working untouched.
+
+The throughline is unchanged — turn soft, trusted prose into hard,
+verified structure — extended now to *time* (long jobs), *scale*
+(multi-gig compute), *autonomy* (goal loops), and *chaos* (existing
+messy projects).
+
+### Added — safe large-scale + long-running execution
+- **Dynamic resource budgets** (`daemon/dynamic_limits.py`): a run's memory
+  ceiling is now the minimum of (declared cap, requested size, live free-RAM
+  headroom). A multi-gig batch runs big on an idle node and automatically
+  backs off on a busy shared one — never starving other users, never
+  exceeding the researcher's declared cap. psutil fast-path, `/proc`
+  fallback, fail-open. Tunable via `runtime.dynamic_resources`.
+- **Resumable runs** (`Daemon.resume_run`, `POST /v1/runs/{id}/resume`): a
+  long job stopped part-way (reboot, disconnect) resumes from its recorded
+  spec; checkpoint-aware programs continue via `RO_RESUME` /
+  `RO_CHECKPOINT_DIR`, others restart cleanly. Always safe, seamless for
+  opt-in jobs.
+- **Failed background runs are now reported as failed** (were silently
+  reported as succeeded when the command exited nonzero).
+
+### Added — autonomy + judgement
+- **Autonomous continuation** (opt-in, `daemon/continuation.py`): after a
+  long result lands, the daemon can re-prompt the researcher's agent
+  (Hermes / any) to continue toward a goal — hop-limited so a goal can never
+  loop forever, never bypassing consent/staleness gates. Off unless
+  `daemon.continue_command` is set.
+- **Audit-judge scoring** (`tool_judge_score`): a durable, structured
+  scorecard the AI authors (dimensions 0-5 + justifications + limitations +
+  improvements + verdict ship/iterate/redo); the loop reads the verdict to
+  decide continue-vs-stop. The tool validates the shape; the brain judges.
+
+### Added — order the chaos (migration + integrity)
+- **Chaos → Research-OS migration** (`tool_migrate_audit`,
+  `tool_migrate_apply`, protocol `guidance/organize_existing_project`):
+  audit an existing messy folder, see how each file maps into RO format,
+  then COPY it in safely — the original is never moved or deleted, every
+  copy is verified, collisions are skipped, an auditable manifest is written.
+- **Structure-integrity audit** (`tool_structure_audit`): verify an RO
+  project is sound — steps well-formed, state ledger ⇆ disk aligned, no
+  orphaned outputs — with severity-tagged findings.
+- **Daemon startup self-check** (`daemon/health_notes.py`): on boot the
+  daemon inspects the project and writes AI-facing notes
+  (`.os_state/daemon_notes.md`) that `sys_boot` surfaces by-shape, so
+  structure problems / interrupted runs / unframed intake get addressed
+  before work builds on them — and nothing is lost across sessions.
+
+### Added — planning, tool-building, polyglot research
+- **Deep iterative planning**: `methodology/deep_planning` (build a
+  rigorous, branchable roadmap), `guidance/roadmap_execution` (the
+  autonomous build loop that re-plans from evidence), `guidance/analysis_paths`
+  (keep multi-path exploration legible). Docs: `DEEP_PLANNING.md`.
+- **Tool-build power features**: `build/tool_from_description` (describe →
+  plan → build → improve-from-results loop), `build/optimal_approach`
+  (brain out the approach before committing), `build/versioning_and_rollback`
+  (version + roll back by eval verdict). `tool_git` gained a `restore`
+  operation for safe, non-destructive rollback to a blessed version.
+- **Polyglot + notebook research**: `methodology/polyglot_analysis` (choose
+  the right language — R / Julia / bash / SQL / Python — by reasoning, not
+  reflex), and strengthened notebook protocols (cell-as-unit discipline,
+  restart-and-run-all reproducibility, every number traced to code).
+
+### Added — best-setup guidance
+- **`docs/BEST_SETUP.md`** + an `agent_setup` step on stacking complementary
+  MCP servers (e.g. context7 for live docs) alongside RO. Hermes SKILL.md
+  gained a disciplined autonomous-loop section and a project-based
+  self-improvement loop.
+
+### Improved
+- **Walk-away safety**: interrupted runs are surfaced in `orient` and paged
+  to the away researcher; daemon-enforced gate blocks page the away user
+  (deduped); the shared-server resource floor is now genuinely enforced on
+  the primary run path.
+
+### Notes
+- `tool_sql_exec` is documented as a future enhancement
+  (`docs/V4_TOOL_REQUESTS.md`); SQL runs via the Python/R path today.
+
+---
+
 ## [3.12.0] — workspace mode parity + the borrow-it-or-build-it arc (2026-06-23)
 
 A MINOR release. Additive and backwards-compatible — no tools or
