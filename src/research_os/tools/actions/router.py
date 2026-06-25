@@ -155,6 +155,7 @@ MODE_ROUTING: dict[str, _ModeRouting] = {
             "build_spec", "build_implement", "build_test",
             "build_benchmark", "build_release", "build_publish",
             "build_scout", "build_spike", "build_integrate",
+            "build_evaluate",
         }),
         boost=_MODE_BUILD_BOOST,
         shape="tool_build",
@@ -209,6 +210,7 @@ MODE_ROUTING: dict[str, _ModeRouting] = {
         sub_intents=frozenset({
             "hybrid_run", "hybrid_handoff",
             "build_scout", "build_spike", "build_integrate",
+            "build_evaluate",
         }),
         boost=_MODE_LIGHT_BOOST,
         shape="hybrid",

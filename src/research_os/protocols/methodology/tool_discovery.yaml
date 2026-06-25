@@ -13,8 +13,26 @@ trigger: AI needs a library for a task but is uncertain which one to use.
 
 see_also:
   - methodology/methodology_selection   # the method choice that this library implements
+  - guidance/agent_setup                # how the skill layer (Hermes) is wired + aligned
 
 steps:
+  - id: consult_skill_layer
+    name: Consult the agent's skill layer before a generic search
+    description: |
+      If the project runs under an agent layer with a domain skill ecosystem
+      (e.g. Hermes — see guidance/agent_setup), check it FIRST. Domain skills
+      (a bioinformatics / drug-discovery / field-specific skill library) often
+      already name the canonical library for a task with validated, correct
+      parameters and flags — that is faster and more reliable than rediscovering
+      it from a web search. When a skill answers "which library for <task>",
+      take its recommendation as the strong default and SKIP straight to
+      test_install + log_decision, recording that the choice came from the
+      skill layer. Only fall through to the search steps below when no skill
+      covers the task, or when the skill's recommendation needs confirming
+      against the project's specific constraints (license, language, footprint).
+      The skill says HOW; the steps below are the reasoning that confirms it
+      FITS and records WHY.
+
   - id: formulate_query
     name: Formulate the Search Query
     description: |

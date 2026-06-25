@@ -497,3 +497,20 @@ def test_describe_layout_rejects_unknown_mode():
     with pytest.raises(KeyError):
         describe_layout("nope_not_a_mode")
 
+
+def test_build_evaluate_boosted_in_build_and_hybrid_modes():
+    """The evaluate→improve heartbeat (build_evaluate sub-intent →
+    build/tool_evaluation_loop) is a core build AND hybrid activity, so both
+    modes must boost it; unrelated modes must not."""
+    from research_os.tools.actions.router import MODE_ROUTING, _mode_boost_for
+
+    assert "build_evaluate" in MODE_ROUTING["tool_build"].sub_intents
+    assert "build_evaluate" in MODE_ROUTING["hybrid"].sub_intents
+    # tool_build gives the firm build boost; hybrid the lighter nudge.
+    assert _mode_boost_for("tool_build", "build_evaluate") == MODE_ROUTING["tool_build"].boost
+    assert _mode_boost_for("hybrid", "build_evaluate") == MODE_ROUTING["hybrid"].boost
+    # Analysis (no entry) and an unrelated mode give no boost.
+    assert _mode_boost_for("analysis", "build_evaluate") == 0
+    assert _mode_boost_for("exploration", "build_evaluate") == 0
+
+
