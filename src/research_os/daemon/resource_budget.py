@@ -144,6 +144,98 @@ def resolve_run_limits(root: str | Path, base: Any = None) -> Any:
     return apply_budget(limits, budget)
 
 
+def load_runtime(root: str | Path) -> dict[str, Any]:
+    """Read the ``runtime:`` block from researcher_config (fail-safe to {}).
+
+    Surfaces the execution-environment facts the daemon must respect on a
+    shared cluster node:
+
+      * ``shared_server`` (bool) — the host is a multi-tenant box (a shared
+        HPC login/compute node). A runaway run here can take down OTHER
+        users' work, so the daemon must bound every run and must NOT assume
+        a private container runtime / unprivileged user namespaces exist.
+      * ``compute_environment`` (str) — e.g. ``"conda"`` / ``"docker"`` /
+        ``"native"``; a hint for which isolation strategy is even feasible.
+
+    Returns a small normalized dict; an absent/malformed block yields {}.
+    """
+    try:
+        import yaml
+    except Exception:  # noqa: BLE001
+        return {}
+    for rel in ("inputs/researcher_config.yaml", "researcher_config.yaml"):
+        path = Path(root) / rel
+        if path.exists():
+            try:
+                cfg = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            except Exception:  # noqa: BLE001
+                return {}
+            rt = cfg.get("runtime") if isinstance(cfg, dict) else None
+            if not isinstance(rt, dict):
+                return {}
+            out: dict[str, Any] = {}
+            if "shared_server" in rt:
+                out["shared_server"] = _as_bool(rt.get("shared_server"))
+            ce = rt.get("compute_environment")
+            if ce is not None:
+                out["compute_environment"] = str(ce).strip().lower()
+            return out
+    return {}
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def resolve_sandbox_tier(
+    root: str | Path,
+    *,
+    sandbox_mode: str = "auto",
+) -> str | None:
+    """Decide the sandbox tier the daemon should request for a local run.
+
+    Turns the daemon's ``sandbox_mode`` config + the project's ``runtime``
+    block into the tier passed to the runner. The guiding rule on a shared
+    node is: ALWAYS bound the run (resource tier is the universal floor),
+    but never PRETEND to have isolation the host can't give.
+
+      * ``sandbox_mode="off"``  → ``None`` (explicit opt-out: no bounding).
+      * ``sandbox_mode="native"`` → ``"resource"`` (rlimits + wallclock only;
+        never container/namespace, even if available).
+      * ``sandbox_mode="auto"`` → ``"resource"`` when the project declares
+        ``runtime.shared_server`` (no Docker / no usable userns on a shared
+        HPC box — don't waste a probe, go straight to the enforceable floor)
+        OR when ``compute_environment`` is conda/native; otherwise let the
+        runner auto-detect the strongest tier (returns ``"container"`` as the
+        request, which the sandbox detector degrades to what the host allows).
+
+    The resource tier is what makes the resource_budget actually bind, so
+    the default (auto, no shared flag) still returns a bounding tier — a
+    daemon background run is never left completely unbounded unless the
+    operator explicitly sets ``sandbox_mode: off``.
+    """
+    mode = (sandbox_mode or "auto").strip().lower()
+    if mode == "off":
+        return None
+    if mode == "native":
+        return "resource"
+    # auto
+    rt = load_runtime(root)
+    if rt.get("shared_server"):
+        return "resource"
+    ce = rt.get("compute_environment")
+    if ce in ("conda", "native", "venv", "pip"):
+        return "resource"
+    if ce == "docker":
+        return "container"
+    # No runtime hints: still bound the run (resource floor), but let the
+    # detector promote to stronger isolation when the host genuinely offers
+    # it by requesting the strongest tier — it degrades down on its own.
+    return "container"
+
+
 def budget_summary(root: str | Path) -> dict[str, Any]:
     """Human/agent-facing view of the active budget for capabilities/status.
 
