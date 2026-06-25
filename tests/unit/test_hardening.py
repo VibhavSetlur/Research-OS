@@ -42,6 +42,57 @@ def test_share_archive_template_excludes_researcher_config():
     assert "researcher_config.yaml" in _SHARE_EXCLUDE_NAMES
 
 
+def test_share_archive_template_is_valid_python():
+    """The export script is a scaffolded string template; a stray un-escaped
+    newline inside it silently breaks the generated script. Compile it."""
+    import ast
+    from research_os.project_ops import _EXPORT_PY_TEMPLATE
+    ast.parse(_EXPORT_PY_TEMPLATE)  # raises SyntaxError if the template is broken
+
+
+def test_share_archive_includes_recipient_readme(tmp_path):
+    """The exported zip must carry a human front-door (README_SHARED.md) with
+    the project's question + a how-to-trust section, so a collaborator who
+    unzips it isn't dropped into raw folders with no guide."""
+    import glob
+    import subprocess
+    import sys
+    import zipfile
+
+    from research_os.project_ops import scaffold_minimal_workspace
+
+    scaffold_minimal_workspace(tmp_path, "Recv Study")
+    # Give it a question + a finished step + a deliverable to summarise.
+    (tmp_path / "docs").mkdir(exist_ok=True)
+    (tmp_path / "docs" / "research_overview.md").write_text(
+        "# Overview\n\n## Research question\n\nDoes X affect Y?\n\n## Domain\n\n**biology**\n"
+    )
+    step = tmp_path / "workspace" / "01_eda"
+    step.mkdir(parents=True, exist_ok=True)
+    (step / "conclusions.md").write_text("# EDA\n\nn=240; effect observed.\n")
+    (tmp_path / "synthesis").mkdir(exist_ok=True)
+    (tmp_path / "synthesis" / "paper.pdf").write_text("PDF")
+
+    script = tmp_path / "scripts" / "export_share_archive.py"
+    assert script.exists(), "scaffold should drop the export script"
+    res = subprocess.run(
+        [sys.executable, str(script)], cwd=str(tmp_path),
+        capture_output=True, text=True,
+    )
+    assert res.returncode == 0, res.stderr
+    zips = glob.glob(str(tmp_path / "*_share_*.zip"))
+    assert zips, "export did not produce a zip"
+    with zipfile.ZipFile(zips[0]) as zf:
+        names = zf.namelist()
+        readme = next((n for n in names if n.endswith("README_SHARED.md")), None)
+        assert readme, f"no recipient README in archive: {names}"
+        body = zf.read(readme).decode()
+    assert "Does X affect Y?" in body          # the question, extracted
+    assert "01_eda" in body                    # what was done
+    assert "synthesis/paper.pdf" in body       # deliverables
+    assert "trust" in body.lower()             # the trust/reproduce section
+
+
 # -- A3: latex compile is shell-escape-hardened ---------------------------
 
 

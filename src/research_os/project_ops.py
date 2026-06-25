@@ -2032,6 +2032,149 @@ def _excluded(path: Path) -> bool:
     return False
 
 
+def _read(p: Path, limit: int = 4000) -> str:
+    try:
+        return p.read_text(errors="replace")[:limit]
+    except Exception:
+        return ""
+
+
+def _build_recipient_readme(root: Path) -> str:
+    """A human front-door for whoever OPENS the shared archive.
+
+    A collaborator / PI / reviewer who unzips this has none of the AI-facing
+    files (they're excluded) and shouldn't have to spelunk numbered folders to
+    learn what the project is, what was done, and whether they can trust it.
+    This stitches the human-readable status + structure into one overview.
+    """
+    import datetime as _dt
+
+    name = root.name
+    lines = [
+        f"# {name} — shared research archive",
+        "",
+        f"*Self-contained snapshot, exported {_dt.date.today().isoformat()}. "
+        "You do NOT need Research-OS installed to read it — everything below "
+        "is plain files.*",
+        "",
+    ]
+
+    # What this project is — pull from research_overview / STATE / intake.
+    # Prefer a candidate that actually names the research question; fall back
+    # to the first non-trivial one. (Threshold is low: a 3-line overview with
+    # the question + domain is perfectly good and may be < 80 chars.)
+    overview = ""
+    for cand in ("docs/research_overview.md", "STATE.md", "inputs/intake.md"):
+        txt = _read(root / cand)
+        if not txt or len(txt.strip()) < 30:
+            continue
+        if "research question" in txt.lower() and "not yet set" not in txt.lower():
+            overview = txt
+            break
+        if not overview:
+            overview = txt
+    lines.append("## What this is")
+    lines.append("")
+    if overview:
+        # Lift the question + domain + hypothesis content. Markdown often puts
+        # the heading on one line and the value on the next, so when a line is
+        # just a heading, pull the following non-empty line as its value.
+        olines = overview.splitlines()
+        picked: list[str] = []
+        for i, ln in enumerate(olines):
+            low = ln.lower()
+            if any(k in low for k in
+                   ("research question", "domain", "hypoth")):
+                stripped = ln.strip()
+                is_heading_only = (
+                    stripped.startswith("#")
+                    or stripped.rstrip(":*").lower() in (
+                        "research question", "domain", "hypotheses",
+                    )
+                )
+                if is_heading_only:
+                    label = stripped.lstrip("#").strip().rstrip(":*").strip()
+                    for nxt in olines[i + 1:i + 4]:
+                        if nxt.strip():
+                            picked.append(f"- **{label.title()}:** "
+                                          f"{nxt.strip().strip('*_')}")
+                            break
+                else:
+                    picked.append(stripped if stripped.startswith("-")
+                                  else f"- {stripped}")
+            if len(picked) >= 5:
+                break
+        seen = set()
+        picked = [p for p in picked if not (p in seen or seen.add(p))]
+        if picked:
+            lines.extend(picked)
+        else:
+            lines.append(overview.strip()[:600])
+    else:
+        lines.append("_(No overview was recorded. See `docs/` and the numbered "
+                     "`workspace/` folders for the work itself.)_")
+    lines.append("")
+
+    # What was done — the numbered analysis steps + their conclusions.
+    ws = root / "workspace"
+    steps = []
+    if ws.is_dir():
+        for d in sorted(ws.iterdir()):
+            if (d.is_dir() and d.name[:2].isdigit()
+                    and not d.name.endswith("__DEAD_END")):
+                concl = d / "conclusions.md"
+                summary = ""
+                if concl.exists():
+                    body = _read(concl, 400).strip()
+                    first = next((ln.strip("# ").strip()
+                                  for ln in body.splitlines() if ln.strip()), "")
+                    summary = first
+                steps.append((d.name, summary))
+    if steps:
+        lines.append("## What was done")
+        lines.append("")
+        for sname, ssum in steps:
+            lines.append(f"- **{sname}**" + (f" — {ssum}" if ssum else ""))
+        lines.append("")
+
+    # Deliverables — what's in synthesis/.
+    syn = root / "synthesis"
+    deliverables = []
+    if syn.is_dir():
+        for p in sorted(syn.rglob("*")):
+            if p.is_file() and p.suffix.lower() in {
+                ".pdf", ".html", ".typ", ".docx", ".pptx", ".md"
+            }:
+                deliverables.append(p.relative_to(syn).as_posix())
+    if deliverables:
+        lines.append("## Deliverables (`synthesis/`)")
+        lines.append("")
+        for d in deliverables[:20]:
+            lines.append(f"- `synthesis/{d}`")
+        lines.append("")
+
+    # Trust + reproduce.
+    lines.extend([
+        "## How to read & trust this",
+        "",
+        "- `workspace/<NN_slug>/` — each numbered folder is one analysis step: "
+        "the script(s) that ran, the data they produced, and a `conclusions.md`.",
+        "- `workspace/methods.md`, `analysis.md`, `citations.md` — the project's "
+        "narrative logs (what was done, in order; the bibliography).",
+        "- `environment/requirements.txt` — the exact package versions, so the "
+        "analyses can be re-run.",
+        "- `CITATION.cff` + `ro-crate-metadata.json` — machine-readable "
+        "provenance + citation metadata (open standards; optional to read).",
+        "- Every quantitative claim in the write-up is meant to trace to an "
+        "artefact in `workspace/`. To reproduce: install the pinned "
+        "environment, then re-run the scripts in step order.",
+        "",
+        "_Generated by Research-OS at export time. Edit freely._",
+        "",
+    ])
+    return "\\n".join(lines)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=None,
@@ -2061,6 +2204,15 @@ def main() -> int:
     files_added = 0
     bytes_added = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # A human front-door for the recipient: what this is, what was done,
+        # what's here, how to trust + reproduce it. The AI-facing orientation
+        # files (GETTING_STARTED, AGENTS) are excluded from the archive, so
+        # without this a collaborator opens raw folders with no guide.
+        try:
+            zf.writestr(f"{root.name}/README_SHARED.md", _build_recipient_readme(root))
+            files_added += 1
+        except Exception as _e:
+            print(f"[warn] could not generate recipient README: {_e}")
         # Top-level files we DO want shipped to collaborators. The
         # open-science manifests (RO-Crate + CodeMeta + CITATION.cff)
         # MUST live at archive root so ro-crate-py + cffconvert can
