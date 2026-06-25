@@ -307,6 +307,30 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Mixed-mode layer made legible + skill-layer-first streamlining
+With the RO MCP server now live (154 tools), exercised routing end-to-end and
+improved the mixed-mode layer across all working modes plus the Hermes-skill
+streamlining the user asked for.
+- **Skill-layer-first tool discovery (`3169010`).** methodology/tool_discovery
+  now consults the agent's domain skill layer (Hermes) FIRST: a skill already
+  names the canonical library with validated params, so take it as the strong
+  default + skip to install/log; fall through to the generic search reasoning
+  only when no skill covers the task. The 'streamline where Hermes skills exist'
+  pattern — keep the reasoning scaffold, defer how-to to the skill layer. Skill
+  says HOW, RO confirms it FITS + records WHY.
+- **Evaluate-loop mode-boost gap fixed (`3169010`).** build_evaluate (→
+  build/tool_evaluation_loop, the evaluate→improve heartbeat) was in NO mode's
+  boost set. Added it to tool_build (+2) and hybrid (+1) — it's a core build
+  activity AND the heart of the hybrid loop. Verified live.
+- **sys_boot now surfaces the mode (`71e9ea2`).** The deepest mixed-layer gap:
+  workspace.mode silently biased routing but the AI never SAW it at boot, so it
+  couldn't act mode-appropriately or notice when to switch. sys_boot now returns
+  workspace_mode + a one-line mode_directive for all 6 modes, each with its
+  behaviour + transition signal (analysis→hybrid when you need to build a tool,
+  exploration→promote a probe, etc.). The mode is now a stated context the AI
+  reasons about, not an invisible bias.
+- Gate green: preflight 38/38, pytest 2747, ruff clean.
+
 ### 2026-06-24/25 — The layered-research-OS thesis: RO guidance + a self-improving agent layer
 Researched the Hermes skills ecosystem online (hermes-agent.nousresearch.com/
 docs) and acted on the architectural thesis it confirms: the best research
