@@ -307,6 +307,45 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Deep-dive follow-through: connect verification to the agent's path
+Two parallel deep-dive investigators (synthesis system + daemon↔MCP↔agent)
+independently converged on ONE theme with my own trace: the enforcement +
+verification machinery is sound but DISCONNECTED from the path an AI actually
+walks. Three HIGH findings closed, all gate-green.
+- **Staleness gate woken (`c4c55df`).** Both reports' #1: the no_stale_inputs
+  floor gate reads a verdict that was ONLY written by an authenticated POST
+  /v1/staleness/verdict — no run hook — so it never fired in normal use.
+  RunJournal._on_transition now recomputes + persists the verdict after every
+  terminal run (reusing the POST endpoint's assess+write_verdict),
+  best-effort/isolated. Composes with POST /v1/jobs: agent runs now journal
+  AND refresh freshness, so 'block a deliverable built on changed inputs'
+  works end-to-end.
+- **Synthesis verification made reachable (`e80b408`).** Synthesis report's #1
+  + #4: (a) tool_synthesis_check never ran claim-grounding — ungrounded
+  numbers only surfaced at the far-downstream ship gate; added mode='grounding'
+  (in 'all') that runs audit_claims per check, WARN-level, during authoring.
+  (b) The one HARD ship gate (tool_finalize_project) was referenced by NO
+  synthesis protocol — an autopilot AI compiled a PDF and stopped, never
+  hitting it; synthesis_paper's pre_submission step now runs
+  finalize(check)→finalize explicitly.
+- **POST /v1/jobs keystone (`a61ae58`, prior in this session).** The missing
+  run-submit endpoint so agent execution shares the journal/provenance/lineage
+  path (DESIGN_V4 §6.2). Lazy-starts the task queue (latent bug fixed).
+- **Deferred, logged for next passes (corroborated by the reports):**
+  (1) exec-tool delegation by-shape — needs a sync-wait mode on /v1/jobs first
+  (async/sync mismatch); (2) sys_boot is daemon-blind — fold a best-effort
+  daemon orient/jobs summary into it so every session inherits continuity
+  (daemon report HIGH #2); (3) sys_daemon is a read-only peek — add action=
+  verbs (lineage/runs/staleness) + a sys_job submit/poll tool (daemon MED);
+  (4) no deliverable/output registry (synthesis MED #7 + 'remember outputs');
+  (5) missing output-type protocols: registered_report, software_paper,
+  data_paper, PRISMA, preprint_thread, policy_brief, notebook-deliverable
+  (synthesis MED/LOW #8–12); (6) claim grounding is bag-of-numbers presence,
+  not value↔named-source binding (synthesis HIGH #3); (7) /v1/consent/grants
+  leaks token values to any localhost user on shared HPC (daemon LOW —
+  require the bearer token on it too).
+- Gate green: preflight 38/38, pytest 2744, ruff clean.
+
 ### 2026-06-24/25 — Deep-dive pass: closing the agent↔daemon execution gap
 A fresh whole-system deep dive (synthesis system + daemon↔MCP↔agent layers +
 routing), traced through real code, surfaced the system's deepest
