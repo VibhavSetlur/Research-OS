@@ -42,6 +42,9 @@ the consent/staleness authority surface; off by default):
                            execution → one journal/provenance/lineage path) (auth)
   POST /v1/runs/{run_id}/resume  resume an interrupted/paused run from its
                            recorded spec (checkpoint-aware) (auth)
+  GET  /v1/continuation     current autonomous goal-loop state (goal/hops/active)
+  POST /v1/continuation/start  begin an autonomous goal loop toward a goal (auth)
+  POST /v1/continuation/stop   end the active autonomous goal loop (auth)
   POST /v1/consent/request the agent asks for consent (open; cannot grant)
   POST /v1/consent/approve mints a one-shot, TTL'd, arg-bound token (auth)
   POST /v1/consent/deny    rejects a pending request (auth)
@@ -278,6 +281,81 @@ def build_app(daemon: "Daemon"):
                 status_code=500,
             )
         return JSONResponse(result, status_code=201)
+
+    async def post_continuation_start(request):
+        # MUTATING: begin an autonomous goal loop. After this, when a long run
+        # reaches terminal AND daemon.continue_command is set, the daemon
+        # re-prompts the researcher's agent toward this goal (hop-limited).
+        # Auth-gated. No-op-safe: opt-in still requires continue_command.
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        if daemon.root is None:
+            return JSONResponse(
+                {"error": "no project root", "code": "no_root"}, status_code=400
+            )
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            body = {}
+        goal = str((body or {}).get("goal", "")).strip()
+        if not goal:
+            return JSONResponse(
+                {"error": "goal is required", "code": "no_goal"}, status_code=400
+            )
+        try:
+            from . import continuation as _cont
+
+            state = _cont.start_goal_loop(daemon.root, goal)
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                {"error": f"failed to start loop: {exc}", "code": "start_failed"},
+                status_code=500,
+            )
+        opted_in = bool((getattr(daemon.config, "continue_command", "") or "").strip())
+        return JSONResponse(
+            {"status": "started", "goal": goal, "opted_in": opted_in, "state": state},
+            status_code=201,
+        )
+
+    async def post_continuation_stop(request):
+        # MUTATING: end the active autonomous goal loop (goal met / researcher
+        # stopped it). Auth-gated. Idempotent.
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        if daemon.root is None:
+            return JSONResponse(
+                {"error": "no project root", "code": "no_root"}, status_code=400
+            )
+        try:
+            body = await request.json()
+        except Exception:  # noqa: BLE001
+            body = {}
+        reason = str((body or {}).get("reason", "goal_met")).strip() or "goal_met"
+        try:
+            from . import continuation as _cont
+
+            state = _cont.stop_goal_loop(daemon.root, reason=reason)
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                {"error": f"failed to stop loop: {exc}", "code": "stop_failed"},
+                status_code=500,
+            )
+        return JSONResponse({"status": "stopped", "reason": reason, "state": state})
+
+    async def get_continuation(request):
+        # READ-ONLY: the current goal-loop state (goal, hops, active).
+        if daemon.root is None:
+            return JSONResponse({"active": False, "available": False})
+        try:
+            from . import continuation as _cont
+
+            state = _cont._read_loop_state(daemon.root)
+            opted_in = bool((getattr(daemon.config, "continue_command", "") or "").strip())
+            return JSONResponse({"available": True, "opted_in": opted_in, **state})
+        except Exception:  # noqa: BLE001
+            return JSONResponse({"active": False, "available": False})
 
     async def get_runs(request):
         # Durable run journal — the permanent record (survives restarts).
@@ -911,6 +989,9 @@ def build_app(daemon: "Daemon"):
         Route("/v1/runs", get_runs, methods=["GET"]),
         Route("/v1/runs/{run_id}", get_run, methods=["GET"]),
         Route("/v1/runs/{run_id}/resume", post_run_resume, methods=["POST"]),
+        Route("/v1/continuation", get_continuation, methods=["GET"]),
+        Route("/v1/continuation/start", post_continuation_start, methods=["POST"]),
+        Route("/v1/continuation/stop", post_continuation_stop, methods=["POST"]),
         Route("/v1/events", stream_events, methods=["GET"]),
         Route("/v1/events/recent", get_events_recent, methods=["GET"]),
         Route("/v1/consent/pending", get_consent_pending, methods=["GET"]),

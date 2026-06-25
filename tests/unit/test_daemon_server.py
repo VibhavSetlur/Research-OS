@@ -471,3 +471,63 @@ def test_gateway_streaming_still_enforces_auth(tmp_path, monkeypatch):
     assert "event-stream" not in r.headers.get("content-type", "")
 
 
+# ── autonomous continuation endpoints ─────────────────────────────────
+
+
+def test_continuation_get_open_default_inactive(tmp_path):
+    daemon = _gw_daemon(tmp_path)
+    c = TestClient(build_app(daemon))
+    r = c.get("/v1/continuation")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body.get("active") in (False, None)
+
+
+def test_continuation_start_requires_auth(tmp_path):
+    daemon = _gw_daemon(tmp_path, enable_gateway=False)
+    c = TestClient(build_app(daemon))
+    r = c.post("/v1/continuation/start", json={"goal": "build the model"})
+    assert r.status_code == 503  # gateway disabled
+
+
+def test_continuation_start_stop_roundtrip(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    hdr = {"Authorization": "Bearer secret-123"}
+
+    # start a loop
+    r = c.post("/v1/continuation/start", json={"goal": "reach the goal"}, headers=hdr)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["status"] == "started"
+    assert body["goal"] == "reach the goal"
+    # not opted in (no continue_command) — reported so the AI knows
+    assert body["opted_in"] is False
+
+    # the loop is now visible as active
+    state = c.get("/v1/continuation").json()
+    assert state["active"] is True
+    assert state["goal"] == "reach the goal"
+
+    # stop it
+    r2 = c.post("/v1/continuation/stop", json={"reason": "goal_met"}, headers=hdr)
+    assert r2.status_code == 200
+    assert r2.json()["status"] == "stopped"
+    assert c.get("/v1/continuation").json()["active"] is False
+
+
+def test_continuation_start_rejects_empty_goal(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/continuation/start", json={"goal": "  "},
+        headers={"Authorization": "Bearer secret-123"},
+    )
+    assert r.status_code == 400
+    assert r.json()["code"] == "no_goal"
+
+
+

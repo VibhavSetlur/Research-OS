@@ -103,6 +103,17 @@ steps:
       what was actually produced, and (in hands-off runs) snapshot:
       sys_checkpoint_create so a runaway loop can be undone in one call.
 
+      JUDGE THE MILESTONE before moving on. Call tool_judge_score with the
+      dimensions that matter for THIS work (0-5 + a real justification each),
+      the honest limitations, the concrete improvements, and a verdict:
+        - ship   → this milestone is good enough for the goal.
+        - iterate → close but not there; the named improvements feed the next
+          pass (re_plan reads them).
+        - redo   → fundamentally flawed; re-plan the approach.
+      The verdict is what loop_or_converge reads to decide continue-vs-stop —
+      an honest scorecard is what stops the loop converging too early OR
+      spinning forever.
+
   - id: re_plan
     name: Re-Plan from the Evidence (reshape the roadmap, open/close paths)
     description: |

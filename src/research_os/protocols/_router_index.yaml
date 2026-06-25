@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 44
+version: 45
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -566,6 +566,8 @@ protocols:
         purpose: "Load state + autonomy + active plan to reconstruct the thread."
       - protocol: guidance/roadmap_execution
         purpose: "Select next milestone, execute, record result, re-plan, decide pause-or-proceed."
+      - tool: tool_judge_score
+        purpose: "Score each milestone (verdict ship/iterate/redo) — the loop reads the verdict to continue or converge."
       - tool: sys_file_write
         purpose: "Keep inputs/research_plan.md in sync; append to the iteration log each re-plan."
 
