@@ -15,7 +15,7 @@ class _MissingDependency:
     def __call__(self, *args, **kwargs):
         raise RuntimeError(
             f"Optional dependency missing for {self.name}. "
-            "Install with: pip install 'research-os[all]'"
+            "Install with: pip install research-os"
         )
 
 
@@ -42,7 +42,7 @@ def _optional_dep_inventory() -> dict:
         ],
         "missing_count": len(_MISSING_DEPS),
         "advice": (
-            "Install with: pip install 'research-os[all]' "
+            "Install with: pip install research-os "
             "(omits R / Julia / Docker bindings — install those separately)."
             if _MISSING_DEPS
             else "All optional dependencies present."

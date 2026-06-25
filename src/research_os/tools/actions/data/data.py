@@ -100,7 +100,7 @@ def _read(path: Path):
             raise RoError(
                 what="pyarrow is required for .parquet/.feather files",
                 why="pyarrow/fastparquet is an optional dependency and is not installed",
-                next_action="run: pip install 'research-os[data]'  (or: pip install pyarrow)",
+                next_action="run: pip install --upgrade research-os  (or: pip install pyarrow)",
             ) from exc
     if ext in (".xlsx", ".xls"):
         try:
@@ -111,7 +111,7 @@ def _read(path: Path):
             raise RoError(
                 what="openpyxl (.xlsx) / xlrd (.xls) is required to read Excel files",
                 why="the Excel engine is an optional dependency and is not installed",
-                next_action="run: pip install 'research-os[data]'  (or: pip install openpyxl xlrd)",
+                next_action="run: pip install --upgrade research-os  (or: pip install openpyxl xlrd)",
             ) from exc
     if ext == ".json":
         return pd.read_json(path)
@@ -482,7 +482,7 @@ def data_convert(filepath: str, output_format: str, root: Path) -> dict[str, Any
                     "status": "error",
                     "message": (
                         "pyarrow required for .parquet/.feather output — "
-                        "run: pip install 'research-os[data]'"
+                        "run: pip install --upgrade research-os"
                     ),
                 }
         elif output_format == "rds":

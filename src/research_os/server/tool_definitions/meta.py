@@ -98,7 +98,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_semantic_route": {
         "short": "Direct semantic search over protocol embeddings. Returns top-k candidates with scores.",
         "compare_to": "tool_route (hybrid semantic + trigger picker that returns a single primary protocol) and tool_quick_route (quick/throwaway short-circuit).",
-        "description": "Embed the prompt with BAAI/bge-small-en-v1.5 (local ONNX, no network) and return the top-k protocols by cosine similarity, with the length-weighted trigger-phrase boost applied. Use this when you want to SEE the ranked candidates yourself — tool_route picks a primary; tool_semantic_route surfaces the alternatives so you can route deliberately. Requires the `semantic` extra (`pip install 'research-os[semantic]'`); falls back to status='unavailable' otherwise.",
+        "description": "Embed the prompt with BAAI/bge-small-en-v1.5 (local ONNX, no network) and return the top-k protocols by cosine similarity, with the length-weighted trigger-phrase boost applied. Use this when you want to SEE the ranked candidates yourself — tool_route picks a primary; tool_semantic_route surfaces the alternatives so you can route deliberately. Ships in the base install; falls back to status='unavailable' only if the local embedder is somehow missing.",
         "category": "routing",
         "inputSchema": {
             "type": "object",

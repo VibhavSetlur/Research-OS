@@ -272,7 +272,7 @@ def _handle_tool_semantic_route(name, arguments, root):
         env = _success({
             "reason": (
                 "Semantic routing requires the `semantic` extra. "
-                "Install with: pip install 'research-os[semantic]' "
+                "Reinstall to restore it: pip install --upgrade research-os "
                 "and confirm protocols/_embeddings.npz is present "
                 "(run scripts/build_embeddings.py)."
             ),
@@ -313,7 +313,7 @@ def _handle_sys_semantic_tool_search(name, arguments, root):
         env = _success({
             "reason": (
                 "Semantic tool search requires the `semantic` extra. "
-                "Install with: pip install 'research-os[semantic]'."
+                "Reinstall to restore it: pip install --upgrade research-os."
             ),
             "fastembed_installed": semantic.fastembed_available(),
             "embeddings_on_disk": semantic.embeddings_on_disk(),
