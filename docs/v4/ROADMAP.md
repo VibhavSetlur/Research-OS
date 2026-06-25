@@ -307,6 +307,38 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Protocol expansion: data prep, tool eval loop, voice calibration
+Three new protocols filling real coverage gaps (181 protocols total), all
+doctrine-correct scaffolds, each routed + wired + gate-green:
+- **`methodology/data_preparation`** (`884ace3`): the biggest unscaffolded gap
+  in the analysis path. data_quality_audit DIAGNOSES; nothing scaffolded the
+  transforms that FIX (dedup, type, recode, join, reshape, outlier, filter) —
+  the largest pool of undocumented researcher DoF. Raw immutable, every
+  decision recorded + re-runnable, outliers vs impossibles split, CONSORT-style
+  N accounting, missingness deferred to its own protocol.
+- **`build/tool_evaluation_loop`** (`54c618f`): the evidence-driven
+  evaluate→improve heartbeat for tool_build + hybrid — the "do research on your
+  own tool, then come back to improvements" cycle benchmark_vs_baseline (one
+  shot) + test_strategy (correctness) didn't cover. Hypothesise weak spots →
+  fixed-condition evals → rank backlog by evidenced impact → feed top fix to
+  implement_iteration → re-measure. Wired into hybrid_workflow's
+  choose_next_increment. Also fixed a real dangling prose ref
+  (build/implement_and_iterate → build/implement_iteration).
+- **`writing/voice_calibration`** (`4eda3a4`): learn + apply the researcher's
+  OWN writing voice (author-voice, not venue-voice) from their genuine samples
+  into workspace/.style/voice_profile.md. Client-agnostic (on-disk). Wired into
+  writing_core so every drafted section inherits it; hard venue/rigor rules win,
+  voice owns the discretionary space, never touches claim grounding.
+- **Preflight hardening**: the protocol tool-ref check is now protocol-ID-aware
+  (auto-exempts tool_/sys_/mem_-prefixed protocol ids like tool_evaluation_loop)
+  — kills a recurring hand-maintained-allowlist false-positive class, same
+  lesson as the docs-xref guard fix.
+- DEFERRED (logged): a drift guard for dangling PROSE protocol references
+  (build/x, methodology/y mentioned in step text) — routing targets are
+  checked, prose mentions are not; that's how the implement_and_iterate typo
+  survived.
+- Gate green throughout: preflight 38/38, pytest 2738, ruff clean.
+
 ### 2026-06-24/25 — Adaptivity (learn-the-user) + drift-guard precision + doctrine sweep
 - **Drift guard made precise** (`c867b27`): the "Docs/code consistency"
   preflight check was emitting 13 false-positive WARNs (user-project paths
