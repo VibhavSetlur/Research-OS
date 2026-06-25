@@ -20,11 +20,14 @@ the same files.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import tempfile
 import time
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 RUNS_DIRNAME = "runs"
 MANIFEST_NAME = "run.json"
@@ -320,3 +323,33 @@ class RunJournal:
         # Free the in-memory tail once the run is terminal.
         if status in {"succeeded", "failed", "cancelled"}:
             self._tails.pop(job_id, None)
+            # Auto-refresh the staleness verdict the reasoning-side gate reads.
+            # Without this the verdict was written ONLY by an authenticated
+            # POST /v1/staleness/verdict, so the no_stale_inputs floor gate
+            # never fired in normal use. Recompute from the just-updated
+            # journal + persist the sidecar. Best-effort: a failure here never
+            # touches the run record (matches the bus-isolation contract).
+            self._refresh_staleness_verdict()
+
+    def _refresh_staleness_verdict(self) -> None:
+        """Recompute + persist the freshness verdict from the run journal.
+
+        Runs after every terminal run so the on-disk verdict the staleness
+        floor gate reads (.os_state/staleness/verdict.json) stays current
+        without requiring an explicit authenticated call. Pure best-effort.
+        """
+        try:
+            from . import provenance as _prov
+            from . import staleness as _stale
+
+            root = getattr(self.store, "root", None)
+            if root is None:
+                return
+            manifests = self.store.recent_manifests(limit=200)
+            if not manifests:
+                return
+            hash_file = _prov.hash_fn_for_root(root)
+            report = _stale.assess(manifests, hash_file)
+            _stale.write_verdict(root, report)
+        except Exception:  # noqa: BLE001 - verdict refresh must never break the journal
+            logger.debug("staleness verdict refresh failed", exc_info=True)

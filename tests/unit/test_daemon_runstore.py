@@ -184,3 +184,21 @@ def test_journal_never_raises_on_garbage(tmp_path):
     j.handle(_ev("unrelated.kind", {"x": 1}))
     # nothing persisted, no exception
     assert RunStore(tmp_path).list_runs() == []
+
+
+def test_terminal_run_auto_writes_staleness_verdict(tmp_path):
+    # A terminal run must auto-refresh the staleness verdict sidecar the
+    # reasoning-side floor gate reads — so the gate actually fires in normal
+    # use, not only after an authenticated POST /v1/staleness/verdict.
+    (tmp_path / ".os_state").mkdir()
+    rs = RunStore(tmp_path)
+    j = RunJournal(rs)
+    snap = {"id": "r9", "name": "run", "kind": "subprocess", "status": "queued",
+            "root": str(tmp_path), "spec": {"cmd": "echo hi"},
+            "provenance": {}, "submitted_at": time.time()}
+    j.handle(_ev("job.submitted", {"job_id": "r9", "job": snap}))
+    snap2 = dict(snap, status="succeeded", result={"returncode": 0})
+    j.handle(_ev("job.succeeded", {"job_id": "r9", "job": snap2}))
+    verdict = tmp_path / ".os_state" / "staleness" / "verdict.json"
+    assert verdict.exists(), "terminal run did not persist a staleness verdict"
+
