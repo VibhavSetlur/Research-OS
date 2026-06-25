@@ -308,6 +308,22 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Doc accuracy sweep: every doc matched to the live system
+After the docs/v4 consolidation, audited all user/AI/architecture docs against
+ground truth (v3.12.0, 154 tools, 146 protocols, 14 categories, 6 modes, 25
+daemon paths) and fixed the drift. PROTOCOLS.md: stale category table + '130+/
+thirteen categories/as of v3.11.1' header → current counts, new protocols
+(data_preparation, agent_setup, voice_calibration, tool_evaluation_loop) called
+out, auto-catalogue regenerated via scripts/regen_protocols_doc.py (146, all
+listed). ARCHITECTURE.md: 152/142/15 → 154/~146/14, brittle prose counts
+replaced with stable phrasing. START.md: chat-first quickstart + 'Eleven
+commands' + added missing 'daemon' subcommand + 'Bring in your project — chat or
+files'. AI_GUIDE.md: documented intake chat-fill params; dropped stale '(130+)'.
+USE_CASES.md: added the 3 missing modes (notebook/hybrid/multi_study) to the mode
+table. SETUP/FAQ: chat-first phrasing + repointed renamed anchor. TOOLS.md:
+intake_autofill + synthesis_check grounding-mode descriptions. No broken links;
+round-trip + xref guards green. Gate: preflight 38/38, pytest 2751, ruff clean.
+
 ### 2026-06-24/25 — Docs consolidation: drop the v4 silo, fold into docs/
 Removed the docs/ vs docs/v4/ split. 'v4' is internal jargon, and the
 architecture docs describe SHIPPED behaviour — siloing them hid them from every
