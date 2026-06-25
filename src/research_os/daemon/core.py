@@ -197,16 +197,31 @@ class Daemon:
         make the run reproducible. Capture is best-effort and never blocks.
         """
         from . import provenance as _prov
+        from . import resource_budget as _budget
         from .runners import SubprocessRunner
 
         effective_cwd = cwd or (str(self.root) if self.root else None)
         effective_root = root or (str(self.root) if self.root else None)
+        # Resolve the sandbox tier so the run is actually BOUNDED. Without
+        # this the resource_budget never binds and a runaway long job can
+        # take down a shared node (it just spawned an unbounded subprocess).
+        # The tier is derived from the daemon's sandbox_mode + the project's
+        # runtime block (shared_server / compute_environment); on a shared
+        # HPC box this resolves to the universal resource floor (rlimits +
+        # wallclock) instead of a futile container/userns probe.
+        budget_root = effective_root or effective_cwd or "."
+        sandbox_tier = _budget.resolve_sandbox_tier(
+            budget_root,
+            sandbox_mode=getattr(self.config, "sandbox_mode", "auto"),
+        )
         runner = SubprocessRunner(
             cmd,
             cwd=effective_cwd,
             env=env,
             shell=shell,
             track_artifacts=track_artifacts,
+            sandbox=sandbox_tier,
+            budget_root=budget_root,
         )
         job_name = name or (cmd if isinstance(cmd, str) else " ".join(cmd))
         prov = _prov.capture(

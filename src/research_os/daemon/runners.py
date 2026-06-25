@@ -94,6 +94,7 @@ class SubprocessRunner:
         sandbox: str | None = None,
         sandbox_network: bool = False,
         sandbox_limits=None,
+        budget_root: str | None = None,
     ) -> None:
         if isinstance(cmd, str) and not shell:
             self.cmd = shlex.split(cmd)
@@ -115,6 +116,11 @@ class SubprocessRunner:
         self.sandbox = sandbox
         self.sandbox_network = sandbox_network
         self.sandbox_limits = sandbox_limits
+        # Where to look for the project's resource_budget. Defaults to cwd
+        # (back-compat), but the budget actually lives at the PROJECT ROOT —
+        # which may differ from a run's cwd (a run in a subdir). core passes
+        # the real root so the declared budget binds regardless of cwd.
+        self.budget_root = budget_root
         self._sandbox_meta: dict | None = None
         self._preexec = None
 
@@ -258,7 +264,7 @@ class SubprocessRunner:
         # protocol's "stay within budget" prose into an enforced rlimit.
         from . import resource_budget as _budget
 
-        budget_root = self.cwd or "."
+        budget_root = self.budget_root or self.cwd or "."
         limits = _budget.resolve_run_limits(budget_root, base=self.sandbox_limits)
         effective = caps.resolve_tier(self.sandbox)
 
