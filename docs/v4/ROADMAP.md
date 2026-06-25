@@ -307,6 +307,48 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Deep-dive pass: closing the agent↔daemon execution gap
+A fresh whole-system deep dive (synthesis system + daemon↔MCP↔agent layers +
+routing), traced through real code, surfaced the system's deepest
+architectural gap and several follow-ups.
+- **THE finding — agent execution escapes the provenance spine.** The daemon
+  has a full run lifecycle (journal/provenance/lineage/staleness/reproduce/
+  rebuild) but ONLY the CLI fed it. MCP exec tools (tools/actions/exec/*.py)
+  spawn inline subprocesses with no journal; even the daemon's own chat
+  gateway routes tool calls through `_handle_tool_call` → those same inline
+  subprocesses (gateway.py:382). So every run an AI drove bypassed provenance
+  — breaking DESIGN_V4 §6.2 'one execution path' + feature #50. There was no
+  run-submit HTTP endpoint at all; the daemon's only mutating surface was
+  staleness-verdict/chat/consent.
+- **SHIPPED (`a61ae58`) — POST /v1/jobs**, the missing keystone. Submits a
+  command as a journaled background run through the same `core.run_command`
+  lifecycle the CLI uses; any client (MCP agent via daemon_bridge.http_post
+  by-shape, chat gateway, curl) can now route execution to one provenance
+  path. Auth-gated; precise status codes; lazy-starts the task queue (fixed a
+  latent 'submit() before start()' bug that contradicted the docstring). +4
+  tests.
+- **DEFERRED — exec-tool delegation by-shape (the agent side of the loop).**
+  Rewiring tool_python_exec/tool_bash_exec/etc. to POST to /v1/jobs when a
+  daemon is present (degrade to inline when not) is the natural follow-on, BUT
+  the exec tools are SYNCHRONOUS (run → wait → return stdout in the envelope)
+  while /v1/jobs is ASYNC (returns a job id; run happens in background).
+  Naive delegation would break the synchronous contract every protocol depends
+  on. DESIGN OPTIONS to weigh next: (a) add a sync-wait mode to the endpoint
+  (?wait=N / "wait":true) that blocks until terminal and returns the result
+  envelope — preserves the contract, gains the journal; (b) make delegation
+  opt-in per call; (c) a hybrid: short runs sync-wait, long runs return a
+  handle. Lands cleanly on the keystone now in place.
+- **Other gaps logged for later:** (1) NO deliverable/output registry —
+  synthesize_plan reports input-side readiness ('what's ready to write a paper
+  FROM'), but nothing tracks which deliverables EXIST, their state
+  (draft/compiled/submitted), and which workspace artefacts/runs each was
+  built from. A `.os_state/deliverables.json` manifest would make 'remember
+  the outputs' real and let the staleness gate know a deliverable is stale.
+  (2) DEFERRED from last session: a drift guard for dangling PROSE protocol
+  references (build/x mentioned in step text isn't checked, only routing
+  targets are).
+- Gate green: preflight 38/38, pytest 2742, ruff clean.
+
 ### 2026-06-24/25 — Protocol expansion: data prep, tool eval loop, voice calibration
 Three new protocols filling real coverage gaps (181 protocols total), all
 doctrine-correct scaffolds, each routed + wired + gate-green:
