@@ -74,6 +74,19 @@ def test_save_state_writes_state_md_at_root(tmp_path):
     )
 
 
+def test_state_md_has_what_to_do_next_pointing_at_sys_boot(tmp_path):
+    """STATE.md must give a resuming AI a 'what to do next', not just a
+    snapshot, and must defer to sys_boot as the authoritative source so it can
+    never silently contradict the live router. (Regression: STATE.md rendered
+    where-we-are but no next-step + no sys_boot pointer.)"""
+    scaffold_minimal_workspace(tmp_path, "Test")
+    content = (tmp_path / "STATE.md").read_text()
+    assert "What to do next" in content, "STATE.md missing a 'what to do next' section"
+    assert "sys_boot" in content, "STATE.md must point at sys_boot for the live next action"
+    # A fresh (unframed) project should be told to frame it first.
+    assert "not framed yet" in content.lower() or "research question" in content.lower()
+
+
 # ── ResearchLedger ────────────────────────────────────────────────────
 
 

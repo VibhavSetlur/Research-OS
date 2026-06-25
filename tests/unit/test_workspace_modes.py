@@ -514,3 +514,41 @@ def test_build_evaluate_boosted_in_build_and_hybrid_modes():
     assert _mode_boost_for("exploration", "build_evaluate") == 0
 
 
+def test_multi_study_scaffold_seeds_shared_protocol():
+    """multi_study must seed shared/protocol.md — shared/README.md, the
+    GETTING_STARTED table, and program/program_setup all reference it as an
+    existing file. (Regression: it was referenced everywhere but never written,
+    leaving a broken pointer the researcher is sent to.)"""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Program", ide_flags=[], copy_agents=False,
+            mode="multi_study",
+            config_overrides={"project_name": "Program",
+                              "workspace": {"mode": "multi_study"}},
+        )
+        for f in ("shared/codebook.md", "shared/preregistration.md",
+                  "shared/protocol.md"):
+            assert (root / f).is_file(), f"multi_study missing {f}"
+        for rel in ("studies", "shared", "roll_up"):
+            assert (root / rel).is_dir(), f"multi_study missing {rel}/"
+
+
+def test_non_analysis_modes_have_no_orphan_literature_readme():
+    """The project-root literature/ 'corpus of record' README is only seeded
+    for modes whose layout has that work surface (analysis/hybrid). tool_build
+    et al. don't run numbered-step finalization, so seeding it leaves an orphan
+    dir describing a workflow that never runs. (Regression.)"""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Builder", ide_flags=[], copy_agents=False,
+            mode="tool_build",
+            config_overrides={"project_name": "Builder",
+                              "workspace": {"mode": "tool_build"}},
+        )
+        assert not (root / "literature" / "README.md").exists(), (
+            "tool_build should not seed the project-root literature/ corpus README"
+        )
+
+

@@ -1201,7 +1201,7 @@ def _config_reconcile_hint(cfg: dict) -> str:
 
 def _classify_pause(entries: list[dict], root: Path) -> str:
     """Pick one of: fresh_session | mid_step | completed_step | dead_end |
-    ctx_exhaustion | long_running_job | unknown."""
+    ctx_exhaustion | unknown."""
     if not entries:
         return "fresh_session"
     last = entries[-1]
@@ -1245,7 +1245,7 @@ def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -
         )
     if pause == "ctx_exhaustion":
         return "Recent handoff doc found — call tool_session_resume."
-    if pause in {"mid_step", "long_running_job"}:
+    if pause == "mid_step":
         return "Previous session left work in-flight — call tool_session_resume."
     if state.get("pipeline_stage", "init") == "init":
         return (

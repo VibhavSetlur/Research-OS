@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 41
+version: 42
 generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────

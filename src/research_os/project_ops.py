@@ -797,6 +797,55 @@ def _write_os_state_summary(root: Path) -> None:
             f"{last_protocol.get('timestamp', '?')}",
         ])
 
+    # What to do next — give a resuming AI a concrete pointer, not just a
+    # snapshot. Stage-aware, and ALWAYS defers to sys_boot for the
+    # authoritative next action so STATE.md can never silently contradict the
+    # live router (sys_boot.advice / next_protocol).
+    # Count finalized numbered steps on disk (the real "work has happened"
+    # signal — there is no completed_steps field in state).
+    ws = root / "workspace"
+    n_steps = 0
+    if ws.is_dir():
+        n_steps = sum(
+            1 for d in ws.iterdir()
+            if d.is_dir() and d.name[:2].isdigit()
+            and not d.name.endswith("__DEAD_END")
+        )
+    plan_exists = (root / "inputs" / "research_plan.md").exists()
+    if stage in ("init", "") or not question:
+        next_hint = (
+            "Project not framed yet — set the research question + hypotheses "
+            "(the researcher can just describe the project in chat, or drop "
+            "files in `inputs/` and ask to fill the intake)."
+        )
+    elif (root / "synthesis").exists() and any(
+        (root / "synthesis").glob("*.typ")
+    ):
+        next_hint = (
+            "A deliverable is in progress under `synthesis/` — continue it, "
+            "then run the pre-submission ship gate before declaring done."
+        )
+    elif n_steps > 0:
+        next_hint = (
+            "Analysis underway — continue the next step toward the open "
+            "hypotheses, or begin synthesis once the evidence supports it."
+        )
+    else:
+        next_hint = (
+            "Framing is set but no steps have run — start the first analysis "
+            "step (e.g. a baseline EDA)."
+        )
+    lines.extend([
+        "",
+        "## What to do next",
+        "",
+        f"- {next_hint}",
+        "- For the authoritative next action, call `sys_boot` — it returns the"
+        " live `advice` + `next_protocol` + active plan"
+        + (" (a `inputs/research_plan.md` exists)" if plan_exists else "")
+        + ". This file is a snapshot; `sys_boot` is the source of truth.",
+    ])
+
     lines.extend([
         "",
         "## Key files (✓ exists / ⚪ not yet)",
@@ -1056,7 +1105,8 @@ dataset at <path>") — no files required. Or drop them in:
 
 `inputs/raw_data/` + `inputs/literature/` are source-of-truth (soft-guarded);
 the AI freely maintains the rest of `inputs/` (context, intake, config). Only
-`.os_state/` is hard-locked. Derived data lives under `workspace/`.
+`.os_state/` is hard-locked. Derived + working data lives under `data/`,
+and notebook figures/exports under `outputs/`.
 
 ## 2. Work in notebooks
 
@@ -1162,6 +1212,23 @@ See `GETTING_STARTED.md` for the workflow.
             "_How results will be pooled / compared in `roll_up/` (fixed vs "
             "random effects, heterogeneity handling, moderators), decided "
             "before seeing study results._\n",
+        )
+        _write_if_missing(
+            root / "shared" / "protocol.md",
+            "# Governing protocol\n\n"
+            "_The protocol every sub-study in this program follows, so the "
+            "studies stay commensurable. Referenced by `shared/README.md`, the "
+            "program's GETTING_STARTED, and `program/program_setup`. Per-study "
+            "deviations are documented inside each study, not here._\n\n"
+            "## Eligibility / inclusion\n\n"
+            "_What makes a unit (sample, subject, record) eligible for any "
+            "study in this program._\n\n"
+            "## Shared procedure\n\n"
+            "_The steps every study runs the same way (collection, "
+            "measurement, QC), so results can be pooled in `roll_up/`._\n\n"
+            "## Deviations log\n\n"
+            "_When a study must depart from this protocol, record it here with "
+            "the study slug + rationale so the roll-up can account for it._\n",
         )
         _write_if_missing(
             root / "roll_up" / "README.md",
