@@ -307,6 +307,31 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — The receiver's view: a front door for shared archives
+New perspective — the collaborator / PI / reviewer who RECEIVES the work and
+must trust it without having done it. The share archive correctly strips all
+AI-facing orientation (GETTING_STARTED, AGENTS, .os_state) but nothing replaced
+it: a recipient unzipped into raw numbered folders + JSON manifests with no
+human guide. README.md shipped only 'if present'; ro-crate/codemeta are for
+tools, not people.
+- **README_SHARED.md (`396d156`)** is now generated at the archive root by
+  export_share_archive.py, stitched from the project's own files: What this is
+  (question + domain, extracted from research_overview/STATE/intake, skipping
+  the 'not yet set' placeholder), What was done (each numbered step + its
+  conclusions headline), Deliverables (synthesis/ outputs), and How to read &
+  trust this (folder map, narrative logs, pinned env, claims trace to
+  workspace artefacts, the reproduce recipe). Named README_SHARED.md so it
+  never clobbers a researcher's own README; always present so the recipient
+  always has a front door.
+- Fixed a template-escaping bug found in the process (literal newline expanded
+  at template-definition time broke the generated script); added a test that
+  compiles the template + a test that runs the real generated script and
+  asserts the README lands in the zip with all sections.
+- Principle: trust is a RECEIVED property. The person who didn't do the work
+  needs the shortest path to 'what is this, what was done, can I trust it,
+  how do I reproduce it' — and it must be in the artifact, not in RO.
+- Gate green: preflight 38/38, pytest 2751, ruff clean.
+
 ### 2026-06-24/25 — UX pass: every researcher-facing surface chat-first + human-spoken
 Looked at the system purely from what the researcher SEES and HOW they interact,
 and fixed surfaces that contradicted the chat-first intake or leaked the AI's
