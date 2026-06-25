@@ -184,3 +184,65 @@ def test_ag4_missing_reference_still_blocks(tmp_path: Path):
     )
     res = audit_references_present(text, typst=False)
     assert any("ghost1999" in b for b in res["blockers"]), res["blockers"]
+
+
+# ---------------------------------------------------------------------------
+# AG-5 — a thousands-separated sample size grounds against its verbatim source
+# ---------------------------------------------------------------------------
+
+
+def test_ag5_thousands_separated_claim_grounds_from_prose_report(tmp_path: Path):
+    """A paper claim of `12,345` must GROUND when the workspace report
+    states `12,345` verbatim. The old corpus extractor used a bare `\\d+`
+    that split `12,345` into `12` + `345`, while the claim extractor
+    normalised the claim to `12345.0` — so a correctly-sourced sample
+    size was false-blocked as a hallucination at the ship gate."""
+    ws = tmp_path / "workspace" / "01_eda" / "outputs" / "reports"
+    ws.mkdir(parents=True)
+    (ws / "summary.md").write_text(
+        "Cohort size: 12,345 patients. Mean age 54.2 years.\n"
+    )
+    syn = tmp_path / "synthesis"
+    syn.mkdir()
+    (syn / "paper.md").write_text(
+        "# Results\n\nWe analysed 12,345 patients (mean age 54.2).\n"
+    )
+
+    res = audit_claims(tmp_path, "synthesis/paper.md")
+    assert res["ungrounded"] == 0, res.get("ungrounded_claims")
+    assert res["status"] == "success"
+
+
+def test_ag5_space_grouped_claim_grounds(tmp_path: Path):
+    """Space-grouped sample sizes (`12 345`) ground across format
+    differences — the report writes `12 345`, the paper writes `12,345`."""
+    ws = tmp_path / "workspace" / "01_eda" / "outputs" / "reports"
+    ws.mkdir(parents=True)
+    (ws / "s.md").write_text("N = 12 345 subjects.\n")
+    syn = tmp_path / "synthesis"
+    syn.mkdir()
+    (syn / "paper.md").write_text("# Results\n\nN = 12,345 subjects.\n")
+
+    res = audit_claims(tmp_path, "synthesis/paper.md")
+    assert res["ungrounded"] == 0, res.get("ungrounded_claims")
+
+
+def test_ag5_csv_adjacent_cells_do_not_falsely_ground(tmp_path: Path):
+    """A comma in a CSV is a field separator, not a thousands grouping.
+    Three adjacent cells `12,345,678` must NOT silently ground a
+    hallucinated `12345` claim — the thousands fix must not WEAKEN
+    hallucination detection in delimited files."""
+    tbl = tmp_path / "workspace" / "01_eda" / "outputs" / "tables"
+    tbl.mkdir(parents=True)
+    (tbl / "t.csv").write_text("a,b,c\n12,345,678\n")
+    syn = tmp_path / "synthesis"
+    syn.mkdir()
+    (syn / "paper.md").write_text("# Results\n\nWe found 12345 widgets.\n")
+
+    res = audit_claims(tmp_path, "synthesis/paper.md")
+    assert res["ungrounded"] >= 1, res
+    # The individual cell values must still ground, though.
+    res2_syn = tmp_path / "synthesis"
+    (res2_syn / "paper.md").write_text("# Results\n\nWe found 345 widgets.\n")
+    res2 = audit_claims(tmp_path, "synthesis/paper.md")
+    assert res2["ungrounded"] == 0, res2.get("ungrounded_claims")
