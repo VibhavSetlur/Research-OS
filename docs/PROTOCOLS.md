@@ -1,6 +1,6 @@
 # Protocol Reference
 
-Research OS ships **~145 core YAML protocols** organised into fourteen
+Research OS ships **~146 core YAML protocols** organised into fourteen
 categories, plus pack-specific protocols (humanities, qualitative,
 theory_math, wet_lab, engineering) when those packs are installed.
 Each protocol is a sequence of steps the AI should follow, with
