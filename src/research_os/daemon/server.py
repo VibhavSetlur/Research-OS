@@ -40,6 +40,8 @@ Mutating endpoints (require enable_gateway + a per-session bearer token,
 the consent/staleness authority surface; off by default):
   POST /v1/jobs            submit a journaled background run (agent-initiated
                            execution → one journal/provenance/lineage path) (auth)
+  POST /v1/runs/{run_id}/resume  resume an interrupted/paused run from its
+                           recorded spec (checkpoint-aware) (auth)
   POST /v1/consent/request the agent asks for consent (open; cannot grant)
   POST /v1/consent/approve mints a one-shot, TTL'd, arg-bound token (auth)
   POST /v1/consent/deny    rejects a pending request (auth)
@@ -254,6 +256,28 @@ def build_app(daemon: "Daemon"):
                 status_code=500,
             )
         return JSONResponse({"job_id": job_id, "status": "submitted"}, status_code=201)
+
+    async def post_run_resume(request):
+        # MUTATING: resume an interrupted/paused/failed run by re-launching its
+        # recorded spec as a fresh journaled run. The recovery lever orient's
+        # resume_interrupted recommendation points at. Auth-gated (executes
+        # code on the host).
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        run_id = request.path_params["run_id"]
+        try:
+            result = daemon.resume_run(run_id)
+        except ValueError as exc:
+            return JSONResponse(
+                {"error": str(exc), "code": "not_resumable"}, status_code=400
+            )
+        except Exception as exc:  # noqa: BLE001
+            return JSONResponse(
+                {"error": f"failed to resume run: {exc}", "code": "resume_failed"},
+                status_code=500,
+            )
+        return JSONResponse(result, status_code=201)
 
     async def get_runs(request):
         # Durable run journal — the permanent record (survives restarts).
@@ -886,6 +910,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/jobs/{job_id}", get_job, methods=["GET"]),
         Route("/v1/runs", get_runs, methods=["GET"]),
         Route("/v1/runs/{run_id}", get_run, methods=["GET"]),
+        Route("/v1/runs/{run_id}/resume", post_run_resume, methods=["POST"]),
         Route("/v1/events", stream_events, methods=["GET"]),
         Route("/v1/events/recent", get_events_recent, methods=["GET"]),
         Route("/v1/consent/pending", get_consent_pending, methods=["GET"]),

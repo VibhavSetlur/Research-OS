@@ -119,3 +119,58 @@ def test_autoresolve_returns_daemon(monkeypatch, tmp_path):
     monkeypatch.setenv("RESEARCH_OS_WORKSPACE", str(tmp_path))
     d = Daemon.autoresolve()
     assert d.root == tmp_path.resolve()
+
+
+# ── resumable runs (Phase 4) ──────────────────────────────────────────
+
+def _run_to_terminal(daemon, job_id, timeout=10.0):
+    import time
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        j = daemon.tasks.get(job_id)
+        if j and j.status.value in ("succeeded", "failed", "cancelled"):
+            return j
+        time.sleep(0.05)
+    raise AssertionError("job did not finish")
+
+
+def test_resume_run_relaunches_interrupted_spec(tmp_path):
+    daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
+    jid = daemon.run_command(["python", "-c", "print('hi')"], track_artifacts=False)
+    _run_to_terminal(daemon, jid)
+    import time
+    time.sleep(0.4)  # let the journal flush the manifest
+    m = daemon.runstore.read_manifest(jid)
+    m["status"] = "interrupted"
+    daemon.runstore.write_manifest(jid, m)
+
+    res = daemon.resume_run(jid)
+    assert res["resumed_from"] == jid
+    assert res["new_run_id"] and res["new_run_id"] != jid
+    assert "checkpoint" in res["checkpoint_dir"]
+    # The new run records its linkage back to the original (in its spec, which
+    # the journal persists natively).
+    _run_to_terminal(daemon, res["new_run_id"])
+    time.sleep(0.4)
+    new_m = daemon.runstore.read_manifest(res["new_run_id"]) or {}
+    spec = new_m.get("spec") or {}
+    assert spec.get("resumed_from") == jid or new_m.get("resumed_from") == jid
+
+
+def test_resume_run_rejects_unknown(tmp_path):
+    daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
+    import pytest
+    with pytest.raises(ValueError, match="no recorded run"):
+        daemon.resume_run("does-not-exist")
+
+
+def test_resume_run_rejects_succeeded(tmp_path):
+    """A run that completed normally is not resumable."""
+    daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
+    jid = daemon.run_command(["python", "-c", "print('ok')"], track_artifacts=False)
+    _run_to_terminal(daemon, jid)
+    import time
+    time.sleep(0.4)
+    import pytest
+    with pytest.raises(ValueError, match="not resumable"):
+        daemon.resume_run(jid)

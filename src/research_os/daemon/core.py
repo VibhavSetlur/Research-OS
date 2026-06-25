@@ -183,6 +183,8 @@ class Daemon:
         inputs: "list[str] | None" = None,
         track_packages: "list[str] | None" = None,
         track_artifacts: bool = True,
+        requested_mem_mb: int | None = None,
+        extra_spec: dict | None = None,
     ) -> str:
         """Submit an external command as a background job and return its id.
 
@@ -222,6 +224,7 @@ class Daemon:
             track_artifacts=track_artifacts,
             sandbox=sandbox_tier,
             budget_root=budget_root,
+            requested_mem_mb=requested_mem_mb,
         )
         job_name = name or (cmd if isinstance(cmd, str) else " ".join(cmd))
         prov = _prov.capture(
@@ -235,6 +238,8 @@ class Daemon:
             "shell": shell,
             "env_overrides": sorted(env.keys()) if env else [],
         }
+        if extra_spec:
+            spec.update(extra_spec)
         # Ensure the durable journal is capturing before we submit, so even
         # programmatic use (no serve()) gets a persistent record.
         self._start_journal()
@@ -472,7 +477,105 @@ class Daemon:
             "verdict": comparison["verdict"],
         }
 
-    # ── rebuild (Phase 1.15) ──────────────────────────────────────────
+    # ── resume (Phase 4: resumable runs) ──────────────────────────────
+    def resume_run(
+        self,
+        run_id: str,
+        *,
+        cwd: str | None = None,
+    ) -> dict:
+        """Resume an interrupted/paused run by re-launching its recorded spec.
+
+        The "user walked away, the box rebooted, the long job didn't finish"
+        recovery lever. orient recommends ``resume_interrupted``; this is the
+        API that acts on it.
+
+        We can't snapshot arbitrary process memory, so resume is a *contract*,
+        not magic: the original run's spec (cmd / cwd / shell / inputs) is
+        re-submitted as a FRESH journaled run, linked to the original via
+        ``resumed_from`` so lineage stays intact. For checkpoint-AWARE jobs
+        (the common case for multi-hour compute — they periodically write their
+        own checkpoint and accept a resume flag), the daemon exports:
+
+          * ``RO_RESUME=1`` — tells the program this is a resume, not a cold
+            start, so it should pick up from its last checkpoint.
+          * ``RO_RESUME_FROM=<original_run_id>`` — the run being resumed.
+          * ``RO_CHECKPOINT_DIR=<run_dir>/checkpoint`` — a stable per-run dir
+            the program can read/write its checkpoint to across resumes.
+
+        A program that ignores these simply restarts cleanly (no data lost,
+        just recomputed) — so resume is always safe, and *seamless* for jobs
+        that opt in. Returns the new run id + linkage. Raises ValueError if the
+        run is unknown or has no recorded command.
+        """
+        if self.runstore is None:
+            raise ValueError("no workspace resolved — cannot resume a run")
+        manifest = self.runstore.read_manifest(run_id)
+        if manifest is None:
+            raise ValueError(f"no recorded run: {run_id}")
+        status = (manifest.get("status") or "").lower()
+        if status not in ("interrupted", "paused", "failed", "cancelled"):
+            raise ValueError(
+                f"run {run_id} is '{status}', not resumable "
+                "(only interrupted/paused/failed/cancelled runs can be resumed)"
+            )
+        spec = manifest.get("spec") or {}
+        cmd = spec.get("cmd") or spec.get("command")
+        if not cmd:
+            raise ValueError(
+                f"run {run_id} has no recorded command to resume "
+                "(only subprocess runs are resumable)"
+            )
+        run_cwd = cwd or spec.get("cwd")
+        shell = bool(spec.get("shell", False))
+
+        # Re-resolve recorded inputs to absolute (mirrors reproduce_run) so the
+        # resumed run keeps its place in the lineage graph.
+        import os as _os
+
+        recorded_inputs = ((manifest.get("provenance") or {}).get("inputs") or {})
+        base = run_cwd or "."
+        input_paths = [
+            p if _os.path.isabs(p) else _os.path.join(base, p)
+            for p in recorded_inputs
+        ] or None
+
+        # A stable checkpoint dir for THIS run lineage (keyed on the original
+        # so successive resumes share one checkpoint location).
+        ckpt_dir = str(self.runstore.runs_dir / run_id / "checkpoint")
+        try:
+            _os.makedirs(ckpt_dir, exist_ok=True)
+        except OSError:
+            pass
+        resume_env = {
+            "RO_RESUME": "1",
+            "RO_RESUME_FROM": run_id,
+            "RO_CHECKPOINT_DIR": ckpt_dir,
+        }
+
+        self.tasks.start()
+        self._start_journal()
+        new_id = self.run_command(
+            cmd,
+            name=f"resume:{run_id}",
+            cwd=run_cwd,
+            env=resume_env,
+            shell=shell,
+            inputs=input_paths,
+            extra_spec={"resumed_from": run_id},
+        )
+        return {
+            "resumed_from": run_id,
+            "new_run_id": new_id,
+            "command": cmd,
+            "cwd": run_cwd,
+            "checkpoint_dir": ckpt_dir,
+            "note": (
+                "Resumed as a fresh journaled run. Checkpoint-aware programs "
+                "continue from RO_CHECKPOINT_DIR; others restart cleanly."
+            ),
+        }
+
     def rebuild_stale(
         self,
         *,
