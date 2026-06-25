@@ -95,6 +95,7 @@ class SubprocessRunner:
         sandbox_network: bool = False,
         sandbox_limits=None,
         budget_root: str | None = None,
+        requested_mem_mb: int | None = None,
     ) -> None:
         if isinstance(cmd, str) and not shell:
             self.cmd = shlex.split(cmd)
@@ -121,6 +122,10 @@ class SubprocessRunner:
         # which may differ from a run's cwd (a run in a subdir). core passes
         # the real root so the declared budget binds regardless of cwd.
         self.budget_root = budget_root
+        # Optional caller-stated memory size for THIS run (MB). Feeds the
+        # dynamic limiter so a run that declares "I need ~40GB" is bounded to
+        # the min of that, the project ceiling, and live free-RAM headroom.
+        self.requested_mem_mb = requested_mem_mb
         self._sandbox_meta: dict | None = None
         self._preexec = None
 
@@ -258,14 +263,21 @@ class SubprocessRunner:
         from . import sandbox as _sb
 
         caps = _sb.detect_sandbox()
-        # Resolve the effective limits: an explicit per-run limit wins, then
-        # the project's declared resource_budget overlays any dimension it
-        # sets, then the sandbox default backs the rest. Turns the autopilot
-        # protocol's "stay within budget" prose into an enforced rlimit.
-        from . import resource_budget as _budget
+        # Resolve the effective limits. The static resource_budget is the
+        # declared ceiling; the dynamic limiter then scales the memory bound to
+        # live free-RAM headroom (min of declared / requested / safe headroom)
+        # so a multi-gig batch runs big on an idle node but backs off on a busy
+        # one — never starving other users on a shared box. Fail-open: any
+        # probe failure returns the static budget unchanged.
+        from . import dynamic_limits as _dyn
 
         budget_root = self.budget_root or self.cwd or "."
-        limits = _budget.resolve_run_limits(budget_root, base=self.sandbox_limits)
+        limits, dyn_explain = _dyn.resolve_dynamic_limits(
+            budget_root,
+            base=self.sandbox_limits,
+            requested_mem_mb=self.requested_mem_mb,
+        )
+        self._dyn_explain = dyn_explain
         effective = caps.resolve_tier(self.sandbox)
 
         if effective == "none":
@@ -275,6 +287,7 @@ class SubprocessRunner:
                 "isolated": False,
                 "note": "no sandbox tier available on this host",
                 "limits": limits.to_dict(),
+                "dynamic": dyn_explain,
             }
             return
 
@@ -317,6 +330,7 @@ class SubprocessRunner:
             "network": self.sandbox_network,
             "limits": limits.to_dict(),
             "note": note,
+            "dynamic": getattr(self, "_dyn_explain", None),
         }
 
     def _terminate(self, proc: subprocess.Popen) -> None:
