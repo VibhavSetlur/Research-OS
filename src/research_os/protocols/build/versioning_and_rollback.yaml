@@ -179,16 +179,17 @@ steps:
       and note WHY it was rolled back. sys_checkpoint_create can snapshot the
       workspace boundary so the whole decision point is recoverable.
 
-      Then return the working tree to the blessed version. tool_git records
-      and inspects state (status/log/tag) but does not itself check out or
-      reset a commit; perform the actual return-to-version with git through
-      tool_bash_exec (e.g. restoring the tagged commit's state, or branching
-      from the tag to build forward without discarding history) — choose the
-      move that returns to the good state while keeping the reverted work
-      recoverable, rather than a destructive reset that loses it. After
-      returning, RE-RUN the eval to confirm the tool is back to the
-      known-good behaviour — a rollback you didn't verify is just another
-      unverified change.
+      Then return the working tree to the blessed version. Use
+      tool_git(operation='restore', name=<the blessed tag/commit>) — it returns
+      the tree to that version WITHOUT moving HEAD or discarding history (the
+      reverted-from SHA is recorded in the response, so the rolled-back work
+      stays fully recoverable). Commit the restored state to make it current.
+      This is non-destructive by construction; only reach for a
+      history-rewriting reset (via tool_bash_exec, with explicit confirmation)
+      in the rare case the researcher truly wants the bad commits gone. After
+      restoring, RE-RUN the eval to confirm the tool is back to the known-good
+      behaviour — a rollback you didn't verify is just another unverified
+      change.
 
       AUTONOMY GATE:
         Risk: a destructive return-to-version (hard reset) can discard
