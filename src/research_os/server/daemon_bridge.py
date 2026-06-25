@@ -1,8 +1,8 @@
 """Daemon bridge — the reasoning side's single, canonical view of the daemon.
 
-docs/v4/DAEMON_BRIDGE.md. The MCP / reasoning layer (``server/``,
+docs/DAEMON_BRIDGE.md. The MCP / reasoning layer (``server/``,
 ``tools/``) talks to the daemon ONLY through on-disk contracts read by
-shape — the preflight-enforced seam (DESIGN_V4 #1): this module, like every
+shape — the preflight-enforced seam (ARCHITECTURE #1): this module, like every
 reasoning-side reader, MUST NOT import ``research_os.daemon``. The daemon
 is an opaque local service that self-advertises a descriptor and writes
 sidecar files; this module is the ONE place that knows where those files

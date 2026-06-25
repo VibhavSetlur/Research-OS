@@ -1,8 +1,8 @@
 """Staleness-verdict reader for the world-state floor gate.
 
-The READER half of the staleness gate (docs/v4/STALENESS_GATE.md). Lives
+The READER half of the staleness gate (docs/STALENESS_GATE.md). Lives
 on the reasoning side (``server/``) and MUST NOT import
-``research_os.daemon`` — the preflight-enforced seam (DESIGN_V4 #1). It
+``research_os.daemon`` — the preflight-enforced seam (ARCHITECTURE #1). It
 reads the daemon-owned verdict sidecar by SHAPE, exactly like
 ``server/consent.py`` reads the consent ledger and
 ``handlers/meta_workspace.py`` reads daemon discovery.

@@ -1,11 +1,10 @@
-# Research-OS v4 — Architecture Analysis & The 50-Feature Design
+# Research OS — Architecture
 
-> **Strategic design document.** Written 2026-06-23 after the run-lifecycle
-> phases (1.7–1.12) landed. This steps back from incremental building to
-> answer the real questions: what is the MCP server, what is the daemon,
-> what moves, what stays, where do protocols live, and what 50 features
-> make this the best possible research OS. Read alongside `ROADMAP.md`
-> (the phase log) — this is the *why* and the *what-next*.
+> **The system's architecture and design rationale.** What the MCP server
+> is, what the daemon is, what moves and what stays, where protocols live,
+> and the design principles that hold the line. Read alongside
+> [`ROADMAP.md`](ROADMAP.md) (the build log + design history) — this is the
+> *why* and the *what*; the roadmap is the *when*.
 
 ---
 

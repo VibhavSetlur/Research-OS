@@ -1,6 +1,6 @@
 """Run journal — the durable, queryable record of every run.
 
-JUDGE-2 (docs/v4/ROADMAP.md §8): three needs collapse into one primitive.
+JUDGE-2 (docs/ROADMAP.md §8): three needs collapse into one primitive.
 The RunStore persists each run to ``<root>/.os_state/runs/<run_id>/`` as:
 
   - ``run.json``  — the manifest: spec + provenance + status transitions +

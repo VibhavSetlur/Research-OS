@@ -2,7 +2,7 @@
 
 This module is the READER half of the daemon-enforced consent layer. It
 lives on the reasoning side (``server/``) and therefore MUST NOT import
-``research_os.daemon`` — the preflight-enforced seam (DESIGN_V4 #1). It
+``research_os.daemon`` — the preflight-enforced seam (ARCHITECTURE #1). It
 talks to the daemon ONLY through an on-disk contract, exactly as
 ``handlers/meta_workspace.py`` reads the daemon discovery descriptor by
 SHAPE without importing the daemon package.

@@ -1,6 +1,6 @@
 """Execution runners — the daemon's "any language, any work" layer.
 
-JUDGE-1 gap #2 (docs/v4/ROADMAP.md §8): the task queue only ran in-process
+JUDGE-1 gap #2 (docs/ROADMAP.md §8): the task queue only ran in-process
 Python callables, which silently fails the "any language" bar. Real
 research runs R, Julia, bash, Snakemake, Nextflow, and scheduler
 submissions. This package gives the daemon a uniform way to run ALL of

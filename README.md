@@ -193,7 +193,7 @@ research-os doctor
 **4. Open the folder in your AI IDE and talk.** The MCP server auto-launches.
 
 ```
-> fill out the intake
+> here's my project: I want to know if X affects Y; my data's at <path>
 > run a baseline analysis on the patient data
 > what should I do next?
 > draft the discussion
@@ -245,6 +245,14 @@ research-os doctor
   ledger (`workspace/logs/.audit_findings.jsonl`) with stable UUIDv5
   ids, queryable via `tool_audit_findings(operation='query'|'diff')`.
   Synthesis BLOCK-gates on unresolved BLOCK findings.
+* **Optional daemon enforcement kernel.** A local daemon (off by default;
+  start it for big / long-lived projects) adds what a reactive stdio server
+  can't: background runs with a durable journal + provenance + lineage,
+  freshness checks that block shipping a result built on changed data,
+  human-approved hard gates, a machine-enforced resource budget, and
+  completion notifications. The reasoning core works exactly the same with
+  or without it — the daemon only *adds* enforcement, never changes the
+  tools. → [docs/DAEMON.md](docs/DAEMON.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 → **[CHANGELOG.md](CHANGELOG.md)** for the full release history.
 
@@ -287,6 +295,8 @@ system that won't let any of those things land in your final paper.
 | **Sharing a finished project** | [docs/SHARING.md](docs/SHARING.md) — share-safe zip + GitHub paths |
 | **Contributing a protocol** | [docs/PROTOCOL_DOCTRINE.md](docs/PROTOCOL_DOCTRINE.md) — the scaffold-not-script principle |
 | **Driving the AI side** | [docs/AI_GUIDE.md](docs/AI_GUIDE.md) — what the AI itself reads |
+| **Understanding how it's built** | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the MCP core, the optional daemon enforcement kernel, and the seam between them |
+| **Running long / enforced jobs** | [docs/DAEMON.md](docs/DAEMON.md) — the optional daemon: background runs, provenance, freshness, human-approved gates |
 
 Doc index: **[docs/README.md](docs/README.md)**
 

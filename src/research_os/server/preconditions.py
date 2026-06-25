@@ -1,6 +1,6 @@
 """Precondition verifier — protocols declare what must be true, this checks it.
 
-docs/v4/PRECONDITION_GATE.md. A protocol's `prerequisites:` block is prose
+docs/PRECONDITION_GATE.md. A protocol's `prerequisites:` block is prose
 the AI is trusted to honour. The optional `requires.checks` block holds the
 MECHANICALLY checkable subset, compiled into
 `protocols/_precondition_meta.json`; this module evaluates those checks

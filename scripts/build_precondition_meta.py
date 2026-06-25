@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile every protocol's ``requires.checks`` into one sidecar.
 
-docs/v4/PRECONDITION_GATE.md. Protocols DECLARE their mechanically
+docs/PRECONDITION_GATE.md. Protocols DECLARE their mechanically
 checkable preconditions; this collects them into
 ``src/research_os/protocols/_precondition_meta.json`` which
 server/preconditions.py reads at runtime. Mirrors build_gate_meta.py.

@@ -1,4 +1,4 @@
-"""Daemon bridge — the canonical MCP↔daemon contract (docs/v4/DAEMON_BRIDGE.md).
+"""Daemon bridge — the canonical MCP↔daemon contract (docs/DAEMON_BRIDGE.md).
 
 One definition of the .os_state/ contract paths + daemon-presence check,
 shared by every reasoning-side reader. These tests pin the primitives so a

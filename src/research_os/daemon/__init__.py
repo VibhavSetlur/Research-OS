@@ -4,7 +4,7 @@ This package is the v4 architecture's home: a persistent, headless,
 localhost daemon that owns the master execution state machine and exposes
 Research OS to any client (IDE, web UI, CLI, MCP sidecar) at once.
 
-DESIGN STANCE (read docs/v4/ROADMAP.md before extending this):
+DESIGN STANCE (read docs/ROADMAP.md before extending this):
 
 * Strangler-fig. The daemon WRAPS the existing engine functions
   (``router.route_request``, ``ResearchLedger``, ``dispatch._handle_tool_call``)

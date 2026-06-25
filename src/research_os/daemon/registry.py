@@ -1,6 +1,6 @@
 """Workspace registry — one daemon, many project roots (read path).
 
-Design decision (docs/v4/ROADMAP.md §6): ONE daemon serves MANY project
+Design decision (docs/ROADMAP.md §6): ONE daemon serves MANY project
 roots, keyed by absolute path, because the gateway already resolves the
 root per-request. This module is the registry: given a root, it produces a
 read-only state view by calling the SAME engine read helpers the stdio MCP

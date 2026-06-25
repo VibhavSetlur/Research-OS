@@ -1,6 +1,6 @@
 """OpenAI-compatible chat-completions gateway (Phase 2).
 
-DESIGN_V4.md feature #2 — the keystone of the v4 re-architecture. It
+ARCHITECTURE.md feature #2 — the keystone of the v4 re-architecture. It
 turns the daemon from "a thing that serves data about runs" into "an AI
 endpoint any OpenAI-compatible client can point at." A researcher sets
 ``base_url`` to the daemon and gets, for free, on every single turn:
@@ -22,7 +22,7 @@ endpoint any OpenAI-compatible client can point at." A researcher sets
     (``server.dispatch._handle_tool_call``) and feeds the result back,
     looping until the model produces a final answer.
 
-ARCHITECTURE NOTE (strangler-fig, DESIGN_V4 #1). This module lives in
+ARCHITECTURE NOTE (strangler-fig, ARCHITECTURE #1). This module lives in
 ``daemon/`` and is the ONLY place that bridges a network transport to the
 reasoning engine. It imports the engine's public seams (``route_request``,
 ``_handle_tool_call``, ``TOOL_DEFINITIONS``) but the engine never imports

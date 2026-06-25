@@ -1,6 +1,6 @@
 """Provenance capture — the reproducibility record for every run.
 
-JUDGE-2 (docs/v4/ROADMAP.md §8): a result you can't reproduce is worthless.
+JUDGE-2 (docs/ROADMAP.md §8): a result you can't reproduce is worthless.
 This module captures the context needed to re-run a computation later: the
 project's git commit (and whether the tree was dirty), the active
 environment (conda env, python version, selected package versions), input

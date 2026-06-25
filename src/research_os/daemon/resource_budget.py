@@ -1,6 +1,6 @@
 """Resource budget — a researcher-declared ceiling the daemon enforces.
 
-docs/v4/RESOURCE_BUDGET.md. The autopilot protocol says, in prose, to stay
+docs/RESOURCE_BUDGET.md. The autopilot protocol says, in prose, to stay
 within "the project's budget" — but no budget existed, so every run used
 the sandbox's generic defaults. This resolves a ``resource_budget:`` block
 from ``inputs/researcher_config.yaml`` into the ACTUAL ``ResourceLimits``

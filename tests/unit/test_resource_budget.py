@@ -1,6 +1,6 @@
 """Resource budget — researcher-declared ceiling the daemon enforces.
 
-docs/v4/RESOURCE_BUDGET.md. A resource_budget: block in
+docs/RESOURCE_BUDGET.md. A resource_budget: block in
 researcher_config.yaml resolves into the ResourceLimits applied to every
 run, turning the autopilot protocol's "stay within budget" prose into a
 hard rlimit. These tests drive load/coerce/fail-safe, the overlay

@@ -29,7 +29,7 @@ enforcement + execution + notification **kernel** that fronts the
 (already-good) MCP + protocols. The throughline is turning **soft, trusted
 prose into hard, verified structure** — while the *reasoning* layer stays
 soft per [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md). Designs
-for each piece live in [`docs/v4/`](docs/v4/) (UNSKIPPABLE_GATES,
+for each piece live in [`docs/`](docs/) (UNSKIPPABLE_GATES,
 HYBRID_ARCHITECTURE, STALENESS_GATE, NOTIFICATION_SPINE, RESOURCE_BUDGET,
 PRECONDITION_GATE, DAEMON_BRIDGE).
 

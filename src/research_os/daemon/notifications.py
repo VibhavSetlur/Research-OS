@@ -11,7 +11,7 @@ stdin. The outbox is the source of truth (always written); delivery is
 best-effort on top, so a missing/failing channel never loses the record
 and never breaks the job that triggered it.
 
-stdlib only. See docs/v4/NOTIFICATION_SPINE.md.
+stdlib only. See docs/NOTIFICATION_SPINE.md.
 """
 from __future__ import annotations
 

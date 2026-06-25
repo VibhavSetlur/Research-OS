@@ -1,6 +1,6 @@
 """Notification spine — the daemon's channel to reach the researcher.
 
-docs/v4/NOTIFICATION_SPINE.md. Every notification flows through one durable
+docs/NOTIFICATION_SPINE.md. Every notification flows through one durable
 append-only outbox (.os_state/notifications/outbox.jsonl) and is optionally
 pushed via a researcher-configured notify_command (JSON on stdin). The
 outbox is the source of truth; delivery is best-effort and recorded.

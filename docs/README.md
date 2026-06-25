@@ -42,6 +42,37 @@ Shared:
 
 ---
 
+## Architecture & internals
+
+How the system is built — the MCP reasoning core, the optional daemon
+enforcement kernel, and the on-disk contract between them. Read these if
+you're extending Research OS, embedding it, or want to understand how the
+guarantees are enforced.
+
+- [**ARCHITECTURE.md**](ARCHITECTURE.md) — the big picture: what the MCP
+  server is, what the daemon is, what moves and what stays, the design
+  principles that hold the line.
+- [ROADMAP.md](ROADMAP.md) — design history + build log + running progress
+  log for the daemon enforcement kernel.
+- [DAEMON.md](DAEMON.md) — the optional daemon from the operator's side:
+  starting it, what it gives you, when to bother.
+- [DAEMON_BRIDGE.md](DAEMON_BRIDGE.md) — the single canonical MCP↔daemon
+  contract (`.os_state/` by shape; the seam neither side may cross).
+- [UNSKIPPABLE_GATES.md](UNSKIPPABLE_GATES.md) — how the daemon turns soft
+  prose gates into hard, human-approved ones.
+- [PRECONDITION_GATE.md](PRECONDITION_GATE.md) — protocols declare what must
+  be true; the daemon verifies before a step runs.
+- [STALENESS_GATE.md](STALENESS_GATE.md) — don't ship a result built on data
+  that changed underneath it.
+- [HYBRID_ARCHITECTURE.md](HYBRID_ARCHITECTURE.md) — protocols declare, the
+  daemon enforces: the soft-prose → hard-structure throughline.
+- [NOTIFICATION_SPINE.md](NOTIFICATION_SPINE.md) — how a long job tells the
+  researcher it finished.
+- [RESOURCE_BUDGET.md](RESOURCE_BUDGET.md) — turning "stay within budget"
+  prose into machine-enforced rlimits.
+
+---
+
 ## For maintainers + integrators
 
 - [**CONTRACT.md**](CONTRACT.md) — which surfaces are stable enough to pin against. Read this if you're embedding RO programmatically.

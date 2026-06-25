@@ -1,6 +1,6 @@
 """Staleness detection — the freshness verdict (Phase 1.14).
 
-DESIGN_V4.md feature #8. The lineage graph (1.13) is passive: it shows
+ARCHITECTURE.md feature #8. The lineage graph (1.13) is passive: it shows
 which run fed which. Staleness makes it *active* — it answers the question
 that keeps computational researchers up at night:
 

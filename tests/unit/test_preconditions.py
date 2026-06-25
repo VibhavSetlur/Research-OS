@@ -1,6 +1,6 @@
 """Precondition gate — protocols declare what must be true, verifier checks it.
 
-docs/v4/PRECONDITION_GATE.md. server/preconditions.py evaluates a protocol's
+docs/PRECONDITION_GATE.md. server/preconditions.py evaluates a protocol's
 compiled requires.checks against a workspace; sys_protocol_get surfaces the
 unmet ones so the AI does the missing step instead of proceeding on a
 missing foundation.

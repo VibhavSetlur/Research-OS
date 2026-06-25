@@ -1,6 +1,6 @@
 """Staleness floor gate: don't ship a deliverable built on changed data.
 
-docs/v4/STALENESS_GATE.md. The daemon detects when a run's recorded inputs
+docs/STALENESS_GATE.md. The daemon detects when a run's recorded inputs
 changed on disk and persists a verdict to .os_state/staleness/verdict.json;
 server/staleness_state.py reads it by shape (no daemon import) and the
 gate (declared in guidance/autopilot.yaml as a world_state predicate)

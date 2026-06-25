@@ -1,11 +1,12 @@
-# Research OS v4 — The Multi-Protocol Gateway Daemon
+# Research OS — Roadmap & Build Log (the daemon enforcement kernel)
 
-> **This file is the canonical handoff document for the v4 overhaul.**
-> Any agent or maintainer picking up this work reads this FIRST, top to
-> bottom, before touching code. It carries the architecture, the
-> invariants, the phase plan, and a running progress log so quality does
-> not degrade across sessions. Update the Progress Log at the bottom of
-> every working session.
+> **The canonical design-history + handoff document for the daemon kernel
+> work.** Any agent or maintainer picking up this work reads this FIRST, top
+> to bottom, before touching code. It carries the architecture, the
+> invariants, the phase plan, and a running progress log so quality does not
+> degrade across sessions. Update the Progress Log at the bottom of every
+> working session. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the
+> standalone architecture overview.
 
 ---
 
@@ -134,7 +135,7 @@ What this means concretely:
   final 4.0.0 cut collects them.
 - **4.0.0 is the deliberate final cut**: daemon is the proven primary
   surface, every layer has survived a judge pass, legacy paths retire
-  with a `docs/v4/MIGRATION.md` + CHANGELOG Migration section.
+  with a `docs/MIGRATION.md` + CHANGELOG Migration section.
 
 The standing "under 4.0.0 forever" mandate is superseded **for this work
 only**.
@@ -244,7 +245,7 @@ complete).
 - Make the daemon the default `research-os start` behaviour (stdio MCP
   becomes `research-os start --stdio` or a sidecar mode).
 - Collect any deferred breaking renames.
-- `docs/v4/MIGRATION.md` + CHANGELOG Migration section.
+- `docs/MIGRATION.md` + CHANGELOG Migration section.
 - Bump to 4.0.0, tag, release.
 
 ---
@@ -455,7 +456,7 @@ walks. Three HIGH findings closed, all gate-green.
   finalize(check)→finalize explicitly.
 - **POST /v1/jobs keystone (`a61ae58`, prior in this session).** The missing
   run-submit endpoint so agent execution shares the journal/provenance/lineage
-  path (DESIGN_V4 §6.2). Lazy-starts the task queue (latent bug fixed).
+  path (ARCHITECTURE §6.2). Lazy-starts the task queue (latent bug fixed).
 - **Deferred, logged for next passes (corroborated by the reports):**
   (1) exec-tool delegation by-shape — needs a sync-wait mode on /v1/jobs first
   (async/sync mismatch); (2) sys_boot is daemon-blind — fold a best-effort
@@ -481,7 +482,7 @@ architectural gap and several follow-ups.
   spawn inline subprocesses with no journal; even the daemon's own chat
   gateway routes tool calls through `_handle_tool_call` → those same inline
   subprocesses (gateway.py:382). So every run an AI drove bypassed provenance
-  — breaking DESIGN_V4 §6.2 'one execution path' + feature #50. There was no
+  — breaking ARCHITECTURE §6.2 'one execution path' + feature #50. There was no
   run-submit HTTP endpoint at all; the daemon's only mutating surface was
   staleness-verdict/chat/consent.
 - **SHIPPED (`a61ae58`) — POST /v1/jobs**, the missing keystone. Submits a
@@ -781,7 +782,7 @@ green (ruff clean, preflight 34/34) on `feat/v4-daemon-core`.
 **Architecture invariant now enforced in CI** (`94d661f`): a new
 preflight check fails the build if the reasoning layer (`server/`,
 `tools/`, `protocols/`) ever imports the daemon. The dependency arrow
-(daemon → server, never the reverse) is the spine of DESIGN_V4.md §6 and
+(daemon → server, never the reverse) is the spine of ARCHITECTURE.md §6 and
 can no longer silently reverse as the daemon grows.
 
 **Run lifecycle is now complete for single runs + chains:**
@@ -789,7 +790,7 @@ can no longer silently reverse as the daemon grows.
 `lineage` → `stale`. Local and HPC unified through one path; every stage
 is pure-stdlib-comparable and works without the daemon being up.
 
-**Next BUILD candidates (DESIGN_V4.md):** the lineage + staleness pair
+**Next BUILD candidates (ARCHITECTURE.md):** the lineage + staleness pair
 naturally sets up (a) **selective re-run** — given a stale set, re-run
 only the affected sub-DAG in dependency order (a minimal make/snakemake
 without the DSL, built on data we already have); and (b) the **read-only
@@ -1307,7 +1308,7 @@ read-only observability surface and becomes the **enforcement + execution
 + notification layer between the client and the work** — the role the
 intent always described. Five commits, each green (pytest 0 / preflight
 36 / ruff / seam clean), each mapping to a named researcher pain. Full
-designs in `docs/v4/{UNSKIPPABLE_GATES,HYBRID_ARCHITECTURE,STALENESS_GATE,
+designs in `docs/{UNSKIPPABLE_GATES,HYBRID_ARCHITECTURE,STALENESS_GATE,
 NOTIFICATION_SPINE}.md`.
 
 * **Un-skippable gates — daemon as consent authority** (`653f0a6`). The

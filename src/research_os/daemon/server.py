@@ -62,7 +62,7 @@ and an explicit enable_gateway flag; off by default):
                              stream:true (Server-Sent Events of
                              chat.completion.chunk frames).
 
-The transport sits behind this thin module by design (docs/v4/ROADMAP.md
+The transport sits behind this thin module by design (docs/ROADMAP.md
 §6) so a judge phase can swap starlette for something else without
 touching the Daemon or the registry/queue.
 """
@@ -192,7 +192,7 @@ def build_app(daemon: "Daemon"):
 
     async def post_jobs(request):
         # MUTATING: submit a command as a journaled background run. This is
-        # the agent-initiated execution path — it closes DESIGN_V4 §6.2
+        # the agent-initiated execution path — it closes ARCHITECTURE §6.2
         # ("one execution path"): a run submitted here goes through the same
         # core.run_command lifecycle the CLI uses, so it gets the full
         # journal + provenance + lineage + reproduce treatment instead of

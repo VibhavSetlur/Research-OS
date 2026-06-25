@@ -1,6 +1,6 @@
 """Hybrid gate layer: protocols declare floor gates, the engine enforces.
 
-docs/v4/HYBRID_ARCHITECTURE.md. A protocol's ``enforcement.gates`` block
+docs/HYBRID_ARCHITECTURE.md. A protocol's ``enforcement.gates`` block
 compiles (scripts/build_gate_meta.py) into protocols/_gate_meta.json, which
 server/gate_spec.py reads and server/autopilot_gate.py enforces. These
 tests drive gate_spec's predicate evaluator + loader directly and assert

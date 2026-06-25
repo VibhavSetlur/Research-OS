@@ -1,6 +1,6 @@
 """Event spine — the daemon's append-only event bus (Phase 1.5).
 
-JUDGE-phase insight (docs/v4/ROADMAP.md §7): a research OS that owns
+JUDGE-phase insight (docs/ROADMAP.md §7): a research OS that owns
 long-horizon work cannot be poll-only. Any connected client — an AI agent
 watching a 6-hour simulation, a web dashboard, an MCP telemetry sidecar —
 must be able to *subscribe* to what the daemon is doing, not hammer

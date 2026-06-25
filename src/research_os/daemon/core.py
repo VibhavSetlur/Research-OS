@@ -11,7 +11,7 @@ of those bolts onto this object without changing its construction
 contract.
 
 Everything here reuses existing engine functions — no routing, state, or
-protocol logic is re-implemented (strangler-fig; see docs/v4/ROADMAP.md).
+protocol logic is re-implemented (strangler-fig; see docs/ROADMAP.md).
 """
 from __future__ import annotations
 

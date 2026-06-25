@@ -857,7 +857,7 @@ def check_route_meta():
 def check_gate_meta():
     """The compiled floor-gate sidecar must be fresh + agree with the engine.
 
-    The HYBRID layer (docs/v4/HYBRID_ARCHITECTURE.md): protocols declare
+    The HYBRID layer (docs/HYBRID_ARCHITECTURE.md): protocols declare
     their hard floor gates in ``enforcement.gates``; the build compiles them
     into ``protocols/_gate_meta.json``, which the engine
     (server/gate_spec.py + autopilot_gate.py) reads to decide which actions
@@ -944,7 +944,7 @@ def check_daemon_contract_paths_agree():
     """The daemon writers and the reasoning-side bridge must point at the
     SAME .os_state/ paths — the load-bearing cross-process contract.
 
-    docs/v4/DAEMON_BRIDGE.md. server/daemon_bridge.py defines the canonical
+    docs/DAEMON_BRIDGE.md. server/daemon_bridge.py defines the canonical
     contract paths the MCP/reasoning side READS; the daemon WRITES them via
     its own path helpers. If the two drift (a rename on one side only), the
     AI reads an empty consent ledger / never sees a notification / misses a
@@ -986,7 +986,7 @@ def check_daemon_contract_paths_agree():
 def check_precondition_meta():
     """The compiled precondition sidecar must be fresh + reference real protocols.
 
-    docs/v4/PRECONDITION_GATE.md: protocols declare mechanically checkable
+    docs/PRECONDITION_GATE.md: protocols declare mechanically checkable
     entry conditions in ``requires.checks``; the build compiles them into
     ``protocols/_precondition_meta.json``, which server/preconditions.py
     reads to tell the AI exactly which preconditions are unmet. A stale
@@ -1572,7 +1572,7 @@ def check_daemon_endpoints_documented():
 
 
 def check_reasoning_layer_independent_of_daemon():
-    """Architecture invariant (DESIGN_V4.md §6.1): the reasoning layer never
+    """Architecture invariant (ARCHITECTURE.md §6.1): the reasoning layer never
     imports the transport/execution layer.
 
     The dependency arrow points ONE way: ``daemon/`` may import ``server/``

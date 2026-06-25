@@ -1,6 +1,6 @@
 """sys_consent — the in-band consent loop (the consent_required path).
 
-docs/v4/UNSKIPPABLE_GATES.md + DAEMON_BRIDGE.md. When a floor gate under a
+docs/UNSKIPPABLE_GATES.md + DAEMON_BRIDGE.md. When a floor gate under a
 daemon returns consent_required, the agent uses sys_consent to request +
 check + fetch a daemon-minted token WITHOUT importing the daemon. These
 tests drive the handler against a mocked bridge (the bridge itself is

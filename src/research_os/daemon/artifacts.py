@@ -1,6 +1,6 @@
 """Artifact detection — closing the provenance loop (Phase 1.8).
 
-JUDGE-3 (docs/v4/ROADMAP.md §8): provenance records inputs → command →
+JUDGE-3 (docs/ROADMAP.md §8): provenance records inputs → command →
 env. The other half is *outputs* — what the run actually produced. This
 module fingerprints a run's working directory before and after execution
 and reports the files that were created or modified as artifacts, each

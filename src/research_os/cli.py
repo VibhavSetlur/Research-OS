@@ -563,7 +563,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
     ``status`` reports daemon + active-project state (read-only). ``start``
     runs the persistent daemon: a background task queue plus read-only HTTP
     endpoints (/healthz, /v1/state, /v1/jobs) on localhost. The HTTP stack
-    needs the optional ``research-os[daemon]`` extra. See docs/v4/ROADMAP.md.
+    needs the optional ``research-os[daemon]`` extra. See docs/ROADMAP.md.
     """
     from research_os.daemon import Daemon
 
@@ -585,7 +585,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon domain  detect the project's research field + defaults")
         print("  research-os daemon gateway  OpenAI-compatible chat gateway: status + token")
         print()
-        print("  Architecture + roadmap: docs/v4/ROADMAP.md")
+        print("  Architecture + roadmap: docs/ROADMAP.md")
         return 0
 
     overrides: dict = {}
@@ -1156,7 +1156,7 @@ def _print_stale_rows(report, _stale, *, include_fresh: bool) -> None:
 def _daemon_notifications(daemon, args) -> int:
     """Show the notification outbox — what the daemon told the researcher.
 
-    The notification spine (docs/v4/NOTIFICATION_SPINE.md) records every
+    The notification spine (docs/NOTIFICATION_SPINE.md) records every
     completion / page in .os_state/notifications/outbox.jsonl. This surfaces
     it so a researcher can see what happened (and what delivery missed)
     without tailing a file. --undelivered filters to records that did not
@@ -1199,7 +1199,7 @@ def _daemon_notifications(daemon, args) -> int:
 
 def _daemon_consent(daemon, args) -> int:
     """Review + approve/deny consent requests — the researcher's half of the
-    un-skippable-gate loop (docs/v4/UNSKIPPABLE_GATES.md).
+    un-skippable-gate loop (docs/UNSKIPPABLE_GATES.md).
 
     When the AI hits a floor gate under a daemon it calls
     sys_consent(action='request'), which queues a request here. This is how
@@ -2676,7 +2676,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # ── daemon ──────────────────────────────────────────────────────────
     # v4 multi-protocol gateway daemon. Phase 0: skeleton + status only.
-    # See docs/v4/ROADMAP.md for the full architecture + phase plan.
+    # See docs/ROADMAP.md for the full architecture + phase plan.
     p_daemon = sub.add_parser(
         "daemon",
         help="Run / inspect the v4 multi-protocol gateway daemon (preview).",
@@ -2686,7 +2686,7 @@ def build_parser() -> argparse.ArgumentParser:
             "later phases) exposes an OpenAI-compatible gateway, a read-only\n"
             "MCP telemetry sidecar, a sandbox, and a web dashboard.\n\n"
             "PREVIEW: Phase 0 ships the skeleton. 'daemon status' works now;\n"
-            "'daemon start' is not serving yet. Track docs/v4/ROADMAP.md.\n\n"
+            "'daemon start' is not serving yet. Track docs/ROADMAP.md.\n\n"
             "Examples:\n"
             "  research-os daemon status            # show daemon + project state\n"
             "  research-os daemon status --json     # machine-readable\n"

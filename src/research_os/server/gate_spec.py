@@ -1,6 +1,6 @@
 """Declared-gate spec: protocols author hard gates, the engine enforces.
 
-This is the HYBRID layer (docs/v4/HYBRID_ARCHITECTURE.md). Floor gates —
+This is the HYBRID layer (docs/HYBRID_ARCHITECTURE.md). Floor gates —
 the actions that MUST stop and ask even in hands-off mode — used to live
 twice: as prose in ``guidance/autopilot.yaml`` and as hand-maintained
 Python in ``autopilot_gate.py``. Two sources of truth drift. Now a
@@ -9,7 +9,7 @@ block, a build step compiles every protocol's block into one sidecar
 (``protocols/_gate_meta.json``), and this module reads that sidecar and
 evaluates a gate's arg-match predicate.
 
-Seam (DESIGN_V4 #1, preflight-enforced): this module lives on the
+Seam (ARCHITECTURE #1, preflight-enforced): this module lives on the
 reasoning side (``server/``) and MUST NOT import ``research_os.daemon``.
 It only reads the compiled sidecar shipped in the package. The daemon's
 role (UNSKIPPABLE_GATES.md) is orthogonal: it makes a fired gate

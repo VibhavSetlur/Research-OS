@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile every protocol's ``enforcement.gates`` block into one sidecar.
 
-The HYBRID layer (docs/v4/HYBRID_ARCHITECTURE.md): protocols DECLARE their
+The HYBRID layer (docs/HYBRID_ARCHITECTURE.md): protocols DECLARE their
 hard floor gates in machine-readable YAML; this build step collects every
 declaration into ``src/research_os/protocols/_gate_meta.json``, which the
 engine (server/gate_spec.py + autopilot_gate.py) reads at runtime instead

@@ -1,6 +1,6 @@
 """Run lineage graph — the provenance DAG (Phase 1.13).
 
-DESIGN_V4.md feature #7. Individual runs are recorded (Phase 1.7) and
+ARCHITECTURE.md feature #7. Individual runs are recorded (Phase 1.7) and
 comparable (1.12), but research is a *chain*: run A produces a cleaned
 dataset, run B trains on it, run C plots B's output. When a result is
 questioned ("where did fig3 come from?") or an input changes ("I re-ran

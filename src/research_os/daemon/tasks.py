@@ -15,7 +15,7 @@ Phase 1 scope (deliberately small + correct):
   - snapshot() returns a JSON-serializable view for /v1/jobs and the CLI
   - graceful shutdown drains/stops workers
 
-Design decisions (see docs/v4/ROADMAP.md §6):
+Design decisions (see docs/ROADMAP.md §6):
   - In-memory for Phase 1. Persistence across daemon restarts is an OPEN
     decision flagged for a judge phase — the JobStore boundary here is
     deliberately narrow so a persistent backend can slot in later without

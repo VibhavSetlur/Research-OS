@@ -39,7 +39,7 @@ user described), instead of the agent grading its own homework.
 ## Hard constraints (must not violate)
 
 1. SEAM: `server/` and `tools/` must NEVER `import research_os.daemon`
-   (preflight-enforced, DESIGN_V4 #1). The gate talks to the daemon ONLY
+   (preflight-enforced, ARCHITECTURE #1). The gate talks to the daemon ONLY
    through an on-disk contract — same pattern `meta_workspace.py` already
    uses to read daemon discovery by SHAPE without importing it.
 2. ADDITIVE / BACKWARD-COMPATIBLE: when no daemon is running, behaviour

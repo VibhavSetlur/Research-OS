@@ -1,6 +1,6 @@
 """Scheduler runners — the daemon's "HPC-native execution" layer.
 
-JUDGE-6 (docs/v4/ROADMAP.md §8): real computational science runs on shared
+JUDGE-6 (docs/ROADMAP.md §8): real computational science runs on shared
 clusters, not just the login node. A researcher's work is ``sbatch
 train.sh`` — submitted to a queue, run minutes-to-hours later on a compute
 node, with output landing in files. If Research-OS can only spawn local

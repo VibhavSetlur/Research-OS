@@ -1,6 +1,6 @@
 """Execution sandbox — tiered isolation that degrades to what the host allows.
 
-Phase 4 (docs/v4/ROADMAP.md). Research runs untrusted-ish code: a
+Phase 4 (docs/ROADMAP.md). Research runs untrusted-ish code: a
 downloaded analysis script, an LLM-generated snippet, a collaborator's
 pipeline. The daemon should bound the blast radius. But the textbook
 answer — "run it in an ephemeral Docker container" — is a fantasy on a
