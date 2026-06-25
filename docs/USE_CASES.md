@@ -70,6 +70,9 @@ building?" step) and stored as `workspace.mode` in
 | Analysing data toward a finding / paper | **analysis** *(default)* | "fill the intake", "run an EDA", "draft the paper" | the analysis protocols below |
 | Building software you iterate on | **tool_build** | "spec out a fast FASTQ deduplicator", "implement the next feature", "write a benchmark vs the baseline", "cut a release" | `build/spec_and_design` · `build/implement_iteration` · `build/test_strategy` · `build/benchmark_vs_baseline` · `build/release_and_changelog` |
 | Poking around, no committed direction | **exploration** | "just poke at this", "smoke-test an idea in scratch" | `guidance/casual_exploration` (scratch-first; promote a probe to a numbered step only when it earns it) |
+| Working notebook-first (Jupyter is the unit of work) | **notebook** | "open a notebook and explore X", "turn this notebook into a step" | `notebook/notebook_workflow` (+ run / reproduce / promote / synthesize) |
+| Building a tool AND using it on data in one project | **hybrid** | "build the parser, then run it on my data and improve it" | `hybrid/hybrid_workflow` (the analysis↔build pivot) · `hybrid/tool_to_analysis_handoff` · `build/tool_evaluation_loop` |
+| Running a research program (several sub-studies) | **multi_study** | "set up a program with three studies sharing a codebook" | `program/program_setup` · `program/study_register` · `program/cross_study_synthesis` |
 
 **tool_build example.** You're writing a CLI that deduplicates FASTQ
 reads. `research-os init --workspace-mode tool_build` seeds the

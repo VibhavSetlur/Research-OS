@@ -200,7 +200,7 @@ default. Some packs and protocols expect additional subfolders:
   here instead of `raw_data/` makes it editable so you can iterate on
   the implementation.
 
-The full table is in [START.md § Drop your files](START.md#drop-your-files-1-min)
+The full table is in [START.md § Bring in your project](START.md#bring-in-your-project--chat-or-files-1-min)
 and [AI_GUIDE.md § inputs/ directory conventions](AI_GUIDE.md#inputs-directory-conventions-read-on-cold-start).
 Just `mkdir` whichever subfolder you need; the immutability guarantee
 only applies to `inputs/raw_data/` and `inputs/literature/`.

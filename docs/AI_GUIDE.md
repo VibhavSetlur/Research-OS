@@ -352,9 +352,17 @@ proof, benchmark, qualitative interviews), tell the researcher where to
 drop the files BEFORE running `tool_intake_autofill` — the autofill
 benefits from the right files being in the right place.
 
+`tool_intake_autofill` has **two input paths, combinable**: it infers
+from files in `inputs/`, AND it accepts what the researcher told you in
+chat via `question` / `domain` / `hypotheses` / `context_note` (explicit
+args win over inference). Many researchers never edit `inputs/` files —
+they just describe the project in chat. Capture that with the chat args
+instead of forcing them to write a file; it works even with an empty
+`inputs/`.
+
 ---
 
-## Protocol categories (130+ protocols)
+## Protocol categories
 
 Every protocol carries `scope_tags: {domain, audience, workflow_shape}`
 + a `tier` annotation. `tool_route` surfaces both in

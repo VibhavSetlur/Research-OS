@@ -24,7 +24,7 @@ research-os doctor               # python + conda env + IDE wiring + pack health
 research-os ide list             # which IDEs are wired in this workspace
 
 # 4. Open the folder in your AI IDE and talk
-#    > fill out the intake
+#    > here's my project: I want to know if X affects Y; my data's at <path>
 #    > what should I do next?
 ```
 
@@ -50,7 +50,7 @@ Verify:
 
 ```bash
 research-os --help
-# Ten commands: init / ide / mcp / hermes / route / api-key / start / doctor / refresh / completion
+# Eleven commands: init / ide / mcp / hermes / route / api-key / start / daemon / doctor / refresh / completion
 ```
 
 If `research-os: command not found`, add `~/.local/bin` (or your
@@ -197,7 +197,15 @@ gates, disk usage, git cleanliness, and `.gitignore` coverage. Exits
 
 ---
 
-## Drop your files (1 min)
+## Bring in your project — chat or files (1 min)
+
+Fastest path: just tell the AI what you're studying — no files required.
+Open the chat (next section) and say something like *"I want to know if X
+affects Y; my data's a CSV at `~/data.csv`; hypotheses: …"*. The AI captures
+your question, domain, and hypotheses into the intake and shows you to
+approve.
+
+Prefer to stage files first? Drop them in:
 
 ```bash
 mv path/to/data.csv      inputs/raw_data/
@@ -205,9 +213,9 @@ mv path/to/paper.pdf     inputs/literature/
 mv my_notes.md           inputs/context/
 ```
 
-The AI reads all of it. No data? Skip this — you can drop files later, or
-talk to the AI in pure consult mode ("teach me about propensity scores
-before I use them").
+The AI reads all of it. No data? That's fine — describe the project in
+chat, or talk to the AI in pure consult mode ("teach me about propensity
+scores before I use them").
 
 `inputs/raw_data/` and `inputs/literature/` are **source-of-truth** —
 Research OS soft-guards them, so the AI overwrites them only with
@@ -246,6 +254,7 @@ should show **`research-os` connected**.
 Open the chat and try one of:
 
 ```
+here's my project: I want to know if X affects Y; data's at <path>
 fill out the intake
 what should I do next?
 run a baseline EDA on my data

@@ -14,11 +14,11 @@ Two numbers frame everything:
 
 | Surface | Size | Role |
 |---|---|---|
-| `server/` (MCP) | ~10,200 LOC, **152 tools**, 16 handler modules | The reasoning engine. Tools + protocols + router + ledger. |
-| `daemon/` (v4) | ~3,235 LOC, 13 modules | The execution + transport spine. Runs, schedulers, journal, provenance. |
-| `protocols/` | **142 YAMLs**, 15 categories | Scaffolds for reasoning — the "how to think" layer. |
+| `server/` (MCP) | **154 tools**, 16 handler modules | The reasoning engine. Tools + protocols + router + ledger. |
+| `daemon/` | 13 modules | The execution + transport spine. Runs, schedulers, journal, provenance. |
+| `protocols/` | **~146 YAMLs**, 14 categories | Scaffolds for reasoning — the "how to think" layer. |
 
-The critical discovery this session: there is **exactly one seam** between
+The critical property of this split: there is **exactly one seam** between
 them, and it is clean.
 
 ```python
@@ -27,11 +27,11 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
     # rate-limit -> resolve alias -> autopilot gate -> _HANDLERS[name](...) -> normalize envelope
 ```
 
-Every one of the 152 tools is reachable through this single function. The
+Every one of the tools is reachable through this single function. The
 router (`router.route_request`) and the state engine (`ResearchLedger`,
 JSON under `.os_state/`) sit *behind* it. This is what makes the
 strangler-fig viable: **the daemon never reimplements a tool. It fronts
-`_handle_tool_call` and inherits all 152 for free.**
+`_handle_tool_call` and inherits all of them for free.**
 
 ---
 
@@ -41,7 +41,7 @@ The instinct "move tools to the daemon" is wrong. Here is the correct
 decomposition, by layer:
 
 ### Layer A — Reasoning (STAYS in `server/`, unchanged)
-The 152 tools and 142 protocols are *pure functions over project state*.
+The tools and protocols are *pure functions over project state*.
 They take `(name, args, root)` and return an envelope. They have no
 concept of transport, sessions, or concurrency. **They should never learn
 about HTTP or daemons.** Moving them into the daemon would couple
@@ -134,7 +134,7 @@ single BUILD phase. ✅ = already shipped (1.7–1.12).
 14. **Anthropic-compat `/v1/messages`** — same, Claude-shaped.
 15. **MCP sidecar (read-only telemetry)** — expose live daemon state
     (current runs, ledger) to any MCP host as resources.
-16. **MCP sidecar (active)** — full 152 tools over MCP-against-daemon, so
+16. **MCP sidecar (active)** — the full tool surface over MCP-against-daemon, so
     the daemon becomes the MCP server, shareable across clients.
 17. **Per-session tokens & auth** — scoped session tokens; localhost-only
     by default, opt-in bind.
@@ -263,7 +263,6 @@ Three principles to hold the line on through every phase:
    gets a manifest. No "quick" untracked execution path that escapes
    provenance.
 
-That is the whole design: a pure reasoning core (152 tools, 142
-protocols) fronted by a transport gateway and grounded by a reproducible
+That is the whole design: a pure reasoning core (the MCP tools + protocols) fronted by a transport gateway and grounded by a reproducible
 execution spine. Build outward from the spine; never let transport leak
 into reasoning.
