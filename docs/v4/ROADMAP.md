@@ -307,6 +307,27 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — UX pass: every researcher-facing surface chat-first + human-spoken
+Looked at the system purely from what the researcher SEES and HOW they interact,
+and fixed surfaces that contradicted the chat-first intake or leaked the AI's
+internal tool names into human-facing text (`35c6308`, `ebe9485`).
+- **Done-card** (first impression after init): reordered open-IDE → 'just tell
+  the AI what you're studying, no files needed' → chat. Was file-drop-first.
+  Verified by a live init.
+- **GETTING_STARTED.md** (analysis/exploration/notebook modes): step 1 is now
+  open-IDE / 'bring in your project — chat or files' with a concrete one-liner
+  and files-as-fallback; first 'try' example is 'describe my project'. Was
+  'Drop your files' first — contradicting the chat-first intake.
+- **STATE.md**: unset-question hint said 'run tool_intake_autofill' — a
+  researcher reading their own status file shouldn't be told an internal tool
+  name. Now 'just tell the AI what you're studying, e.g. ...'.
+- **'When things go wrong' table**: 'Run tool_workspace_repair' → 'Fix my
+  workspace'; '<id>' → 'the last good one'.
+- Principle: researchers chat, they don't call tools or hand-edit files. Every
+  surface they read leads with the lowest-friction path and speaks human; tool
+  names live in AGENTS.md (the AI's rules), not the human's onboarding.
+- Gate green: preflight 38/38, pytest 2749, ruff clean.
+
 ### 2026-06-24/25 — Chat-first intake: fill the project without touching inputs/
 Real onboarding UX gap: the whole intake flow assumed the researcher DROPS
 FILES into inputs/, and tool_intake_autofill only inferred question/domain/
