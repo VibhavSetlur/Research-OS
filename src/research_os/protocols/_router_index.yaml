@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 37
+version: 38
 generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -2215,6 +2215,38 @@ protocols:
     decomposition:
       - protocol: methodology/data_quality_audit
         purpose: "Schema + completeness + distribution + duplicate + leakage + bias checks."
+      - tool: tool_data
+
+  methodology/data_preparation:
+    intent_class: methodology
+    sub_intent: data_prep
+    summary: "Raw → analysis-ready: reshape / join / recode / type / outlier / filter, every decision recorded + re-runnable."
+    triggers:
+      - "prepare the data"
+      - "prepare my data"
+      - "get the data analysis-ready"
+      - "make the data analysis ready"
+      - "build the analysis table"
+      - "wrangle this"
+      - "wrangle the data"
+      - "transform the raw data"
+      - "recode these variables"
+      - "recode the variables"
+      - "merge these datasets"
+      - "join these datasets"
+      - "reshape this"
+      - "reshape the data"
+      - "deal with the outliers"
+      - "handle the outliers"
+      - "harmonise units"
+      - "harmonize units"
+      - "fix the data types"
+      - "the data needs cleaning before i can analyse it"
+      - "the data needs cleaning before i can analyze it"
+    token_estimate: 1500
+    decomposition:
+      - protocol: methodology/data_preparation
+        purpose: "Reason + record each transform from raw to the analysis-ready table; raw stays immutable."
       - tool: tool_data
 
   methodology/power_analysis:
