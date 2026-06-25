@@ -415,7 +415,28 @@ def intake_autofill(
                     or q_stripped.count("?") >= 1
                     or len(q_stripped) > 160
                 )
-                if is_compound:
+                # Detect an interrogative-led question. "We test whether " +
+                # the lowercased question only reads grammatically when the
+                # question is a *declarative* clause ("X reduces Y"). The most
+                # common research-question forms instead open with an
+                # auxiliary/modal verb ("Does X...", "Is Y...", "Can we...")
+                # or a wh-word ("How does...", "What drives..."). Splicing
+                # those after "We test whether" yields broken prose like
+                # "We test whether does drug X reduce tumor size." — which the
+                # researcher then has to trust as their central testable
+                # claim. For those, fall back to the QUOTE form too.
+                first_word = q_stripped.split(None, 1)[0].lower().strip(".,;:") if q_stripped.split() else ""
+                _INTERROGATIVE_LEADS = {
+                    # auxiliaries / modals
+                    "do", "does", "did", "is", "are", "was", "were", "be",
+                    "has", "have", "had", "can", "could", "will", "would",
+                    "shall", "should", "may", "might", "must",
+                    # wh-words
+                    "how", "what", "why", "when", "where", "which", "who",
+                    "whom", "whose",
+                }
+                is_interrogative = first_word in _INTERROGATIVE_LEADS
+                if is_compound or is_interrogative:
                     hypotheses = [
                         f"Central question: \"{q_stripped}\""
                     ]

@@ -157,3 +157,49 @@ def test_intake_chat_question_beats_file_inference(tmp_path):
     res = intake_autofill(tmp_path, question="What drives protein folding rates?")
     assert res["proposed_research_question"] == "What drives protein folding rates?"
 
+
+def test_intake_interrogative_question_uses_quote_form_not_broken_prose(tmp_path):
+    """An interrogative-led research question (the most common form) must NOT
+    be spliced after "We test whether" — that yields broken grammar like
+    "We test whether does drug X reduce tumor size." A grad student who can't
+    verify the AI's work would have to trust that as their central testable
+    claim. Such questions fall back to the QUOTE form instead.
+    """
+    interrogatives = [
+        "Does drug X reduce tumor size?",
+        "Is the effect significant?",
+        "Are penguins sexually dimorphic?",
+        "Can we predict customer churn?",
+        "Will interest rates rise next quarter?",
+        "How does temperature affect crop yield?",
+        "What drives employee attrition?",
+        "Why do galaxies cluster?",
+        "Which features predict default?",
+    ]
+    for q in interrogatives:
+        scaffold_minimal_workspace(tmp_path, "Test")
+        res = intake_autofill(tmp_path, question=q)
+        hyps = res["proposed_hypotheses"]
+        assert len(hyps) == 1, f"{q!r} -> {hyps}"
+        h = hyps[0]
+        # Must use the quote form, never the broken "We test whether <aux>..."
+        assert h.startswith("Central question:"), f"{q!r} -> {h!r}"
+        assert "We test whether" not in h, f"{q!r} -> {h!r}"
+        # And the question text is preserved verbatim (sans trailing '?').
+        assert q.rstrip("?") in h, f"{q!r} -> {h!r}"
+
+
+def test_intake_declarative_question_still_uses_test_whether_prose(tmp_path):
+    """A declarative-clause question still gets the readable "We test
+    whether ..." rewrite — the quote-form fallback is reserved for
+    interrogatives/compounds we can't safely rephrase.
+    """
+    scaffold_minimal_workspace(tmp_path, "Test")
+    res = intake_autofill(
+        tmp_path, question="Sustained X exposure increases Y in cohort Z"
+    )
+    hyps = res["proposed_hypotheses"]
+    assert len(hyps) == 1
+    assert hyps[0].startswith("We test whether ")
+    assert hyps[0].rstrip().endswith(".")
+
