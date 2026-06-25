@@ -1036,6 +1036,11 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             "handoff_hint": handoff_hint,
             "n_finalized_steps": n_finalized,
             "freshness": freshness,
+            # The daemon's startup self-check (if a daemon ran): structural
+            # problems / interrupted runs / unframed intake it noticed and
+            # wrote to .os_state/daemon_notes.json. Read by-shape (no daemon
+            # import). The AI should ACT on any block/warn here before building.
+            "daemon_notes": _boot_daemon_notes(root),
             # The behavioural contract from researcher_config, surfaced
             # compactly so the AI FOLLOWS it every session AND keeps it in
             # sync (a secondary AGENTS.md). See config_reconcile_hint.
@@ -1085,6 +1090,43 @@ def _boot_new_context(root: Path) -> dict:
         }
     except Exception:
         return {"new_files": [], "changed_files": [], "hint": ""}
+
+
+def _boot_daemon_notes(root: Path) -> dict:
+    """sys_boot peek at the daemon's startup self-check notes (by-shape, no
+    daemon import). Returns a compact summary the AI acts on; empty when no
+    daemon ran / no notes exist. Fail-safe."""
+    try:
+        from research_os.server import daemon_bridge as _bridge
+
+        notes = _bridge.read_daemon_notes(root)
+        if not isinstance(notes, dict):
+            return {"present": False, "findings": [], "hint": ""}
+        findings = notes.get("findings") or []
+        counts = notes.get("counts") or {}
+        # Surface the messages compactly; the full note lives in
+        # .os_state/daemon_notes.md for the AI to read in full if needed.
+        msgs = [
+            f"[{f.get('severity', 'info')}] {f.get('message', '')}"
+            for f in findings
+        ][:8]
+        hint = ""
+        if counts.get("block"):
+            hint = (
+                "The daemon found BLOCK-level integrity issues — address them "
+                "(tool_workspace_repair / tool_structure_audit) before building."
+            )
+        elif findings:
+            hint = "The daemon left notes — review and address them this turn."
+        return {
+            "present": True,
+            "ok": notes.get("ok", True),
+            "counts": counts,
+            "findings": msgs,
+            "hint": hint,
+        }
+    except Exception:
+        return {"present": False, "findings": [], "hint": ""}
 
 
 def _boot_software_components(root: Path) -> list:

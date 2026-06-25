@@ -687,6 +687,18 @@ class Daemon:
         self.tasks.start()
         self._start_journal()
         self._serving = True
+        # Startup self-check: look at the project, note any problems (structure
+        # drift, interrupted runs, unframed intake), and leave an AI-facing
+        # note at .os_state/daemon_notes.md so the next agent turn (or an
+        # autonomous loop) sees + addresses them. Best-effort — never blocks
+        # serving.
+        if self.root is not None:
+            try:
+                from . import health_notes as _health
+
+                _health.write_notes(self.root)
+            except Exception:  # noqa: BLE001 - self-check must not stop the daemon
+                logger.debug("startup self-check failed", exc_info=True)
         # Discovery handshake: advertise this daemon to the MCP surface and
         # any local client by dropping a descriptor in the project's
         # .os_state/. Best-effort — a write failure must not stop serving.

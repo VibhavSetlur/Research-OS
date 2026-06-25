@@ -33,6 +33,7 @@ CONSENT_GRANTED = "consent/granted.json"
 CONSENT_SPENT = "consent/spent.json"
 NOTIFICATIONS_OUTBOX = "notifications/outbox.jsonl"
 STALENESS_VERDICT = "staleness/verdict.json"
+DAEMON_NOTES = "daemon_notes.json"
 RUNS_DIR = "runs"
 
 
@@ -172,3 +173,22 @@ def http_post(
         return exc.code, (parsed if isinstance(parsed, dict) else None)
     except Exception:  # noqa: BLE001 - transport failure → (None, None)
         return None, None
+
+
+def read_daemon_notes(root: str | Path) -> dict[str, Any] | None:
+    """Read the daemon's startup self-check notes (.os_state/daemon_notes.json).
+
+    The daemon writes this on startup (health_notes.write_notes) with any
+    structural problems / interrupted runs / unframed intake it noticed. Read
+    by-shape (no daemon import) so sys_boot/sys_daemon can surface the daemon's
+    findings to the agent. Returns None when absent/unreadable (fail-safe).
+    """
+    try:
+        path = state_path(root, DAEMON_NOTES)
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
