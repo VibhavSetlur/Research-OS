@@ -13,7 +13,7 @@ the [Setup Prompt](#setup-prompt-paste-into-any-ai) into any AI chat.
 
 ```bash
 # 1. Install (once, globally — one server serves every project)
-pip install "research-os[all]"
+pip install research-os
 
 # 2. Scaffold a project
 mkdir my-project && cd my-project
@@ -33,10 +33,73 @@ you the full prompt catalogue.
 
 ---
 
+## Your first ten minutes (a real walkthrough)
+
+Say you've got a CSV of clinical-trial outcomes and a question. Here's the
+whole arc, start to finish — the words you type are in **bold**.
+
+1. **Scaffold and open.**
+
+   ```bash
+   mkdir aspirin-rct && cd aspirin-rct
+   research-os init          # pick "analysis" mode, your IDE, defaults for the rest
+   ```
+
+   Open `aspirin-rct/` in Claude Code (or Cursor / VS Code / …). The MCP
+   panel shows **`research-os` connected**.
+
+2. **Tell it what you're doing** — no files required yet:
+
+   > **"My trial data is at `~/data/aspirin.csv`. I want to know if
+   > low-dose aspirin reduces 30-day cardiac events versus placebo,
+   > adjusting for age and prior MI. Hypothesis: it does."**
+
+   The AI records the question + hypothesis, profiles the CSV (rows,
+   columns, types, missingness), flags anything odd, and asks you to
+   confirm the framing. Nothing has run yet — it checks with you first.
+
+3. **Run the baseline.**
+
+   > **"run a baseline EDA"**
+
+   You get `workspace/01_baseline_eda/` — a script you can read, figures
+   with captions, a summary table, and `conclusions.md` tying what it
+   found back to your hypothesis.
+
+4. **Do the real analysis.**
+
+   > **"fit the adjusted model"**
+
+   The AI picks the method (logistic regression here), justifies it,
+   writes `workspace/02_*/`, reports the effect with a CI and the
+   adjusted covariates, and records the decision in `analysis.md`.
+
+5. **Write it up.**
+
+   > **"draft the results and discussion"**
+
+   Prose that cites *your* numbers — every value traceable to step 02,
+   every reference verified. If you ask for a citation it can't verify,
+   it tells you, rather than inventing a DOI.
+
+6. **Check before you ship.**
+
+   > **"is this ready to submit?"**
+
+   A GREEN / YELLOW / RED verdict and a punch list: ungrounded claims,
+   missing limitations, unverified cites — every gate a reviewer applies,
+   run early.
+
+You never wrote a config file, memorized a command, or trusted a number on
+faith. That's the loop. → Seven fuller examples across domains:
+[SCENARIOS.md](SCENARIOS.md).
+
+---
+
 ## Install (60 s)
 
 ```bash
-pip install "research-os[all]"
+pip install research-os
 ```
 
 Extras: `all` (everything Python — recommended), `ci` (lean, used by
@@ -564,7 +627,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    OS (macOS / Linux / Windows / WSL — ask which I'm on).
 > 2. **Install with all optional extras**:
 >    ```
->    pip install "research-os[all]"
+>    pip install research-os
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.

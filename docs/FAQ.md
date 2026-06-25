@@ -361,7 +361,7 @@ doesn't become dead code. See
 
 ### Can I run Research OS without the synthesis features?
 
-Yes. Skip `pip install 'research-os[viz,literature]'`. Synthesis tools
+Yes. Figures + literature search ship in the base install, but synthesis tools
 that need an absent dependency will return a clear error explaining what
 to install. The core pipeline works without any optional extras.
 
