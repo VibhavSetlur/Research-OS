@@ -39,6 +39,7 @@ __all__ = [
     "_handle_tool_audit_tool_tests",
     "_handle_tool_audit_tool_git_hygiene",
     "_handle_tool_audit_tool_build",
+    "_handle_tool_judge_score",
 ]
 
 def _handle_tool_audit(name, arguments, root):
@@ -757,8 +758,26 @@ def _handle_tool_audit_tool_build(name, arguments, root):
     return _text(_success(audit_tool_build(root)))
 
 
+def _handle_tool_judge_score(name, arguments, root):
+    from research_os.tools.actions.audit.judge import score_work
+
+    res = score_work(
+        root,
+        subject=str(arguments.get("subject", "")),
+        dimensions=arguments.get("dimensions") or [],
+        limitations=arguments.get("limitations") or [],
+        improvements=arguments.get("improvements") or [],
+        verdict=str(arguments.get("verdict", "")),
+        goal=arguments.get("goal"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "judge_score failed")))
+
+
 HANDLERS = {
     "tool_audit": _handle_tool_audit,
     "tool_audit_findings": _handle_tool_audit_findings,
     "tool_audit_quality_full": _handle_tool_audit_quality_full,
+    "tool_judge_score": _handle_tool_judge_score,
 }

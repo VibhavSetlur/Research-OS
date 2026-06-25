@@ -241,6 +241,11 @@ class RunJournal:
     def __init__(self, store: RunStore) -> None:
         self.store = store
         self._tails: dict[str, list[str]] = {}
+        # Optional callback the daemon sets to react to a run reaching a
+        # terminal state (e.g. autonomous continuation). Signature:
+        # on_terminal(manifest: dict) -> None. Best-effort, never blocks the
+        # journal — kept out of RunJournal so the journal stays config-free.
+        self.on_terminal: Any = None
 
     def handle(self, event: Any) -> None:
         """Process one event object (must have .kind and .data). Never raises."""
@@ -330,6 +335,14 @@ class RunJournal:
             # journal + persist the sidecar. Best-effort: a failure here never
             # touches the run record (matches the bus-isolation contract).
             self._refresh_staleness_verdict()
+            # Fire the optional terminal hook (autonomous continuation, etc.).
+            # Best-effort + isolated: a hook failure never touches the run
+            # record or the bus.
+            if self.on_terminal is not None:
+                try:
+                    self.on_terminal(manifest)
+                except Exception:  # noqa: BLE001 - hook must not break the journal
+                    pass
 
     def _refresh_staleness_verdict(self) -> None:
         """Recompute + persist the freshness verdict from the run journal.

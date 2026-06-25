@@ -362,6 +362,31 @@ class Daemon:
         journal = RunJournal(self.runstore)
         self._journal = journal
 
+        # Wire the autonomous-continuation hook (opt-in via config.continue_
+        # command). When a run reaches terminal, maybe_continue decides whether
+        # to re-prompt the researcher's agent toward the active goal. No-op
+        # unless the researcher opted in; hop-limited; never blocks the journal.
+        if self.root is not None:
+            _root = self.root
+
+            def _on_terminal_run(manifest: dict) -> None:
+                try:
+                    from . import continuation as _cont
+
+                    summary = {
+                        "id": manifest.get("id"),
+                        "name": manifest.get("name"),
+                        "status": manifest.get("status"),
+                        "returncode": (manifest.get("result") or {}).get("returncode"),
+                    }
+                    _cont.maybe_continue(
+                        _root, config=self.config, finished_run=summary
+                    )
+                except Exception:  # noqa: BLE001 - continuation must not break journal
+                    logger.debug("autonomous continuation hook failed", exc_info=True)
+
+            journal.on_terminal = _on_terminal_run
+
         def _pump() -> None:
             # Backfill any events already on the bus (defensive — the journal
             # starts before HTTP accepts requests, but a programmatic submit

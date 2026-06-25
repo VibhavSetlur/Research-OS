@@ -174,6 +174,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_intake_autofill` | Populate the intake from `inputs/` files AND/OR what the researcher said in chat (`question` / `domain` / `hypotheses` / `context_note` — explicit args win over file inference, so an empty `inputs/` still yields a real intake). Writes `inputs/intake.md` + `research_overview.md` (in the project's `docs/`) + `.os_state/state.json`. |
 | `tool_intake_freshness` | Recommended intake depth (full / refresh-only / skip) based on intake.md freshness + step count. |
 | `tool_julia_exec` | Run `.jl` (requires `julia` on PATH). |
+| `tool_judge_score` | Record a structured quality scorecard you author (dimensions 0-5 + justifications + limitations + improvements + verdict ship/iterate/redo). Rejects an incomplete scorecard. The autonomous loop reads the verdict. |
 | `tool_latex_compile` | `pdflatex` + `bibtex` on `synthesis/paper.tex`. Use when a venue requires `.tex` submission. |
 | `tool_list_certifications` | List active researcher self-certifications. |
 | `tool_literature_download` | Save a paper PDF. Pass `step_id='NN_<slug>'` to scope to a step. |

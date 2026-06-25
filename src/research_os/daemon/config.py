@@ -72,6 +72,19 @@ class DaemonConfig:
     # channel (Hermes→Slack, mailx, a webhook…). Read from project config /
     # env — never from an agent-writable surface at request time.
     notify_command: str = ""
+    # Autonomous-continuation hook (Phase 4, OPT-IN). A shell command the
+    # daemon runs when a long job reaches a terminal state, with a JSON
+    # continuation payload on stdin (the finished run + the project goal). The
+    # researcher wires this to their agent (Hermes / CC / any) so that after a
+    # multi-hour result lands, the AI is automatically re-prompted to CONTINUE
+    # the work toward the goal — unattended, while they're away. Empty (the
+    # default) → the daemon never auto-continues; nothing runs without the
+    # researcher explicitly opting in. Read from project config / env only,
+    # never from an agent-writable surface at request time.
+    continue_command: str = ""
+    # Max autonomous continuation hops for ONE goal before the daemon stops
+    # and waits for a human — a hard ceiling so a goal-loop can't run forever.
+    continue_max_hops: int = 25
 
     _VALID_SANDBOX_MODES = ("auto", "native", "off")
 
@@ -156,6 +169,8 @@ def _from_env() -> dict:
         "task_workers": os.environ.get("RESEARCH_OS_DAEMON_WORKERS"),
         "state_cache_ttl": os.environ.get("RESEARCH_OS_DAEMON_CACHE_TTL"),
         "notify_command": os.environ.get("RESEARCH_OS_DAEMON_NOTIFY_COMMAND"),
+        "continue_command": os.environ.get("RESEARCH_OS_DAEMON_CONTINUE_COMMAND"),
+        "continue_max_hops": os.environ.get("RESEARCH_OS_DAEMON_CONTINUE_MAX_HOPS"),
     }
     return _coerce({k: v for k, v in env.items() if v is not None})
 
@@ -179,6 +194,7 @@ def _coerce(block: dict) -> dict:
         "gateway_api_key_env",
         "gateway_token_env",
         "notify_command",
+        "continue_command",
     ):
         if skey in block and block[skey] is not None:
             out[skey] = str(block[skey])
@@ -197,6 +213,11 @@ def _coerce(block: dict) -> dict:
     if "state_cache_ttl" in block and block["state_cache_ttl"] is not None:
         try:
             out["state_cache_ttl"] = float(block["state_cache_ttl"])
+        except (TypeError, ValueError):
+            pass
+    if "continue_max_hops" in block and block["continue_max_hops"] is not None:
+        try:
+            out["continue_max_hops"] = int(block["continue_max_hops"])
         except (TypeError, ValueError):
             pass
     if "gateway_timeout" in block and block["gateway_timeout"] is not None:
