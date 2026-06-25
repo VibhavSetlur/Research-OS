@@ -308,6 +308,20 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Docs consolidation: drop the v4 silo, fold into docs/
+Removed the docs/ vs docs/v4/ split. 'v4' is internal jargon, and the
+architecture docs describe SHIPPED behaviour — siloing them hid them from every
+index. All 9 docs/v4/*.md moved into docs/ (git renames): DESIGN_V4.md →
+ARCHITECTURE.md; ROADMAP.md (this file) + the seven gate/daemon design docs kept
+their names. Rewrote every reference across 31 files (daemon/, server/, scripts/,
+tests/, CLAUDE.md): docs/v4/X → docs/X, prose DESIGN_V4 → ARCHITECTURE; zero
+remain. De-versioned the ARCHITECTURE + ROADMAP headers. Added an 'Architecture
+& internals' section to docs/README.md (the 9 docs were in no index) and
+Architecture/Daemon rows + an 'Optional daemon enforcement kernel' bullet to the
+top-level README (the daemon was absent from it). No broken links; all preflight
+guards green against the new paths. Gate: preflight 38/38, pytest 2751, ruff
+clean.
+
 ### 2026-06-24/25 — The receiver's view: a front door for shared archives
 New perspective — the collaborator / PI / reviewer who RECEIVES the work and
 must trust it without having done it. The share archive correctly strips all
