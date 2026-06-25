@@ -1780,8 +1780,17 @@ def scaffold_minimal_workspace(
     #         used ANYWHERE (inputs/literature, a step's literature/, or a
     #         step's context/) is aggregated here at step finalization, so
     #         the project has one auditable bibliography substrate.
+    #
+    #         ONLY for modes whose layout actually has a top-level
+    #         ``literature/`` work surface (analysis, hybrid). tool_build /
+    #         exploration / notebook / multi_study don't run the numbered-step
+    #         finalization that mirrors PDFs here, so seeding the dir + README
+    #         in those modes leaves an orphan folder describing a workflow
+    #         that never runs (and one that isn't in the mode's scaffold
+    #         profile — see LAYOUT_SPEC). Gate on the profile so the surface
+    #         matches the declared layout.
     lit_root_readme = root / "literature" / "README.md"
-    if not lit_root_readme.exists():
+    if "literature" in top_level_dirs and not lit_root_readme.exists():
         lit_root_readme.parent.mkdir(parents=True, exist_ok=True)
         lit_root_readme.write_text(
             "# `literature/` — project corpus of record\n\n"
