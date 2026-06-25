@@ -312,6 +312,37 @@ def _legacy_requires_confirmation(tool_name: str, arguments: dict,
     return False
 
 
+def _gate_block_reason(
+    tool_name: str, args: dict, gate_key: str | None, root: Path
+) -> str:
+    """Human-readable reason a floor gate fired, for the away-user page.
+
+    Prefers the SPECIFIC world-state risk (stale inputs / missing
+    preconditions) over a generic 'floor gate' note, so the researcher's
+    notification names the real hazard. Best-effort + fail-safe: any error
+    yields an empty string (the page still fires with its generic body).
+    """
+    try:
+        key = gate_key or ""
+        if key.endswith(":stale_inputs"):
+            return (
+                "the final deliverable would be built from inputs that have "
+                "since changed (stale results)"
+            )
+        if "precondition" in key:
+            return "a required foundation for this step is not yet in place"
+        from .gate_spec import resolve_declared_gate
+
+        gates = _declared_gates()
+        if gates:
+            g = resolve_declared_gate(tool_name, args or {}, root, gates=gates)
+            if g and g.get("reason"):
+                return str(g["reason"])
+    except Exception:  # noqa: BLE001 - reason is cosmetic; never break paging
+        return ""
+    return ""
+
+
 def enforce_autopilot_gate(
     tool_name: str, arguments: dict, root: Path
 ) -> None:
@@ -387,6 +418,23 @@ def enforce_autopilot_gate(
             # project).
             consume_grant(Path(root), token, expires_at=grant.get("expires_at"))
             return
+        # BLOCKED while unattended: a daemon is the authority and the human
+        # is away. Page them on the daemon's notification spine so they learn
+        # action is needed — a wedged/looping/crashed agent would otherwise
+        # leave the floor gate silently stuck. Best-effort + de-duplicated;
+        # never alters the gate decision below.
+        try:
+            from .notify_sink import notify_gate_blocked
+
+            notify_gate_blocked(
+                Path(root),
+                tool=tool_name,
+                gate_key=key,
+                arg_fingerprint=fp,
+                reason=_gate_block_reason(tool_name, args, key, Path(root)),
+            )
+        except Exception:  # noqa: BLE001 - paging must never break the gate
+            logger.debug("gate-block notification failed", exc_info=True)
         raise RoError(
             what="consent_required",
             why=(
