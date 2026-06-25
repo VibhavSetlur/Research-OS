@@ -127,11 +127,22 @@ def current_stale_verdict(root: Path) -> dict | None:
         return None
     if verdict.get("status") != "stale":
         return None
-    # Age check: ignore a verdict older than the freshest run.
-    assessed = _parse_iso(verdict.get("assessed_at", ""))
+    # Age check: ignore a verdict that cannot be shown to be at least as new
+    # as the freshest run. A run written AFTER the verdict means the project
+    # state moved on; the verdict's "stale" claim predates it and must not be
+    # trusted (failure mode: re-running the affected step would otherwise
+    # leave a stale *verdict* blocking forever — the freshness-of-freshness).
+    #
+    # A verdict whose ``assessed_at`` is absent or malformed cannot PROVE it
+    # is current. When there is a newer run, that unprovable verdict is
+    # treated as out-of-date (no claim) — matching the deliberate fail
+    # direction (fail toward NOT blocking when there is no affirmative,
+    # CURRENT staleness claim). With no runs at all there is nothing newer to
+    # invalidate it, so it still fires.
     newest = _newest_run_mtime(Path(root))
-    if assessed is not None and newest > 0.0:
-        if assessed.timestamp() < newest:
+    if newest > 0.0:
+        assessed = _parse_iso(verdict.get("assessed_at", ""))
+        if assessed is None or assessed.timestamp() < newest:
             return None
     return verdict
 
