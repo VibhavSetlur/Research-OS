@@ -733,6 +733,8 @@ protocols:
       - "tag a release"
       - "tag a version"
       - "release this"
+      - "release it"
+      - "release the tool"
       - "ship it"
       - "publish the tool"
       - "publish this"
@@ -2953,6 +2955,27 @@ shortcut_intents:
   background_task:
     triggers: ["background", "long running", "kick off", "fire and forget"]
     tool: tool_task
+
+  # tool_build mode — running the declared build/test/lint command is an
+  # everyday execution action, NOT a protocol load. "run the tests" used to
+  # dead-end (no trigger owned it) and "run the build" misrouted to
+  # spec_and_design; the design protocols (build/test_strategy) own DECIDING
+  # the regime, not RUNNING it. These bounded phrases route straight to the
+  # tool that shells workspace.commands.{build,test,lint}; it returns a clear
+  # error naming the key to set when the command isn't configured, so the
+  # shortcut is harmless outside tool_build mode too.
+  run_build_checks:
+    triggers:
+      - "run the tests"
+      - "run tests"
+      - "run the test suite"
+      - "run the build"
+      - "run the linter"
+      - "run the linters"
+      - "run the checks"
+      - "run lint"
+      - "rerun the tests"
+    tool: tool_build
 
   scratch_sandbox:
     triggers: ["quick test", "syntax check", "scratch", "throwaway"]
