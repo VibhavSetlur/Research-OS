@@ -24,11 +24,26 @@ def test_sys_boot_returns_full_payload(tmp_path):
         "autonomy", "expertise", "model_profile", "shared_server",
         "active_hypotheses", "history_tail", "last_protocol_entry",
         "pause_classification", "next_protocol", "dep_inventory",
-        "active_plan", "advice",
+        "active_plan", "workspace_mode", "mode_directive", "advice",
     ):
         assert k in res, f"sys_boot missing key {k}"
     assert res["project_name"] == "Router Test"
     assert res["pause_classification"] == "fresh_session"
+    # Default mode is analysis, surfaced with a directive the AI can act on.
+    assert res["workspace_mode"] == "analysis"
+    assert res["mode_directive"]
+
+
+def test_sys_boot_surfaces_hybrid_mode_directive(tmp_path):
+    """A hybrid project's boot must surface workspace_mode + a hybrid-specific
+    directive so the AI behaves mode-appropriately (not just analysis-default)."""
+    from research_os.tools.actions.state import set_config
+
+    scaffold_minimal_workspace(tmp_path, "Hybrid Test")
+    set_config("workspace.mode", "hybrid", tmp_path)
+    res = sys_boot(tmp_path)
+    assert res["workspace_mode"] == "hybrid"
+    assert "hybrid" in res["mode_directive"].lower()
 
 
 def test_sys_boot_survives_unscaffolded_root(tmp_path):

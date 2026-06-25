@@ -993,6 +993,8 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
         except Exception as e:
             logger.debug("adapter detection skipped: %s", e)
 
+        _mode_info = _boot_mode_info(root)
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -1052,6 +1054,12 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             # marker is consumed by tool_route so each drop surfaces once).
             "new_context": _boot_new_context(root),
             "glossary_unfilled": _boot_glossary_unfilled(root, n_finalized),
+            # Workspace mode shapes routing + scaffolds. Surface it (and a
+            # one-line directive) so the AI behaves mode-appropriately and can
+            # notice when the project has outgrown its mode — the mode silently
+            # biases routing, so the AI must SEE it to reason about it.
+            "workspace_mode": _mode_info[0],
+            "mode_directive": _mode_info[1],
             # Hybrid (research + software): inner code components, so the AI
             # governs the research in workspace/ AND the code via tool_git /
             # tool_build on the inner repo.
@@ -1087,6 +1095,58 @@ def _boot_software_components(root: Path) -> list:
         return detect_software_components(root)
     except Exception:
         return []
+
+
+# One-line behavioural directive per workspace mode. Kept terse — it tells the
+# AI how to act in this mode and the natural transition signal, so it can both
+# behave mode-appropriately and notice when the project has outgrown its mode.
+_MODE_DIRECTIVES: dict[str, str] = {
+    "analysis": (
+        "Analysis mode: linear numbered research steps in workspace/. If you "
+        "find yourself needing to BUILD a reusable tool, consider switching to "
+        "hybrid (sys_config workspace.mode=hybrid)."
+    ),
+    "tool_build": (
+        "Tool-build mode: you ship software governed from above (spec → "
+        "implement → test → benchmark → evaluate → release) in the inner repo. "
+        "Run build/tool_evaluation_loop to drive the evaluate→improve cycle. If "
+        "the project shifts to USING the tool for research, consider hybrid."
+    ),
+    "hybrid": (
+        "Hybrid mode: research in workspace/ AND software in the inner repo. "
+        "Pivot via hybrid/hybrid_workflow; hand findings across with "
+        "hybrid/tool_to_analysis_handoff; drive tool improvement with "
+        "build/tool_evaluation_loop. Keep the two halves in sync."
+    ),
+    "exploration": (
+        "Exploration mode: scratch-first quick probes with light gates. Promote "
+        "a probe that proves out into a real analysis step (or switch to "
+        "analysis mode) rather than letting scratch work masquerade as a result."
+    ),
+    "notebook": (
+        "Notebook mode: the unit of work is a .ipynb. Execute notebooks as "
+        "tracked runs, reproduce before trusting, promote stable cells into "
+        "scripts/steps when they harden."
+    ),
+    "multi_study": (
+        "Multi-study mode: a program of sub-studies sharing a codebook + "
+        "prereg. Register each study, govern the shared codebook, synthesize "
+        "across studies — don't collapse the program into a single study."
+    ),
+}
+
+
+def _boot_mode_info(root: Path) -> tuple[str, str]:
+    """Return (workspace_mode, one-line behavioural directive) for boot.
+
+    Surfacing the mode + its directive lets the AI act mode-appropriately and
+    spot when the project has outgrown its mode. Never raises out of boot.
+    """
+    try:
+        mode = _read_workspace_mode(root)
+    except Exception:
+        mode = "analysis"
+    return mode, _MODE_DIRECTIVES.get(mode, _MODE_DIRECTIVES["analysis"])
 
 
 def _boot_glossary_unfilled(root: Path, n_finalized: int) -> dict:
