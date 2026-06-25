@@ -1,15 +1,16 @@
 id: mixed_language_orchestration
 tier: 'plan'
 name: Mixed-Language Orchestration (Python ↔ R ↔ Bash within a step)
-version: '3.0.0'
+version: '4.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher]
   workflow_shape: [experiment_pipeline]
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-25'
 see_also:
   - methodology/pick_tool_stack             # decides "mixed" and writes stack_plan.md
+  - methodology/polyglot_analysis           # choosing + running the right language per task, recorded
 description: |
   When `pick_tool_stack` lands on "mixed" — i.e. one analysis step
   legitimately spans multiple languages — this protocol covers HOW to

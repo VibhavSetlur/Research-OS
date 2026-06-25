@@ -41,8 +41,8 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 43
-generated_at: '2026-06-23'
+version: 44
+generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
 # L1 ↔ L2 hierarchy (used for ambiguity resolution + ask_user prompts)
@@ -69,6 +69,8 @@ hierarchy:
     label: "Planning + iteration"
     sub_intents:
       next_step:      "Propose the best next experiment"
+      deep_plan:      "Build a rigorous, branchable research roadmap step by step"
+      roadmap:        "Autonomously build toward a roadmap, re-planning from results"
       casual:         "Lightweight exploration"
       program_setup:  "multi_study: shared codebook + prereg + how studies roll up"
       study_register:  "multi_study: register a new sub-study against the program commons"
@@ -511,6 +513,89 @@ protocols:
       - tool: mem_log
         purpose: "Log the chosen direction."
 
+  methodology/deep_planning:
+    intent_class: plan
+    sub_intent: deep_plan
+    summary: "Build a rigorous, branchable research roadmap step by step — decompose, mark uncertainty, find branch points, sequence, capture as a durable plan."
+    triggers:
+      - "plan this deeply"
+      - "deep planning"
+      - "deep plan"
+      - "plan this out properly"
+      - "let's plan this out"
+      - "build me a research plan"
+      - "build a research plan"
+      - "make a roadmap"
+      - "build a roadmap"
+      - "create a roadmap"
+      - "research roadmap"
+      - "think through the whole project"
+      - "map out the project"
+      - "map out how we'd get there"
+      - "plan the whole thing"
+      - "rigorous plan"
+    token_estimate: 1600
+    decomposition:
+      - protocol: methodology/deep_planning
+        purpose: "Decompose the goal, mark uncertainty, find branch points, sequence the work."
+      - tool: mem_hypothesis_add
+        purpose: "Register load-bearing assumptions as tracked hypotheses."
+      - tool: sys_file_write
+        purpose: "Capture the durable, branchable roadmap to inputs/research_plan.md."
+
+  guidance/roadmap_execution:
+    intent_class: plan
+    sub_intent: roadmap
+    summary: "Autonomous build loop: execute a roadmap step by step, record each result, re-plan from the evidence, open/close paths, pause when the researcher is needed."
+    triggers:
+      - "build toward this autonomously"
+      - "build toward the plan"
+      - "build toward the goal"
+      - "execute the roadmap"
+      - "execute the plan"
+      - "run the roadmap"
+      - "run the plan"
+      - "drive the project to the goal"
+      - "keep building toward the plan"
+      - "autonomously build"
+      - "work the roadmap"
+      - "follow the roadmap"
+    token_estimate: 1700
+    decomposition:
+      - tool: sys_boot
+        purpose: "Load state + autonomy + active plan to reconstruct the thread."
+      - protocol: guidance/roadmap_execution
+        purpose: "Select next milestone, execute, record result, re-plan, decide pause-or-proceed."
+      - tool: sys_file_write
+        purpose: "Keep inputs/research_plan.md in sync; append to the iteration log each re-plan."
+
+  guidance/analysis_paths:
+    intent_class: execute
+    sub_intent: branch
+    summary: "Keep a multi-path exploration legible: when to branch, how to name + compare branches on equal footing, when to merge the winner or abandon a loser."
+    triggers:
+      - "branch the analysis"
+      - "branch this"
+      - "explore this two ways"
+      - "fork an alternative approach"
+      - "fork the analysis"
+      - "compare these paths"
+      - "compare the branches"
+      - "which branch should we keep"
+      - "merge the winning path"
+      - "merge the branch"
+      - "parallel paths"
+      - "explore in parallel"
+    token_estimate: 1500
+    decomposition:
+      - tool: tool_branch_recommendation
+        purpose: "Tie-break whether to fork a parallel path or finish the current one first."
+      - tool: sys_path
+        args: {operation: create}
+        purpose: "Create the branch path with branch_of recording the lineage."
+      - protocol: guidance/analysis_paths
+        purpose: "Hold branches comparable, compare on a pre-declared criterion, merge or abandon."
+
   guidance/dead_end_routing:
     intent_class: execute
     sub_intent: abandon
@@ -892,6 +977,101 @@ protocols:
       - tool: mem_log
         purpose: "Tie gap → scout → spike → integrated version into one durable record."
 
+  build/tool_from_description:
+    intent_class: plan
+    sub_intent: build_from_description
+    summary: "The describe→plan→build→evaluate→re-plan outer loop: clarify a plain-language tool request into a checkable spec, plan the build (spec + reasoned approach), build an increment, evaluate it on REAL inputs, and loop until the researcher's bar is met — versioning each eval-passing state."
+    triggers:
+      - "build me a tool"
+      - "build me a tool that"
+      - "i want a tool that"
+      - "i need a tool that"
+      - "i need something that"
+      - "make me a tool"
+      - "make me a script that"
+      - "make me a cli that"
+      - "build a tool that does"
+      - "can you build me"
+      - "i want a tool to"
+      - "i wish i had a tool"
+      - "build something that"
+      - "describe the tool i want"
+      - "build it then improve it"
+    token_estimate: 2000
+    decomposition:
+      - protocol: build/tool_from_description
+        purpose: "Clarify the description + bar, plan (spec + approach), build an increment, evaluate on real inputs, loop or converge — versioning each eval-passing state."
+      - protocol: build/spec_and_design
+        purpose: "Pin acceptance criteria + the interface contract from the clarified description."
+      - protocol: build/optimal_approach
+        purpose: "Brain out HOW before committing to an implementation."
+      - protocol: build/tool_evaluation_loop
+        purpose: "Evaluate the increment against the real bar; its verdict drives loop-or-converge."
+      - tool: mem_log
+        purpose: "Record the clarified bar, each outer pass's plan, and the loop/converge verdict."
+
+  build/optimal_approach:
+    intent_class: plan
+    sub_intent: build_approach
+    summary: "Brain out the candidate approaches before committing: define what 'optimal' means here, generate genuinely distinct candidates, reason about trade-offs against THIS build's real constraints, pick one with a recorded justification, then branch into the build."
+    triggers:
+      - "find the best way to build"
+      - "find the best way to build this"
+      - "find the optimal way"
+      - "what's the optimal approach"
+      - "best approach to build"
+      - "brain it out"
+      - "brain out the approach"
+      - "explore the options first"
+      - "how should we build this"
+      - "weigh the approaches"
+      - "which design is best here"
+      - "think through the alternatives"
+      - "consider the alternatives"
+      - "don't just build the first thing"
+      - "what are my options for building"
+    token_estimate: 1700
+    decomposition:
+      - protocol: build/optimal_approach
+        purpose: "Pin the ranked criteria, generate distinct candidates, reason trade-offs against real constraints, choose + justify, branch into the build."
+      - protocol: build/method_scouting
+        purpose: "When an approach's viability hinges on external prior art, scout it before it can be fairly weighed."
+      - tool: sys_file_write
+        purpose: "Write the approach brief + an ADR recording the chosen approach and why the alternatives lost."
+      - tool: mem_log
+        purpose: "Log the chosen approach + the deciding criterion."
+
+  build/versioning_and_rollback:
+    intent_class: execute
+    sub_intent: build_version
+    summary: "Version discipline for a tool under active improvement using the inner repo: mark eval-passing states as known-good versions (blessed because the eval said so), and roll back cleanly to a good version when an improvement regresses — preserving the reverted work."
+    triggers:
+      - "version this"
+      - "tag this version"
+      - "mark this as working"
+      - "save this as a good version"
+      - "this one works keep it"
+      - "roll back to the working version"
+      - "roll back to the version that worked"
+      - "go back to the version that worked"
+      - "revert to the last good one"
+      - "go back a version"
+      - "this change made it worse"
+      - "the improvement regressed it"
+      - "undo this change it broke things"
+      - "which version was good"
+      - "back to the known good version"
+    token_estimate: 1700
+    decomposition:
+      - protocol: build/versioning_and_rollback
+        purpose: "Decide if a state is worth marking, bless it with its eval verdict, recognise a regression, decide roll back vs fix forward, roll back without losing work, record + resume."
+      - tool: tool_bash_exec
+        purpose: "git in the inner repo: status/log to read state, and the actual return-to-version (checkout/branch from a good tag) that tool_git doesn't itself perform."
+      - tool: sys_checkpoint_create
+        purpose: "Snapshot the workspace boundary so the rollback decision point is recoverable."
+      - tool: mem_log
+        purpose: "Record the version event with the two-way version↔result link, or the rollback (regression + target + preserved work)."
+
 # ─────────────────────────────────────────────────────────────────────
 # EXPLORATION protocols (exploration workspace mode)
 # Scratch-first quick probes — the unit of work is a PROBE in
@@ -1056,6 +1236,8 @@ protocols:
     triggers:
       - "make this notebook reproducible"
       - "make the notebook reproducible"
+      - "make my notebook reproducible"
+      - "make notebook reproducible"
       - "pin the environment"
       - "parameterize this notebook"
       - "parameterise this notebook"
@@ -1308,6 +1490,31 @@ protocols:
     triggers: ["mix languages", "mixed language", "python and r", "r and python",
                "subprocess r", "subprocess rscript", "polyglot pipeline",
                "cross language", "hand-off between", "rscript from python"]
+
+  methodology/polyglot_analysis:
+    intent_class: methodology
+    sub_intent: pick
+    summary: "Choose + run the RIGHT language per research task (R for stats/Bioconductor, Julia for performance, Bash for glue, SQL for data, Python as a reasoned default) via the exec tools, with per-language provenance + cross-language reproducibility."
+    triggers: ["analyze in r", "analyse in r", "analyze this in r", "analyse this in r",
+               "do this in r", "do it in r", "use r", "in r instead",
+               "use julia", "do this in julia", "rewrite in julia",
+               "make this faster", "speed this up", "performance language",
+               "write a bash script", "shell script", "glue script",
+               "orchestrate cli", "shell out", "run a sql query", "use sql",
+               "query the data", "database question", "join these tables",
+               "which language for this", "non-python", "scripting language",
+               "run this in another language"]
+    decomposition:
+      - protocol: methodology/polyglot_analysis
+        purpose: "Name the task shape, read the ecosystem, justify the language against the project's existing one, run it via the matching exec tool, capture per-language provenance, keep outputs grounded."
+      - tool: tool_r_exec
+        purpose: "Run R scripts (stats / Bioconductor / mixed models) under workspace provenance."
+      - tool: tool_julia_exec
+        purpose: "Run Julia scripts where runtime / numerics dominate."
+      - tool: tool_bash_exec
+        purpose: "Run Bash glue that orchestrates external CLI tools + file plumbing."
+      - tool: tool_python_exec
+        purpose: "Run Python where it is the reasoned default for the task."
 
   methodology/preregistration:
     intent_class: methodology

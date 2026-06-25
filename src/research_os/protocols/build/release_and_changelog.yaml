@@ -1,7 +1,7 @@
 id: release_and_changelog
 tier: 'finalize'
 name: Release & Changelog (cut a versioned, reproducible release)
-version: '3.8.0'
+version: '3.9.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -10,6 +10,7 @@ scope_tags:
 last_reviewed: '2026-06-16'
 see_also:
   - build/implement_iteration    # where the next increment set re-enters after a release
+  - build/versioning_and_rollback # the internal working-version discipline beneath this public release; blessed versions feed it
   - build/benchmark_vs_baseline  # supplies the evidence behind any performance claim shipped
   - build/package_and_publish    # distributes the cut release to a registry (optional next step)
 description: |

@@ -1,7 +1,7 @@
 id: tool_evaluation_loop
 tier: 'execute'
 name: Tool Evaluation Loop (probe the tool, find where it fails, feed fixes back)
-version: '3.12.0'
+version: '3.13.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -12,6 +12,8 @@ see_also:
   - build/benchmark_vs_baseline   # the one-shot fair comparison this loop runs repeatedly + acts on
   - build/implement_iteration     # where a prioritised improvement is built as the next increment
   - build/test_strategy           # correctness checks; this is the empirical PERFORMANCE/behaviour probe
+  - build/versioning_and_rollback # a version is "good" because THIS loop's verdict said so — bless it, roll back if a fix regresses
+  - build/tool_from_description    # the describe→build→improve outer loop that re-enters this each pass to decide done
   - hybrid/hybrid_workflow         # the hybrid home loop that enters this to evaluate the tool half
   - hybrid/tool_to_analysis_handoff # the crossing this loop's findings travel back through
 description: |
@@ -190,11 +192,16 @@ steps:
 
       Then decide: loop (the next backlog item still clears the bar of being
       worth a build cycle) or converge (the tool meets its bar on every
-      use-case-critical dimension; remaining items are below the line). On
-      convergence, the evaluation record itself becomes evidence for the
-      tool's quality claims in the release notes / paper — "evaluated on D,
-      improved from A to B across N rounds" — true and reproducible because
-      the protocol kept the conditions fixed.
+      use-case-critical dimension; remaining items are below the line). When a
+      pass clears (or meaningfully advances toward) the bar, mark that state a
+      known-good version via build/versioning_and_rollback BEFORE the next
+      round of changes can regress it — a version is "good" precisely because
+      THIS loop's verdict said so, and the marker is what lets the next
+      improvement be aggressive (if it regresses, there is a blessed version
+      to return to). On convergence, the evaluation record itself becomes
+      evidence for the tool's quality claims in the release notes / paper —
+      "evaluated on D, improved from A to B across N rounds" — true and
+      reproducible because the protocol kept the conditions fixed.
 
 expected_outputs:
   - workspace/<step>/eval_plan.md

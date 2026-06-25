@@ -1,16 +1,17 @@
 id: notebook_reproduce
 tier: 'execute'
 name: Notebook Reproduce (harden a notebook so anyone can re-run it)
-version: '3.12.0'
+version: '4.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher, naive_ai, auditor]
   workflow_shape: [notebook, reproducibility]
-last_reviewed: '2026-06-23'
+last_reviewed: '2026-06-25'
 see_also:
   - notebook/notebook_workflow                  # the home loop this hardens
   - reproducibility/reproducibility             # the project-wide repro discipline
+  - methodology/polyglot_analysis               # pinning a per-language env when the kernel isn't Python
   - notebook/notebook_promote                   # where a hardened notebook graduates
 description: |
   The hardening pass for a notebook that already runs interactively but is

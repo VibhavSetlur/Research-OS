@@ -1,14 +1,16 @@
 id: iterative_planning
 tier: 'plan'
 name: Iterative Planning
-version: '3.8.0'
+version: '3.9.0'
 schema_version: '2.0'
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-25'
 scope_tags:
   domain: [any]
   audience: [researcher, naive_ai]
   workflow_shape: [any]
 see_also:
+  - methodology/deep_planning              # the heavier "build a whole branchable roadmap" planning protocol
+  - guidance/roadmap_execution             # when the next step is one node of a roadmap being built autonomously
   - guidance/analysis_plan                 # where a committed next-step experiment runs
   - guidance/constructive_disagreement     # how to ground an option the researcher leans away from
 description: For researchers who want the AI to PROPOSE next steps rather than dictate them. Iteratively assesses state + literature + tools and recommends the best move.

@@ -1,15 +1,16 @@
 id: dead_end_routing
 tier: 'execute'
 name: Dead-End Routing
-version: '3.0.0'
+version: '3.1.0'
 schema_version: '2.0'
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-25'
 scope_tags:
   domain: [any]
   audience: [naive_ai]
   workflow_shape: [experiment_pipeline]
 see_also:
   - guidance/analysis_plan                 # the loop a fresh path re-enters
+  - guidance/analysis_paths                # abandoning a losing branch routes here from the path comparison
   - methodology/methodology_selection      # loop here when the method itself was wrong
 description: What to do when an experiment path fails or a methodology proves unworkable. Preserves the failed path and routes back into the pipeline.
 trigger: An experiment's conclusions.md decision is "dead-end", or the researcher asks to abandon the current direction.

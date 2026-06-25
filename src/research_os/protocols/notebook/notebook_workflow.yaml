@@ -1,7 +1,7 @@
 id: notebook_workflow
 tier: 'execute'
 name: Notebook Workflow (the cell as the unit of work)
-version: '3.12.0'
+version: '4.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -14,6 +14,8 @@ see_also:
   - notebook/notebook_synthesize                # weave notebook outputs into the deliverable
   - guidance/analysis_plan                      # the numbered-step loop notebook mode parallels
   - reproducibility/reproducibility              # the restart-and-run-all discipline, formalised
+  - methodology/polyglot_analysis               # choosing + running a non-Python kernel for the notebook
+  - methodology/exploratory_data_analysis       # the EDA method a notebook often carries out
   - visualization/figure_guidelines             # standards for figures a notebook emits
 description: |
   The home loop of a notebook (Jupyter-first) workspace. The unit of work
@@ -97,10 +99,35 @@ steps:
           Hidden state from out-of-order execution is the cardinal
           notebook sin.
 
-      Use tool_notebook_exec to author + run cells. Read inputs from
+      Use tool_notebook_exec to author + run cells. The notebook's kernel
+      need not be Python — a notebook may run an R, Julia, or other supported
+      kernel where that language is the right home for the analysis (reason
+      about the kernel via methodology/polyglot_analysis); the cell-as-unit
+      discipline is identical whatever the language. Read inputs from
       data/ (copy/load immutable source from inputs/raw_data/ into data/
       first; never mutate inputs/). The cell structure IS the provenance
       record — make it legible.
+
+  - id: ground_the_findings
+    name: Ground every number + figure in code the notebook actually ran
+    description: |
+      A notebook makes it dangerously easy to narrate a result the cells
+      didn't produce — a number remembered from a prior run, a figure
+      described rather than regenerated, a "roughly" that drifts from what the
+      data says. Hold notebook analysis to the same grounding bar as a
+      numbered step: every quantitative claim in a markdown cell or summary
+      traces to a value an executed code cell computed in THIS run, and every
+      figure/table is emitted by a cell, not pasted in.
+
+      This applies with full force to EDA done in a notebook — exploration is
+      where ungrounded "it looks like…" claims breed. Let the data, not
+      intuition, write the sentence. When a finding becomes a claim the
+      project will carry forward, register and check it through the project's
+      grounding + verification tools (tool_ground, tool_verify) and run the
+      relevant audit gates (tool_audit) over the notebook's outputs, exactly
+      as you would for a step's outputs. The litmus: if you deleted the
+      markdown prose and re-derived it from the code cells alone, would it say
+      the same thing? If not, the prose is ahead of the evidence — fix it.
 
   - id: restart_and_run_all
     name: Validate with restart-and-run-all
@@ -168,8 +195,9 @@ quality_bar: |
   - The first cell sets the seed + prints versions; cells are one idea
     each; data flows forward.
   - Every output in outputs/ is derived (regenerable), never hand-edited.
-  - Findings come from data actually computed in the notebook — no
-    hallucinated numbers.
+  - Every number/figure in the notebook's prose traces to a code cell that
+    ran in this kernel — no hallucinated or remembered numbers; carried-forward
+    findings pass the project's grounding + audit gates.
 
 next_protocol: notebook/notebook_reproduce
 next_protocol_kind: forward_default

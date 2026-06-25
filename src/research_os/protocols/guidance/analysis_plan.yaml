@@ -1,15 +1,18 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.8.0'
+version: '3.9.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [naive_ai, auditor]
   workflow_shape: [experiment_pipeline, proof]
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-25'
 see_also:
   - methodology/methodology_selection      # the upstream step that sets each step's method
+  - methodology/deep_planning              # the whole-project roadmap each step is one milestone of
+  - guidance/roadmap_execution             # the outer loop that drives this per-step loop toward the roadmap goal
+  - guidance/analysis_paths                # when a step should fork into rival branches
   - literature/literature_per_step         # the findings-vs-literature loop this protocol gates on
   - guidance/dead_end_routing              # where an abandoned step routes
 description: Per-step loop. Scope → plan-breakdown → literature-ground → execute (atomic versioned scripts) → document → snapshot. Iterates once per experiment step.

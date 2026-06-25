@@ -1,7 +1,7 @@
 id: implement_iteration
 tier: 'execute'
 name: Implement Iteration (the inner build loop)
-version: '3.8.0'
+version: '3.9.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -10,7 +10,9 @@ scope_tags:
 last_reviewed: '2026-06-16'
 see_also:
   - build/spec_and_design        # the design pass this loop executes against
+  - build/optimal_approach       # when the next increment's approach is genuinely contested, brain it out before building
   - build/test_strategy          # the tool-wide testing regime each increment inherits
+  - build/versioning_and_rollback # mark an eval-passing increment good; roll back when an improvement regresses
   - build/release_and_changelog  # closes an increment set into a release
 description: |
   The core build loop for tool_build mode — the analog of
@@ -194,8 +196,14 @@ steps:
       Then decide, with the researcher, what the next increment is:
         - Continue → loop back to scope_increment for the next increment.
         - Test regime unsettled → build/test_strategy.
+        - The next increment's approach is genuinely contested (several
+          different ways could win) → build/optimal_approach to brain it
+          out before building.
         - Performance/quality claim to substantiate → build/benchmark_vs_baseline.
         - A capability gap that prior work plausibly solves → build/method_scouting (scout it, spike it, then integrate) rather than reinventing it.
+        - This increment cleared an eval bar or is a stable base for a risky
+          change → build/versioning_and_rollback to mark it a known-good
+          version before the next change can regress it.
         - Increment set is release-worthy → build/release_and_changelog.
 
       MANDATORY PAUSE (anti-one-shot): after a committed increment, present
