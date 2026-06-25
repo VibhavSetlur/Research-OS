@@ -14,9 +14,9 @@ Two numbers frame everything:
 
 | Surface | Size | Role |
 |---|---|---|
-| `server/` (MCP) | **154 tools**, 15 handler modules | The reasoning engine. Tools + protocols + router + ledger. |
+| `server/` (MCP) | the tool surface, 15 handler modules | The reasoning engine. Tools + protocols + router + ledger. |
 | `daemon/` | execution + transport spine | Runs, schedulers, journal, provenance, recovery. |
-| `protocols/` | **146 YAMLs**, 14 categories | Scaffolds for reasoning — the "how to think" layer. |
+| `protocols/` | the protocol library, 14 categories | Scaffolds for reasoning — the "how to think" layer. |
 
 The critical property of this split: there is **exactly one seam** between
 them, and it is clean.

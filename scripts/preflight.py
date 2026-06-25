@@ -578,6 +578,99 @@ def check_router_index_consistent():
     )
 
 
+# Tools that legitimately stand alone (not referenced by any protocol
+# decomposition): the boot/orient/help/config meta surface, the always-available
+# system verbs, and tools the AI reaches situationally rather than via a routed
+# protocol. Adding a tool here is a deliberate "yes, this is standalone" — it
+# stops the reverse-orphan guard from flagging it.
+_STANDALONE_TOOL_ALLOWLIST = {
+    # boot / orient / navigation
+    "sys_boot", "sys_help", "sys_config", "sys_protocol_get", "sys_protocols_list",
+    "sys_daemon", "sys_checkpoint_create", "sys_path", "sys_file_read",
+    "sys_file_write", "sys_file_list", "tool_route", "tool_protocols_list",
+    "tool_scratch", "tool_session_resume",
+}
+
+# Tool-name PREFIXES that are legitimately standalone in bulk: domain-pack
+# tools (loaded only when a pack is active, called situationally), the SLURM/
+# workflow-engine helpers, and the system/utility verbs the AI calls on demand
+# rather than via a routed protocol.
+_STANDALONE_TOOL_PREFIXES = (
+    "tool_wet_lab_", "tool_humanities_", "tool_qualitative_", "tool_theory_math_",
+    "tool_engineering_", "tool_slurm_", "tool_snakemake_", "tool_nextflow_",
+    "tool_redcap_", "tool_synapse_", "tool_adapter", "tool_adapters_",
+    "sys_", "mem_",
+)
+
+
+def check_every_tool_is_reachable():
+    """Reverse orphan guard: every non-meta tool def should be referenced by at
+    least one protocol (decomposition / shortcut_tool / shortcut_intents) OR be
+    on the standalone allowlist. Catches a tool that's wired (def+handler) but
+    that no protocol ever tells the AI to use — dead from the user's view.
+    """
+    from research_os.server import TOOL_DEFINITIONS, _resolve_tool_name
+    import yaml
+
+    idx_path = PROTOCOLS_DIR / "_router_index.yaml"
+    if not idx_path.exists():
+        return True, "_router_index.yaml missing (skipped)"
+    idx = yaml.safe_load(idx_path.read_text()) or {}
+    referenced: set[str] = set()
+    for name, data in (idx.get("protocols") or {}).items():
+        if not isinstance(data, dict):
+            continue
+        st = data.get("shortcut_tool", "")
+        if st:
+            referenced.add(_resolve_tool_name(st))
+        for entry in data.get("decomposition", []) or []:
+            if isinstance(entry, dict) and entry.get("tool"):
+                referenced.add(_resolve_tool_name(entry["tool"]))
+    for _sid, data in (idx.get("shortcut_intents") or {}).items():
+        if isinstance(data, dict) and data.get("tool"):
+            referenced.add(_resolve_tool_name(data["tool"]))
+    # Also count tools named in protocol YAML bodies (description prose often
+    # names the tool the step uses) — a tool the AI is told to call in prose is
+    # reachable even without a decomposition entry.
+    body_blob = ""
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if f.name.startswith("_"):
+            continue
+        try:
+            body_blob += f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+    orphans = []
+    for tool in TOOL_DEFINITIONS:
+        if tool in _STANDALONE_TOOL_ALLOWLIST:
+            continue
+        if tool in referenced:
+            continue
+        if tool in body_blob:  # named in some protocol's prose
+            continue
+        # Pack-specific tools (domain packs loaded on demand) + situational
+        # utilities are legitimately standalone — they're called when a pack is
+        # active or on demand, not via a routed core protocol.
+        if any(tool.startswith(p) for p in _STANDALONE_TOOL_PREFIXES):
+            continue
+        orphans.append(tool)
+
+    if orphans:
+        # WARN, not FAIL: a tool with no protocol reference is usually a
+        # situational utility, but a brand-new workflow tool landing here is a
+        # wiring smell worth a human glance. Surface it without blocking.
+        return True, (
+            f"WARN: {len(orphans)} tool(s) referenced by NO protocol + not "
+            f"allowlisted (review whether each is intentionally standalone or "
+            f"needs wiring): {sorted(orphans)}"
+        )
+    return True, (
+        f"all {len(TOOL_DEFINITIONS)} tools reachable "
+        f"(referenced by a protocol or standalone-allowlisted)"
+    )
+
+
 def check_router_index_bumped():
     """Warn when _router_index.yaml is older than any protocol YAML.
 
@@ -1638,6 +1731,7 @@ def main() -> int:
     tally.check("Bundled adapters discovered", check_adapters_discovered)
     tally.check("Adapter regex patterns compile", check_adapter_regex_compile)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
+    tally.check("Every tool is reachable (no orphan tools)", check_every_tool_is_reachable)
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Router index mtime tracks protocols", check_router_index_bumped)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
