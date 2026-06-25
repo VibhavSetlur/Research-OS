@@ -2039,6 +2039,30 @@ def _read(p: Path, limit: int = 4000) -> str:
         return ""
 
 
+def _project_title(root: Path) -> str:
+    """Researcher-chosen project_name, falling back to the folder name.
+
+    Reads ``inputs/researcher_config.yaml`` with a minimal line parser so the
+    exported script stays dependency-free (no PyYAML on the recipient side,
+    and the source side may not have it either). Looks for a top-level
+    ``project_name:`` key. Returns ``root.name`` when absent/unreadable.
+    """
+    cfg = root / "inputs" / "researcher_config.yaml"
+    try:
+        for raw in cfg.read_text(errors="replace").splitlines():
+            # Top-level key only (no leading whitespace) so a nested
+            # `project_name:` under some other block can't hijack the title.
+            if raw[:1].isspace():
+                continue
+            if raw.lstrip().lower().startswith("project_name:"):
+                val = raw.split(":", 1)[1].strip().strip("\\"'")
+                if val:
+                    return val
+    except OSError:
+        pass
+    return root.name
+
+
 def _build_recipient_readme(root: Path) -> str:
     """A human front-door for whoever OPENS the shared archive.
 
@@ -2049,7 +2073,14 @@ def _build_recipient_readme(root: Path) -> str:
     """
     import datetime as _dt
 
-    name = root.name
+    # Prefer the researcher-chosen project_name over the on-disk folder name.
+    # The directory is often a terse slug ("myproj"); researcher_config.yaml
+    # carries the real title ("Quantum Coherence In Photosynthesis"). That
+    # config is EXCLUDED from the archive, but it is readable at export time
+    # on the source root, and the RO-Crate / CodeMeta manifests already use
+    # it — so the human front-door must agree with the machine metadata, or a
+    # reviewer sees two different project names and distrusts the bundle.
+    name = _project_title(root)
     lines = [
         f"# {name} — shared research archive",
         "",
@@ -2208,18 +2239,36 @@ def main() -> int:
         # what's here, how to trust + reproduce it. The AI-facing orientation
         # files (GETTING_STARTED, AGENTS) are excluded from the archive, so
         # without this a collaborator opens raw folders with no guide.
+        #
+        # We write the SAME share-safe front-door to both README_SHARED.md
+        # (the documented name) AND README.md. We deliberately do NOT ship the
+        # project's own root README.md: that file is the GitHub/repo-browser
+        # page and it points the reader at STATE.md, AGENTS.md, and
+        # GETTING_STARTED.md — all of which are EXCLUDED from this archive. A
+        # recipient who opened it would be sent to three files that aren't in
+        # the bundle. Overwriting README.md with the recipient front-door keeps
+        # the repo-browser landing page honest (every link it makes resolves).
+        recipient_readme = None
         try:
-            zf.writestr(f"{root.name}/README_SHARED.md", _build_recipient_readme(root))
+            recipient_readme = _build_recipient_readme(root)
+            zf.writestr(f"{root.name}/README_SHARED.md", recipient_readme)
+            files_added += 1
+            zf.writestr(f"{root.name}/README.md", recipient_readme)
             files_added += 1
         except Exception as _e:
             print(f"[warn] could not generate recipient README: {_e}")
         # Top-level files we DO want shipped to collaborators. The
         # open-science manifests (RO-Crate + CodeMeta + CITATION.cff)
         # MUST live at archive root so ro-crate-py + cffconvert can
-        # auto-discover them.
-        for top in ("README.md", "CONTRIBUTORS.md",
-                    "CITATION.cff",
-                    "ro-crate-metadata.json", "codemeta.json"):
+        # auto-discover them. README.md is intentionally NOT in this list —
+        # it is replaced by the share-safe recipient front-door above. If the
+        # recipient README failed to generate, fall back to the project's own
+        # README.md so the archive isn't left without a landing page.
+        top_files = ["CONTRIBUTORS.md", "CITATION.cff",
+                     "ro-crate-metadata.json", "codemeta.json"]
+        if recipient_readme is None:
+            top_files.insert(0, "README.md")
+        for top in top_files:
             tp = root / top
             if tp.exists():
                 zf.write(tp, arcname=f"{root.name}/{top}")
