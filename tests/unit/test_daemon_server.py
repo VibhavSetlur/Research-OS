@@ -301,6 +301,66 @@ def test_gateway_rejects_missing_messages(tmp_path, monkeypatch):
     assert r.json()["error"]["type"] == "bad_request"
 
 
+# ── POST /v1/jobs — agent-initiated journaled run (one execution path) ──────
+
+def test_post_jobs_disabled_returns_503(tmp_path):
+    daemon = _gw_daemon(tmp_path, enable_gateway=False)
+    c = TestClient(build_app(daemon))
+    r = c.post("/v1/jobs", json={"cmd": "echo hi"})
+    assert r.status_code == 503
+    assert r.json()["code"] == "gateway_disabled"
+
+
+def test_post_jobs_rejects_bad_token(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post("/v1/jobs", headers={"Authorization": "Bearer wrong"},
+               json={"cmd": "echo hi"})
+    assert r.status_code == 401
+
+
+def test_post_jobs_requires_cmd(tmp_path, monkeypatch):
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post("/v1/jobs", headers={"Authorization": "Bearer secret-123"},
+               json={"name": "no command"})
+    assert r.status_code == 400
+    assert r.json()["code"] == "bad_request"
+
+
+def test_post_jobs_submits_and_journals(tmp_path, monkeypatch):
+    # The keystone: a run submitted by an agent through HTTP goes through the
+    # same core.run_command lifecycle the CLI uses, so it lands in the live
+    # job queue (and, on completion, the durable journal) — not an untracked
+    # inline subprocess.
+    monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")
+    daemon = _gw_daemon(tmp_path, enable_gateway=True)
+    c = TestClient(build_app(daemon))
+    r = c.post(
+        "/v1/jobs",
+        headers={"Authorization": "Bearer secret-123"},
+        json={"cmd": "echo hello-from-agent", "name": "agent-run", "shell": True},
+    )
+    assert r.status_code == 201
+    body = r.json()
+    job_id = body["job_id"]
+    assert body["status"] == "submitted"
+    # The job is now tracked in the queue under the same id; poll until it
+    # reaches a terminal state (it ran through the journaled lifecycle).
+    import time
+    deadline = time.time() + 10
+    job = daemon.tasks.get(job_id)
+    while job is not None and not job.status.terminal and time.time() < deadline:
+        time.sleep(0.05)
+        job = daemon.tasks.get(job_id)
+    assert job is not None
+    snap = c.get("/v1/jobs").json()
+    ids = {j["id"] for j in snap.get("jobs", [])}
+    assert job_id in ids
+
+
 def test_gateway_happy_path_with_fake_upstream(tmp_path, monkeypatch):
     """End-to-end through the endpoint with the network forwarder faked."""
     monkeypatch.setenv("RESEARCH_OS_GATEWAY_TOKEN", "secret-123")

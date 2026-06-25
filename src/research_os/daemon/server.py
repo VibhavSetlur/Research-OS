@@ -38,6 +38,8 @@ Read-only endpoints (no auth beyond the 127.0.0.1 bind):
 
 Mutating endpoints (require enable_gateway + a per-session bearer token,
 the consent/staleness authority surface; off by default):
+  POST /v1/jobs            submit a journaled background run (agent-initiated
+                           execution → one journal/provenance/lineage path) (auth)
   POST /v1/consent/request the agent asks for consent (open; cannot grant)
   POST /v1/consent/approve mints a one-shot, TTL'd, arg-bound token (auth)
   POST /v1/consent/deny    rejects a pending request (auth)
@@ -187,6 +189,71 @@ def build_app(daemon: "Daemon"):
         if job is None:
             return JSONResponse({"error": "job not found"}, status_code=404)
         return JSONResponse(job.to_dict())
+
+    async def post_jobs(request):
+        # MUTATING: submit a command as a journaled background run. This is
+        # the agent-initiated execution path — it closes DESIGN_V4 §6.2
+        # ("one execution path"): a run submitted here goes through the same
+        # core.run_command lifecycle the CLI uses, so it gets the full
+        # journal + provenance + lineage + reproduce treatment instead of
+        # escaping into an untracked inline subprocess. Auth-gated like every
+        # mutating endpoint (executes code on the host).
+        denied = _consent_auth_error(request)
+        if denied is not None:
+            return denied
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(
+                {"error": "request body must be valid JSON", "code": "bad_request"},
+                status_code=400,
+            )
+        if not isinstance(body, dict):
+            return JSONResponse(
+                {"error": "body must be a JSON object", "code": "bad_request"},
+                status_code=400,
+            )
+        cmd = body.get("cmd")
+        if not cmd or not isinstance(cmd, (str, list)):
+            return JSONResponse(
+                {"error": "body must include 'cmd' (a string or argv list)",
+                 "code": "bad_request"},
+                status_code=400,
+            )
+        env = body.get("env")
+        if env is not None and not isinstance(env, dict):
+            return JSONResponse(
+                {"error": "'env' must be an object of string overrides",
+                 "code": "bad_request"},
+                status_code=400,
+            )
+        inputs = body.get("inputs")
+        if inputs is not None and not (
+            isinstance(inputs, list) and all(isinstance(x, str) for x in inputs)
+        ):
+            return JSONResponse(
+                {"error": "'inputs' must be a list of path strings",
+                 "code": "bad_request"},
+                status_code=400,
+            )
+        try:
+            job_id = daemon.run_command(
+                cmd,
+                name=body.get("name"),
+                cwd=body.get("cwd"),
+                env={str(k): str(v) for k, v in env.items()} if env else None,
+                root=body.get("root"),
+                shell=bool(body.get("shell", False)),
+                inputs=inputs,
+                track_packages=body.get("track_packages"),
+                track_artifacts=bool(body.get("track_artifacts", True)),
+            )
+        except Exception as exc:  # noqa: BLE001 - surface submit failure as 500
+            return JSONResponse(
+                {"error": f"failed to submit run: {exc}", "code": "submit_failed"},
+                status_code=500,
+            )
+        return JSONResponse({"job_id": job_id, "status": "submitted"}, status_code=201)
 
     async def get_runs(request):
         # Durable run journal — the permanent record (survives restarts).
@@ -815,6 +882,7 @@ def build_app(daemon: "Daemon"):
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),
         Route("/v1/chat/completions", chat_completions, methods=["POST"]),
         Route("/v1/jobs", get_jobs, methods=["GET"]),
+        Route("/v1/jobs", post_jobs, methods=["POST"]),
         Route("/v1/jobs/{job_id}", get_job, methods=["GET"]),
         Route("/v1/runs", get_runs, methods=["GET"]),
         Route("/v1/runs/{run_id}", get_run, methods=["GET"]),

@@ -223,6 +223,10 @@ class Daemon:
         # Ensure the durable journal is capturing before we submit, so even
         # programmatic use (no serve()) gets a persistent record.
         self._start_journal()
+        # Lazy-start the worker pool too: run_command is a valid entry point
+        # without a full serve() (programmatic use + the HTTP POST /v1/jobs
+        # path), and submit() refuses on a cold queue. start() is idempotent.
+        self.tasks.start()
         return self.tasks.submit(
             runner,
             name=job_name[:120],
@@ -288,6 +292,7 @@ class Daemon:
             "env_overrides": sorted(env.keys()) if env else [],
         }
         self._start_journal()
+        self.tasks.start()  # idempotent; allow submit_job without a full serve()
         return self.tasks.submit(
             runner,
             name=job_name[:120],
