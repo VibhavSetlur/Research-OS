@@ -20,6 +20,7 @@ Supporting:
 - [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster / reproduce a result" → which protocol fires.
 - [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software, not analysing data? The **tool_build** workspace mode: spec → implement → test → ship.
 - [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
+- [BEST_SETUP.md](BEST_SETUP.md) — the best agent layer + MCP stack + daemon setup for your project type (Hermes, context7, dynamic resources, autonomous loops).
 - [FAQ.md](FAQ.md) — common questions.
 - [CLI.md](CLI.md) — every `research-os` CLI sub-command.
 - [DAEMON.md](DAEMON.md) — the optional daemon: long jobs without blocking the chat, run provenance + freshness, hard human-approved gates, a resource budget the machine enforces, and completion notifications. Skip it for quick work; start it for big / long-lived projects.

@@ -1,7 +1,7 @@
 id: agent_setup
 tier: 'intake'
 name: Agent Setup (architect the AI layer above Research-OS for THIS project)
-version: '3.12.0'
+version: '4.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -115,6 +115,27 @@ steps:
           call RO tools directly. Recommend moving to an MCP-capable layer
           when feasible.
       Wire ONLY what the researcher uses — extra IDE configs are clutter.
+
+  - id: stack_complementary_mcp_servers
+    name: Stack complementary MCP servers alongside Research-OS
+    description: |
+      RO is one MCP server; an MCP-capable agent layer can run SEVERAL at once,
+      and they compose. RO governs the research METHOD + rigor; other servers
+      add capabilities RO deliberately doesn't (live docs, web, domain APIs).
+      Reason about which the researcher's work needs — examples, not a mandate:
+        - a live-docs server (e.g. context7) so the agent pulls CURRENT library
+          / API docs instead of hallucinating stale signatures — valuable for
+          the tool-build mode and any coding-heavy analysis.
+        - web / search servers for literature + data discovery.
+        - domain servers (a bioinformatics, chem, or data-warehouse MCP) for
+          field-specific actions.
+      For Hermes, connect them the way Hermes adds MCP servers (see its docs at
+      https://hermes-agent.nousresearch.com/docs); for another MCP client, add
+      them in that client's MCP config next to the RO server. The division of
+      labor holds: RO protocols decide WHETHER a method is sound + demand the
+      evidence; the other servers + the agent's skills supply the HOW and the
+      live facts. Point the researcher at docs/BEST_SETUP.md for a concrete,
+      copy-pasteable recommended stack per project type.
 
   - id: tailor_to_the_project
     name: Tailor the agent layer to THIS project
