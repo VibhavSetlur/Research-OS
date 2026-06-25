@@ -1,14 +1,17 @@
 id: notebook_workflow
 tier: 'execute'
 name: Notebook Workflow (the cell as the unit of work)
-version: '3.8.0'
+version: '3.12.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher, naive_ai]
   workflow_shape: [notebook, cell_provenance]
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-25'
 see_also:
+  - notebook/notebook_reproduce                 # harden the notebook so anyone can re-run it
+  - notebook/notebook_promote                   # graduate a trusted notebook into durable evidence
+  - notebook/notebook_synthesize                # weave notebook outputs into the deliverable
   - guidance/analysis_plan                      # the numbered-step loop notebook mode parallels
   - reproducibility/reproducibility              # the restart-and-run-all discipline, formalised
   - visualization/figure_guidelines             # standards for figures a notebook emits
@@ -168,6 +171,6 @@ quality_bar: |
   - Findings come from data actually computed in the notebook — no
     hallucinated numbers.
 
-next_protocol: null
-next_protocol_kind: terminal
+next_protocol: notebook/notebook_reproduce
+next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification

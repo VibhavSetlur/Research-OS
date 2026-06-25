@@ -1,14 +1,17 @@
 id: program_setup
 tier: 'plan'
 name: Program Setup (shared codebook, prereg, how studies roll up)
-version: '3.8.0'
+version: '3.12.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher, naive_ai, auditor]
   workflow_shape: [multi_study, program_governance]
-last_reviewed: '2026-06-16'
+last_reviewed: '2026-06-25'
 see_also:
+  - program/study_register                       # the recurring move: register each sub-study against the commons
+  - program/codebook_governance                  # amend the commons safely once studies have bound to it
+  - program/cross_study_synthesis                # the roll-up the program builds toward
   - methodology/preregistration                 # the per-study prereg this program-level one frames
   - methodology/meta_analysis                    # the cross-study synthesis the roll-up performs
   - methodology/coding_scheme_development         # how the shared codebook is built rigorously
@@ -122,14 +125,14 @@ steps:
       independently while the program stays coherent.
 
   - id: scaffold_first_study
-    name: Scaffold the first study (and confirm the model)
+    name: Register the first study (and confirm the model)
     description: |
-      With the commons in place, create the first sub-study as a child:
-        - a folder studies/<slug>/ that inherits shared/ (the codebook,
-          the prereg, the protocol).
-        - inside it, the researcher runs ordinary research — for an
-          analysis-shaped study that's guidance/analysis_plan; the study
-          is a project surface in miniature.
+      With the commons in place, register the first sub-study as a child via
+      program/study_register — it is the recurring move that binds a study to
+      the shared codebook, pins what the study owes the roll-up, and scaffolds
+      studies/<slug>/ before the study runs its own ordinary research
+      (guidance/analysis_plan). Do NOT scaffold a study by hand here; routing
+      through study_register is what keeps every study commensurable.
 
       Confirm the program model with the researcher in one line: "each
       study under studies/ codes to shared/codebook.md and contributes to
@@ -141,17 +144,18 @@ steps:
       AUTONOMY GATE:
         Risk: reversible — scaffolding the commons + first study writes
         structure, not findings; everything is re-editable.
-        proceed (adaptive default, autopilot) → write the commons, scaffold the first study,
-          and enter its analysis loop; log each decision for later review.
+        proceed (adaptive default, autopilot) → write the commons, then enter
+          program/study_register for the first study; log each decision for later review.
         confirm first (manual / supervised) → present the commons (codebook outline +
           prereg + roll-up plan) + the proposed first study; wait for the
-          researcher before scaffolding studies.
+          researcher before registering studies.
 
 expected_outputs:
   - shared/codebook.md
   - shared/preregistration.md
+  - shared/protocol.md  (the governing protocol each study follows)
   - roll_up/README.md  (the study output contract)
-  - studies/<slug>/  (the first sub-study)
+  - studies/<slug>/  (the first sub-study, via study_register)
 
 quality_bar: |
   - The shared codebook names what MUST agree across studies vs what may
@@ -162,6 +166,6 @@ quality_bar: |
     output contract).
   - The study↔study boundary is preserved (only roll_up reads across).
 
-next_protocol: guidance/analysis_plan
+next_protocol: program/study_register
 next_protocol_kind: forward_default
 on_failure: guidance/scope_clarification
