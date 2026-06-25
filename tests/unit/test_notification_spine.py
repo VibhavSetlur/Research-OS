@@ -186,3 +186,22 @@ def test_notify_researcher_log_only_without_daemon(tmp_path):
     assert res["status"] == "success"
     assert res["delivered_to_spine"] is False
     assert ntfy.read_outbox(tmp_path) == []
+
+
+# --- interrupted-runs notification (the "walked away, box rebooted" case) ---
+
+def test_emit_runs_interrupted_writes_action_required_record(tmp_path):
+    rec = ntfy.emit_runs_interrupted(tmp_path, ["run_a", "run_b"])
+    assert rec is not None
+    assert rec["kind"] == "runs.interrupted"
+    assert rec["level"] == "action_required"
+    assert rec["context"]["count"] == 2
+    assert rec["context"]["run_ids"] == ["run_a", "run_b"]
+    # Persisted to the durable outbox.
+    out = ntfy.read_outbox(tmp_path)
+    assert len(out) == 1 and out[0]["kind"] == "runs.interrupted"
+
+
+def test_emit_runs_interrupted_noop_on_empty(tmp_path):
+    assert ntfy.emit_runs_interrupted(tmp_path, []) is None
+    assert ntfy.read_outbox(tmp_path) == []

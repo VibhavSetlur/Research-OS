@@ -96,9 +96,12 @@ def _recommend(field: dict, runs: dict, freshness: dict) -> dict:
     override, in priority order:
 
       1. Stale results exist        -> rebuild them (gives the exact plan).
-      2. A run failed last          -> investigate the failure.
-      3. No runs recorded yet       -> record the first result.
-      4. Everything fresh           -> proceed with new analysis.
+      2. A run was interrupted       -> the daemon died mid-run (e.g. you
+                                        walked away and the box rebooted);
+                                        re-run it so the work completes.
+      3. A run failed last          -> investigate the failure.
+      4. No runs recorded yet       -> record the first result.
+      5. Everything fresh           -> proceed with new analysis.
     """
     stale = freshness.get("stale") or []
     plan = freshness.get("rebuild_plan") or []
@@ -115,6 +118,26 @@ def _recommend(field: dict, runs: dict, freshness: dict) -> dict:
             "priority": "high",
         }
     by_status = runs.get("by_status") or {}
+    interrupted = by_status.get("interrupted", 0)
+    if interrupted:
+        # A run that was non-terminal when the daemon died (crash, reboot, or
+        # the user closed a long job's box and walked away) is rehydrated as
+        # INTERRUPTED on the next start. Surface it FIRST among run states: the
+        # work never finished, so a returning researcher's most useful next
+        # move is to resume/re-run it before building on a partial result.
+        return {
+            "action": "resume_interrupted",
+            "why": (
+                f"{interrupted} run(s) were interrupted (the daemon stopped "
+                "mid-run \u2014 e.g. the machine rebooted while you were away). "
+                "Their work did not complete and may have left partial output."
+            ),
+            "how": (
+                "inspect: research-os runs   (GET /v1/runs?status=interrupted) "
+                "then re-run the affected step so it completes cleanly"
+            ),
+            "priority": "high",
+        }
     failed = by_status.get("failed", 0) + by_status.get("error", 0)
     if failed:
         return {

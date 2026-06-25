@@ -317,11 +317,27 @@ class Daemon:
         from .runstore import RunJournal
 
         # Rehydrate: mark orphaned (non-terminal) runs from a prior crash.
+        # Collect what we interrupt so the researcher is told their in-flight
+        # work didn't finish (the "walked away, box rebooted" case) the moment
+        # they reconnect, instead of silently finding a phantom-dead run later.
+        interrupted_ids: list[str] = []
         try:
             for rid in self.runstore.detect_orphans():
                 self.runstore.mark_interrupted(rid)
+                interrupted_ids.append(rid)
         except Exception:  # noqa: BLE001 - rehydration must not block startup
             logger.debug("run journal rehydration failed", exc_info=True)
+        if interrupted_ids and self.root is not None:
+            try:
+                from . import notifications as _ntfy
+
+                _ntfy.emit_runs_interrupted(
+                    self.root,
+                    interrupted_ids,
+                    notify_command=getattr(self.config, "notify_command", "") or "",
+                )
+            except Exception:  # noqa: BLE001 - notification must never block startup
+                logger.debug("interrupted-runs notification failed", exc_info=True)
 
         journal = RunJournal(self.runstore)
         self._journal = journal

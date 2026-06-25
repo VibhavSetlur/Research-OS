@@ -198,3 +198,38 @@ def emit_job_terminal(
         context={"job_id": job.get("id"), "status": status},
         notify_command=notify_command,
     )
+
+
+def emit_runs_interrupted(
+    root: str | Path,
+    run_ids: list[str],
+    *,
+    notify_command: str = "",
+) -> dict | None:
+    """Emit ONE notification when the daemon rehydrates interrupted runs.
+
+    Called on daemon startup after orphaned (non-terminal) runs from a prior
+    crash/reboot are marked INTERRUPTED. This is the "you walked away and the
+    box rebooted mid-run" case — the researcher should learn their work didn't
+    finish the moment they (or their notify channel) reconnect, not silently
+    discover a phantom-dead run later. Returns None when there's nothing to
+    report so the caller can wire it unconditionally.
+    """
+    if not run_ids:
+        return None
+    n = len(run_ids)
+    plural = "run" if n == 1 else "runs"
+    return emit(
+        root,
+        kind="runs.interrupted",
+        title=f"{n} {plural} interrupted",
+        body=(
+            f"{n} {plural} were in flight when the daemon last stopped "
+            "(crash or reboot) and did not complete. Re-run the affected "
+            "step(s) so the work finishes; partial output may be present. "
+            "See: research-os runs (status=interrupted)."
+        ),
+        level="action_required",
+        context={"run_ids": list(run_ids)[:50], "count": n},
+        notify_command=notify_command,
+    )

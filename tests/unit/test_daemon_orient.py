@@ -68,6 +68,27 @@ def test_recommend_investigate_when_failure():
     assert rec["priority"] == "high"
 
 
+def test_recommend_resume_when_interrupted():
+    """An interrupted run (daemon died mid-run while the user was away) must be
+    surfaced as the next action — above failed, since the work never finished."""
+    field = {"label": "genomics"}
+    runs = {"total": 3, "by_status": {"interrupted": 1, "succeeded": 2}}
+    freshness = {"stale": [], "rebuild_plan": [], "counts": {}}
+    rec = orient._recommend(field, runs, freshness)
+    assert rec["action"] == "resume_interrupted"
+    assert rec["priority"] == "high"
+
+
+def test_recommend_interrupted_outranks_failed():
+    """When both interrupted AND failed runs exist, interrupted wins — the
+    in-flight work that never completed is the more actionable signal."""
+    field = {"label": "genomics"}
+    runs = {"total": 4, "by_status": {"interrupted": 1, "failed": 1, "succeeded": 2}}
+    freshness = {"stale": [], "rebuild_plan": [], "counts": {}}
+    rec = orient._recommend(field, runs, freshness)
+    assert rec["action"] == "resume_interrupted"
+
+
 def test_recommend_proceed_when_all_fresh():
     field = {"label": "history"}
     runs = {"total": 4, "by_status": {"succeeded": 4}}
