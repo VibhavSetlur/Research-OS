@@ -307,6 +307,40 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Adaptivity (learn-the-user) + drift-guard precision + doctrine sweep
+- **Drift guard made precise** (`c867b27`): the "Docs/code consistency"
+  preflight check was emitting 13 false-positive WARNs (user-project paths
+  mistaken for repo xrefs, plugin-authoring placeholder tools, protocol IDs
+  that start with `tool_`). Tightened to real Markdown link targets + a
+  PLUGIN_AUTHORING skip + protocol-ID awareness. Now clean — and tighter:
+  the tightening immediately surfaced a real protocol-ID mismatch the loose
+  regex had masked. A green that means something.
+- **Learn-the-user loop closed** (`7d03874`): `interaction.agent_notes`
+  existed as a store + was surfaced at boot, but had NO append mechanism
+  (`set` clobbers) and the reconcile hint never told the AI to record
+  corrections. Added `sys_config(operation='note')` → `append_agent_note()`
+  (dated bullet, idempotent, ruamel-comment-preserving) wired through the
+  full stack, and updated the boot reconcile hint to instruct recording a
+  correction/standing preference so the next session inherits it. This is
+  the write-on-correction loop the template always promised; composes with
+  Hermes memory rather than duplicating it. +5 tests.
+- **Doctrine sweep of the methodology cluster** (`ea807d5`): a full
+  scaffold-not-script audit (subagent, all 142 protocols) found the library
+  overwhelmingly clean — zero whole-protocol recipes. Fixed the 5 residual
+  prescriptions: `inter_rater_reliability` (method-menu → dimensions +
+  surface-via-tool; default libraries → runtime-sourced),
+  `qualitative_quality_audit` (bare `≥0.7`/`≥10%` in the description that
+  contradicted its own scaffolded step body → defer to
+  inter_rater_reliability), `missing_data_strategy` (hardcoded `m=20;
+  max_iter=10` worked example → justify-from-FMI placeholders),
+  `power_analysis` (`alpha: typically 0.05` → cite the field/regulator
+  level). Sidecars rebuilt; protocol versions bumped.
+- **Investigated + cleared as no-bug:** the daemon↔MCP bridge (clean,
+  precondition surfacing wired both tiers), and the prose-`prerequisites`
+  vs `requires:` overlap (intentional per doctrine — prose carries the
+  fuzzy ones, `requires:` the mechanical floor).
+- Gate green throughout: preflight 38/38, pytest 2735 pass, ruff clean.
+
 ### 2026-06-23 — Session 2: Phase 1 core + Phase 1.5 event spine (JUDGE→IMPROVE)
 - **Phase 1 BUILD shipped** (`2868a8d`): the daemon now actually serves.
   Three stdlib-only, import-cheap modules — `registry.py` (multi-root
