@@ -307,6 +307,29 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — Chat-first intake: fill the project without touching inputs/
+Real onboarding UX gap: the whole intake flow assumed the researcher DROPS
+FILES into inputs/, and tool_intake_autofill only inferred question/domain/
+hypotheses from those files. Many researchers never edit inputs/ — they just
+describe the project in chat. There was no smooth capture path, and
+project_startup's scan_inputs DEAD-ENDED on empty inputs/.
+- **tool_intake_autofill (`58bc343`)** gains question/domain/hypotheses/
+  context_note params. Explicit chat values beat file inference, so an EMPTY
+  inputs/ still yields a real intake; context_note joins the corpus so
+  research_overview captures the framing verbatim. No-arg behaviour unchanged.
+  Wired through tool def + handler.
+- **project_startup**: scan_inputs no longer dead-ends — routes to the chat
+  path when the researcher described the project conversationally, asks (one
+  line, both paths offered) only when there's neither files nor a description.
+  autofill_intake documents both paths.
+- **inputs/intake.md template** now leads with 'just tell the AI in chat' as
+  option 1. Carries a hidden ro:intake-template marker so intake_freshness
+  still treats the unfilled scaffold as a stub (the richer template was being
+  mis-read as filled); marker is gone once autofill writes the real intake.
+- The principle: every input path works — chat-only, files-only, mixed, empty.
+  Never force a researcher to write a file to start.
+- Gate green: preflight 38/38, pytest 2749, ruff clean.
+
 ### 2026-06-24/25 — Mixed-mode layer made legible + skill-layer-first streamlining
 With the RO MCP server now live (154 tools), exercised routing end-to-end and
 improved the mixed-mode layer across all working modes plus the Hermes-skill
