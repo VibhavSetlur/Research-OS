@@ -308,6 +308,35 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — 4.0.0 hardening: multi-persona stress test (find + fix + verify)
+Ran two batches of 3 parallel persona subagents (isolated git worktrees) against
+the whole system, then integrated + finished + verified every fix on
+feat/v4-daemon-core. 9 real root-cause bugs fixed, +8 regression tests.
+
+Batch 1 (grad / PI / shared-HPC): interrogative-question hypotheses produced
+broken prose; thousands-separated sample sizes false-blocked as hallucinations;
+grounding corpus missed outputs/ root + caption files (false ship-gate blocks);
+share-archive title disagreed with machine metadata; shipped README linked to
+excluded files; staleness verdict could block forever without provable currency
+(now degrades open); consent spent.json grew unbounded (now self-pruning, wired
+through autopilot_gate, back-compat preserved).
+
+Batch 2 (tool-builder / multi-mode / naive-AI): orphan literature/ README in
+non-analysis modes (gated on layout); 'run the tests'/'run the build' dead-ended
+or misrouted (new run_build_checks shortcut → tool_build); 'release it' skipped
+the lifecycle (→ release_and_changelog); notebook_workflow + program_setup
+chains dead-ended (wired forward); multi_study never seeded shared/protocol.md
+(now seeded); stale notebook GETTING_STARTED line; _classify_pause dead
+'long_running_job' branch removed; STATE.md had no 'what to do next' (added,
+defers to sys_boot as source of truth).
+
+Verified: all 6 modes init+boot with a mode_directive; the MCP↔daemon seam holds
+(server+router import zero daemon modules); protocol library doctrine-clean;
+live routing confirmed for the new build shortcuts. Gate: preflight 38/38,
+pytest 2759, ruff clean. Subagents instructed to clean up after themselves;
+stray temp probe files + their worktree scratch removed. NOT released — driving
+to a clean state on dev for a maintainer stress test next.
+
 ### 2026-06-24/25 — Plain install + practical doc rewrites
 Two changes. (1) **Packaging:** folded the old `[all]` extra set (web /
 literature / viz / audit / ml / notebook / semantic / data) into base
