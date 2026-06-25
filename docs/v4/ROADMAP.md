@@ -307,6 +307,38 @@ the old one rather than editing history.
 
 ## 7. Progress log (append-only; newest at top)
 
+### 2026-06-24/25 — The layered-research-OS thesis: RO guidance + a self-improving agent layer
+Researched the Hermes skills ecosystem online (hermes-agent.nousresearch.com/
+docs) and acted on the architectural thesis it confirms: the best research
+setup is RO (guidance + enforcement + provenance) UNDER a self-improving,
+project-aware agent layer (Hermes as reference) that runs above any model.
+Hermes skills are gateway-style — e.g. the Bioinformatics skill indexes 400+
+external bioSkills/ClawBio skills fetched on demand — which is exactly RO's own
+philosophy ('RO needn't contain everything'). The pairing existed in code
+(`research-os hermes add`, the distill/promote skill registry, the RO SKILL.md)
+but wasn't discoverable or guided.
+- **guidance/agent_setup protocol (`6926263`).** Scaffolds architecting the AI
+  layer for a project: assess current setup → name the capabilities a research
+  agent layer needs (persistent memory, skill ecosystem, MCP, self-improvement,
+  model-agnostic) → choose + wire the layer (Hermes ref via hermes add; other
+  MCP clients via ide add; CLI path for chat-only) → tailor researcher_config →
+  ALIGN skills with protocols (skills = tool/domain how-to; protocols = method
+  choice + grounding + reproducibility; distill/promote so it compounds).
+  Doctrine-correct: recommends Hermes but allows any layer, naming capabilities
+  not mandating a product. 182 protocols.
+- **Hermes as a first-class init step (`6926263`).** The wizard now offers
+  Hermes (the self-improving layer) distinct from per-IDE wiring; detects an
+  existing ~/.hermes, shows the install URL when absent, wires via
+  hermes_integration.add() post-scaffold (best-effort), next-steps card points
+  at agent_setup. New --hermes/--no-hermes flags. (Confirmed init already
+  installs ONLY the IDEs the user selects — no over-install; that was already
+  correct.)
+- **The throughline going forward:** RO is the rigor/guidance substrate; the
+  agent layer + its skills make the setup capable + self-improving + tailored.
+  Future guidance work should keep teaching researchers to optimize their layer
+  (any AI), not just use RO tools — the layered system is the product.
+- Gate green: preflight 38/38, pytest 2745, ruff clean.
+
 ### 2026-06-24/25 — Deep-dive follow-through: connect verification to the agent's path
 Two parallel deep-dive investigators (synthesis system + daemon↔MCP↔agent)
 independently converged on ONE theme with my own trace: the enforcement +
