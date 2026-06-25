@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 39
+version: 40
 generated_at: '2026-06-23'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1561,6 +1561,29 @@ protocols:
     sub_intent: writing
     summary: "Universal writing rules. Implicitly loaded by every synthesis."
     triggers: ["writing rules", "style guide", "core writing"]
+
+  writing/voice_calibration:
+    intent_class: synthesize
+    sub_intent: writing
+    summary: "Learn the researcher's own writing voice from their samples + apply it to drafts (author-voice, not venue-voice). Profile flows into writing_core."
+    triggers:
+      - "write like me"
+      - "match my writing style"
+      - "make it sound like me"
+      - "mimic my voice"
+      - "use my voice"
+      - "this doesn't sound like me"
+      - "this doesn't sound like my writing"
+      - "learn my style"
+      - "learn my writing style"
+      - "calibrate to my writing"
+      - "here's how i write"
+      - "i write more like this"
+      - "tailor the writing to me"
+    token_estimate: 1300
+    decomposition:
+      - protocol: writing/voice_calibration
+        purpose: "Gather genuine samples, observe voice dimensions, distil a profile, reconcile with venue/rigor, apply + confirm."
 
   writing/writing_methods:
     intent_class: synthesize
