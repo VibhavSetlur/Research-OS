@@ -361,9 +361,12 @@ doesn't become dead code. See
 
 ### Can I run Research OS without the synthesis features?
 
-Yes. Figures + literature search ship in the base install, but synthesis tools
-that need an absent dependency will return a clear error explaining what
-to install. The core pipeline works without any optional extras.
+Yes. The whole analysis pipeline — data, figures, stats, literature search —
+ships in the base install and works on its own. The only synthesis step with
+an external dependency is PDF compilation: `tool_typst_compile` needs the
+`typst` CLI on your PATH. If it's absent, the AI still authors the `.typ`
+source and tells you exactly how to install `typst` to render it — nothing
+silently fails.
 
 ### My research has multiple papers / projects sharing data. Tips?
 
