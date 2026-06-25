@@ -40,8 +40,16 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+
+# A burned token is kept in the spent log only until this long PAST its own
+# expiry, then pruned: an expired grant already fails find_valid_grant's TTL
+# check, so recording it further adds no security and only grows the file.
+# The grace window absorbs clock skew between the daemon (minter) and the
+# gate (burner) so a token is never pruned while it could still validate.
+_SPENT_GRACE_SECONDS = 3600
 
 
 def _consent_path(root: Path) -> Path:
@@ -147,45 +155,89 @@ def _spent_path(root: Path) -> Path:
     return Path(root) / ".os_state" / "consent" / "spent.json"
 
 
-def _load_spent(root: Path) -> set[str]:
-    """Read the spent-token set. Fail CLOSED-ish: unreadable → treat as empty.
+def _load_spent(root: Path) -> dict[str, str | None]:
+    """Read the spent-token map ``{token: expires_at|None}``. Fail CLOSED-ish.
 
-    A missing/garbage spent log must not let a token pass twice in the
-    common case, but it also must not crash the gate. We return an empty
-    set on read failure; the WRITE side (``_mark_spent``) is what actually
-    enforces single-use, and it is best-effort atomic.
+    A missing/garbage spent log must not let a token pass twice in the common
+    case, but it also must not crash the gate. We return an empty map on read
+    failure; the WRITE side (``_mark_spent``) is what actually enforces
+    single-use, and it is best-effort atomic.
+
+    Back-compat: the historical on-disk shape was ``{"spent": [token, ...]}``
+    (a bare list, no expiry). That form still loads — each legacy token maps
+    to ``None`` (unknown expiry), which is NEVER pruned, so an old log keeps
+    enforcing single-use exactly as before. The new shape is
+    ``{"spent": {token: expires_at_iso_or_null}}`` so dead tokens can be
+    pruned (an expired grant already fails the TTL check in
+    :func:`find_valid_grant`, so keeping it adds no security, only disk).
     """
     path = _spent_path(root)
     try:
         if not path.exists():
-            return set()
+            return {}
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return set()
+        return {}
     if not isinstance(data, dict):
-        return set()
+        return {}
     tokens = data.get("spent")
-    if not isinstance(tokens, list):
-        return set()
-    return {t for t in tokens if isinstance(t, str)}
+    if isinstance(tokens, dict):
+        return {
+            t: (e if isinstance(e, str) else None)
+            for t, e in tokens.items()
+            if isinstance(t, str)
+        }
+    if isinstance(tokens, list):  # legacy list shape → unknown expiry
+        return {t: None for t in tokens if isinstance(t, str)}
+    return {}
 
 
-def _mark_spent(root: Path, token: str) -> None:
-    """Atomically append ``token`` to the spent log (single-use burn).
+def _spent_tokens(root: Path) -> set[str]:
+    """Just the burned token strings (for membership checks)."""
+    return set(_load_spent(root).keys())
+
+
+def _prune_spent(
+    spent: dict[str, str | None], now: datetime
+) -> dict[str, str | None]:
+    """Drop tokens whose grant expired more than the grace window ago.
+
+    A token with no known expiry (``None`` — e.g. a legacy entry) is KEPT:
+    we can't prove it is safe to forget, so single-use enforcement wins over
+    disk thrift (fail-safe). Only tokens we KNOW are long-dead are pruned —
+    an expired grant already fails find_valid_grant's TTL check, so the
+    spent record adds nothing but bytes once the grace window has passed.
+    """
+    cutoff = now - timedelta(seconds=_SPENT_GRACE_SECONDS)
+    out: dict[str, str | None] = {}
+    for token, exp_iso in spent.items():
+        exp = _parse_iso(exp_iso) if isinstance(exp_iso, str) else None
+        if exp is not None and exp < cutoff:
+            continue
+        out[token] = exp_iso
+    return out
+
+
+def _mark_spent(root: Path, token: str, expires_at: str | None = None) -> None:
+    """Atomically record ``token`` as burned (single-use), self-pruning.
 
     Best-effort: written via temp-file + ``os.replace`` so a concurrent
-    reader never sees a half-written file. Failure to write is swallowed —
-    the grant's own ``expires_at`` TTL is the backstop so a token can't be
-    replayed indefinitely even if the burn momentarily fails.
+    reader never sees a half-written file. ``expires_at`` (the grant's TTL,
+    when known) lets the log prune the token once it is long dead — without
+    it, on a long-lived shared-HPC project the spent log would grow without
+    bound. Failure to write is swallowed — the grant's own ``expires_at`` TTL
+    is the backstop so a token can't be replayed even if the burn momentarily
+    fails.
     """
     path = _spent_path(root)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        spent = _load_spent(root)
-        spent.add(token)
+        now = datetime.now(timezone.utc)
+        spent = _prune_spent(_load_spent(root), now)
+        spent[token] = expires_at
         tmp = path.with_suffix(path.suffix + f".tmp.{os.getpid()}")
         tmp.write_text(
-            json.dumps({"spent": sorted(spent)}, separators=(",", ":")),
+            json.dumps({"spent": spent}, separators=(",", ":"), sort_keys=True),
             encoding="utf-8",
         )
         os.replace(tmp, path)
@@ -220,8 +272,7 @@ def find_valid_grant(
     if not token:
         return None
     now = now or datetime.now(timezone.utc)
-    spent = _load_spent(root)
-    if token in spent:
+    if token in _spent_tokens(root):
         return None
     for grant in _load_grants(root):
         gtoken = grant.get("token")
@@ -243,15 +294,23 @@ def find_valid_grant(
     return None
 
 
-def consume_grant(root: Path, token: str) -> None:
+def consume_grant(
+    root: Path, token: str, *, expires_at: str | None = None
+) -> None:
     """Burn a token so it cannot clear a second gate (one-shot enforcement).
 
     Called by the gate immediately after a grant validates and the action
     is cleared to run. Records the token in the gate-owned spent log; the
     next :func:`find_valid_grant` for the same token returns None.
+
+    Pass the grant's ``expires_at`` (available from the dict
+    :func:`find_valid_grant` returns) so the spent log can prune the token
+    once it is long dead — otherwise the log grows unbounded on a
+    long-lived project. Omitting it is safe (the token is just kept
+    forever, the historical behaviour).
     """
     if token:
-        _mark_spent(root, token)
+        _mark_spent(root, token, expires_at=expires_at)
 
 
 def _ct_eq(a: str, b: str) -> bool:

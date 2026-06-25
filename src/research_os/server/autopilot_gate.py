@@ -381,8 +381,11 @@ def enforce_autopilot_gate(
         if grant is not None:
             # Burn the token before returning so a single authorization
             # clears exactly ONE action — the agent cannot replay one
-            # human approval across many gated calls.
-            consume_grant(Path(root), token)
+            # human approval across many gated calls. Pass the grant's
+            # expires_at so the spent log can prune the token once it is
+            # long dead (otherwise the log grows unbounded on a long-lived
+            # project).
+            consume_grant(Path(root), token, expires_at=grant.get("expires_at"))
             return
         raise RoError(
             what="consent_required",
