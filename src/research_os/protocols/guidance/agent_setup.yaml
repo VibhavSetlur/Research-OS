@@ -109,12 +109,21 @@ steps:
           researcher to https://hermes-agent.nousresearch.com to install it.
         - ANOTHER MCP CLIENT (Claude Code / Cursor / Antigravity / Windsurf):
           wire the RO server with `research-os ide add <name>` (drops the
-          per-IDE rules + MCP config). Only wire the IDE(s) actually used.
+          per-IDE rules + MCP config) for the ONE IDE the researcher named.
+          NEVER run `research-os init --ide all` or `ide add` for editors they
+          don't use — ASK which IDE if it isn't obvious, or let
+          `research-os init` (default `--ide auto`) detect the single IDE. Then
+          set up the daemon only if they want durable long runs
+          (`research-os daemon start`).
         - A NON-MCP / chat-only setup: the researcher drives RO via the
           `research-os` CLI; RO's guidance still applies, the agent just can't
           call RO tools directly. Recommend moving to an MCP-capable layer
           when feasible.
       Wire ONLY what the researcher uses — extra IDE configs are clutter.
+      AFTER wiring MCP, tell the researcher to RESTART their AI session in the
+      project: the MCP server only loads on a fresh session, so the RO tools
+      won't appear (and the AI will improvise) until they reopen it. Do not
+      keep building until they confirm the restart.
 
   - id: stack_complementary_mcp_servers
     name: Stack complementary MCP servers alongside Research-OS

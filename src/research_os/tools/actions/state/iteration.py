@@ -36,6 +36,7 @@ Design notes
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 from datetime import datetime, timezone
@@ -46,6 +47,8 @@ try:
     import yaml  # type: ignore
 except ImportError:  # pragma: no cover - yaml is a hard dep elsewhere
     yaml = None  # type: ignore[assignment]
+
+logger = logging.getLogger("research_os.tools.state.iteration")
 
 
 _VERSION_RE = re.compile(r"_v(\d+)(?=\.[^.]+$)")
@@ -97,7 +100,26 @@ def _load_ledger(step_dir: Path) -> dict[str, Any]:
         return {"step_id": step_dir.name, "iterations": []}
     try:
         data = yaml.safe_load(path.read_text()) or {}
+        if not isinstance(data, dict):
+            raise ValueError("ledger is not a mapping")
     except Exception:
+        # The ledger EXISTS but is corrupt. Silently returning {} would make the
+        # next _save_ledger overwrite it with ONLY the new entry — permanently
+        # losing every prior iteration's rationale/timestamp/manifest (data
+        # loss). Preserve the broken file as a .corrupt-<ts> backup so the
+        # history is recoverable, and log loudly, before starting a fresh ledger.
+        import time as _time
+        try:
+            backup = path.with_suffix(path.suffix + f".corrupt-{int(_time.time())}")
+            path.replace(backup)
+            logger.warning(
+                "iteration ledger at %s was corrupt — preserved as %s and "
+                "started a fresh ledger (prior history is in the backup)",
+                path, backup.name,
+            )
+        except OSError:
+            logger.warning("iteration ledger at %s was corrupt and could not be "
+                           "backed up", path)
         data = {}
     data.setdefault("step_id", step_dir.name)
     data.setdefault("iterations", [])

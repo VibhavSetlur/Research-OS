@@ -6,6 +6,48 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.0.3] — script-naming enforcement, setup UX, gate hardening (2026-06-26)
+
+A PATCH release driven by user reports + a third audit pass. Focus: make the
+analysis-step script-naming convention impossible to silently drift, fix a
+setup-UX footgun, and close four security/integrity bugs. No tools or protocols
+removed; existing projects upgrade transparently.
+
+### Added
+- **Script-naming convention is now enforced AND watched.** Analysis scripts
+  must be named `<NN>[a-z]_<snake_name>_v<k>.<ext>` (with `<NN>` = the step's own
+  number). A new validator powers three enforcement points: the daemon's
+  structure watch (`run_self_check` / `sys_boot` flag a `script_naming` finding
+  with the exact rename), `tool_step_complete` (completeness warning), and a new
+  explicit gate `tool_audit(scope='step', dimension='script_naming')`. Helper
+  modules (`utils.py`, `__init__.py`, `lib_*`, `_*`) are exempt. So a mis-named
+  `scripts/` folder gets caught early instead of leaving a step un-navigable.
+
+### Fixed
+- **Setup no longer wires every IDE.** `research-os init` defaulted to `--ide
+  all`, so an AI told to "set up this project" littered it with config for
+  editors the user doesn't have. The default is now `--ide auto`: it detects the
+  user's single IDE from the environment, and if unsure wires **nothing** and
+  says how to pick one + that a restart is required. The README gained a
+  fill-in-the-blank AI setup prompt (one IDE, MCP + daemon, restart), and the
+  `agent_setup` protocol now forbids `--ide all` and tells the AI to wait for the
+  session restart.
+- **Paid-tool consent gate bypass (money/safety).** The declared-gate path
+  matched `source` case-sensitively, so `source="PAID"` skipped the paid-tool
+  consent gate while `"paid"` fired it. Matching is now case-insensitive.
+- **Floor gates fail-safe on a corrupt config.** A corrupt
+  `researcher_config.yaml` made the autonomy level read as `supervised`, silently
+  stripping every floor gate. A present-but-unreadable config now fails to
+  `adaptive` (gates still apply); only a truly absent config opts out.
+- **Iteration history no longer silently wiped.** A corrupt `iterations.yaml` was
+  treated as empty, so the next iteration overwrote it and lost prior history.
+  The corrupt file is now backed up (`.corrupt-<ts>`) before a fresh ledger.
+- **Recurring-deliverable label collisions.** Non-ASCII labels (e.g. `研究`,
+  `🎉`) all slugged to one `deliverable/` folder, silently colliding distinct
+  events. Empty slugs now get a stable hash suffix.
+
+---
+
 ## [4.0.2] — daemon crash-recovery hardening + robustness pass (2026-06-26)
 
 A PATCH release: a second deep audit (daemon, runtime, and protocol/router

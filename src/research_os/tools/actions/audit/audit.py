@@ -2204,6 +2204,22 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
             "No script files under scripts/ — step's outputs may not be "
             "reproducible from this folder alone."
         )
+    else:
+        # Script NAMING convention (4.0.3): each analysis script must be named
+        # <NN>[a-z]_<snake_name>_v<k>.<ext> with <NN> = this step's number. The
+        # AI repeatedly drifts on this and nothing used to catch it; a
+        # mis-named scripts/ folder makes a step un-navigable and breaks the
+        # "ls scripts/ shows the order" contract. Helper modules are exempt.
+        from research_os.tools.actions.audit.script_naming import (
+            audit_step_script_naming,
+        )
+        naming = audit_step_script_naming(step_dir)
+        info["script_naming"] = naming
+        for b in naming.get("blockers", []):
+            warnings.append(
+                f"Script naming: {b} (convention: "
+                "<NN>[a-z]_<snake_name>_v<k>.<ext>)"
+            )
 
     # Missing scratch/stack_plan.md is a BLOCKER.
     # `methodology/pick_tool_stack` asks the AI to persist its
