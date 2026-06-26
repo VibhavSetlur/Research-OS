@@ -167,6 +167,43 @@ def audit_structure(root: str | Path) -> dict[str, Any]:
                     dir=child.name,
                 ))
 
+    # 5. Mode integrity (B5): config mode vs state mode drift, and whether the
+    #    active mode's required scaffold surface is actually present. A project
+    #    flipped via raw sys_config(workspace.mode=…) before the transition tool
+    #    existed (or a hand-edited config) is silently inconsistent — catch it.
+    try:
+        from research_os.tools.actions.state.config import get_workspace_mode
+        from research_os.project_ops import (
+            SCAFFOLD_PROFILES, load_state as _ls,
+        )
+        cfg_mode = get_workspace_mode(root)
+        try:
+            state_mode = str((_ls(root) or {}).get("workspace_mode") or cfg_mode)
+        except Exception:
+            state_mode = cfg_mode
+        if cfg_mode != state_mode:
+            findings.append(_finding(
+                "warn", "mode_drift",
+                f"config workspace.mode='{cfg_mode}' but state says '{state_mode}' "
+                "— a half-applied mode change. Heal with "
+                f"sys_workspace_mode(operation='transition', to='{cfg_mode}', confirm=true).",
+                config_mode=cfg_mode, state_mode=state_mode,
+            ))
+        prof = SCAFFOLD_PROFILES.get(cfg_mode)
+        if prof:
+            missing_surface = [d for d in prof["eager_dirs"] if not (root / d).is_dir()]
+            if missing_surface:
+                findings.append(_finding(
+                    "warn", "missing_mode_surface",
+                    f"mode is '{cfg_mode}' but its required surface is missing "
+                    f"({', '.join(missing_surface)}) — run "
+                    f"sys_workspace_mode(operation='transition', to='{cfg_mode}', confirm=true) "
+                    "to create it additively.",
+                    mode=cfg_mode, missing=missing_surface,
+                ))
+    except Exception:
+        pass  # mode check is best-effort; never break the structure audit
+
     counts: dict[str, int] = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1

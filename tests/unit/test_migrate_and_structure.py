@@ -145,3 +145,16 @@ def test_structure_audit_warns_output_without_conclusions(tmp_path):
     res = structure_audit.audit_structure(tmp_path)
     codes = {f["code"] for f in res["findings"]}
     assert "output_without_conclusions" in codes
+
+
+def test_structure_audit_detects_mode_drift(tmp_path):
+    """B5: a raw config mode flip (no surface, state unchanged) is caught."""
+    from research_os.project_ops import scaffold_minimal_workspace
+    from research_os.tools.actions.state.config import set_config
+
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    set_config("workspace.mode", "tool_build", tmp_path)  # the silent half-change
+    res = structure_audit.audit_structure(tmp_path)
+    codes = {f["code"] for f in res["findings"]}
+    assert "mode_drift" in codes
+    assert "missing_mode_surface" in codes
