@@ -1011,6 +1011,7 @@ def finalize_path(
     """
     from research_os.project_ops import load_state, resolve_step_dir
 
+    root = Path(root)  # tolerate a str root from the handler/dispatcher
     workspace = root / "workspace"
     if not workspace.exists():
         return {"status": "error", "message": "workspace/ not found"}

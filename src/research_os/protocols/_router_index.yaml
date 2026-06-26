@@ -981,9 +981,9 @@ protocols:
     decomposition:
       - protocol: build/integration_spike
         purpose: "Set the falsifiable bar, pin + snapshot, build a throwaway spike on a real (hashed) input, judge, checkpoint the verdict, decide its fate."
-      - tool: sys_env_snapshot
+      - tool: sys_env
         purpose: "Capture the interpreter + dependency versions the spike ran under."
-      - tool: tool_scratch_run
+      - tool: tool_scratch
         purpose: "Run the throwaway spike in the scratch surface, never in the real tree."
       - tool: sys_checkpoint_create
         purpose: "Snapshot the spike + env at the decision moment so it's re-runnable / reversible."

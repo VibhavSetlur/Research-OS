@@ -228,3 +228,39 @@ def test_list_runs_survives_a_malformed_manifest(tmp_path):
     # detect_orphans must still find the good orphan
     orphans = store.detect_orphans()
     assert "good1" in orphans
+
+
+def test_paused_run_is_not_an_orphan(tmp_path):
+    """F-1 (4.0.2): a paused run is a user intent, not a crash artifact —
+    detect_orphans must NOT return it (so restart can't clobber it to interrupted)."""
+    rs = RunStore(tmp_path)
+    rs.runs_dir.mkdir(parents=True, exist_ok=True)
+    for rid, status in (("paused1", "paused"), ("run1", "running")):
+        (rs.runs_dir / rid).mkdir(exist_ok=True)
+        (rs.runs_dir / rid / "run.json").write_text(
+            '{"id":"%s","name":"%s","kind":"callable","status":"%s","spec":{},"transitions":[]}'
+            % (rid, rid, status)
+        )
+    orphans = rs.detect_orphans()
+    assert "paused1" not in orphans
+    assert "run1" in orphans
+
+
+def test_duplicate_terminal_event_is_idempotent(tmp_path):
+    """F-2 (4.0.2): a replayed terminal event must not double-append a transition
+    or double-fire on_terminal (which would double-advance autonomous continuation)."""
+    rs = RunStore(tmp_path)
+    rj = RunJournal(rs)
+    fired: list[str] = []
+    rj.on_terminal = lambda m: fired.append(m.get("id"))
+    evt = {
+        "job_id": "j1",
+        "job": {"id": "j1", "name": "x", "kind": "callable",
+                "status": "succeeded", "result": {"returncode": 0}},
+    }
+    rj._on_transition("job.succeeded", evt)
+    rj._on_transition("job.succeeded", evt)  # duplicate replay
+    m = rs.read_manifest("j1")
+    assert len(fired) == 1
+    succeeded = [t for t in m.get("transitions", []) if t.get("status") == "succeeded"]
+    assert len(succeeded) == 1

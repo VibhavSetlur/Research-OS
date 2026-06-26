@@ -173,14 +173,19 @@ class RunStore:
         return out
 
     def detect_orphans(self) -> list[str]:
-        """Run ids whose last persisted status was non-terminal.
+        """Run ids whose last persisted status was non-terminal AND not paused.
 
         After an unclean shutdown these runs were RUNNING/QUEUED but the
         process died — they can never resume, so the daemon should mark them
         INTERRUPTED on startup rather than leave them looking live forever.
+
+        ``paused`` is deliberately treated as terminal-for-recovery: a paused
+        run is a USER INTENT, not a crash artifact, so it must NOT be rewritten
+        to ``interrupted`` on restart (that would lose the pause and make the
+        watchdog nag to resume a run the researcher intentionally held).
         """
         orphans: list[str] = []
-        terminal = {"succeeded", "failed", "cancelled", "interrupted"}
+        terminal = {"succeeded", "failed", "cancelled", "interrupted", "paused"}
         for s in self.list_runs(limit=10_000):
             status = (s.get("status") or "").lower()
             if status and status not in terminal:
@@ -290,6 +295,16 @@ class RunJournal:
             return
         status = (snap.get("status") or data.get("status") or "").lower()
         existing = self.store.read_manifest(job_id)
+        # Terminal-once idempotency guard: if this run is ALREADY terminal, a
+        # second terminal event (bus replay / duplicate emit) must be a no-op —
+        # otherwise it double-appends a transition and double-fires on_terminal
+        # (which double-advances autonomous continuation, spending compute/tokens
+        # twice). Non-terminal → terminal still proceeds normally.
+        _TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
+        if existing is not None:
+            prev = (existing.get("status") or "").lower()
+            if prev in _TERMINAL and status in _TERMINAL:
+                return
         if existing is None:
             manifest = build_manifest(
                 run_id=job_id,

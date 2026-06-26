@@ -541,7 +541,39 @@ class Daemon:
                 f"run {run_id} is '{status}', not resumable "
                 "(only interrupted/paused/failed/cancelled runs can be resumed)"
             )
+
         spec = manifest.get("spec") or {}
+        # Scheduler-aware resume (MAJOR-3): a SLURM/HPC run MUST be re-dispatched
+        # through the scheduler (sbatch), NOT re-launched as a local subprocess
+        # on the daemon/login node. Branch on the recorded kind/scheduler before
+        # falling through to the local run_command path below.
+        kind = (manifest.get("kind") or "").lower()
+        scheduler = spec.get("scheduler")
+        if kind == "scheduler" or scheduler:
+            script = spec.get("script") or spec.get("cmd") or spec.get("command")
+            if isinstance(script, (list, tuple)):
+                script = script[0] if script else None
+            if not script:
+                raise ValueError(
+                    f"scheduler run {run_id} has no recorded script to resume"
+                )
+            self.tasks.start()
+            self._start_journal()
+            new_id = self.submit_job(
+                script,
+                scheduler=scheduler or "slurm",
+                name=f"resume:{run_id}",
+                cwd=cwd or spec.get("cwd"),
+                root=spec.get("root"),
+            )
+            return {
+                "resumed_from": run_id,
+                "new_run_id": new_id,
+                "command": script,
+                "cwd": cwd or spec.get("cwd"),
+                "scheduler": scheduler or "slurm",
+            }
+
         cmd = spec.get("cmd") or spec.get("command")
         if not cmd:
             raise ValueError(
