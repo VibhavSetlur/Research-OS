@@ -311,7 +311,12 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
             findings, "cross_deliverable_consistency", Path(root)
         )
     except Exception:  # pragma: no cover - defensive guard
-        pass
+        # F2.1: don't swallow silently — a broken ledger write means
+        # findings_query / active_gates go silently empty. Log it so it's
+        # diagnosable instead of invisible.
+        logger.warning(
+            "cross_deliverable_consistency ledger write failed", exc_info=True
+        )
 
     if res.get("blockers") and override_requested:
         log_override(
@@ -359,7 +364,9 @@ def _handle_tool_audit_step_completeness(name, arguments, root):
         findings = StepCompletenessAudit().run(root, step_id=step_id)
         write_audit_outputs(findings, "step_completeness", root)
     except Exception:  # pragma: no cover - defensive guard
-        pass
+        # F2.1: surface, don't swallow — a failed ledger write makes the
+        # findings ledger an unreliable source of truth.
+        logger.warning("step_completeness ledger write failed", exc_info=True)
 
     return _text(_success(result))
 
