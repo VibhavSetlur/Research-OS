@@ -198,3 +198,32 @@ def test_resume_run_rejects_succeeded(tmp_path):
     import pytest
     with pytest.raises(ValueError, match="not resumable"):
         daemon.resume_run(jid)
+
+
+def test_resume_run_refuses_when_original_pid_alive(tmp_path):
+    """F-4 (4.0.2): if the original run's recorded PID is still alive on this
+    host, resume_run must refuse rather than spawn a duplicate."""
+    import os
+    import socket
+
+    import pytest
+
+    daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
+    rs = daemon.runstore
+    rs.runs_dir.mkdir(parents=True, exist_ok=True)
+    rs.write_manifest("live1", {
+        "id": "live1", "name": "x", "kind": "callable", "status": "interrupted",
+        "spec": {"cmd": ["echo", "hi"]}, "pid": os.getpid(),
+        "host": socket.gethostname(), "transitions": [], "provenance": {},
+    })
+    with pytest.raises(ValueError, match="live process"):
+        daemon.resume_run("live1")
+
+    # a dead PID resumes normally
+    rs.write_manifest("dead1", {
+        "id": "dead1", "name": "x", "kind": "callable", "status": "interrupted",
+        "spec": {"cmd": ["echo", "hi"]}, "pid": 999999,
+        "host": socket.gethostname(), "transitions": [], "provenance": {},
+    })
+    res = daemon.resume_run("dead1")
+    assert res["new_run_id"]

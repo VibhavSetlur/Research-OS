@@ -272,9 +272,28 @@ class RunJournal:
             data = getattr(event, "data", None) or {}
             if kind == "job.log":
                 self._on_log(data)
+            elif kind == "job.pid":
+                self._on_pid(data)
             elif isinstance(kind, str) and kind.startswith("job."):
                 self._on_transition(kind, data)
         except Exception:  # noqa: BLE001 - journal must never break the bus
+            pass
+
+    def _on_pid(self, data: dict) -> None:
+        """Persist the child PID (+ host) so crash-recovery can check liveness."""
+        job_id = data.get("job_id") or data.get("id")
+        pid = data.get("pid")
+        if not job_id or pid is None:
+            return
+        manifest = self.store.read_manifest(job_id)
+        if manifest is None:
+            return
+        import socket
+        manifest["pid"] = pid
+        manifest["host"] = socket.gethostname()
+        try:
+            self.store.write_manifest(job_id, manifest)
+        except OSError:
             pass
 
     def _on_log(self, data: dict) -> None:

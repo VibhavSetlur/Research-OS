@@ -542,6 +542,27 @@ class Daemon:
                 "(only interrupted/paused/failed/cancelled runs can be resumed)"
             )
 
+        # Liveness guard (BLOCK-2 / F-4): if the original run's recorded process
+        # is STILL ALIVE on this host, refuse to re-spawn — a duplicate would
+        # double-write / double-compute / corrupt outputs. Only applies when the
+        # PID was recorded on this same host (cross-host PIDs are meaningless).
+        import os as _os_live
+        import socket as _socket_live
+        rec_pid = manifest.get("pid")
+        rec_host = manifest.get("host")
+        if rec_pid and (rec_host in (None, _socket_live.gethostname())):
+            try:
+                _os_live.kill(int(rec_pid), 0)
+                alive = True
+            except (OSError, ValueError, TypeError):
+                alive = False
+            if alive:
+                raise ValueError(
+                    f"run {run_id} still has a live process (pid={rec_pid}) — "
+                    "refusing to resume and spawn a duplicate. Stop the original "
+                    "first, then resume."
+                )
+
         spec = manifest.get("spec") or {}
         # Scheduler-aware resume (MAJOR-3): a SLURM/HPC run MUST be re-dispatched
         # through the scheduler (sbatch), NOT re-launched as a local subprocess
