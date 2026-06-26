@@ -473,6 +473,7 @@ flags below already work regardless of the policy — so don't rely on
 | `tool_audit(scope='synthesis', dimension='dashboard_content')` | `override_dashboard_content_gate` | `override_rationale` | Dashboard-content BLOCKERs (placeholder text, stub captions, etc.) |
 | `tool_plan(operation='advance')` | `override_gate` | `override_rationale` | Deliverable-step quality gate before advancing the plan |
 | `tool_step_complete` | `override_literature_gate` | `override_rationale` | Per-step literature loop check (missing `findings_vs_literature.md`, uncovered DISAGREES verdicts) |
+| `tool_step_complete` | `override_grounding_gate` | `override_rationale` | Per-step grounding check (a numeric claim in the step's `conclusions.md` that no output produced) |
 | `tool_discussion_coverage_audit` | `override_discussion_coverage` | `override_rationale` | Discussion-coverage BLOCK (non-AGREES verdict missing from the Discussion) |
 | `tool_audit(scope='synthesis', dimension='all')` | `override_no_pdfs` | `override_rationale` | Zero-PDF default-deny on literature-required steps |
 | `tool_audit(scope='project', dimension='cross_deliverable')` | `override_cross_deliverable` | `override_rationale` | 5-dimension cross-deliverable audit |

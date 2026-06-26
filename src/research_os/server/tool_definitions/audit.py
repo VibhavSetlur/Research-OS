@@ -252,15 +252,16 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_step_complete": {
-        "short": "Bundle: path_finalize + completeness + literature + revision_options. Use at end of every step.",
+        "short": "Bundle: path_finalize + completeness + literature + grounding + revision_options. Use at end of every step.",
         "then": "tool_route on next prompt OR sys_protocol_next",
-        "description": "One-shot end-of-step bundle. Calls (in order) tool_path_finalize, tool_audit_step_completeness, tool_audit_step_literature, then tool_step_revision_options on the named step. Returns a merged result {finalize, completeness, literature, revision} with overall_status='success' | 'warning' | 'error'. Reduces 4 tool calls to 1 — eliminates small-model drift between calls and halves the round-trip latency. The AI should still surface the revision options verbatim per the anti-one-shot doctrine.",
+        "description": "One-shot end-of-step bundle. Calls (in order) tool_path_finalize, tool_audit_step_completeness, tool_audit_step_literature, a GROUNDING check (every numeric claim in the step's conclusions.md must trace to a number in its outputs — a step can't be finalized citing stats no script produced), then tool_step_revision_options on the named step. Returns a merged result {finalize, completeness, literature, grounding, revision} with overall_status='success' | 'warning' | 'error'. Reduces tool calls to 1 — eliminates small-model drift between calls. The AI should still surface the revision options verbatim per the anti-one-shot doctrine.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "step_id": {"type": "string"},
                 "override_literature_gate": {"type": "boolean"},
+                "override_grounding_gate": {"type": "boolean"},
                 "override_rationale": {"type": "string"},
             },
             "required": ["step_id"],

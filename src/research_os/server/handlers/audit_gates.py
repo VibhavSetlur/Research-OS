@@ -164,6 +164,43 @@ def _handle_tool_step_complete(name, arguments, root):
         merged["stages"]["revision"] = {"status": "error", "message": str(e)}
         statuses.append("error")
 
+    # A1 fix (stress): grounding stage — every numeric claim in the step's
+    # conclusions.md must trace to a number in its outputs, so a step can't be
+    # finalized citing p=0.001 / d=0.85 that no script ever produced. Only runs
+    # when the step has a conclusions.md with claims; ungrounded claims downgrade
+    # to a warning the AI must resolve (override via override_grounding_gate +
+    # rationale for the rare intentionally-external number).
+    override_grounding = bool(arguments.get("override_grounding_gate"))
+    if override_grounding and not rationale:
+        return _text(_error(
+            what="override_grounding_gate=true requires override_rationale",
+            why="empty rationale would silently no-op the override",
+            next_action="pass override_rationale=\"...\" (>=20 chars, multi-word)",
+        ))
+    if override_grounding and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return _text(thin)
+    try:
+        from research_os.tools.actions.audit.claim_grounding import audit_claims
+        concl = f"workspace/{step_id}/conclusions.md"
+        if (root / concl).exists():
+            g = audit_claims(root, target_path=concl)
+            if override_grounding and rationale and g.get("status") in ("error", "warning"):
+                g["overridden"] = True
+                g["override_rationale"] = rationale
+                g["status"] = "warning"
+            merged["stages"]["grounding"] = g
+            statuses.append(g.get("status", "success"))
+        else:
+            merged["stages"]["grounding"] = {
+                "status": "success",
+                "message": "no conclusions.md with claims to ground (trivially passes)",
+            }
+    except Exception as e:
+        merged["stages"]["grounding"] = {"status": "error", "message": str(e)}
+        statuses.append("error")
+
     if "error" in statuses:
         merged["overall_status"] = "error"
     elif "warning" in statuses:

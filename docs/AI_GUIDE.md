@@ -498,6 +498,7 @@ preview", "skip the audit"). The override path:
 * `tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale="<why>")`
 * `tool_plan(operation='advance', override_gate=true, override_rationale="<why>")`
 * `tool_step_complete(override_literature_gate=true, override_rationale="<why>")`
+* `tool_step_complete(override_grounding_gate=true, override_rationale="<why>")` — only when a step's number is intentionally external (not produced by its outputs); normally make the output produce it.
 * Per-audit overrides (e.g. `tool_audit(scope='synthesis', dimension='all',
   override_no_pdfs=true, override_rationale="<why>")`, or `override_cross_deliverable`)
 * `sys_protocol_log(status='completed', override_completeness_gate=true, details="<why>")`
