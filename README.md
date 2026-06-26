@@ -191,35 +191,20 @@ research-os doctor
 
 The full experience ships in the base install — no extras to remember. A handful of features that need their own system runtime (the enforcement daemon, R, Julia) are opt-in; see [SETUP.md](docs/SETUP.md).
 
-### Prefer to let your AI set it up? Paste this (fill in the blanks)
+### Prefer to let your AI set it up? Use the one setup prompt
 
-If you'd rather not run the wizard yourself, give your AI assistant the prompt below. It's written so the AI wires up **only your IDE** (not all of them), sets up the MCP server + daemon, and reminds you to restart — the one step people miss. Fill in the three blanks and paste it into your AI IDE / agent, opened in the folder you want the project in:
+There's a single, copy-paste **[setup prompt](docs/SETUP_PROMPT.md)** that walks
+your AI through the whole thing — install, wire **only your IDE** (not all of
+them), start the daemon, **test that it actually works**, and remind you to
+restart (the one step people miss) — then onboard your project before any
+analysis. It's a fill-in-the-gap template: you only have to provide a project
+name, your goal, and a free-text "context block" where you dump your thoughts;
+leave the rest blank and the AI asks or picks sensible defaults.
 
-```text
-Set up a Research OS project in this folder for me. Do NOT install integrations
-for editors I don't use.
+→ **Copy it from [docs/SETUP_PROMPT.md](docs/SETUP_PROMPT.md)** and paste it to
+your AI with the project folder open.
 
-  • My AI IDE / agent:        ______   (e.g. Claude Code, Cursor, VS Code,
-                                       Windsurf, OpenCode, Aider — pick ONE)
-  • My research question:     ______
-  • My data / inputs are at:  ______   (a path, a URL, or "none yet")
-
-Do exactly this, in order:
-  1. Run:  research-os init --ide <my IDE from above> --question "<my question>"
-     (if research-os isn't installed yet: pip install research-os, then run it).
-     Use ONLY my IDE for --ide — never "all".
-  2. If I gave a data path, bring it into inputs/raw_data/ (copy if small/portable,
-     symlink if large/shared) and record where it came from.
-  3. Set up the MCP server for my IDE and, if I want durable long runs, the
-     enforcement daemon (research-os daemon start). Tell me which you wired.
-  4. Then STOP and tell me to RESTART my AI session in this project — the MCP
-     server only loads on a fresh session. Don't continue until I've restarted.
-
-After I restart, confirm you can see the Research OS tools and tell me the first
-step toward my question.
-```
-
-Why the restart matters: an IDE/agent loads its MCP servers when the session starts, so the Research OS tools only appear **after** you reopen the project. Pointing your AI at Research OS without this almost always ends with it improvising instead of using the real tools.
+Why the restart matters: an IDE/agent loads its MCP servers when the session starts, so the Research OS tools only appear **after** you reopen the project. Pointing your AI at Research OS without this almost always ends with it improvising instead of using the real tools — which is exactly why the prompt makes the AI stop, wait for your restart, and self-test before doing anything.
 
 → Full walkthrough: **[START.md](docs/START.md)** · Per-IDE wiring: **[SETUP.md](docs/SETUP.md)** · CLI reference: **[CLI.md](docs/CLI.md)**
 
@@ -275,6 +260,7 @@ research-os hermes add     # wire Research OS into Hermes, then ask:
 | If you're… | Read this |
 |---|---|
 | **New here** | [docs/START.md](docs/START.md) — install + first project in ~15 min |
+| **Setting up with your AI** | [docs/SETUP_PROMPT.md](docs/SETUP_PROMPT.md) — one copy-paste, fill-in-the-gap prompt that drives your AI through the whole setup + onboarding |
 | **Looking for an example** | [docs/SCENARIOS.md](docs/SCENARIOS.md) — seven complete worked projects · [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
 | **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
 | **Wiring an IDE** | [docs/SETUP.md](docs/SETUP.md) — Claude Code, Cursor, VS Code, etc. |

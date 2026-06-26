@@ -19,6 +19,7 @@ Supporting:
 - [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) — the canonical directory layout: the safety backbone (`.os_state`, `inputs/`, `workspace/`, …) and what each workspace mode adds. The single source of truth for what lives where.
 - [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster / reproduce a result" → which protocol fires.
 - [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software, not analysing data? The **tool_build** workspace mode: spec → implement → test → ship.
+- [SETUP_PROMPT.md](SETUP_PROMPT.md) — the one copy-paste, fill-in-the-gap prompt that drives your AI through install → wire one IDE → daemon → self-test → onboarding.
 - [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
 - [BEST_SETUP.md](BEST_SETUP.md) — the best agent layer + MCP stack + daemon setup for your project type (Hermes, context7, dynamic resources, autonomous loops).
 - [FAQ.md](FAQ.md) — common questions.

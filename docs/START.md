@@ -821,6 +821,9 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 
 ## What to read next
 
+* [SETUP_PROMPT.md](SETUP_PROMPT.md) — the single copy-paste, fill-in-the-gap
+  prompt that drives your AI through install → wire one IDE → daemon → self-test
+  → onboarding. Start here if you'd rather not run the wizard by hand.
 * [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — the full workflow guide
   (mental model, every protocol, real session transcripts, power-user
   patterns, troubleshooting).
