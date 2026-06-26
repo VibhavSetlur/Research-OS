@@ -634,6 +634,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print()
         print("  research-os daemon status   show daemon + project state")
         print("  research-os daemon start    run the daemon (localhost, read-only API)")
+        print("  research-os daemon stop     stop this project's daemon (per-project)")
         print("  research-os daemon run      run a command as a tracked job")
         print("  research-os daemon runs     list recorded runs (durable history)")
         print("  research-os daemon logs ID  show a run's details + output")
@@ -684,6 +685,45 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         except KeyboardInterrupt:
             print("\n  daemon stopped.")
             return 0
+        return 0
+
+    if sub == "stop":
+        # Per-project graceful stop: read THIS project's descriptor
+        # (<root>/.os_state/daemon.json), SIGTERM the recorded pid, and clear
+        # the descriptor. Per-run state in .os_state/runs/ is preserved, so a
+        # later `daemon start` resumes the project exactly where it left off.
+        import os as _os
+        import signal as _signal
+
+        from research_os.daemon.discovery import (
+            clear_discovery,
+            read_discovery,
+        )
+
+        root = daemon.root
+        if root is None:
+            print(f"  {_cross()} No project resolved — run from inside a project "
+                  "or pass --workspace.")
+            return 1
+        desc = read_discovery(root)
+        pid = (desc or {}).get("pid")
+        if not desc or not pid:
+            print(f"  No running daemon recorded for {root}.")
+            return 0
+        try:
+            _os.kill(int(pid), _signal.SIGTERM)
+            print(f"  {_check()} Sent stop signal to daemon (pid {pid}) for {root}.")
+        except ProcessLookupError:
+            print(f"  Daemon (pid {pid}) was not running; clearing stale descriptor.")
+        except (OSError, ValueError) as exc:
+            print(f"  {_warn_glyph()} Could not stop daemon (pid {pid}): {exc}")
+            return 1
+        try:
+            clear_discovery(root)
+        except Exception:
+            pass
+        print("  Per-project run history in .os_state/runs/ is preserved — "
+              "`research-os daemon start` resumes where you left off.")
         return 0
 
     if sub == "run":
@@ -2776,6 +2816,14 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Explicit workspace path (else auto-resolved).")
     pd_start.add_argument("--host", default=None, help="Bind host (default 127.0.0.1).")
     pd_start.add_argument("--port", default=None, type=int, help="Bind port (default 8787).")
+
+    # stop: gracefully terminate THIS project's running daemon (per-project).
+    pd_stop = daemon_sub.add_parser(
+        "stop",
+        help="Stop this project's running daemon (graceful; per-project).",
+    )
+    pd_stop.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
 
     # run: execute any command as a tracked, provenance-recording run.
     pd_run = daemon_sub.add_parser(
