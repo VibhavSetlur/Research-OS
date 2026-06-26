@@ -89,14 +89,37 @@ _DELIVERABLE_CANDIDATES: dict[str, tuple[str, ...]] = {
 
 
 def _discover_deliverables(root: Path) -> dict[str, Path]:
-    """Return {name: path} for each deliverable that exists on disk."""
+    """Return {name: path} for each deliverable that exists on disk.
+
+    Covers BOTH the canonical flat deliverables (synthesis/paper.typ, …) AND the
+    4.0.0 recurring/event-specific layout (synthesis/deliverables/<event>/<kind>),
+    so a poster for one meeting + the canonical paper are actually cross-checked
+    instead of the audit silently scanning only one (a fail-quiet).
+    """
     out: dict[str, Path] = {}
+    # 1) canonical flat deliverables (unchanged — existing behaviour).
     for name, candidates in _DELIVERABLE_CANDIDATES.items():
         for rel in candidates:
             p = root / rel
             if p.is_file():
                 out[name] = p
                 break
+    # 2) recurring / event-specific deliverables (synthesis/deliverables/<event>/).
+    #    Key as "<kind>@<event>" so each stays unique and the existing pairwise
+    #    comparison + the paper-canonical dimensions keep working unchanged.
+    deliv_root = root / "synthesis" / "deliverables"
+    if deliv_root.is_dir():
+        ext_pref = {
+            kind: tuple(Path(c).suffix.lstrip(".") for c in cands)
+            for kind, cands in _DELIVERABLE_CANDIDATES.items()
+        }
+        for sub in sorted(p for p in deliv_root.iterdir() if p.is_dir()):
+            for kind, exts in ext_pref.items():
+                for ext in exts:
+                    cand = sub / f"{kind}.{ext}"
+                    if cand.is_file():
+                        out[f"{kind}@{sub.name}"] = cand
+                        break
     return out
 
 

@@ -650,7 +650,10 @@ def _handle_tool_audit_claims(name, arguments, root):
         )
         write_audit_outputs(findings, "claim_grounding", root)
     except Exception:  # pragma: no cover - defensive guard
-        pass
+        # F2.1: surface, don't swallow — a failed ledger write silently empties
+        # the findings ledger that findings_query / active_gates depend on.
+        # (This sibling was missed in the original F2.1 sweep.)
+        logger.warning("claim_grounding ledger write failed", exc_info=True)
 
     return _text(_success(result))
 

@@ -469,3 +469,19 @@ def test_typst_paper_figure_missing_elsewhere_flagged(tmp_path: Path):
     missing = r["details"]["paper_figures_missing_elsewhere"]
     stems = {m["figure_stem"] for m in missing}
     assert {"fig2", "fig3"} <= stems
+
+
+def test_discover_deliverables_sees_recurring_event_folders(tmp_path: Path):
+    """F1.3: synthesis/deliverables/<event>/<kind> artifacts (4.0.0 layout) are
+    discovered, not silently ignored — keyed <kind>@<event> so they stay unique."""
+    from research_os.tools.actions.audit.cross_deliverable import _discover_deliverables
+
+    (tmp_path / "synthesis").mkdir()
+    (tmp_path / "synthesis" / "paper.typ").write_text("= Paper\n")
+    ev = tmp_path / "synthesis" / "deliverables" / "neurips-poster"
+    ev.mkdir(parents=True)
+    (ev / "poster.typ").write_text("= Poster\n")
+    found = _discover_deliverables(tmp_path)
+    assert "paper" in found
+    assert "poster@neurips-poster" in found
+    assert found["poster@neurips-poster"] == ev / "poster.typ"

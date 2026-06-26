@@ -13,6 +13,7 @@ Public surface:
 
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ from research_os.tools.actions.audit._paper import (
     resolve_paper_path,
     section_body,
 )
+
+logger = logging.getLogger("research_os.tools.audit.content_depth")
 
 
 PAPER_SECTIONS = ("abstract", "introduction", "methods", "results", "discussion", "references")
@@ -462,7 +465,10 @@ def _biblio_defined_keys(root: Path, paper_path: str | None = None) -> set[str] 
                 if isinstance(data, dict):
                     defined |= {str(k) for k in data}
             except Exception:
-                pass
+                # A swallowed read here would shrink `defined` and FALSELY flag a
+                # real citation as undefined — log it so the wrong verdict is
+                # diagnosable.
+                logger.warning("failed reading citation keys from %s", yml, exc_info=True)
     for bib in bib_candidates:
         if bib.is_file():
             found_any = True
@@ -470,7 +476,7 @@ def _biblio_defined_keys(root: Path, paper_path: str | None = None) -> set[str] 
                 txt = bib.read_text(encoding="utf-8", errors="replace")
                 defined |= set(re.findall(r"@\w+\{\s*([^,\s]+)\s*,", txt))
             except Exception:
-                pass
+                logger.warning("failed reading bib keys from %s", bib, exc_info=True)
     return defined if found_any else None
 
 

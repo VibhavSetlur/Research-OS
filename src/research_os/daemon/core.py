@@ -1,17 +1,14 @@
-"""Daemon core — the holder object and status report (Phase 0 skeleton).
+"""Daemon core — the central serving object and status report.
 
-The :class:`Daemon` is, for now, a thin holder: it resolves the project
-root using the SAME resolver the stdio MCP server uses, carries a
-:class:`DaemonConfig`, and can produce a :class:`DaemonStatus` snapshot
-by reading the existing :class:`ResearchLedger` and active plan.
-
-It does NOT serve anything yet. Phase 1 adds the persistent core loop and
-the read-only HTTP state endpoints; Phase 2 adds the gateway; etc. Each
-of those bolts onto this object without changing its construction
-contract.
+The :class:`Daemon` is the live daemon: it resolves the project root using the
+SAME resolver the stdio MCP server uses, carries a :class:`DaemonConfig`, owns
+the background task queue, multi-root state registry, event spine, and durable
+run journal, serves the localhost HTTP surface, and produces a
+:class:`DaemonStatus` snapshot from the existing :class:`ResearchLedger` and
+active plan.
 
 Everything here reuses existing engine functions — no routing, state, or
-protocol logic is re-implemented (strangler-fig; see docs/ROADMAP.md).
+protocol logic is re-implemented (strangler-fig; see docs/ARCHITECTURE.md).
 """
 from __future__ import annotations
 
@@ -63,7 +60,7 @@ class DaemonStatus:
 
 
 class Daemon:
-    """The Research OS gateway daemon (Phase 0 skeleton).
+    """The Research OS gateway daemon — the live serving core.
 
     Construct with an explicit root + config, or use :meth:`for_root` /
     :meth:`autoresolve` to build one the way the MCP server resolves its

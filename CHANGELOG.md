@@ -6,6 +6,47 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.0.1] — post-release consistency & accuracy pass (2026-06-26)
+
+A PATCH release: a deep post-4.0.0 audit (multi-persona stress test +
+reviewer pass) closed one real data-integrity bug, several silent
+fail-opens, and a layer of stale guidance. No tools, protocols, or input
+schemas changed — existing projects upgrade transparently.
+
+### Fixed
+- **Audit-ledger swallow (data integrity).** `claim_grounding` kept the same
+  silent `except: pass` around its structured-findings write that the 4.0.0
+  F2.1 sweep fixed in its two siblings — it was missed. A failed write silently
+  emptied the ledger that `findings_query` / `active_gates` depend on. Now
+  logged.
+- **Fail-open gates now log instead of vanishing.** The protocol completeness
+  gate (a silently fail-open gate hides a real missing output) and the
+  citation-key reader (a swallowed read FALSELY flags a real citation as
+  undefined) now warn so the wrong verdict is diagnosable.
+- **Cross-deliverable audit sees recurring artifacts.** The consistency audit
+  now discovers `synthesis/deliverables/<event>/` deliverables (keyed
+  `<kind>@<event>`), not just flat single-file ones — closes a fail-quiet where
+  a poster + paper weren't cross-checked.
+- **Override accountability.** `tool_step_complete`'s literature/grounding
+  overrides now journal to `override_log.md` (they were applied but never
+  logged, so the bypass was invisible to the pre-submission audit). Extracted a
+  single `enforce_override()` helper (the sequence was copy-pasted across gate
+  handlers and had drifted). `audit_step_literature` tolerates a str root.
+
+### Improved
+- **AI/user guidance caught up to the 4.0.0 way.** The modes help topic,
+  RESEARCHER_GUIDE, TOOL_BUILDER, AGENTS.md, and AI_GUIDE now teach
+  `sys_workspace_mode` transitions (not the superseded config edit that the
+  structure audit flags as drift), recurring deliverables
+  (`synthesis/deliverables/<event>/`), the daemon compliance watchdog, and
+  external-data copy/symlink intake. AGENTS.md lists all six modes.
+- **Accurate self-description.** Dropped the stale "skeleton / Phase N / does
+  NOT serve anything yet / OPEN decision" framing from the daemon docstrings and
+  the CLI `daemon` help (which had told users `daemon start` "is not serving
+  yet" — it fully serves).
+
+---
+
 ## [4.0.0] — the resilient, autonomous, self-organizing daemon (2026-06-25)
 
 A MAJOR release. The daemon graduates from an execution helper into a

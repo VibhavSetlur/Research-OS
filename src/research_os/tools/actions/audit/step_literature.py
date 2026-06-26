@@ -295,6 +295,7 @@ def audit_step_literature(
     dict with keys: status, blockers, warnings, steps_audited, per_step,
     summary (verdict roll-up).
     """
+    root = Path(root)  # tolerate a str root from the handler/dispatcher
     if step_id:
         step_dir = root / "workspace" / step_id
         if not step_dir.exists():

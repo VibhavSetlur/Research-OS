@@ -2675,22 +2675,26 @@ def build_parser() -> argparse.ArgumentParser:
                         help="MCP transport (default: stdio).")
 
     # ── daemon ──────────────────────────────────────────────────────────
-    # v4 multi-protocol gateway daemon. Phase 0: skeleton + status only.
-    # See docs/ROADMAP.md for the full architecture + phase plan.
+    # The multi-protocol gateway daemon: persistent localhost service that runs
+    # jobs, journals/recovers runs, enforces gates, and notifies.
     p_daemon = sub.add_parser(
         "daemon",
-        help="Run / inspect the v4 multi-protocol gateway daemon (preview).",
+        help="Run / inspect the multi-protocol gateway daemon.",
         description=(
             "The Research OS daemon is a persistent, headless, localhost\n"
-            "service that owns the master execution state machine and (in\n"
-            "later phases) exposes an OpenAI-compatible gateway, a read-only\n"
-            "MCP telemetry sidecar, a sandbox, and a web dashboard.\n\n"
-            "PREVIEW: Phase 0 ships the skeleton. 'daemon status' works now;\n"
-            "'daemon start' is not serving yet. Track docs/ROADMAP.md.\n\n"
+            "service that owns the master execution state machine: it runs\n"
+            "long jobs, journals every run and recovers them across restarts,\n"
+            "enforces hard gates, and notifies the researcher. It also serves\n"
+            "an OpenAI-compatible gateway and a sandbox tier (both opt-in for\n"
+            "security). A read-only web dashboard is the one piece still to\n"
+            "come.\n\n"
+            "OPTIONAL: with no daemon running, Research OS works exactly as\n"
+            "the stdio MCP server — the daemon only adds durable execution,\n"
+            "recovery, enforcement, and notifications.\n\n"
             "Examples:\n"
             "  research-os daemon status            # show daemon + project state\n"
             "  research-os daemon status --json     # machine-readable\n"
-            "  research-os daemon start             # (preview) not serving yet"
+            "  research-os daemon start             # run the localhost service"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

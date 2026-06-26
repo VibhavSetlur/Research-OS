@@ -13,9 +13,10 @@ so it can stream progress as `job.log` events on the bus. It returns a
 JSON-serializable result (exit code, captured output, artifacts) — a
 *handle*, never a blob.
 
-stdlib only (subprocess, shlex, threading). Native execution first; the
-sandbox (Phase 4) and scheduler adapters (SLURM/snakemake/nextflow) slot
-in later as additional runners behind this same interface.
+stdlib only (subprocess, shlex, threading). Native execution with sandbox
+tiers + rlimits applied in the preexec; the scheduler adapters
+(SLURM/snakemake/nextflow) run behind this same interface as additional
+runners.
 """
 from __future__ import annotations
 

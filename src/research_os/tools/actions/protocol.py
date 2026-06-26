@@ -128,7 +128,13 @@ def log_protocol_execution(
                     "checklist": v.get("checklist", []),
                 }
         except Exception:  # noqa: BLE001 - never block on a gate bug (fail-open)
-            pass
+            # Fail-open is deliberate (a gate bug must not block real work), but
+            # log it: a silently fail-open completeness gate means a real missing
+            # output slips through invisibly.
+            logger.warning(
+                "completeness gate evaluation failed (fail-open) for %s",
+                protocol_name, exc_info=True,
+            )
     elif status == "completed" and override_completeness_gate:
         overridden = True
 

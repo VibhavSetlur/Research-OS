@@ -1,10 +1,10 @@
-"""Research OS daemon — the multi-protocol gateway (skeleton).
+"""Research OS daemon — the multi-protocol gateway.
 
-This package is the v4 architecture's home: a persistent, headless,
-localhost daemon that owns the master execution state machine and exposes
-Research OS to any client (IDE, web UI, CLI, MCP sidecar) at once.
+A persistent, headless, localhost daemon that owns the master execution state
+machine and exposes Research OS to any client (IDE, web UI, CLI, MCP sidecar)
+at once.
 
-DESIGN STANCE (read docs/ROADMAP.md before extending this):
+DESIGN STANCE (read docs/ARCHITECTURE.md before extending this):
 
 * Strangler-fig. The daemon WRAPS the existing engine functions
   (``router.route_request``, ``ResearchLedger``, ``dispatch._handle_tool_call``)
@@ -16,12 +16,13 @@ DESIGN STANCE (read docs/ROADMAP.md before extending this):
   that need it, so ``import research_os.daemon`` stays cheap and never
   fails on a core-only install.
 
-Phase 0: the skeleton — config, a ``Daemon`` holder, and a status report.
-Phase 1 (current): the persistent core loop — a multi-root state registry,
-a background task queue ("master loop owns execution"), and read-only HTTP
-endpoints (``/healthz``, ``/v1/state``, ``/v1/jobs``). Later phases add the
-OpenAI-compatible gateway, the MCP telemetry sidecar, the sandbox, and the
-dashboard.
+What it provides: a multi-root state registry, a background task queue, a
+universal subprocess + scheduler (SLURM) runner, a durable run journal with
+crash recovery, provenance / lineage / staleness / reproduce, resumable runs,
+sandbox tiers + resource budgets, a notification spine, consent / hard gates,
+an event bus, orientation, and HTTP endpoints (read-only + auth-gated mutating,
+including an opt-in OpenAI-compatible gateway). A read-only web dashboard is the
+one surface still to come.
 """
 from __future__ import annotations
 
