@@ -326,4 +326,101 @@ def list_skills(root: Path) -> dict[str, Any]:
     }
 
 
-__all__ = ["distill_skills", "promote_skills", "list_skills"]
+# Curated domain → skill-tag recommendations so a FRESH project with no history
+# still gets sensible "load these capabilities" suggestions on the first turn.
+# Tags are advisory labels the AI/Hermes can match against available skills.
+_DOMAIN_SKILL_TAGS: dict[str, list[str]] = {
+    "clinical": ["survival-analysis", "rct-design", "regression", "paper-writing"],
+    "genomics": ["bioinformatics", "sequence-analysis", "stats", "viz"],
+    "finance": ["time-series", "econometrics", "risk-modeling", "viz"],
+    "nlp": ["text-processing", "embeddings", "eval-harness", "viz"],
+    "ml": ["model-eval", "experiment-tracking", "reproducibility", "viz"],
+    "psychology": ["experimental-design", "mixed-models", "power-analysis"],
+    "ecology": ["spatial-stats", "mixed-models", "viz"],
+    "physics": ["simulation", "numerical-methods", "viz"],
+    "economics": ["causal-inference", "panel-data", "econometrics"],
+    "social_science": ["survey-analysis", "causal-inference", "mixed-models"],
+}
+# Mode → capability tags every project in that mode benefits from.
+_MODE_SKILL_TAGS: dict[str, list[str]] = {
+    "analysis": ["stats", "viz", "paper-writing"],
+    "tool_build": ["software-testing", "api-design", "benchmarking"],
+    "exploration": ["data-profiling", "rapid-prototyping"],
+    "notebook": ["jupyter", "viz"],
+    "multi_study": ["meta-analysis", "evidence-synthesis"],
+    "hybrid": ["software-testing", "stats", "viz"],
+}
+
+
+def recommend_skills(
+    root: Path, domain: str | None = None, workspace_mode: str | None = None,
+) -> dict[str, Any]:
+    """Forward-looking, intake-driven skill recommendations for THIS project.
+
+    Unlike ``distill_skills`` (backward-looking — crystallizing past lessons),
+    this answers "given what this project IS (domain + mode + question), which
+    capabilities should the AI / Hermes load NOW?" Surfaced on the first setup
+    turn so the agent starts with the right skills instead of discovering them
+    late. Sources, in priority order: the researcher's own cross-project
+    ``learned_skills`` relevant to this domain/tag, project-local distilled
+    skills already present, and a curated domain/mode → tag map for fresh
+    projects with no history. By-shape + fail-open.
+    """
+    from research_os.tools.actions.state.config import load_profile
+
+    recs: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def _add(name: str, reason: str, source: str) -> None:
+        key = name.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        recs.append({"name": name, "reason": reason, "source": source})
+
+    dom = (domain or "").strip().lower()
+    mode = (workspace_mode or "analysis").strip().lower()
+
+    # 1. The researcher's OWN distilled skills whose tag matches this domain/mode.
+    try:
+        learned = load_profile().get("learned_skills")
+        if isinstance(learned, dict):
+            for slug, meta in learned.items():
+                if not isinstance(meta, dict):
+                    continue
+                tag = str(meta.get("tag") or "").lower()
+                if dom and (dom in tag or tag in dom):
+                    _add(slug, f"your distilled skill for {tag or dom}",
+                         "learned_profile")
+    except Exception:
+        pass
+
+    # 2. Project-local distilled skills already present.
+    try:
+        sdir = root / "workspace" / ".skills"
+        if sdir.exists():
+            for f in sorted(sdir.glob("*.SKILL.md")):
+                _add(f.stem.replace(".SKILL", ""),
+                     "already distilled in this project", "project_local")
+    except Exception:
+        pass
+
+    # 3. Curated domain + mode tags (the fresh-project fallback).
+    for tag in _DOMAIN_SKILL_TAGS.get(dom, []):
+        _add(tag, f"common for {dom} research", "domain_map")
+    for tag in _MODE_SKILL_TAGS.get(mode, []):
+        _add(tag, f"useful in {mode} mode", "mode_map")
+
+    return {
+        "status": "success",
+        "domain": dom or None,
+        "workspace_mode": mode,
+        "recommended_skills": recs[:8],
+        "note": (
+            "Load these capabilities (Hermes skills or your own) before starting "
+            "— they match this project's domain + mode. Not prescriptive."
+        ),
+    }
+
+
+__all__ = ["distill_skills", "promote_skills", "list_skills", "recommend_skills"]
