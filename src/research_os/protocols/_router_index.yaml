@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 46
+version: 47
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1372,8 +1372,8 @@ protocols:
     decomposition:
       - protocol: program/study_register
         purpose: "Bind the study to the codebook + prereg, declare its roll-up contribution, scaffold it harmonized."
-      - tool: sys_path
-        purpose: "Scaffold the new sub-study directory under studies/."
+      - tool: sys_file_write
+        purpose: "Materialise the new sub-study directory + README under studies/<slug>/ (NOT sys_path — a study is not a numbered analysis step)."
       - tool: mem_log
         purpose: "Record the study registration (bound to commons vX)."
 
