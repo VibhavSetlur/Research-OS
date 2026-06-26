@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 45
+version: 46
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -560,6 +560,14 @@ protocols:
       - "autonomously build"
       - "work the roadmap"
       - "follow the roadmap"
+      - "keep going until it's done"
+      - "keep going until done"
+      - "run the whole plan yourself"
+      - "run the whole plan"
+      - "just build it toward the goal"
+      - "build it toward the goal"
+      - "keep building until it's finished"
+      - "take it from here to the goal"
     token_estimate: 1700
     decomposition:
       - tool: sys_boot
@@ -588,6 +596,14 @@ protocols:
       - "merge the branch"
       - "parallel paths"
       - "explore in parallel"
+      - "try two approaches"
+      - "try both approaches"
+      - "compare these two models"
+      - "compare two models"
+      - "compare the two approaches"
+      - "explore these in parallel"
+      - "fork this analysis"
+      - "branch this analysis"
     token_estimate: 1500
     decomposition:
       - tool: tool_branch_recommendation
@@ -999,6 +1015,13 @@ protocols:
       - "build something that"
       - "describe the tool i want"
       - "build it then improve it"
+      - "build me a cli"
+      - "build me a cli that"
+      - "i want a script that"
+      - "i want a script to"
+      - "make me a script that"
+      - "write me a tool that"
+      - "i need a command-line tool"
     token_estimate: 2000
     decomposition:
       - protocol: build/tool_from_description
@@ -3119,6 +3142,27 @@ protocols:
 # ─────────────────────────────────────────────────────────────────────
 
 shortcut_intents:
+  judge_quality:
+    # "is this good enough / score this / rate the work" → the structured
+    # scorecard tool (verdict ship/iterate/redo). Added in v4 stress-hardening:
+    # the judge was reachable only inside roadmap_execution, never by NL.
+    triggers:
+      - "score this work"
+      - "score the work"
+      - "rate this work"
+      - "rate the work"
+      - "is this good enough"
+      - "is this good enough to ship"
+      - "good enough to ship"
+      - "is this ready to ship"
+      - "how good is this"
+      - "judge this work"
+      - "judge the work"
+      - "assess the quality"
+      - "what are the limitations"
+      - "ship iterate or redo"
+    tool: tool_judge_score
+
   progress_check:
     # Bare "status" removed — it hijacked phrases like "track my conjecture
     # status". Bounded phrases only (same de-greedy fix as map/coding in v3.0.0).
