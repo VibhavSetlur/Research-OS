@@ -1253,7 +1253,16 @@ def synthesis_scaffold(
         import re as _re
         from datetime import datetime, timezone
 
-        lslug = _re.sub(r"[^a-z0-9]+", "-", label.strip().lower()).strip("-") or "deliverable"
+        lslug = _re.sub(r"[^a-z0-9]+", "-", label.strip().lower()).strip("-")
+        if not lslug:
+            # The label was all non-ASCII / punctuation / emoji (e.g. "研究",
+            # "🎉", "!!!"). A bare "deliverable" slug would silently COLLIDE every
+            # such distinct event into one folder (and inherit the first one's
+            # README). Derive a stable, distinct slug from a hash of the original
+            # label so different events stay separate + lossless.
+            import hashlib as _hashlib
+            digest = _hashlib.sha1(label.strip().encode("utf-8")).hexdigest()[:8]
+            lslug = f"deliverable-{digest}"
         ext = rel_path.rsplit(".", 1)[-1]
         rel_path = f"synthesis/deliverables/{lslug}/{kind}.{ext}"
         deliverable_dir = root / "synthesis" / "deliverables" / lslug

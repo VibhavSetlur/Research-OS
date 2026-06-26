@@ -49,27 +49,44 @@ logger = logging.getLogger("research-os.server.autopilot_gate")
 
 
 def _read_autonomy_level(root: Path) -> str:
-    """Return the normalized autonomy level for this project, or 'supervised'.
+    """Return the normalized autonomy level for this project.
 
-    Safe by default: any read error → 'supervised' so the gate does NOT
-    fire (avoids breaking calls in projects without a config file).
+    Fail-SAFE, not fail-open:
+      * No config file at all  → 'supervised' (a project without a config has
+        opted into nothing; the gate stays out of the way).
+      * Config file EXISTS but is unreadable/corrupt → 'adaptive' (the protective
+        default). Returning 'supervised' here was a fail-OPEN bug: a corrupt
+        researcher_config.yaml silently stripped every floor gate
+        (package_install / rollback / paid / abandon). 'adaptive' pairs with
+        _resolved_strictness, which already fails to 'strict' on error, so a
+        corrupt config now means all gates fire, not none.
     """
-    try:
-        from research_os.tools.actions.state.config import (
-            _config_path,
-            normalize_autonomy_level,
-        )
-        import yaml as _yaml
+    from research_os.tools.actions.state.config import (
+        _config_path,
+        normalize_autonomy_level,
+    )
+    import yaml as _yaml
 
+    try:
         cfg_path = _config_path(Path(root))
-        if not cfg_path.exists():
-            return "supervised"
+    except Exception:
+        return "supervised"
+    if not cfg_path.exists():
+        return "supervised"
+    try:
         cfg = _yaml.safe_load(cfg_path.read_text()) or {}
         raw = (cfg.get("interaction") or {}).get("autonomy_level")
         # No explicit level set → the v3.3 default is adaptive.
         return normalize_autonomy_level(raw, default="adaptive")
     except Exception:
-        return "supervised"
+        # The file is present but broken — do NOT drop to 'supervised' (that
+        # disables the floor gates). Fail to the protective default.
+        logger.warning(
+            "researcher_config.yaml present but unreadable at %s — "
+            "failing autonomy_level to 'adaptive' so floor gates still apply",
+            root,
+        )
+        return "adaptive"
 
 
 def _resolved_strictness(root: Path) -> str:

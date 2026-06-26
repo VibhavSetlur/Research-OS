@@ -165,13 +165,18 @@ def _match_predicate(
             # Unknown dict clause → fail closed for this clause.
             return False
         if isinstance(expected, list):
-            allowed = {str(v) for v in expected}
-            if str(args.get(k) if args.get(k) is not None else "") not in allowed:
+            # Case-insensitive membership: the legacy gate path lowercased before
+            # comparing, so source="PAID" must fire the paid-tool gate exactly
+            # like "paid" (a case-variant must NOT bypass a money/safety gate).
+            allowed = {str(v).strip().lower() for v in expected}
+            actual = str(args.get(k) if args.get(k) is not None else "").strip().lower()
+            if actual not in allowed:
                 return False
             continue
-        # Scalar equality (string-normalised, matching the legacy checks
-        # which compared str(args.get(...)) == "...").
-        if str(args.get(k) if args.get(k) is not None else "") != str(expected):
+        # Scalar equality — case-insensitive, matching the legacy checks which
+        # lowercased before comparing.
+        actual = str(args.get(k) if args.get(k) is not None else "").strip().lower()
+        if actual != str(expected).strip().lower():
             return False
     return True
 
