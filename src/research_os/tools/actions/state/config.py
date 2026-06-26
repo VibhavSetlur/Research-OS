@@ -306,13 +306,17 @@ runtime:
   long_running_threshold_seconds: 60
   compute_environment: ""        # e.g. "conda env: myproj" / "module load cuda/12" / "docker: myimg"
   package_manager: ""            # pip | conda | uv | poetry  (blank → AI infers)
-  # Resource budget — a ceiling the OPTIONAL daemon enforces on every run it
-  # launches (turns the autopilot "stay within budget" guidance into a real
-  # rlimit). Only used when a daemon is running; the stdio MCP path ignores
-  # it. Blank/0/null on a field = uncapped (the sandbox default applies).
-  # Especially useful on shared HPC where a runaway job hurts everyone.
+  # Resource budget — a per-run ceiling enforced BOTH by the optional daemon
+  # AND by the agent's direct code-execution tools (scripts / notebooks /
+  # pipelines), turning the "stay within budget" guidance into a real rlimit.
+  # Leave fields BLANK (recommended): the system then sizes each run to LIVE
+  # free headroom (and never leaves a run unbounded on a shared server). Set an
+  # explicit number ONLY to cap below that. Don't hardcode a guess — blank is
+  # smarter than a stale number. The AI must ASK before launching a run it
+  # estimates will exceed the budget or strain a shared box.
+  # Especially important on shared HPC where a runaway job hurts everyone.
   resource_budget:
-    memory_mb:                   # RLIMIT_AS ceiling per run (e.g. 16384)
+    memory_mb:                   # RLIMIT_AS ceiling per run; blank → live headroom
     cpu_seconds:                 # RLIMIT_CPU ceiling per run (e.g. 7200)
     wall_seconds:                # wallclock kill per run (e.g. 7200)
     file_size_mb:                # RLIMIT_FSIZE ceiling (e.g. 51200)
