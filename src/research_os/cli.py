@@ -50,7 +50,7 @@ VALID_IDES = (
 
 # Shell-completion choice list for the `init --ide` flag.
 # Includes the two sentinels ("all", "none") so argcomplete can suggest them.
-IDE_CHOICES_FOR_COMPLETION = (*VALID_IDES, "all", "none")
+IDE_CHOICES_FOR_COMPLETION = (*VALID_IDES, "auto", "all", "none")
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +85,57 @@ def _warn_glyph() -> str:
     return _glyph("⚠", "[!]")
 
 
+def _detect_ide() -> list[str]:
+    """Best-effort detect the SINGLE AI IDE the user is running, from the
+    environment. Returns [ide] when confident, else [] (caller then asks /
+    skips rather than wiring all of them).
+
+    We never guess more than one — wiring every IDE (the old default) litters
+    a project with config for tools the user doesn't have. Detection signals,
+    in priority order: explicit env hint, the host editor's env vars, and
+    well-known binaries on PATH.
+    """
+    import os
+    import shutil
+
+    env = os.environ
+    # 1. Explicit override (CI / scripted / agent can set this).
+    forced = (env.get("RESEARCH_OS_IDE") or "").strip().lower()
+    if forced in VALID_IDES:
+        return [forced]
+
+    # 2. Host-editor environment fingerprints (set by the editor itself).
+    term_prog = (env.get("TERM_PROGRAM") or "").lower()
+    if "cursor" in term_prog or env.get("CURSOR_TRACE_ID"):
+        return ["cursor"]
+    if "windsurf" in term_prog or env.get("WINDSURF_ENV"):
+        return ["windsurf"]
+    if env.get("CLAUDECODE") or env.get("CLAUDE_CODE_ENTRYPOINT"):
+        return ["claude"]
+    if "vscode" in term_prog or env.get("VSCODE_PID") or env.get("VSCODE_GIT_IPC_HANDLE"):
+        return ["vscode"]
+
+    # 3. A single well-known binary on PATH (only decisive when exactly one).
+    bins = {
+        "cursor": "cursor",
+        "windsurf": "windsurf",
+        "claude": "claude",
+        "aider": "aider",
+        "opencode": "opencode",
+    }
+    found = [ide for ide, b in bins.items() if shutil.which(b)]
+    if len(found) == 1:
+        return found
+    return []
+
+
 def _ide_choice(args_ide: str | None) -> list[str]:
-    if not args_ide or args_ide == "all":
+    # 'auto' (the new default) → detect the user's single IDE; if detection is
+    # inconclusive, return [] so we DON'T wire all 8 (the old footgun). The
+    # caller surfaces a hint telling the user to re-run with --ide <name>.
+    if args_ide is None or args_ide.strip().lower() == "auto":
+        return _detect_ide()
+    if args_ide == "all":
         return list(VALID_IDES)
     if args_ide.strip().lower() == "none":
         # Explicit opt-out: skip all IDE wiring. Caller passes the empty
@@ -262,6 +311,18 @@ def cmd_init(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     ide_flags = _ide_choice(args.ide)
+    # When the default 'auto' couldn't identify a single IDE, DON'T wire all of
+    # them (the old footgun). Tell the user exactly how to pick theirs + that a
+    # restart is required — MCP config only loads on a fresh IDE/agent session.
+    if (args.ide is None or str(args.ide).strip().lower() == "auto") and not ide_flags:
+        print(
+            f"  {_warn_glyph()} Couldn't auto-detect your AI IDE, so no IDE config was "
+            "written (Research OS itself is fully set up).\n"
+            "    Wire your IDE with ONE of:\n"
+            "      research-os ide add <claude|cursor|vscode|windsurf|...>\n"
+            "    then RESTART that IDE / agent session in this project so it "
+            "loads the MCP server."
+        )
     raw_data_sources = (_detect_existing_data(target_dir)
                         if (target_dir.exists() and not args.force) else [])
 
@@ -2481,10 +2542,12 @@ def build_parser() -> argparse.ArgumentParser:
                              "research-os is available in every project. "
                              "Either way, RESTART your IDE afterwards.")
     _ide_arg = p_init.add_argument(
-        "--ide", default="all",
-        help="IDE(s) to wire up: 'all' or a comma-separated list. "
+        "--ide", default="auto",
+        help="IDE(s) to wire up. Default 'auto' detects your single IDE "
+             "from the environment (wires nothing extra if unsure). "
+             "Or pass 'all', 'none', or a comma-separated list. "
              "Valid names: " + ", ".join(VALID_IDES)
-             + " (plus 'all' and 'none').",
+             + " (plus 'auto', 'all', 'none').",
     )
     # Attach argcomplete completer hook (no-op when argcomplete absent).
     _ide_arg.completer = lambda **kw: list(IDE_CHOICES_FOR_COMPLETION)
