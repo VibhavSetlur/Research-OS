@@ -67,6 +67,10 @@ class DaemonConfig:
     # TTL (seconds) for the registry's per-root state cache. Avoids
     # hammering the filesystem under rapid polling (e.g. a dashboard).
     state_cache_ttl: float = 1.0
+    # How often (seconds) the daemon re-runs its self-check (health_notes) so
+    # the AI-facing daemon_notes stay fresh DURING a long session instead of
+    # only at startup. 0 disables the periodic tick (startup-only). Default 5m.
+    self_check_interval: float = 300.0
     # Researcher-notification delivery command (notification spine, intent
     # #4). A shell command the daemon runs once per notification, with the
     # notification JSON on stdin. Empty → persist-only (outbox still

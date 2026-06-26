@@ -13,6 +13,7 @@ protocol logic is re-implemented (strangler-fig; see docs/ARCHITECTURE.md).
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -787,10 +788,32 @@ class Daemon:
         # treating the daemon as running, and reports a stale descriptor
         # otherwise. A leftover file is therefore harmless.
         self._write_discovery()
+        # Periodic self-check tick (B1): keep daemon_notes fresh DURING the
+        # session, not just at startup, so a condition the daemon detects an
+        # hour into a long run actually reaches the AI on its next turn (the
+        # reasoning side reads the refreshed sidecar by-shape). Background daemon
+        # thread; stopped in the finally block. interval<=0 disables it.
+        self._stop_self_check = threading.Event()
+        self._self_check_thread: threading.Thread | None = None
+        interval = getattr(self.config, "self_check_interval", 0) or 0
+        if self.root is not None and interval > 0:
+            def _self_check_loop() -> None:
+                from . import health_notes as _h
+                while not self._stop_self_check.wait(interval):
+                    try:
+                        _h.write_notes(self.root)
+                    except Exception:  # noqa: BLE001 - never kill the daemon
+                        logger.debug("periodic self-check failed", exc_info=True)
+            self._self_check_thread = threading.Thread(
+                target=_self_check_loop, name="ro-self-check", daemon=True,
+            )
+            self._self_check_thread.start()
         try:
             _server.serve(self)
         finally:
             self._serving = False
+            if getattr(self, "_stop_self_check", None) is not None:
+                self._stop_self_check.set()
             self._clear_discovery()
             self.tasks.shutdown(wait=False)
 
