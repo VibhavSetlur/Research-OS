@@ -91,7 +91,38 @@ messy projects).
 
 ### Notes
 - `tool_sql_exec` is documented as a future enhancement
-  (`docs/V4_TOOL_REQUESTS.md`); SQL runs via the Python/R path today.
+  (`docs/TOOL_BACKLOG.md`); SQL runs via the Python/R path today.
+
+### Hardened — consistency pass (stress-test + reviewer-driven)
+A deep multi-persona stress test and a reviewer consistency pass closed the
+gaps that separate "builds" from "robust":
+- **Shared-server safety hole closed**: the agent's direct code-execution tools
+  (R/Julia/bash scripts, notebooks, sensitivity sweeps, step pipelines) now
+  apply the resource budget as real rlimits (sized to live free headroom),
+  matching the daemon path — a runaway script can no longer OOM other users.
+- **Completion is enforced**: logging a protocol `completed` verifies its
+  declared outputs exist (override-able with a logged rationale).
+- **First-class mode transitions** (`sys_workspace_mode`): exploration→analysis,
+  analysis→hybrid/multi_study, etc. are now additive, recorded operations that
+  create the target surface and sync config+state — no more silent half-change.
+  `structure_audit` + the daemon catch mode drift.
+- **Autonomous loop**: continuation start/stop/status endpoints; the audit-judge
+  is wired into roadmap execution; `deep_planning` hands off to the verified
+  loop and offers Hermes orchestration.
+- **Daemon as watchdog**: crash recovery is per-record fault-isolated; the daemon
+  self-check flags repeated protocol failure / abandonment so a stuck AI
+  self-corrects or the researcher is paged.
+- **External-data intake**: `project_startup` reasons copy-vs-symlink and brings
+  data into `inputs/raw_data/` with provenance.
+- **Recurring deliverables**: posters/decks/updates for meetings route to
+  documented `synthesis/deliverables/<event>/` folders instead of overwriting.
+- **Findings ledger reliability**: silent audit-ledger write failures are now
+  logged; a drift guard keeps protocol gate references in sync with the
+  dispatcher.
+- **Data-location + docs consistency**: purged legacy per-step `data/{input,
+  output}` names across 13 protocols (canonical `next_step_output`/
+  `past_step_input`); dropped internal planning framing from design docs;
+  fill-in-the-blank start prompts per mode; deep daemon-inclusive scenarios.
 
 ---
 
