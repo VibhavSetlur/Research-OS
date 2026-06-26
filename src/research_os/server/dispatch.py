@@ -91,9 +91,16 @@ def _maybe_attach_drift_hint(tool, arguments, root, result):
     """
     try:
         from research_os.server.drift_detect import drift_hint
+        from research_os.server.quality_watch import quality_hints
 
-        hint = drift_hint(tool, arguments, Path(root))
-        if not hint:
+        hints = []
+        dh = drift_hint(tool, arguments, Path(root))
+        if dh:
+            hints.append(dh)
+        # Quality watchers (incomplete/unverified work INSIDE Research OS) —
+        # conclusions-without-audit, ungrounded synthesis, stuck loop.
+        hints.extend(quality_hints(tool, arguments, Path(root)))
+        if not hints:
             return result
         if not result or not getattr(result[0], "text", None):
             return result
@@ -103,10 +110,14 @@ def _maybe_attach_drift_hint(tool, arguments, root, result):
         findings = env.get("audit_findings")
         if not isinstance(findings, list):
             findings = []
-        findings.append(hint)
+        findings.extend(hints)
         env["audit_findings"] = findings
         if not env.get("next_recommended_call"):
-            env["next_recommended_call"] = hint.get("next_recommended_call")
+            # Promote the first hint that carries a next call.
+            for h in hints:
+                if h.get("next_recommended_call"):
+                    env["next_recommended_call"] = h["next_recommended_call"]
+                    break
         result[0].text = json.dumps(env)
         return result
     except Exception:
