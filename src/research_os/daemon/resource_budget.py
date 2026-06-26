@@ -218,6 +218,13 @@ def resolve_sandbox_tier(
     """
     mode = (sandbox_mode or "auto").strip().lower()
     if mode == "off":
+        # Operator opted out of sandboxing. But on a SHARED server the project's
+        # own safety signal wins: never leave a run fully unbounded on a node
+        # other researchers share — degrade 'off' to the enforceable resource
+        # floor. On a private box, honour the opt-out (None = unbounded).
+        rt = load_runtime(root)
+        if rt.get("shared_server"):
+            return "resource"
         return None
     if mode == "native":
         return "resource"

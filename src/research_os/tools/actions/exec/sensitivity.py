@@ -186,9 +186,9 @@ def _run_one(
 
     t0 = time.time()
     try:
-        proc = subprocess.run(
-            cmd, cwd=str(step_dir), env=env,
-            capture_output=True, text=True, errors="replace", timeout=1800,
+        from research_os.tools.actions.exec._sandbox import run_bounded
+        proc = run_bounded(
+            cmd, root=root, cwd=str(step_dir), env=env, timeout=1800,
         )
     except subprocess.TimeoutExpired:
         return {"spec_hash": spec_hash, "spec": spec, "ok": False,
