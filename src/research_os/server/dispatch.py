@@ -81,6 +81,38 @@ def _log_deprecation(root: Path, source: str, target: str) -> None:
         logger.debug("deprecation-log append failed: %s", exc)
 
 
+def _maybe_attach_drift_hint(tool, arguments, root, result):
+    """Append a non-blocking off-protocol COURSE-CORRECT hint to the envelope.
+
+    Reads `.os_state` by shape (no daemon dependency) so it works with or
+    without a daemon. Fail-open: any error returns the result unchanged. Only
+    APPENDS to audit_findings + fills next_recommended_call if empty — never
+    touches status, so a successful write stays successful.
+    """
+    try:
+        from research_os.server.drift_detect import drift_hint
+
+        hint = drift_hint(tool, arguments, Path(root))
+        if not hint:
+            return result
+        if not result or not getattr(result[0], "text", None):
+            return result
+        env = json.loads(result[0].text)
+        if not isinstance(env, dict):
+            return result
+        findings = env.get("audit_findings")
+        if not isinstance(findings, list):
+            findings = []
+        findings.append(hint)
+        env["audit_findings"] = findings
+        if not env.get("next_recommended_call"):
+            env["next_recommended_call"] = hint.get("next_recommended_call")
+        result[0].text = json.dumps(env)
+        return result
+    except Exception:
+        return result
+
+
 def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
     if not _rate_limiter.is_allowed():
         return _text(_error("Rate limit exceeded: slow down."))
@@ -140,7 +172,13 @@ def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextConten
             )
         )
     try:
-        return _normalize_envelope(handler(resolved, arguments, root), resolved)
+        result = _normalize_envelope(handler(resolved, arguments, root), resolved)
+        # Mid-prompt drift backstop (4.0.4): if the AI just wrote step content
+        # without routing/opening a step, append a non-blocking COURSE-CORRECT
+        # hint to the SAME envelope it's reading, so it self-corrects this turn.
+        # Fail-open + non-blocking — never alters success/failure, only appends.
+        result = _maybe_attach_drift_hint(resolved, arguments, root, result)
+        return result
     except RoError as ro:
         # Structured error from the handler: render its WHAT/WHY/NEXT
         # directly into the envelope.
