@@ -1,9 +1,5 @@
 # Staleness gate — don't let the AI ship a result built on changed data
 
-Status: design / implementing
-Branch: feat/v4-daemon-core
-Date: 2026-06-23
-
 ## The pain (concrete, named)
 
 A computational researcher's worst silent failure: a figure or table in
@@ -85,7 +81,7 @@ deliberate:
   on every project that never computed a verdict would brick the default
   flow and violate the backward-compat constraint. Absence of a verdict =
   "no staleness claim available" = don't block. This matches the
-  daemon-present/absent degrade everywhere else in v4.
+  daemon-present/absent degrade everywhere else across the system.
 * If the verdict sidecar EXISTS and says `status: stale` → the gate FIRES.
   A daemon has affirmatively determined results are stale; shipping anyway
   is the failure we're preventing.

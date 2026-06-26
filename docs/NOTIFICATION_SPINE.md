@@ -1,9 +1,5 @@
 # Notification spine — the daemon tells the researcher when work finishes
 
-Status: design / implementing
-Branch: feat/v4-daemon-core
-Date: 2026-06-23
-
 ## The pain (concrete, named)
 
 Daemon intent #4: "notify the researcher on completion (incl. via

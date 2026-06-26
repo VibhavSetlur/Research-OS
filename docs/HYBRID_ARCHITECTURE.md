@@ -1,9 +1,5 @@
 # Hybrid architecture — protocols declare, the daemon enforces
 
-Status: design / implementing
-Branch: feat/v4-daemon-core
-Date: 2026-06-23
-
 ## The problem, stated precisely
 
 Research-OS today has two layers that are good in isolation but talk past

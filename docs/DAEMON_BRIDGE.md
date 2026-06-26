@@ -1,12 +1,8 @@
 # Daemon bridge — one canonical MCP↔daemon contract
 
-Status: design / implementing
-Branch: feat/v4-daemon-core
-Date: 2026-06-24
-
 ## The pain (consistency, not a missing feature)
 
-The v4 work gave the reasoning layer (MCP / `server/`, `tools/`) several
+Research OS gives the reasoning layer (MCP / `server/`, `tools/`) several
 ways to talk to the daemon WITHOUT importing it — all via on-disk
 contracts read "by shape": consent ledger, notification outbox, staleness
 verdict, the daemon discovery descriptor, the HTTP probe. Each was added
@@ -24,7 +20,7 @@ in its own feature commit, and each re-implemented the same two primitives:
   drifts from the daemon side.
 
 This is a real liability: the MCP↔daemon contract is the load-bearing seam
-of v4, but it exists as N near-identical copies. A bug fixed in one copy
+of the daemon layer, but it exists as N near-identical copies. A bug fixed in one copy
 isn't fixed in the others; a path changed on the daemon side has no single
 mirror to update. The system WORKS, but its togetherness is accidental.
 

@@ -45,7 +45,7 @@ The tools and protocols are *pure functions over project state*.
 They take `(name, args, root)` and return an envelope. They have no
 concept of transport, sessions, or concurrency. **They should never learn
 about HTTP or daemons.** Moving them into the daemon would couple
-reasoning to transport — the exact mistake v4 exists to undo.
+reasoning to transport — the exact mistake this architecture exists to undo.
 
 - Tools stay where they are. The daemon imports `_handle_tool_call`.
 - Protocols stay as YAML under `protocols/`. They are read by the router,

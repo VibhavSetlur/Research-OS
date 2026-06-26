@@ -1,9 +1,5 @@
 # Resource budget — turn "stay within budget" prose into enforced rlimits
 
-Status: design / implementing
-Branch: feat/v4-daemon-core
-Date: 2026-06-24
-
 ## The pain (concrete, named)
 
 Vibhav works on a shared HPC node. The autopilot protocol says, in prose,

@@ -1,9 +1,5 @@
 # Daemon as enforcement layer — un-skippable gates (researcher pain #1)
 
-Status: design / in progress
-Branch: feat/v4-daemon-core
-Date: 2026-06-23
-
 ## The pain (concrete, named)
 
 Research-OS protocols already define which actions are dangerous and must
