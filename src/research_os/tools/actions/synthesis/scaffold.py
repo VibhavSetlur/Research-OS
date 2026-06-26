@@ -92,6 +92,7 @@ _SLIDES_TYP = """// synthesis/slides.typ — Touying presentation. Author follow
 ]
 """
 
+
 _POSTER_CLASSIC = """// synthesis/poster.typ — conference poster (archetype: classic 3-column IMRaD,
 // the safe default). Author following synthesis/deliverable_design +
 // synthesis/printable. Compile with tool_typst_compile. Re-scaffold with
@@ -832,6 +833,94 @@ def _compose_step_report(palette: str | None = None) -> str:
 _STEP_REPORT_HTML = _compose_step_report()
 
 
+# ── Presentation STRUCTURE (not design, not content) ───────────────────────
+# Research OS provides the STRUCTURE of a talk — the arc, what each section is
+# FOR, and how it must change for the audience — and leaves design + final
+# wording to the researcher and whatever tool they present in. Two paths from
+# the same project, because they are genuinely different talks:
+#   • technical → peers / methods or dev review: the design, the methods, why
+#     it is correct. Depth, rigor, reproducibility.
+#   • public → general / cross-disciplinary / lay: the hook, the big theme,
+#     what it connects to, the one thing to remember. Meaning over method.
+# The AI fills each section tailored to THIS project + THIS audience; it does
+# not produce slides or a rendered file here.
+_PRESENTATION_TECHNICAL_MD = """# Presentation structure — TECHNICAL audience
+<!-- audience: technical (peers / methods review / developers). Research OS
+     gives you the STRUCTURE; you fill it tailored to this project + audience,
+     and design/present it in your own tool. Adjust section count to the talk's
+     duration — one idea per section. -->
+
+## Audience + duration
+<!-- AI: who is in the room (peers? a methods committee? a dev review?) and how
+     long. This sets depth + how much method detail earns time. -->
+
+## 1. Problem + why it's hard (technically)
+<!-- AI: the precise question and the technical obstacle. Assume domain literacy. -->
+
+## 2. Design / approach
+<!-- AI: the actual design — what was done and the rationale for each choice.
+     This is the part a technical audience came for. -->
+
+## 3. Methods that matter
+<!-- AI: the methods whose correctness the result depends on. Name them; state
+     why each is appropriate; cite the artifact/step it ran in. -->
+
+## 4. Results (claim per section)
+<!-- AI: one claim per section, each grounded in a real workspace artifact.
+     Show the evidence a skeptical peer would demand. -->
+
+## 5. Validity / limitations / reproducibility
+<!-- AI: threats to validity, what you checked, how someone reproduces it.
+     Technical audiences trust talks that volunteer their own weaknesses. -->
+
+## 6. Implication for the field
+<!-- AI: what changes for people doing this kind of work. -->
+
+## Anticipated questions (backup)
+<!-- AI: the questions THIS technical audience will actually ask, each with a
+     one-line answer outline + the artifact that backs it. -->
+
+## Speaker-note plan
+<!-- AI: per section, what to say vs what to skip if short on time. -->
+"""
+
+_PRESENTATION_PUBLIC_MD = """# Presentation structure — PUBLIC / general audience
+<!-- audience: public (general / cross-disciplinary / lay). Research OS gives
+     you the STRUCTURE; you fill it tailored to this project + audience, and
+     design/present it in your own tool. Lead with meaning; minimize jargon;
+     method internals belong in the technical version, not here. -->
+
+## Audience + setting
+<!-- AI: who they are and why they're here. This sets how much you can assume. -->
+
+## 1. The hook
+<!-- AI: a concrete, relatable way in — a question, a number, a short story.
+     No jargon. Why should a smart non-expert lean forward? -->
+
+## 2. Why it matters (the stakes)
+<!-- AI: the real-world problem this connects to, in one breath. The "so what". -->
+
+## 3. The big idea (one sentence)
+<!-- AI: the single theme you want them repeating afterward. -->
+
+## 4. What we found, in plain terms
+<!-- AI: the headline finding translated out of statistics into meaning. If a
+     visual helps, describe what it should SHOW (you'll design it elsewhere) —
+     captioned like a museum placard, not a figure legend. -->
+
+## 5. How it connects
+<!-- AI: the bigger picture — adjacent fields, everyday life, what changes
+     because of this. Themes over details. -->
+
+## 6. The one thing to remember
+<!-- AI: a single memorable takeaway. End on meaning, not methods. -->
+
+## Translation notes
+<!-- AI: list the jargon you removed and the plain-language stand-in for each,
+     so the meaning stayed faithful while the words got simpler. -->
+"""
+
+
 SCAFFOLDS: dict[str, tuple[str, str]] = {
     "paper": ("synthesis/paper.typ", _PAPER_TYP),
     "slides": ("synthesis/slides.typ", _SLIDES_TYP),
@@ -1147,6 +1236,7 @@ def synthesis_scaffold(
     palette: str | None = None,
     step: str | None = None,
     label: str | None = None,
+    audience: str | None = None,
 ) -> dict[str, Any]:
     """Write a tiny skeleton synthesis file.
 
@@ -1226,6 +1316,31 @@ def synthesis_scaffold(
             }
 
     rel_path, body = SCAFFOLDS[kind]
+    # Two-path presentation STRUCTURE (not design): when a talk is scaffolded
+    # with an explicit audience, emit an audience-tailored markdown OUTLINE the
+    # AI fills + the researcher designs/presents elsewhere — instead of a
+    # rendered .typ. `technical` = design + methods + rigor (peers / dev review);
+    # `public` = hook + big theme + the one takeaway (general / lay audience).
+    chosen_audience: str | None = None
+    if kind == "slides" and audience is not None:
+        aud = str(audience).strip().lower()
+        _AUDIENCE_STRUCTS = {
+            "technical": _PRESENTATION_TECHNICAL_MD,
+            "public": _PRESENTATION_PUBLIC_MD,
+        }
+        if aud not in _AUDIENCE_STRUCTS:
+            return {
+                "status": "error",
+                "message": (
+                    f"Unknown audience '{audience}'. Valid: technical, public. "
+                    "These produce a presentation STRUCTURE (outline + per-section "
+                    "intent), tailored to the audience, for you to design + present "
+                    "in your own tool."
+                ),
+            }
+        chosen_audience = aud
+        rel_path = f"synthesis/presentation_{aud}.md"
+        body = _AUDIENCE_STRUCTS[aud]
     # Compose the body for kinds that offer a layout-archetype design system.
     chosen_archetype: str | None = None
     if kind == "dashboard":
@@ -1298,6 +1413,27 @@ def synthesis_scaffold(
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(body, encoding="utf-8")
+    if chosen_audience is not None:
+        # Structure-only presentation outline: no rendering step — the AI fills
+        # it tailored to the audience and the researcher designs/presents it
+        # elsewhere. Research OS provides the structure, not the design.
+        result = {
+            "status": "success",
+            "path": str(target),
+            "kind": kind,
+            "audience": chosen_audience,
+            "byte_count": len(body),
+            "message": (
+                f"Wrote {rel_path} — a {chosen_audience} presentation STRUCTURE "
+                "(outline + per-section intent), not a designed deck. Fill each "
+                "section tailored to this project + audience; the researcher "
+                "designs + presents it in their own tool. For BOTH a peer talk "
+                "and a public talk, scaffold the other audience too "
+                "(audience='technical' and audience='public') — they are "
+                "genuinely different talks from the same findings."
+            ),
+        }
+        return result
     result = {
         "status": "success",
         "path": str(target),

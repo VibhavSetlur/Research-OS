@@ -1,7 +1,7 @@
 id: synthesis_slides
 tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck (AI-authored Touying)
-version: '3.0.0'
+version: '4.1.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -77,6 +77,24 @@ audience_guidance: |
     paper-by-paper recap.
   - teaching — learning objectives up front; a worked problem in the
     middle; a common-mistakes slide earns its place here.
+
+  TWO PATHS — the same findings make two genuinely different talks, and
+  Research-OS gives you the STRUCTURE for each (not the design, not the
+  final wording — you author + design + present those):
+  - TECHNICAL (peers / a methods or dev review) — lead with the design
+    and the methods, why the result is correct, validity + limitations +
+    reproducibility. Depth over reach. Scaffold with
+    tool_synthesis_scaffold(kind='slides', audience='technical') →
+    synthesis/presentation_technical.md.
+  - PUBLIC (general / cross-disciplinary / lay) — lead with the hook and
+    the big theme, what it connects to, the one thing to remember.
+    Meaning over method; minimal jargon. Scaffold with
+    tool_synthesis_scaffold(kind='slides', audience='public') →
+    synthesis/presentation_public.md.
+  When a researcher needs both a peer talk and a public talk, scaffold
+  BOTH structures and tailor each to its audience — don't reuse one deck
+  for both. Each outline records what every section is FOR; you fill it
+  for THIS project + THIS audience.
 
 quality_standards: |
   - slide_count — enough to carry the arc at one idea per slide for the
