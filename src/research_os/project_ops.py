@@ -608,6 +608,64 @@ def log_override(
     return log
 
 
+def enforce_override(
+    root: Path,
+    *,
+    requested: bool,
+    rationale: str | None,
+    tool: str,
+    gate: str,
+    blocked: bool,
+    extra: dict[str, Any] | None = None,
+    empty_msg: str | None = None,
+) -> dict | None:
+    """One-stop override enforcement for quality gates (the canonical sequence).
+
+    Replaces the require-rationale → reject-thin → log_override block that was
+    hand-rolled across many gate handlers (and had drifted: some sites skipped
+    the empty-rationale guard, and one never journaled the bypass at all).
+
+    Returns either:
+      * an ``_error`` envelope dict — caller must ``return _text(that)``
+        (rationale missing-when-required, or too thin); OR
+      * ``None`` — proceed. When ``requested and blocked`` is True the bypass has
+        already been journaled to override_log.md as a side effect.
+
+    The ``blocked`` trigger varies per auditor (``blockers`` vs
+    ``bypassed_blockers`` vs ``override_no_pdfs``), so the caller passes a
+    pre-computed bool rather than the helper inspecting the result shape. Typical
+    use::
+
+        err = enforce_override(root, requested=req, rationale=r, tool="tool_x",
+                               gate="g", blocked=bool(res.get("blockers")))
+        if err is not None:
+            return _text(err)
+        if req and res.get("blockers"):
+            res["override_applied"] = True; res["status"] = "success"
+    """
+    from research_os.server.envelopes import _error
+
+    if requested and not (rationale and str(rationale).strip()):
+        return _error(
+            what=f"{tool}: override requires override_rationale",
+            why=(
+                "an un-rationaled bypass would log rationale=None and slip past "
+                "the pre-submission audit"
+            ),
+            next_action=(
+                empty_msg
+                or 'pass override_rationale="..." (>=20 chars, multi-word, substantive)'
+            ),
+        )
+    if requested and rationale:
+        thin = validate_override_rationale(rationale)
+        if thin is not None:
+            return thin
+    if requested and blocked:
+        log_override(root, tool=tool, gate=gate, rationale=rationale, extra=extra)
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

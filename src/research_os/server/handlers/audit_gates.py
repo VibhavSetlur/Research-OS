@@ -152,6 +152,13 @@ def _handle_tool_step_complete(name, arguments, root):
             lit["override_rationale"] = rationale
             if lit.get("status") == "error":
                 lit["status"] = "warning"
+            # Journal the bypass so the pre-submission audit sees it (this was
+            # previously applied to the stage dict but never logged).
+            from research_os.project_ops import log_override
+            log_override(
+                root, tool="tool_step_complete", gate="step_literature",
+                rationale=rationale, extra={"step_id": step_id},
+            )
         merged["stages"]["literature"] = lit
         statuses.append(lit.get("status", "success"))
     except Exception as e:
@@ -190,6 +197,11 @@ def _handle_tool_step_complete(name, arguments, root):
                 g["overridden"] = True
                 g["override_rationale"] = rationale
                 g["status"] = "warning"
+                from research_os.project_ops import log_override
+                log_override(
+                    root, tool="tool_step_complete", gate="claim_grounding",
+                    rationale=rationale, extra={"step_id": step_id},
+                )
             merged["stages"]["grounding"] = g
             statuses.append(g.get("status", "success"))
         else:
