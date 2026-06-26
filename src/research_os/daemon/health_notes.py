@@ -113,6 +113,62 @@ def run_self_check(root: str | Path) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         pass
 
+    # 4. Agent-compliance watch (G): is the AI actually FOLLOWING protocols, or
+    #    repeatedly failing / abandoning them? Scan the protocol execution log for
+    #    a run of failures or steps started-but-never-completed. The daemon flags
+    #    this for the AI to self-correct, and (on repeated failure) for the
+    #    researcher — RO's promise is "protocols get followed, nothing is lost".
+    try:
+        log_path = root / ".os_state" / "protocol_execution_log.jsonl"
+        if log_path.exists():
+            entries: list[dict[str, Any]] = []
+            for line in log_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entries.append(json.loads(line))
+                except ValueError:
+                    continue
+            recent = entries[-30:]
+            failed = [e for e in recent if (e.get("status") or "").lower() == "failed"]
+            # started protocols with no matching completed entry afterwards
+            started = [e for e in recent if (e.get("status") or "").lower() == "started"]
+            completed_protocols = {
+                (e.get("protocol") or "") for e in recent
+                if (e.get("status") or "").lower() == "completed"
+            }
+            abandoned = [
+                e for e in started
+                if (e.get("protocol") or "") not in completed_protocols
+            ]
+            if len(failed) >= 3:
+                findings.append({
+                    "severity": "warn",
+                    "source": "agent_compliance",
+                    "message": (
+                        f"{len(failed)} protocol step(s) FAILED recently — the AI "
+                        "may be stuck or not following the protocol. Review the "
+                        "blockers and correct course; if this persists, the "
+                        "researcher should step in."
+                    ),
+                    "code": "repeated_protocol_failure",
+                })
+            if len(abandoned) >= 2:
+                findings.append({
+                    "severity": "warn",
+                    "source": "agent_compliance",
+                    "message": (
+                        f"{len(abandoned)} protocol(s) were started but never "
+                        "completed (no completion logged) — work may have been "
+                        "abandoned mid-protocol. Resume and finish, or log the "
+                        "outcome so nothing is lost."
+                    ),
+                    "code": "abandoned_protocols",
+                })
+    except Exception:  # noqa: BLE001 - compliance watch must not raise
+        pass
+
     counts = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f.get("severity", "info")] = counts.get(f.get("severity", "info"), 0) + 1

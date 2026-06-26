@@ -101,3 +101,25 @@ def test_seam_intact_health_notes_not_imported_by_server():
     assert "research_os.daemon.health_notes" not in [
         m for m in sys.modules if "daemon.health_notes" in m
     ] or True  # bridge reads JSON by path, never imports the daemon module
+
+
+def test_self_check_flags_repeated_protocol_failure_and_abandonment(tmp_path):
+    """G watchdog: the daemon notices the AI repeatedly failing / abandoning
+    protocols and surfaces it for self-correction + the researcher."""
+    import json
+    from research_os.project_ops import scaffold_minimal_workspace
+
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    log = tmp_path / ".os_state" / "protocol_execution_log.jsonl"
+    rows = [
+        {"protocol": "guidance/analysis_plan", "status": "failed"},
+        {"protocol": "guidance/analysis_plan", "status": "failed"},
+        {"protocol": "methodology/method_comparison", "status": "failed"},
+        {"protocol": "synthesis/synthesis_paper", "status": "started"},
+        {"protocol": "audit/audit_and_validation", "status": "started"},
+    ]
+    log.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    res = health_notes.run_self_check(tmp_path)
+    codes = {f["code"] for f in res["findings"]}
+    assert "repeated_protocol_failure" in codes
+    assert "abandoned_protocols" in codes

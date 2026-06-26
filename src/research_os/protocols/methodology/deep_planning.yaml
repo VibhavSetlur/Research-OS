@@ -179,10 +179,26 @@ steps:
 
       State, in one line to the researcher, the cadence you'll plan at and the
       conditions under which you'll pause to re-plan WITH them rather than
-      re-plan autonomously. Then hand off: if the researcher wants the AI to
-      build toward the roadmap, route to guidance/roadmap_execution; if they
-      want to drive milestone-by-milestone themselves, route to
-      guidance/analysis_plan for the first milestone.
+      re-plan autonomously. Then hand off:
+        - If the researcher wants the AI to BUILD toward the roadmap mostly on
+          its own ("let it loose", "run it autonomously"), route to
+          guidance/roadmap_execution — the verified autonomous loop that selects
+          the next milestone, executes it, SCORES the work (tool_judge_score:
+          ship/iterate/redo), records the result as evidence, re-plans, and
+          continues toward the goal until the success criteria are met or a
+          floor gate / decision point pages the researcher. The loop is the
+          concrete, verified mechanism for high-quality execution against the
+          roadmap — quality is enforced by the per-milestone judge + the audit
+          gates, not assumed.
+        - OFFER orchestration: if the researcher's agent is Hermes Agent, note
+          that Hermes can ORCHESTRATE this loop end-to-end (drive the milestones,
+          learn from each result, pull relevant skills, and improve its approach
+          as evidence comes in) and will NOTIFY the researcher at decision points,
+          on a floor-gate pause, or if a run exceeds the declared resources. The
+          opt-in autonomous-continuation hook (daemon.continue_command) is how
+          the daemon re-invokes the agent to keep the loop going hands-off.
+        - If they want to drive milestone-by-milestone themselves, route to
+          guidance/analysis_plan for the first milestone.
 
       AUTONOMY GATE:
         Risk: reversible — the contract is a working agreement, re-negotiable.

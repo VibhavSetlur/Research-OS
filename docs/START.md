@@ -337,6 +337,132 @@ hypothesis), see the **Common first prompts** table at the top of
 [USE_CASES.md](USE_CASES.md) — those are the variants validated
 against end-to-end fresh-agent walkthroughs.
 
+---
+
+## Two ways to start a project — CLI or just prompt your AI
+
+You don't have to memorise CLI flags. Pick whichever fits:
+
+**(a) CLI wizard** — `research-os init` (arrow-key Q&A), then open the
+folder and talk. Best when you want to set model_profile / mode / identity
+up front.
+
+**(b) Just prompt your AI** — open any folder in your AI IDE and paste a
+**scaffold prompt** below. The AI interviews you (or reads your filled-in
+blanks), runs init with the right mode, brings your data in, and fills the
+intake. No CLI needed.
+
+### Scaffold prompts (fill in the blanks, paste into your AI)
+
+Each prompt has fill-in lines (`>>> …`) and a free-text **CONTEXT** block
+where you can dump anything — paste a paper abstract, a Slack message, your
+PI's email, rough notes — the AI parses it. Leave any line blank and the AI
+will ask. Pick the one matching the work:
+
+**Analysis** (the default — data → numbered steps → paper):
+```
+Set up a new Research OS analysis project here, then get me started.
+Project name:  >>>
+My question:   >>> (what do you want to find out?)
+My data is at: >>> (a path, a URL, or "I'll describe it below" / "none yet")
+Output I want: >>> (paper / report / dashboard / poster / not sure)
+Autonomy:      >>> (ask me each step / supervised / run adaptively)
+Shared server? >>> (yes = HPC/shared box, be careful with resources / no)
+
+CONTEXT (paste anything — abstract, notes, prior results, constraints):
+>>>
+
+
+Steps: interview me on anything blank, run `research-os init` (analysis
+mode), bring my data into inputs/raw_data (copy or symlink — reason about
+which), fill the intake, then tell me the first step.
+```
+
+**Tool-build** (you're building software, RO governs the build):
+```
+Set up a new Research OS tool_build project here.
+Tool name:        >>>
+What it must do:  >>>
+Done = ?          >>> (what test/eval proves it works)
+
+CONTEXT (paste a spec, an issue, example inputs/outputs):
+>>>
+
+
+Steps: interview me on anything blank, init in tool_build mode, draft
+spec/requirements.md from the context, then propose the build approach.
+```
+
+**Exploration** (scratch-first, "I'm not sure yet"):
+```
+Set up a Research OS exploration project here — I want to poke at
+something before committing to a plan.
+Rough question / hunch: >>>
+What I have:            >>> (data path / nothing / "see context")
+
+CONTEXT (dump anything):
+>>>
+
+
+Steps: init in exploration mode, then help me frame the first cheap probe.
+When a probe earns it, remind me we can promote to analysis mode.
+```
+
+**Notebook** (Jupyter-first data analysis):
+```
+Set up a Research OS notebook project here for interactive data analysis.
+What I'm exploring: >>>
+Data is at:         >>>
+
+CONTEXT:
+>>>
+
+
+Steps: init in notebook mode, bring the data in, scaffold a first notebook
+I can run top-to-bottom.
+```
+
+**Multi-study / program** (several studies under one umbrella):
+```
+Set up a Research OS multi_study program here — this is several related
+studies, not one.
+Program goal:        >>>
+The studies (rough): >>>
+
+CONTEXT (shared codebook, prereg notes, the studies):
+>>>
+
+
+Steps: init in multi_study mode, seed the shared commons, then register
+the first study.
+```
+
+**Deep iterative planning, then let the AI run** (plan → autonomous build):
+```
+I want to plan this deeply before building, then have you execute toward
+the goal mostly on your own.
+The goal:        >>>
+Constraints:     >>> (compute, deadline, what must NOT happen autonomously)
+Data is at:      >>>
+
+CONTEXT (everything relevant — the more the better):
+>>>
+
+
+Steps: init the right mode, then walk me through deep_planning to build a
+branchable roadmap in inputs/research_plan.md. Once I approve it, run the
+roadmap_execution loop toward the goal at the autonomy I set — score each
+milestone, re-plan from results, and notify me at decision points or if
+anything exceeds the resources I allowed. (If you're Hermes Agent, you can
+orchestrate this loop and improve from each result.)
+```
+
+Already have a messy folder of data + scripts? Don't init blind — paste:
+`organize my existing project into research-os` (it audits → plans →
+copies safely, never touching your originals).
+
+---
+
 ### Using a small or medium AI? Set `model_profile` first
 
 **The single most important knob if you're not on a frontier model.**
