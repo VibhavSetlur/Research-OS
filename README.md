@@ -44,6 +44,17 @@ From there: `run the baseline EDA` → `fit the model` → `draft the results se
 
 That's the whole idea. The rest of this page explains why it matters.
 
+> **Want the most robust setup, not just the fastest one?** The 30-second path
+> works, but a few minutes of proper onboarding pays off: let the AI scan your
+> inputs, help you frame the question, pick the right mode, and wire exactly one
+> IDE before you start producing work. The README's
+> [setup prompt](#prefer-to-let-your-ai-set-it-up-paste-this-fill-in-the-blanks)
+> walks the AI through that in order, and [docs/START.md](docs/START.md) is the
+> guided onboarding. For a self-improving layer on top — memory across projects,
+> reusable skills, autonomous long runs — pair it with
+> [Hermes](https://hermes-agent.nousresearch.com) (see
+> [Pair it with a self-improving agent layer](#pair-it-with-a-self-improving-agent-layer)).
+
 ---
 
 ## The problem it solves
@@ -61,7 +72,7 @@ Research OS is an **MCP server that sits between your AI and your project** and 
 | **400-line unreviewable scripts** | Work is split into small, content-hash-cached steps. Change one input; only the affected parts re-run. You can actually read what ran. |
 | **Lost context** | Decisions, hypotheses, dead-ends, and draft revisions are written down as you go. Tomorrow's chat resumes exactly where today's ended. |
 
-It works with the AI tools you already use — **Claude Code, Cursor, Claude Desktop, Antigravity, VS Code, Windsurf, OpenCode, Continue, Aider**. One install, one wizard, and the assistant you already trust starts producing work that's honest enough to publish.
+It works with the AI tools you already use — **Claude Code, Cursor, Claude Desktop, Antigravity, VS Code, Windsurf, OpenCode, Continue, Aider**. One install, one wizard, and the assistant you already trust does work that's traceable, grounded, and reproducible — the rigor you'd need *before* you submit, not a guarantee a reviewer will accept it.
 
 ---
 
