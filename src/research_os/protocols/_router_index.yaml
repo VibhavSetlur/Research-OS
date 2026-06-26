@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 47
+version: 48
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -356,6 +356,31 @@ protocols:
       - "import my existing project"
       - "convert this folder to research-os"
       - "clean up my project structure"
+
+  guidance/change_workspace_mode:
+    intent_class: discover
+    sub_intent: intake
+    summary: "Change a project's workspace mode after init (additive, recorded): exploration→analysis, analysis→hybrid/tool_build/multi_study, etc."
+    triggers:
+      - "switch to analysis mode"
+      - "switch modes"
+      - "change the workspace mode"
+      - "change the mode"
+      - "move to tool build mode"
+      - "move to tool build"
+      - "promote my exploration to analysis"
+      - "promote this to analysis"
+      - "this is a real project now"
+      - "this grew into a program"
+      - "turn this into a program"
+      - "turn this into multiple studies"
+      - "we need to build a tool for this"
+      - "make this a hybrid project"
+    decomposition:
+      - tool: sys_workspace_mode
+        purpose: "status to see current mode + supported moves; transition (plan then confirm) to apply additively."
+      - protocol: guidance/change_workspace_mode
+        purpose: "Plan the move, apply it (sync config+state, record history), then cross via the handoff protocol."
 
   guidance/project_startup:
     intent_class: discover

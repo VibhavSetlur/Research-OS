@@ -341,6 +341,68 @@ def describe_layout(mode: str = "analysis") -> str:
         f"  created on first use (lazy): {lazy}"
     )
 
+
+def ensure_mode_surface(
+    root: Path,
+    mode: str,
+    *,
+    project_name: str | None = None,
+    config_overrides: dict | None = None,
+    plan_only: bool = False,
+) -> dict:
+    """Additively create the directory + governance surface a workspace `mode`
+    requires, WITHOUT touching anything that already exists.
+
+    Shared by init (scaffold_minimal_workspace) and post-init mode transitions
+    so both produce the SAME surface from one source of truth. NEVER deletes or
+    overwrites — a transition augments. Returns
+    {created_dirs: [...], inner_repo: <name|"">, missing_before: [...]}.
+    With plan_only=True, reports what WOULD be created without writing.
+    """
+    root = Path(root)
+    profile = SCAFFOLD_PROFILES.get(mode)
+    if profile is None:
+        raise KeyError(f"unknown workspace mode: {mode!r}")
+    # The eager dirs the mode needs at rest (lazy dirs are created on first use).
+    needed = profile["eager_dirs"]
+    missing = [d for d in needed if not (root / d).exists()]
+    if plan_only:
+        return {"created_dirs": [], "missing_before": missing, "inner_repo": "", "plan_only": True}
+
+    created: list[str] = []
+    for d in missing:
+        (root / d).mkdir(parents=True, exist_ok=True)
+        created.append(d)
+    # Seed the mode-specific governance/scratch files (idempotent _write_if_missing
+    # inside) and get the inner-repo name for tool_build / hybrid.
+    inner = _seed_mode_extras(
+        root, project_name or _read_project_name(root), mode, config_overrides
+    )
+    # Init the inner repo for modes that have one (tool_build/hybrid) — mirrors
+    # the post-scaffold git-init guard.
+    if mode in ("tool_build", "hybrid") and inner:
+        inner_dir = root / inner
+        if not (inner_dir / ".git").exists():
+            try:
+                inner_dir.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init"], cwd=inner_dir, capture_output=True)
+            except Exception:
+                pass
+    return {"created_dirs": created, "missing_before": missing, "inner_repo": inner or ""}
+
+
+def _read_project_name(root: Path) -> str:
+    """Best-effort project name from state for surface seeding. Fallback to dir."""
+    try:
+        st = load_state(Path(root))
+        nm = st.get("project_name")
+        if nm:
+            return str(nm)
+    except Exception:
+        pass
+    return Path(root).name
+
+
 # Files whose presence in a directory marks it as a software component.
 _SOFTWARE_MARKERS = {
     "pyproject.toml": "python", "setup.py": "python", "setup.cfg": "python",

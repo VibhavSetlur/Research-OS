@@ -228,6 +228,59 @@ _EXPLORATION_BOOST = _MODE_LIGHT_BOOST
 _MODE_TO_SHAPE = {m: r.shape for m, r in MODE_ROUTING.items() if r.shape}
 
 
+# ── Mode lifecycle (B2) ────────────────────────────────────────────────
+# Which workspace.mode → mode moves are supported, and how. A transition is
+# ADDITIVE (never deletes the prior mode's work). `kind`:
+#   promote  — the prior mode's artefacts graduate into the new mode's unit of
+#              work (exploration probes / notebooks → numbered analysis steps).
+#   augment  — the new mode adds a surface alongside the old one (analysis gains
+#              an inner tool repo → hybrid; tool_build gains an analysis spine).
+#   reframe  — the existing work is re-cast (a single analysis becomes study 01
+#              of a program).
+# `protocol` (if any) is the handoff/promotion protocol to route into during the
+# crossing. All six modes can always move to exploration (cheap, additive).
+_MODE_TRANSITIONS: dict[tuple[str, str], dict[str, str]] = {
+    ("exploration", "analysis"): {
+        "kind": "promote", "protocol": "exploration/exploration_promote",
+        "guidance": "Promote earned probes into numbered analysis steps, then run guidance/analysis_plan.",
+    },
+    ("notebook", "analysis"): {
+        "kind": "promote", "protocol": "notebook/notebook_promote",
+        "guidance": "Promote a trusted notebook's result into a durable numbered step.",
+    },
+    ("exploration", "tool_build"): {
+        "kind": "augment", "protocol": "",
+        "guidance": "Graduate a scratch prototype into a governed build (spec/decisions/eval + inner repo).",
+    },
+    ("analysis", "hybrid"): {
+        "kind": "augment", "protocol": "",
+        "guidance": "Add an inner tool/ repo for software the analysis needs; keep the analysis spine.",
+    },
+    ("tool_build", "hybrid"): {
+        "kind": "augment", "protocol": "hybrid/tool_to_analysis_handoff",
+        "guidance": "Keep the built tool; add an analysis spine to USE it on real data.",
+    },
+    ("analysis", "multi_study"): {
+        "kind": "reframe", "protocol": "program/program_setup",
+        "guidance": "Wrap the current work as study 01 of a program; seed shared/ commons.",
+    },
+}
+# Every mode can always move to exploration (cheapest, additive).
+for _m in ("analysis", "notebook", "tool_build", "hybrid", "multi_study"):
+    _MODE_TRANSITIONS.setdefault((_m, "exploration"), {
+        "kind": "augment", "protocol": "",
+        "guidance": "Open a scratch surface for cheap probing alongside the existing work.",
+    })
+
+
+def mode_transition_spec(from_mode: str, to_mode: str) -> dict | None:
+    """Return the transition spec for from→to, or None if unsupported.
+    Same-mode is a no-op (returns None)."""
+    if from_mode == to_mode:
+        return None
+    return _MODE_TRANSITIONS.get((from_mode, to_mode))
+
+
 def _mode_boost_for(workspace_mode: str, sub_intent: str | None) -> int:
     """Score boost a protocol earns for matching the active mode's native
     sub-intents. 0 when the mode has no registry entry (analysis) or

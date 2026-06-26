@@ -38,6 +38,7 @@ def _resolve_inside_root(root, filepath):
 
 
 __all__ = [
+    "_handle_sys_workspace_mode",
     "_handle_sys_workspace_scaffold",
     "_handle_sys_workspace_tree",
     "_handle_sys_state_get",
@@ -865,7 +866,35 @@ def _handle_sys_consent(name, arguments, root):
     ))
 
 
+def _handle_sys_workspace_mode(name, arguments, root):
+    """Report or transition the workspace mode (first-class, additive)."""
+    op = (arguments.get("operation") or "status").strip().lower()
+    if op == "status":
+        from research_os.tools.actions.state.mode_transition import workspace_mode_status
+
+        return _text(_success(workspace_mode_status(Path(root))))
+    if op == "transition":
+        to_mode = arguments.get("to") or arguments.get("mode") or ""
+        if not to_mode:
+            return _text(_error("operation='transition' requires `to` (target mode)"))
+        from research_os.tools.actions.state.mode_transition import transition_workspace_mode
+
+        # plan unless explicitly applying (confirm=true / plan_only=false)
+        plan_only = not (
+            bool(arguments.get("confirm")) or arguments.get("plan_only") is False
+        )
+        res = transition_workspace_mode(
+            Path(root), to_mode, plan_only=plan_only,
+            rationale=arguments.get("rationale", ""),
+        )
+        if res.get("status") == "error":
+            return _text(_error(res.get("message", "transition failed")))
+        return _text(_success(res))
+    return _text(_error(f"unknown operation '{op}'. Use 'status' or 'transition'."))
+
+
 HANDLERS = {
+    "sys_workspace_mode": _handle_sys_workspace_mode,
     "sys_workspace_scaffold": _handle_sys_workspace_scaffold,
     "sys_workspace_tree": _handle_sys_workspace_tree,
     "sys_state_get": _handle_sys_state_get,
