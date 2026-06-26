@@ -225,6 +225,25 @@ def audit_structure(root: str | Path) -> dict[str, Any]:
     except Exception:
         pass  # naming check is best-effort; never break the structure audit
 
+    # 7. Provenance integrity (4.1.x): the daemon WATCHES whether recorded
+    #    inputs/outputs still match on disk. An output built from an input that
+    #    has since changed is STALE — a silent reproducibility break the AI
+    #    won't notice. Surfacing it here means the daemon's self-check + sys_boot
+    #    flag stale results early instead of a reviewer finding them.
+    try:
+        from research_os.tools.actions.state.provenance import (
+            verify_provenance_integrity,
+        )
+        prov = verify_provenance_integrity(root)
+        for f in prov.get("findings", []):
+            sev = "block" if f.get("severity") == "block" else "warn"
+            findings.append(_finding(
+                sev, f.get("code", "provenance_drift"),
+                f.get("message", "provenance integrity issue"),
+            ))
+    except Exception:
+        pass  # provenance check is best-effort; never break the structure audit
+
     counts: dict[str, int] = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1
