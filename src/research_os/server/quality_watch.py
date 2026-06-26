@@ -110,6 +110,33 @@ def _recent_failure_run(root: Path) -> int:
         return 0
 
 
+def next_action_hint(tool: str, root: Path) -> str | None:
+    """Derive a sensible 'do this next' call for high-traffic tools that didn't
+    return one, so the AI always has a proactive next step (better user↔AI
+    interaction). Only a hint — the dispatcher fills it ONLY when the handler
+    left next_recommended_call empty. By-shape, fail-open.
+    """
+    try:
+        # After finishing a step → audit it. After a synthesis-scaffold or
+        # synthesis write → ground the claims. After routing → walk the plan.
+        if tool == "tool_step_complete":
+            return "tool_audit(scope='step', dimension='completeness')"
+        if tool in ("tool_synthesis_scaffold",):
+            return "tool_claim_grounding()"
+        if tool == "tool_route":
+            # If routing persisted a plan, advance it; else load the protocol.
+            try:
+                ap = Path(root) / ".os_state" / "active_plan.json"
+                if ap.is_file() and json.loads(ap.read_text()):
+                    return "tool_plan(operation='turn')"
+            except Exception:
+                pass
+            return None
+        return None
+    except Exception:
+        return None
+
+
 def quality_hints(tool: str, arguments: dict, root: Path) -> list[dict]:
     """Return zero or more non-blocking quality course-correct hints."""
     hints: list[dict] = []

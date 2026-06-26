@@ -91,7 +91,7 @@ def _maybe_attach_drift_hint(tool, arguments, root, result):
     """
     try:
         from research_os.server.drift_detect import drift_hint
-        from research_os.server.quality_watch import quality_hints
+        from research_os.server.quality_watch import next_action_hint, quality_hints
 
         hints = []
         dh = drift_hint(tool, arguments, Path(root))
@@ -100,29 +100,34 @@ def _maybe_attach_drift_hint(tool, arguments, root, result):
         # Quality watchers (incomplete/unverified work INSIDE Research OS) —
         # conclusions-without-audit, ungrounded synthesis, stuck loop.
         hints.extend(quality_hints(tool, arguments, Path(root)))
-        if not hints:
+        # Proactive next action for high-traffic tools (better user↔AI flow).
+        derived_next = next_action_hint(tool, Path(root))
+        if not hints and not derived_next:
             return result
         if not result or not getattr(result[0], "text", None):
             return result
         env = json.loads(result[0].text)
         if not isinstance(env, dict):
             return result
-        findings = env.get("audit_findings")
-        if not isinstance(findings, list):
-            findings = []
-        findings.extend(hints)
-        env["audit_findings"] = findings
+        if hints:
+            findings = env.get("audit_findings")
+            if not isinstance(findings, list):
+                findings = []
+            findings.extend(hints)
+            env["audit_findings"] = findings
         if not env.get("next_recommended_call"):
-            # Promote the first hint that carries a next call.
+            # Promote the first hint that carries a next call; else the derived
+            # proactive next action.
+            promoted = None
             for h in hints:
                 if h.get("next_recommended_call"):
-                    env["next_recommended_call"] = h["next_recommended_call"]
+                    promoted = h["next_recommended_call"]
                     break
+            env["next_recommended_call"] = promoted or derived_next
         result[0].text = json.dumps(env)
         return result
     except Exception:
         return result
-
 
 def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
     if not _rate_limiter.is_allowed():

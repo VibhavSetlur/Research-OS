@@ -73,3 +73,20 @@ def test_debounce_suppresses_repeat():
     second = quality_hints("sys_file_write", {"filepath": "synthesis/paper.md"}, root)
     assert any(h["code"] == "ungrounded_synthesis_unverified" for h in first)
     assert not any(h["code"] == "ungrounded_synthesis_unverified" for h in second)
+
+
+def test_next_action_hint_for_high_traffic_tools():
+    from research_os.server.quality_watch import next_action_hint
+    root = _proj()
+    assert "completeness" in next_action_hint("tool_step_complete", root)
+    assert "claim_grounding" in next_action_hint("tool_synthesis_scaffold", root)
+    assert next_action_hint("sys_help", root) is None  # not high-traffic
+
+
+def test_next_action_route_advances_when_plan_persisted():
+    import json as _json
+    from research_os.server.quality_watch import next_action_hint
+    root = _proj()
+    (root / ".os_state").mkdir(exist_ok=True)
+    (root / ".os_state" / "active_plan.json").write_text(_json.dumps({"protocol": "x"}))
+    assert "tool_plan" in next_action_hint("tool_route", root)
