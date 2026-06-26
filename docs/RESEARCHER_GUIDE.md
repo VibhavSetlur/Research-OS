@@ -134,8 +134,10 @@ my-project/
 │   │   ├── README.md
 │   │   ├── conclusions.md
 │   │   ├── scripts/         ← versioned scripts (_v1, _v2, ...)
-│   │   ├── data/{input,output}/
-│   │   ├── outputs/{reports,figures,tables}/
+│   │   ├── data/            ← project_inputs/ (→inputs/raw_data), past_step_input/
+│   │   │                       (→prev step's next_step_output), next_step_output/
+│   │   │                       (what THIS step hands the next), share/ (export)
+│   │   ├── outputs/         ← figures/ tables/ (each with .prov.json + .caption.md)
 │   │   ├── environment/     ← per-step requirements.txt
 │   │   └── literature/      ← step-scoped PDFs (optional)
 │   ├── 02_data_preparation/

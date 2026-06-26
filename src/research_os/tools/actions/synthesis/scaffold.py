@@ -1146,12 +1146,26 @@ def synthesis_scaffold(
     archetype: str | None = None,
     palette: str | None = None,
     step: str | None = None,
+    label: str | None = None,
 ) -> dict[str, Any]:
     """Write a tiny skeleton synthesis file.
 
     Returns status='exists' (idempotent) if the file is already present
     and overwrite=False. The AI is expected to author the content; this
     tool only seeds section headers and protocol-pointing comments.
+
+    Recurring deliverables (``label``): a researcher makes MANY posters /
+    slide decks / handouts / dashboards over a project's life — a lab-meeting
+    update every week, a conference poster, a committee slide deck. Writing them
+    all to the flat ``synthesis/poster.typ`` would overwrite each other and lose
+    track of which file was for which event. Pass ``label`` (e.g.
+    "2026-06-lab-meeting", "neurips-poster", "committee-update") for any such
+    RECURRING / event-specific deliverable: the scaffold routes it to
+    ``synthesis/deliverables/<label-slug>/<kind>.<ext>`` and drops a README
+    stamping the event + date + purpose, so the chain of meeting artefacts lives
+    in one browsable, documented folder (order in the chaos). OMIT ``label`` only
+    for the project's single canonical deliverable (the paper). ``label`` does
+    not apply to ``step_report`` (it already routes to synthesis/updates/).
 
     Output-types intent gate: if ``kind`` is NOT in the researcher's
     declared ``research_goal.output_types`` (and they HAVE declared
@@ -1229,6 +1243,39 @@ def synthesis_scaffold(
         body = _compose_step_report(palette)
         slug = _step_report_slug(root, step)
         rel_path = f"synthesis/updates/{slug}.html"
+
+    # Recurring / event-specific deliverable routing. When a label is given for
+    # a non-paper, non-step_report deliverable, write it into its own
+    # synthesis/deliverables/<slug>/ folder (keeps a chain of meeting/conf
+    # artefacts from overwriting the flat synthesis/<kind> file).
+    deliverable_dir: Path | None = None
+    if label and kind not in ("paper", "step_report"):
+        import re as _re
+        from datetime import datetime, timezone
+
+        lslug = _re.sub(r"[^a-z0-9]+", "-", label.strip().lower()).strip("-") or "deliverable"
+        ext = rel_path.rsplit(".", 1)[-1]
+        rel_path = f"synthesis/deliverables/{lslug}/{kind}.{ext}"
+        deliverable_dir = root / "synthesis" / "deliverables" / lslug
+        # Document what this deliverable is for (order in the chaos).
+        readme = deliverable_dir / "README.md"
+        if not readme.exists():
+            deliverable_dir.mkdir(parents=True, exist_ok=True)
+            readme.write_text(
+                f"# {label}\n\n"
+                f"*Created: {datetime.now(timezone.utc).date().isoformat()}*\n\n"
+                f"A **{kind}** deliverable for: {label}.\n\n"
+                "This folder holds a recurring / event-specific synthesis "
+                "artefact (a lab-meeting update, conference poster, committee "
+                "deck, etc.) — distinct from the project's canonical paper in "
+                "`synthesis/`. It may be a quick/throwaway artefact for one "
+                "meeting, but it is still documented here so the project stays "
+                "ordered: anyone can see which file was for which event.\n\n"
+                "- What it's for: _(audience + occasion)_\n"
+                "- Status: _draft | presented | superseded_\n"
+                "- Source findings: _(which steps / paper sections it draws on)_\n",
+                encoding="utf-8",
+            )
     target = root / rel_path
     if target.exists() and not overwrite:
         return {

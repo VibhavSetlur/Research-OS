@@ -106,6 +106,43 @@ steps:
       one short message and ask "Approve, or refine?" Wait for approval before
       any code is written.
 
+  - id: bring_in_external_data
+    name: Bring external data into the project (copy or symlink, with provenance)
+    description: |
+      If the researcher says their data lives OUTSIDE the project (e.g. "my
+      data is at /scratch/lab/run42/" or "it's on the shared drive"), don't
+      analyse it in place — bring it under inputs/raw_data/ so the project is
+      self-contained, reproducible, and the immutability guard + intake SHA-256
+      inventory apply. Reason about COPY vs SYMLINK from the actual situation,
+      not a rule:
+
+        COPY (the default) when the data is small-to-moderate and portable, or
+          when the project must stay reproducible if the source moves/changes,
+          or when you'll share/zip the project. A copy freezes provenance.
+
+        SYMLINK when the dataset is very large (tens of GB+) and duplicating it
+          would waste shared-server disk, OR it's a read-only shared/reference
+          dataset many projects point at. A symlink keeps one physical copy but
+          means the project is NOT self-contained — record the absolute source
+          path + a content hash so staleness is detectable if the source
+          changes underneath you.
+
+      Either way: place it under inputs/raw_data/ (copy) or link it there
+      (symlink), then record what you did + the source path in inputs/intake.md
+      so provenance is explicit. On a shared server, prefer symlink for large
+      data and FLAG to the researcher that the project won't be self-contained.
+      Ask before copying a very large dataset (it may fill shared disk — see the
+      resource discipline the researcher_config declares).
+
+      AUTONOMY GATE:
+        Risk: copying large data can fill shared disk; symlinking trades
+        self-containment for space — both are researcher-visible trade-offs.
+        proceed (adaptive default, autopilot) → for small/moderate data, copy into
+          inputs/raw_data/ and record provenance in intake.md.
+        confirm first (manual / supervised) → for large data or any symlink,
+          present the copy-vs-symlink trade-off + disk impact and let the
+          researcher choose before bringing it in.
+
   - id: profile_each_dataset
     name: Profile Each Data File (sampled)
     description: |
