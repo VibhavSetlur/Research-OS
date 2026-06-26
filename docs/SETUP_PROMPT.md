@@ -55,23 +55,33 @@ NOW DO THIS, IN ORDER:
    run `pip install research-os` (use a venv/conda env if I'm on a shared/HPC
    machine — on HPC, conda, NOT Docker). Verify with `research-os --help`.
 
-2. SCAFFOLD. From the project folder run:
-      research-os init --ide ‹my IDE› --workspace-mode ‹mode or omit for analysis› --question "‹my goal›"
-   Use ONLY my one IDE for --ide — NEVER `--ide all`. If you're unsure which IDE,
-   ask me, or let `research-os init` default to `--ide auto` (it detects one).
+2. SCAFFOLD. From the project folder run (note the explicit `.` so it scaffolds
+   THIS folder and does NOT nest a subfolder):
+      research-os init . --ide ‹my IDE› --workspace-mode ‹mode or omit for analysis› --question "‹my goal›"
+   Use ONLY my one IDE for --ide — NEVER `--ide all` (it litters config for 8
+   editors) and avoid `--ide auto` if my shell's IDE env is ambiguous (it can
+   guess wrong). If unsure which IDE, ASK me.
 
 3. BRING IN DATA. If I gave a data path/URL, place it under inputs/raw_data/
    (copy if small/portable, symlink if large/shared) and note where it came from.
    If "none yet", skip.
 
-4. WIRE MCP. Confirm the Research OS MCP server is registered for my IDE
-   (`research-os ide list`). If not, `research-os ide add ‹my IDE›`.
+4. WIRE MCP + FIX THE PATH FOOTGUN. Confirm the Research OS MCP server is
+   registered for my IDE (`research-os ide list`); if not, `research-os ide add
+   ‹my IDE›`. THEN: if research-os is installed in a conda/venv, the generated
+   MCP config uses a bare `command: "research-os"` that fails with `spawn
+   research-os ENOENT` when my IDE launches it outside that env. Run `which
+   research-os` and, if it's inside a conda/venv, replace `"command":
+   "research-os"` with that ABSOLUTE path in the generated `.‹ide›/mcp.json` (or
+   `.mcp.json` / `opencode.json`).
 
 5. START THE DAEMON (per-project enforcement + watch + provenance). Run
    `research-os daemon start` (or tell me it's optional and what it adds if I
-   said I don't want long/background runs). The daemon is per-project — it can be
-   stopped with `research-os daemon stop` without losing run history.
-
+   said I don't want long/background runs). The daemon is per-project — stop it
+   with `research-os daemon stop` without losing run history. On a SHARED/HPC
+   node the default port may be taken; do NOT trust exit code 0 — verify with
+   `research-os daemon status` (it should say serving: yes), and if it isn't,
+   start with a free `--port`.
 6. ⚠ RESTART. Tell me to FULLY RESTART my IDE / AI session in this folder now —
    the MCP server only loads on a fresh session, so the Research OS tools will
    NOT appear until I do. STOP HERE and wait for me to confirm I've restarted.

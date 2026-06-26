@@ -1027,9 +1027,47 @@ def serve(daemon: "Daemon") -> None:
     interrupted. Used by `research-os daemon start`.
     """
     _require_web_stack()
+    import socket as _socket
+
     import uvicorn
 
     app = build_app(daemon)
     cfg = daemon.config
+
+    # Per-project on a shared node: the default port (8787) is frequently held
+    # by ANOTHER project's daemon. Rather than fail the bind (and previously
+    # exit 0 as if it had started), probe the configured port and fall forward
+    # to the next free one so each project's daemon actually comes up. The real
+    # bound port is written into the discovery descriptor by the caller, so
+    # `daemon status` / `daemon stop` find it.
+    def _port_free(host: str, port: int) -> bool:
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as s:
+            s.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+            try:
+                s.bind((host, port))
+                return True
+            except OSError:
+                return False
+
+    if not _port_free(cfg.host, cfg.port):
+        original = cfg.port
+        chosen = None
+        for candidate in range(cfg.port + 1, cfg.port + 50):
+            if _port_free(cfg.host, candidate):
+                chosen = candidate
+                break
+        if chosen is None:
+            raise RuntimeError(
+                f"daemon port {original} is in use and no free port was found in "
+                f"{original + 1}..{original + 49}. Free one or pass --port."
+            )
+        logger.warning(
+            "daemon port %s busy (another project's daemon?) — using %s instead",
+            original, chosen,
+        )
+        # cfg is a frozen dataclass; update in place so the discovery descriptor
+        # (written from daemon.config.port) records the REAL bound port.
+        object.__setattr__(cfg, "port", chosen)
+
     logger.info("Research OS daemon serving on %s", cfg.base_url)
     uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")

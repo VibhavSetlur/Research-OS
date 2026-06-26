@@ -296,6 +296,18 @@ def cmd_init(args: argparse.Namespace) -> None:
         slug = slugify(args.name)
         target_dir = (Path.cwd() / slug).resolve()
         created_new_folder = not target_dir.exists()
+        # `--name X` with no directory creates a NESTED slugified subdir, which
+        # surprises users who already `mkdir`'d + `cd`'d into their project
+        # folder (the docs' own pattern). Say so loudly so the AI/user doesn't
+        # `cd` to the wrong place. To scaffold the CURRENT folder instead, pass
+        # an explicit `.` (e.g. `research-os init . --name "X"`).
+        print(
+            f"  {_warn_glyph()} Creating the project in a new subfolder: "
+            f"{target_dir}\n"
+            f"    (--name without a directory nests under the current folder.) "
+            f"To scaffold THIS folder instead, re-run as "
+            f"`research-os init . --name \"{args.name}\"`."
+        )
     elif args.directory:
         target_dir = Path(os.path.expanduser(args.directory)).resolve()
         created_new_folder = not target_dir.exists()
@@ -1637,12 +1649,14 @@ def cmd_ide(args: argparse.Namespace) -> None:
             sys.exit(1)
 
         author = collab.whoami(root)
+        added_any = False
         for ide in names:
             if action == "add":
                 created = collab.add_ide(root, ide)
                 if created:
                     wizard.ok(f"Wired {ide}", f"{', '.join(created)}")
                     collab.log_action(root, author, f"Added IDE config: {ide}")
+                    added_any = True
                 else:
                     wizard.warn(f"{ide} already wired", "no changes made")
             else:  # remove
@@ -1652,6 +1666,14 @@ def cmd_ide(args: argparse.Namespace) -> None:
                     collab.log_action(root, author, f"Removed IDE config: {ide}")
                 else:
                     wizard.warn(f"{ide} was not wired", "no changes made")
+        # Wiring an MCP server only takes effect on a FRESH session — the #1
+        # naive miss is to wire and report success while the already-open IDE
+        # never reloads. Surface the same restart notice init prints.
+        if added_any:
+            from research_os.project_ops import mcp_restart_notice
+            print()
+            for line in mcp_restart_notice().splitlines():
+                print(f"  {line}")
 
 
 # ---------------------------------------------------------------------------

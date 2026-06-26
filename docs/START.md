@@ -571,7 +571,7 @@ After install + scaffold, your first prompt should be one of:
 
 ## Cheatsheet — every command worth knowing
 
-### CLI (ten commands)
+### CLI (eleven commands)
 
 ```bash
 research-os init                          # scaffold THIS folder
