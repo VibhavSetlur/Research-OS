@@ -552,3 +552,26 @@ def test_non_analysis_modes_have_no_orphan_literature_readme():
         )
 
 
+
+
+def test_hybrid_scaffold_is_hybrid_not_tool_build(tmp_path):
+    """H1/H2/H3: hybrid must seed its OWN surface (analysis spine + inner tool/
+    repo), NOT fall through to tool_build's surface/onboarding."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace,
+        detect_software_components,
+    )
+
+    scaffold_minimal_workspace(tmp_path, "Hyb", mode="hybrid")
+    gs = (tmp_path / "GETTING_STARTED.md").read_text()
+    assert "hybrid mode" in gs
+    assert "tool_build mode" not in gs
+    # inner tool dir with its own git repo (H2)
+    assert (tmp_path / "tool" / "README.md").exists()
+    assert (tmp_path / "tool" / ".git").exists()
+    # auto-detected as a software component so sys_boot surfaces it
+    comps = detect_software_components(tmp_path)
+    assert any((c.get("path") or c.get("name")) == "tool" for c in (comps or []))
+    # no tool_build leakage (H1)
+    assert not (tmp_path / "governance.md").exists()
+    assert not (tmp_path / "spec").exists()

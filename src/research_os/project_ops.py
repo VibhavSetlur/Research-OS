@@ -1321,6 +1321,61 @@ See `GETTING_STARTED.md` for the workflow.
         )
         return ""
 
+    # ── hybrid (research + software) ─────────────────────────────────────
+    # H1/H2/H3 fix: hybrid was falling through to the tool_build seeding, so a
+    # hybrid project got tool_build's surface + onboarding ("...in tool_build
+    # mode") and the AI couldn't tell it was hybrid. Seed a hybrid-specific
+    # surface that describes BOTH halves: the analysis spine (numbered steps +
+    # synthesis) AND the inner software component under tool/ (its own repo,
+    # auto-detected by detect_software_components). Returns "tool" so the caller
+    # git-inits the inner repo (see the git-init guard below).
+    if mode == "hybrid":
+        _write_if_missing(
+            root / "tool" / "README.md",
+            f"# `tool/` — the inner software component of {project_name}\n\n"
+            "This hybrid project has TWO halves that share one provenance "
+            "discipline:\n\n"
+            "1. **The analysis spine** — numbered steps in `workspace/NN_*/` "
+            "feeding `synthesis/` (the paper/report), exactly like analysis "
+            "mode.\n"
+            "2. **This inner tool** — the software you build to DO the analysis "
+            "(a model, a pipeline, a library). It is its OWN git repository; "
+            "commit code here. Research OS governs it via `tool_git` / "
+            "`tool_build` on this repo and auto-detects it as a software "
+            "component (it surfaces in `sys_boot.software_components`).\n\n"
+            "Which side am I on? If you're producing a FIGURE/finding for the "
+            "paper, you're on the analysis spine (use a numbered step). If "
+            "you're writing/improving the CODE that produces it, you're in "
+            "`tool/` (commit + version it here). The "
+            "`hybrid/tool_to_analysis_handoff` protocol moves a finished tool "
+            "into an analysis step.\n",
+        )
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (hybrid mode)
+
+This is a Research OS workspace in **hybrid mode** — a research analysis
+project that ALSO builds its own software. Two halves, one project:
+
+| Half | Where | Unit of work | Governed by |
+|---|---|---|---|
+| Analysis spine | `workspace/NN_*/` → `synthesis/` | a numbered step | analysis protocols |
+| Inner tool | `tool/` (its own git repo) | a code increment | tool_git / tool_build |
+
+The inner tool is auto-detected — it shows up in `sys_boot.software_components`
+so a fresh session always sees both halves. Build/version the code in `tool/`;
+when a tool is ready to produce a result, hand it to the analysis spine via the
+`hybrid/tool_to_analysis_handoff` protocol and ground the finding there.
+
+Mode-agnostic safety holds: `.os_state/` is hard-locked, original inputs are
+soft-guarded, all workspace writes go through the tools, nothing escapes root.
+
+See the protocols `hybrid/hybrid_workflow` and `hybrid/tool_to_analysis_handoff`
+for the loop.
+""",
+        )
+        return "tool"
+
     # ── tool_build ──────────────────────────────────────────────────────
     inner = _resolve_inner_repo_name(config_overrides)
 
@@ -1954,8 +2009,10 @@ def scaffold_minimal_workspace(
     # its OWN git repo — Research OS (the outer workspace) governs it from
     # above. The inner repo is ALWAYS initialised (independent of the outer
     # git_init flag) so a fresh tool_build project has a working tree the
-    # builder can commit into from the first turn.
-    if mode == "tool_build" and inner_repo_name:
+    # builder can commit into from the first turn. Hybrid's inner tool/ repo
+    # gets the same treatment (H2 fix — it was unbounded to tool_build only, so
+    # the hybrid build half had no real repo and surfaced no provenance).
+    if mode in ("tool_build", "hybrid") and inner_repo_name:
         inner = root / inner_repo_name
         if not (inner / ".git").exists():
             try:

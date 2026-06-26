@@ -1090,8 +1090,8 @@ protocols:
     decomposition:
       - protocol: build/versioning_and_rollback
         purpose: "Decide if a state is worth marking, bless it with its eval verdict, recognise a regression, decide roll back vs fix forward, roll back without losing work, record + resume."
-      - tool: tool_bash_exec
-        purpose: "git in the inner repo: status/log to read state, and the actual return-to-version (checkout/branch from a good tag) that tool_git doesn't itself perform."
+      - tool: tool_git
+        purpose: "Inner-repo version discipline: tag (bless) an eval-passing state, log/status to read state, and restore (operation='restore', name=<good tag>) to return the working tree to a known-good version non-destructively — HEAD stays put, history preserved, reports rolled_back_from."
       - tool: sys_checkpoint_create
         purpose: "Snapshot the workspace boundary so the rollback decision point is recoverable."
       - tool: mem_log
