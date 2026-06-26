@@ -500,6 +500,9 @@ preview", "skip the audit"). The override path:
 * `tool_step_complete(override_literature_gate=true, override_rationale="<why>")`
 * Per-audit overrides (e.g. `tool_audit(scope='synthesis', dimension='all',
   override_no_pdfs=true, override_rationale="<why>")`, or `override_cross_deliverable`)
+* `sys_protocol_log(status='completed', override_completeness_gate=true, details="<why>")`
+  — only when a protocol's declared outputs are intentionally external; normally
+  produce the outputs first (the completion gate blocks otherwise).
 
 The rationale is mandatory; the override appends to
 `workspace/logs/override_log.md`. `audit/pre_submission_checklist`

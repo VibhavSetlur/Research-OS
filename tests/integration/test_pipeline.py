@@ -5,7 +5,12 @@ from research_os.tools.actions.protocol import get_next_protocol, log_protocol_e
 
 
 def _complete(root, protocol_name):
-    log_protocol_execution(root, protocol_name, "completed", "test")
+    # Tests simulate pipeline progression without producing real artefacts, so
+    # bypass the completeness gate (C1) — they exercise the pointer logic, not
+    # output production.
+    log_protocol_execution(
+        root, protocol_name, "completed", "test", override_completeness_gate=True
+    )
 
 
 def test_fresh_workspace_starts_at_session_boot(tmp_path):

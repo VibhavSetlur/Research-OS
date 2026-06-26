@@ -273,7 +273,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_protocol_log": {
         "short": "Record protocol execution status. Use when starting/completing/failing/skipping a protocol.",
-        "description": "Record a protocol execution (started|completed|failed|skipped) to the pipeline log.",
+        "description": "Record a protocol execution (started|completed|failed|skipped) to the pipeline log. COMPLETENESS GATE: logging 'completed' for a protocol that declares expected_outputs is REFUSED (status='blocked') if any declared output is missing on disk — produce the outputs first, then log completed. For the rare legitimate case (e.g. an intentionally-external output) pass override_completeness_gate=true; the override is recorded in the log + override_log.md.",
         "category": "protocol",
         "inputSchema": {
             "type": "object",
@@ -281,6 +281,10 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "protocol_name": {"type": "string"},
                 "status": {"type": "string"},
                 "details": {"type": "string"},
+                "override_completeness_gate": {
+                    "type": "boolean",
+                    "description": "Log 'completed' even when declared outputs are missing (rare; recorded as an override).",
+                },
             },
             "required": ["protocol_name", "status"],
         },

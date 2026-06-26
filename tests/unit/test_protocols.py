@@ -185,3 +185,39 @@ class TestRealProtocols:
         root = Path(__file__).resolve().parent.parent.parent
         light = root / "src" / "research_os" / "protocols" / "light"
         assert not light.exists(), "light/ folder should not exist (merged into single source)"
+
+
+class TestCompletenessGate:
+    """C1: logging a protocol completed is a GATE, not a sink."""
+
+    def test_completed_blocked_when_outputs_missing(self, tmp_path):
+        from research_os.project_ops import scaffold_minimal_workspace
+        from research_os.tools.actions.protocol import log_protocol_execution
+
+        scaffold_minimal_workspace(tmp_path, "C1")
+        # synthesis_paper declares expected_outputs that don't exist yet.
+        res = log_protocol_execution(tmp_path, "synthesis/synthesis_paper", "completed")
+        assert res["status"] == "blocked"
+        assert res["reason"] == "completeness_gate"
+        assert res["missing_outputs"]
+
+    def test_override_logs_completion_and_records_override(self, tmp_path):
+        from research_os.project_ops import scaffold_minimal_workspace
+        from research_os.tools.actions.protocol import log_protocol_execution
+
+        scaffold_minimal_workspace(tmp_path, "C1")
+        res = log_protocol_execution(
+            tmp_path, "synthesis/synthesis_paper", "completed",
+            "intentionally external", override_completeness_gate=True,
+        )
+        assert res["status"] == "success"
+        assert res["completeness_overridden"] is True
+        assert (tmp_path / ".os_state" / "override_log.md").exists()
+
+    def test_started_is_never_gated(self, tmp_path):
+        from research_os.project_ops import scaffold_minimal_workspace
+        from research_os.tools.actions.protocol import log_protocol_execution
+
+        scaffold_minimal_workspace(tmp_path, "C1")
+        res = log_protocol_execution(tmp_path, "synthesis/synthesis_paper", "started")
+        assert res["status"] == "success"

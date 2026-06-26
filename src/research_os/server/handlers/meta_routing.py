@@ -432,7 +432,12 @@ def _handle_sys_protocol_log(name, arguments, root):
         arguments["protocol_name"],
         arguments["status"],
         arguments.get("details", ""),
+        override_completeness_gate=bool(arguments.get("override_completeness_gate", False)),
     )
+    # Surface a blocked completion as an error so the AI sees it must act, not a
+    # silent success it can ignore.
+    if isinstance(res, dict) and res.get("status") == "blocked":
+        return _text(_error(res.get("message", "completion blocked: outputs missing")))
     return _text(_success(res))
 
 

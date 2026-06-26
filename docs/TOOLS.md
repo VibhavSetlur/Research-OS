@@ -477,6 +477,7 @@ flags below already work regardless of the policy — so don't rely on
 | `tool_audit(scope='synthesis', dimension='all')` | `override_no_pdfs` | `override_rationale` | Zero-PDF default-deny on literature-required steps |
 | `tool_audit(scope='project', dimension='cross_deliverable')` | `override_cross_deliverable` | `override_rationale` | 5-dimension cross-deliverable audit |
 | `sys_path(operation='create')` | `allow_unfinalized_predecessor` | `override_rationale` | Refusal to create the next numbered step before the previous one is finalised |
+| `sys_protocol_log(status='completed')` | `override_completeness_gate` | `details` (the rationale) | Refusal to log a protocol completed when its declared `expected_outputs` are missing on disk (the completion gate) |
 
 ### Example calls
 

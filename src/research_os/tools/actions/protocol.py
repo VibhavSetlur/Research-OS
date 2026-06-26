@@ -79,20 +79,86 @@ def _log_redirect(source: str, target: str, params: dict | None = None) -> None:
 
 
 def log_protocol_execution(
-    root: Path, protocol_name: str, status: str, details: str = ""
+    root: Path, protocol_name: str, status: str, details: str = "",
+    *, override_completeness_gate: bool = False,
 ) -> dict:
-    """Append a structured entry to the protocol execution log."""
+    """Append a structured entry to the protocol execution log.
+
+    C1 completeness gate: logging a protocol ``completed`` is now a GATE, not a
+    sink. When ``status == "completed"`` and the protocol declares
+    ``expected_outputs``, those outputs must exist (and be non-empty) on disk —
+    otherwise the completion is REFUSED with ``status="blocked"`` and the
+    missing-output checklist, so an AI under context pressure can't mark work
+    done that produced nothing. Pass ``override_completeness_gate=True`` to log
+    completion anyway (recorded as an override in the entry + override_log.md),
+    for the rare legitimate case (e.g. a protocol whose output is intentionally
+    external). A protocol with no declared outputs passes trivially. Fail-open:
+    if the check itself errors, the completion is logged (never block on a bug).
+    """
     log_path = root / ".os_state" / PROTOCOL_LOG_FILE
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    entry = {
+
+    overridden = False
+    if status == "completed" and not override_completeness_gate:
+        try:
+            v = validate_protocol(protocol_name, root)
+            # Only gate when the protocol actually declares outputs AND some are
+            # missing (fail). Empty-but-present is advisory, handled elsewhere.
+            if (
+                isinstance(v, dict)
+                and not v.get("error")
+                and v.get("expected_count", 0) > 0
+                and not v.get("all_passed", True)
+            ):
+                missing = [
+                    c["item"] for c in v.get("checklist", [])
+                    if c.get("status") == "fail"
+                ]
+                return {
+                    "status": "blocked",
+                    "reason": "completeness_gate",
+                    "message": (
+                        f"Cannot mark '{protocol_name}' completed: "
+                        f"{len(missing)} declared output(s) missing — produce "
+                        "them, then log completed. To override (rare, e.g. an "
+                        "intentionally-external output), pass "
+                        "override_completeness_gate=True (it will be recorded)."
+                    ),
+                    "missing_outputs": missing,
+                    "checklist": v.get("checklist", []),
+                }
+        except Exception:  # noqa: BLE001 - never block on a gate bug (fail-open)
+            pass
+    elif status == "completed" and override_completeness_gate:
+        overridden = True
+
+    entry: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "protocol": protocol_name,
         "status": status,
         "details": details,
     }
+    if overridden:
+        entry["completeness_override"] = True
     with open(log_path, "a") as f:
         f.write(json.dumps(entry) + "\n")
-    return {"status": "success", "entry": entry}
+
+    # Record the override durably so a reviewer can see a completion bypassed
+    # the output gate (matches the doctrine: overrides are logged, not silent).
+    if overridden:
+        try:
+            ov = root / ".os_state" / "override_log.md"
+            ov.parent.mkdir(parents=True, exist_ok=True)
+            with open(ov, "a") as f:
+                f.write(
+                    f"- {entry['timestamp']} — `{protocol_name}` logged "
+                    "completed with completeness gate OVERRIDDEN "
+                    f"(declared outputs not all present). {details}\n"
+                )
+        except OSError:
+            pass
+
+    return {"status": "success", "entry": entry, "completeness_overridden": overridden}
 
 
 def get_protocol_history(root: Path, limit: int = 20) -> dict:
