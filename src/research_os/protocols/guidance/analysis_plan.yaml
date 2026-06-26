@@ -412,6 +412,15 @@ steps:
       In BOTH styles: `_v<k>` is the iteration suffix; bump it via
       `tool_step(operation='iterate')` when materially changing a sub-task.
 
+      The naming convention is WATCHED, not just documented:
+      `tool_audit(scope='step', dimension='script_naming')` validates every
+      script against `<NN>[a-z]_<snake_name>_v<k>.<ext>` (with `<NN>` = this
+      step's number); `tool_step_complete` surfaces violations as completeness
+      warnings; and a running daemon flags them in the daemon_notes that
+      sys_boot surfaces. So a
+      mis-named scripts/ folder gets caught early — don't rely on remembering
+      the format, let the gate tell you the exact rename.
+
       Server-enforced gates (no fast path through them):
         - tool_audit(scope='step', dimension='completeness') BLOCKS multi-script steps (>2)
           without a pipeline.yaml, missing focal figures, missing

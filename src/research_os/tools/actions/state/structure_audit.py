@@ -204,6 +204,27 @@ def audit_structure(root: str | Path) -> dict[str, Any]:
     except Exception:
         pass  # mode check is best-effort; never break the structure audit
 
+    # 6. Script naming convention (4.0.3): the daemon WATCHES that analysis
+    #    scripts follow <NN>[a-z]_<snake_name>_v<k>.<ext> with <NN> = the step's
+    #    number. The AI repeatedly drifts on this; surfacing it here means the
+    #    daemon's periodic self-check (health_notes.run_self_check) and sys_boot
+    #    both flag it, so it gets caught + fixed early instead of leaving a step
+    #    un-navigable. Each violation carries the exact conforming rename.
+    try:
+        from research_os.tools.actions.audit.script_naming import (
+            audit_script_naming,
+        )
+        naming = audit_script_naming(root)
+        for v in naming.get("blockers", []):
+            findings.append(_finding(
+                "warn", "script_naming",
+                f"script does not follow the naming convention: {v} "
+                "(convention: workspace/<NN>_<slug>/scripts/"
+                "<NN>[a-z]_<snake_name>_v<k>.<ext>).",
+            ))
+    except Exception:
+        pass  # naming check is best-effort; never break the structure audit
+
     counts: dict[str, int] = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1

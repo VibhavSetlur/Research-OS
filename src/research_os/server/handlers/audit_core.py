@@ -15,6 +15,7 @@ __all__ = [
     "_handle_tool_audit_figure",
     "_handle_tool_audit_citations",
     "_handle_tool_audit_reproducibility",
+    "_handle_tool_audit_script_naming",
     "_handle_tool_audit_figure_interactivity",
     "_handle_tool_audit_dashboard_content",
     "_handle_tool_audit_cliches",
@@ -207,6 +208,20 @@ def _handle_tool_audit_reproducibility(name, arguments, root):
     if res.get("status") != "error":
         return _text(_success(res))
     return _text(_error(res.get("message", "audit failed")))
+
+
+def _handle_tool_audit_script_naming(name, arguments, root):
+    """Validate analysis-step script naming (<NN>[a-z]_<snake_name>_v<k>.<ext>).
+
+    scope='step', dimension='script_naming'. Optional step_id audits one step;
+    omitted audits every numbered step. The daemon also watches this via
+    structure_audit, and tool_step_complete surfaces it as a completeness warning.
+    """
+    from research_os.tools.actions.audit.script_naming import audit_script_naming
+
+    step_id = arguments.get("step_id")
+    res = audit_script_naming(root, step_id=step_id)
+    return _text(_success(res))
 
 
 def _handle_tool_audit_figure_interactivity(name, arguments, root):

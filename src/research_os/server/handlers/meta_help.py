@@ -524,6 +524,7 @@ def _handle_sys_help(name, arguments, root):
                     "power":                "power justification gate — verifies you RECORDED test family, effect size + its source, alpha, n, target power (tool does not solve for power).",
                     "assumptions":          "assumptions gate — verifies you RAN + recorded each named diagnostic (statistic + interpretation + response to violations); the tool does not run the tests.",
                     "reproducibility":      "step rerun + bit-stability check (slow + expensive; autopilot floor gate).",
+                    "script_naming":        "scripts/ follow <NN>[a-z]_<snake_name>_v<k>.<ext> with <NN> = this step's number (the daemon also watches this).",
                 },
                 "project": {
                     "citations":          "every workspace/citations.md entry verified against Crossref / S2.",
