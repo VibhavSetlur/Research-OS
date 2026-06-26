@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 48
+version: 49
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -574,6 +574,8 @@ protocols:
     summary: "Autonomous build loop: execute a roadmap step by step, record each result, re-plan from the evidence, open/close paths, pause when the researcher is needed."
     triggers:
       - "build toward this autonomously"
+      - "drive autonomously toward the roadmap"
+      - "drive autonomously toward the goal"
       - "build toward the plan"
       - "build toward the goal"
       - "execute the roadmap"
@@ -613,6 +615,8 @@ protocols:
       - "branch this"
       - "explore this two ways"
       - "fork an alternative approach"
+      - "fork this into an alternative approach"
+      - "fork into an alternative"
       - "fork the analysis"
       - "compare these paths"
       - "compare the branches"
@@ -1186,6 +1190,10 @@ protocols:
     triggers:
       - "promote this"
       - "promote this probe"
+      - "graduate this"
+      - "graduate the probe"
+      - "graduate my scratch probe into a numbered step"
+      - "into a numbered step"
       - "make this a real step"
       - "make this a real experiment"
       - "turn this into an experiment"
@@ -1936,7 +1944,7 @@ protocols:
     triggers: ["network plot", "graph visualization", "node-link",
                "force-directed", "edge bundling", "citation network",
                "co-authorship network", "knowledge graph",
-               "dag diagram", "directed acyclic graph",
+               "dag diagram",
                "gephi", "cytoscape", "graphviz"]
 
   visualization/geospatial_visualization:
