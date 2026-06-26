@@ -856,13 +856,22 @@ def check_gitignore_covers_state(*, workspace: Path | None = None) -> CheckResul
         text = gi.read_text(encoding="utf-8")
     except OSError as exc:
         return ("warn", f"Couldn't read .gitignore: {exc}", None)
-    required = (".os_state/",)
+    # .os_state/ must be ignored as a WHOLE tree, not just a subdir like
+    # .os_state/cache/ (a plain substring check would pass on the old buggy
+    # generator that only ignored subdirs and still committed run history).
+    lines = {ln.strip() for ln in text.splitlines()}
+    state_ok = ".os_state/" in lines or ".os_state" in lines
     # Accept either workspace/cache or workspace/scratch (the existing
     # tree uses scratch; the v2 spec calls it cache).
     cache_ok = "workspace/cache" in text or "workspace/scratch" in text
-    missing = [p for p in required if p not in text]
+    logs_ok = "workspace/logs/" in lines or "workspace/logs" in lines
+    missing = []
+    if not state_ok:
+        missing.append(".os_state/ (the whole tree, not just a subdir)")
     if not cache_ok:
         missing.append("workspace/cache/ (or workspace/scratch/)")
+    if not logs_ok:
+        missing.append("workspace/logs/")
     if missing:
         return (
             "warn",

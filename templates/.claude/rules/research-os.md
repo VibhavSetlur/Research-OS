@@ -32,6 +32,8 @@ On **subsequent turns** of the same session, skip `sys_boot` — its
 payload is still in context — and go straight to `tool_route` (or
 continue an in-flight plan via `tool_plan(operation="advance")`).
 
+**Stay on Research OS — and self-correct if you drift.** Route EVERY research ask through `tool_route` and do the work inside a numbered step; don't write analysis files, scripts, or `conclusions.md` directly without routing first. If a tool envelope ever returns an `off_protocol_freelancing` finding (you wrote step content with no route / open step), that's a mid-turn course-correct: run `tool_route` on the current ask, open the step it implies, and move the work into it — same turn. The write isn't blocked; it's just outside the system until you do.
+
 Tools use underscores: `sys_state_get`, `tool_data`,
 `mem_log`. Dot notation + legacy aliases auto-rewrite.
 

@@ -6,6 +6,47 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.1.0] — self-correction, easier setup, per-project daemon control (2026-06-26)
+
+A MINOR release driven by user reports: make the AI follow Research OS reliably
+(and recover when it doesn't), make first-time setup robust, and tighten what
+gets committed. Backward-compatible — no tools or protocols removed.
+
+### Added
+- **Mid-prompt off-protocol self-correction.** If the AI writes step content
+  (`workspace/NN_*/…`, a `conclusions.md`, `synthesis/…`) without routing the
+  ask or opening a step, the very next tool envelope now carries a
+  **non-blocking** `off_protocol_freelancing` finding + a `tool_route(...)`
+  `next_recommended_call`. The AI sees it the same turn and corrects without
+  being hard-stopped. New `server/drift_detect.py` reads `.os_state` by shape,
+  so it works **with or without a daemon** (stdio users included), is debounced
+  so it never nags, and never triggers on scratch/inputs/logs writes. The
+  per-IDE rules + AI_GUIDE now tell the AI to act on it.
+- **Per-project `research-os daemon stop`.** Gracefully stops *this* project's
+  daemon (via its `.os_state/daemon.json` descriptor) and preserves
+  `.os_state/runs/`, so per-project start/stop round-trips and resumes where it
+  left off.
+
+### Fixed
+- **`.gitignore` now excludes the whole `.os_state/` tree and `workspace/logs/`.**
+  The generator previously ignored only `.os_state/` *subdirs* and
+  `workspace/cache/scratch`, so machine-local run history and per-run audit /
+  override logs were being committed into user repos. The `doctor` check is
+  hardened to require both as standalone lines.
+
+### Improved
+- **Onboarding-first, realistic docs.** README adds a "most robust setup" path
+  (onboarding + the setup prompt + the Hermes layer) and tones down the
+  "honest enough to publish" overclaim to a realistic traceable/grounded/
+  reproducible framing. START.md's setup prompt now (a) demands a session
+  RESTART after `init` and waits for confirmation, (b) adds an "onboard before
+  producing work" step (scan inputs → frame question → pick mode → config →
+  then first step), (c) recommends the Hermes layer and tells Hermes to read
+  the intake + pull relevant skills on the first setup turn, and (d) lists the
+  actual CLI subcommands (was a stale "seven subcommands").
+
+---
+
 ## [4.0.3] — script-naming enforcement, setup UX, gate hardening (2026-06-26)
 
 A PATCH release driven by user reports + a third audit pass. Focus: make the

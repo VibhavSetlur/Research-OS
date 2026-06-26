@@ -759,8 +759,9 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.
-> 3. **Verify**: run `research-os --help` and show me the output. There
->    should be seven subcommands: `init`, `ide`, `mcp`, `api-key`, `start`, `doctor`, `completion`.
+> 3. **Verify**: run `research-os --help` and show me the output. The
+>    subcommands are `init`, `ide`, `mcp`, `hermes`, `route`, `api-key`,
+>    `start`, `daemon`, `doctor`, `refresh`, `completion`.
 > 4. **Detect my AI IDE.** Ask which I'm using (Claude Code / OpenCode /
 >    Antigravity / Cursor / Claude Desktop / VS Code with MCP / Windsurf
 >    / Continue / Aider / other). For the chosen IDE, tell me what file
@@ -777,7 +778,19 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    ```
 >    Then open the IDE on the folder and chat. Mention that
 >    `research-os start` is auto-launched by the IDE; I rarely run it
->    manually.
+>    manually. **CRITICAL: if my IDE / AI session was already open, I
+>    must fully RESTART it (or reload the window) after `init` — the MCP
+>    server only loads on a fresh session, so the Research OS tools won't
+>    appear until I do. Tell me to restart and wait for me to confirm
+>    before going further.**
+> 5b. **Onboard before producing work — don't start analysis immediately.**
+>    Once the tools are live (post-restart), guide me through proper
+>    onboarding in order: scan what's in `inputs/`, help me state the
+>    research question + hypotheses, pick the workspace mode (analysis /
+>    tool_build / exploration / notebook / hybrid / multi_study), and
+>    confirm `inputs/researcher_config.yaml`. Only THEN open the first
+>    numbered step. A few minutes here is the difference between a robust
+>    project and a messy one.
 > 6. **Show me 5 essential prompts** I'll use most often:
 >    - "fill out the intake"
 >    - "what should I do next?"
@@ -794,6 +807,15 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    - `docs/USE_CASES.md` — role × goal × output map
 >    - `docs/FAQ.md` — common questions
 >    - `CHANGELOG.md [2.0.0]` — if upgrading from v1.x
+> 9. **For the most robust setup, recommend the Hermes layer.** If I want
+>    memory across projects, reusable skills, and autonomous long runs,
+>    Research OS pairs with Hermes (an MCP-capable agent layer) — docs at
+>    <https://hermes-agent.nousresearch.com>. If I'm already running
+>    Hermes, on this FIRST setup turn you should: read my project intake
+>    (question, domain, data, mode) to understand what I'm doing, then
+>    pull the Hermes skills relevant to it (e.g. domain analysis, the
+>    relevant language/stat stack, paper-writing) so they're loaded before
+>    we start — don't wait for me to ask.
 
 ---
 

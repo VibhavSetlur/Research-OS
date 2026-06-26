@@ -491,6 +491,19 @@ before a large copy on a shared disk.
 | Skip the `ask_user` from `tool_route` | Asking once costs less than picking wrong |
 | Re-route after the researcher already picked one | Use `tool_plan(operation='clear')` if they pivoted |
 | Submit without `audit/pre_submission_checklist` | The pre-submission gate catches what reviewers will catch |
+| Ignore an `off_protocol_freelancing` finding in `audit_findings` | It means you wrote step content WITHOUT routing — stop, run `tool_route` on the current ask, open a numbered step, then redo the work inside it. The write succeeded but it's outside Research-OS; keep going off-protocol and the work won't be governed, logged, or audited |
+
+### Self-correction: when the tools tell you you've drifted
+
+Research-OS watches whether you're actually using it. If you write step-like
+content (`workspace/NN_*/…`, a `conclusions.md`, `synthesis/…`) without first
+routing the ask and opening a step, the very next tool envelope carries a
+**non-blocking** `off_protocol_freelancing` finding + a `next_recommended_call`
+of `tool_route(...)`. That's not an error — it's a mid-turn course-correct.
+**Act on it the same turn:** route the researcher's current ask, open the
+numbered step it implies, and move the freelanced content into that step. Don't
+suppress it or push past it. A running daemon escalates to the researcher if you
+keep ignoring it.
 
 ---
 
