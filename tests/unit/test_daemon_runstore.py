@@ -264,3 +264,25 @@ def test_duplicate_terminal_event_is_idempotent(tmp_path):
     assert len(fired) == 1
     succeeded = [t for t in m.get("transitions", []) if t.get("status") == "succeeded"]
     assert len(succeeded) == 1
+
+
+def test_slow_terminal_hook_does_not_block_the_journal_pump(tmp_path):
+    """F-5 (4.0.2): a slow on_terminal hook must run off the single pump thread,
+    so a terminal event returns immediately instead of head-of-line blocking
+    every other run's journaling."""
+    import threading
+    import time
+
+    rs = RunStore(tmp_path)
+    rj = RunJournal(rs)
+    done = threading.Event()
+    rj.on_terminal = lambda m: (time.sleep(1.0), done.set())
+    evt = {
+        "job_id": "j1",
+        "job": {"id": "j1", "name": "x", "kind": "callable",
+                "status": "succeeded", "result": {"returncode": 0}},
+    }
+    t0 = time.time()
+    rj._on_transition("job.succeeded", evt)
+    assert time.time() - t0 < 0.3  # returned immediately, did not wait 1.0s
+    assert done.wait(3)  # hook still ran to completion async

@@ -68,7 +68,7 @@ class Daemon:
     """
 
     def __init__(self, root: Path | None, config: DaemonConfig) -> None:
-        self.root = root
+        self.root = Path(root) if (root is not None and not isinstance(root, Path)) else root
         self.config = config
         # Set True by serve() once the process is actually listening.
         self._serving = False

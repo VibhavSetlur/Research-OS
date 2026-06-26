@@ -59,6 +59,13 @@ def _handle_tool_audit(name, arguments, root):
     """
     scope = arguments.get("scope")
     dimension = arguments.get("dimension")
+    if (scope is not None and not isinstance(scope, str)) or (
+        dimension is not None and not isinstance(dimension, str)
+    ):
+        return _text(_error(
+            "tool_audit: scope and dimension must be strings. "
+            "Use sys_help(topic='gates') for the (scope, dimension) gate vocabulary."
+        ))
     if scope == "active_gates":
         return _handle_tool_audit_active_gates(name, arguments, root)
     if not scope or not dimension:

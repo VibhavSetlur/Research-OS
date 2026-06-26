@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -375,21 +376,33 @@ class RunJournal:
         # Free the in-memory tail once the run is terminal.
         if status in {"succeeded", "failed", "cancelled"}:
             self._tails.pop(job_id, None)
-            # Auto-refresh the staleness verdict the reasoning-side gate reads.
-            # Without this the verdict was written ONLY by an authenticated
-            # POST /v1/staleness/verdict, so the no_stale_inputs floor gate
-            # never fired in normal use. Recompute from the just-updated
-            # journal + persist the sidecar. Best-effort: a failure here never
-            # touches the run record (matches the bus-isolation contract).
-            self._refresh_staleness_verdict()
-            # Fire the optional terminal hook (autonomous continuation, etc.).
-            # Best-effort + isolated: a hook failure never touches the run
-            # record or the bus.
-            if self.on_terminal is not None:
-                try:
-                    self.on_terminal(manifest)
-                except Exception:  # noqa: BLE001 - hook must not break the journal
-                    pass
+            # Staleness refresh stays inline (it's fast + cheap and the
+            # reasoning-side gate reads it right after a run finishes).
+            try:
+                self._refresh_staleness_verdict()
+            except Exception:  # noqa: BLE001
+                pass
+            # The terminal HOOK is dispatched to a SEPARATE thread (F-5): the
+            # autonomous-continuation hook may run a continue_command for up to
+            # continue_timeout seconds, and the journal has a SINGLE pump thread.
+            # Running it inline would block journaling of every OTHER run's
+            # events for that whole window (head-of-line blocking — observability
+            # + durability degrade exactly when a long autonomous job finishes).
+            # The hook is contractually "never blocks the journal"; this makes
+            # the implementation match.
+            hook = self.on_terminal
+            if hook is not None:
+                def _fire_hook(_m=manifest, _hook=hook):
+                    try:
+                        _hook(_m)
+                    except Exception:  # noqa: BLE001 - hook must not break the journal
+                        pass
+
+                threading.Thread(
+                    target=_fire_hook,
+                    name=f"ro-terminal-{job_id}",
+                    daemon=True,
+                ).start()
 
     def _refresh_staleness_verdict(self) -> None:
         """Recompute + persist the freshness verdict from the run journal.

@@ -1576,6 +1576,8 @@ def route_request(
     AND resolution made it to L3): writes ``.os_state/active_plan.json``.
     """
     try:
+        if not isinstance(prompt, str):
+            return {"status": "error", "message": "prompt must be a string"}
         if not prompt or not prompt.strip():
             return {"status": "error", "message": "empty prompt"}
 
