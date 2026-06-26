@@ -56,7 +56,7 @@ trigger: |
 
 prerequisites:
   - methodology/qualitative_research artefacts exist (outputs/reports/interview_protocol.md, outputs/reports/codebook.md, outputs/reports/themes.md, outputs/reports/trustworthiness.md).
-  - Transcripts are staged in workspace/<step>/data/input/.
+  - Transcripts are staged in workspace/<step>/data/past_step_input/.
 
 editorial_voice:
   mode: prescription

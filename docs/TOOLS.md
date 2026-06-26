@@ -200,7 +200,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_quick_review` | Stage a critical-appraisal skeleton for someone else's paper. |
 | `tool_quick_route` | Listed above (Discovery). |
 | `tool_r_exec` | Run `.R` (requires `Rscript` on PATH). |
-| `tool_redcap_schema_describe` | (adapter: `redcap`) Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/data/redcap_schema.md`. |
+| `tool_redcap_schema_describe` | (adapter: `redcap`) Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/outputs/reports/redcap_schema.md`. |
 | `tool_redteam_review` | Adversarial review of a deliverable BEFORE peer review. `focus='manuscript'\|'proof'\|'figure'\|'methods'`. |
 | `tool_research_method` | 5-10 academic + web sources on a method; structured report. **Required BEFORE choosing any method.** |
 | `tool_research_tool` | Find candidate libraries / CLIs / websites; tagged installable / api / external / paid. |

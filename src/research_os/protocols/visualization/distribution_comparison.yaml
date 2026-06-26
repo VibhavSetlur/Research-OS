@@ -165,7 +165,7 @@ steps:
         - emit standard sidecars + .prov.json with the idiom name
           + library version
         - persist any computed summary (median, IQR, etc.) to
-          data/output/ so reruns are deterministic.
+          data/next_step_output/ so reruns are deterministic.
 
   - id: legibility_audit
     name: Audit for legibility

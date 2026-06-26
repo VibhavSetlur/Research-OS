@@ -156,7 +156,7 @@ steps:
     description: |
       Run the power calc across a GRID of plausible inputs and write
       the resulting table to
-      workspace/<step>/data/output/power_grid.csv:
+      workspace/<step>/data/next_step_output/power_grid.csv:
 
         - effect size: low / planned / high (the planned value plus
           a range that brackets the assumption uncertainty)
@@ -271,7 +271,7 @@ steps:
 
 expected_outputs:
   - workspace/<step>/outputs/reports/power_assumptions.md
-  - workspace/<step>/data/output/power_grid.csv
+  - workspace/<step>/data/next_step_output/power_grid.csv
   - workspace/<step>/outputs/figures/power_curve.png
   - workspace/<step>/outputs/reports/power_justification.md
 

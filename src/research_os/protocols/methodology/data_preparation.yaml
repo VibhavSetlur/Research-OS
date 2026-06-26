@@ -207,7 +207,7 @@ steps:
 
 expected_outputs:
   - workspace/<step>/data_prep_plan.md
-  - workspace/<step>/data/output/                       # the prepared table(s)
+  - workspace/<step>/data/next_step_output/                       # the prepared table(s)
   - workspace/<step>/scripts/                           # ordered, re-runnable transforms
   - workspace/<step>/outputs/reports/data_prep_report.md
   - workspace/<step>/outputs/reports/data_dictionary.md

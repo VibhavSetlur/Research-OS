@@ -99,8 +99,9 @@ steps:
       ingest source. For each transcript in
       `inputs/raw_data_redacted/` (or `inputs/raw_data/` for
       genuinely public corpora; document the exemption in
-      `inputs/policy/pii_policy.md`), copy (symlink, do not move)
-      into workspace/<step>/data/input/. If transcripts are .docx,
+      `inputs/policy/pii_policy.md`), copy (or symlink for large corpora —
+      do not move) into workspace/<step>/data/past_step_input/, or reference
+      via data/project_inputs/. If transcripts are .docx,
       also save a .md copy via sys_file_write so coding can be
       text-aware.
 

@@ -70,7 +70,7 @@ steps:
         - "Baseline EDA: distributions, missingness, basic correlations."
         - "Fit logistic regression with X1..Xk covariates; report AUROC + calibration."
       Identify:
-        - Input data (from previous step's data/output/, symlinked).
+        - Input data (from previous step's data/next_step_output/, reachable via this step's data/past_step_input/ symlink), or from inputs/raw_data/ via data/project_inputs/.
         - The hypothesis (or hypotheses) this step targets — by ID, e.g. H2.
 
       AUTONOMY GATE:
@@ -443,8 +443,8 @@ steps:
       (qualitative coding, pure data plumbing, etc.). Default to all
       three; explain the omission in conclusions.md if you skip one.
 
-        - Read from workspace/<step>/data/input/ (auto-symlinked).
-        - Write derived data to workspace/<step>/data/output/.
+        - Read from workspace/<step>/data/past_step_input/ (auto-symlink → prior step's next_step_output) or data/project_inputs/ (→ inputs/raw_data/).
+        - Write derived data to workspace/<step>/data/next_step_output/.
 
         - REPORTS (outputs/reports/, .md): at least one markdown
           summary with numbers + interpretation. This is the readable
@@ -700,7 +700,7 @@ steps:
           OR step-specific sources + the decisions they informed.
         - context/README.md ← "no prose needed" OR narrative inventory
           + plain-language summary from notes.md.
-        - data/output/README.md ← every persisted artefact + which
+        - data/next_step_output/README.md ← every persisted artefact + which
           downstream step consumes it (from the workflow DAG).
         - outputs/README.md ← inventory of figures / tables / reports.
         - README.md ← stub Methods / Outputs / Decision sections

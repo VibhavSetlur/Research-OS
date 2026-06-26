@@ -199,7 +199,7 @@ steps:
         - emit the standard 4 sidecars: .caption.md, .summary.md,
           .prov.json, .svg
         - persist the laid-out coordinates to
-          data/output/network_coords.parquet so reruns can reproduce
+          data/next_step_output/network_coords.parquet so reruns can reproduce
           the figure WITHOUT re-running the stochastic layout.
 
       For an interactive figure: route to
@@ -243,7 +243,7 @@ expected_outputs:
   - workspace/.network_viz/goal.md
   - workspace/<step>/outputs/figures/network_<topic>.{png,svg}
   - workspace/<step>/outputs/figures/network_<topic>.{caption.md,summary.md,prov.json}
-  - workspace/<step>/data/output/network_coords.parquet
+  - workspace/<step>/data/next_step_output/network_coords.parquet
 
 quality_bar:
   graph_profile_with_n_nodes_m_edges_density: true

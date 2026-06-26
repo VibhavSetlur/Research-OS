@@ -201,7 +201,7 @@ steps:
         - include a scale bar + north arrow + caption-friendly
           legend
         - persist the GeoDataFrame + classification output to
-          data/output/ so reruns are deterministic.
+          data/next_step_output/ so reruns are deterministic.
 
   - id: legibility_and_honesty_audit
     name: Audit for legibility + honesty
@@ -238,7 +238,7 @@ expected_outputs:
   - workspace/.geo/data_profile.md
   - workspace/<step>/outputs/figures/map_<topic>.{png,svg}
   - workspace/<step>/outputs/figures/map_<topic>.{caption.md,summary.md,prov.json}
-  - workspace/<step>/data/output/geo_processed.{gpkg,parquet}
+  - workspace/<step>/data/next_step_output/geo_processed.{gpkg,parquet}
 
 quality_bar:
   denominator_used_for_counts: true

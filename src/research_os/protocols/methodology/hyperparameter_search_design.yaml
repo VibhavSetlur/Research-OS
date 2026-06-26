@@ -201,7 +201,7 @@ steps:
         - library / version
 
       Trial log goes to
-      workspace/<step>/data/output/sweep_trials.parquet (or .csv
+      workspace/<step>/data/next_step_output/sweep_trials.parquet (or .csv
       for small sweeps).
 
   - id: visualise_the_landscape
@@ -250,7 +250,7 @@ expected_outputs:
   - workspace/<step>/outputs/reports/sweep_space.md
   - workspace/<step>/outputs/reports/sweep_strategy.md
   - workspace/<step>/sweep_protocol.md
-  - workspace/<step>/data/output/sweep_trials.parquet
+  - workspace/<step>/data/next_step_output/sweep_trials.parquet
   - workspace/<step>/outputs/figures/sweep_*.png
 
 quality_bar:

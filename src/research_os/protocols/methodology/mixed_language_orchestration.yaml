@@ -22,7 +22,7 @@ description: |
   ad-hoc subprocess: a Python (or R) script calls another language's
   interpreter, captures stdout/stderr, and writes the result to disk.
   The hand-off contract is FILES on disk in
-  `workspace/<step>/data/output/`, not in-memory objects.
+  `workspace/<step>/data/next_step_output/`, not in-memory objects.
 
   When to prefer separate steps INSTEAD: if the data hand-off doesn't
   need round-tripping (Python preprocessing → R model fit → done),
