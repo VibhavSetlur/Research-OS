@@ -6,6 +6,52 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.0.2] — daemon crash-recovery hardening + robustness pass (2026-06-26)
+
+A PATCH release: a second deep audit (daemon, runtime, and protocol/router
+investigators) closed four daemon crash-recovery BLOCK/MAJOR bugs, a
+wide str-root crash class, and several routing/robustness gaps. No tools,
+protocols, or input schemas changed — existing projects upgrade transparently.
+
+### Fixed
+- **Paused runs survive restart (BLOCK).** A `paused` run was treated as a crash
+  orphan and silently rewritten to `interrupted` on daemon restart, losing the
+  user's pause. `detect_orphans` now treats paused as terminal-for-recovery.
+- **Terminal-event idempotency (MAJOR).** A duplicate/replayed terminal event
+  double-appended a transition and double-fired the autonomous-continuation hook
+  (spending compute/tokens twice). Added a terminal-once guard.
+- **Scheduler runs resume on the scheduler (BLOCK).** A SLURM/HPC run was
+  resumed as a local subprocess on the daemon/login node. `resume_run` now
+  branches on kind/scheduler and re-dispatches via `submit_job` (sbatch).
+- **No duplicate of a live run (BLOCK).** The run manifest now records the child
+  PID + host; `resume_run` refuses to re-spawn while the original process is
+  still alive (was previously able to launch a concurrent duplicate).
+- **Journal pump no longer head-of-line blocks (MAJOR).** The `on_terminal` hook
+  (which may run a continuation for up to `continue_timeout` seconds) ran inline
+  on the single journal pump thread, stalling journaling of every other run. It
+  now runs on a separate thread; the fast staleness refresh stays inline.
+- **str-root crash class (wide).** ~45 action functions did `root / "..."`
+  without coercing; the daemon gateway passed `daemon.root` un-coerced, so a str
+  root crashed them. `_handle_tool_call` (and `Daemon.__init__`) now coerce root
+  to `Path` at the boundary — protects all tools regardless of caller.
+- **Phantom decomposition tools (HIGH).** `build/integration_spike` named two
+  tools that don't exist (`sys_env_snapshot`, `tool_scratch_run`) → `sys_env`,
+  `tool_scratch`. Added a preflight guard so a phantom decomposition/shortcut
+  tool name now fails preflight.
+- **Cleaner malformed-input errors.** `tool_route` (non-str prompt) and
+  `tool_audit` (non-str scope/dimension) return typed envelopes instead of
+  leaking internal exception text.
+- **`?root=` reads work (F-7).** `GET /v1/lineage|staleness|rebuild?root=<X>` now
+  constructs a RunStore for the override root instead of always returning
+  `available:false`.
+
+### Improved
+- **Routing.** "directed acyclic graph" now reaches causal inference (not
+  network-viz); added trigger variants for autonomous-roadmap, fork-alternative,
+  and probe-promotion prompts that previously dead-ended.
+
+---
+
 ## [4.0.1] — post-release consistency & accuracy pass (2026-06-26)
 
 A PATCH release: a deep post-4.0.0 audit (multi-persona stress test +

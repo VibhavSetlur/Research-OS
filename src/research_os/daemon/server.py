@@ -576,8 +576,15 @@ def build_app(daemon: "Daemon"):
         # daemon's own runstore. Returns (runstore, error_response|None).
         root_q = request.query_params.get("root")
         if root_q:
-            ws = daemon.registry.get(root_q) or daemon.registry.register(root_q)
-            store = getattr(ws, "runstore", None)
+            # A registry workspace carries no runstore — construct one directly
+            # for the override root so ?root= lineage/staleness/rebuild actually
+            # read that project's journal (F-7) instead of always degrading to
+            # available:false.
+            from .runstore import RunStore
+            try:
+                store = RunStore(root_q)
+            except Exception:
+                store = None
         else:
             store = daemon.runstore
         return store

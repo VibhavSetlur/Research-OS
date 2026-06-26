@@ -84,6 +84,16 @@ def _log_deprecation(root: Path, source: str, target: str) -> None:
 def _handle_tool_call(name: str, arguments: dict, root: Path) -> list[TextContent]:
     if not _rate_limiter.is_allowed():
         return _text(_error("Rate limit exceeded: slow down."))
+    # Normalize root to Path at the dispatch boundary. The MCP entry resolves a
+    # Path, but the daemon gateway passes daemon.root verbatim (which may be a
+    # str), and ~45 action functions do `root / "..."` without coercing — a str
+    # root crashes them with `unsupported operand type(s) for /: 'str' and
+    # 'str'`. One coercion here protects all 159 tools regardless of caller.
+    if root is not None and not isinstance(root, Path):
+        try:
+            root = Path(root)
+        except TypeError:
+            pass
     canonical_input = name.replace(".", "_")
     resolved = _resolve_tool_name(name)
     logger.info(f"Tool call: {name} -> {resolved}")

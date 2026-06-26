@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -173,14 +174,19 @@ class RunStore:
         return out
 
     def detect_orphans(self) -> list[str]:
-        """Run ids whose last persisted status was non-terminal.
+        """Run ids whose last persisted status was non-terminal AND not paused.
 
         After an unclean shutdown these runs were RUNNING/QUEUED but the
         process died — they can never resume, so the daemon should mark them
         INTERRUPTED on startup rather than leave them looking live forever.
+
+        ``paused`` is deliberately treated as terminal-for-recovery: a paused
+        run is a USER INTENT, not a crash artifact, so it must NOT be rewritten
+        to ``interrupted`` on restart (that would lose the pause and make the
+        watchdog nag to resume a run the researcher intentionally held).
         """
         orphans: list[str] = []
-        terminal = {"succeeded", "failed", "cancelled", "interrupted"}
+        terminal = {"succeeded", "failed", "cancelled", "interrupted", "paused"}
         for s in self.list_runs(limit=10_000):
             status = (s.get("status") or "").lower()
             if status and status not in terminal:
@@ -267,9 +273,28 @@ class RunJournal:
             data = getattr(event, "data", None) or {}
             if kind == "job.log":
                 self._on_log(data)
+            elif kind == "job.pid":
+                self._on_pid(data)
             elif isinstance(kind, str) and kind.startswith("job."):
                 self._on_transition(kind, data)
         except Exception:  # noqa: BLE001 - journal must never break the bus
+            pass
+
+    def _on_pid(self, data: dict) -> None:
+        """Persist the child PID (+ host) so crash-recovery can check liveness."""
+        job_id = data.get("job_id") or data.get("id")
+        pid = data.get("pid")
+        if not job_id or pid is None:
+            return
+        manifest = self.store.read_manifest(job_id)
+        if manifest is None:
+            return
+        import socket
+        manifest["pid"] = pid
+        manifest["host"] = socket.gethostname()
+        try:
+            self.store.write_manifest(job_id, manifest)
+        except OSError:
             pass
 
     def _on_log(self, data: dict) -> None:
@@ -290,6 +315,16 @@ class RunJournal:
             return
         status = (snap.get("status") or data.get("status") or "").lower()
         existing = self.store.read_manifest(job_id)
+        # Terminal-once idempotency guard: if this run is ALREADY terminal, a
+        # second terminal event (bus replay / duplicate emit) must be a no-op —
+        # otherwise it double-appends a transition and double-fires on_terminal
+        # (which double-advances autonomous continuation, spending compute/tokens
+        # twice). Non-terminal → terminal still proceeds normally.
+        _TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
+        if existing is not None:
+            prev = (existing.get("status") or "").lower()
+            if prev in _TERMINAL and status in _TERMINAL:
+                return
         if existing is None:
             manifest = build_manifest(
                 run_id=job_id,
@@ -341,21 +376,33 @@ class RunJournal:
         # Free the in-memory tail once the run is terminal.
         if status in {"succeeded", "failed", "cancelled"}:
             self._tails.pop(job_id, None)
-            # Auto-refresh the staleness verdict the reasoning-side gate reads.
-            # Without this the verdict was written ONLY by an authenticated
-            # POST /v1/staleness/verdict, so the no_stale_inputs floor gate
-            # never fired in normal use. Recompute from the just-updated
-            # journal + persist the sidecar. Best-effort: a failure here never
-            # touches the run record (matches the bus-isolation contract).
-            self._refresh_staleness_verdict()
-            # Fire the optional terminal hook (autonomous continuation, etc.).
-            # Best-effort + isolated: a hook failure never touches the run
-            # record or the bus.
-            if self.on_terminal is not None:
-                try:
-                    self.on_terminal(manifest)
-                except Exception:  # noqa: BLE001 - hook must not break the journal
-                    pass
+            # Staleness refresh stays inline (it's fast + cheap and the
+            # reasoning-side gate reads it right after a run finishes).
+            try:
+                self._refresh_staleness_verdict()
+            except Exception:  # noqa: BLE001
+                pass
+            # The terminal HOOK is dispatched to a SEPARATE thread (F-5): the
+            # autonomous-continuation hook may run a continue_command for up to
+            # continue_timeout seconds, and the journal has a SINGLE pump thread.
+            # Running it inline would block journaling of every OTHER run's
+            # events for that whole window (head-of-line blocking — observability
+            # + durability degrade exactly when a long autonomous job finishes).
+            # The hook is contractually "never blocks the journal"; this makes
+            # the implementation match.
+            hook = self.on_terminal
+            if hook is not None:
+                def _fire_hook(_m=manifest, _hook=hook):
+                    try:
+                        _hook(_m)
+                    except Exception:  # noqa: BLE001 - hook must not break the journal
+                        pass
+
+                threading.Thread(
+                    target=_fire_hook,
+                    name=f"ro-terminal-{job_id}",
+                    daemon=True,
+                ).start()
 
     def _refresh_staleness_verdict(self) -> None:
         """Recompute + persist the freshness verdict from the run journal.

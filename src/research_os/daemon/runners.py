@@ -186,6 +186,15 @@ class SubprocessRunner:
         else:
             proc = subprocess.Popen(self.cmd, **popen_kwargs)
 
+        # Record the child PID so crash-recovery can tell a genuinely-dead run
+        # from one whose subprocess survived a daemon restart (BLOCK-2 / F-4):
+        # resume_run refuses to re-spawn while the recorded PID is still alive.
+        if emit is not None:
+            try:
+                emit("job.pid", {"pid": proc.pid})
+            except Exception:  # noqa: BLE001 - telemetry must not break a run
+                pass
+
         def _pump(stream, tail: deque, channel: str) -> None:
             nonlocal line_count
             for raw in iter(stream.readline, ""):

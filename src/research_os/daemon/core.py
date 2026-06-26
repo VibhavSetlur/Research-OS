@@ -68,7 +68,7 @@ class Daemon:
     """
 
     def __init__(self, root: Path | None, config: DaemonConfig) -> None:
-        self.root = root
+        self.root = Path(root) if (root is not None and not isinstance(root, Path)) else root
         self.config = config
         # Set True by serve() once the process is actually listening.
         self._serving = False
@@ -541,7 +541,60 @@ class Daemon:
                 f"run {run_id} is '{status}', not resumable "
                 "(only interrupted/paused/failed/cancelled runs can be resumed)"
             )
+
+        # Liveness guard (BLOCK-2 / F-4): if the original run's recorded process
+        # is STILL ALIVE on this host, refuse to re-spawn — a duplicate would
+        # double-write / double-compute / corrupt outputs. Only applies when the
+        # PID was recorded on this same host (cross-host PIDs are meaningless).
+        import os as _os_live
+        import socket as _socket_live
+        rec_pid = manifest.get("pid")
+        rec_host = manifest.get("host")
+        if rec_pid and (rec_host in (None, _socket_live.gethostname())):
+            try:
+                _os_live.kill(int(rec_pid), 0)
+                alive = True
+            except (OSError, ValueError, TypeError):
+                alive = False
+            if alive:
+                raise ValueError(
+                    f"run {run_id} still has a live process (pid={rec_pid}) — "
+                    "refusing to resume and spawn a duplicate. Stop the original "
+                    "first, then resume."
+                )
+
         spec = manifest.get("spec") or {}
+        # Scheduler-aware resume (MAJOR-3): a SLURM/HPC run MUST be re-dispatched
+        # through the scheduler (sbatch), NOT re-launched as a local subprocess
+        # on the daemon/login node. Branch on the recorded kind/scheduler before
+        # falling through to the local run_command path below.
+        kind = (manifest.get("kind") or "").lower()
+        scheduler = spec.get("scheduler")
+        if kind == "scheduler" or scheduler:
+            script = spec.get("script") or spec.get("cmd") or spec.get("command")
+            if isinstance(script, (list, tuple)):
+                script = script[0] if script else None
+            if not script:
+                raise ValueError(
+                    f"scheduler run {run_id} has no recorded script to resume"
+                )
+            self.tasks.start()
+            self._start_journal()
+            new_id = self.submit_job(
+                script,
+                scheduler=scheduler or "slurm",
+                name=f"resume:{run_id}",
+                cwd=cwd or spec.get("cwd"),
+                root=spec.get("root"),
+            )
+            return {
+                "resumed_from": run_id,
+                "new_run_id": new_id,
+                "command": script,
+                "cwd": cwd or spec.get("cwd"),
+                "scheduler": scheduler or "slurm",
+            }
+
         cmd = spec.get("cmd") or spec.get("command")
         if not cmd:
             raise ValueError(

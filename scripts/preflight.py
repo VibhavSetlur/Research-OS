@@ -940,6 +940,31 @@ def check_route_meta():
                 )
         except Exception as exc:
             bad.append(f"could not read embeddings protocol_ids: {exc}")
+    # Decomposition / shortcut tool names must exist in TOOL_DEFINITIONS — a
+    # phantom tool (typo / rename) in a decomposition makes the AI 404 mid-plan.
+    try:
+        from research_os.server import TOOL_DEFINITIONS
+        known_tools = set(TOOL_DEFINITIONS)
+        phantom: list[str] = []
+        for pid, e in protos.items():
+            for step in (e.get("decomposition") or []):
+                t = step.get("tool") if isinstance(step, dict) else None
+                if t and t not in known_tools:
+                    phantom.append(f"{pid}:{t}")
+            st = e.get("shortcut_tool")
+            if st and st not in known_tools:
+                phantom.append(f"{pid}:shortcut={st}")
+        for intent, e in (on_disk.get("shortcut_intents", {}) or {}).items():
+            st = e.get("tool") if isinstance(e, dict) else e
+            if st and st not in known_tools:
+                phantom.append(f"shortcut_intent {intent}:{st}")
+        if phantom:
+            bad.append(
+                f"{len(phantom)} decomposition/shortcut tool(s) not in "
+                f"TOOL_DEFINITIONS: {phantom[:3]}"
+            )
+    except Exception as exc:
+        bad.append(f"could not validate decomposition tool names: {exc}")
     return (not bad), (
         f"{len(protos)} protocols compiled, fresh + embedded"
         if not bad

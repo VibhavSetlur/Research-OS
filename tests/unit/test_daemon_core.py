@@ -157,9 +157,33 @@ def test_resume_run_relaunches_interrupted_spec(tmp_path):
     assert spec.get("resumed_from") == jid or new_m.get("resumed_from") == jid
 
 
-def test_resume_run_rejects_unknown(tmp_path):
+def test_resume_run_scheduler_redispatches_via_scheduler(tmp_path):
+    """F-3 (4.0.2): a scheduler (SLURM) run must resume via submit_job (sbatch),
+    NOT be re-launched as a local subprocess on the daemon host."""
     daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
+    # craft an interrupted scheduler manifest
+    rs = daemon.runstore
+    rs.runs_dir.mkdir(parents=True, exist_ok=True)
+    rid = "sched1"
+    (rs.runs_dir / rid).mkdir(exist_ok=True)
+    rs.write_manifest(rid, {
+        "id": rid, "name": rid, "kind": "scheduler", "status": "interrupted",
+        "spec": {"script": "train.sh", "scheduler": "slurm", "cmd": ["train.sh"]},
+        "transitions": [], "provenance": {},
+    })
+    calls = {}
+    daemon.submit_job = lambda script, **kw: calls.update(script=script, kw=kw) or "new-sched"
+    daemon.run_command = lambda *a, **k: calls.update(LOCAL=True) or "WRONG"
+    res = daemon.resume_run(rid)
+    assert calls.get("script") == "train.sh"
+    assert calls.get("kw", {}).get("scheduler") == "slurm"
+    assert "LOCAL" not in calls  # never fell through to the local path
+    assert res["new_run_id"] == "new-sched"
+
+
+def test_resume_run_rejects_unknown(tmp_path):
     import pytest
+    daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
     with pytest.raises(ValueError, match="no recorded run"):
         daemon.resume_run("does-not-exist")
 
@@ -174,3 +198,32 @@ def test_resume_run_rejects_succeeded(tmp_path):
     import pytest
     with pytest.raises(ValueError, match="not resumable"):
         daemon.resume_run(jid)
+
+
+def test_resume_run_refuses_when_original_pid_alive(tmp_path):
+    """F-4 (4.0.2): if the original run's recorded PID is still alive on this
+    host, resume_run must refuse rather than spawn a duplicate."""
+    import os
+    import socket
+
+    import pytest
+
+    daemon = Daemon(tmp_path, DaemonConfig.resolve(root=tmp_path))
+    rs = daemon.runstore
+    rs.runs_dir.mkdir(parents=True, exist_ok=True)
+    rs.write_manifest("live1", {
+        "id": "live1", "name": "x", "kind": "callable", "status": "interrupted",
+        "spec": {"cmd": ["echo", "hi"]}, "pid": os.getpid(),
+        "host": socket.gethostname(), "transitions": [], "provenance": {},
+    })
+    with pytest.raises(ValueError, match="live process"):
+        daemon.resume_run("live1")
+
+    # a dead PID resumes normally
+    rs.write_manifest("dead1", {
+        "id": "dead1", "name": "x", "kind": "callable", "status": "interrupted",
+        "spec": {"cmd": ["echo", "hi"]}, "pid": 999999,
+        "host": socket.gethostname(), "transitions": [], "provenance": {},
+    })
+    res = daemon.resume_run("dead1")
+    assert res["new_run_id"]
