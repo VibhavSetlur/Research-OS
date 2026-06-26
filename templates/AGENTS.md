@@ -78,8 +78,7 @@ in before continuing.
 
 ## Workspace modes (`sys_boot.workspace_mode`)
 
-Shapes what "a unit of work" and "done" mean — `tool_route` steers you to
-the right protocols; details there.
+Shapes what "a unit of work" and "done" mean — `tool_route` steers you there.
 * **analysis** (default) — numbered `workspace/NN_*` steps; done = figures +
   tables + grounded conclusions.
 * **hybrid** — research + software; analysis steps PLUS inner code components
@@ -88,6 +87,13 @@ the right protocols; details there.
 * **tool_build** — RO governs a software build from above (`spec/`,
   `decisions/`, `eval/`); route to `build/*`; done = tests/build/eval pass.
 * **exploration** — scratch-first, light gates; promote a probe when it earns it.
+* **notebook** — Jupyter-first; promote a trusted notebook to a step.
+* **multi_study** — a program of sibling studies under a shared commons.
+**Modes are first-class transitions** — a project can outgrow its shape. Don't
+hand-edit `workspace.mode` (leaves the scaffold missing → drift). Use
+`sys_workspace_mode(operation='transition', to=…, confirm=true)` (additive;
+syncs config+state; records the move); `…(operation='status')` shows moves. See
+`sys_help(topic='modes')`.
 
 ## Domain packs & infra adapters
 
@@ -95,35 +101,33 @@ the right protocols; details there.
 engineering) add field-specific tools + protocols; 8 **adapters** (slurm,
 snakemake, nextflow, cytoscape, redcap, synapse, mlflow, zenodo) auto-extract
 provenance from HPC / workflow / data tooling. All always-loaded — no install.
-`sys_boot.field_signals` + `pack_nudge` flag the pack your inputs match;
-`adapters_detected` lists fired adapters. The core is field-agnostic, so a
-field with NO pack still routes fine (`methodology/deep_domain_research`
-surveys any field's pipeline from the literature). Detail + full list:
-`sys_help(topic='packs')`. Diagnostics: `sys_packs_installed`,
-`tool_adapters_list`.
+`sys_boot.field_signals` + `pack_nudge` flag your pack; `adapters_detected`
+lists fired adapters. A field with NO pack still routes fine
+(`methodology/deep_domain_research`). Detail: `sys_help(topic='packs')`;
+diagnostics `sys_packs_installed`, `tool_adapters_list`.
 
 ## Daemon (optional — present on some projects)
 
 A project may run a **daemon**: a separate persistent process that executes
-long jobs, tracks run provenance/freshness, enforces hard gates, and
-notifies the researcher. It's OPTIONAL — when none runs, everything below
+long jobs, tracks provenance/freshness, enforces hard gates, and notifies the
+researcher. OPTIONAL — when none runs, everything below
 degrades to the stdio behaviour and you act exactly as today.
 
-* **Check it when continuity matters.** `sys_daemon` answers "is anything
-  running in the background, what's the recommended next action, what's the
-  resource budget, were there undelivered notifications?" — call it at
-  session start or before a heavy run. `running:false` = no daemon; proceed
-  normally.
-* **A gate may return `what='consent_required'`.** With a daemon present,
-  your own `confirmed=true` is NOT enough for a floor gate — only a
-  human-authorised, one-shot token clears it. The error carries a
-  `gate_key` + `arg_fingerprint`. Do this: tell the researcher exactly what
-  needs approval and why → `sys_consent(action='request', gate_key=…,
-  arg_fingerprint=…, tool=…, reason=…)` → after they approve
-  (`research-os daemon consent approve <id>`) →
-  `sys_consent(action='token', gate_key=…, arg_fingerprint=…)` → retry the
-  tool with `consent_token=<minted>`. NEVER request consent the researcher
-  didn't actually authorise.
+* **Check it when continuity matters.** `sys_daemon` reports background runs,
+  the recommended next action, the resource budget, and undelivered
+  notifications — call it at session start or before a heavy run.
+  `running:false` = no daemon; proceed normally.
+* **A gate may return `what='consent_required'`.** With a daemon present, your
+  own `confirmed=true` is NOT enough for a floor gate — only a human-authorised,
+  one-shot token clears it (error carries `gate_key` + `arg_fingerprint`). Tell
+  the researcher what needs approval → `sys_consent(action='request', …)` → they
+  approve (`research-os daemon consent approve <id>`) →
+  `sys_consent(action='token', …)` → retry with `consent_token=…`. NEVER request
+  consent they didn't authorise.
+* **Read `sys_boot.daemon_notes` (watchdog).** A running daemon watches the
+  project and surfaces findings at boot: interrupted runs to resume, unframed
+  intake, mode drift, and repeated protocol failure/abandonment. Address them
+  before building further.
 
 ## Hard rules (NEVER violate)
 
@@ -181,9 +185,9 @@ pass the per-audit override flag + an `override_rationale` (logged to
 | Deeper guidance | `sys_help(topic=…)` — see below |
 
 **`sys_help` topics (load on demand):** `routing`, `iteration`, `overrides`,
-`recovery`, `fields`, `packs`, `depth`, `anti_patterns`, `docs`, and category
-orientation (`synthesis`, `methodology`, `visualization`, `audit`,
-`literature`, `writing`). Cold start with no context: `sys_help` then
+`modes`, `gates`, `recovery`, `fields`, `packs`, `depth`, `anti_patterns`,
+`docs`, and category orientation (`synthesis`, `methodology`, `visualization`,
+`audit`, `literature`, `writing`). Cold start with no context: `sys_help` then
 `sys_help(topic='routing')`.
 
 **Append-only logs** (`methods.md`, `analysis.md`, `citations.md`) only via

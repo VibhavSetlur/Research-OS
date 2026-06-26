@@ -374,6 +374,16 @@ def _handle_sys_help(name, arguments, root):
                 "writing/writing_core": "universal writing rules",
                 "audit/pre_submission_checklist": "final ready-to-submit gate",
             },
+            "recurring_deliverables": (
+                "A poster/deck/update tied to a RECURRING event (weekly lab "
+                "meeting, a conference, a committee) should NOT overwrite the "
+                "flat synthesis/<kind> file. Pass a label to tool_synthesis_"
+                "scaffold (e.g. label='2026-06-lab-meeting' or 'neurips-poster') "
+                "— it writes to synthesis/deliverables/<label-slug>/<kind> with a "
+                "README documenting the occasion, so the chain of event "
+                "artefacts stays browsable and nothing is clobbered. Omit label "
+                "only for the project's single canonical paper."
+            ),
         }))
     if topic in {"methodology", "methods"}:
         return _text(_success({
@@ -414,8 +424,10 @@ def _handle_sys_help(name, arguments, root):
                 "Workspace MODE is the single top-level axis that shapes a "
                 "project end-to-end: (1) the directory scaffold init builds, "
                 "(2) which protocols tool_route biases toward, (3) which "
-                "audit gates apply. It is set ONCE at init and rarely changes. "
-                "analysis is the default and the universal fallback."
+                "audit gates apply. Picked at init, but a project can OUTGROW "
+                "its shape — change it later with sys_workspace_mode "
+                "(see how_to_set). analysis is the default and the universal "
+                "fallback."
             ),
             "registered_modes": sorted(VALID_WORKSPACE_MODES),
             "modes": {
@@ -471,10 +483,14 @@ def _handle_sys_help(name, arguments, root):
                 ),
             },
             "how_to_set": (
-                "init: the wizard asks. Existing project: set "
-                "workspace.mode in inputs/researcher_config.yaml (one of the "
-                "registered_modes; off-enum values degrade to analysis). The "
-                "mode is mirrored into .os_state so tools and routing agree."
+                "init: the wizard asks (or --workspace-mode). CHANGE LATER "
+                "(4.0.0): modes are first-class TRANSITIONS — call "
+                "sys_workspace_mode(operation='transition', to=<mode>, "
+                "confirm=true). That ADDITIVELY creates the new mode's surface, "
+                "syncs config + .os_state, and records the move to "
+                "mode_history.jsonl. Do NOT hand-edit workspace.mode in "
+                "inputs/researcher_config.yaml — that leaves the scaffold "
+                "missing and the structure audit flags it as mode_drift."
             ),
             "routing_effect": (
                 "tool_build / exploration / notebook / multi_study / hybrid "
@@ -483,7 +499,11 @@ def _handle_sys_help(name, arguments, root):
                 "(and is the universal fallback). So the same prompt can "
                 "resolve to different protocols depending on the active mode."
             ),
-            "inspect": "sys_boot returns the active workspace_mode for the project.",
+            "inspect": (
+                "sys_boot returns the active workspace_mode; "
+                "sys_workspace_mode(operation='status') reports config vs state "
+                "mode, any drift, and the supported transitions from here."
+            ),
         }))
     if topic == "gates":
         # Full gate vocabulary — every (scope, dimension) the

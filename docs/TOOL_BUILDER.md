@@ -35,8 +35,9 @@ Pick **tool_build** when the deliverable is *code other people will run*,
 the success criterion is *it works / it's fast enough / it passes the
 benchmark*, and you'll be committing iteratively. Pick **analysis** when
 the deliverable is *a finding* backed by figures and prose. You can
-change mode later in `inputs/researcher_config.yaml` (`workspace.mode`),
-but it's cheapest to choose up front.
+transition mode later (ask the AI to "switch modes" → it runs
+`sys_workspace_mode`, which builds the new surface), but it's cheapest to
+choose up front.
 
 ---
 

@@ -436,6 +436,46 @@ prior knowledge.
 
 ---
 
+## Workspace mode transitions (a project can outgrow its shape)
+
+A project's workspace mode is NOT frozen at init. When a project outgrows its
+shape — a scratch `exploration` earns rigorous `analysis`, an `analysis` needs a
+real tool built (`hybrid`/`tool_build`), a single study becomes a program
+(`multi_study`) — change it with the first-class transition tool, NOT a raw
+config edit:
+
+* `sys_workspace_mode(operation='status')` → current mode (config + on-disk
+  state), a drift flag, and the supported transitions from here.
+* `sys_workspace_mode(operation='transition', to=<mode>)` plans (shows the
+  scaffold surface the target mode needs that's missing); add `confirm=true` to
+  apply — it ADDITIVELY creates that surface (never deletes prior work), syncs
+  config + state, records the move to `.os_state/mode_history.jsonl`, and points
+  you at the promotion/handoff protocol for the crossing.
+
+Do NOT set `workspace.mode` via `sys_config` / by hand: that flips the label but
+leaves the new mode's scaffold uncreated, and the structure audit will flag it as
+`mode_drift` / `missing_mode_surface`. The `guidance/change_workspace_mode`
+protocol and `sys_help(topic='modes')` walk the full move.
+
+## Recurring deliverables (don't overwrite last week's poster)
+
+A poster/deck/update tied to a RECURRING event (weekly lab meeting, a
+conference, a committee) must not overwrite the flat `synthesis/<kind>` file.
+Pass a `label` to `tool_synthesis_scaffold` (e.g. `label='2026-06-lab-meeting'`
+or `'neurips-poster'`) and it writes to `synthesis/deliverables/<label-slug>/`
+with a README documenting the occasion. Omit `label` only for the project's
+single canonical paper.
+
+## External data that lives elsewhere
+
+When the researcher says "my data is at `/some/path`", `guidance/project_startup`
+brings it into `inputs/raw_data/` reasoning COPY (small/portable → freezes
+provenance) vs SYMLINK (huge/shared read-only → record the source path + hash,
+flag the project not-self-contained). Record the source + a hash either way; ask
+before a large copy on a shared disk.
+
+---
+
 ## Anti-patterns
 
 | Don't | Why |

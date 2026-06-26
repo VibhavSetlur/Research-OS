@@ -56,8 +56,10 @@ tools (`tool_git`, `tool_build`, `tool_audit(scope='tool')`). Building
 software rather than analysing data? Read
 [TOOL_BUILDER.md](TOOL_BUILDER.md) — the rest of this guide assumes
 analysis mode unless noted. Set the mode at init
-(`research-os init --workspace-mode <mode>`) or change it later in the
-config.
+(`research-os init --workspace-mode <mode>`) or transition later by asking
+the AI ("switch to analysis mode") — it runs `sys_workspace_mode`, which
+builds the new mode's surface and records the change (don't hand-edit the
+config: that leaves the scaffold missing).
 
 ---
 
