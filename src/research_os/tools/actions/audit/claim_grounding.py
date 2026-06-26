@@ -182,44 +182,117 @@ def extract_claims(md_path: Path) -> list[dict[str, Any]]:
     return claims
 
 
-def _gather_output_corpus(workspace: Path) -> str:
-    """Concatenate the bodies of every output file the AI could have
-    pulled numbers from. CSV/TSV/JSON/MD/TXT only — model pickles and
-    PNGs are skipped (numbers there can't be substring-matched)."""
-    chunks: list[str] = []
+_CORPUS_EXTS = {".csv", ".tsv", ".json", ".md", ".txt", ".yaml", ".yml"}
+
+
+def _gather_output_corpus(workspace: Path) -> list[tuple[str, bool]]:
+    """Collect the bodies of every output file the AI could have pulled
+    numbers from, tagged with whether the file is comma/tab-DELIMITED.
+
+    Returns a list of ``(text, is_delimited)`` chunks. CSV/TSV are
+    delimited — a comma there is a field separator, NOT a thousands
+    grouping, so the number extractor must not glue ``12,345`` (two cells)
+    into ``12345``. Prose files (.md/.txt/.json/.yaml) are non-delimited,
+    where ``12,345`` IS a grouped integer the paper may legitimately cite.
+
+    We walk the WHOLE ``outputs/`` tree (not just ``outputs/tables`` +
+    ``outputs/reports``) plus the data-output dirs. A result JSON dropped in
+    ``outputs/`` directly, a model-metrics file in ``outputs/models/``, and —
+    critically — the ``<figure>.caption.md`` siblings the synthesis embeds
+    (which carry the figure's headline statistics) all live OUTSIDE the two
+    legacy subdirs. Missing them produced false-positive ungrounded-claim
+    BLOCKERS: a number the reviewer can plainly see in an output file was
+    flagged as a hallucination, eroding trust in the gate. This walker now
+    mirrors how ``step_provenance_inventory`` + RO-Crate treat ``outputs/``.
+    """
+    chunks: list[tuple[str, bool]] = []
     for step in sorted(workspace.iterdir()):
         if not (step.is_dir() and re.match(r"^\d{2,3}_", step.name)):
             continue
         if step.name.endswith("__DEAD_END"):
             continue
-        # Scan both the 3.2 output dir name and the pre-3.2 legacy name.
-        for sub in ("outputs/reports", "outputs/tables",
-                    "data/next_step_output", "data/output"):
+        # Scan the entire outputs/ tree + both 3.2 and legacy data-output dirs.
+        for sub in ("outputs", "data/next_step_output", "data/output"):
             d = step / sub
             if not d.exists():
                 continue
             for f in d.rglob("*"):
                 if not f.is_file():
                     continue
-                if f.suffix.lower() not in {".csv", ".tsv", ".json",
-                                              ".md", ".txt"}:
+                suffix = f.suffix.lower()
+                if suffix not in _CORPUS_EXTS:
+                    continue
+                # Skip provenance sidecars: their sha256 / size_bytes / wall
+                # seconds are machine metadata, not analysis results. Letting
+                # them into the corpus would spuriously "ground" a hallucinated
+                # number against a hash digit — weakening the gate.
+                if f.name.endswith(".prov.json"):
                     continue
                 try:
-                    chunks.append(f.read_text(errors="replace"))
+                    chunks.append((f.read_text(errors="replace"),
+                                   suffix in {".csv", ".tsv"}))
                 except OSError:
                     continue
-    return "\n".join(chunks)
+    return chunks
 
 
-def _extract_corpus_numbers(corpus: str) -> set[float]:
-    """Pre-compute every numeric token in the corpus for fast lookup."""
+def _extract_corpus_numbers(corpus: list[tuple[str, bool]] | str) -> set[float]:
+    """Pre-compute every numeric token in the corpus for fast lookup.
+
+    Must recognise the SAME numeric forms the claim extractor normalises —
+    in particular thousands-separated integers (``12,345`` / ``12 345``).
+    A naive ``\\d+`` would split ``12,345`` in a prose output report into
+    ``12`` and ``345``, so a paper claim of ``12,345`` (which
+    :func:`_normalise` turns into ``12345.0``) would NEVER find its
+    verbatim source and get flagged as an ungrounded hallucination — a
+    false ship-gate BLOCKER on a correctly-sourced sample size.
+
+    But a comma in a CSV/TSV cell is a field SEPARATOR, not a grouping, so
+    comma-grouping is applied ONLY to non-delimited (prose) chunks. For
+    delimited files we additionally keep the per-cell components, so a
+    grouped claim never silently grounds to two unrelated adjacent cells.
+    Accepts the legacy ``str`` form (treated as non-delimited prose) for
+    backward compatibility with direct callers / tests.
+    """
+    if isinstance(corpus, str):
+        corpus = [(corpus, False)]
+
     out: set[float] = set()
-    for m in re.finditer(r"-?\d+(?:\.\d+)?(?:e[+-]?\d+)?", corpus, flags=re.I):
-        try:
-            out.add(float(m.group(0)))
-        except ValueError:
-            continue
-        # Also store the integer view if it's a round number.
+    # Space-grouping (12 345) is safe everywhere — neither CSV nor TSV use a
+    # space as a field separator. Comma-grouping (12,345) is prose-only.
+    grouped_prose = re.compile(
+        r"""
+        (?<![A-Za-z0-9_])
+        (-?\d{1,3}(?:[,\s]\d{3})+(?:\.\d+)?)
+        (?![A-Za-z0-9_])
+        """,
+        re.VERBOSE,
+    )
+    grouped_space_only = re.compile(
+        r"""
+        (?<![A-Za-z0-9_])
+        (-?\d{1,3}(?:\ \d{3})+(?:\.\d+)?)
+        (?![A-Za-z0-9_])
+        """,
+        re.VERBOSE,
+    )
+    plain = re.compile(r"-?\d+(?:\.\d+)?(?:e[+-]?\d+)?", re.IGNORECASE)
+
+    for text, is_delimited in corpus:
+        grouped_pat = grouped_space_only if is_delimited else grouped_prose
+        for m in grouped_pat.finditer(text):
+            try:
+                out.add(float(m.group(1).replace(",", "").replace(" ", "")))
+            except ValueError:
+                continue
+        # Plain pass captures bare ints/decimals AND the per-cell
+        # components of any grouped form (so CSV cells stay individually
+        # grounded).
+        for m in plain.finditer(text):
+            try:
+                out.add(float(m.group(0)))
+            except ValueError:
+                continue
     return out
 
 

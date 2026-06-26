@@ -80,7 +80,7 @@ under the new canonical tool. Hard-removed names (return
 | `sys_checkpoint_create` | Workspace snapshot (hardlinked, fast). |
 | `sys_checkpoint_list` | List checkpoints with descriptions + timestamps. |
 | `sys_checkpoint_rollback` | Restore the workspace to a checkpoint. Files created after the checkpoint are removed (except large ref-only data extensions the snapshot skips) so it is a true restore-to, not an overlay; the current state is backed up to a pre-rollback checkpoint first and is recoverable. |
-| `sys_config` | **Unified config dispatcher.** `operation='get'\|'set'\|'validate'`. Aliases: `sys_config_get`, `sys_config_set`, `sys_config_validate` (still callable). Operates on `inputs/researcher_config.yaml`. |
+| `sys_config` | **Unified config dispatcher.** `operation='get'\|'set'\|'validate'\|'note'`. Aliases: `sys_config_get`, `sys_config_set`, `sys_config_validate` (still callable). Operates on `inputs/researcher_config.yaml`. `operation='note'` appends a learned researcher preference / correction to `interaction.agent_notes` (the learn-the-user loop — append-only, idempotent; surfaced at every boot). |
 | `sys_dep_inventory` | Listed above (Discovery). |
 | `sys_env` | **Unified environment dispatcher.** `operation='snapshot'\|'docker_generate'`. Aliases: `sys_env_snapshot`, `sys_env_docker_generate` (still callable). Capture + containerise the env. |
 | `sys_export_ro_crate` | Emit `ro-crate-metadata.json` + `codemeta.json` at project root. FAIR-aligned discoverability for downstream tools (Zenodo, OSF). |
@@ -105,7 +105,10 @@ under the new canonical tool. Hard-removed names (return
 | `sys_state_get` | Full / minimal / markdown state snapshot. (Prefer `sys_boot` at session start.) |
 | `sys_tool_describe` | Listed above (Discovery). |
 | `sys_where` | ~30-token mid-session "where am I?" snapshot (root, tier, plan position, blocks, last protocol). Cheaper than `sys_boot`. |
+| `sys_daemon` | Discover a running Research-OS daemon for this project and return its live telemetry (jobs, freshness, recommended next action) — the same continuity an HTTP agent gets from `/v1/orient`, inside MCP. Read-only; degrades cleanly when no daemon is running. |
+| `sys_consent` | Request or check researcher consent for a daemon-gated action when a floor gate returns `consent_required`. Bridges the MCP session to the daemon's consent authority over localhost (request a one-shot, argument-bound token; check pending/granted; fetch a minted token to retry). The agent cannot self-grant — only an authorized human mints. Degrades to `available=false` when no daemon is enforcing. |
 | `sys_workspace_scaffold` | Re-create the directory tree. |
+| `sys_workspace_mode` | Report or transition the workspace mode (additive, recorded): `status` shows current mode + supported moves; `transition(to=…)` plans then (with confirm) applies — creates the missing surface, syncs config+state, records to mode_history. Use instead of `sys_config(workspace.mode=…)`. |
 | `sys_workspace_tree` | Structured workspace listing. |
 
 ### `tool_*` — research workflow
@@ -169,9 +172,10 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_humanities_archive_lookup` | (pack: `humanities`) Query digital archives (Internet Archive / HathiTrust / DPLA / Europeana / Gallica / Library of Congress). |
 | `tool_humanities_citation_chain` | (pack: `humanities`) Chain-of-custody for a quotation: original ms → critical edition → translation → secondary citation. |
 | `tool_humanities_transcribe` | (pack: `humanities`) Scaffold OCR + manual-correction for an archival image. Side-by-side transcription template. |
-| `tool_intake_autofill` | Read `inputs/`, infer domain + question + hypotheses, write `inputs/intake.md` + `research_overview.md` (in the project's `docs/`) + `.os_state/state.json`. |
+| `tool_intake_autofill` | Populate the intake from `inputs/` files AND/OR what the researcher said in chat (`question` / `domain` / `hypotheses` / `context_note` — explicit args win over file inference, so an empty `inputs/` still yields a real intake). Writes `inputs/intake.md` + `research_overview.md` (in the project's `docs/`) + `.os_state/state.json`. |
 | `tool_intake_freshness` | Recommended intake depth (full / refresh-only / skip) based on intake.md freshness + step count. |
 | `tool_julia_exec` | Run `.jl` (requires `julia` on PATH). |
+| `tool_judge_score` | Record a structured quality scorecard you author (dimensions 0-5 + justifications + limitations + improvements + verdict ship/iterate/redo). Rejects an incomplete scorecard. The autonomous loop reads the verdict. |
 | `tool_latex_compile` | `pdflatex` + `bibtex` on `synthesis/paper.tex`. Use when a venue requires `.tex` submission. |
 | `tool_list_certifications` | List active researcher self-certifications. |
 | `tool_literature_download` | Save a paper PDF. Pass `step_id='NN_<slug>'` to scope to a step. |
@@ -197,7 +201,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_quick_review` | Stage a critical-appraisal skeleton for someone else's paper. |
 | `tool_quick_route` | Listed above (Discovery). |
 | `tool_r_exec` | Run `.R` (requires `Rscript` on PATH). |
-| `tool_redcap_schema_describe` | (adapter: `redcap`) Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/data/redcap_schema.md`. |
+| `tool_redcap_schema_describe` | (adapter: `redcap`) Render the detected REDCap schema (events, instruments, fields, PHI warnings) as Markdown into `workspace/<step>/outputs/reports/redcap_schema.md`. |
 | `tool_redteam_review` | Adversarial review of a deliverable BEFORE peer review. `focus='manuscript'\|'proof'\|'figure'\|'methods'`. |
 | `tool_research_method` | 5-10 academic + web sources on a method; structured report. **Required BEFORE choosing any method.** |
 | `tool_research_tool` | Find candidate libraries / CLIs / websites; tagged installable / api / external / paid. |
@@ -205,7 +209,7 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_rigor_signals_scan` | Score project rigor 0-100 from methods.md, citations, git, preregistration, scripts, prior step summaries. |
 | `tool_rmarkdown_render` | Run `.Rmd` / `.qmd` (`rmarkdown::render` or `quarto render`). |
 | `tool_route` | Listed above (Discovery). |
-| `tool_synthesis_check` | Quality audit for AI-authored synthesis files (`paper.typ` / `slides.typ` / `poster.typ` / `essay.typ` / `dashboard.html`). Auto-detects file type. Modes: `all` (default), `substantiveness` (per-IMRAD content depth), `structure` (sections + references), `accessibility` (alt-text, semantic HTML), `cliches`. For paper / essay: abstract >=1 number + method + conclusion verb; intro >=3 citations + pivot; methods covers >=80% of workspace steps; results has stats + figure refs; discussion has limitations + future-work + verdict coverage; refs sync. For slides: slide_count >=4, speaker notes present, <=12 citations. For poster: section_count >=3, <=8 citations. For dashboard: offline (no `http:` scripts), every `<img>` has alt, no placeholders / path leaks. |
+| `tool_synthesis_check` | Quality audit for AI-authored synthesis files (`paper.typ` / `slides.typ` / `poster.typ` / `essay.typ` / `dashboard.html`). Auto-detects file type. Modes: `all` (default), `substantiveness` (per-IMRAD content depth), `structure` (sections + references), `accessibility` (alt-text, semantic HTML), `cliches`, `grounding` (paper / essay: flag numbers that don't appear anywhere in the workspace output corpus — catches hallucinated values during authoring). For paper / essay: abstract >=1 number + method + conclusion verb; intro >=3 citations + pivot; methods covers >=80% of workspace steps; results has stats + figure refs; discussion has limitations + future-work + verdict coverage; refs sync. For slides: slide_count >=4, speaker notes present, <=12 citations. For poster: section_count >=3, <=8 citations. For dashboard: offline (no `http:` scripts), every `<img>` has alt, no placeholders / path leaks. |
 | `tool_synthesis_scaffold` | Writes a `<=80`-line skeleton synthesis file (paper.typ / slides.typ / poster.typ / essay.typ / dashboard.html) with section headers + `// AI: author this` markers. Refuses to overwrite an existing file unless `overwrite=true`. |
 | `tool_self_certify` | Persist a researcher self-certification (domain + scope + rationale). |
 | `tool_semantic_route` | Listed above (Discovery). |
@@ -239,6 +243,9 @@ hard-removed in v2.0.0 (Phase 14a) — they return a friendly
 | `tool_wet_lab_sample_lineage_export` | (pack: `wet_lab`) Render the parent → split → aliquot → readout tree as JSON + Mermaid. |
 | `tool_workflow_dag` | Build a DAG of numbered steps + data dependencies; write `docs/workflow_dag.mermaid` (+ PNG if `mmdc` present). Auto-refreshed on path create/abandon. |
 | `tool_workspace_repair` | Detect missing dirs / corrupted state / stale paths and (optionally) heal. NEVER deletes. |
+| `tool_migrate_audit` | Read-only audit of an existing messy project dir: classify every file + show its proposed RO home (pass `dest_dir` for the exact copy plan with collisions). Nothing moved. |
+| `tool_migrate_apply` | Safely COPY a messy project into an RO project: copy-only (source never moved/deleted), skips collisions, verifies every copy, writes an auditable migration manifest. |
+| `tool_structure_audit` | Verify an RO project is structurally sound: steps well-formed, state ledger ⇆ disk aligned, no orphaned outputs. Read-only; severity-tagged findings. |
 | `tool_writing_discussion_from_verdicts` | Append one Discussion paragraph per non-AGREES verdict in any step's `findings_vs_literature.md`. |
 
 ---
@@ -467,10 +474,12 @@ flags below already work regardless of the policy — so don't rely on
 | `tool_audit(scope='synthesis', dimension='dashboard_content')` | `override_dashboard_content_gate` | `override_rationale` | Dashboard-content BLOCKERs (placeholder text, stub captions, etc.) |
 | `tool_plan(operation='advance')` | `override_gate` | `override_rationale` | Deliverable-step quality gate before advancing the plan |
 | `tool_step_complete` | `override_literature_gate` | `override_rationale` | Per-step literature loop check (missing `findings_vs_literature.md`, uncovered DISAGREES verdicts) |
+| `tool_step_complete` | `override_grounding_gate` | `override_rationale` | Per-step grounding check (a numeric claim in the step's `conclusions.md` that no output produced) |
 | `tool_discussion_coverage_audit` | `override_discussion_coverage` | `override_rationale` | Discussion-coverage BLOCK (non-AGREES verdict missing from the Discussion) |
 | `tool_audit(scope='synthesis', dimension='all')` | `override_no_pdfs` | `override_rationale` | Zero-PDF default-deny on literature-required steps |
 | `tool_audit(scope='project', dimension='cross_deliverable')` | `override_cross_deliverable` | `override_rationale` | 5-dimension cross-deliverable audit |
 | `sys_path(operation='create')` | `allow_unfinalized_predecessor` | `override_rationale` | Refusal to create the next numbered step before the previous one is finalised |
+| `sys_protocol_log(status='completed')` | `override_completeness_gate` | `details` (the rationale) | Refusal to log a protocol completed when its declared `expected_outputs` are missing on disk (the completion gate) |
 
 ### Example calls
 

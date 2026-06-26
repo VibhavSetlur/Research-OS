@@ -23,6 +23,26 @@ from typing import Any
 logger = logging.getLogger("research_os.tools.state.freshness")
 
 
+def _sha256_file(path: Path, *, chunk: int = 1 << 20) -> str | None:
+    """sha256 of a file as 'sha256:<hex>', stdlib-only (the reasoning layer
+    must NOT import daemon.provenance — that reverses the v4 seam arrow). Matches
+    the daemon's provenance hash format so recorded + live hashes compare."""
+    import hashlib
+
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            while True:
+                b = f.read(chunk)
+                if not b:
+                    break
+                h.update(b)
+        return "sha256:" + h.hexdigest()
+    except OSError:
+        return None
+
+
+
 def state_freshness_check(
     root: Path,
     *,
@@ -83,6 +103,7 @@ def state_freshness_check(
             )
 
         orphan_provenance: list[dict[str, str]] = []
+        drifted_inputs: list[dict[str, str]] = []
         workspace = root / "workspace"
         if workspace.is_dir():
             for step_dir in workspace.iterdir():
@@ -97,20 +118,43 @@ def state_freshness_check(
                     except Exception:
                         continue
                     target = meta.get("script") or meta.get("script_path")
-                    if not target:
-                        continue
-                    target_path = (
-                        root / target if not target.startswith("/")
-                        else Path(target)
-                    )
-                    if not target_path.exists():
-                        orphan_provenance.append({
-                            "step": step_dir.name,
-                            "provenance_file": str(
-                                prov.relative_to(root)
-                            ),
-                            "missing_script": target,
-                        })
+                    if target:
+                        target_path = (
+                            root / target if not target.startswith("/")
+                            else Path(target)
+                        )
+                        if not target_path.exists():
+                            orphan_provenance.append({
+                                "step": step_dir.name,
+                                "provenance_file": str(
+                                    prov.relative_to(root)
+                                ),
+                                "missing_script": target,
+                            })
+                    # H2 (stress): a finalized step's INPUT data changed after it
+                    # ran → its result may be stale. Compare each recorded input
+                    # hash against the live file. Only flags inputs the sidecar
+                    # actually hashed (sha256:...); silent when none recorded.
+                    recorded_inputs = meta.get("inputs") or {}
+                    if isinstance(recorded_inputs, dict):
+                        for in_path, recorded in recorded_inputs.items():
+                            if not isinstance(recorded, str) or not recorded.startswith("sha256:"):
+                                continue
+                            live = (
+                                root / in_path if not str(in_path).startswith("/")
+                                else Path(in_path)
+                            )
+                            if not live.exists():
+                                continue
+                            try:
+                                live_hash = _sha256_file(live)
+                            except Exception:
+                                live_hash = None
+                            if live_hash and live_hash != recorded:
+                                drifted_inputs.append({
+                                    "step": step_dir.name,
+                                    "input": str(in_path),
+                                })
         details["orphan_provenance_count"] = len(orphan_provenance)
         details["orphan_provenance"] = orphan_provenance[:10]
         if orphan_provenance:
@@ -118,6 +162,16 @@ def state_freshness_check(
                 f"{len(orphan_provenance)} provenance sidecar(s) point "
                 "to scripts that no longer exist. The step's reported "
                 "outputs may not be reproducible — re-run or delete."
+            )
+        details["drifted_inputs_count"] = len(drifted_inputs)
+        details["drifted_inputs"] = drifted_inputs[:10]
+        if drifted_inputs:
+            uniq = sorted({d["input"] for d in drifted_inputs})
+            signals.append(
+                f"{len(drifted_inputs)} finalized step(s) consumed input data "
+                f"that has since CHANGED ({', '.join(uniq[:3])}"
+                f"{'...' if len(uniq) > 3 else ''}). Those results may be stale "
+                "— re-run the affected steps before building on them."
             )
 
         is_stale = bool(signals)

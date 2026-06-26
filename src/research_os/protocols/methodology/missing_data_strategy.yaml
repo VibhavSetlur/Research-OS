@@ -1,7 +1,7 @@
 id: missing_data_strategy
 tier: 'plan'
 name: Missing-Data Strategy (MCAR/MAR/MNAR → handling → sensitivity)
-version: '3.5.0'
+version: '3.5.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -55,7 +55,7 @@ trigger: |
       that lacks a justification + sensitivity.
 
 prerequisites:
-  - Dataset is staged in `workspace/<step>/data/input/`.
+  - Dataset is staged in `workspace/<step>/data/past_step_input/`.
   - The analysis question + which variables are PRIMARY vs. AUXILIARY
     is documented.
   - A `tool_data(operation='profile')` run exists for the staged dataset (so the
@@ -217,7 +217,7 @@ steps:
         - load the staged data,
         - apply the chosen handling (CC drop OR fit + apply MI),
         - for MI: persist the m imputed datasets to
-          `data/output/imputations/imp_{i}.parquet` for the audit
+          `data/next_step_output/imputations/imp_{i}.parquet` for the audit
           to inspect, AND
         - re-fit the planned analysis on each imputation, pool via
           Rubin's rules (`statsmodels.imputation.mice.MICEData` /
@@ -265,8 +265,11 @@ steps:
     name: Append to methods.md + conclusions.md
     description: |
       mem_log:
-        method="<primary handling, e.g. MICE-IterativeImputer m=20>"
-        parameters="m=20; auxiliaries=[<list>]; max_iter=10; ..."
+        method="<primary handling, e.g. multiple imputation by chained
+                 equations — name the imputation model>"
+        parameters="m=<number of imputations, justified from the FMI per
+                     the cited rule>; auxiliaries=[<list>];
+                     <other params, each with its justification>"
         justification="<mechanism claim with cited evidence>"
         assumptions=["MAR conditional on <auxiliary set>"]
 
@@ -292,7 +295,7 @@ expected_outputs:
   - workspace/<step>/outputs/reports/missing_data_plan.md
   - workspace/<step>/outputs/reports/primary_imputed_analysis.md
   - workspace/<step>/outputs/reports/missing_data_sensitivity.md
-  - workspace/<step>/data/output/imputations/imp_*.parquet
+  - workspace/<step>/data/next_step_output/imputations/imp_*.parquet
 
 quality_bar:
   missingness_percent_per_column_reported: true

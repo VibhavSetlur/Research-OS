@@ -233,6 +233,34 @@ runtime:
   long_running_threshold_seconds: 60
   compute_environment: ""        # e.g. "conda env: myproj" / "module load cuda/12" / "docker: myimg"
   package_manager: ""            # pip | conda | uv | poetry  (blank → AI infers)
+  # Resource budget — a per-run ceiling enforced BOTH by the optional daemon
+  # AND by the agent's direct code-execution tools (scripts / notebooks /
+  # pipelines), turning the "stay within budget" guidance into a real rlimit.
+  # Leave fields BLANK (recommended): the system then sizes each run to LIVE
+  # free headroom (and never leaves a run unbounded on a shared server). Set an
+  # explicit number ONLY to cap below that. Don't hardcode a guess — blank is
+  # smarter than a stale number. The AI must ASK before launching a run it
+  # estimates will exceed the budget or strain a shared box.
+  # Especially important on shared HPC where a runaway job hurts everyone.
+  resource_budget:
+    memory_mb:                   # RLIMIT_AS ceiling per run; blank → live headroom
+    cpu_seconds:                 # RLIMIT_CPU ceiling per run (e.g. 7200)
+    wall_seconds:                # wallclock kill per run (e.g. 7200)
+    file_size_mb:                # RLIMIT_FSIZE ceiling (e.g. 51200)
+    open_files:                  # RLIMIT_NOFILE ceiling (e.g. 4096)
+
+# ── Daemon (optional persistent process) ───────────────────────────────
+# Only read when you run `research-os daemon start` (the stdio MCP path
+# ignores this whole block). The daemon runs long jobs, tracks provenance,
+# enforces hard human-approved gates, and notifies you on completion. See
+# docs/DAEMON.md. Every field is optional; blank = built-in default.
+daemon:
+  # Shell command run once per notification (job done, gate page). It
+  # receives the notification as JSON on stdin — wire it to Slack / email /
+  # a webhook. Blank = notifications are still recorded to the outbox
+  # (research-os daemon notifications), just not pushed anywhere.
+  notify_command: ""             # e.g. "/home/me/bin/ro-notify.sh"
+  task_workers: 2                # parallel job workers
 
 # ── Figure defaults ────────────────────────────────────────────────────
 # What companions the AI ships with every figure. SVG companions double

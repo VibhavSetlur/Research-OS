@@ -1,7 +1,7 @@
 id: qualitative_quality_audit
 tier: 'plan'
 name: Qualitative Quality Audit (COREQ + SRQR enforcement)
-version: '3.5.0'
+version: '3.5.1'
 schema_version: '2.0'
 scope_tags:
   domain: [qualitative]
@@ -26,9 +26,11 @@ description: |
     2) Reflexivity — an explicit reflexivity statement (researcher
        characteristics + assumptions + relationship to participants)
        must exist in workspace/<step>/outputs/reports/reflexivity.md.
-    3) Intercoder agreement — when ≥2 coders, report Cohen's κ /
-       Krippendorff's α / percent agreement on a held-out subset
-       (≥10% of corpus, ≥0.7 target OR a documented limitation).
+    3) Intercoder agreement — when ≥2 coders, report the field-appropriate
+       agreement statistic on a shared subset, against an acceptability
+       floor and subset size taken from the cited field standard (see
+       methodology/inter_rater_reliability — the single source of truth),
+       OR a documented limitation.
     4) Member checking — attempted (verbatim transcripts back to
        participants, or theme summaries back to a sub-sample), with
        outcome documented; OR a justified explanation of why not.
@@ -54,7 +56,7 @@ trigger: |
 
 prerequisites:
   - methodology/qualitative_research artefacts exist (outputs/reports/interview_protocol.md, outputs/reports/codebook.md, outputs/reports/themes.md, outputs/reports/trustworthiness.md).
-  - Transcripts are staged in workspace/<step>/data/input/.
+  - Transcripts are staged in workspace/<step>/data/past_step_input/.
 
 editorial_voice:
   mode: prescription
@@ -131,21 +133,23 @@ steps:
         Write to `outputs/reports/intercoder_agreement.md`:
           "Single-coder analysis. Intercoder agreement not computed.
            Limitation documented; suggested mitigation: ask a
-           second coder to re-code a 10% subset and recompute."
+           second coder to re-code a shared subset and recompute."
         This becomes a limitation in conclusions.md.
 
       TWO OR MORE coders:
-        Identify the SHARED subset (≥10% of transcripts coded by
-        ≥2 coders).
+        Identify the SHARED subset — its size is set from the field
+        standard's rule for IRR sample size (see
+        methodology/inter_rater_reliability), not a fixed fraction.
         Write a `tool_python_exec` script that:
           - loads the per-coder code assignments for the shared
             subset (long format: transcript_id, segment_id, coder,
             code),
           - aligns the segments,
-          - computes Cohen's κ for two coders
-            (`sklearn.metrics.cohen_kappa_score`) OR Krippendorff's α
-            for ≥3 coders (use `krippendorff` package or
-            `simpledorff`),
+          - computes the agreement statistic chosen in
+            methodology/inter_rater_reliability (the AI authors the
+            script; surface a maintained implementation from the
+            project's runtime via tool_research_tool rather than
+            defaulting to a remembered package, and record it),
           - reports per-code agreement when the codebook supports it.
 
         Write to `outputs/reports/intercoder_agreement.md`:

@@ -302,8 +302,8 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_intake_autofill": {
-        "short": "Propose project metadata from inputs/ + fill researcher_config blanks. Use during onboarding.",
-        "description": "Read inputs/ (data + literature + context notes) and propose project metadata (research question, domain, hypotheses). Fills blanks in researcher_config.yaml and rewrites inputs/intake.md.",
+        "short": "Fill the intake from inputs/ AND/OR what the researcher said in chat. Use during onboarding.",
+        "description": "Populate the project intake (research question, domain, hypotheses) into inputs/intake.md, docs/research_overview.md, and state. TWO input paths, combinable: (1) FILE path — reads inputs/ (data + literature + context notes) and infers metadata; (2) CHAT path — pass what the researcher TOLD you conversationally via question / domain / hypotheses / context_note. Many researchers never edit inputs/ files; they just describe the project in chat. Capture that here instead of forcing them to write files. Explicit args take precedence over file-inference, so a project with NO context/*.md still gets a real intake. Always show the researcher the resulting (question, domain, hypotheses) and ask to approve/refine.",
         "category": "intake",
         "inputSchema": {
             "type": "object",
@@ -311,7 +311,24 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "overwrite": {
                     "type": "boolean",
                     "description": "If true, overwrite even non-blank config fields (default false).",
-                }
+                },
+                "question": {
+                    "type": "string",
+                    "description": "The research question the researcher stated in chat. Takes precedence over inference. Use this instead of asking them to edit a file.",
+                },
+                "domain": {
+                    "type": "string",
+                    "description": "The research domain/field the researcher stated in chat (e.g. 'genomics', 'public health'). Takes precedence over auto-classification.",
+                },
+                "hypotheses": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Hypotheses the researcher stated in chat (each a testable claim). Takes precedence over inference; each is registered in state.",
+                },
+                "context_note": {
+                    "type": "string",
+                    "description": "Free-text project framing the researcher gave in chat (design, data location, constraints). Folded into the corpus so research_overview captures it verbatim — no context/*.md file required.",
+                },
             },
         },
     },
@@ -430,6 +447,39 @@ RESEARCH_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             "type": "object",
             "properties": {"dry_run": {"type": "boolean"}},
         },
+    },
+    "tool_migrate_audit": {
+        "short": "Audit an existing messy project dir + show how each file maps into RO format. Read-only. Use to bring chaos into RO.",
+        "description": "Read-only audit of an existing (non-RO) project directory: classify every file (data / code / notebook / doc / figure / environment) and show the proposed RO home for each. Pass dest to also produce the exact source→destination copy plan with collisions flagged. Nothing is moved.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_dir": {"type": "string"},
+                "dest_dir": {"type": "string"},
+            },
+            "required": ["source_dir"],
+        },
+    },
+    "tool_migrate_apply": {
+        "short": "Safely COPY a messy project into an RO project (source untouched; every copy verified). Use after tool_migrate_audit.",
+        "description": "Execute a chaos→RO migration: COPY each file from source_dir into its RO home under dest_dir. Copy-only (the original is never moved or deleted), skips collisions (never overwrites), verifies every copy by size + hash, and writes an auditable migration_manifest.json. Run tool_workspace_repair / the structure audit afterward to confirm the RO structure is sound.",
+        "category": "state",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_dir": {"type": "string"},
+                "dest_dir": {"type": "string"},
+                "verify": {"type": "boolean"},
+            },
+            "required": ["source_dir", "dest_dir"],
+        },
+    },
+    "tool_structure_audit": {
+        "short": "Verify an RO project is structurally sound (steps, ledger⇆disk, no orphans). Read-only. Use after migration.",
+        "description": "Read-only integrity check of an RO project: verifies numbered steps are well-formed (no duplicate numbers, outputs have conclusions), the state ledger matches what's on disk, and there are no orphaned output dirs. Returns severity-tagged findings (block/warn/info) and ok=True only when there are zero breaks. tool_workspace_repair heals scaffold/state; content findings need the AI to act.",
+        "category": "state",
+        "inputSchema": {"type": "object", "properties": {}},
     },
     "tool_context_intake": {
         "short": "Route stray files into inputs/ subfolders (logs moves, never overwrites). Use after dropping files.",

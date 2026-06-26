@@ -497,3 +497,81 @@ def test_describe_layout_rejects_unknown_mode():
     with pytest.raises(KeyError):
         describe_layout("nope_not_a_mode")
 
+
+def test_build_evaluate_boosted_in_build_and_hybrid_modes():
+    """The evaluate→improve heartbeat (build_evaluate sub-intent →
+    build/tool_evaluation_loop) is a core build AND hybrid activity, so both
+    modes must boost it; unrelated modes must not."""
+    from research_os.tools.actions.router import MODE_ROUTING, _mode_boost_for
+
+    assert "build_evaluate" in MODE_ROUTING["tool_build"].sub_intents
+    assert "build_evaluate" in MODE_ROUTING["hybrid"].sub_intents
+    # tool_build gives the firm build boost; hybrid the lighter nudge.
+    assert _mode_boost_for("tool_build", "build_evaluate") == MODE_ROUTING["tool_build"].boost
+    assert _mode_boost_for("hybrid", "build_evaluate") == MODE_ROUTING["hybrid"].boost
+    # Analysis (no entry) and an unrelated mode give no boost.
+    assert _mode_boost_for("analysis", "build_evaluate") == 0
+    assert _mode_boost_for("exploration", "build_evaluate") == 0
+
+
+def test_multi_study_scaffold_seeds_shared_protocol():
+    """multi_study must seed shared/protocol.md — shared/README.md, the
+    GETTING_STARTED table, and program/program_setup all reference it as an
+    existing file. (Regression: it was referenced everywhere but never written,
+    leaving a broken pointer the researcher is sent to.)"""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Program", ide_flags=[], copy_agents=False,
+            mode="multi_study",
+            config_overrides={"project_name": "Program",
+                              "workspace": {"mode": "multi_study"}},
+        )
+        for f in ("shared/codebook.md", "shared/preregistration.md",
+                  "shared/protocol.md"):
+            assert (root / f).is_file(), f"multi_study missing {f}"
+        for rel in ("studies", "shared", "roll_up"):
+            assert (root / rel).is_dir(), f"multi_study missing {rel}/"
+
+
+def test_non_analysis_modes_have_no_orphan_literature_readme():
+    """The project-root literature/ 'corpus of record' README is only seeded
+    for modes whose layout has that work surface (analysis/hybrid). tool_build
+    et al. don't run numbered-step finalization, so seeding it leaves an orphan
+    dir describing a workflow that never runs. (Regression.)"""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        scaffold_minimal_workspace(
+            root, "Builder", ide_flags=[], copy_agents=False,
+            mode="tool_build",
+            config_overrides={"project_name": "Builder",
+                              "workspace": {"mode": "tool_build"}},
+        )
+        assert not (root / "literature" / "README.md").exists(), (
+            "tool_build should not seed the project-root literature/ corpus README"
+        )
+
+
+
+
+def test_hybrid_scaffold_is_hybrid_not_tool_build(tmp_path):
+    """H1/H2/H3: hybrid must seed its OWN surface (analysis spine + inner tool/
+    repo), NOT fall through to tool_build's surface/onboarding."""
+    from research_os.project_ops import (
+        scaffold_minimal_workspace,
+        detect_software_components,
+    )
+
+    scaffold_minimal_workspace(tmp_path, "Hyb", mode="hybrid")
+    gs = (tmp_path / "GETTING_STARTED.md").read_text()
+    assert "hybrid mode" in gs
+    assert "tool_build mode" not in gs
+    # inner tool dir with its own git repo (H2)
+    assert (tmp_path / "tool" / "README.md").exists()
+    assert (tmp_path / "tool" / ".git").exists()
+    # auto-detected as a software component so sys_boot surfaces it
+    comps = detect_software_components(tmp_path)
+    assert any((c.get("path") or c.get("name")) == "tool" for c in (comps or []))
+    # no tool_build leakage (H1)
+    assert not (tmp_path / "governance.md").exists()
+    assert not (tmp_path / "spec").exists()

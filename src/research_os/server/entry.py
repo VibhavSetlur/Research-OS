@@ -268,7 +268,7 @@ def main() -> None:
     if HAS_MCP:
         asyncio.run(run_stdio())
     else:
-        sys.exit("MCP package missing. Install with: pip install 'research-os[all]'")
+        sys.exit("MCP package missing. Install with: pip install research-os")
 
 
 if __name__ == "__main__":

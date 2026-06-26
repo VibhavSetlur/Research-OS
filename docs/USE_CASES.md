@@ -70,6 +70,9 @@ building?" step) and stored as `workspace.mode` in
 | Analysing data toward a finding / paper | **analysis** *(default)* | "fill the intake", "run an EDA", "draft the paper" | the analysis protocols below |
 | Building software you iterate on | **tool_build** | "spec out a fast FASTQ deduplicator", "implement the next feature", "write a benchmark vs the baseline", "cut a release" | `build/spec_and_design` · `build/implement_iteration` · `build/test_strategy` · `build/benchmark_vs_baseline` · `build/release_and_changelog` |
 | Poking around, no committed direction | **exploration** | "just poke at this", "smoke-test an idea in scratch" | `guidance/casual_exploration` (scratch-first; promote a probe to a numbered step only when it earns it) |
+| Working notebook-first (Jupyter is the unit of work) | **notebook** | "open a notebook and explore X", "turn this notebook into a step" | `notebook/notebook_workflow` (+ run / reproduce / promote / synthesize) |
+| Building a tool AND using it on data in one project | **hybrid** | "build the parser, then run it on my data and improve it" | `hybrid/hybrid_workflow` (the analysis↔build pivot) · `hybrid/tool_to_analysis_handoff` · `build/tool_evaluation_loop` |
+| Running a research program (several sub-studies) | **multi_study** | "set up a program with three studies sharing a codebook" | `program/program_setup` · `program/study_register` · `program/cross_study_synthesis` |
 
 **tool_build example.** You're writing a CLI that deduplicates FASTQ
 reads. `research-os init --workspace-mode tool_build` seeds the
@@ -327,6 +330,95 @@ don't want to redo the intake.
 | Per-step literature grounding (`findings_vs_literature.md`) | `literature/literature_per_step` *(v1.4.0)* |
 | Language / tool-stack decision (R vs Python per sub-task) | `methodology/pick_tool_stack` *(v1.4.0)* |
 | Mixed-language step (Python ↔ R ↔ Bash composition) | `methodology/mixed_language_orchestration` *(v1.4.0)* |
+
+---
+
+## Deep scenarios (the whole machine, including the daemon)
+
+The recipes above are protocol stacks. The scenarios below are *narratives* of
+real, messy research with the daemon running — long jobs, walking away,
+resources, autonomy, mode changes — so you can see how the pieces fit when the
+work isn't tidy. The daemon is OPTIONAL: with none running, everything still
+works over stdio; the daemon adds durable execution, recovery, enforcement, and
+notifications. Start one with `research-os daemon start` in the project.
+
+### Scenario 1 — overnight HPC run on a shared cluster, then walk away
+
+A postdoc on a shared SLURM box has a 9-hour training sweep.
+
+1. *"my data's at /scratch/me/cohort.parquet — set up an analysis project and
+   plan a hyperparameter sweep"* → the AI inits, brings the data into
+   `inputs/raw_data/` (symlink — it's 80 GB on shared storage, so it records the
+   path + hash and flags the project not-self-contained rather than copying),
+   fills the intake, and plans step `01_sweep`.
+2. Because `runtime.shared_server: true`, before launching the AI **asks**: the
+   sweep needs ~40 GB and 9 h — over a casual ceiling. The researcher approves.
+3. The job runs through the **daemon** (`tool_task run` / `POST /v1/jobs`), not
+   inline — so it survives the IDE closing. The daemon journals the run, applies
+   the resource budget as real rlimits, and the researcher goes home.
+4. The login node reboots overnight. On restart the daemon **rehydrates**: the
+   run is marked `interrupted`, and `sys_boot` next morning leads with
+   *"1 run was interrupted — resume it"* pointing at `POST /v1/runs/<id>/resume`,
+   which re-launches from the checkpoint (a malformed sibling manifest can't sink
+   this — recovery is per-record fault-isolated).
+5. When the sweep finishes, the daemon's **notification spine** posts the result;
+   if `daemon.continue_command` is set, it re-prompts the AI to score the result
+   and plan `02_analysis` automatically.
+
+### Scenario 2 — exploration that earns its way into a real analysis
+
+A grad student isn't sure there's anything there yet.
+
+1. *"set up an exploration project — I want to poke at whether dosage tracks
+   outcome before I commit"* → inits in **exploration** mode (scratch-first,
+   light gates).
+2. Three quick probes later, one holds up. The AI notes the probe earned it and
+   reminds them: *"this looks real — we can promote to analysis mode."*
+3. *"yes, switch to analysis"* → `sys_workspace_mode(transition, to=analysis)`:
+   it **plans** (shows the numbered-step surface it'll add), then on confirm
+   **applies additively** — the scratch probes are preserved, the analysis spine
+   is created, config + state are synced, and the move is recorded to
+   `mode_history.jsonl`. The earned probe is promoted into step `01`.
+4. The daemon's structure audit would have flagged it if they'd flipped the mode
+   by hand and left the surface missing — it watches for that drift.
+
+### Scenario 3 — plan deeply, then let the AI run toward the goal
+
+A PI wants a full study built mostly hands-off.
+
+1. *"plan this deeply, then run it toward the goal on your own; don't do anything
+   destructive autonomously, cap any run at 16 GB"* → the AI walks
+   `methodology/deep_planning` to write a **branchable roadmap** in
+   `inputs/research_plan.md` (milestones, decision points, falsifiable
+   assumptions — no method pinned for a milestone not yet reached).
+2. The researcher approves the roadmap. The AI hands off to
+   `guidance/roadmap_execution` — the **verified** autonomous loop: pick the next
+   milestone → execute → **score it** (`tool_judge_score`: ship / iterate / redo)
+   → record as evidence → re-plan from the result → continue. Quality is enforced
+   by the per-milestone judge + audit gates, not assumed.
+3. If the agent is **Hermes Agent**, it orchestrates the loop end-to-end, learns
+   from each result, pulls relevant skills, and **notifies** the researcher at
+   decision points, on a floor-gate pause, or if a run would exceed the 16 GB
+   they set. The daemon's continuation hook re-invokes the agent each cycle so it
+   runs hands-off within the hop ceiling.
+4. The daemon **watches compliance**: if the AI starts failing or abandoning
+   protocols repeatedly, that surfaces in `daemon_notes` → `sys_boot` and a
+   notification, so a stuck loop self-corrects or the researcher steps in — work
+   is never silently lost.
+
+### Scenario 4 — recurring lab-meeting artifacts without chaos
+
+A student presents an update every week and a poster at a conference.
+
+1. *"make me a deck for Thursday's lab meeting"* → the AI scaffolds it with a
+   label: `synthesis/deliverables/2026-06-19-lab-meeting/slides.typ`, plus a
+   README documenting what it's for. Next week's deck gets its own dated folder —
+   they never overwrite each other.
+2. *"make the NeurIPS poster"* →
+   `synthesis/deliverables/neurips-poster/poster.typ`. The canonical paper stays
+   at `synthesis/paper.typ`.
+3. Every throwaway-but-documented artifact lives in one browsable place, so months
+   later anyone can see which file was for which event — order in the chaos.
 
 ---
 

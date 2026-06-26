@@ -75,6 +75,42 @@ prerequisites:
     confirmed=true after they say yes. Empty output_types is treated
     as 'open' so unfilled projects don't trip the gate."
 
+# Machine-checkable subset (precondition gate): the foundation files must
+# exist. "Real content" / "substantive" / output_types stay prose — those
+# are the AI's judgement, only existence is hardened.
+requires:
+  checks:
+    - kind: file_exists
+      path: workspace/methods.md
+      non_empty: true
+      because: the paper's methods section builds on recorded methods
+    - kind: file_exists
+      path: workspace/citations.md
+      because: the paper grounds claims in gathered citations
+    - kind: glob_min
+      pattern: workspace/**/conclusions.md
+      min: 1
+      because: the paper reports findings from completed steps
+
+# Floor gate (precondition gate tier 2): under a daemon, scaffolding the
+# paper is BLOCKED until the foundations above exist — the most damaging
+# premature-synthesis error (writing up a paper before there are recorded
+# methods, citations, or findings) becomes un-skippable, not just advised.
+# No daemon → degrades to the AI's own confirmed=true, exactly as today.
+enforcement:
+  gates:
+    - key: tool_synthesis_scaffold:paper_preconditions
+      tool: tool_synthesis_scaffold
+      when:
+        world_state:
+          kind: preconditions_met
+          protocol: synthesis/synthesis_paper
+      floor: normal
+      reason: >-
+        cannot scaffold the paper before its foundations exist (recorded
+        methods, gathered citations, at least one step's conclusions);
+        produce them first or override
+
 design_principles: |
   - Every quantitative claim is grounded in a real workspace artefact.
     The reader can audit the path (claim → conclusions.md → script →
@@ -170,7 +206,12 @@ steps:
     description: |
       tool_synthesis_check(file='synthesis/paper.typ',
       mode='substantiveness') after every section. Address blockers
-      before continuing.
+      before continuing. At least once before compiling — and any time a
+      section reports numbers — also run
+      tool_synthesis_check(file='synthesis/paper.typ', mode='grounding')
+      (or mode='all') to catch numeric claims that don't trace to any
+      workspace output while the section is still fresh, instead of
+      discovering them at the ship gate.
 
   - id: embed_figures
     name: Embed figures
@@ -214,8 +255,19 @@ steps:
   - id: pre_submission
     name: Pre-submission gate
     description: |
-      Load audit/pre_submission_checklist. Walks every check a journal
-      will run, returns GREEN / YELLOW / RED + punch list.
+      Load audit/pre_submission_checklist — it walks every check a journal
+      will run and returns GREEN / YELLOW / RED + a punch list.
+
+      Then run the HARD ship gate, do not stop at a compiled PDF:
+        tool_finalize_project(operation='check')
+      surfaces every unresolved blocker (ungrounded numbers, fake/missing
+      cited PDFs, stub markers, bare decisions) WITHOUT finalizing. The paper
+      is NOT done while any blocker stands — a clean compile is necessary, not
+      sufficient. Resolve each blocker (or, only on an explicit researcher
+      ask, override with a logged rationale), then
+        tool_finalize_project(operation='finalize')
+      is the true "ship it" gate. This step is reachable even in autopilot:
+      compiling the PDF is the start of finalization, never the end of it.
 
 tools: |
   - tool_synthesize_plan — what's ready in the workspace
@@ -226,6 +278,7 @@ tools: |
   - tool_discussion_coverage_audit — gate, every DISAGREES/EXTENDS verdict addressed
   - tool_typst_compile — render synthesis/paper.pdf
   - tool_latex_compile — only when the journal requires .tex submission
+  - tool_finalize_project — the hard ship gate (operation='check' then 'finalize')
 
 expected_outputs:
   - synthesis/paper.typ            # AI-authored

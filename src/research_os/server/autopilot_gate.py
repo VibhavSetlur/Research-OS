@@ -91,7 +91,11 @@ def _resolved_strictness(root: Path) -> str:
 
 
 # Tools that ALWAYS require confirmation in autopilot mode, regardless
-# of arguments.
+# of arguments. LEGACY fail-safe table — used only when the compiled
+# _gate_meta.json sidecar is missing/garbage (see gate_spec). The live
+# source of truth is guidance/autopilot.yaml's `enforcement.gates`, which
+# compiles into the sidecar and is what _requires_confirmation /
+# _gate_key / _GATE_FLOOR consult first.
 _ALWAYS_GATED: set[str] = {
     "tool_package_install",
     "sys_checkpoint_rollback",
@@ -103,6 +107,10 @@ _ALWAYS_GATED: set[str] = {
 # gates; ``normal`` adds the reversible-but-weighty ones; ``strict`` is the
 # full autopilot set.
 #
+# LEGACY fail-safe mirror of the declared gates. Kept so the engine never
+# loses its floor if the compiled sidecar is absent. The live values come
+# from gate_spec.declared_floor_map() (sourced from autopilot.yaml).
+#
 # Classification rationale:
 #   light  → irreversible OR spends real money (can't be undone / costs $):
 #            package_install, rollback, path abandon, paid tools.
@@ -110,12 +118,25 @@ _ALWAYS_GATED: set[str] = {
 #            (expensive, but re-runnable).
 #   strict → + synthesis force-overwrite (auto-archived, fully reversible)
 #            + long background tasks (killable) = every gate.
-_GATE_FLOOR: dict[str, str] = {
+_LEGACY_GATE_FLOOR: dict[str, str] = {
     "tool_package_install": "light",
     "sys_checkpoint_rollback": "light",
     "sys_path:abandon": "light",
     "tool_research_tool:paid": "light",
     "tool_typst_compile": "normal",
+    # World-state gate (stale inputs feeding the final compile). The floor
+    # is recorded for parity with the declared set, but the legacy
+    # fail-safe matcher below CANNOT evaluate a world_state predicate (it
+    # has no verdict reader), so when the compiled sidecar is absent this
+    # gate degrades OFF — exactly today's behaviour (no staleness gating).
+    # The gate is live only via the declared/compiled path.
+    "tool_typst_compile:stale_inputs": "normal",
+    # World-state gate (precondition gate tier 2): paper scaffolding blocked
+    # until synthesis_paper's foundations exist. Same as above — the legacy
+    # matcher can't evaluate a world_state predicate, so it degrades OFF
+    # when the sidecar is absent (no precondition gating, today's behaviour);
+    # live only via the declared/compiled path.
+    "tool_synthesis_scaffold:paper_preconditions": "normal",
     "tool_audit:reproducibility": "normal",
     "sys_file_write:synthesis_force": "strict",
     "tool_task:run": "strict",
@@ -124,12 +145,51 @@ _GATE_FLOOR: dict[str, str] = {
 _STRICTNESS_RANK = {"light": 0, "normal": 1, "strict": 2}
 
 
+def _declared_gates() -> list:
+    """Load the compiled declared gates (cached in gate_spec). May be []."""
+    from .gate_spec import _load_gate_meta
+
+    return _load_gate_meta()
+
+
+def _GATE_FLOOR_resolved() -> dict[str, str]:
+    """key → floor from the compiled sidecar, or the legacy table if empty.
+
+    Fail-safe: an absent/garbage sidecar yields the built-in legacy floors
+    so the engine keeps enforcing exactly today's set.
+    """
+    from .gate_spec import declared_floor_map
+
+    declared = declared_floor_map(_declared_gates())
+    return declared or dict(_LEGACY_GATE_FLOOR)
+
+
+# Back-compat module attribute: some callers/tests read _GATE_FLOOR
+# directly. Resolve it once at import from the compiled sidecar (falling
+# back to legacy). This is a snapshot; the live decision path uses
+# _GATE_FLOOR_resolved() so a rebuilt sidecar is picked up on reload.
+_GATE_FLOOR: dict[str, str] = _GATE_FLOOR_resolved()
+
+
 def _gate_key(tool_name: str, arguments: dict) -> str | None:
     """Return the canonical gate key for this (tool, args) combo, or None.
 
-    The key is what ``_GATE_FLOOR`` is indexed by; it lets adaptive mode
-    decide per-gate whether the current strictness clears the floor.
+    The key is what the adaptive-floor logic is indexed by. Resolves from
+    the compiled declared gates (the live source of truth); if the sidecar
+    is empty, falls back to the legacy hand-coded matcher so the floor is
+    never lost.
     """
+    from .gate_spec import resolve_declared_gate
+
+    gates = _declared_gates()
+    if gates:
+        g = resolve_declared_gate(tool_name, arguments or {}, None, gates=gates)
+        return g["key"] if g else None
+    return _legacy_gate_key(tool_name, arguments)
+
+
+def _legacy_gate_key(tool_name: str, arguments: dict) -> str | None:
+    """Fail-safe hand-coded gate-key matcher (sidecar-absent fallback)."""
     args = arguments or {}
     if tool_name == "tool_package_install":
         return "tool_package_install"
@@ -195,6 +255,24 @@ def _requires_confirmation(tool_name: str, arguments: dict,
                            root: Path | None = None) -> bool:
     """Decide whether this (tool_name, arguments) combo is a floor gate.
 
+    Resolves from the compiled declared gates (the live source of truth in
+    guidance/autopilot.yaml's enforcement block, evaluated with ``root`` so
+    the synthesis-force existence check works). Falls back to the legacy
+    hand-coded matcher only when the compiled sidecar is absent, so the
+    floor is never lost.
+    """
+    from .gate_spec import resolve_declared_gate
+
+    gates = _declared_gates()
+    if gates:
+        return resolve_declared_gate(tool_name, arguments or {}, root, gates=gates) is not None
+    return _legacy_requires_confirmation(tool_name, arguments, root)
+
+
+def _legacy_requires_confirmation(tool_name: str, arguments: dict,
+                                  root: Path | None = None) -> bool:
+    """Fail-safe hand-coded gate matcher (sidecar-absent fallback).
+
     Returns ``True`` only for the combinations enumerated in
     ``guidance/autopilot.yaml`` step ``mandatory_gates``. (autopilot-static
     set — adaptive mode further filters this by strictness.)
@@ -234,20 +312,64 @@ def _requires_confirmation(tool_name: str, arguments: dict,
     return False
 
 
+def _gate_block_reason(
+    tool_name: str, args: dict, gate_key: str | None, root: Path
+) -> str:
+    """Human-readable reason a floor gate fired, for the away-user page.
+
+    Prefers the SPECIFIC world-state risk (stale inputs / missing
+    preconditions) over a generic 'floor gate' note, so the researcher's
+    notification names the real hazard. Best-effort + fail-safe: any error
+    yields an empty string (the page still fires with its generic body).
+    """
+    try:
+        key = gate_key or ""
+        if key.endswith(":stale_inputs"):
+            return (
+                "the final deliverable would be built from inputs that have "
+                "since changed (stale results)"
+            )
+        if "precondition" in key:
+            return "a required foundation for this step is not yet in place"
+        from .gate_spec import resolve_declared_gate
+
+        gates = _declared_gates()
+        if gates:
+            g = resolve_declared_gate(tool_name, args or {}, root, gates=gates)
+            if g and g.get("reason"):
+                return str(g["reason"])
+    except Exception:  # noqa: BLE001 - reason is cosmetic; never break paging
+        return ""
+    return ""
+
+
 def enforce_autopilot_gate(
     tool_name: str, arguments: dict, root: Path
 ) -> None:
-    """Raise ``RoError`` if this call hits a floor gate.
+    """Raise ``RoError`` if this call hits a floor gate without consent.
 
     No-op when:
       * autonomy is not gate-active (not 'autopilot' / 'adaptive')
       * tool is not in the gated set for these arguments
       * autonomy is 'adaptive' AND the project's strictness is below the
         gate's floor (a rigorous project flows through reversible gates)
-      * caller passed ``confirmed=true``
+      * consent is satisfied (see below)
 
-    The error includes the exact next-action call the AI must make
-    after the researcher consents.
+    Consent has TWO modes:
+
+      * NO daemon running (stdio-only, the default for most users) →
+        DEGRADE to the historical behaviour: the agent's own
+        ``confirmed=true`` clears the gate. Nothing is hardened, nothing
+        is broken.
+      * A daemon IS running for this project → it is the consent
+        AUTHORITY. The agent's ``confirmed=true`` no longer suffices; the
+        call must carry a ``consent_token`` the daemon minted for THIS
+        exact (gate_key, argument-fingerprint). This is the un-skippable
+        layer: the agent cannot grade its own homework when a daemon is
+        watching.
+
+    The error includes the exact next-action the AI must take — either
+    self-confirm (no daemon) or request consent from the daemon.
     """
     if not _requires_confirmation(tool_name, arguments, root):
         return
@@ -256,22 +378,87 @@ def enforce_autopilot_gate(
         return
 
     args = arguments or {}
-    if args.get("confirmed") is True:
-        return
 
     # Adaptive mode: only fire when the project's resolved strictness
     # clears this gate's floor. autopilot is always full-strictness.
-    if level == "adaptive":
-        gate_key = _gate_key(tool_name, args)
-        if gate_key is not None:
-            floor = _GATE_FLOOR.get(gate_key, "strict")
-            strictness = _resolved_strictness(root)
-            if _STRICTNESS_RANK[strictness] < _STRICTNESS_RANK[floor]:
-                logger.debug(
-                    "adaptive gate %s skipped: strictness=%s < floor=%s",
-                    gate_key, strictness, floor,
-                )
-                return
+    gate_key = _gate_key(tool_name, args)
+    if level == "adaptive" and gate_key is not None:
+        floor = _GATE_FLOOR.get(gate_key, "strict")
+        strictness = _resolved_strictness(root)
+        if _STRICTNESS_RANK[strictness] < _STRICTNESS_RANK[floor]:
+            logger.debug(
+                "adaptive gate %s skipped: strictness=%s < floor=%s",
+                gate_key, strictness, floor,
+            )
+            return
+
+    # The gate is active for this call. Decide whether consent is satisfied.
+    from .consent import (
+        arg_fingerprint,
+        consume_grant,
+        daemon_present,
+        find_valid_grant,
+    )
+
+    if daemon_present(Path(root)):
+        # HARD mode: the daemon is the consent authority. A token the
+        # daemon minted for this exact action is required; the agent's
+        # self-asserted confirmed=true is intentionally NOT honored.
+        token = args.get("consent_token")
+        fp = arg_fingerprint(tool_name, args)
+        key = gate_key or tool_name
+
+        grant = find_valid_grant(Path(root), key, fp, token)
+        if grant is not None:
+            # Burn the token before returning so a single authorization
+            # clears exactly ONE action — the agent cannot replay one
+            # human approval across many gated calls. Pass the grant's
+            # expires_at so the spent log can prune the token once it is
+            # long dead (otherwise the log grows unbounded on a long-lived
+            # project).
+            consume_grant(Path(root), token, expires_at=grant.get("expires_at"))
+            return
+        # BLOCKED while unattended: a daemon is the authority and the human
+        # is away. Page them on the daemon's notification spine so they learn
+        # action is needed — a wedged/looping/crashed agent would otherwise
+        # leave the floor gate silently stuck. Best-effort + de-duplicated;
+        # never alters the gate decision below.
+        try:
+            from .notify_sink import notify_gate_blocked
+
+            notify_gate_blocked(
+                Path(root),
+                tool=tool_name,
+                gate_key=key,
+                arg_fingerprint=fp,
+                reason=_gate_block_reason(tool_name, args, key, Path(root)),
+            )
+        except Exception:  # noqa: BLE001 - paging must never break the gate
+            logger.debug("gate-block notification failed", exc_info=True)
+        raise RoError(
+            what="consent_required",
+            why=(
+                f"a daemon is enforcing floor gates for this project, so "
+                f"{tool_name} needs a daemon-minted consent token bound to "
+                "this exact action — the agent's own confirmed=true is not "
+                "sufficient while a daemon is present"
+            ),
+            next_action=(
+                f"call sys_consent(action='request', gate_key='{key}', "
+                f"arg_fingerprint='{fp}', tool='{tool_name}', reason='<why>') "
+                "to queue a consent request for the researcher; once they "
+                f"approve (CLI: research-os daemon consent approve, or any "
+                "authorized client), call sys_consent(action='token', "
+                f"gate_key='{key}', arg_fingerprint='{fp}') to fetch the "
+                f"minted token, then retry {tool_name}(consent_token='<minted>', "
+                "...). Only request if the researcher authorized this action"
+            ),
+        )
+
+    # DEGRADE mode: no daemon → historical behaviour, agent self-confirm
+    # clears the gate so stdio-only users are unaffected.
+    if args.get("confirmed") is True:
+        return
 
     posture = (
         "adaptive autonomy paused here: this action is irreversible / "

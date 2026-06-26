@@ -18,6 +18,16 @@ from typing import Any
 from research_os.project_ops import now_iso
 
 
+def _run_bounded(cmd, cwd, timeout, root):
+    """Thin wrapper over the shared resource-bounding runner (kept for the
+    existing call sites in this module)."""
+    from research_os.tools.actions.exec._sandbox import run_bounded
+
+    return run_bounded(cmd, root=root, cwd=cwd, timeout=timeout)
+
+
+
+
 def _log_execution(
     root: Path, step_name: str, cmd: list, res: subprocess.CompletedProcess
 ) -> None:
@@ -62,9 +72,7 @@ def execute_r_script(script_path: str, root: Path, timeout: int = 300) -> dict[s
     # renv auto-activates via .Rprofile if present; no manual setup needed.
     cmd = ["Rscript", str(p)]
     try:
-        res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
-        )
+        res = _run_bounded(cmd, str(p.parent), timeout, root)
         _log_execution(root, p.stem, cmd, res)
         return _envelope(res, runner="Rscript")
     except subprocess.TimeoutExpired:
@@ -89,9 +97,7 @@ def execute_julia_script(script_path: str, root: Path, timeout: int = 300) -> di
     cmd.append(str(p))
 
     try:
-        res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
-        )
+        res = _run_bounded(cmd, str(p.parent), timeout, root)
         _log_execution(root, p.stem, cmd, res)
         return _envelope(res, runner="julia")
     except subprocess.TimeoutExpired:
@@ -107,9 +113,7 @@ def execute_bash_script(script_path: str, root: Path, timeout: int = 300) -> dic
 
     cmd = ["/bin/bash", "-e", str(p)]
     try:
-        res = subprocess.run(
-            cmd, cwd=str(p.parent), capture_output=True, text=True, errors="replace", timeout=timeout
-        )
+        res = _run_bounded(cmd, str(p.parent), timeout, root)
         _log_execution(root, p.stem, cmd, res)
         return _envelope(res, runner="bash")
     except subprocess.TimeoutExpired:

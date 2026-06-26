@@ -10,6 +10,7 @@ scope_tags:
 last_reviewed: '2026-06-16'
 see_also:
   - build/test_strategy          # correctness checks, the sibling of this performance pass
+  - build/tool_evaluation_loop   # the iterative evaluate→improve loop that runs this repeatedly + acts on it
   - build/implement_iteration    # where a missed bar routes back as the next increment
 description: |
   Reason about how to measure the tool honestly against the right

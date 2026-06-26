@@ -355,3 +355,44 @@ def test_audit_build_blocks_when_unconfigured(tmp_path):
     res = audit_tool_build(tmp_path)
     assert res["status"] == "error"
     assert any("no build command" in b.lower() for b in res["blockers"])
+
+
+@requires_git
+def test_git_restore_rolls_back_to_tagged_version(tmp_path):
+    """restore returns the tree to a blessed tag without losing history."""
+    repo = _tool_build_project(tmp_path)
+    # v1: good version, tagged.
+    (repo / "main.py").write_text("VERSION = 1\n")
+    git_op(tmp_path, "commit", message="v1")
+    git_op(tmp_path, "tag", name="good-v1")
+    # v2: a regression.
+    (repo / "main.py").write_text("VERSION = 2  # broke it\n")
+    git_op(tmp_path, "commit", message="v2 regression")
+
+    res = git_op(tmp_path, "restore", name="good-v1")
+    assert res["status"] == "success"
+    assert res["restored_to"] == "good-v1"
+    assert res["rolled_back_from"]  # the v2 sha is recorded
+    # the file is back to v1 content
+    assert "VERSION = 1" in (repo / "main.py").read_text()
+    # history is NOT lost — v2 commit still in the log
+    log = git_op(tmp_path, "log")
+    subjects = [c["subject"] for c in log["commits"]]
+    assert "v2 regression" in subjects
+
+
+@requires_git
+def test_git_restore_rejects_unknown_ref(tmp_path):
+    _tool_build_project(tmp_path)
+    res = git_op(tmp_path, "restore", name="no-such-tag")
+    assert res["status"] == "error"
+    assert "unknown" in res["message"].lower()
+
+
+@requires_git
+def test_git_restore_needs_a_ref(tmp_path):
+    _tool_build_project(tmp_path)
+    res = git_op(tmp_path, "restore")
+    assert res["status"] == "error"
+    assert "name=" in res["message"]
+

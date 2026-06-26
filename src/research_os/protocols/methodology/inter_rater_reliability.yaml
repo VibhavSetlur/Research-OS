@@ -1,7 +1,7 @@
 id: inter_rater_reliability
 tier: 'plan'
 name: Inter-rater Reliability (IRR) — design + computation + reporting
-version: '3.0.0'
+version: '3.0.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -48,12 +48,11 @@ prerequisites:
 
 editorial_voice:
   rules:
-    - "Pick the statistic that matches the rating task. Cohen's
-       kappa = 2 raters, nominal. Fleiss' kappa = ≥3 raters,
-       nominal, free-marginal. Krippendorff's alpha = any number
-       of raters, any level of measurement, handles missing data.
-       ICC = continuous ratings (with sub-types ICC(1,1), ICC(2,1),
-       ICC(3,1) etc. — pick by the rater design)."
+    - "Let the rating task select the statistic: reason over rater count,
+       measurement level, missingness, and rater design, then surface the
+       agreement statistic the field treats as canonical for that
+       combination and cite the source. Do not import a statistic because
+       it is the most familiar."
     - "Thresholds vary by field. 'Substantial' agreement (κ ≥ 0.61
        in Landis & Koch 1977) is a heuristic, not a law. Some
        clinical fields require κ ≥ 0.80; some text classification
@@ -90,40 +89,31 @@ steps:
   - id: pick_statistic
     name: Pick the agreement statistic that fits the task
     description: |
-      Reason through the choice:
+      Reason from the rating task's profile (from the prior step) to the
+      agreement statistic, then surface the matching one via
+      tool_research_method and cite the source that justifies it for THIS
+      task type. The dimensions that drive the choice — reason over each,
+      don't pick from memory:
 
-        COHEN'S KAPPA — exactly 2 raters, nominal codes, complete data.
-          Most familiar; reports chance-corrected agreement.
+        - RATER COUNT — exactly two vs three-or-more changes which
+          chance-corrected statistic applies.
+        - MEASUREMENT LEVEL — nominal / ordinal / interval / ratio. Ordinal
+          codes where partial agreement matters need a weighting scheme;
+          continuous ratings move you to an intraclass-correlation family.
+        - MISSING / UNRATEABLE DATA — some statistics require complete data;
+          others tolerate missingness natively. If the task has gaps, that
+          constrains the choice.
+        - RATER DESIGN — are the same raters used for every unit, or a
+          rotating pool? For continuous ratings this selects the ICC form
+          (one-way vs two-way, random vs fixed); naming the wrong form
+          silently changes what the estimate generalises to.
+        - LABEL STRUCTURE — mutually-exclusive single codes vs multi-label
+          (where per-code present/absent agreement is the natural unit).
 
-        FLEISS' KAPPA — ≥3 raters, nominal, free-marginal (raters
-          may differ in which categories they use).
-
-        KRIPPENDORFF'S ALPHA — any number of raters, any level of
-          measurement (nominal / ordinal / interval / ratio /
-          bipolar), handles missing data + disagreement weighting.
-          The most flexible; reported in computational fields.
-
-        ICC (Intraclass Correlation Coefficient) — continuous
-          ratings. Sub-type matters:
-            ICC(1,1) one-way random: each subject rated by different
-                random raters
-            ICC(2,1) two-way random: all subjects rated by same
-                random raters
-            ICC(3,1) two-way mixed: all subjects rated by same
-                fixed raters (no generalisation)
-          Pick by the rater design (Shrout & Fleiss 1979,
-          McGraw & Wong 1996).
-
-        WEIGHTED KAPPA — ordinal codes where partial agreement
-          matters (e.g. Likert ratings). Linear or quadratic
-          weights; quadratic is standard in clinical work.
-
-        AGREEMENT ON MULTI-LABEL CODES — F1, Jaccard, or
-          Krippendorff's alpha-binary per code (treat each code as
-          a binary present/absent decision).
-
-      Document the choice + the citation that justifies it for the
-      task type.
+      Document the chosen statistic, the dimensions that forced it, and the
+      methods-literature citation that adopts it for this kind of task. Do
+      not import a statistic because it is the most familiar — let the task
+      profile select it.
 
   - id: sampling_plan
     name: Plan the IRR sample (how many units, drawn how)
@@ -179,24 +169,22 @@ steps:
   - id: compute_agreement
     name: Compute agreement on the IRR sample
     description: |
-      Write tool_python_exec (or tool_r_exec) script:
-        Python — sklearn.metrics.cohen_kappa_score,
-                 statsmodels.stats.inter_rater.fleiss_kappa,
-                 nltk.metrics.agreement.AnnotationTask
-                 (Krippendorff's α), pingouin.intraclass_corr (ICC).
-        R     — irr, psych, vcd, DescTools packages.
+      The AI authors the computation in its own script (tool_python_exec /
+      tool_r_exec) — Research-OS does not compute IRR internally. Use a
+      maintained implementation of the chosen statistic from the project's
+      runtime; surface one via tool_research_tool rather than defaulting to
+      a remembered package, and record which implementation + version was
+      used (the result must be reproducible).
 
       The script must persist:
         - the per-segment label matrix
-        - the agreement statistic + its 95% CI (bootstrap when not
-          analytic)
+        - the agreement statistic + its confidence interval (bootstrap when
+          no analytic interval exists)
         - the confusion matrix
         - per-code agreement (where does disagreement concentrate?)
         - prevalence of each code in the sample
 
-      Save to workspace/.qualitative/irr_report.md (the AI writes the
-      script via tool_python_exec; Research-OS does not compute IRR
-      internally).
+      Save to workspace/.qualitative/irr_report.md.
 
   - id: interpret_and_remediate
     name: Interpret + remediate if threshold not met

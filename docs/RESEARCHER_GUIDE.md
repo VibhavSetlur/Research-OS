@@ -134,8 +134,10 @@ my-project/
 │   │   ├── README.md
 │   │   ├── conclusions.md
 │   │   ├── scripts/         ← versioned scripts (_v1, _v2, ...)
-│   │   ├── data/{input,output}/
-│   │   ├── outputs/{reports,figures,tables}/
+│   │   ├── data/            ← project_inputs/ (→inputs/raw_data), past_step_input/
+│   │   │                       (→prev step's next_step_output), next_step_output/
+│   │   │                       (what THIS step hands the next), share/ (export)
+│   │   ├── outputs/         ← figures/ tables/ (each with .prov.json + .caption.md)
 │   │   ├── environment/     ← per-step requirements.txt
 │   │   └── literature/      ← step-scoped PDFs (optional)
 │   ├── 02_data_preparation/
@@ -571,6 +573,14 @@ runtime:
   shared_server: false                  # true on HPC / shared boxes
                                         # — flips long_running default
   long_running_threshold_seconds: 60    # tool_task(operation='run') vs inline cutoff
+  resource_budget:                      # ceiling the OPTIONAL daemon enforces as a real
+                                        # rlimit on every run it launches (ignored on the
+                                        # stdio path). Blank/0 on a field = uncapped.
+    memory_mb:                          # RLIMIT_AS  (e.g. 16384) — esp. useful on shared HPC
+    cpu_seconds:                        # RLIMIT_CPU (e.g. 7200)
+    wall_seconds:                       # wallclock kill (e.g. 7200)
+    file_size_mb:                       # RLIMIT_FSIZE (e.g. 51200)
+    open_files:                         # RLIMIT_NOFILE (e.g. 4096)
   cluster_defaults:                     # SLURM defaults for tool_slurm_submit
     partition: ""                       # blank → no --partition flag
     time: "01:00:00"                    # wall clock per job
@@ -586,6 +596,14 @@ runtime:
   max_cpu_seconds: 1800                 # per-subprocess CPU cap (30 min)
   max_memory_mb: 4096                   # per-subprocess RSS cap (4 GiB)
   max_file_size_mb: 100                 # per-output-file size cap
+
+# Optional daemon block — only read when you run `research-os daemon start`
+# (the stdio MCP path ignores it). See docs/DAEMON.md.
+daemon:
+  notify_command: ""                    # script run per notification; gets the
+                                        # notification JSON on stdin (wire to
+                                        # Slack/email/webhook). Blank → outbox only.
+  task_workers: 2                       # parallel background job workers
 
 # Top-level helpers read by various tools (all optional):
 # domain: ""                       # short label (e.g. "neuroscience")

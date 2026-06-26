@@ -37,24 +37,26 @@ error explaining what to install).
 ### Default (recommended)
 
 ```bash
-pip install "research-os[all]"
+pip install research-os
 ```
 
-The `all` extra pulls every optional Python dependency.
+That's everything most people need. The full research experience —
+analysis, figures, literature search, semantic routing, Parquet/Excel IO —
+ships in the base install. There are no extras to remember.
 
-### Minimal
+A few features need their own system runtime and stay opt-in:
 
 ```bash
-pip install "research-os"
+pip install "research-os[daemon]"   # the optional enforcement daemon
+pip install "research-os[r]"        # R bridge (rpy2; needs R installed)
+pip install "research-os[julia]"    # Julia bridge (needs Julia installed)
 ```
-
-Core only. Add extras later: `pip install 'research-os[viz,audit]'`.
 
 ### Virtualenv
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install "research-os[all]"
+pip install research-os
 ```
 
 ### Conda
@@ -62,13 +64,13 @@ pip install "research-os[all]"
 ```bash
 conda create -n research-os python=3.11 -y
 conda activate research-os
-pip install "research-os[all]"
+pip install research-os
 ```
 
 ### Install from source for development
 
 ```bash
-pip install "research-os[all] @ git+https://github.com/VibhavSetlur/Research-OS.git"
+pip install "research-os @ git+https://github.com/VibhavSetlur/Research-OS.git"
 ```
 
 ### Verify
@@ -237,7 +239,7 @@ If you want Research OS installed and your IDE wired up BEFORE you
 have a project in mind:
 
 ```bash
-pip install "research-os[all]"
+pip install research-os
 ```
 
 Done — `research-os` is on your `PATH`. When you eventually have a
@@ -262,7 +264,7 @@ Aider — anywhere) and let it walk you through the setup end-to-end.
 >    my OS (macOS / Linux / Windows / WSL — ask which I'm on).
 > 2. **Install with all optional extras**:
 >    ```
->    pip install "research-os[all]"
+>    pip install research-os
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.
@@ -311,9 +313,10 @@ Power-user tips for the prompt:
 `inputs/researcher_config.yaml` is auto-created. **Every field is
 optional** — blank fields get sensible defaults applied silently. The
 file tells the AI **who it's working with** and **how you want it to
-behave**. Domain / research question / hypotheses are NOT here — drop
-data into `inputs/` and say "fill out the intake"; the AI writes those
-to `inputs/intake.md` + `research_overview.md` (in the project's `docs/`).
+behave**. Domain / research question / hypotheses are NOT here — just
+tell the AI in chat what you're studying (or drop data into `inputs/` and
+say "fill out the intake"); the AI writes those to `inputs/intake.md` +
+`research_overview.md` (in the project's `docs/`).
 
 The minimal useful subset (ordered most → least important):
 

@@ -471,11 +471,17 @@ def check_protocols_referenced_tools_resolve():
     # Add known false positives that aren't tool calls
     false_positive_strings = {
         "tool_name",        # field inside tool_external_tool_instructions
-        "tool_discovery",   # protocol name (methodology/tool_discovery)
         "tool_list",        # word appearing in prose ("tool list")
         "tool_build",       # workspace.mode name (build/* protocols, scope_tags)
-        "tool_to_analysis_handoff",  # protocol name (hybrid/tool_to_analysis_handoff)
         "tool_and_analysis",         # workflow_shape value for hybrid mode
+    }
+    # Protocol IDs that start with tool_/sys_/mem_ (e.g.
+    # methodology/tool_discovery, hybrid/tool_to_analysis_handoff,
+    # build/tool_evaluation_loop) match the tool-name regex but are protocol
+    # references, not tool calls. Collect them so the check is self-maintaining
+    # — a new tool_-prefixed protocol no longer needs a hand-added exemption.
+    protocol_id_stems = {
+        p.stem for p in PROTOCOLS_DIR.rglob("*.yaml") if not p.name.startswith("_")
     }
     refs: dict[str, set[str]] = {}
     # Match a tool name, but reject the match if the very next char is `*`
@@ -492,7 +498,7 @@ def check_protocols_referenced_tools_resolve():
         text = f.read_text()
         for m in pattern.finditer(text):
             name = m.group(1)
-            if name in false_positive_strings:
+            if name in false_positive_strings or name in protocol_id_stems:
                 continue
             # Reject bare prefixes like `tool_search_` that end in `_`
             # (always a truncation/wildcard mention in prose).
@@ -569,6 +575,99 @@ def check_router_index_consistent():
         f"{len(in_index)} protocols indexed, all tool refs resolve"
         if not bad
         else "; ".join(bad[:3])
+    )
+
+
+# Tools that legitimately stand alone (not referenced by any protocol
+# decomposition): the boot/orient/help/config meta surface, the always-available
+# system verbs, and tools the AI reaches situationally rather than via a routed
+# protocol. Adding a tool here is a deliberate "yes, this is standalone" — it
+# stops the reverse-orphan guard from flagging it.
+_STANDALONE_TOOL_ALLOWLIST = {
+    # boot / orient / navigation
+    "sys_boot", "sys_help", "sys_config", "sys_protocol_get", "sys_protocols_list",
+    "sys_daemon", "sys_checkpoint_create", "sys_path", "sys_file_read",
+    "sys_file_write", "sys_file_list", "tool_route", "tool_protocols_list",
+    "tool_scratch", "tool_session_resume",
+}
+
+# Tool-name PREFIXES that are legitimately standalone in bulk: domain-pack
+# tools (loaded only when a pack is active, called situationally), the SLURM/
+# workflow-engine helpers, and the system/utility verbs the AI calls on demand
+# rather than via a routed protocol.
+_STANDALONE_TOOL_PREFIXES = (
+    "tool_wet_lab_", "tool_humanities_", "tool_qualitative_", "tool_theory_math_",
+    "tool_engineering_", "tool_slurm_", "tool_snakemake_", "tool_nextflow_",
+    "tool_redcap_", "tool_synapse_", "tool_adapter", "tool_adapters_",
+    "sys_", "mem_",
+)
+
+
+def check_every_tool_is_reachable():
+    """Reverse orphan guard: every non-meta tool def should be referenced by at
+    least one protocol (decomposition / shortcut_tool / shortcut_intents) OR be
+    on the standalone allowlist. Catches a tool that's wired (def+handler) but
+    that no protocol ever tells the AI to use — dead from the user's view.
+    """
+    from research_os.server import TOOL_DEFINITIONS, _resolve_tool_name
+    import yaml
+
+    idx_path = PROTOCOLS_DIR / "_router_index.yaml"
+    if not idx_path.exists():
+        return True, "_router_index.yaml missing (skipped)"
+    idx = yaml.safe_load(idx_path.read_text()) or {}
+    referenced: set[str] = set()
+    for name, data in (idx.get("protocols") or {}).items():
+        if not isinstance(data, dict):
+            continue
+        st = data.get("shortcut_tool", "")
+        if st:
+            referenced.add(_resolve_tool_name(st))
+        for entry in data.get("decomposition", []) or []:
+            if isinstance(entry, dict) and entry.get("tool"):
+                referenced.add(_resolve_tool_name(entry["tool"]))
+    for _sid, data in (idx.get("shortcut_intents") or {}).items():
+        if isinstance(data, dict) and data.get("tool"):
+            referenced.add(_resolve_tool_name(data["tool"]))
+    # Also count tools named in protocol YAML bodies (description prose often
+    # names the tool the step uses) — a tool the AI is told to call in prose is
+    # reachable even without a decomposition entry.
+    body_blob = ""
+    for f in PROTOCOLS_DIR.rglob("*.yaml"):
+        if f.name.startswith("_"):
+            continue
+        try:
+            body_blob += f.read_text(encoding="utf-8")
+        except OSError:
+            continue
+
+    orphans = []
+    for tool in TOOL_DEFINITIONS:
+        if tool in _STANDALONE_TOOL_ALLOWLIST:
+            continue
+        if tool in referenced:
+            continue
+        if tool in body_blob:  # named in some protocol's prose
+            continue
+        # Pack-specific tools (domain packs loaded on demand) + situational
+        # utilities are legitimately standalone — they're called when a pack is
+        # active or on demand, not via a routed core protocol.
+        if any(tool.startswith(p) for p in _STANDALONE_TOOL_PREFIXES):
+            continue
+        orphans.append(tool)
+
+    if orphans:
+        # WARN, not FAIL: a tool with no protocol reference is usually a
+        # situational utility, but a brand-new workflow tool landing here is a
+        # wiring smell worth a human glance. Surface it without blocking.
+        return True, (
+            f"WARN: {len(orphans)} tool(s) referenced by NO protocol + not "
+            f"allowlisted (review whether each is intentionally standalone or "
+            f"needs wiring): {sorted(orphans)}"
+        )
+    return True, (
+        f"all {len(TOOL_DEFINITIONS)} tools reachable "
+        f"(referenced by a protocol or standalone-allowlisted)"
     )
 
 
@@ -848,6 +947,185 @@ def check_route_meta():
     )
 
 
+def check_gate_meta():
+    """The compiled floor-gate sidecar must be fresh + agree with the engine.
+
+    The HYBRID layer (docs/HYBRID_ARCHITECTURE.md): protocols declare
+    their hard floor gates in ``enforcement.gates``; the build compiles them
+    into ``protocols/_gate_meta.json``, which the engine
+    (server/gate_spec.py + autopilot_gate.py) reads to decide which actions
+    are floor gates. A stale or inconsistent sidecar = the engine enforces a
+    different floor than the protocol declares (silent corner-cutting OR a
+    surprise gate). This check makes that impossible to merge.
+
+    Asserts:
+      1. _gate_meta.json exists and is fresh (re-derive + compare hash).
+      2. Every declared gate key resolves through autopilot_gate to the
+         SAME floor (declaration ⇆ engine agree).
+      3. The legacy fail-safe table covers exactly the declared gate keys
+         with the same floors (so the sidecar-absent fallback can't enforce
+         a different floor than the live declaration).
+
+    Fix when this fails:
+        python scripts/build_gate_meta.py
+    """
+    import json as _json
+
+    gate_meta = PROTOCOLS_DIR / "_gate_meta.json"
+    if not gate_meta.exists():
+        return False, "missing _gate_meta.json — run python scripts/build_gate_meta.py"
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        bgm = __import__("build_gate_meta")
+    except Exception as exc:  # noqa: BLE001
+        return False, f"failed to import scripts/build_gate_meta.py: {exc}"
+    try:
+        on_disk = _json.loads(gate_meta.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not parse _gate_meta.json: {exc}"
+    try:
+        fresh = bgm.build_gate_meta()
+    except SystemExit as exc:
+        return False, f"gate-meta build error: {exc}"
+    if on_disk.get("source_hash") != fresh.get("source_hash"):
+        return False, (
+            "STALE — recompile: python scripts/build_gate_meta.py "
+            f"(on-disk={str(on_disk.get('source_hash'))[:12]}…, "
+            f"now={str(fresh.get('source_hash'))[:12]}…)"
+        )
+
+    bad: list[str] = []
+    # 2. declaration ⇆ engine floor agreement.
+    try:
+        from research_os.server import autopilot_gate as ag
+
+        engine_floor = ag._GATE_FLOOR_resolved()
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not load autopilot_gate floor map: {exc}"
+    declared = {g["key"]: g["floor"] for g in fresh.get("gates", [])}
+    for key, floor in declared.items():
+        if engine_floor.get(key) != floor:
+            bad.append(
+                f"gate {key!r}: declared floor {floor!r} != engine "
+                f"{engine_floor.get(key)!r}"
+            )
+    # 3. legacy fallback covers the same keys + floors (so the safe
+    #    fallback can never enforce a DIFFERENT floor than the declaration).
+    legacy = getattr(ag, "_LEGACY_GATE_FLOOR", {})
+    if set(legacy) != set(declared):
+        only_legacy = sorted(set(legacy) - set(declared))
+        only_decl = sorted(set(declared) - set(legacy))
+        bad.append(
+            f"legacy fallback keys differ from declared "
+            f"(legacy-only={only_legacy[:3]}, declared-only={only_decl[:3]})"
+        )
+    else:
+        for key, floor in declared.items():
+            if legacy.get(key) != floor:
+                bad.append(
+                    f"gate {key!r}: declared {floor!r} != legacy fallback "
+                    f"{legacy.get(key)!r}"
+                )
+    return (not bad), (
+        f"{len(declared)} declared gate(s) fresh; engine + legacy agree"
+        if not bad
+        else "; ".join(bad[:3])
+    )
+
+
+def check_daemon_contract_paths_agree():
+    """The daemon writers and the reasoning-side bridge must point at the
+    SAME .os_state/ paths — the load-bearing cross-process contract.
+
+    docs/DAEMON_BRIDGE.md. server/daemon_bridge.py defines the canonical
+    contract paths the MCP/reasoning side READS; the daemon WRITES them via
+    its own path helpers. If the two drift (a rename on one side only), the
+    AI reads an empty consent ledger / never sees a notification / misses a
+    staleness verdict — silently. This check builds each contract path BOTH
+    ways for the same root and asserts equality, so a drift can't merge.
+    """
+    from pathlib import Path as _Path
+
+    try:
+        from research_os.daemon import consent as _dc
+        from research_os.daemon import discovery as _ddisc
+        from research_os.daemon import health_notes as _dh
+        from research_os.daemon import notifications as _dn
+        from research_os.daemon import runstore as _dr
+        from research_os.daemon import staleness as _ds
+        from research_os.server import daemon_bridge as _db
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not import contract modules: {exc}"
+
+    r = _Path("/tmp/_ro_contract_probe")
+    pairs = {
+        "consent/granted.json": (_dc._granted_path(r),
+                                 _db.state_path(r, _db.CONSENT_GRANTED)),
+        "notifications/outbox.jsonl": (_dn._outbox_path(r),
+                                       _db.state_path(r, _db.NOTIFICATIONS_OUTBOX)),
+        "staleness/verdict.json": (_ds._verdict_path(r),
+                                   _db.state_path(r, _db.STALENESS_VERDICT)),
+        "runs/": (r / ".os_state" / _dr.RUNS_DIRNAME,
+                  _db.state_path(r, _db.RUNS_DIR)),
+        # F-1 (stress): cover the daemon descriptor + the startup self-check
+        # notes — both daemon-written files the bridge reads by-shape.
+        "daemon.json": (_ddisc.discovery_path(r),
+                        _db.state_path(r, _db.DAEMON_DESCRIPTOR)),
+        "daemon_notes.json": (_dh._notes_dir(r) / _dh._NOTES_JSON,
+                              _db.state_path(r, _db.DAEMON_NOTES)),
+    }
+    drift = [
+        f"{name}: daemon={daemon_p} vs bridge={bridge_p}"
+        for name, (daemon_p, bridge_p) in pairs.items()
+        if str(daemon_p) != str(bridge_p)
+    ]
+    if drift:
+        return False, "contract drift — " + "; ".join(drift)
+    return True, f"{len(pairs)} .os_state contract paths agree (daemon ⇆ bridge)"
+
+
+def check_precondition_meta():
+    """The compiled precondition sidecar must be fresh + reference real protocols.
+
+    docs/PRECONDITION_GATE.md: protocols declare mechanically checkable
+    entry conditions in ``requires.checks``; the build compiles them into
+    ``protocols/_precondition_meta.json``, which server/preconditions.py
+    reads to tell the AI exactly which preconditions are unmet. A stale
+    sidecar = the AI is told the wrong thing; a dangling protocol_completed
+    reference = a precondition that can never be satisfied. The build itself
+    rejects dangling refs, so here we assert freshness.
+
+    Fix when this fails:
+        python scripts/build_precondition_meta.py
+    """
+    import json as _json
+
+    meta = PROTOCOLS_DIR / "_precondition_meta.json"
+    if not meta.exists():
+        return False, "missing _precondition_meta.json — run python scripts/build_precondition_meta.py"
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    try:
+        bpm = __import__("build_precondition_meta")
+    except Exception as exc:  # noqa: BLE001
+        return False, f"failed to import scripts/build_precondition_meta.py: {exc}"
+    try:
+        on_disk = _json.loads(meta.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return False, f"could not parse _precondition_meta.json: {exc}"
+    try:
+        fresh = bpm.build_precondition_meta()
+    except SystemExit as exc:
+        return False, f"precondition-meta build error: {exc}"
+    if on_disk.get("source_hash") != fresh.get("source_hash"):
+        return False, (
+            "STALE — recompile: python scripts/build_precondition_meta.py "
+            f"(on-disk={str(on_disk.get('source_hash'))[:12]}…, "
+            f"now={str(fresh.get('source_hash'))[:12]}…)"
+        )
+    n = sum(len(v) for v in fresh.get("protocols", {}).values())
+    return True, f"{n} precondition check(s) across {len(fresh.get('protocols', {}))} protocol(s), fresh"
+
+
 def check_routing_targets_resolve():
     """Every next_protocol / on_failure / see_also target must be a real protocol.
 
@@ -991,9 +1269,11 @@ def check_docs_code_consistency():
     """Scan docs/, CLAUDE.md, README.md for drift-prone patterns vs code reality.
 
     Catches: tool names mentioned in docs that don't exist in code, broken
-    scripts/ references, broken docs/*.md cross-references. Also logs every
-    'N-step' / 'N commands' / 'N-check' literal so a maintainer can audit
-    count drift in one pass.
+    scripts/ references, and broken docs/*.md cross-references (real Markdown
+    link targets — ``](docs/X.md)`` — not bare path mentions, which may name
+    files the AI writes into an end-user project). Also logs every 'N-step' /
+    'N commands' / 'N-check' literal so a maintainer can audit count drift in
+    one pass.
     """
     import re
 
@@ -1013,6 +1293,18 @@ def check_docs_code_consistency():
     known_aliases = set(_ALIASES)
     removed = set(_REMOVED_TOOLS)
 
+    # A handful of protocol IDs legitimately start with ``tool_`` (e.g.
+    # ``hybrid/tool_to_analysis_handoff``). They match the tool-name regex but
+    # are protocols, not tools — collect their bare IDs so docs that name them
+    # in the protocol catalogue aren't mis-flagged as references to phantom
+    # tools.
+    protocol_ids: set[str] = set()
+    protocols_dir = REPO_ROOT / "src" / "research_os" / "protocols"
+    if protocols_dir.exists():
+        for p in protocols_dir.rglob("*.yaml"):
+            if not p.name.startswith("_"):
+                protocol_ids.add(p.stem)
+
     # Patterns / placeholders that look like tools but aren't (template
     # filler, prose, search wildcards).
     false_positives = {
@@ -1021,9 +1313,22 @@ def check_docs_code_consistency():
         "tool_definitions",  # python module dir, not a tool
     }
 
+    # PLUGIN_AUTHORING.md teaches the ``tool_<pack>_<action>`` naming rule by
+    # inventing hypothetical pack tools (``tool_mypack_*``, ``tool_myinfra_*``,
+    # ``mem_subjects_*``, ...). Those deliberately do NOT exist in core, so the
+    # unknown-tool-name check is skipped for this one file; its scripts/ and
+    # xref references are still validated.
+    tool_check_skip = {"docs/PLUGIN_AUTHORING.md"}
+
     tool_pattern = re.compile(r"\b((?:sys|tool|mem)_[a-z][a-z0-9_]+)\b")
     script_pattern = re.compile(r"\bscripts/([A-Za-z0-9_\-]+\.py)\b")
-    docs_xref_pattern = re.compile(r"\bdocs/([A-Za-z0-9_\-]+\.md)\b")
+    # An xref is a real Markdown link target — ``](docs/NAME.md`` — not any
+    # string that happens to match ``docs/NAME.md``. Protocol descriptions and
+    # scenario walkthroughs legitimately mention paths the AI writes INTO a
+    # researcher's project (``docs/research_overview.md``, ``docs/glossary.md``);
+    # those live in the end-user project, never in this repo's docs/, so a bare
+    # mention must not be treated as a broken maintainer-doc cross-reference.
+    docs_xref_pattern = re.compile(r"\]\(docs/([A-Za-z0-9_\-]+\.md)")
     count_pattern = re.compile(
         r"\b(\d+)[-\s](?:step|command|commands|check|checks|protocols?|tools?)\b",
         re.IGNORECASE,
@@ -1040,18 +1345,22 @@ def check_docs_code_consistency():
         except (OSError, UnicodeDecodeError):
             continue
         rel = f.relative_to(REPO_ROOT).as_posix()
+        skip_tool_check = rel in tool_check_skip
         for lineno, line in enumerate(lines, 1):
-            for m in tool_pattern.finditer(line):
-                name = m.group(1)
-                if name in false_positives or name.endswith("_"):
-                    continue
-                # A tool ref is OK if it's a real tool, an alias, a
-                # removed-tool placeholder, or resolves via the dispatcher.
-                if (name in known_tools or name in known_aliases
-                        or name in removed
-                        or _resolve_tool_name(name) in known_tools):
-                    continue
-                unknown_tools.append(f"{rel}:{lineno}: {name}")
+            if not skip_tool_check:
+                for m in tool_pattern.finditer(line):
+                    name = m.group(1)
+                    if name in false_positives or name.endswith("_"):
+                        continue
+                    # A tool ref is OK if it's a real tool, an alias, a
+                    # removed-tool placeholder, a protocol ID that happens to
+                    # start with tool_/sys_/mem_, or resolves via the dispatcher.
+                    if (name in known_tools or name in known_aliases
+                            or name in removed
+                            or name in protocol_ids
+                            or _resolve_tool_name(name) in known_tools):
+                        continue
+                    unknown_tools.append(f"{rel}:{lineno}: {name}")
             for m in script_pattern.finditer(line):
                 script_name = m.group(1)
                 if not (REPO_ROOT / "scripts" / script_name).exists():
@@ -1312,6 +1621,99 @@ def check_coherence():
 # ---------------------------------------------------------------------------
 
 
+def check_daemon_endpoints_documented():
+    """The daemon server's documented endpoint list must match the routes.
+
+    server.py carries a hand-readable endpoint catalogue in its module
+    docstring AND registers the actual Route() objects. A drift between the
+    two is the classic "stale hand-maintained list" bug: a new endpoint
+    ships undocumented, or a removed one lingers in the docs. This check
+    parses both from the source (no import — daemon deps are optional) and
+    asserts they cover the same path set.
+
+    Fix when this fails: update the docstring endpoint list in
+    src/research_os/daemon/server.py to match the registered Route()s.
+    """
+    import re as _re
+
+    server_py = REPO_ROOT / "src" / "research_os" / "daemon" / "server.py"
+    if not server_py.exists():
+        return True, "daemon/server.py absent; skipped"
+    text = server_py.read_text(encoding="utf-8")
+
+    # Registered routes: Route("/v1/...", handler, methods=[...]).
+    registered = set(_re.findall(r'Route\(\s*"([^"]+)"', text))
+    # /healthz is registered via a non-Route helper in some stacks; include
+    # any add_route / explicit mention too.
+    registered |= set(_re.findall(r'\.add_route\(\s*"([^"]+)"', text))
+
+    # Documented paths: the module docstring lists "GET /path" / "POST /path".
+    doc = text.split('"""')[1] if '"""' in text else ""
+    documented = set(_re.findall(r'(?:GET|POST|PUT|DELETE)\s+(/\S+)', doc))
+
+    # Normalise: ignore trailing descriptive punctuation, keep path shape.
+    def _norm(s: str) -> str:
+        return s.rstrip(".,;:")
+
+    registered = {_norm(r) for r in registered}
+    documented = {_norm(d) for d in documented}
+
+    undocumented = sorted(registered - documented)
+    phantom = sorted(documented - registered)
+    bad = []
+    if undocumented:
+        bad.append(f"registered but undocumented: {undocumented}")
+    if phantom:
+        bad.append(f"documented but not registered: {phantom}")
+    return (not bad), (
+        f"{len(registered)} daemon endpoints documented + registered in sync"
+        if not bad
+        else "; ".join(bad)
+    )
+
+
+def check_reasoning_layer_independent_of_daemon():
+    """Architecture invariant (ARCHITECTURE.md §6.1): the reasoning layer never
+    imports the transport/execution layer.
+
+    The dependency arrow points ONE way: ``daemon/`` may import ``server/``
+    (it fronts ``_handle_tool_call``), but ``server/``, ``tools/`` and the
+    protocol loaders must never import ``daemon/``. If they did, the pure
+    reasoning core (152 tools, 142 protocols) would become coupled to HTTP /
+    sessions / concurrency — the exact thing v4 exists to undo. This check
+    fails the build the moment that arrow gets reversed.
+    """
+    import re as _re
+
+    src = REPO_ROOT / "src" / "research_os"
+    reasoning_dirs = [src / "server", src / "tools"]
+    # Match `import research_os.daemon`, `from research_os.daemon ...`,
+    # `from ..daemon ...`, `from .daemon ...` — but NOT comments/strings
+    # mentioning the word daemon.
+    pat = _re.compile(
+        r"^\s*(?:from\s+(?:\.+|research_os\.)?daemon[\s.]"
+        r"|import\s+research_os\.daemon)"
+    )
+    offenders: list[str] = []
+    for d in reasoning_dirs:
+        if not d.exists():
+            continue
+        for py in d.rglob("*.py"):
+            try:
+                for i, line in enumerate(py.read_text().splitlines(), 1):
+                    if pat.match(line):
+                        rel = py.relative_to(REPO_ROOT)
+                        offenders.append(f"{rel}:{i}: {line.strip()}")
+            except Exception:
+                continue
+    if offenders:
+        return False, (
+            "reasoning layer imports daemon (arrow reversed): "
+            + "; ".join(offenders[:5])
+        )
+    return True, "server/ + tools/ never import daemon/ (arrow points daemon→server)"
+
+
 def main() -> int:
     # Make src importable when called from a clean checkout.
     sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -1337,6 +1739,7 @@ def main() -> int:
     tally.check("Bundled adapters discovered", check_adapters_discovered)
     tally.check("Adapter regex patterns compile", check_adapter_regex_compile)
     tally.check("Protocol tool refs all resolve", check_protocols_referenced_tools_resolve)
+    tally.check("Every tool is reachable (no orphan tools)", check_every_tool_is_reachable)
     tally.check("Router index references resolve", check_router_index_consistent)
     tally.check("Router index mtime tracks protocols", check_router_index_bumped)
     tally.check("Protocol freshness (review cadence)", check_protocol_freshness)
@@ -1344,6 +1747,9 @@ def main() -> int:
     tally.check("Routing targets resolve (next_protocol/on_failure/see_also)", check_routing_targets_resolve)
     tally.check("Semantic-routing embeddings fresh", check_embeddings_fresh)
     tally.check("Compiled routing sidecar (_route_meta.json) fresh + consistent", check_route_meta)
+    tally.check("Compiled floor-gate sidecar (_gate_meta.json) fresh + engine agrees", check_gate_meta)
+    tally.check("Compiled precondition sidecar (_precondition_meta.json) fresh", check_precondition_meta)
+    tally.check("Daemon ⇆ bridge .os_state contract paths agree", check_daemon_contract_paths_agree)
     tally.check("Workspace scaffold smoke", check_scaffold_smoke)
     tally.check("No historical version commentary in live doctrine", check_no_version_chatter)
     tally.check("Prose↔code coherence (no removed tools / hand-written counts)", check_coherence)
@@ -1352,6 +1758,8 @@ def main() -> int:
     tally.check("CITATION.cff cff-version valid", check_citation_cff_valid)
     tally.check("Every tool definition has 'short' field <=120 chars", check_tool_short_field_length)
     tally.check("Every pack dir in both bundled lists (loader + pyproject)", check_packs_in_both_lists)
+    tally.check("Reasoning layer independent of daemon (v4 arrow)", check_reasoning_layer_independent_of_daemon)
+    tally.check("Daemon endpoints documented ⇆ registered (no drift)", check_daemon_endpoints_documented)
 
     print()
     print(f"Summary: {tally.passed} passed · {tally.failed} failed")

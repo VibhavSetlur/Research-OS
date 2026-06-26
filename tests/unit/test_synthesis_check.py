@@ -57,6 +57,7 @@ from research_os.tools.actions.synthesis.check import (
     _check_poster,
     _check_slides,
     output_types_gate,
+    synthesis_check,
     synthesis_hygiene,
     workspace_hygiene,
 )
@@ -538,3 +539,27 @@ def test_handout_in_single_page_overflow_targets():
     from research_os.tools.actions.synthesis.typst_compile import _SINGLE_PAGE_TARGETS
 
     assert "handout" in _SINGLE_PAGE_TARGETS
+
+
+def test_grounding_mode_flags_ungrounded_number(tmp_path: Path):
+    """mode='grounding' surfaces a numeric claim absent from the workspace
+    corpus during authoring (not just at the ship gate)."""
+    ws = tmp_path / "workspace" / "01_step" / "outputs"
+    ws.mkdir(parents=True)
+    # The corpus contains 0.91 but NOT 0.42.
+    (ws / "metrics.txt").write_text("auroc = 0.91\n", encoding="utf-8")
+    syn = tmp_path / "synthesis"
+    syn.mkdir()
+    (syn / "paper.typ").write_text(
+        "= Results\n"
+        "The model reached an AUROC of 0.91 on the held-out set. "
+        "Precision was 0.42 at the operating point.\n",
+        encoding="utf-8",
+    )
+    r = synthesis_check(tmp_path, file="synthesis/paper.typ", mode="grounding")
+    g = r["details"].get("grounding")
+    assert g is not None
+    # 0.91 grounded, 0.42 not.
+    assert g["ungrounded"] >= 1
+    assert any("not found in any workspace output" in w for w in r["warnings"])
+

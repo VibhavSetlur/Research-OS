@@ -1,7 +1,7 @@
 id: spec_and_design
 tier: 'plan'
 name: Spec & Design (what the tool must do, and how "done" is judged)
-version: '3.8.0'
+version: '3.9.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -9,6 +9,8 @@ scope_tags:
   workflow_shape: [tool_build]
 last_reviewed: '2026-06-16'
 see_also:
+  - build/tool_from_description # the describe→build→improve loop that drives a plain-language request into this spec pass
+  - build/optimal_approach      # after the spec is pinned, brain out HOW before committing to an implementation
   - build/implement_iteration   # the inner loop that builds against this spec
   - build/test_strategy         # turns the acceptance criteria here into a test regime
   - build/method_scouting       # when a design choice should adopt external prior art, scout it before committing
@@ -183,7 +185,11 @@ steps:
         - decisions/ has an ADR per load-bearing choice;
         - the first milestone in milestones.md has an acceptance bar.
 
-      Then advance to build/implement_iteration to scope the first
+      Then advance toward the build. When the implementation shape is
+      non-obvious — several genuinely different ways to build this could
+      win — pass through build/optimal_approach first to brain out and
+      justify the approach before committing; when the shape is obvious,
+      advance straight to build/implement_iteration to scope the first
       shippable increment. mem_log a one-line "spec/design pass complete:
       <headline>" so the build loop and a later review can trace it.
 

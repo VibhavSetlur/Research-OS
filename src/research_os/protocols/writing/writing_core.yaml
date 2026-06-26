@@ -38,6 +38,11 @@ editorial_voice:
        alternative interpretation is'."
     - "No first-person voice in deliverables. Methods + Results in
        past tense; Discussion in present tense; Future Work in future."
+    - "If workspace/.style/voice_profile.md exists (writing/voice_calibration
+       built it), apply the researcher's captured voice in the discretionary
+       space — sentence rhythm, diction, stance, signposting — UNDER these
+       hard rules and the venue's. Voice shapes HOW a thing is said, never
+       WHETHER a claim is grounded; the rules above win on any conflict."
 
 rules:
   voice_and_tense:
@@ -169,6 +174,13 @@ steps:
       the section it lives in. Methods/Results past, Discussion
       present, Future Work future. Consistency within a section
       matters more than the specific choice.
+
+      If workspace/.style/voice_profile.md exists, also check the paragraph
+      against the researcher's captured voice (rhythm, diction, stance,
+      signposting) and adjust it toward their profile within the venue's
+      rules — the draft should read like the researcher, not a generic model.
+      No profile yet but drafting substantial prose for them? Offer
+      writing/voice_calibration so future drafts land in their voice.
 
   - id: claim_grounding_check
     name: Every claim grounded

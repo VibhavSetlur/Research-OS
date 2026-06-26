@@ -159,6 +159,11 @@ class WizardResult:
     researcher_institution: str = ""
     researcher_orcid: str = ""
     save_as_profile: bool = False
+    # Whether to wire Research-OS into Hermes (the self-improving agent layer:
+    # registers the RO MCP server + skill in ~/.hermes/config.yaml). Distinct
+    # from `ides` because Hermes integrates via `research-os hermes add`, not
+    # per-IDE template files.
+    wire_hermes: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +349,43 @@ def run_wizard(args) -> WizardResult:
         help_line="Sets `model_profile` in researcher_config.yaml. Change anytime later.",
     )
 
+    # ── Hermes: the self-improving agent layer (recommended) ────────────
+    # Distinct from per-IDE wiring: Hermes sits ABOVE whatever model the
+    # researcher uses, with persistent memory + a skill ecosystem, and RO
+    # plugs in as an MCP server. This is the setup the guidance/agent_setup
+    # protocol recommends. Offer it explicitly; it's opt-in and reversible.
+    print()
+    try:
+        from research_os import hermes_integration as _hermes
+
+        hermes_present = _hermes.hermes_config_path().exists()
+    except Exception:
+        hermes_present = False
+    if args.ide and args.ide.strip().lower() == "none":
+        wire_hermes = False
+    elif getattr(args, "hermes", None) is not None:
+        # Non-interactive override: --hermes / --no-hermes.
+        wire_hermes = bool(args.hermes)
+        ok(f"Hermes wiring (from flag): {'yes' if wire_hermes else 'no'}")
+    else:
+        _blurb = (
+            "Hermes is a self-improving agent layer that runs above any model, "
+            "remembers your conventions across sessions, and pulls from a huge "
+            "skill ecosystem — RO plugs in as MCP and keeps the science rigorous."
+        )
+        if hermes_present:
+            _blurb += " (Hermes config detected at ~/.hermes.)"
+        else:
+            _blurb += (
+                " (Not detected — install from "
+                "https://hermes-agent.nousresearch.com, then re-run "
+                "`research-os hermes add`.)"
+            )
+        info(_blurb)
+        wire_hermes = tui.confirm(
+            "Wire Research-OS into Hermes now?", default=hermes_present
+        )
+
     # ── Step 5: Bring in your inputs ────────────────────────────────────
     section(5, total, "Bring in your inputs (optional)",
             "Add any data, papers, notes, or images you already have.")
@@ -426,6 +468,7 @@ def run_wizard(args) -> WizardResult:
         researcher_institution=researcher_institution,
         researcher_orcid=researcher_orcid,
         save_as_profile=save_as_profile,
+        wire_hermes=wire_hermes,
     )
 
 
@@ -822,11 +865,6 @@ def _next_steps(r: WizardResult) -> None:
     if r.target_dir != cwd:
         print(f"  {_C.CYAN}{n}.{_C.RESET}  cd {_C.BOLD}{r.target_dir}{_C.RESET}")
         n += 1
-    print(f"  {_C.CYAN}{n}.{_C.RESET}  Drop more files into:")
-    print(f"        {_C.DIM}inputs/raw_data/{_C.RESET}     data (CSV / Parquet / FASTQ / NIfTI / ...)")
-    print(f"        {_C.DIM}inputs/literature/{_C.RESET}   PDFs of papers")
-    print(f"        {_C.DIM}inputs/context/{_C.RESET}      notes, drafts, screenshots, prior reports")
-    n += 1
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Open your AI IDE on this folder — the MCP server auto-launches.")
     print(f"        {_C.BOLD}⚠ Already have it open? RESTART the IDE / reload the window{_C.RESET}")
     print(f"        {_C.DIM}so the research-os MCP tools load — they won't appear until you do.{_C.RESET}")
@@ -839,9 +877,14 @@ def _next_steps(r: WizardResult) -> None:
         except Exception:
             pass
     n += 1
+    print(f"  {_C.CYAN}{n}.{_C.RESET}  Just tell the AI what you're studying — no files needed:")
+    print(f"        {_C.DIM}\"I want to know if X affects Y. My data's at <path>. Hypotheses: ...\"{_C.RESET}")
+    print(f"        {_C.DIM}It captures your question + hypotheses and shows you to approve.{_C.RESET}")
+    print(f"        {_C.DIM}Prefer files? Drop them in inputs/raw_data, inputs/literature, inputs/context.{_C.RESET}")
+    n += 1
     print(f"  {_C.CYAN}{n}.{_C.RESET}  Start chatting. Try:")
     for line in [
-        '"fill out the intake"           — AI reads inputs/, drafts question + hypotheses',
+        '"here\'s my project: ..."        — describe it; AI sets up question + hypotheses',
         '"what should I do next?"         — iterative planning',
         '"run a baseline EDA"             — creates workspace/01_*, scripts + figures',
         '"write the paper for a journal"  — verified citations only',
@@ -853,4 +896,11 @@ def _next_steps(r: WizardResult) -> None:
     print(f"  {_C.GREY}AI rules :{_C.RESET}   {r.target_dir / 'AGENTS.md'}")
     print(f"  {_C.GREY}Config   :{_C.RESET}   {r.target_dir / 'inputs' / 'researcher_config.yaml'}")
     print(f"  {_C.GREY}Add an IDE:{_C.RESET} research-os ide add <claude|cursor|vscode|…>")
+    if getattr(r, "wire_hermes", False):
+        print(f"  {_C.GREY}Hermes    :{_C.RESET} wired — restart Hermes, then ask "
+              f'"how should I set up my AI for this project" (agent_setup protocol).')
+    else:
+        print(f"  {_C.GREY}Best setup:{_C.RESET} pair RO with a self-improving agent "
+              f"layer — `research-os hermes add` (see hermes-agent.nousresearch.com), "
+              f'then ask "set up my AI for this project".')
     print()

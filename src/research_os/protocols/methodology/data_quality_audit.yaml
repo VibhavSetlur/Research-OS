@@ -10,6 +10,7 @@ scope_tags:
   workflow_shape: [experiment_pipeline]
 see_also:
   - methodology/exploratory_data_analysis  # the hypothesis-generating pass on clean-enough data
+  - methodology/data_preparation           # where flagged problems get fixed + recorded (raw→analysis-ready)
   - methodology/data_ethics_review         # the ethical/legal counterpart to this cleanliness pass
   - methodology/missing_data_strategy      # where flagged missingness gets a handling plan
 description: |

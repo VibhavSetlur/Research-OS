@@ -11,6 +11,53 @@ End-user-facing docs live in `docs/`. Maintainer-facing docs:
 
 ---
 
+## The v4.0.0 push (standing order)
+
+We are driving Research-OS to a true final **4.0.0** on branch
+`feat/v4-daemon-core`. When the maintainer says only **"continue"**, that
+means: take a fresh, **comprehensive, holistic** pass over the *whole*
+system from multiple personas — the naive AI under context pressure, the
+grad student who can't verify, the PI / reviewer who needs trust, and each
+mode (analysis · tool-build · hybrid) plus the shared-HPC researcher — find
+inconsistencies, bugs, stale/un-updated parts, and missing or half-built
+features, and **hammer many of them out in one pass** (not one or two).
+Bring anything that hasn't been touched in a while up to the current
+architecture; never leave loose ends.
+
+**The architecture we're converging on:** the daemon is an
+enforcement + execution + notification **kernel** that fronts the
+(already-good) MCP + protocols. The throughline is turning **soft, trusted
+prose into hard, verified structure** — while the *reasoning* layer stays
+soft per [`docs/PROTOCOL_DOCTRINE.md`](docs/PROTOCOL_DOCTRINE.md). Designs
+for each piece live in [`docs/`](docs/) (UNSKIPPABLE_GATES,
+HYBRID_ARCHITECTURE, STALENESS_GATE, NOTIFICATION_SPINE, RESOURCE_BUDGET,
+PRECONDITION_GATE, DAEMON_BRIDGE).
+
+**Non-negotiables for every change:**
+- **Seam (preflight-enforced):** `server/` and `tools/` MUST NOT import
+  `research_os.daemon`. Cross-process only via the on-disk `.os_state/`
+  contract, read by shape through `server/daemon_bridge.py` (canonical
+  paths + `daemon_present` + `http_get`/`http_post`).
+- **Fail-safe closed / degrade-open:** no daemon ⇒ behave exactly as
+  today (stdio users unaffected); ambiguous enforcement ⇒ never silently
+  pass a gate, never falsely block.
+- **`_LEGACY_*` tables are deliberate fail-safes**, not dead code — keep
+  them (they activate only when a compiled sidecar is missing).
+- **Real "legacy" = unfinished loops, scattered duplication, stale docs** —
+  that's what to hunt and fix, not working safety nets.
+- After touching `protocols/`, rebuild the sidecars:
+  `build_gate_meta.py`, `build_precondition_meta.py`, `build_embeddings.py`.
+- A new tool must be wired everywhere: `TOOL_DEFINITIONS` + `HANDLERS` +
+  `__all__` + `docs/TOOLS.md` + rebuilt embeddings.
+- **Five drift guards** keep the system self-consistent (route-meta,
+  gate-meta, precondition-meta, daemon-endpoint catalogue, daemon⇆bridge
+  contract). Add a guard whenever you introduce a new cross-layer contract.
+- Run the full release gate (below) before **every** commit. Version bump +
+  CHANGELOG happen only in the `dev → main` release PR, never on the feat
+  branch.
+
+---
+
 ## Environment
 
 Use the **`research-os` conda env** for everything in this folder

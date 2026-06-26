@@ -46,7 +46,7 @@ logger = logging.getLogger("research_os.tools.build_tools")
 # (reset --hard, clean, push) are intentionally NOT exposed — the AI runs
 # those, when truly needed, through tool_bash_exec with explicit researcher
 # confirmation.
-_GIT_OPERATIONS = ("init", "status", "commit", "branch", "tag", "log", "diff")
+_GIT_OPERATIONS = ("init", "status", "commit", "branch", "tag", "log", "diff", "restore")
 
 # How many trailing lines of captured output tool_build keeps. The full
 # stream is logged to workspace/logs/; the envelope carries only the tail so
@@ -368,6 +368,55 @@ def git_op(
                 "status": "success",
                 "operation": "tag",
                 "tags": tags,
+            }
+
+        # --- restore (rollback to a known-good version) -----------------
+        if operation == "restore":
+            # Path-contained rollback: restore the working tree (or specific
+            # paths) to a named tag/commit WITHOUT moving HEAD or discarding
+            # history — the reverted-from state stays recoverable (it's still
+            # in the reflog + any later tags). This is the safe "go back to the
+            # version the eval blessed" lever for build/versioning_and_rollback.
+            ref = (name or "").strip()
+            if not ref:
+                return {
+                    "status": "error",
+                    "operation": "restore",
+                    "message": (
+                        "restore needs name=<tag-or-commit> to roll back to. "
+                        "Use operation='tag' (no name) to list blessed versions."
+                    ),
+                }
+            # Verify the ref exists before touching the tree.
+            check = _run_git(repo, ["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"])
+            if check.returncode != 0:
+                return {
+                    "status": "error",
+                    "operation": "restore",
+                    "message": f"unknown tag/commit '{ref}' — nothing restored.",
+                }
+            # Snapshot current HEAD so the response tells the AI exactly what it
+            # rolled back FROM (so it can roll forward again if needed).
+            from_sha = _head_sha(repo)
+            target_paths = list(paths) if paths else ["."]
+            res = _run_git(repo, ["checkout", ref, "--", *target_paths])
+            if res.returncode != 0:
+                return {
+                    "status": "error",
+                    "operation": "restore",
+                    "message": f"git restore failed: {_tail(res.stderr or res.stdout)}",
+                }
+            return {
+                "status": "success",
+                "operation": "restore",
+                "restored_to": ref,
+                "rolled_back_from": from_sha,
+                "paths": target_paths,
+                "note": (
+                    "Working tree restored to '%s'. HEAD did not move and no "
+                    "history was lost — commit the restored state to make it "
+                    "current, or roll forward to %s to undo this." % (ref, from_sha)
+                ),
             }
 
         # --- log --------------------------------------------------------

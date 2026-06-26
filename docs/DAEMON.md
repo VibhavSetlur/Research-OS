@@ -1,0 +1,311 @@
+# The Research OS daemon
+
+The daemon is **optional**. Research OS works fully without it — every
+`sys_*` / `tool_*` call runs in-process through your IDE's MCP connection,
+and that's the right setup for most chat / IDE sessions. The daemon adds a
+separate, persistent process that turns Research OS from a set of tools
+into a small **operating layer** around your project. Start it when you
+want any of:
+
+- **Long jobs that don't block the chat** — kick off a fit / sweep /
+  benchmark, get the turn back immediately, and be **notified when it
+  finishes** (optionally straight to Slack / email / a webhook).
+- **Run provenance + freshness** — every tracked run records its inputs,
+  command, and outputs, so the daemon can tell you when a result has gone
+  **stale** (an input changed underneath it) and rebuild exactly the
+  affected sub-graph.
+- **Hard gates you can't accidentally skip** — with a daemon present, the
+  riskiest actions (compiling the final paper, a force-overwrite, a big
+  job, scaffolding a paper before the work exists) require a **real,
+  one-time, human-authorised approval** — not just the AI deciding it's
+  fine.
+- **A resource budget the machine enforces** — declare a memory / CPU /
+  wallclock ceiling once and every run the daemon launches is held to it
+  (a real `rlimit`, not a suggestion). Especially valuable on a shared
+  cluster.
+- **Work that survives you walking away** — a long job keeps running after
+  you close the chat (the daemon owns the process, not your IDE session),
+  and if the daemon itself dies mid-run — the box rebooted overnight, the
+  node was preempted — the next start **rehydrates** that run as
+  `INTERRUPTED`, notifies you, and tells the AI to recommend resuming it.
+  Nothing silently vanishes. (See *"When you walk away"* below.)
+
+If you never start a daemon, none of this is in your way: gates fall back
+to a simple confirmation, jobs run inline, nothing changes.
+
+---
+
+## Start / stop
+
+```bash
+research-os daemon start      # serve the localhost API + job queue
+research-os daemon status     # is it running? what project is active?
+```
+
+The daemon binds `127.0.0.1` only (never a public port). One daemon serves
+the project it's started in; it writes a small descriptor to
+`.os_state/daemon.json` so your IDE's MCP session discovers it
+automatically — the AI's `sys_daemon` tool reports it without any wiring.
+
+---
+
+## How the AI sees it
+
+The AI doesn't import the daemon — it talks to it the same way you would,
+over the local API, and only ever **reads** unless you authorise a change:
+
+- **`sys_daemon`** — "is anything running in the background, what should I
+  do next, what's the resource budget, were there undelivered
+  notifications?" One call, the AI's situational awareness. When no daemon
+  runs it returns `running:false` and the AI proceeds normally.
+- **`sys_consent`** — the AI's side of the approval loop (below). It can
+  *request* approval and *check* for a minted token, but it can never
+  grant its own.
+
+This is the deliberate split: the AI plans and reasons; the daemon holds
+the things the AI must not be able to forge.
+
+---
+
+## The approval loop (hard gates)
+
+With a daemon running, a floor gate doesn't accept the AI's own
+"confirmed" — it requires a token only **you** can mint. The full loop:
+
+1. The AI hits a gated action and is told `consent_required`, with the
+   exact `gate_key` and a fingerprint of the specific arguments.
+2. The AI calls `sys_consent(action='request', …)` and tells you what
+   needs approval and why.
+3. You review and decide:
+
+   ```bash
+   research-os daemon consent                 # list pending requests + active grants
+   research-os daemon consent approve <id>    # mint a one-shot, argument-bound token
+   research-os daemon consent deny <id>       # refuse
+   ```
+
+4. The AI fetches the minted token (`sys_consent(action='token', …)`) and
+   retries. The token is **one-shot** — it clears exactly that one action
+   and is burned, so one approval can't be replayed across many calls.
+
+The approval is bound to the exact action you saw: a token for "compile
+paper.typ" can't be reused to compile something else.
+
+---
+
+## Long jobs + notifications
+
+```bash
+research-os daemon run "<command>"   # run as a tracked job (provenance + artifacts)
+research-os daemon runs              # list recorded runs
+research-os daemon logs <run_id>     # a run's details + captured output
+research-os daemon submit "<cmd>"    # submit to SLURM with full provenance
+```
+
+The AI can launch a background run the same way, without blocking the chat:
+when the gateway is enabled it `POST`s to **`/v1/jobs`** (the single
+agent-initiated execution path, so an AI-launched run and a CLI-launched run
+share one journal, one provenance trail, one lineage graph). The job queue
+is visible read-only at `GET /v1/jobs`; the durable archive of finished runs
+is `GET /v1/runs`. Submitting a journaled job is gated — it needs the
+gateway flag plus a per-session bearer token — so the AI can never spawn
+unbounded background work on its own.
+
+A tracked job records its inputs, command, and outputs. When it finishes,
+the daemon emits a notification. To have notifications actually reach you,
+set a delivery command — a script that receives the notification as JSON on
+stdin and posts it wherever you want (Slack, email, a webhook):
+
+```yaml
+# inputs/researcher_config.yaml
+daemon:
+  notify_command: "/home/me/bin/ro-notify.sh"   # gets the notification JSON on stdin
+```
+
+With no `notify_command`, notifications are still **recorded** to the
+outbox — you just have to pull them rather than be pushed. Review what was
+sent (and what delivery missed) any time:
+
+```bash
+research-os daemon notifications               # the outbox + delivery status
+research-os daemon notifications --undelivered # only what didn't reach you
+```
+
+---
+
+## Freshness + rebuild
+
+Because runs are tracked, the daemon knows the dependency graph and can
+tell when a result is stale:
+
+```bash
+research-os daemon lineage      # the run dependency graph
+research-os daemon stale        # which runs are stale (input changed / upstream stale)
+research-os daemon rebuild      # re-run only the stale sub-graph, in dependency order
+research-os daemon reproduce <run_id>   # re-run one recorded run, check outputs still match
+research-os daemon diff <a> <b>         # compare two runs: command, env, outputs
+```
+
+This is also a **safety gate**: with a daemon present, compiling the final
+deliverable is blocked while results it depends on are stale — you can't
+ship a paper built on data that changed underneath it without seeing the
+warning and clearing it.
+
+---
+
+## Resource budget
+
+Declare a ceiling once, under `runtime:` in your config — the daemon turns
+it into a real `rlimit` on every run it launches:
+
+```yaml
+# inputs/researcher_config.yaml
+runtime:
+  resource_budget:
+    memory_mb: 16384      # RLIMIT_AS  per run
+    cpu_seconds: 7200     # RLIMIT_CPU per run
+    wall_seconds: 7200    # wallclock kill
+    file_size_mb: 51200   # RLIMIT_FSIZE
+    open_files: 4096      # RLIMIT_NOFILE
+```
+
+A blank or `0` field means uncapped (the sandbox default applies). On a
+shared HPC node this is how you keep a runaway job from hurting everyone
+else. The AI sees the active budget via `sys_daemon` and is told to respect
+and cite it before launching anything heavy.
+
+---
+
+## When you walk away
+
+This is the case the daemon is built for: you kick off a long job, close
+the laptop, and come back tomorrow — or the shared node reboots overnight,
+or your SLURM allocation gets preempted at 3am. The daemon is designed so
+that **nothing you started silently disappears** and the AI knows exactly
+how to pick the work back up.
+
+What actually happens, step by step:
+
+1. **The job outlives the chat.** Because the daemon owns the process — not
+   your IDE's MCP session — closing the chat (or losing the connection)
+   doesn't kill the run. It keeps going, journaling as it does.
+2. **The daemon dies anyway.** If the daemon itself is taken down
+   mid-run — the box reboots, the node is preempted, someone `kill`s it —
+   the run was non-terminal when its last status was persisted.
+3. **Rehydrate on the next start.** The next time the daemon starts, it
+   reads the run journal, finds any run whose last persisted status was
+   non-terminal (i.e. it *looked* live but the daemon is fresh), and
+   rewrites that manifest as **`INTERRUPTED`** — with a status transition
+   recorded, so the timeline shows exactly when it stalled. Rehydration is
+   best-effort and never blocks startup.
+4. **You get told.** The daemon emits a `runs_interrupted` notification on
+   that same start — delivered via your `notify_command` if set, otherwise
+   waiting in the outbox (`research-os daemon notifications`). You learn the
+   work stopped without having to go looking.
+5. **The AI orients to it.** When the AI next calls `sys_daemon` (its
+   standard situational-awareness call), the daemon's *orient* logic
+   surfaces interrupted runs **as a high-priority recommended next action**,
+   `resume_interrupted`: "*N run(s) were interrupted (the daemon stopped
+   mid-run — e.g. the machine rebooted while you were away); their work did
+   not complete and may have left partial output.*" The recommended move is
+   to inspect them and re-run the affected step so it completes cleanly,
+   **before** building anything on a partial result.
+
+Inspect and resume manually any time:
+
+```bash
+research-os daemon runs                 # interrupted runs show status=interrupted
+research-os daemon logs <run_id>        # what it managed to produce before it stalled
+# then re-run the affected step (the AI does this for you on resume_interrupted)
+```
+
+The point of the whole flow is that a partial result can't quietly become
+the foundation of a paper. An interrupted run is *louder* than a failed
+one in the orient ordering — it's the first run-state the AI is told about —
+precisely because a half-finished job that *looks* done is the most
+dangerous thing a returning researcher can build on.
+
+---
+
+## Shared servers & HPC
+
+The daemon's design assumptions are a shared login node, not a personal
+laptop: no Docker, a conda environment, other people's jobs on the same box,
+and a scheduler in front of the real compute. Everything above is built to
+behave well there.
+
+**Tell Research OS it's shared.** Set this once and the whole system shifts
+to shared-node behaviour — long work gets backgrounded instead of blocking,
+and the AI is told to respect the resource budget before launching anything
+heavy:
+
+```yaml
+# inputs/researcher_config.yaml
+runtime:
+  shared_server: true
+```
+
+**No Docker required.** Isolation comes from `rlimit`s + the command
+allowlist + (where the host supports it) namespaces/cgroups — not
+containers. `GET /v1/sandbox` reports the strongest isolation tier this
+host actually supports, so a caller knows the bounding before submitting
+work. The whole stack installs and runs from a plain conda env; there is no
+container build step.
+
+**Hand heavy compute to the scheduler.** Research OS ships adapters for the
+tools you already run on a cluster — they're detected and used
+automatically when present:
+
+- **SLURM** — `research-os daemon submit "<cmd>"` (or `tool_slurm_submit`)
+  submits a job with full provenance and polls it to completion. Defaults
+  (partition, walltime, cpus, mem) come from `runtime.cluster_defaults` in
+  your config. If the daemon restarts while a SLURM job is in flight, it
+  re-attaches by the recorded scheduler job id rather than orphaning it.
+- **Snakemake / Nextflow** — a pipeline is detected as a workflow run-kind;
+  `GET /v1/workflows` previews the planned DAG via a read-only dry-run when
+  the engine is installed, and each pipeline gets one journal entry with
+  per-rule/per-process sub-runs.
+
+**Disk hygiene on a shared filesystem.** Runs are content-addressed and
+artifact hashes are recorded, so re-running identical work doesn't duplicate
+outputs. The resource budget's `file_size_mb` (`RLIMIT_FSIZE`) caps how
+large any single run's output can grow — a real ceiling against a runaway
+job filling a shared scratch volume. Keep `inputs/raw_data/` and
+`inputs/literature/` immutable (the server enforces this); large derived
+artifacts live under `workspace/` and `.os_state/`, which are yours to prune
+between studies.
+
+The resource budget (above) is the other half of being a good citizen on a
+shared box: a per-run memory / CPU / wallclock ceiling the kernel enforces,
+so one experiment can't starve everyone else's.
+
+---
+
+## Other subcommands
+
+```bash
+research-os daemon domain        # detected research field + field-aware defaults
+research-os daemon gateway       # OpenAI-compatible chat gateway status / mint a token
+```
+
+The **gateway** (`daemon gateway`) is an advanced, off-by-default surface:
+an OpenAI-compatible `/v1/chat/completions` endpoint that routes a prompt
+through the protocol router and executes Research OS tools, so a
+non-MCP client can drive a project. It requires an explicit enable flag
+and a per-session bearer token. Most researchers never need it.
+
+---
+
+## Mental model
+
+| Layer | Who | Does |
+|---|---|---|
+| You | the researcher | drop files in `inputs/`, talk in natural language, **approve** gated actions |
+| The AI | your IDE's model | plans, reasons, calls tools, requests approval |
+| The MCP server | in-process | executes + records every research action |
+| The daemon | optional process | runs long work, tracks provenance, **enforces** hard gates, notifies you, **recovers interrupted runs** |
+
+The daemon never replaces the MCP server — it sits alongside it as the part
+that persists, executes in the background, and holds the authority the AI
+isn't allowed to hold itself. Start it when a project is big or long-lived
+enough to want that; skip it for quick work.

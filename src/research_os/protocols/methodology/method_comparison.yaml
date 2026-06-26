@@ -149,8 +149,8 @@ steps:
       utility script if needed), and writes its predictions /
       estimates to:
 
-        workspace/<step>/data/output/<method_slug>_predictions.{csv|parquet}
-        workspace/<step>/data/output/<method_slug>_eval.json
+        workspace/<step>/data/next_step_output/<method_slug>_predictions.{csv|parquet}
+        workspace/<step>/data/next_step_output/<method_slug>_eval.json
 
       Set RNG seeds explicitly in each script — different seeds in
       different scripts is itself a confounder.
@@ -294,8 +294,8 @@ steps:
 expected_outputs:
   - workspace/<step>/comparison_plan.md
   - workspace/<step>/scripts/<method>_v*.py
-  - workspace/<step>/data/output/<method>_predictions.*
-  - workspace/<step>/data/output/<method>_eval.json
+  - workspace/<step>/data/next_step_output/<method>_predictions.*
+  - workspace/<step>/data/next_step_output/<method>_eval.json
   - workspace/<step>/outputs/figures/<task>_per_method_panel.png
   - workspace/<step>/outputs/figures/<task>_winner_summary.png
   - workspace/<step>/outputs/reports/tuning_audit.md

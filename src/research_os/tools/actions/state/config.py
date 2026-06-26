@@ -306,6 +306,34 @@ runtime:
   long_running_threshold_seconds: 60
   compute_environment: ""        # e.g. "conda env: myproj" / "module load cuda/12" / "docker: myimg"
   package_manager: ""            # pip | conda | uv | poetry  (blank → AI infers)
+  # Resource budget — a per-run ceiling enforced BOTH by the optional daemon
+  # AND by the agent's direct code-execution tools (scripts / notebooks /
+  # pipelines), turning the "stay within budget" guidance into a real rlimit.
+  # Leave fields BLANK (recommended): the system then sizes each run to LIVE
+  # free headroom (and never leaves a run unbounded on a shared server). Set an
+  # explicit number ONLY to cap below that. Don't hardcode a guess — blank is
+  # smarter than a stale number. The AI must ASK before launching a run it
+  # estimates will exceed the budget or strain a shared box.
+  # Especially important on shared HPC where a runaway job hurts everyone.
+  resource_budget:
+    memory_mb:                   # RLIMIT_AS ceiling per run; blank → live headroom
+    cpu_seconds:                 # RLIMIT_CPU ceiling per run (e.g. 7200)
+    wall_seconds:                # wallclock kill per run (e.g. 7200)
+    file_size_mb:                # RLIMIT_FSIZE ceiling (e.g. 51200)
+    open_files:                  # RLIMIT_NOFILE ceiling (e.g. 4096)
+
+# ── Daemon (optional persistent process) ───────────────────────────────
+# Only read when you run `research-os daemon start` (the stdio MCP path
+# ignores this whole block). The daemon runs long jobs, tracks provenance,
+# enforces hard human-approved gates, and notifies you on completion. See
+# docs/DAEMON.md. Every field is optional; blank = built-in default.
+daemon:
+  # Shell command run once per notification (job done, gate page). It
+  # receives the notification as JSON on stdin — wire it to Slack / email /
+  # a webhook. Blank = notifications are still recorded to the outbox
+  # (research-os daemon notifications), just not pushed anywhere.
+  notify_command: ""             # e.g. "/home/me/bin/ro-notify.sh"
+  task_workers: 2                # parallel job workers
 
 # ── Figure defaults ────────────────────────────────────────────────────
 # What companions the AI ships with every figure. SVG companions double
@@ -692,6 +720,60 @@ def set_config(key: str, value: Any, root: Path) -> dict[str, Any]:
         return result
     except Exception as e:
         logger.exception("set_config failed")
+        return {"status": "error", "message": str(e)}
+
+
+def append_agent_note(note: str, root: Path) -> dict[str, Any]:
+    """Append a learned researcher preference to ``interaction.agent_notes``.
+
+    The learning loop: when the researcher corrects the AI or states a
+    durable, project-specific preference ("always segregate transport
+    reactions", "prefer DRFP over structural fingerprints", "never touch the
+    prod DB"), the AI records it HERE so the next session inherits it
+    (``agent_notes`` is surfaced at every boot via ``config_directives``).
+
+    Unlike ``set_config``, this APPENDS rather than clobbers — the notes are
+    an accumulating store, not a single value. Each note becomes a dated
+    bullet. A note whose text already appears (case-insensitive substring)
+    is a no-op, so the AI re-recording the same preference across sessions
+    doesn't duplicate it. Comments in the YAML survive (ruamel round-trip).
+    """
+    note = (note or "").strip()
+    if not note:
+        return {"status": "error", "message": "note is empty"}
+    try:
+        cfg_path = _config_path(root)
+        config = _load_config_roundtrip(cfg_path) if cfg_path.exists() else {}
+        config = config or {}
+        interaction = config.get("interaction")
+        if not isinstance(interaction, dict):
+            interaction = {}
+            config["interaction"] = interaction
+        existing = interaction.get("agent_notes")
+        existing_str = existing if isinstance(existing, str) else ""
+        # Idempotent: don't re-append a preference already recorded.
+        if note.lower() in existing_str.lower():
+            return {
+                "status": "success",
+                "note": note,
+                "appended": False,
+                "reason": "already recorded",
+            }
+        from datetime import date
+
+        bullet = f"- [{date.today().isoformat()}] {note}"
+        interaction["agent_notes"] = (
+            f"{existing_str.rstrip()}\n{bullet}" if existing_str.strip() else bullet
+        )
+        cfg_path.parent.mkdir(parents=True, exist_ok=True)
+        _dump_config_roundtrip(cfg_path, config)
+        try:
+            os.chmod(cfg_path, 0o600)
+        except OSError:
+            pass
+        return {"status": "success", "note": note, "appended": True}
+    except Exception as e:
+        logger.exception("append_agent_note failed")
         return {"status": "error", "message": str(e)}
 
 

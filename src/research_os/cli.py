@@ -285,6 +285,7 @@ def cmd_init(args: argparse.Namespace) -> None:
         detected_inputs=raw_data_sources,
         workspace_mode=getattr(args, "workspace_mode", None) or "analysis",
         mcp_scope=getattr(args, "mcp_scope", None) or "workspace",
+        wire_hermes=bool(getattr(args, "hermes", None)),
     )
     _execute(result, run_preflight_repo=args.preflight, quiet_banner=True)
 
@@ -444,6 +445,26 @@ def _execute(r, run_preflight_repo: bool = False, quiet_banner: bool = False) ->
     if r.start_server:
         _try_start_server(target_dir)
 
+    # 10. Optional: wire Research-OS into Hermes (the self-improving agent
+    # layer). Registers the RO MCP server + skill in ~/.hermes/config.yaml,
+    # non-destructively and idempotently. Best-effort: a failure here never
+    # aborts a successful scaffold.
+    if getattr(r, "wire_hermes", False):
+        try:
+            from research_os import hermes_integration as _hi
+
+            summary = _hi.add()
+            wizard.ok(
+                "Hermes wired",
+                f"server '{summary['server_key']}' {summary['server_action']} "
+                f"in {summary['config_path']} — restart Hermes to load it.",
+            )
+        except Exception as exc:  # noqa: BLE001 - never abort scaffold on this
+            wizard.warn(
+                "Hermes wiring skipped",
+                f"{exc}. Run `research-os hermes add` manually when ready.",
+            )
+
     # NOTE: `CONTRIBUTORS.md` is not created automatically at init time.
     # It only gets written when an action explicitly logs to it (e.g.
     # `research-os ide add ...`, which is a deliberate change to project
@@ -534,6 +555,914 @@ def cmd_start(args: argparse.Namespace) -> None:
         sys.argv = [sys.argv[0], "--transport", args.transport]
 
     server_main()
+
+
+def cmd_daemon(args: argparse.Namespace) -> int:
+    """Run / inspect the v4 multi-protocol gateway daemon.
+
+    ``status`` reports daemon + active-project state (read-only). ``start``
+    runs the persistent daemon: a background task queue plus read-only HTTP
+    endpoints (/healthz, /v1/state, /v1/jobs) on localhost. The HTTP stack
+    needs the optional ``research-os[daemon]`` extra. See docs/ROADMAP.md.
+    """
+    from research_os.daemon import Daemon
+
+    sub = getattr(args, "daemon_command", None)
+    if sub is None:
+        print("  Research OS daemon (v4 multi-protocol gateway)")
+        print()
+        print("  research-os daemon status   show daemon + project state")
+        print("  research-os daemon start    run the daemon (localhost, read-only API)")
+        print("  research-os daemon run      run a command as a tracked job")
+        print("  research-os daemon runs     list recorded runs (durable history)")
+        print("  research-os daemon logs ID  show a run's details + output")
+        print("  research-os daemon reproduce ID  re-run + verify outputs match")
+        print("  research-os daemon submit SCRIPT  submit to HPC scheduler (SLURM)")
+        print("  research-os daemon diff A B  compare two runs (cmd/context/outputs)")
+        print("  research-os daemon lineage [ID]  run dependency graph (provenance DAG)")
+        print("  research-os daemon stale  flag results built from changed inputs")
+        print("  research-os daemon rebuild  re-run only the stale runs (in order)")
+        print("  research-os daemon domain  detect the project's research field + defaults")
+        print("  research-os daemon gateway  OpenAI-compatible chat gateway: status + token")
+        print()
+        print("  Architecture + roadmap: docs/ROADMAP.md")
+        return 0
+
+    overrides: dict = {}
+    if getattr(args, "host", None):
+        overrides["host"] = args.host
+    if getattr(args, "port", None):
+        overrides["port"] = args.port
+
+    workspace = getattr(args, "workspace", None)
+    if workspace:
+        root = Path(workspace).expanduser().resolve()
+        daemon = Daemon.for_root(root, **overrides)
+    else:
+        daemon = Daemon.autoresolve(**overrides)
+
+    if sub == "status":
+        status = daemon.status()
+        if getattr(args, "as_json", False):
+            print(json.dumps(status.to_dict(), indent=2, default=str))
+            return 0
+        _print_daemon_status(status)
+        return 0
+
+    if sub == "start":
+        print(f"  Research OS daemon starting on {daemon.config.base_url}")
+        print(f"  root: {daemon.root or '(none resolved)'}")
+        print("  endpoints: GET /healthz  /v1/state  /v1/jobs   (read-only)")
+        print("  Ctrl-C to stop.")
+        try:
+            daemon.serve()
+        except RuntimeError as exc:
+            # Missing [daemon] extra (or other startup failure) — clear hint.
+            print(f"  {_warn_glyph()}  {exc}")
+            return 1
+        except KeyboardInterrupt:
+            print("\n  daemon stopped.")
+            return 0
+        return 0
+
+    if sub == "run":
+        return _daemon_run(daemon, args)
+
+    if sub == "runs":
+        return _daemon_runs(daemon, args)
+
+    if sub == "logs":
+        return _daemon_logs(daemon, args)
+
+    if sub == "reproduce":
+        return _daemon_reproduce(daemon, args)
+
+    if sub == "submit":
+        return _daemon_submit(daemon, args)
+
+    if sub == "diff":
+        return _daemon_diff(daemon, args)
+
+    if sub == "lineage":
+        return _daemon_lineage(daemon, args)
+
+    if sub == "stale":
+        return _daemon_stale(daemon, args)
+
+    if sub == "notifications":
+        return _daemon_notifications(daemon, args)
+
+    if sub == "consent":
+        return _daemon_consent(daemon, args)
+
+    if sub == "rebuild":
+        return _daemon_rebuild(daemon, args)
+
+    if sub == "domain":
+        return _daemon_domain(daemon, args)
+
+    if sub == "gateway":
+        return _daemon_gateway(daemon, args)
+
+    print(f"  {_warn_glyph()}  Unknown daemon command: {sub!r}")
+    return 2
+
+
+def _daemon_run(daemon, args) -> int:
+    """Execute a command as a tracked, provenance-recording run (blocking)."""
+    import time as _time
+
+    cmd = list(getattr(args, "cmd", []) or [])
+    # argparse.REMAINDER keeps a leading "--"; strip it.
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+    if not cmd:
+        print(f"  {_warn_glyph()}  No command given. Use: research-os daemon run -- <cmd>")
+        return 2
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — runs need a project root.")
+        print("  Run inside a research-os project, or pass --workspace <path>.")
+        return 2
+
+    daemon.tasks.start()
+    daemon._start_journal()
+
+    # Decide shell vs argv. A single token carrying shell metacharacters
+    # (pipes, redirects, &&, globs, env-var refs) is what a researcher
+    # means by "run this command line" — exec'ing it as one argv would
+    # look for a file literally named "python x.py | tee log". Pass such a
+    # command to the shell. Explicit --shell forces it; multi-token argv
+    # (the `-- python analyze.py` form) stays exec-style.
+    _SHELL_META = set("|&;<>()$`*?[]{}~#")
+    force_shell = getattr(args, "force_shell", False)
+    use_shell = force_shell
+    cmd_arg: "str | list[str]" = cmd
+    if len(cmd) == 1 and (force_shell or (_SHELL_META & set(cmd[0]))):
+        cmd_arg = cmd[0]
+        use_shell = True
+    elif force_shell:
+        # Explicit --shell on a multi-token command: join into one line.
+        cmd_arg = " ".join(cmd)
+
+    jid = daemon.run_command(
+        cmd_arg,
+        name=getattr(args, "name", None),
+        cwd=getattr(args, "cwd", None),
+        shell=use_shell,
+        inputs=getattr(args, "inputs", None) or None,
+        track_artifacts=not getattr(args, "no_artifacts", False),
+    )
+
+    if not getattr(args, "as_json", False):
+        print(f"  run {jid} started: {' '.join(cmd)}")
+    # Stream log lines as they land by polling the live log file.
+    last = 0
+    while True:
+        job = daemon.tasks.get(jid)
+        if not getattr(args, "as_json", False):
+            lines = daemon.runstore.read_log(jid)
+            for ln in lines[last:]:
+                print(f"    {ln}")
+            last = len(lines)
+        if job and job.status.value in ("succeeded", "failed", "cancelled"):
+            break
+        _time.sleep(0.15)
+
+    # Give the journal a beat to flush the terminal manifest.
+    _time.sleep(0.3)
+    manifest = daemon.runstore.read_manifest(jid) or {}
+    daemon.tasks.shutdown(wait=False)
+
+    if getattr(args, "as_json", False):
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0 if manifest.get("status") == "succeeded" else 1
+
+    status = manifest.get("status", "?")
+    result = manifest.get("result") or {}
+    rc = result.get("returncode")
+    arts = manifest.get("artifacts") or []
+    glyph = "✓" if status == "succeeded" else "✗"
+    print(f"  {glyph} run {jid}: {status}" + (f" (exit {rc})" if rc is not None else ""))
+    if arts:
+        print(f"  artifacts ({len(arts)}):")
+        for a in arts[:20]:
+            h = (a.get("sha256") or "")[:19]
+            print(f"    {a.get('change','?'):8} {a.get('path')}  {a.get('size')}b  {h}")
+        if len(arts) > 20:
+            print(f"    … and {len(arts) - 20} more")
+    print(f"  record: {daemon.runstore._run_dir(jid)}")
+    return 0 if status == "succeeded" else 1
+
+
+def _daemon_runs(daemon, args) -> int:
+    """List the durable run history for the workspace."""
+    if daemon.runstore is None:
+        print("  no workspace resolved — nothing to list.")
+        return 0
+    runs = daemon.runstore.list_runs(limit=getattr(args, "limit", 20))
+    if getattr(args, "as_json", False):
+        print(json.dumps(runs, indent=2, default=str))
+        return 0
+    if not runs:
+        print("  no recorded runs yet.")
+        print(f"  (looked in {daemon.runstore.runs_dir})")
+        return 0
+    print(f"  {len(runs)} run(s) in {daemon.runstore.runs_dir}:")
+    for r in runs:
+        rid = r.get("id") or "?"
+        status = r.get("status", "?")
+        name = r.get("name") or ""
+        nart = r.get("artifact_count") or 0
+        rc = r.get("returncode")
+        glyph = {"succeeded": "✓", "failed": "✗", "cancelled": "⊘"}.get(status, "·")
+        extra = f"  exit={rc}" if rc is not None else ""
+        artx = f"  {nart} artifact(s)" if nart else ""
+        print(f"  {glyph} {rid}  {status:10}{extra}{artx}  {name}")
+    return 0
+
+
+def _daemon_logs(daemon, args) -> int:
+    """Show one run's manifest + captured log."""
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+    rid = args.run_id
+    manifest = daemon.runstore.read_manifest(rid)
+    if manifest is None:
+        print(f"  {_warn_glyph()}  No run found: {rid}")
+        return 1
+    if getattr(args, "as_json", False):
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0
+    print(f"  run {rid}")
+    print(f"  status:   {manifest.get('status','?')}")
+    spec = manifest.get("spec") or {}
+    cmd_val = spec.get("cmd") or spec.get("command")
+    if cmd_val:
+        print(f"  command:  {cmd_val}")
+    prov = manifest.get("provenance") or {}
+    git = prov.get("git") or {}
+    commit = git.get("commit")
+    if commit:
+        dirty = " (dirty)" if git.get("dirty") else ""
+        print(f"  commit:   {commit[:12]}{dirty} [{git.get('branch','?')}]")
+    env = prov.get("env") or {}
+    if env.get("conda_env"):
+        print(f"  env:      {env.get('conda_env')} / python {env.get('python_version','?')}")
+    arts = manifest.get("artifacts") or []
+    if arts:
+        print(f"  artifacts ({len(arts)}):")
+        for a in arts[:20]:
+            print(f"    {a.get('change','?'):8} {a.get('path')}  {a.get('size')}b")
+    tail = getattr(args, "tail", 0) or None
+    lines = daemon.runstore.read_log(rid, tail=tail)
+    if lines:
+        label = f"last {len(lines)}" if tail else f"{len(lines)}"
+        print(f"  log ({label} lines):")
+        for ln in lines:
+            print(f"    {ln}")
+    else:
+        print("  (no log captured)")
+    return 0
+
+
+def _daemon_reproduce(daemon, args) -> int:
+    """Re-run a recorded run and report whether its outputs still match."""
+    from research_os.daemon import reproduce as _repro
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to reproduce.")
+        return 2
+    timeout = getattr(args, "timeout", 0) or None
+    try:
+        daemon.tasks.start()
+        daemon._start_journal()
+        report = daemon.reproduce_run(
+            args.run_id,
+            cwd=getattr(args, "cwd", None),
+            timeout=timeout,
+        )
+    except ValueError as exc:
+        print(f"  {_warn_glyph()}  {exc}")
+        return 2
+    finally:
+        daemon.tasks.shutdown(wait=False)
+
+    if getattr(args, "as_json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report["verdict"] == _repro.REPRODUCED else 1
+
+    comp = report["comparison"]
+    verdict = report["verdict"]
+    glyph = _repro.verdict_glyph(verdict)
+    print(f"  reproducing {report['original_id']} → run {report['repro_id']}")
+    print(f"  command:  {report['command']}")
+    print(f"  re-run:   {report['repro_status']}")
+    c = comp["counts"]
+    print(
+        f"  outputs:  {c['matched']} matched, {c['changed']} changed, "
+        f"{c['missing']} missing, {c['added']} new"
+    )
+    for ch in comp["changed"][:20]:
+        r = (ch.get("recorded_sha256") or "?")[:19]
+        f = (ch.get("fresh_sha256") or "?")[:19]
+        print(f"    changed  {ch['path']}")
+        print(f"             was {r}  now {f}")
+    for p in comp["missing"][:20]:
+        print(f"    missing  {p}")
+    for p in comp["added"][:20]:
+        print(f"    new      {p}")
+    if comp["unhashed"]:
+        print(f"  ({len(comp['unhashed'])} output(s) compared by size only — too large to hash)")
+    label = {
+        _repro.REPRODUCED: "REPRODUCED — every recorded output came back identical",
+        _repro.DIVERGED: "DIVERGED — at least one output changed",
+        _repro.INCOMPLETE: "INCOMPLETE — an output was not regenerated",
+    }.get(verdict, verdict)
+    print(f"  {glyph} {label}")
+    return 0 if verdict == _repro.REPRODUCED else 1
+
+
+def _daemon_submit(daemon, args) -> int:
+    """Submit a job to an HPC scheduler and report the handle.
+
+    Non-blocking: the cluster job may run for hours. We wait only long
+    enough to confirm the submission itself succeeded (or failed cleanly),
+    then print the daemon job id + scheduler job id and return — the daemon
+    worker owns the poll-wait, and 'daemon runs/logs' track it from there.
+    """
+    import time as _time
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — cannot record a submission.")
+        return 2
+    daemon.tasks.start()
+    daemon._start_journal()
+    jid = daemon.submit_job(
+        args.script,
+        scheduler=getattr(args, "scheduler", "slurm"),
+        name=getattr(args, "name", None),
+        cwd=getattr(args, "cwd", None),
+        poll_interval=getattr(args, "poll", 5.0),
+    )
+
+    # Briefly poll the job to surface an immediate submission failure (bad
+    # scheduler, sbatch error) without blocking on the cluster run itself.
+    scheduler_job_id = None
+    submit_error = None
+    deadline = _time.time() + 8.0
+    while _time.time() < deadline:
+        job = daemon.tasks.get(jid)
+        if job is None:
+            break
+        res = job.result if isinstance(job.result, dict) else {}
+        if res.get("scheduler_job_id"):
+            scheduler_job_id = res["scheduler_job_id"]
+            break
+        if job.status.value == "failed" or res.get("error"):
+            submit_error = res.get("error") or job.error
+            break
+        # A terminal status with no scheduler id but no error = very fast job.
+        if job.status.value in ("succeeded", "cancelled"):
+            scheduler_job_id = res.get("scheduler_job_id")
+            break
+        _time.sleep(0.25)
+
+    if getattr(args, "as_json", False):
+        print(json.dumps({
+            "job_id": jid,
+            "scheduler": getattr(args, "scheduler", "slurm"),
+            "scheduler_job_id": scheduler_job_id,
+            "error": submit_error,
+        }, default=str))
+        return 1 if submit_error else 0
+
+    if submit_error:
+        print(f"  {_warn_glyph()}  submission failed: {submit_error}")
+        print(f"  daemon run id: {jid}  (see 'daemon logs {jid}')")
+        return 1
+    print(f"  submitted to {getattr(args, 'scheduler', 'slurm')}")
+    print(f"  daemon run id:   {jid}")
+    if scheduler_job_id:
+        print(f"  scheduler job:   {scheduler_job_id}")
+    print(f"  the daemon is now tracking it — 'daemon runs' / 'daemon logs {jid}'")
+    return 0
+
+
+def _daemon_diff(daemon, args) -> int:
+    """Compare two recorded runs across command, context, and outputs."""
+    from research_os.daemon import compare as _compare
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+    ma = daemon.runstore.read_manifest(args.run_a)
+    mb = daemon.runstore.read_manifest(args.run_b)
+    if ma is None:
+        print(f"  {_warn_glyph()}  No run found: {args.run_a}")
+        return 1
+    if mb is None:
+        print(f"  {_warn_glyph()}  No run found: {args.run_b}")
+        return 1
+
+    report = _compare.compare_runs(ma, mb)
+    if getattr(args, "as_json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0 if report["same"] else 1
+
+    a_id, b_id = report["ids"]["a"], report["ids"]["b"]
+    print(f"  diff  {a_id}  ->  {b_id}")
+    st = report["status"]
+    print(f"  status:  {st['a']}  ->  {st['b']}")
+
+    if report["same"]:
+        print("  ✓  identical: same command, same context, same outputs")
+        return 0
+
+    cmd = report["command"]
+    if cmd["changed"]:
+        print("  command changed:")
+        for field, ab in cmd["fields"].items():
+            print(f"    {field}:")
+            print(f"      a: {ab['a']}")
+            print(f"      b: {ab['b']}")
+    else:
+        print("  command: (unchanged)")
+
+    ctx = report["context"]
+    if ctx["changed"]:
+        print("  context changed:")
+        for field, ab in ctx["fields"].items():
+            if field in ("inputs", "packages"):
+                print(f"    {field}:")
+                for name, sub in ab.items():
+                    print(f"      {name}:  {sub['a']}  ->  {sub['b']}")
+            else:
+                print(f"    {field}:  {ab['a']}  ->  {ab['b']}")
+    else:
+        print("  context: (unchanged — same git commit + env)")
+
+    out = report["outputs"]
+    oc = out["counts"]
+    if out["changed"] or out["missing"] or out["added"]:
+        print("  outputs changed:")
+        for c in out["changed"]:
+            ra = (c.get("recorded_sha256") or "?")[:10]
+            fa = (c.get("fresh_sha256") or "?")[:10]
+            print(f"    ~ {c['path']}  {ra} -> {fa}")
+        for p in out["missing"]:
+            print(f"    - {p}  (in {a_id[:8]}, not in {b_id[:8]})")
+        for p in out["added"]:
+            print(f"    + {p}  (new in {b_id[:8]})")
+        print(f"    ({oc['matched']} identical, {oc['changed']} changed, "
+              f"{oc['missing']} removed, {oc['added']} added)")
+    else:
+        print(f"  outputs: (unchanged — {oc['matched']} artifacts identical)")
+
+    return 1
+
+
+def _daemon_lineage(daemon, args) -> int:
+    """Show the run dependency graph, or one run's up/downstream lineage."""
+    from research_os.daemon import lineage as _lin
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+
+    manifests = daemon.runstore.recent_manifests(limit=getattr(args, "limit", 200))
+    graph = _lin.build_lineage(manifests)
+    rid = getattr(args, "run_id", None)
+    as_json = getattr(args, "as_json", False)
+
+    # ── focused: one run's ancestors or descendants ──────────────────
+    if rid:
+        known = {n["id"] for n in graph["nodes"]}
+        if rid not in known:
+            # accept a unique short-prefix match
+            cands = [i for i in known if i.startswith(rid)]
+            if len(cands) == 1:
+                rid = cands[0]
+            elif not cands:
+                print(f"  {_warn_glyph()}  No run found: {rid}")
+                return 1
+            else:
+                print(f"  {_warn_glyph()}  Ambiguous prefix {rid!r}: {', '.join(cands[:5])}")
+                return 1
+        up = _lin.ancestors(graph, rid)
+        down = _lin.descendants(graph, rid)
+        if as_json:
+            print(json.dumps({"run": rid, "ancestors": up, "descendants": down},
+                             indent=2, default=str))
+            return 0
+        want_up = getattr(args, "upstream", False)
+        want_down = getattr(args, "downstream", False)
+        if not want_up and not want_down:
+            want_up = want_down = True  # default: both
+        if want_up:
+            print(f"  upstream of {rid[:12]} (provenance — where it came from):")
+            print("    " + (", ".join(a[:12] for a in up) if up else "(none — this is a source run)"))
+        if want_down:
+            print(f"  downstream of {rid[:12]} (impact — stale if re-run):")
+            print("    " + (", ".join(d[:12] for d in down) if down else "(none — this is a terminal result)"))
+        return 0
+
+    # ── whole graph ──────────────────────────────────────────────────
+    if as_json:
+        print(json.dumps(graph, indent=2, default=str))
+        return 0
+
+    c = graph["counts"]
+    print(f"  run lineage: {c['runs']} run(s), {c['edges']} dependency edge(s), "
+          f"{c['linked']} linked")
+    if not graph["edges"]:
+        print("  (no links yet — runs become linked when one's input hash "
+              "matches another's output)")
+        return 0
+    print("  edges (producer -> consumer):")
+    name_by_id = {n["id"]: n["name"] for n in graph["nodes"]}
+    for e in graph["edges"]:
+        frm, to = e["from"], e["to"]
+        paths = ", ".join(sorted({m["producer_path"] for m in e["via"]}))
+        fn = (name_by_id.get(frm, "") or "")[:28]
+        tn = (name_by_id.get(to, "") or "")[:28]
+        print(f"    {frm[:12]} ({fn})  ->  {to[:12]} ({tn})")
+        print(f"        via: {paths}")
+    if graph["roots"]:
+        print(f"  roots (sources): {', '.join(r[:12] for r in graph['roots'])}")
+    if graph["leaves"]:
+        print(f"  leaves (final results): {', '.join(lf[:12] for lf in graph['leaves'])}")
+    if graph["orphans"]:
+        print(f"  orphans (unlinked): {len(graph['orphans'])} run(s)")
+    return 0
+
+
+def _daemon_stale(daemon, args) -> int:
+    """Freshness assessment: which runs were built from changed inputs."""
+    from research_os.daemon import provenance as _prov
+    from research_os.daemon import staleness as _stale
+
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to read.")
+        return 1
+
+    manifests = daemon.runstore.recent_manifests(limit=getattr(args, "limit", 200))
+
+    # Resolve input paths relative to the workspace root, then hash current
+    # on-disk state. Shared helper so CLI + /v1/staleness never diverge.
+    hash_file = _prov.hash_fn_for_root(getattr(daemon, "root", None))
+
+    report = _stale.assess(manifests, hash_file)
+    as_json = getattr(args, "as_json", False)
+    if as_json:
+        print(json.dumps(report, indent=2, default=str))
+        return 1 if report["stale"] else 0
+
+    c = report["counts"]
+    print(f"  freshness: {c['total']} run(s) — {c['fresh']} fresh, "
+          f"{c['stale']} stale, {c['unknown']} unknown")
+
+    if not report["stale"]:
+        print("  ✓  all results are fresh (no recorded input has changed on disk)")
+        if getattr(args, "show_all", False):
+            _print_stale_rows(report, _stale, include_fresh=True)
+        return 0
+
+    print("  stale runs (results may no longer be valid):")
+    _print_stale_rows(report, _stale, include_fresh=getattr(args, "show_all", False))
+    print("  → re-run a stale run with: research-os daemon reproduce <ID>")
+    return 1
+
+
+def _print_stale_rows(report, _stale, *, include_fresh: bool) -> None:
+    """Render per-run freshness rows for _daemon_stale."""
+    for rid, v in sorted(report["runs"].items()):
+        st = v["status"]
+        if not include_fresh and st in (_stale.FRESH, _stale.UNKNOWN):
+            continue
+        g = _stale.status_glyph(st)
+        print(f"    {g} {rid[:12]}  {st}  — {v['reason']}")
+        for ch in v["changed"]:
+            r = (ch.get("recorded") or "?")[:18]
+            cur = (ch.get("current") or "?")[:18]
+            print(f"        ~ {ch['path']}  {r} -> {cur}")
+        for p in v["missing"]:
+            print(f"        - {p}  (input now missing)")
+        if v["stale_ancestors"]:
+            anc = ", ".join(a[:12] for a in v["stale_ancestors"])
+            print(f"        ↑ depends on stale: {anc}")
+
+
+def _daemon_notifications(daemon, args) -> int:
+    """Show the notification outbox — what the daemon told the researcher.
+
+    The notification spine (docs/NOTIFICATION_SPINE.md) records every
+    completion / page in .os_state/notifications/outbox.jsonl. This surfaces
+    it so a researcher can see what happened (and what delivery missed)
+    without tailing a file. --undelivered filters to records that did not
+    reach the configured channel.
+    """
+    from research_os.daemon import notifications as _ntfy
+
+    root = getattr(daemon, "root", None)
+    if not root:
+        print(f"  {_warn_glyph()}  No workspace resolved — no outbox to read.")
+        return 1
+    undelivered = getattr(args, "undelivered", False)
+    records = _ntfy.read_outbox(
+        root, undelivered_only=undelivered, limit=getattr(args, "limit", 100)
+    )
+    if getattr(args, "as_json", False):
+        print(json.dumps(records, indent=2, default=str))
+        return 0
+    if not records:
+        scope = "undelivered " if undelivered else ""
+        print(f"  no {scope}notifications recorded.")
+        return 0
+    _level_glyph = {"info": "·", "warn": "▲", "action_required": "!"}
+    print(f"  {len(records)} notification(s)"
+          + (" (undelivered only)" if undelivered else "") + ":")
+    for r in records:
+        g = _level_glyph.get(r.get("level", "info"), "·")
+        ts = (r.get("ts") or "")[:19].replace("T", " ")
+        delivered = r.get("delivered")
+        mark = "✓" if delivered else ("✗" if r.get("delivery", {}).get("attempted") else "·")
+        print(f"    {g} [{ts}] {mark} {r.get('title', '')}")
+        body = r.get("body", "")
+        if body and body != r.get("title"):
+            print(f"        {body}")
+        det = (r.get("delivery") or {}).get("detail")
+        if not delivered and det:
+            print(f"        delivery: {det}")
+    return 0
+
+
+def _daemon_consent(daemon, args) -> int:
+    """Review + approve/deny consent requests — the researcher's half of the
+    un-skippable-gate loop (docs/UNSKIPPABLE_GATES.md).
+
+    When the AI hits a floor gate under a daemon it calls
+    sys_consent(action='request'), which queues a request here. This is how
+    the human authorizes (or refuses) it:
+
+        research-os daemon consent              # list pending + active grants
+        research-os daemon consent approve <id> # mint a one-shot token
+        research-os daemon consent deny <id>    # refuse
+
+    The agent can never self-grant — minting authority lives only here.
+    """
+    from research_os.daemon.consent import ConsentStore
+
+    root = getattr(daemon, "root", None)
+    if not root:
+        print(f"  {_warn_glyph()}  No workspace resolved — no consent ledger.")
+        return 1
+    store = ConsentStore(root)
+    action = (getattr(args, "consent_action", None) or "list").lower()
+
+    if action == "approve":
+        rid = getattr(args, "request_id", None)
+        if not rid:
+            print("  usage: research-os daemon consent approve <request_id>")
+            return 1
+        grant = store.approve(rid)
+        if grant is None:
+            print(f"  {_warn_glyph()}  No pending request with id {rid!r} "
+                  "(already resolved, or wrong id). Run 'consent' to list.")
+            return 1
+        print(f"  ✓ approved {rid} — minted a one-shot token for "
+              f"{grant.get('gate_key')} (expires {grant.get('expires_at','')[:19]}).")
+        print("    The agent can now fetch it via sys_consent(action='token').")
+        return 0
+
+    if action == "deny":
+        rid = getattr(args, "request_id", None)
+        if not rid:
+            print("  usage: research-os daemon consent deny <request_id>")
+            return 1
+        ok = store.deny(rid)
+        print(f"  ✓ denied {rid}." if ok else
+              f"  {_warn_glyph()}  No pending request with id {rid!r}.")
+        return 0 if ok else 1
+
+    # default: list pending requests + active grants
+    pending = store._live_pending()
+    grants = store._live_grants()
+    if getattr(args, "as_json", False):
+        print(json.dumps({"pending": pending, "grants": grants}, indent=2, default=str))
+        return 0
+    if not pending and not grants:
+        print("  no consent requests or active grants.")
+        return 0
+    if pending:
+        print(f"  {len(pending)} pending request(s) — approve with "
+              "'research-os daemon consent approve <id>':")
+        for r in pending:
+            ts = (r.get("requested_at") or "")[:19].replace("T", " ")
+            print(f"    • {r.get('id')}  [{ts}]  {r.get('gate_key')}"
+                  f"  ({r.get('tool','')})")
+            if r.get("reason"):
+                print(f"        reason: {r.get('reason')}")
+    if grants:
+        print(f"  {len(grants)} active grant(s):")
+        for g in grants:
+            mark = "spent" if g.get("consumed") else "live"
+            print(f"    • {g.get('gate_key')}  [{mark}]  "
+                  f"expires {g.get('expires_at','')[:19].replace('T',' ')}")
+    return 0
+
+
+def _daemon_rebuild(daemon, args) -> int:
+    """Re-run exactly the stale sub-DAG in dependency order."""
+    if daemon.runstore is None:
+        print(f"  {_warn_glyph()}  No workspace resolved — no runs to rebuild.")
+        return 1
+
+    dry = getattr(args, "dry_run", False)
+    report = daemon.rebuild_stale(
+        limit=getattr(args, "limit", 200),
+        dry_run=dry,
+        timeout=getattr(args, "timeout", None),
+    )
+
+    if getattr(args, "as_json", False):
+        print(json.dumps(report, indent=2, default=str))
+        return 0
+
+    plan = report["plan"]
+    if not plan:
+        print("  ✓  nothing to rebuild — all results are fresh")
+        return 0
+
+    if dry:
+        print(f"  rebuild plan: {len(plan)} stale run(s), in dependency order:")
+        for i, rid in enumerate(plan, 1):
+            print(f"    {i}. {rid[:12]}")
+        print("  → run without --dry-run to execute")
+        return 0
+
+    c = report["counts"]
+    print(f"  rebuild: {c['planned']} planned — {c['rebuilt']} rebuilt, "
+          f"{c['skipped']} skipped")
+    for r in report["rebuilt"]:
+        from research_os.daemon import reproduce as _repro
+        g = _repro.verdict_glyph(r["verdict"])
+        print(f"    {g} {r['run_id'][:12]} -> {r['repro_id'][:12]}  ({r['verdict']})")
+    for s in report["skipped"]:
+        print(f"    · {s['run_id'][:12]}  skipped — {s['reason']}")
+    return 0
+
+
+def _daemon_domain(daemon, args) -> int:
+    """Detect the project's research field and show field-aware defaults."""
+    from research_os.daemon import all_profiles, detect
+
+    if getattr(args, "list_all", False):
+        profs = all_profiles()
+        if getattr(args, "as_json", False):
+            print(json.dumps([p.as_dict() for p in profs], indent=2))
+            return 0
+        print(f"  {len(profs)} built-in domain profiles:\n")
+        for p in profs:
+            aliases = ", ".join(p.aliases) if p.aliases else "—"
+            print(f"  {p.id}")
+            print(f"      {p.label}")
+            print(f"      aliases: {aliases}")
+            print(f"      languages: {', '.join(p.languages) or '—'}")
+            print()
+        return 0
+
+    root = daemon.root or Path.cwd()
+    result = detect(root)
+
+    if getattr(args, "as_json", False):
+        out = result.as_dict()
+        out["root"] = str(root)
+        print(json.dumps(out, indent=2))
+        return 0
+
+    p = result.profile
+    pct = int(round(result.confidence * 100))
+    print(f"  project: {root}")
+    print(f"  field:   {p.label}  [{p.id}]")
+    print(f"  via:     {result.source} ({pct}% confidence)")
+    if result.matched_signals:
+        print(f"  signals: {', '.join(result.matched_signals)}")
+    print()
+    print(f"  languages:        {', '.join(p.languages) or '—'}")
+    print(f"  deliverables:     {', '.join(p.artifacts) or '—'}")
+    print(f"  reproducibility:  {p.reproducibility or '—'}")
+    if p.notes:
+        print(f"  note:             {p.notes}")
+    if result.source == "fallback":
+        print()
+        print("  No strong field signal — set `domain:` in "
+              "inputs/researcher_config.yaml to specialize,")
+        print("  or run `research-os daemon domain --list` to see options.")
+    return 0
+
+
+def _daemon_gateway(daemon, args) -> int:
+    """Show the OpenAI-compatible gateway's config + readiness, or mint a token.
+
+    Tokens and API keys live in environment variables by design (never in
+    config files). This command tells you exactly which env vars to set and
+    whether the gateway is ready to serve, and can generate a strong token.
+    """
+    import os
+    import secrets
+
+    cfg = daemon.config
+
+    if getattr(args, "mint_token", False):
+        token = secrets.token_urlsafe(32)
+        print(f"  export {cfg.gateway_token_env}={token}")
+        print()
+        print("  Set this on the daemon process, then clients send it in the")
+        print("  Authorization header as a Bearer token on POST "
+              "/v1/chat/completions.")
+        return 0
+
+    token_set = bool(os.environ.get(cfg.gateway_token_env, ""))
+    key_set = bool(os.environ.get(cfg.gateway_api_key_env, ""))
+
+    if getattr(args, "as_json", False):
+        print(json.dumps({
+            "enabled": cfg.enable_gateway,
+            "endpoint": f"{cfg.base_url}/v1/chat/completions",
+            "upstream_base_url": cfg.gateway_upstream_base_url,
+            "upstream_model": cfg.gateway_upstream_model,
+            "max_tool_rounds": cfg.gateway_max_tool_rounds,
+            "timeout": cfg.gateway_timeout,
+            "token_env": cfg.gateway_token_env,
+            "token_set": token_set,
+            "api_key_env": cfg.gateway_api_key_env,
+            "api_key_set": key_set,
+            "ready": cfg.enable_gateway and token_set and key_set,
+        }, indent=2))
+        return 0
+
+    ok = _check()
+    warn = _warn_glyph()
+    print("  Research OS gateway (OpenAI-compatible chat completions)")
+    print()
+    print(f"  endpoint:        {cfg.base_url}/v1/chat/completions  [POST]")
+    print(f"  enabled:         {'yes' if cfg.enable_gateway else 'no'}")
+    print(f"  upstream:        {cfg.gateway_upstream_base_url}")
+    print(f"  upstream model:  {cfg.gateway_upstream_model}")
+    print(f"  max tool rounds: {cfg.gateway_max_tool_rounds}")
+    print(f"  timeout:         {cfg.gateway_timeout:.0f}s")
+    print()
+    print("  readiness:")
+    print(f"    {ok if cfg.enable_gateway else warn}  gateway enabled "
+          f"({'set daemon.enable_gateway=true' if not cfg.enable_gateway else 'ok'})")
+    print(f"    {ok if token_set else warn}  session token  "
+          f"(${cfg.gateway_token_env}{' set' if token_set else ' MISSING'})")
+    print(f"    {ok if key_set else warn}  upstream key   "
+          f"(${cfg.gateway_api_key_env}{' set' if key_set else ' MISSING'})")
+    print()
+    if not (cfg.enable_gateway and token_set and key_set):
+        print("  Not ready. To enable:")
+        if not cfg.enable_gateway:
+            print("    1. set daemon.enable_gateway=true (config or "
+                  "RESEARCH_OS_DAEMON_GATEWAY=1)")
+        if not token_set:
+            print("    2. mint a token:  research-os daemon gateway --mint-token")
+        if not key_set:
+            print(f"    3. export {cfg.gateway_api_key_env}=<your upstream API key>")
+    else:
+        print(f"  {ok}  Gateway is ready to serve.")
+    return 0
+
+
+def _print_daemon_status(status) -> None:
+    """Pretty-print a DaemonStatus for the terminal."""
+    serving = "yes" if status.serving else "no"
+    print(f"  Research OS daemon v{status.version}")
+    print(f"  serving:     {serving}")
+    print(f"  bind:        {status.config.get('base_url')}")
+    print(f"  gateway:     {'on' if status.config.get('enable_gateway') else 'off'}")
+    print(f"  dashboard:   {'on' if status.config.get('enable_dashboard') else 'off'}")
+    print(f"  sandbox:     {status.config.get('sandbox_mode')}")
+    print(f"  workers:     {status.config.get('task_workers')}")
+    print(f"  root:        {status.root or '(none resolved)'}")
+    print(f"  initialized: {'yes' if status.project_initialized else 'no'}")
+    if status.active_protocol:
+        print(f"  protocol:    {status.active_protocol}")
+    if status.progress:
+        done = status.progress.get("completed") or status.progress.get("steps_done")
+        total = status.progress.get("total") or status.progress.get("steps_total")
+        if done is not None and total is not None:
+            print(f"  progress:    {done}/{total} steps")
+    jobs = status.jobs or {}
+    if jobs.get("total"):
+        counts = jobs.get("counts", {})
+        summary = ", ".join(f"{v} {k}" for k, v in sorted(counts.items()))
+        print(f"  jobs:        {jobs['total']} ({summary})")
+    if len(status.roots) > 1:
+        print(f"  roots:       {len(status.roots)} registered")
+    for note in status.notes:
+        print(f"  {_warn_glyph()}  {note}")
 
 
 # ---------------------------------------------------------------------------
@@ -1281,8 +2210,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 # the fish completion script and the argparse subparser registry stay in
 # sync (the test suite cross-checks these).
 SUBCOMMANDS_FOR_COMPLETION = (
-    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "doctor",
-    "refresh", "completion",
+    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "daemon",
+    "doctor", "refresh", "completion",
 )
 
 
@@ -1559,6 +2488,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     # Attach argcomplete completer hook (no-op when argcomplete absent).
     _ide_arg.completer = lambda **kw: list(IDE_CHOICES_FOR_COMPLETION)
+    p_init.add_argument(
+        "--hermes", dest="hermes", action="store_true", default=None,
+        help="Wire Research-OS into Hermes (the self-improving agent layer) "
+             "after scaffolding: registers the RO MCP server + skill in "
+             "~/.hermes/config.yaml. Default: ask in the wizard.",
+    )
+    p_init.add_argument(
+        "--no-hermes", dest="hermes", action="store_false",
+        help="Skip wiring Research-OS into Hermes during init.",
+    )
     p_init.add_argument("--force", action="store_true",
                         help="Re-scaffold even if the workspace already exists.")
     p_init.add_argument("-y", "--yes", action="store_true",
@@ -1735,6 +2674,311 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--transport", choices=["stdio", "sse"], default="stdio",
                         help="MCP transport (default: stdio).")
 
+    # ── daemon ──────────────────────────────────────────────────────────
+    # v4 multi-protocol gateway daemon. Phase 0: skeleton + status only.
+    # See docs/ROADMAP.md for the full architecture + phase plan.
+    p_daemon = sub.add_parser(
+        "daemon",
+        help="Run / inspect the v4 multi-protocol gateway daemon (preview).",
+        description=(
+            "The Research OS daemon is a persistent, headless, localhost\n"
+            "service that owns the master execution state machine and (in\n"
+            "later phases) exposes an OpenAI-compatible gateway, a read-only\n"
+            "MCP telemetry sidecar, a sandbox, and a web dashboard.\n\n"
+            "PREVIEW: Phase 0 ships the skeleton. 'daemon status' works now;\n"
+            "'daemon start' is not serving yet. Track docs/ROADMAP.md.\n\n"
+            "Examples:\n"
+            "  research-os daemon status            # show daemon + project state\n"
+            "  research-os daemon status --json     # machine-readable\n"
+            "  research-os daemon start             # (preview) not serving yet"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    daemon_sub = p_daemon.add_subparsers(dest="daemon_command")
+    pd_status = daemon_sub.add_parser(
+        "status", help="Show daemon + active-project state (read-only)."
+    )
+    pd_status.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit machine-readable JSON.")
+    pd_status.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_start = daemon_sub.add_parser(
+        "start", help="Start the daemon serving loop (localhost HTTP, read-only API)."
+    )
+    pd_start.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_start.add_argument("--host", default=None, help="Bind host (default 127.0.0.1).")
+    pd_start.add_argument("--port", default=None, type=int, help="Bind port (default 8787).")
+
+    # run: execute any command as a tracked, provenance-recording run.
+    pd_run = daemon_sub.add_parser(
+        "run",
+        help="Run a command as a tracked job (provenance + artifacts recorded).",
+        description=(
+            "Execute any shell command as a Research OS run. The command's\n"
+            "output streams to your terminal; on completion a durable record\n"
+            "(command, environment, git commit, input/output artifact hashes,\n"
+            "timestamps) is written to .os_state/runs/<id>/. This is the\n"
+            "human door to the same durable-run machinery the daemon API uses.\n\n"
+            "Examples:\n"
+            "  research-os daemon run -- python analyze.py --in data.csv\n"
+            "  research-os daemon run --name fig3 -- Rscript plot.R\n"
+            "  research-os daemon run --json -- snakemake -j4"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_run.add_argument("--workspace", default=None,
+                        help="Explicit workspace path (else auto-resolved).")
+    pd_run.add_argument("--name", default=None, help="Human label for the run.")
+    pd_run.add_argument("--cwd", default=None,
+                        help="Working directory for the command (default: workspace root).")
+    pd_run.add_argument("--no-artifacts", dest="no_artifacts", action="store_true",
+                        help="Skip output-artifact detection for this run.")
+    pd_run.add_argument("--input", dest="inputs", action="append", default=[],
+                        metavar="PATH",
+                        help="Declare an input file (hashed for provenance + "
+                             "lineage linking). Repeatable.")
+    pd_run.add_argument("--shell", dest="force_shell", action="store_true",
+                        help="Run the command through a shell (enables pipes, "
+                             "redirects, &&). Auto-detected for single-string "
+                             "commands containing shell metacharacters.")
+    pd_run.add_argument("--json", dest="as_json", action="store_true",
+                        help="Emit the run manifest as JSON on completion.")
+    pd_run.add_argument("cmd", nargs=argparse.REMAINDER,
+                        help="The command to run (use -- to separate it from flags).")
+
+    # runs: list the durable run history.
+    pd_runs = daemon_sub.add_parser(
+        "runs", help="List recorded runs (durable history) for the workspace."
+    )
+    pd_runs.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_runs.add_argument("--limit", default=20, type=int, help="Max runs to show.")
+    pd_runs.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit machine-readable JSON.")
+
+    # logs: show one run's manifest + captured log.
+    pd_logs = daemon_sub.add_parser(
+        "logs", help="Show a recorded run's details + captured output."
+    )
+    pd_logs.add_argument("run_id", help="The run id (from 'daemon runs').")
+    pd_logs.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_logs.add_argument("--tail", default=0, type=int,
+                         help="Show only the last N log lines (0 = full log).")
+    pd_logs.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit the full manifest as JSON.")
+
+    # reproduce: re-run a recorded run and compare its outputs.
+    pd_repro = daemon_sub.add_parser(
+        "reproduce",
+        help="Re-run a recorded run and check its outputs still match.",
+    )
+    pd_repro.add_argument("run_id", help="The run id to reproduce (from 'daemon runs').")
+    pd_repro.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_repro.add_argument("--cwd", default=None,
+                          help="Override the working directory for the re-run.")
+    pd_repro.add_argument("--timeout", default=0, type=float,
+                          help="Max seconds to wait for the re-run (0 = no limit).")
+    pd_repro.add_argument("--json", dest="as_json", action="store_true",
+                          help="Emit the full reproduction report as JSON.")
+
+    # submit: hand a job to an HPC scheduler (SLURM, …).
+    pd_submit = daemon_sub.add_parser(
+        "submit",
+        help="Submit a job to an HPC scheduler (SLURM) with full provenance.",
+    )
+    pd_submit.add_argument("script",
+                           help="Batch script path, or inline command string.")
+    pd_submit.add_argument("--scheduler", default="slurm",
+                           help="Scheduler backend (default: slurm).")
+    pd_submit.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_submit.add_argument("--cwd", default=None,
+                           help="Working directory for the job (default: workspace).")
+    pd_submit.add_argument("--name", default=None, help="Human-friendly job name.")
+    pd_submit.add_argument("--poll", default=5.0, type=float,
+                           help="Scheduler poll interval in seconds (default: 5).")
+    pd_submit.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit the submitted job id as JSON.")
+
+    # diff: compare two recorded runs (the experiment diff).
+    pd_diff = daemon_sub.add_parser(
+        "diff",
+        help="Compare two recorded runs: command, context (git/env), outputs.",
+    )
+    pd_diff.add_argument("run_a", help="Baseline run id.")
+    pd_diff.add_argument("run_b", help="New run id to compare against the baseline.")
+    pd_diff.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_diff.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit the full diff report as JSON.")
+
+    # lineage: the content-addressed run dependency graph.
+    pd_lin = daemon_sub.add_parser(
+        "lineage",
+        help="Show the run dependency graph (which run's output fed which run).",
+        description=(
+            "Build the provenance DAG: run B depends on run A when one of B's\n"
+            "input hashes matches one of A's output artifact hashes. With a\n"
+            "run id, show that run's ancestors (--upstream) or the runs that\n"
+            "would go stale if you re-ran it (--downstream)."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_lin.add_argument("run_id", nargs="?", default=None,
+                        help="Focus on one run's lineage (omit for whole graph).")
+    pd_lin.add_argument("--workspace", default=None,
+                        help="Explicit workspace path (else auto-resolved).")
+    pd_lin.add_argument("--upstream", action="store_true",
+                        help="With run_id: show transitive ancestors (provenance).")
+    pd_lin.add_argument("--downstream", action="store_true",
+                        help="With run_id: show transitive descendants (impact).")
+    pd_lin.add_argument("--limit", default=200, type=int,
+                        help="Max recent runs to include in the graph.")
+    pd_lin.add_argument("--json", dest="as_json", action="store_true",
+                        help="Emit the lineage graph as JSON.")
+
+    # stale: freshness check — which results were built from changed inputs.
+    pd_stale = daemon_sub.add_parser(
+        "stale",
+        help="Check which runs are stale (inputs changed, or an upstream run is stale).",
+        description=(
+            "Freshness verdict over the lineage DAG. A run is input-stale when\n"
+            "a file it recorded as an input now hashes differently on disk;\n"
+            "transitive-stale when an upstream run it depends on is stale.\n"
+            "Exit 0 = all fresh, 1 = at least one stale run found."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_stale.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_stale.add_argument("--limit", default=200, type=int,
+                          help="Max recent runs to assess.")
+    pd_stale.add_argument("--all", dest="show_all", action="store_true",
+                          help="Show fresh + unknown runs too (default: only stale).")
+    pd_stale.add_argument("--json", dest="as_json", action="store_true",
+                          help="Emit the full freshness assessment as JSON.")
+
+    # notifications: the spine outbox — what the daemon told the researcher.
+    pd_ntfy = daemon_sub.add_parser(
+        "notifications",
+        help="Show the notification outbox (job completions, gate pages) + delivery.",
+        description=(
+            "The notification spine records every completion / page the daemon\n"
+            "emitted, with whether delivery through the configured channel\n"
+            "succeeded. Use --undelivered to see only what did NOT reach you."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_ntfy.add_argument("--workspace", default=None,
+                         help="Explicit workspace path (else auto-resolved).")
+    pd_ntfy.add_argument("--undelivered", action="store_true",
+                         help="Only show notifications that did not reach the channel.")
+    pd_ntfy.add_argument("--limit", default=100, type=int,
+                         help="Max recent notifications to show.")
+    pd_ntfy.add_argument("--json", dest="as_json", action="store_true",
+                         help="Emit the outbox records as JSON.")
+
+    # consent: the researcher's half of the un-skippable-gate loop.
+    pd_consent = daemon_sub.add_parser(
+        "consent",
+        help="Review + approve/deny agent consent requests for gated actions.",
+        description=(
+            "When the AI hits a floor gate under a daemon it queues a consent\n"
+            "request (sys_consent). This is how YOU authorize it:\n"
+            "  research-os daemon consent              list pending + grants\n"
+            "  research-os daemon consent approve <id> mint a one-shot token\n"
+            "  research-os daemon consent deny <id>    refuse\n"
+            "The agent can never self-grant — minting authority lives here."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_consent.add_argument("consent_action", nargs="?", default="list",
+                            choices=["list", "approve", "deny"],
+                            help="list (default), approve, or deny.")
+    pd_consent.add_argument("request_id", nargs="?", default=None,
+                            help="Request id (for approve/deny).")
+    pd_consent.add_argument("--workspace", default=None,
+                            help="Explicit workspace path (else auto-resolved).")
+    pd_consent.add_argument("--json", dest="as_json", action="store_true",
+                            help="Emit pending + grants as JSON.")
+
+    # rebuild: re-run exactly the stale sub-DAG in dependency order.
+    pd_rebuild = daemon_sub.add_parser(
+        "rebuild",
+        help="Re-run only the stale runs (in dependency order) to refresh results.",
+        description=(
+            "A minimal 'make' over the lineage DAG: find every stale run\n"
+            "(input-stale or transitive-stale), order it producers-first, and\n"
+            "reproduce each. Fixing an upstream result clears its descendants'\n"
+            "transitive staleness, so a descendant only rebuilds if still stale\n"
+            "when its turn comes. Use --dry-run to preview the plan."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_rebuild.add_argument("--workspace", default=None,
+                            help="Explicit workspace path (else auto-resolved).")
+    pd_rebuild.add_argument("--limit", default=200, type=int,
+                            help="Max recent runs to assess.")
+    pd_rebuild.add_argument("--dry-run", dest="dry_run", action="store_true",
+                            help="Show the rebuild plan without executing.")
+    pd_rebuild.add_argument("--timeout", default=None, type=float,
+                            help="Per-run timeout (seconds) for each re-run.")
+    pd_rebuild.add_argument("--json", dest="as_json", action="store_true",
+                            help="Emit the rebuild report as JSON.")
+
+    # domain: detect the project's research field + field-aware defaults.
+    pd_domain = daemon_sub.add_parser(
+        "domain",
+        help="Detect the project's research field and show field-aware defaults.",
+        description=(
+            "Infer what field this project is in — from a declared\n"
+            "`domain:` in researcher_config, else by scanning the project's\n"
+            "files (markers + extensions). Prints the resolved profile:\n"
+            "idiomatic languages, the artifacts that are the real\n"
+            "deliverables, what reproducibility means in that field, and a\n"
+            "one-line orientation. Use --list to see every built-in field."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_domain.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_domain.add_argument("--list", dest="list_all", action="store_true",
+                           help="List every built-in domain profile and exit.")
+    pd_domain.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit the detection result as JSON.")
+
+    # gateway: OpenAI-compatible chat-completions gateway status + token.
+    pd_gateway = daemon_sub.add_parser(
+        "gateway",
+        help="Show the OpenAI-compatible chat gateway's status, or mint a token.",
+        description=(
+            "Inspect and provision the gateway — the daemon's\n"
+            "OpenAI-compatible POST /v1/chat/completions endpoint. It routes\n"
+            "a prompt through the protocol router, injects the project's\n"
+            "research field + result freshness + protocol context, forwards\n"
+            "to your configured upstream LLM, and runs any Research-OS tool\n"
+            "calls back through the engine — so any OpenAI client becomes a\n"
+            "field-aware, provenance-aware research agent.\n\n"
+            "Prints a readiness checklist (enabled / session token / upstream\n"
+            "key). Tokens and API keys live in environment variables by\n"
+            "design, never in config files.\n\n"
+            "Examples:\n"
+            "  research-os daemon gateway              # status + readiness\n"
+            "  research-os daemon gateway --mint-token # generate a session token\n"
+            "  research-os daemon gateway --json       # machine-readable"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_gateway.add_argument("--workspace", default=None,
+                            help="Explicit workspace path (else auto-resolved).")
+    pd_gateway.add_argument("--mint-token", dest="mint_token", action="store_true",
+                            help="Generate a strong session token and exit.")
+    pd_gateway.add_argument("--json", dest="as_json", action="store_true",
+                            help="Emit gateway config + readiness as JSON.")
+
     # ── doctor ──────────────────────────────────────────────────────────
     p_doctor = sub.add_parser(
         "doctor",
@@ -1878,6 +3122,8 @@ def main() -> None:
         sys.exit(cmd_api_key(args))
     elif args.command == "start":
         cmd_start(args)
+    elif args.command == "daemon":
+        sys.exit(cmd_daemon(args))
     elif args.command == "doctor":
         from research_os.cli_doctor import cmd_doctor
         sys.exit(cmd_doctor(args))

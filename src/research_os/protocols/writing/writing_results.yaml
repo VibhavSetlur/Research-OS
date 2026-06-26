@@ -35,6 +35,16 @@ prerequisites:
   - At least one figure in workspace/<step>/outputs/figures/ with both
     caption sidecars.
 
+# Machine-checkable subset (precondition gate): at least one step's
+# conclusions must exist. "Substantive > Findings" and the figure caption
+# sidecars stay prose (content judgement).
+requires:
+  checks:
+    - kind: glob_min
+      pattern: workspace/**/conclusions.md
+      min: 1
+      because: the results section writes up recorded step findings
+
 editorial_voice:
   mode: prescription
   rules:

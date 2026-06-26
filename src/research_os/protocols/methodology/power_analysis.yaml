@@ -1,7 +1,7 @@
 id: power_analysis
 tier: 'plan'
 name: Power Analysis / Sample Size Justification (standalone)
-version: '3.0.0'
+version: '3.0.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -156,12 +156,13 @@ steps:
     description: |
       Run the power calc across a GRID of plausible inputs and write
       the resulting table to
-      workspace/<step>/data/output/power_grid.csv:
+      workspace/<step>/data/next_step_output/power_grid.csv:
 
         - effect size: low / planned / high (the planned value plus
           a range that brackets the assumption uncertainty)
-        - alpha: typically 0.05; include 0.025 / 0.01 when the
-          field uses them
+        - alpha: the significance level the field / regulator requires for
+          this design — cite it; sweep the stricter levels the audience
+          expects rather than assuming a single conventional value
         - allocation ratio (for two-group): 1:1 + the unequal ratio
           when that's a real constraint
         - attrition: 0% / planned / pessimistic
@@ -270,7 +271,7 @@ steps:
 
 expected_outputs:
   - workspace/<step>/outputs/reports/power_assumptions.md
-  - workspace/<step>/data/output/power_grid.csv
+  - workspace/<step>/data/next_step_output/power_grid.csv
   - workspace/<step>/outputs/figures/power_curve.png
   - workspace/<step>/outputs/reports/power_justification.md
 

@@ -233,7 +233,7 @@ steps:
 
 expected_outputs:
   - workspace/<step>/scripts/<NN>_cox_ph_diagnostics_v1.py
-  - workspace/<step>/data/output/cox_ph_test.csv
+  - workspace/<step>/data/next_step_output/cox_ph_test.csv
   - workspace/<step>/outputs/figures/cox_scaled_schoenfeld.png
   - workspace/<step>/outputs/figures/cox_loglog_<covariate>.png
   - workspace/<step>/outputs/reports/cox_ph_diagnostics.md

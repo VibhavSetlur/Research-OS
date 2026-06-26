@@ -341,6 +341,68 @@ def describe_layout(mode: str = "analysis") -> str:
         f"  created on first use (lazy): {lazy}"
     )
 
+
+def ensure_mode_surface(
+    root: Path,
+    mode: str,
+    *,
+    project_name: str | None = None,
+    config_overrides: dict | None = None,
+    plan_only: bool = False,
+) -> dict:
+    """Additively create the directory + governance surface a workspace `mode`
+    requires, WITHOUT touching anything that already exists.
+
+    Shared by init (scaffold_minimal_workspace) and post-init mode transitions
+    so both produce the SAME surface from one source of truth. NEVER deletes or
+    overwrites — a transition augments. Returns
+    {created_dirs: [...], inner_repo: <name|"">, missing_before: [...]}.
+    With plan_only=True, reports what WOULD be created without writing.
+    """
+    root = Path(root)
+    profile = SCAFFOLD_PROFILES.get(mode)
+    if profile is None:
+        raise KeyError(f"unknown workspace mode: {mode!r}")
+    # The eager dirs the mode needs at rest (lazy dirs are created on first use).
+    needed = profile["eager_dirs"]
+    missing = [d for d in needed if not (root / d).exists()]
+    if plan_only:
+        return {"created_dirs": [], "missing_before": missing, "inner_repo": "", "plan_only": True}
+
+    created: list[str] = []
+    for d in missing:
+        (root / d).mkdir(parents=True, exist_ok=True)
+        created.append(d)
+    # Seed the mode-specific governance/scratch files (idempotent _write_if_missing
+    # inside) and get the inner-repo name for tool_build / hybrid.
+    inner = _seed_mode_extras(
+        root, project_name or _read_project_name(root), mode, config_overrides
+    )
+    # Init the inner repo for modes that have one (tool_build/hybrid) — mirrors
+    # the post-scaffold git-init guard.
+    if mode in ("tool_build", "hybrid") and inner:
+        inner_dir = root / inner
+        if not (inner_dir / ".git").exists():
+            try:
+                inner_dir.mkdir(parents=True, exist_ok=True)
+                subprocess.run(["git", "init"], cwd=inner_dir, capture_output=True)
+            except Exception:
+                pass
+    return {"created_dirs": created, "missing_before": missing, "inner_repo": inner or ""}
+
+
+def _read_project_name(root: Path) -> str:
+    """Best-effort project name from state for surface seeding. Fallback to dir."""
+    try:
+        st = load_state(Path(root))
+        nm = st.get("project_name")
+        if nm:
+            return str(nm)
+    except Exception:
+        pass
+    return Path(root).name
+
+
 # Files whose presence in a directory marks it as a software component.
 _SOFTWARE_MARKERS = {
     "pyproject.toml": "python", "setup.py": "python", "setup.cfg": "python",
@@ -748,7 +810,7 @@ def _write_os_state_summary(root: Path) -> None:
         *(
             ["- **Research question(s):**"] + [f"  - {q}" for q in questions]
             if len(questions) > 1
-            else [f"- **Research question:** {question or '_(not yet set — run `tool_intake_autofill` or set in `inputs/researcher_config.yaml`)_'}"]
+            else [f"- **Research question:** {question or '_(not yet set — just tell the AI what you’re studying, e.g. “I want to know if X affects Y”)_'}"]
         ),
         f"- **Domain:** {domain or '_(unset)_'}",
         f"- **Pipeline phase:** `{stage}`",
@@ -796,6 +858,55 @@ def _write_os_state_summary(root: Path) -> None:
             f" ({last_protocol.get('status', '?')}) at "
             f"{last_protocol.get('timestamp', '?')}",
         ])
+
+    # What to do next — give a resuming AI a concrete pointer, not just a
+    # snapshot. Stage-aware, and ALWAYS defers to sys_boot for the
+    # authoritative next action so STATE.md can never silently contradict the
+    # live router (sys_boot.advice / next_protocol).
+    # Count finalized numbered steps on disk (the real "work has happened"
+    # signal — there is no completed_steps field in state).
+    ws = root / "workspace"
+    n_steps = 0
+    if ws.is_dir():
+        n_steps = sum(
+            1 for d in ws.iterdir()
+            if d.is_dir() and d.name[:2].isdigit()
+            and not d.name.endswith("__DEAD_END")
+        )
+    plan_exists = (root / "inputs" / "research_plan.md").exists()
+    if stage in ("init", "") or not question:
+        next_hint = (
+            "Project not framed yet — set the research question + hypotheses "
+            "(the researcher can just describe the project in chat, or drop "
+            "files in `inputs/` and ask to fill the intake)."
+        )
+    elif (root / "synthesis").exists() and any(
+        (root / "synthesis").glob("*.typ")
+    ):
+        next_hint = (
+            "A deliverable is in progress under `synthesis/` — continue it, "
+            "then run the pre-submission ship gate before declaring done."
+        )
+    elif n_steps > 0:
+        next_hint = (
+            "Analysis underway — continue the next step toward the open "
+            "hypotheses, or begin synthesis once the evidence supports it."
+        )
+    else:
+        next_hint = (
+            "Framing is set but no steps have run — start the first analysis "
+            "step (e.g. a baseline EDA)."
+        )
+    lines.extend([
+        "",
+        "## What to do next",
+        "",
+        f"- {next_hint}",
+        "- For the authoritative next action, call `sys_boot` — it returns the"
+        " live `advice` + `next_protocol` + active plan"
+        + (" (a `inputs/research_plan.md` exists)" if plan_exists else "")
+        + ". This file is a snapshot; `sys_boot` is the source of truth.",
+    ])
 
     lines.extend([
         "",
@@ -932,20 +1043,16 @@ This is a Research OS workspace in **exploration mode** — scratch-first,
 light gates. The home base is `workspace/scratch/`: poke at the data,
 run quick probes, throw things away freely.
 
-## 1. Drop your files
+## 1. Bring in your project — chat or files
+
+Just tell the AI what you're poking at ("quick look at whether X relates to Y
+in this CSV at <path>") — no files required. Or drop them in:
 
 | Where | What goes here |
 |---|---|
 | `inputs/raw_data/`  | Data files (CSV, Parquet, FASTQ, NIfTI, JSON, Excel, ...) |
 | `inputs/literature/`| PDFs of papers you want the AI to know about |
 | `inputs/context/`   | Notes, drafts, prior reports — anything text |
-
-Your original drops — `inputs/raw_data/` and `inputs/literature/` — are
-**source-of-truth**: soft-guarded so the AI only overwrites them with
-`force=true` plus your OK. Everything else under `inputs/` is fair game —
-the AI fills out `inputs/context/`, `inputs/intake.md`, and
-`inputs/researcher_config.yaml` for you, whether you drop files in or just
-describe the project in chat. Only `.os_state/` is ever hard-locked.
 
 ## 2. Probe in scratch
 
@@ -1046,7 +1153,10 @@ See `GETTING_STARTED.md` for the workflow.
 This is a Research OS workspace in **notebook mode** — Jupyter-first. The
 unit of work is a notebook in `notebooks/`, not a numbered analysis step.
 
-## 1. Drop your files
+## 1. Bring in your project — chat or files
+
+Tell the AI what the notebook is for ("explore whether X drives Y in this
+dataset at <path>") — no files required. Or drop them in:
 
 | Where | What goes here |
 |---|---|
@@ -1057,7 +1167,8 @@ unit of work is a notebook in `notebooks/`, not a numbered analysis step.
 
 `inputs/raw_data/` + `inputs/literature/` are source-of-truth (soft-guarded);
 the AI freely maintains the rest of `inputs/` (context, intake, config). Only
-`.os_state/` is hard-locked. Derived data lives under `workspace/`.
+`.os_state/` is hard-locked. Derived + working data lives under `data/`,
+and notebook figures/exports under `outputs/`.
 
 ## 2. Work in notebooks
 
@@ -1165,6 +1276,23 @@ See `GETTING_STARTED.md` for the workflow.
             "before seeing study results._\n",
         )
         _write_if_missing(
+            root / "shared" / "protocol.md",
+            "# Governing protocol\n\n"
+            "_The protocol every sub-study in this program follows, so the "
+            "studies stay commensurable. Referenced by `shared/README.md`, the "
+            "program's GETTING_STARTED, and `program/program_setup`. Per-study "
+            "deviations are documented inside each study, not here._\n\n"
+            "## Eligibility / inclusion\n\n"
+            "_What makes a unit (sample, subject, record) eligible for any "
+            "study in this program._\n\n"
+            "## Shared procedure\n\n"
+            "_The steps every study runs the same way (collection, "
+            "measurement, QC), so results can be pooled in `roll_up/`._\n\n"
+            "## Deviations log\n\n"
+            "_When a study must depart from this protocol, record it here with "
+            "the study slug + rationale so the roll-up can account for it._\n",
+        )
+        _write_if_missing(
             root / "roll_up" / "README.md",
             "# `roll_up/` — cross-study synthesis + meta-analysis\n\n"
             "Where the program becomes more than its studies. This is the "
@@ -1254,6 +1382,61 @@ See `GETTING_STARTED.md` for the workflow.
 """,
         )
         return ""
+
+    # ── hybrid (research + software) ─────────────────────────────────────
+    # H1/H2/H3 fix: hybrid was falling through to the tool_build seeding, so a
+    # hybrid project got tool_build's surface + onboarding ("...in tool_build
+    # mode") and the AI couldn't tell it was hybrid. Seed a hybrid-specific
+    # surface that describes BOTH halves: the analysis spine (numbered steps +
+    # synthesis) AND the inner software component under tool/ (its own repo,
+    # auto-detected by detect_software_components). Returns "tool" so the caller
+    # git-inits the inner repo (see the git-init guard below).
+    if mode == "hybrid":
+        _write_if_missing(
+            root / "tool" / "README.md",
+            f"# `tool/` — the inner software component of {project_name}\n\n"
+            "This hybrid project has TWO halves that share one provenance "
+            "discipline:\n\n"
+            "1. **The analysis spine** — numbered steps in `workspace/NN_*/` "
+            "feeding `synthesis/` (the paper/report), exactly like analysis "
+            "mode.\n"
+            "2. **This inner tool** — the software you build to DO the analysis "
+            "(a model, a pipeline, a library). It is its OWN git repository; "
+            "commit code here. Research OS governs it via `tool_git` / "
+            "`tool_build` on this repo and auto-detects it as a software "
+            "component (it surfaces in `sys_boot.software_components`).\n\n"
+            "Which side am I on? If you're producing a FIGURE/finding for the "
+            "paper, you're on the analysis spine (use a numbered step). If "
+            "you're writing/improving the CODE that produces it, you're in "
+            "`tool/` (commit + version it here). The "
+            "`hybrid/tool_to_analysis_handoff` protocol moves a finished tool "
+            "into an analysis step.\n",
+        )
+        _write_if_missing(
+            root / "GETTING_STARTED.md",
+            f"""# Getting started with **{project_name}** (hybrid mode)
+
+This is a Research OS workspace in **hybrid mode** — a research analysis
+project that ALSO builds its own software. Two halves, one project:
+
+| Half | Where | Unit of work | Governed by |
+|---|---|---|---|
+| Analysis spine | `workspace/NN_*/` → `synthesis/` | a numbered step | analysis protocols |
+| Inner tool | `tool/` (its own git repo) | a code increment | tool_git / tool_build |
+
+The inner tool is auto-detected — it shows up in `sys_boot.software_components`
+so a fresh session always sees both halves. Build/version the code in `tool/`;
+when a tool is ready to produce a result, hand it to the analysis spine via the
+`hybrid/tool_to_analysis_handoff` protocol and ground the finding there.
+
+Mode-agnostic safety holds: `.os_state/` is hard-locked, original inputs are
+soft-guarded, all workspace writes go through the tools, nothing escapes root.
+
+See the protocols `hybrid/hybrid_workflow` and `hybrid/tool_to_analysis_handoff`
+for the loop.
+""",
+        )
+        return "tool"
 
     # ── tool_build ──────────────────────────────────────────────────────
     inner = _resolve_inner_repo_name(config_overrides)
@@ -1696,9 +1879,18 @@ def scaffold_minimal_workspace(
     if not intake.exists():
         intake.write_text(
             "# Research Intake\n\n"
-            "Drop data into `inputs/raw_data/`, PDFs into `inputs/literature/`, "
-            "notes into `inputs/context/`, then ask the AI to **fill out the "
-            "intake** — `tool_intake_autofill` rewrites this file.\n"
+            "<!-- ro:intake-template -->\n"
+            "You have two easy ways to set this up — pick whichever suits you:\n\n"
+            "1. **Just tell the AI in chat.** Say something like \"my question "
+            "is X, my data is at <path>, hypotheses are H1/H2\" and ask it to "
+            "**fill out the intake** — it captures what you said into this file "
+            "(no need to edit anything yourself).\n"
+            "2. **Drop files, then ask.** Put data in `inputs/raw_data/`, PDFs "
+            "in `inputs/literature/`, notes in `inputs/context/`, then ask the "
+            "AI to **fill out the intake** — it reads them and proposes the "
+            "question + domain + hypotheses.\n\n"
+            "Either way, `tool_intake_autofill` rewrites this file and shows you "
+            "the result to approve or refine. You can also mix both.\n"
         )
 
     # 8-rp. inputs/research_plan.md — the OVERALL project plan the AI and
@@ -1772,8 +1964,17 @@ def scaffold_minimal_workspace(
     #         used ANYWHERE (inputs/literature, a step's literature/, or a
     #         step's context/) is aggregated here at step finalization, so
     #         the project has one auditable bibliography substrate.
+    #
+    #         ONLY for modes whose layout actually has a top-level
+    #         ``literature/`` work surface (analysis, hybrid). tool_build /
+    #         exploration / notebook / multi_study don't run the numbered-step
+    #         finalization that mirrors PDFs here, so seeding the dir + README
+    #         in those modes leaves an orphan folder describing a workflow
+    #         that never runs (and one that isn't in the mode's scaffold
+    #         profile — see LAYOUT_SPEC). Gate on the profile so the surface
+    #         matches the declared layout.
     lit_root_readme = root / "literature" / "README.md"
-    if not lit_root_readme.exists():
+    if "literature" in top_level_dirs and not lit_root_readme.exists():
         lit_root_readme.parent.mkdir(parents=True, exist_ok=True)
         lit_root_readme.write_text(
             "# `literature/` — project corpus of record\n\n"
@@ -1870,8 +2071,10 @@ def scaffold_minimal_workspace(
     # its OWN git repo — Research OS (the outer workspace) governs it from
     # above. The inner repo is ALWAYS initialised (independent of the outer
     # git_init flag) so a fresh tool_build project has a working tree the
-    # builder can commit into from the first turn.
-    if mode == "tool_build" and inner_repo_name:
+    # builder can commit into from the first turn. Hybrid's inner tool/ repo
+    # gets the same treatment (H2 fix — it was unbounded to tool_build only, so
+    # the hybrid build half had no real repo and surfaced no provenance).
+    if mode in ("tool_build", "hybrid") and inner_repo_name:
         inner = root / inner_repo_name
         if not (inner / ".git").exists():
             try:
@@ -2024,6 +2227,180 @@ def _excluded(path: Path) -> bool:
     return False
 
 
+def _read(p: Path, limit: int = 4000) -> str:
+    try:
+        return p.read_text(errors="replace")[:limit]
+    except Exception:
+        return ""
+
+
+def _project_title(root: Path) -> str:
+    """Researcher-chosen project_name, falling back to the folder name.
+
+    Reads ``inputs/researcher_config.yaml`` with a minimal line parser so the
+    exported script stays dependency-free (no PyYAML on the recipient side,
+    and the source side may not have it either). Looks for a top-level
+    ``project_name:`` key. Returns ``root.name`` when absent/unreadable.
+    """
+    cfg = root / "inputs" / "researcher_config.yaml"
+    try:
+        for raw in cfg.read_text(errors="replace").splitlines():
+            # Top-level key only (no leading whitespace) so a nested
+            # `project_name:` under some other block can't hijack the title.
+            if raw[:1].isspace():
+                continue
+            if raw.lstrip().lower().startswith("project_name:"):
+                val = raw.split(":", 1)[1].strip().strip("\\"'")
+                if val:
+                    return val
+    except OSError:
+        pass
+    return root.name
+
+
+def _build_recipient_readme(root: Path) -> str:
+    """A human front-door for whoever OPENS the shared archive.
+
+    A collaborator / PI / reviewer who unzips this has none of the AI-facing
+    files (they're excluded) and shouldn't have to spelunk numbered folders to
+    learn what the project is, what was done, and whether they can trust it.
+    This stitches the human-readable status + structure into one overview.
+    """
+    import datetime as _dt
+
+    # Prefer the researcher-chosen project_name over the on-disk folder name.
+    # The directory is often a terse slug ("myproj"); researcher_config.yaml
+    # carries the real title ("Quantum Coherence In Photosynthesis"). That
+    # config is EXCLUDED from the archive, but it is readable at export time
+    # on the source root, and the RO-Crate / CodeMeta manifests already use
+    # it — so the human front-door must agree with the machine metadata, or a
+    # reviewer sees two different project names and distrusts the bundle.
+    name = _project_title(root)
+    lines = [
+        f"# {name} — shared research archive",
+        "",
+        f"*Self-contained snapshot, exported {_dt.date.today().isoformat()}. "
+        "You do NOT need Research-OS installed to read it — everything below "
+        "is plain files.*",
+        "",
+    ]
+
+    # What this project is — pull from research_overview / STATE / intake.
+    # Prefer a candidate that actually names the research question; fall back
+    # to the first non-trivial one. (Threshold is low: a 3-line overview with
+    # the question + domain is perfectly good and may be < 80 chars.)
+    overview = ""
+    for cand in ("docs/research_overview.md", "STATE.md", "inputs/intake.md"):
+        txt = _read(root / cand)
+        if not txt or len(txt.strip()) < 30:
+            continue
+        if "research question" in txt.lower() and "not yet set" not in txt.lower():
+            overview = txt
+            break
+        if not overview:
+            overview = txt
+    lines.append("## What this is")
+    lines.append("")
+    if overview:
+        # Lift the question + domain + hypothesis content. Markdown often puts
+        # the heading on one line and the value on the next, so when a line is
+        # just a heading, pull the following non-empty line as its value.
+        olines = overview.splitlines()
+        picked: list[str] = []
+        for i, ln in enumerate(olines):
+            low = ln.lower()
+            if any(k in low for k in
+                   ("research question", "domain", "hypoth")):
+                stripped = ln.strip()
+                is_heading_only = (
+                    stripped.startswith("#")
+                    or stripped.rstrip(":*").lower() in (
+                        "research question", "domain", "hypotheses",
+                    )
+                )
+                if is_heading_only:
+                    label = stripped.lstrip("#").strip().rstrip(":*").strip()
+                    for nxt in olines[i + 1:i + 4]:
+                        if nxt.strip():
+                            picked.append(f"- **{label.title()}:** "
+                                          f"{nxt.strip().strip('*_')}")
+                            break
+                else:
+                    picked.append(stripped if stripped.startswith("-")
+                                  else f"- {stripped}")
+            if len(picked) >= 5:
+                break
+        seen = set()
+        picked = [p for p in picked if not (p in seen or seen.add(p))]
+        if picked:
+            lines.extend(picked)
+        else:
+            lines.append(overview.strip()[:600])
+    else:
+        lines.append("_(No overview was recorded. See `docs/` and the numbered "
+                     "`workspace/` folders for the work itself.)_")
+    lines.append("")
+
+    # What was done — the numbered analysis steps + their conclusions.
+    ws = root / "workspace"
+    steps = []
+    if ws.is_dir():
+        for d in sorted(ws.iterdir()):
+            if (d.is_dir() and d.name[:2].isdigit()
+                    and not d.name.endswith("__DEAD_END")):
+                concl = d / "conclusions.md"
+                summary = ""
+                if concl.exists():
+                    body = _read(concl, 400).strip()
+                    first = next((ln.strip("# ").strip()
+                                  for ln in body.splitlines() if ln.strip()), "")
+                    summary = first
+                steps.append((d.name, summary))
+    if steps:
+        lines.append("## What was done")
+        lines.append("")
+        for sname, ssum in steps:
+            lines.append(f"- **{sname}**" + (f" — {ssum}" if ssum else ""))
+        lines.append("")
+
+    # Deliverables — what's in synthesis/.
+    syn = root / "synthesis"
+    deliverables = []
+    if syn.is_dir():
+        for p in sorted(syn.rglob("*")):
+            if p.is_file() and p.suffix.lower() in {
+                ".pdf", ".html", ".typ", ".docx", ".pptx", ".md"
+            }:
+                deliverables.append(p.relative_to(syn).as_posix())
+    if deliverables:
+        lines.append("## Deliverables (`synthesis/`)")
+        lines.append("")
+        for d in deliverables[:20]:
+            lines.append(f"- `synthesis/{d}`")
+        lines.append("")
+
+    # Trust + reproduce.
+    lines.extend([
+        "## How to read & trust this",
+        "",
+        "- `workspace/<NN_slug>/` — each numbered folder is one analysis step: "
+        "the script(s) that ran, the data they produced, and a `conclusions.md`.",
+        "- `workspace/methods.md`, `analysis.md`, `citations.md` — the project's "
+        "narrative logs (what was done, in order; the bibliography).",
+        "- `environment/requirements.txt` — the exact package versions, so the "
+        "analyses can be re-run.",
+        "- `CITATION.cff` + `ro-crate-metadata.json` — machine-readable "
+        "provenance + citation metadata (open standards; optional to read).",
+        "- Every quantitative claim in the write-up is meant to trace to an "
+        "artefact in `workspace/`. To reproduce: install the pinned "
+        "environment, then re-run the scripts in step order.",
+        "",
+        "_Generated by Research-OS at export time. Edit freely._",
+        "",
+    ])
+    return "\\n".join(lines)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, default=None,
@@ -2053,13 +2430,40 @@ def main() -> int:
     files_added = 0
     bytes_added = 0
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        # A human front-door for the recipient: what this is, what was done,
+        # what's here, how to trust + reproduce it. The AI-facing orientation
+        # files (GETTING_STARTED, AGENTS) are excluded from the archive, so
+        # without this a collaborator opens raw folders with no guide.
+        #
+        # We write the SAME share-safe front-door to both README_SHARED.md
+        # (the documented name) AND README.md. We deliberately do NOT ship the
+        # project's own root README.md: that file is the GitHub/repo-browser
+        # page and it points the reader at STATE.md, AGENTS.md, and
+        # GETTING_STARTED.md — all of which are EXCLUDED from this archive. A
+        # recipient who opened it would be sent to three files that aren't in
+        # the bundle. Overwriting README.md with the recipient front-door keeps
+        # the repo-browser landing page honest (every link it makes resolves).
+        recipient_readme = None
+        try:
+            recipient_readme = _build_recipient_readme(root)
+            zf.writestr(f"{root.name}/README_SHARED.md", recipient_readme)
+            files_added += 1
+            zf.writestr(f"{root.name}/README.md", recipient_readme)
+            files_added += 1
+        except Exception as _e:
+            print(f"[warn] could not generate recipient README: {_e}")
         # Top-level files we DO want shipped to collaborators. The
         # open-science manifests (RO-Crate + CodeMeta + CITATION.cff)
         # MUST live at archive root so ro-crate-py + cffconvert can
-        # auto-discover them.
-        for top in ("README.md", "CONTRIBUTORS.md",
-                    "CITATION.cff",
-                    "ro-crate-metadata.json", "codemeta.json"):
+        # auto-discover them. README.md is intentionally NOT in this list —
+        # it is replaced by the share-safe recipient front-door above. If the
+        # recipient README failed to generate, fall back to the project's own
+        # README.md so the archive isn't left without a landing page.
+        top_files = ["CONTRIBUTORS.md", "CITATION.cff",
+                     "ro-crate-metadata.json", "codemeta.json"]
+        if recipient_readme is None:
+            top_files.insert(0, "README.md")
+        for top in top_files:
             tp = root / top
             if tp.exists():
                 zf.write(tp, arcname=f"{root.name}/{top}")
@@ -2507,7 +2911,31 @@ This is a Research OS workspace. Two files matter most to you:
 * `inputs/researcher_config.yaml` — how the AI should behave for **you**.
   Every field is optional; defaults work.
 
-## 1. Drop your files
+## 1. Open your AI IDE on this folder
+
+The MCP config was already dropped for whichever IDE you use:
+Claude Code, OpenCode, Antigravity, Cursor, Claude Desktop, VS Code,
+Windsurf, Continue, Aider. Restart your IDE if it doesn't auto-detect.
+
+The MCP server should show as connected. If it doesn't, run
+`research-os start` in a terminal at the project root.
+
+## 2. Just tell the AI what you're studying
+
+The fastest way to start — no files required. In chat, say something like:
+
+```
+I want to know if sleep duration affects test scores. My data's a CSV
+at ~/data/students.csv. Hypotheses: more sleep → higher scores, and the
+effect is stronger for younger students.
+```
+
+The AI captures your question, domain, and hypotheses into the project and
+shows you what it understood to approve or refine. You never have to edit a
+file to get going.
+
+**Prefer to drop files?** That works too — put them here, then say
+"fill out the intake":
 
 | Where | What goes here |
 |---|---|
@@ -2519,19 +2947,10 @@ This is a Research OS workspace. Two files matter most to you:
 the AI maintains the rest of `inputs/` for you. Only `.os_state/` is hard-locked.
 Derived data lives under `workspace/`.
 
-## 2. Open your AI IDE on this folder
-
-The MCP config was already dropped for whichever IDE you use:
-Claude Code, OpenCode, Antigravity, Cursor, Claude Desktop, VS Code,
-Windsurf, Continue, Aider. Restart your IDE if it doesn't auto-detect.
-
-The MCP server should show as connected. If it doesn't, run
-`research-os start` in a terminal at the project root.
-
-## 3. Start a chat. Try any of:
+## 3. Then just chat. Try any of:
 
 ```
-fill out the intake               (AI reads inputs/, proposes question + hypotheses)
+describe my project              (tell it your question + data — it sets everything up)
 what should I do next?            (iterative planning — AI assesses + searches + proposes)
 run a baseline EDA                (creates workspace/01_baseline_eda/ with figures + report)
 fit a logistic regression         (methodology selection → analysis_plan)
@@ -2571,8 +2990,8 @@ You can change these mid-session by telling the AI ("switch to autopilot").
 
 | Problem | Say to the AI... |
 |---|---|
-| Something seems broken | "Run `tool_workspace_repair`." |
-| Lost work | "Show me checkpoints and roll back to <id>." |
+| Something seems broken | "Fix my workspace." |
+| Lost work | "Show me checkpoints and roll back to the last good one." |
 | Conversation too long | "Hand off the session." |
 | AI making bad calls | "Switch to manual mode and walk me through each step." |
 

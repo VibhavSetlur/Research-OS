@@ -8,14 +8,14 @@ BUILD_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_git": {
         "short": "Provenance-aware git for the tool_build inner repo. operation=init|status|commit|branch|tag|log|diff.",
         "do_not": "Only operates inside workspace.inner_repo; refuses paths outside the project root. For destructive verbs (reset/clean/push) use tool_bash_exec with researcher confirmation.",
-        "description": "First-class git for tool_build mode, hard-scoped to the inner project repo (workspace.inner_repo, default 'project'). operation='init' git-inits the inner dir (idempotent); 'status' returns branch + HEAD + clean + changed_files; 'commit' stages (-A by default, or explicit paths=) and commits message= — pass step_id= to stamp a 'Research-OS-Step:' trailer linking the commit to the RO unit of work (provenance); 'branch' creates name= (checkout -b) or lists branches; 'tag' creates an annotated tag name= on HEAD (annotated=false for lightweight) or lists tags; 'log' returns the last max_count= commits as {sha, author, date, subject}; 'diff' returns a --stat summary. Every operation is path-contained to <root>/<inner_repo> and NEVER runs git elsewhere. Graceful (status='error' with a message, never a crash) when git is absent, the dir isn't a repo, or args are bad. The build/* protocols use this for per-increment commits + release tags.",
+        "description": "First-class git for tool_build mode, hard-scoped to the inner project repo (workspace.inner_repo, default 'project'). operation='init' git-inits the inner dir (idempotent); 'status' returns branch + HEAD + clean + changed_files; 'commit' stages (-A by default, or explicit paths=) and commits message= — pass step_id= to stamp a 'Research-OS-Step:' trailer linking the commit to the RO unit of work (provenance); 'branch' creates name= (checkout -b) or lists branches; 'tag' creates an annotated tag name= on HEAD (annotated=false for lightweight) or lists tags; 'log' returns the last max_count= commits as {sha, author, date, subject}; 'diff' returns a --stat summary; 'restore' rolls the working tree (or paths=) back to a known-good tag/commit name= WITHOUT moving HEAD or losing history (the safe 'go back to the version the eval blessed' lever — commit the restored state to make it current). Every operation is path-contained to <root>/<inner_repo> and NEVER runs git elsewhere. Graceful (status='error' with a message, never a crash) when git is absent, the dir isn't a repo, or args are bad. The build/* protocols use this for per-increment commits + release tags + rollback.",
         "category": "exec",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["init", "status", "commit", "branch", "tag", "log", "diff"],
+                    "enum": ["init", "status", "commit", "branch", "tag", "log", "diff", "restore"],
                     "description": "Which git verb to run, scoped to the inner repo.",
                 },
                 "message": {

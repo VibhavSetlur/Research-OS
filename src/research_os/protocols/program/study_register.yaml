@@ -96,17 +96,22 @@ steps:
   - id: scaffold_and_handoff
     name: Scaffold the study folder + hand off to its analysis loop
     description: |
-      Create the study as a child surface:
-        sys_path name="studies/<slug>" (a study is a project surface in
-        miniature: its own steps, scripts, outputs).
-      Seed it with a short studies/<slug>/README.md stating its scope, the
-      program hypothesis it tests, its codebook bindings + any deviation, and
-      its roll-up obligation. mem_log "registered study <slug>: tests <H>,
-      owes roll-up <result shape>".
+      Create the study as a child surface UNDER studies/. A study is NOT a
+      numbered analysis step — do NOT use sys_path (that creates
+      workspace/NN_<slug>/). Instead materialise the study directory directly:
+        sys_file_write filepath="studies/<slug>/README.md" (creates the
+        studies/<slug>/ surface), stating its scope, the program hypothesis it
+        tests, its codebook bindings + any deviation, and its roll-up
+        obligation.
+      Give the study its own working sub-structure as needed
+      (studies/<slug>/workspace/, studies/<slug>/outputs/) via sys_file_write so
+      its steps + outputs don't collide with sibling studies in the shared
+      workspace. mem_log "registered study <slug>: tests <H>, owes roll-up
+      <result shape>".
 
-      Then enter guidance/analysis_plan on the study to run it as ordinary
-      rigorous research — the program machinery is now out of the way until
-      the study's result feeds the roll-up.
+      Then run the study's analysis loop scoped to studies/<slug>/ (its own
+      steps + outputs live under the study folder) — the program machinery is
+      now out of the way until the study's result feeds the roll-up.
 
       AUTONOMY GATE:
         Risk: reversible — scaffolding a study writes structure, not

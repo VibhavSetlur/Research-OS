@@ -125,6 +125,33 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
             },
         },
     },
+    "tool_judge_score": {
+        "short": "Record a structured quality scorecard (dimensions 0-5 + limitations + improvements + verdict). Judge work in a loop.",
+        "description": "Durable, structured self-assessment of a piece of work (an analysis step, a tool build, a draft). YOU (the AI) author the judgment; this validates + records it. Provide: subject; dimensions (a list of {name, score 0-5, justification} — you pick the dimensions that matter for THIS work, there is no fixed menu); limitations; improvements; verdict (ship|iterate|redo). iterate/redo require at least one concrete improvement so the loop knows what to change. Rejects an incomplete scorecard (a score without a reason is not a judgment). The autonomous loop reads the verdict: ship → goal may be met; iterate/redo → keep going. Persists to .os_state/judge/.",
+        "category": "audit",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string"},
+                "dimensions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "score": {"type": "integer"},
+                            "justification": {"type": "string"},
+                        },
+                    },
+                },
+                "limitations": {"type": "array", "items": {"type": "string"}},
+                "improvements": {"type": "array", "items": {"type": "string"}},
+                "verdict": {"type": "string", "enum": ["ship", "iterate", "redo"]},
+                "goal": {"type": "string"},
+            },
+            "required": ["subject", "dimensions", "verdict"],
+        },
+    },
     "tool_state_freshness_check": {
         "short": "Detect stale workspace state (state.json > 30d, citations older than newest PDF, orphan provenance).",
         "description": "Auto-called by sys_boot. If state.json mtime > stale_after_days (default 30), OR workspace/citations.md older than the newest inputs/literature/*.pdf, OR any per-step .prov.json points to a script that no longer exists, returns is_stale=true + a prompt_for_ai string the AI surfaces as a 'reconfirm before continuing?' question. Cheap; safe to call at every boot.",
@@ -225,15 +252,16 @@ AUDIT_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         },
     },
     "tool_step_complete": {
-        "short": "Bundle: path_finalize + completeness + literature + revision_options. Use at end of every step.",
+        "short": "Bundle: path_finalize + completeness + literature + grounding + revision_options. Use at end of every step.",
         "then": "tool_route on next prompt OR sys_protocol_next",
-        "description": "One-shot end-of-step bundle. Calls (in order) tool_path_finalize, tool_audit_step_completeness, tool_audit_step_literature, then tool_step_revision_options on the named step. Returns a merged result {finalize, completeness, literature, revision} with overall_status='success' | 'warning' | 'error'. Reduces 4 tool calls to 1 — eliminates small-model drift between calls and halves the round-trip latency. The AI should still surface the revision options verbatim per the anti-one-shot doctrine.",
+        "description": "One-shot end-of-step bundle. Calls (in order) tool_path_finalize, tool_audit_step_completeness, tool_audit_step_literature, a GROUNDING check (every numeric claim in the step's conclusions.md must trace to a number in its outputs — a step can't be finalized citing stats no script produced), then tool_step_revision_options on the named step. Returns a merged result {finalize, completeness, literature, grounding, revision} with overall_status='success' | 'warning' | 'error'. Reduces tool calls to 1 — eliminates small-model drift between calls. The AI should still surface the revision options verbatim per the anti-one-shot doctrine.",
         "category": "audit",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "step_id": {"type": "string"},
                 "override_literature_gate": {"type": "boolean"},
+                "override_grounding_gate": {"type": "boolean"},
                 "override_rationale": {"type": "string"},
             },
             "required": ["step_id"],

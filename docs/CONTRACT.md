@@ -108,6 +108,7 @@ sections are stable in v2:
 * `ai`
 * `writing_preferences`
 * `runtime`
+* `daemon`
 * `figures`
 * `synthesis`
 * `api_keys`
@@ -373,8 +374,8 @@ MINOR.
 | L1 `intent_class` enum values | 10 |
 | Tier enum values | 7 |
 | Audit dimensions accepted by `tool_audit` | ~21 |
-| Preflight wiring checks | 24 |
-| Top-level `researcher_config.yaml` sections | 12 |
+| Preflight wiring checks | 38 |
+| Top-level `researcher_config.yaml` sections | 15 |
 
 The v2.0.0 release notes and migration table live at
 `CHANGELOG.md [2.0.0]`,

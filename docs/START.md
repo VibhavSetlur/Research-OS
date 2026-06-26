@@ -13,7 +13,7 @@ the [Setup Prompt](#setup-prompt-paste-into-any-ai) into any AI chat.
 
 ```bash
 # 1. Install (once, globally — one server serves every project)
-pip install "research-os[all]"
+pip install research-os
 
 # 2. Scaffold a project
 mkdir my-project && cd my-project
@@ -24,7 +24,7 @@ research-os doctor               # python + conda env + IDE wiring + pack health
 research-os ide list             # which IDEs are wired in this workspace
 
 # 4. Open the folder in your AI IDE and talk
-#    > fill out the intake
+#    > here's my project: I want to know if X affects Y; my data's at <path>
 #    > what should I do next?
 ```
 
@@ -33,10 +33,73 @@ you the full prompt catalogue.
 
 ---
 
+## Your first ten minutes (a real walkthrough)
+
+Say you've got a CSV of clinical-trial outcomes and a question. Here's the
+whole arc, start to finish — the words you type are in **bold**.
+
+1. **Scaffold and open.**
+
+   ```bash
+   mkdir aspirin-rct && cd aspirin-rct
+   research-os init          # pick "analysis" mode, your IDE, defaults for the rest
+   ```
+
+   Open `aspirin-rct/` in Claude Code (or Cursor / VS Code / …). The MCP
+   panel shows **`research-os` connected**.
+
+2. **Tell it what you're doing** — no files required yet:
+
+   > **"My trial data is at `~/data/aspirin.csv`. I want to know if
+   > low-dose aspirin reduces 30-day cardiac events versus placebo,
+   > adjusting for age and prior MI. Hypothesis: it does."**
+
+   The AI records the question + hypothesis, profiles the CSV (rows,
+   columns, types, missingness), flags anything odd, and asks you to
+   confirm the framing. Nothing has run yet — it checks with you first.
+
+3. **Run the baseline.**
+
+   > **"run a baseline EDA"**
+
+   You get `workspace/01_baseline_eda/` — a script you can read, figures
+   with captions, a summary table, and `conclusions.md` tying what it
+   found back to your hypothesis.
+
+4. **Do the real analysis.**
+
+   > **"fit the adjusted model"**
+
+   The AI picks the method (logistic regression here), justifies it,
+   writes `workspace/02_*/`, reports the effect with a CI and the
+   adjusted covariates, and records the decision in `analysis.md`.
+
+5. **Write it up.**
+
+   > **"draft the results and discussion"**
+
+   Prose that cites *your* numbers — every value traceable to step 02,
+   every reference verified. If you ask for a citation it can't verify,
+   it tells you, rather than inventing a DOI.
+
+6. **Check before you ship.**
+
+   > **"is this ready to submit?"**
+
+   A GREEN / YELLOW / RED verdict and a punch list: ungrounded claims,
+   missing limitations, unverified cites — every gate a reviewer applies,
+   run early.
+
+You never wrote a config file, memorized a command, or trusted a number on
+faith. That's the loop. → Seven fuller examples across domains:
+[SCENARIOS.md](SCENARIOS.md).
+
+---
+
 ## Install (60 s)
 
 ```bash
-pip install "research-os[all]"
+pip install research-os
 ```
 
 Extras: `all` (everything Python — recommended), `ci` (lean, used by
@@ -50,7 +113,7 @@ Verify:
 
 ```bash
 research-os --help
-# Ten commands: init / ide / mcp / hermes / route / api-key / start / doctor / refresh / completion
+# Eleven commands: init / ide / mcp / hermes / route / api-key / start / daemon / doctor / refresh / completion
 ```
 
 If `research-os: command not found`, add `~/.local/bin` (or your
@@ -197,7 +260,15 @@ gates, disk usage, git cleanliness, and `.gitignore` coverage. Exits
 
 ---
 
-## Drop your files (1 min)
+## Bring in your project — chat or files (1 min)
+
+Fastest path: just tell the AI what you're studying — no files required.
+Open the chat (next section) and say something like *"I want to know if X
+affects Y; my data's a CSV at `~/data.csv`; hypotheses: …"*. The AI captures
+your question, domain, and hypotheses into the intake and shows you to
+approve.
+
+Prefer to stage files first? Drop them in:
 
 ```bash
 mv path/to/data.csv      inputs/raw_data/
@@ -205,9 +276,9 @@ mv path/to/paper.pdf     inputs/literature/
 mv my_notes.md           inputs/context/
 ```
 
-The AI reads all of it. No data? Skip this — you can drop files later, or
-talk to the AI in pure consult mode ("teach me about propensity scores
-before I use them").
+The AI reads all of it. No data? That's fine — describe the project in
+chat, or talk to the AI in pure consult mode ("teach me about propensity
+scores before I use them").
 
 `inputs/raw_data/` and `inputs/literature/` are **source-of-truth** —
 Research OS soft-guards them, so the AI overwrites them only with
@@ -246,6 +317,7 @@ should show **`research-os` connected**.
 Open the chat and try one of:
 
 ```
+here's my project: I want to know if X affects Y; data's at <path>
 fill out the intake
 what should I do next?
 run a baseline EDA on my data
@@ -264,6 +336,132 @@ interview transcripts, benchmark study, theorem-to-prove, mixed data +
 hypothesis), see the **Common first prompts** table at the top of
 [USE_CASES.md](USE_CASES.md) — those are the variants validated
 against end-to-end fresh-agent walkthroughs.
+
+---
+
+## Two ways to start a project — CLI or just prompt your AI
+
+You don't have to memorise CLI flags. Pick whichever fits:
+
+**(a) CLI wizard** — `research-os init` (arrow-key Q&A), then open the
+folder and talk. Best when you want to set model_profile / mode / identity
+up front.
+
+**(b) Just prompt your AI** — open any folder in your AI IDE and paste a
+**scaffold prompt** below. The AI interviews you (or reads your filled-in
+blanks), runs init with the right mode, brings your data in, and fills the
+intake. No CLI needed.
+
+### Scaffold prompts (fill in the blanks, paste into your AI)
+
+Each prompt has fill-in lines (`>>> …`) and a free-text **CONTEXT** block
+where you can dump anything — paste a paper abstract, a Slack message, your
+PI's email, rough notes — the AI parses it. Leave any line blank and the AI
+will ask. Pick the one matching the work:
+
+**Analysis** (the default — data → numbered steps → paper):
+```
+Set up a new Research OS analysis project here, then get me started.
+Project name:  >>>
+My question:   >>> (what do you want to find out?)
+My data is at: >>> (a path, a URL, or "I'll describe it below" / "none yet")
+Output I want: >>> (paper / report / dashboard / poster / not sure)
+Autonomy:      >>> (ask me each step / supervised / run adaptively)
+Shared server? >>> (yes = HPC/shared box, be careful with resources / no)
+
+CONTEXT (paste anything — abstract, notes, prior results, constraints):
+>>>
+
+
+Steps: interview me on anything blank, run `research-os init` (analysis
+mode), bring my data into inputs/raw_data (copy or symlink — reason about
+which), fill the intake, then tell me the first step.
+```
+
+**Tool-build** (you're building software, RO governs the build):
+```
+Set up a new Research OS tool_build project here.
+Tool name:        >>>
+What it must do:  >>>
+Done = ?          >>> (what test/eval proves it works)
+
+CONTEXT (paste a spec, an issue, example inputs/outputs):
+>>>
+
+
+Steps: interview me on anything blank, init in tool_build mode, draft
+spec/requirements.md from the context, then propose the build approach.
+```
+
+**Exploration** (scratch-first, "I'm not sure yet"):
+```
+Set up a Research OS exploration project here — I want to poke at
+something before committing to a plan.
+Rough question / hunch: >>>
+What I have:            >>> (data path / nothing / "see context")
+
+CONTEXT (dump anything):
+>>>
+
+
+Steps: init in exploration mode, then help me frame the first cheap probe.
+When a probe earns it, remind me we can promote to analysis mode.
+```
+
+**Notebook** (Jupyter-first data analysis):
+```
+Set up a Research OS notebook project here for interactive data analysis.
+What I'm exploring: >>>
+Data is at:         >>>
+
+CONTEXT:
+>>>
+
+
+Steps: init in notebook mode, bring the data in, scaffold a first notebook
+I can run top-to-bottom.
+```
+
+**Multi-study / program** (several studies under one umbrella):
+```
+Set up a Research OS multi_study program here — this is several related
+studies, not one.
+Program goal:        >>>
+The studies (rough): >>>
+
+CONTEXT (shared codebook, prereg notes, the studies):
+>>>
+
+
+Steps: init in multi_study mode, seed the shared commons, then register
+the first study.
+```
+
+**Deep iterative planning, then let the AI run** (plan → autonomous build):
+```
+I want to plan this deeply before building, then have you execute toward
+the goal mostly on your own.
+The goal:        >>>
+Constraints:     >>> (compute, deadline, what must NOT happen autonomously)
+Data is at:      >>>
+
+CONTEXT (everything relevant — the more the better):
+>>>
+
+
+Steps: init the right mode, then walk me through deep_planning to build a
+branchable roadmap in inputs/research_plan.md. Once I approve it, run the
+roadmap_execution loop toward the goal at the autonomy I set — score each
+milestone, re-plan from results, and notify me at decision points or if
+anything exceeds the resources I allowed. (If you're Hermes Agent, you can
+orchestrate this loop and improve from each result.)
+```
+
+Already have a messy folder of data + scripts? Don't init blind — paste:
+`organize my existing project into research-os` (it audits → plans →
+copies safely, never touching your originals).
+
+---
 
 ### Using a small or medium AI? Set `model_profile` first
 
@@ -419,9 +617,11 @@ synthesis/            ← final outputs (only created when you ask)
 
 | Mode | What the AI does without asking | Best for |
 |---|---|---|
+| `adaptive` *(default)* | per-action risk gating: flows on cheap/reversible work, pauses before irreversible/expensive actions (deleting data, paid API calls, long jobs) | most people — you rarely need to change it |
 | `manual` | nothing — asks before every tool call | learning / debugging |
-| `supervised` *(default)* | reads + searches autonomously; asks before creating experiments, writing to `synthesis/`, long jobs | day-to-day |
-| `autopilot` | runs end-to-end; asks only before final synthesis | well-scoped projects |
+| `supervised` | reads + searches autonomously; asks before creating experiments, writing to `synthesis/`, long jobs | when you want a tighter leash than adaptive |
+| `autopilot` | runs end-to-end; asks only before the final ship gate | well-scoped projects you trust it to drive |
+| `coaching` | like supervised, plus pedagogical preludes that explain the *why* before each move | learning the method as you go |
 
 Switch mid-session: *"switch to autopilot"* / *"switch to manual"*.
 
@@ -555,7 +755,7 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 >    OS (macOS / Linux / Windows / WSL — ask which I'm on).
 > 2. **Install with all optional extras**:
 >    ```
->    pip install "research-os[all]"
+>    pip install research-os
 >    ```
 >    Use a virtualenv if I tell you to; otherwise install with
 >    `--user`.

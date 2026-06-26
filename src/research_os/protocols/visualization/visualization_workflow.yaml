@@ -138,8 +138,8 @@ steps:
       Rules:
         - One script per derived table; name it
           <NN>_<figure_slug>_data_v1.<ext>.
-        - Read from workspace/<step>/data/input/ (or inputs/) and write
-          to workspace/<step>/data/output/ (or workspace/scratch/data/).
+        - Read from workspace/<step>/data/past_step_input/ (or inputs/) and write
+          to workspace/<step>/data/next_step_output/ (or workspace/scratch/data/).
         - Set RNG seeds when randomness is involved. Print library
           versions to stderr.
         - If the same derivation feeds three or more figures, promote

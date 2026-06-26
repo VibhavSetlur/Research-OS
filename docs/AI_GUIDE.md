@@ -25,8 +25,8 @@ first and you'll cut token cost per turn by ~5x:
   load entirely. Multi-step decompositions burn turns small models
   can't afford.
 * **Call `sys_active_tools(protocol_name=…)` after every routing
-  decision.** Returns the ~10-15 tools you actually need this turn,
-  instead of you triaging the full 200+ tool catalog per call.
+  decision.** Returns the ~13-18 tools you actually need this turn,
+  instead of you triaging the full 154-tool catalog per call.
 * **Use `compare_to` fields in tool descriptions.** Every tool's
   description carries a `compare_to:` note pointing at the
   cheaper/more-focused alternative — read it before picking the
@@ -150,6 +150,13 @@ back-to-back before doing anything else:
      `sys_protocol_history` / `sys_protocol_next` /
      `sys_dep_inventory` separately while `sys_boot`'s payload is
      fresh.
+   - **Read `sys_boot.daemon_notes` if present.** When a daemon is
+     running it leaves a startup self-check there (structure drift,
+     interrupted runs, an unframed intake). Address any `block`-level
+     finding (e.g. via `tool_workspace_repair` / `tool_structure_audit`)
+     **before** building on the project — this is how nothing gets lost
+     across sessions. Also act on `sys_boot.freshness` (stale inputs) and
+     any `resume_interrupted` recommendation.
 2. **`tool_route(prompt=<their verbatim message>)`** — your SECOND
    MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns:
    - `primary_protocol` — name of the best-matching protocol
@@ -276,8 +283,8 @@ resolved. If `has_os_state` is False, tell the researcher to run
 - `tool_*` — research work: search, exec, audit, synthesis, intake, plan
 - `mem_*` — append-only memory: methods, citations, decisions, hypotheses
 
-v2.0 ships **~150 live tools** (down from 344 in v1.x), each annotated
-with:
+Research OS ships **154 live tools** (consolidated down from 344 in v1.x),
+each annotated with:
 
 * `status` — `live` (default and visible), `alias` (back-compat
   pointer to a consolidated tool), or `deprecated` (callable but
@@ -352,9 +359,17 @@ proof, benchmark, qualitative interviews), tell the researcher where to
 drop the files BEFORE running `tool_intake_autofill` — the autofill
 benefits from the right files being in the right place.
 
+`tool_intake_autofill` has **two input paths, combinable**: it infers
+from files in `inputs/`, AND it accepts what the researcher told you in
+chat via `question` / `domain` / `hypotheses` / `context_note` (explicit
+args win over inference). Many researchers never edit `inputs/` files —
+they just describe the project in chat. Capture that with the chat args
+instead of forcing them to write a file; it works even with an empty
+`inputs/`.
+
 ---
 
-## Protocol categories (130+ protocols)
+## Protocol categories
 
 Every protocol carries `scope_tags: {domain, audience, workflow_shape}`
 + a `tier` annotation. `tool_route` surfaces both in
@@ -483,8 +498,12 @@ preview", "skip the audit"). The override path:
 * `tool_discussion_coverage_audit(override_discussion_coverage=true, override_rationale="<why>")`
 * `tool_plan(operation='advance', override_gate=true, override_rationale="<why>")`
 * `tool_step_complete(override_literature_gate=true, override_rationale="<why>")`
+* `tool_step_complete(override_grounding_gate=true, override_rationale="<why>")` — only when a step's number is intentionally external (not produced by its outputs); normally make the output produce it.
 * Per-audit overrides (e.g. `tool_audit(scope='synthesis', dimension='all',
   override_no_pdfs=true, override_rationale="<why>")`, or `override_cross_deliverable`)
+* `sys_protocol_log(status='completed', override_completeness_gate=true, details="<why>")`
+  — only when a protocol's declared outputs are intentionally external; normally
+  produce the outputs first (the completion gate blocks otherwise).
 
 The rationale is mandatory; the override appends to
 `workspace/logs/override_log.md`. `audit/pre_submission_checklist`
@@ -848,6 +867,44 @@ fires, write the handoff doc and tell the researcher to open a fresh
 chat — don't try to push through. Continuing past
 `chat_split_recommended` is the most common cause of mid-session
 context exhaustion that loses state.
+
+---
+
+## The daemon (when present) — `sys_daemon` + interrupted-run recovery
+
+Most sessions have no daemon and you proceed normally. But when one is
+running, it is your situational-awareness source for everything that
+happened in the background while no chat was open. Call **`sys_daemon`**
+early — it returns `running:true/false`, the active resource budget, any
+undelivered notifications, and a single recommended next action. You only
+ever *read* the daemon and *request* consent through it; you can never
+grant your own approval (see [DAEMON.md](DAEMON.md)).
+
+The case to handle deliberately is **a returning researcher after the
+daemon (or the whole box) went down mid-run** — "I left a sweep running
+overnight." On restart the daemon rehydrates any run that was still
+non-terminal as `INTERRUPTED`, notifies, and `sys_daemon`'s orient logic
+surfaces it as the **highest-priority** recommended action,
+`resume_interrupted`. When you see that:
+
+1. Surface it to the researcher verbatim — their work did **not** finish
+   and may have left partial output.
+2. Inspect the run (`GET /v1/runs?status=interrupted`, or
+   `research-os daemon runs` / `logs <id>`) to see how far it got.
+3. Re-run the affected step so it completes cleanly **before** you build
+   anything (a draft, a figure, a synthesis) on top of it. An interrupted
+   run ranks *above* a failed one precisely because a half-finished job
+   that looks done is the most dangerous thing to build on.
+
+Two more daemon-aware habits:
+
+* **Respect the resource budget.** Before launching anything heavy, read
+  the active `runtime.resource_budget` from `sys_daemon` and cite it to the
+  researcher — on a shared/HPC node the daemon enforces it as a real
+  `rlimit`, and an over-budget job will be killed.
+* **Don't fight the stale gate.** If the daemon reports stale results,
+  recommend `rebuild` rather than overriding — compiling a deliverable
+  built on changed inputs is blocked for a reason.
 
 ---
 

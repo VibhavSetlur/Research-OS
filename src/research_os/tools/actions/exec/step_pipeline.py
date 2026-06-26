@@ -413,9 +413,10 @@ def _run_node(
         }
 
     try:
-        proc = subprocess.run(
-            cmd, cwd=str(step_dir), env=env,
-            capture_output=True, text=True, errors="replace", timeout=node.get("timeout", 1800),
+        from research_os.tools.actions.exec._sandbox import run_bounded
+        proc = run_bounded(
+            cmd, root=root, cwd=str(step_dir), env=env,
+            timeout=node.get("timeout", 1800),
         )
     except subprocess.TimeoutExpired:
         return {

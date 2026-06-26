@@ -39,6 +39,7 @@ __all__ = [
     "_handle_tool_audit_tool_tests",
     "_handle_tool_audit_tool_git_hygiene",
     "_handle_tool_audit_tool_build",
+    "_handle_tool_judge_score",
 ]
 
 def _handle_tool_audit(name, arguments, root):
@@ -310,7 +311,12 @@ def _handle_tool_audit_cross_deliverable_consistency(name, arguments, root):
             findings, "cross_deliverable_consistency", Path(root)
         )
     except Exception:  # pragma: no cover - defensive guard
-        pass
+        # F2.1: don't swallow silently — a broken ledger write means
+        # findings_query / active_gates go silently empty. Log it so it's
+        # diagnosable instead of invisible.
+        logger.warning(
+            "cross_deliverable_consistency ledger write failed", exc_info=True
+        )
 
     if res.get("blockers") and override_requested:
         log_override(
@@ -358,7 +364,9 @@ def _handle_tool_audit_step_completeness(name, arguments, root):
         findings = StepCompletenessAudit().run(root, step_id=step_id)
         write_audit_outputs(findings, "step_completeness", root)
     except Exception:  # pragma: no cover - defensive guard
-        pass
+        # F2.1: surface, don't swallow — a failed ledger write makes the
+        # findings ledger an unreliable source of truth.
+        logger.warning("step_completeness ledger write failed", exc_info=True)
 
     return _text(_success(result))
 
@@ -757,8 +765,26 @@ def _handle_tool_audit_tool_build(name, arguments, root):
     return _text(_success(audit_tool_build(root)))
 
 
+def _handle_tool_judge_score(name, arguments, root):
+    from research_os.tools.actions.audit.judge import score_work
+
+    res = score_work(
+        root,
+        subject=str(arguments.get("subject", "")),
+        dimensions=arguments.get("dimensions") or [],
+        limitations=arguments.get("limitations") or [],
+        improvements=arguments.get("improvements") or [],
+        verdict=str(arguments.get("verdict", "")),
+        goal=arguments.get("goal"),
+    )
+    if res.get("status") == "success":
+        return _text(_success(res))
+    return _text(_error(res.get("message", "judge_score failed")))
+
+
 HANDLERS = {
     "tool_audit": _handle_tool_audit,
     "tool_audit_findings": _handle_tool_audit_findings,
     "tool_audit_quality_full": _handle_tool_audit_quality_full,
+    "tool_judge_score": _handle_tool_judge_score,
 }

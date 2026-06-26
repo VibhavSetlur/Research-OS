@@ -77,6 +77,7 @@ def test_step_complete_falls_back_to_execution_log(tmp_path):
     set_current_tier(root, "intake")
     log_protocol_execution(
         root, "synthesis/synthesis_paper", "completed", "step done",
+        override_completeness_gate=True,
     )
     step_id = _scaffold_step(root)
 
@@ -97,6 +98,7 @@ def test_step_complete_no_advance_when_tier_unchanged(tmp_path):
     set_current_tier(root, "synthesize")
     log_protocol_execution(
         root, "synthesis/synthesis_paper", "completed", "still synthesize",
+        override_completeness_gate=True,
     )
     step_id = _scaffold_step(root)
 
@@ -135,9 +137,9 @@ def test_audit_master_reports_tier_progress(tmp_path):
     _clear_tier_cache()
     root = _scaffold(tmp_path)
     set_current_tier(root, "synthesize")
-    log_protocol_execution(root, "guidance/project_startup", "completed", "")
-    log_protocol_execution(root, "writing/writing_methods", "completed", "")
-    log_protocol_execution(root, "synthesis/synthesis_paper", "completed", "")
+    log_protocol_execution(root, "guidance/project_startup", "completed", "", override_completeness_gate=True)
+    log_protocol_execution(root, "writing/writing_methods", "completed", "", override_completeness_gate=True)
+    log_protocol_execution(root, "synthesis/synthesis_paper", "completed", "", override_completeness_gate=True)
 
     from research_os.server import _handle_tool_audit_quality_full
 

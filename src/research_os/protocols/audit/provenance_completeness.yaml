@@ -44,7 +44,7 @@ description: |
   takes the data path + chart kind and handles the sidecar).
 
   This audit walks every output under `workspace/<step>/outputs/`
-  and `workspace/<step>/data/output/`, verifies a `.prov.json`
+  and `workspace/<step>/data/next_step_output/`, verifies a `.prov.json`
   sibling exists with the mandatory fields populated, and FAILS
   the audit when any output is missing it.
 
@@ -89,7 +89,7 @@ steps:
         workspace/<step>/outputs/reports/    (when reports are
                                              generated programmatically;
                                              hand-written .md is exempt)
-        workspace/<step>/data/output/        (CSV / Parquet / .pkl /
+        workspace/<step>/data/next_step_output/   (CSV / Parquet / .pkl/
                                              model objects)
 
       Use `sys_file_list` (recursive) per step to enumerate. Exclude:

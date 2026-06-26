@@ -79,6 +79,14 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "boolean",
                     "description": "Bypass the output_types intent gate after confirming with the researcher. Default false. Use ONLY after the researcher has explicitly OK'd this kind.",
                 },
+                "step": {
+                    "type": "string",
+                    "description": "For kind='step_report' only: the step id (e.g. '03_baseline') — routes the report into synthesis/updates/ as the project diary.",
+                },
+                "label": {
+                    "type": "string",
+                    "description": "For a RECURRING / event-specific deliverable (a lab-meeting update, conference poster, committee deck), pass a short label like '2026-06-lab-meeting' or 'neurips-poster'. The artefact is written to synthesis/deliverables/<label-slug>/<kind> with a README documenting what it's for, so many such artefacts don't overwrite each other and the project stays ordered. Omit for the project's single canonical paper.",
+                },
             },
         },
     },
@@ -95,8 +103,8 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 },
                 "mode": {
                     "type": "string",
-                    "enum": ["all", "substantiveness", "structure", "accessibility", "cliches"],
-                    "description": "Which audit to run. Default 'all' (every check appropriate to the file type).",
+                    "enum": ["all", "substantiveness", "structure", "accessibility", "cliches", "grounding"],
+                    "description": "Which audit to run. Default 'all' (every check appropriate to the file type, including 'grounding'). 'grounding' (paper/essay) flags numeric claims absent from every workspace output — hallucination candidates — during authoring, not just at the ship gate.",
                 },
             },
         },

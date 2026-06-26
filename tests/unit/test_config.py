@@ -5,6 +5,7 @@ import yaml
 import pytest
 
 from research_os.tools.actions.state.config import (
+    append_agent_note,
     get_config,
     init_config,
     set_config,
@@ -211,3 +212,43 @@ class TestSetConfigSafety:
         res = set_config("newsection.field", "value", tmp_root)
         assert res["status"] == "success"
         assert "warning" not in res
+
+
+class TestAppendAgentNote:
+    """The learn-the-user loop: corrections accumulate in agent_notes."""
+
+    def test_appends_dated_bullet(self, initialised_root):
+        res = append_agent_note("prefer DRFP over structural fingerprints", initialised_root)
+        assert res["status"] == "success"
+        assert res["appended"] is True
+        notes = get_config(initialised_root)["config"]["interaction"]["agent_notes"]
+        assert "prefer DRFP over structural fingerprints" in notes
+        assert notes.lstrip().startswith("- [")  # dated bullet form
+
+    def test_accumulates_without_clobbering(self, initialised_root):
+        append_agent_note("note one", initialised_root)
+        append_agent_note("note two", initialised_root)
+        notes = get_config(initialised_root)["config"]["interaction"]["agent_notes"]
+        assert "note one" in notes
+        assert "note two" in notes
+        assert notes.count("- [") == 2
+
+    def test_idempotent_on_duplicate(self, initialised_root):
+        append_agent_note("never touch the prod DB", initialised_root)
+        res = append_agent_note("never touch the prod DB", initialised_root)
+        assert res["status"] == "success"
+        assert res["appended"] is False
+        assert res["reason"] == "already recorded"
+        notes = get_config(initialised_root)["config"]["interaction"]["agent_notes"]
+        assert notes.count("never touch the prod DB") == 1
+
+    def test_empty_note_rejected(self, initialised_root):
+        res = append_agent_note("   ", initialised_root)
+        assert res["status"] == "error"
+
+    def test_preserves_yaml_help_comments(self, initialised_root):
+        # ruamel round-trip must keep the inline help comments alive.
+        append_agent_note("a learned preference", initialised_root)
+        text = (initialised_root / "inputs" / "researcher_config.yaml").read_text()
+        assert "a learned preference" in text
+        assert "Free-form" in text  # the agent_notes help comment survived

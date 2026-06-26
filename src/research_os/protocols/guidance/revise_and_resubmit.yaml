@@ -42,6 +42,15 @@ prerequisites:
   - The editor's decision letter is captured (sets the deadline,
     the resubmission requirements).
 
+# Machine-checkable subset (precondition gate). Reviewer reports + the
+# decision letter arrive by paste, so they stay prose; the manuscript is
+# a file we can verify.
+requires:
+  checks:
+    - kind: file_exists
+      path: synthesis/paper.md
+      because: a revision rewrites the submitted manuscript
+
 editorial_voice:
   mode: prescription
   rules:

@@ -260,7 +260,17 @@ def _handle_tool_alternative_path_propose(name, arguments, root):
 def _handle_tool_intake_autofill(name, arguments, root):
     from research_os.tools.actions.data.intake import intake_autofill
 
-    res = intake_autofill(root, overwrite=bool(arguments.get("overwrite", False)))
+    hyp = arguments.get("hypotheses")
+    if isinstance(hyp, str):  # tolerate a single-string hypothesis
+        hyp = [hyp]
+    res = intake_autofill(
+        root,
+        overwrite=bool(arguments.get("overwrite", False)),
+        question=arguments.get("question"),
+        domain=arguments.get("domain"),
+        hypotheses=hyp,
+        context_note=arguments.get("context_note"),
+    )
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "intake_autofill failed")))

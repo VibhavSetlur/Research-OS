@@ -38,6 +38,7 @@ def _resolve_inside_root(root, filepath):
 
 
 __all__ = [
+    "_handle_sys_workspace_mode",
     "_handle_sys_workspace_scaffold",
     "_handle_sys_workspace_tree",
     "_handle_sys_state_get",
@@ -58,6 +59,8 @@ __all__ = [
     "_handle_sys_checkpoint_list",
     "_handle_sys_path",
     "_handle_sys_where",
+    "_handle_sys_daemon",
+    "_handle_sys_consent",
 ]
 
 def _handle_sys_workspace_scaffold(name, arguments, root):
@@ -612,7 +615,286 @@ def _handle_sys_path(name, arguments, root):
     return _text(_error(f"Unknown sys_path operation '{operation}'"))
 
 
+def _daemon_http_get(base_url, path, timeout):
+    """GET base_url+path and return parsed JSON, or None on any failure.
+
+    Thin wrapper over the canonical ``daemon_bridge.http_get`` (kept as a
+    local name so existing tests that monkeypatch ``mw._daemon_http_get``
+    keep working). Pure stdlib; the daemon is an opaque local HTTP service —
+    the reasoning layer never imports research_os.daemon.
+    """
+    from research_os.server import daemon_bridge as _bridge
+
+    return _bridge.http_get(base_url, path, timeout)
+
+
+def _handle_sys_daemon(name, arguments, root):
+    """Bridge the MCP session to a running daemon (Phase 3).
+
+    Discovers the daemon via its self-advertised descriptor at
+    <root>/.os_state/daemon.json, confirms the PID is alive, then pulls
+    the read-only /v1/orient + /v1/jobs telemetry over localhost HTTP.
+    Degrades to running=false with a start hint when nothing is running.
+
+    Stdlib-only by design: the reasoning layer must not import the daemon
+    package, so this re-implements the trivial descriptor read rather than
+    importing research_os.daemon.discovery (same on-disk SHAPE, no import).
+    """
+    timeout = arguments.get("timeout")
+    try:
+        timeout = float(timeout) if timeout is not None else 2.0
+    except (TypeError, ValueError):
+        timeout = 2.0
+    timeout = max(0.1, min(timeout, 30.0))
+
+    not_running = {
+        "running": False,
+        "hint": "No daemon running for this project. Start one with "
+        "'research-os daemon start' to enable background jobs, live "
+        "freshness, and a recommended next action.",
+    }
+
+    desc_path = Path(root) / ".os_state" / "daemon.json"
+    try:
+        if not desc_path.exists():
+            return _text(_success(not_running))
+        desc = json.loads(desc_path.read_text(encoding="utf-8"))
+        if not isinstance(desc, dict):
+            return _text(_success(not_running))
+    except (OSError, ValueError):
+        return _text(_success(not_running))
+
+    # Confirm the advertised PID is actually alive — a stale descriptor
+    # (daemon crashed without cleanup) must not read as "running".
+    pid = desc.get("pid")
+    if isinstance(pid, int):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            stale = dict(not_running)
+            stale["hint"] = (
+                "Found a stale daemon descriptor (pid %s not alive). "
+                "Start a fresh daemon with 'research-os daemon start'." % pid
+            )
+            return _text(_success(stale))
+        except PermissionError:
+            pass  # alive, owned by another user
+        except OSError:
+            pass
+
+    base_url = desc.get("base_url") or f"http://{desc.get('host')}:{desc.get('port')}"
+    orient = _daemon_http_get(base_url, "/v1/orient", timeout)
+    jobs = _daemon_http_get(base_url, "/v1/jobs", timeout)
+    # Also surface the execution bound (resource budget) and any
+    # undelivered researcher notifications, so the AI sees — in ONE call —
+    # the budget it must cite before a big run and what the researcher was
+    # paged about. Both are read-only; failures degrade to absent fields.
+    sandbox = _daemon_http_get(base_url, "/v1/sandbox", timeout)
+    notifications = _daemon_http_get(
+        base_url, "/v1/notifications?undelivered=true&limit=10", timeout
+    )
+
+    if orient is None and jobs is None:
+        # Descriptor present + pid alive but HTTP unreachable: the daemon
+        # is starting up or bound elsewhere. Report reachable=false rather
+        # than pretend it is fully up.
+        return _text(_success({
+            "running": True,
+            "reachable": False,
+            "base_url": base_url,
+            "version": desc.get("version"),
+            "pid": pid,
+            "hint": "Daemon process is alive but its HTTP surface did not "
+            "answer in time; it may still be starting.",
+        }))
+
+    payload: dict[str, Any] = {
+        "running": True,
+        "reachable": True,
+        "base_url": base_url,
+        "version": desc.get("version"),
+        "pid": pid,
+        "started_at": desc.get("started_at"),
+    }
+    if isinstance(orient, dict):
+        payload["narrative"] = orient.get("narrative")
+        payload["recommended_next_action"] = orient.get("recommended_next_action")
+        payload["field"] = orient.get("field")
+    if isinstance(jobs, dict):
+        items = jobs.get("jobs") or jobs.get("items") or []
+        # The daemon already computes status counts; prefer them, fall
+        # back to counting the returned items if absent.
+        counts = jobs.get("counts")
+        if not isinstance(counts, dict):
+            counts = {}
+            for j in items if isinstance(items, list) else []:
+                st = str((j or {}).get("status", "unknown")).lower()
+                counts[st] = counts.get(st, 0) + 1
+        payload["jobs"] = {
+            "total": jobs.get("total", len(items) if isinstance(items, list) else 0),
+            "by_status": counts,
+        }
+    if isinstance(sandbox, dict):
+        # The execution bound: strongest isolation tier + the resource
+        # budget the AI must respect (and cite) before a heavy run.
+        payload["sandbox"] = {
+            "best_tier": sandbox.get("best_tier"),
+            "resource_budget": sandbox.get("resource_budget"),
+            "effective_limits": sandbox.get("effective_limits"),
+        }
+    if isinstance(notifications, dict):
+        undelivered = notifications.get("notifications") or []
+        if undelivered:
+            # Surface what the researcher was paged about but may not have
+            # received — high-signal for the AI to repeat or escalate.
+            payload["undelivered_notifications"] = [
+                {"level": n.get("level"), "title": n.get("title"),
+                 "ts": n.get("ts")}
+                for n in undelivered if isinstance(n, dict)
+            ]
+    return _text(_success(payload))
+
+
+def _handle_sys_consent(name, arguments, root):
+    """In-band consent loop with a running daemon (the consent_required path).
+
+    A floor gate under a daemon returns what='consent_required' with a
+    gate_key + arg_fingerprint. This tool lets the agent (a) request consent
+    for that exact action, (b) check pending/granted status, (c) fetch a
+    minted token once the researcher approves — all over the daemon's
+    localhost HTTP surface, WITHOUT importing the daemon package.
+
+    When no daemon is running, returns available=false (the gate degrades to
+    confirmed=true anyway, so there's nothing to request).
+    """
+    from research_os.server import daemon_bridge as _bridge
+
+    action = (arguments.get("action") or "").strip().lower()
+    timeout = arguments.get("timeout")
+    try:
+        timeout = float(timeout) if timeout is not None else 2.0
+    except (TypeError, ValueError):
+        timeout = 2.0
+    timeout = max(0.1, min(timeout, 30.0))
+
+    base_url = _bridge.daemon_base_url(root)
+    if not base_url:
+        return _text(_success({
+            "available": False,
+            "hint": "No daemon is enforcing consent for this project. If a "
+                    "floor gate blocked you, it degrades to confirmed=true — "
+                    "retry with confirmed=true once the researcher authorizes.",
+        }))
+
+    if action == "request":
+        gate_key = arguments.get("gate_key")
+        fingerprint = arguments.get("arg_fingerprint")
+        if not gate_key or not fingerprint:
+            return _text(_error(
+                "gate_key and arg_fingerprint are required for action='request' "
+                "(both are in the consent_required error's next step)"
+            ))
+        status, body = _bridge.http_post(base_url, "/v1/consent/request", {
+            "gate_key": str(gate_key),
+            "arg_fingerprint": str(fingerprint),
+            "tool": str(arguments.get("tool", "")),
+            "reason": str(arguments.get("reason", "")),
+        }, timeout)
+        if status == 201 and isinstance(body, dict):
+            req = body.get("request") or {}
+            return _text(_success({
+                "available": True,
+                "requested": True,
+                "request_id": req.get("id"),
+                "next": "Tell the researcher exactly what needs approval and "
+                        "why. They approve with 'research-os daemon consent "
+                        "approve <request_id>'. Then call "
+                        "sys_consent(action='token', gate_key=..., "
+                        "arg_fingerprint=...) and retry with the token.",
+            }))
+        return _text(_error(
+            f"consent request failed (status={status}): "
+            f"{(body or {}).get('error', 'unknown')}"
+        ))
+
+    if action == "status":
+        pending = _bridge.http_get(base_url, "/v1/consent/pending", timeout) or {}
+        grants = _bridge.http_get(base_url, "/v1/consent/grants", timeout) or {}
+        return _text(_success({
+            "available": True,
+            "pending": pending.get("requests") or pending.get("pending") or [],
+            "grants": grants.get("grants") or [],
+        }))
+
+    if action == "token":
+        gate_key = arguments.get("gate_key")
+        fingerprint = arguments.get("arg_fingerprint")
+        if not gate_key or not fingerprint:
+            return _text(_error(
+                "gate_key and arg_fingerprint are required for action='token'"
+            ))
+        grants = _bridge.http_get(base_url, "/v1/consent/grants", timeout) or {}
+        token = None
+        for g in (grants.get("grants") or []):
+            if not isinstance(g, dict):
+                continue
+            # Match the exact action; skip grants the daemon already marked
+            # consumed. (The gate does the authoritative one-shot check via
+            # its spent-log on retry; this is the best-available token.)
+            if (g.get("gate_key") == str(gate_key)
+                    and g.get("arg_fingerprint") == str(fingerprint)
+                    and not g.get("consumed")):
+                token = g.get("token")
+                break
+        if token:
+            return _text(_success({
+                "available": True,
+                "consent_token": token,
+                "next": "Retry the blocked tool with consent_token=<this>. "
+                        "It is one-shot — burned on first use.",
+            }))
+        return _text(_success({
+            "available": True,
+            "consent_token": None,
+            "hint": "No minted token yet for this action. The researcher has "
+                    "not approved, or it was already consumed. Check "
+                    "sys_consent(action='status').",
+        }))
+
+    return _text(_error(
+        f"unknown action {action!r}; use 'request', 'status', or 'token'"
+    ))
+
+
+def _handle_sys_workspace_mode(name, arguments, root):
+    """Report or transition the workspace mode (first-class, additive)."""
+    op = (arguments.get("operation") or "status").strip().lower()
+    if op == "status":
+        from research_os.tools.actions.state.mode_transition import workspace_mode_status
+
+        return _text(_success(workspace_mode_status(Path(root))))
+    if op == "transition":
+        to_mode = arguments.get("to") or arguments.get("mode") or ""
+        if not to_mode:
+            return _text(_error("operation='transition' requires `to` (target mode)"))
+        from research_os.tools.actions.state.mode_transition import transition_workspace_mode
+
+        # plan unless explicitly applying (confirm=true / plan_only=false)
+        plan_only = not (
+            bool(arguments.get("confirm")) or arguments.get("plan_only") is False
+        )
+        res = transition_workspace_mode(
+            Path(root), to_mode, plan_only=plan_only,
+            rationale=arguments.get("rationale", ""),
+        )
+        if res.get("status") == "error":
+            return _text(_error(res.get("message", "transition failed")))
+        return _text(_success(res))
+    return _text(_error(f"unknown operation '{op}'. Use 'status' or 'transition'."))
+
+
 HANDLERS = {
+    "sys_workspace_mode": _handle_sys_workspace_mode,
     "sys_workspace_scaffold": _handle_sys_workspace_scaffold,
     "sys_workspace_tree": _handle_sys_workspace_tree,
     "sys_state_get": _handle_sys_state_get,
@@ -630,4 +912,6 @@ HANDLERS = {
     "sys_checkpoint_list": _handle_sys_checkpoint_list,
     "sys_path": _handle_sys_path,
     "sys_where": _handle_sys_where,
+    "sys_daemon": _handle_sys_daemon,
+    "sys_consent": _handle_sys_consent,
 }

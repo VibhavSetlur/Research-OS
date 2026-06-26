@@ -1,13 +1,13 @@
 id: notebook_promote
 tier: 'execute'
 name: Notebook Promote (graduate a notebook into durable evidence)
-version: '3.12.0'
+version: '4.0.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
   audience: [researcher, naive_ai]
   workflow_shape: [notebook, promotion]
-last_reviewed: '2026-06-23'
+last_reviewed: '2026-06-25'
 see_also:
   - notebook/notebook_reproduce                 # the hardening a promotable notebook has passed
   - guidance/analysis_plan                       # the rigorous step a promoted notebook may become

@@ -155,6 +155,7 @@ MODE_ROUTING: dict[str, _ModeRouting] = {
             "build_spec", "build_implement", "build_test",
             "build_benchmark", "build_release", "build_publish",
             "build_scout", "build_spike", "build_integrate",
+            "build_evaluate",
         }),
         boost=_MODE_BUILD_BOOST,
         shape="tool_build",
@@ -209,6 +210,7 @@ MODE_ROUTING: dict[str, _ModeRouting] = {
         sub_intents=frozenset({
             "hybrid_run", "hybrid_handoff",
             "build_scout", "build_spike", "build_integrate",
+            "build_evaluate",
         }),
         boost=_MODE_LIGHT_BOOST,
         shape="hybrid",
@@ -224,6 +226,59 @@ _EXPLORATION_BOOST = _MODE_LIGHT_BOOST
 # Fallback map: workspace.mode → implied workflow_shape (derived from the
 # registry; kept as a dict for the existing callers).
 _MODE_TO_SHAPE = {m: r.shape for m, r in MODE_ROUTING.items() if r.shape}
+
+
+# ── Mode lifecycle (B2) ────────────────────────────────────────────────
+# Which workspace.mode → mode moves are supported, and how. A transition is
+# ADDITIVE (never deletes the prior mode's work). `kind`:
+#   promote  — the prior mode's artefacts graduate into the new mode's unit of
+#              work (exploration probes / notebooks → numbered analysis steps).
+#   augment  — the new mode adds a surface alongside the old one (analysis gains
+#              an inner tool repo → hybrid; tool_build gains an analysis spine).
+#   reframe  — the existing work is re-cast (a single analysis becomes study 01
+#              of a program).
+# `protocol` (if any) is the handoff/promotion protocol to route into during the
+# crossing. All six modes can always move to exploration (cheap, additive).
+_MODE_TRANSITIONS: dict[tuple[str, str], dict[str, str]] = {
+    ("exploration", "analysis"): {
+        "kind": "promote", "protocol": "exploration/exploration_promote",
+        "guidance": "Promote earned probes into numbered analysis steps, then run guidance/analysis_plan.",
+    },
+    ("notebook", "analysis"): {
+        "kind": "promote", "protocol": "notebook/notebook_promote",
+        "guidance": "Promote a trusted notebook's result into a durable numbered step.",
+    },
+    ("exploration", "tool_build"): {
+        "kind": "augment", "protocol": "",
+        "guidance": "Graduate a scratch prototype into a governed build (spec/decisions/eval + inner repo).",
+    },
+    ("analysis", "hybrid"): {
+        "kind": "augment", "protocol": "",
+        "guidance": "Add an inner tool/ repo for software the analysis needs; keep the analysis spine.",
+    },
+    ("tool_build", "hybrid"): {
+        "kind": "augment", "protocol": "hybrid/tool_to_analysis_handoff",
+        "guidance": "Keep the built tool; add an analysis spine to USE it on real data.",
+    },
+    ("analysis", "multi_study"): {
+        "kind": "reframe", "protocol": "program/program_setup",
+        "guidance": "Wrap the current work as study 01 of a program; seed shared/ commons.",
+    },
+}
+# Every mode can always move to exploration (cheapest, additive).
+for _m in ("analysis", "notebook", "tool_build", "hybrid", "multi_study"):
+    _MODE_TRANSITIONS.setdefault((_m, "exploration"), {
+        "kind": "augment", "protocol": "",
+        "guidance": "Open a scratch surface for cheap probing alongside the existing work.",
+    })
+
+
+def mode_transition_spec(from_mode: str, to_mode: str) -> dict | None:
+    """Return the transition spec for from→to, or None if unsupported.
+    Same-mode is a no-op (returns None)."""
+    if from_mode == to_mode:
+        return None
+    return _MODE_TRANSITIONS.get((from_mode, to_mode))
 
 
 def _mode_boost_for(workspace_mode: str, sub_intent: str | None) -> int:
@@ -991,6 +1046,14 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
         except Exception as e:
             logger.debug("adapter detection skipped: %s", e)
 
+        _mode_info = _boot_mode_info(root)
+
+        # Compute these ONCE so both the boot payload and the advice line agree.
+        # (C2) the durable roadmap — an in-flight autonomous loop the AI must
+        # re-enter after a /compact; (H1) daemon block escalation.
+        _daemon_notes = _boot_daemon_notes(root)
+        _roadmap = _boot_roadmap(root, entries)
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -1032,6 +1095,11 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             "handoff_hint": handoff_hint,
             "n_finalized_steps": n_finalized,
             "freshness": freshness,
+            # The daemon's startup self-check (if a daemon ran): structural
+            # problems / interrupted runs / unframed intake it noticed and
+            # wrote to .os_state/daemon_notes.json. Read by-shape (no daemon
+            # import). The AI should ACT on any block/warn here before building.
+            "daemon_notes": _daemon_notes,
             # The behavioural contract from researcher_config, surfaced
             # compactly so the AI FOLLOWS it every session AND keeps it in
             # sync (a secondary AGENTS.md). See config_reconcile_hint.
@@ -1050,11 +1118,21 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             # marker is consumed by tool_route so each drop surfaces once).
             "new_context": _boot_new_context(root),
             "glossary_unfilled": _boot_glossary_unfilled(root, n_finalized),
+            # Workspace mode shapes routing + scaffolds. Surface it (and a
+            # one-line directive) so the AI behaves mode-appropriately and can
+            # notice when the project has outgrown its mode — the mode silently
+            # biases routing, so the AI must SEE it to reason about it.
+            "workspace_mode": _mode_info[0],
+            "mode_directive": _mode_info[1],
             # Hybrid (research + software): inner code components, so the AI
             # governs the research in workspace/ AND the code via tool_git /
             # tool_build on the inner repo.
             "software_components": _boot_software_components(root),
-            "advice": _boot_advice(pause, active_plan, state, cfg),
+            # (C2) durable roadmap pointer — surfaced so an autonomous loop
+            # survives a /compact and the AI re-enters it instead of the linear
+            # pipeline.
+            "roadmap": _roadmap,
+            "advice": _boot_advice(pause, active_plan, state, cfg, _daemon_notes, _roadmap),
         }
     except Exception as e:
         logger.exception("sys_boot failed")
@@ -1077,6 +1155,49 @@ def _boot_new_context(root: Path) -> dict:
         return {"new_files": [], "changed_files": [], "hint": ""}
 
 
+def _boot_daemon_notes(root: Path) -> dict:
+    """sys_boot peek at the daemon's startup self-check notes (by-shape, no
+    daemon import). Returns a compact summary the AI acts on; empty when no
+    daemon ran / no notes exist. Fail-safe."""
+    try:
+        from research_os.server import daemon_bridge as _bridge
+
+        notes = _bridge.read_daemon_notes(root)
+        if not isinstance(notes, dict):
+            return {"present": False, "findings": [], "hint": ""}
+        findings = notes.get("findings") or []
+        counts = notes.get("counts") or {}
+        # Surface the messages compactly; the full note lives in
+        # .os_state/daemon_notes.md for the AI to read in full if needed.
+        msgs = [
+            f"[{f.get('severity', 'info')}] {f.get('message', '')}"
+            for f in findings
+        ][:8]
+        # (M2) tell the AI when findings were truncated so it knows to read the
+        # full note rather than assuming it saw everything.
+        if len(findings) > 8:
+            msgs.append(
+                f"...and {len(findings) - 8} more — see .os_state/daemon_notes.md"
+            )
+        hint = ""
+        if counts.get("block"):
+            hint = (
+                "The daemon found BLOCK-level integrity issues — address them "
+                "(tool_workspace_repair / tool_structure_audit) before building."
+            )
+        elif findings:
+            hint = "The daemon left notes — review and address them this turn."
+        return {
+            "present": True,
+            "ok": notes.get("ok", True),
+            "counts": counts,
+            "findings": msgs,
+            "hint": hint,
+        }
+    except Exception:
+        return {"present": False, "findings": [], "hint": ""}
+
+
 def _boot_software_components(root: Path) -> list:
     """Inner software components (hybrid projects) — empty for pure analysis."""
     try:
@@ -1085,6 +1206,58 @@ def _boot_software_components(root: Path) -> list:
         return detect_software_components(root)
     except Exception:
         return []
+
+
+# One-line behavioural directive per workspace mode. Kept terse — it tells the
+# AI how to act in this mode and the natural transition signal, so it can both
+# behave mode-appropriately and notice when the project has outgrown its mode.
+_MODE_DIRECTIVES: dict[str, str] = {
+    "analysis": (
+        "Analysis mode: linear numbered research steps in workspace/. If you "
+        "find yourself needing to BUILD a reusable tool, consider switching to "
+        "hybrid (sys_config workspace.mode=hybrid)."
+    ),
+    "tool_build": (
+        "Tool-build mode: you ship software governed from above (spec → "
+        "implement → test → benchmark → evaluate → release) in the inner repo. "
+        "Run build/tool_evaluation_loop to drive the evaluate→improve cycle. If "
+        "the project shifts to USING the tool for research, consider hybrid."
+    ),
+    "hybrid": (
+        "Hybrid mode: research in workspace/ AND software in the inner repo. "
+        "Pivot via hybrid/hybrid_workflow; hand findings across with "
+        "hybrid/tool_to_analysis_handoff; drive tool improvement with "
+        "build/tool_evaluation_loop. Keep the two halves in sync."
+    ),
+    "exploration": (
+        "Exploration mode: scratch-first quick probes with light gates. Promote "
+        "a probe that proves out into a real analysis step (or switch to "
+        "analysis mode) rather than letting scratch work masquerade as a result."
+    ),
+    "notebook": (
+        "Notebook mode: the unit of work is a .ipynb. Execute notebooks as "
+        "tracked runs, reproduce before trusting, promote stable cells into "
+        "scripts/steps when they harden."
+    ),
+    "multi_study": (
+        "Multi-study mode: a program of sub-studies sharing a codebook + "
+        "prereg. Register each study, govern the shared codebook, synthesize "
+        "across studies — don't collapse the program into a single study."
+    ),
+}
+
+
+def _boot_mode_info(root: Path) -> tuple[str, str]:
+    """Return (workspace_mode, one-line behavioural directive) for boot.
+
+    Surfacing the mode + its directive lets the AI act mode-appropriately and
+    spot when the project has outgrown its mode. Never raises out of boot.
+    """
+    try:
+        mode = _read_workspace_mode(root)
+    except Exception:
+        mode = "analysis"
+    return mode, _MODE_DIRECTIVES.get(mode, _MODE_DIRECTIVES["analysis"])
 
 
 def _boot_glossary_unfilled(root: Path, n_finalized: int) -> dict:
@@ -1128,7 +1301,9 @@ def _config_reconcile_hint(cfg: dict) -> str:
     # to re-list them here and pay for it on every boot.
     base = (
         "Follow config_directives; update via sys_config(operation='set') when "
-        "intent shifts (autonomy / output / citation style / compute env)."
+        "intent shifts (autonomy / output / citation style / compute env). When "
+        "the researcher corrects you or states a standing preference, record it "
+        "with sys_config(operation='note') so the next session inherits it."
     )
     if gaps:
         base += " Fill from the conversation: " + "; ".join(gaps) + "."
@@ -1137,7 +1312,7 @@ def _config_reconcile_hint(cfg: dict) -> str:
 
 def _classify_pause(entries: list[dict], root: Path) -> str:
     """Pick one of: fresh_session | mid_step | completed_step | dead_end |
-    ctx_exhaustion | long_running_job | unknown."""
+    ctx_exhaustion | unknown."""
     if not entries:
         return "fresh_session"
     last = entries[-1]
@@ -1162,6 +1337,10 @@ def _classify_pause(entries: list[dict], root: Path) -> str:
         except OSError:
             pass
     if status == "started":
+        # (M3) distinguish a mid-roadmap pause from a mid-analysis-step pause so
+        # boot advice can reconstruct the roadmap thread, not just say "resume".
+        if "roadmap_execution" in proto or "deep_planning" in proto:
+            return "mid_roadmap"
         return "mid_step"
     if "dead_end" in proto:
         return "dead_end"
@@ -1170,8 +1349,39 @@ def _classify_pause(entries: list[dict], root: Path) -> str:
     return "unknown"
 
 
-def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -> str:
-    """One-line guidance the AI should follow next."""
+def _boot_advice(
+    pause: str,
+    active_plan: dict | None,
+    state: dict,
+    cfg: dict,
+    daemon_notes: dict | None = None,
+    roadmap: dict | None = None,
+) -> str:
+    """One-line guidance the AI should follow next.
+
+    Priority order (most urgent first):
+      1. daemon BLOCK-level integrity issues — fix before anything (H1).
+      2. an in-flight autonomous roadmap — re-enter it, don't restart (C2).
+      3. an in-progress tactical plan.
+      4. pause/resume signals, then the normal fresh/continue advice.
+    """
+    # (H1) Daemon found block-level problems — lead with them; the AI must not
+    # build on a broken workspace just because the linear advice says "fresh".
+    if daemon_notes and (daemon_notes.get("counts") or {}).get("block"):
+        n = daemon_notes["counts"]["block"]
+        return (
+            f"\u26d4 The daemon found {n} BLOCK-level integrity issue(s). Run "
+            "tool_structure_audit / tool_workspace_repair and resolve them "
+            "BEFORE any other action (see sys_boot.daemon_notes)."
+        )
+    # (C2) An autonomous roadmap is in progress — re-enter the loop, don't let
+    # the linear pipeline route the AI back to project_startup.
+    if roadmap and roadmap.get("present") and roadmap.get("in_progress"):
+        return (
+            "An autonomous roadmap is in progress \u2014 re-load "
+            "guidance/roadmap_execution and re-read inputs/research_plan.md "
+            "before anything else; continue the loop from where it paused."
+        )
     if active_plan and active_plan.get("status") == "in_progress":
         cur = active_plan.get("current_step", 1)
         total = len(active_plan.get("decomposition", []))
@@ -1181,7 +1391,12 @@ def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -
         )
     if pause == "ctx_exhaustion":
         return "Recent handoff doc found — call tool_session_resume."
-    if pause in {"mid_step", "long_running_job"}:
+    if pause == "mid_roadmap":
+        return (
+            "Previous session paused mid-roadmap \u2014 re-load "
+            "guidance/roadmap_execution + inputs/research_plan.md and resume."
+        )
+    if pause == "mid_step":
         return "Previous session left work in-flight — call tool_session_resume."
     if state.get("pipeline_stage", "init") == "init":
         return (
@@ -1192,6 +1407,41 @@ def _boot_advice(pause: str, active_plan: dict | None, state: dict, cfg: dict) -
         "Wait for researcher's message, then call tool_route(prompt) before "
         "loading any protocol."
     )
+
+
+def _boot_roadmap(root: Path, entries: list) -> dict:
+    """(C2) Detect a durable autonomous roadmap (inputs/research_plan.md) and
+    whether a roadmap loop is in flight, so sys_boot can point the AI back into
+    it after a context reset. Fail-safe: absence → {present: False}."""
+    try:
+        plan_path = Path(root) / "inputs" / "research_plan.md"
+        if not plan_path.exists():
+            return {"present": False}
+        # In-flight if the most recent protocol log entry is a plan-tier
+        # protocol (deep_planning / roadmap_execution) that isn't completed.
+        in_progress = False
+        last_logged = None
+        for e in reversed(entries or []):
+            proto = (e.get("protocol") or e.get("protocol_name") or "")
+            if not proto:
+                continue
+            last_logged = proto
+            if "roadmap_execution" in proto or "deep_planning" in proto:
+                in_progress = (e.get("status") or "").lower() != "completed"
+            break
+        return {
+            "present": True,
+            "path": "inputs/research_plan.md",
+            "in_progress": in_progress,
+            "last_logged_protocol": last_logged,
+            "advice": (
+                "An autonomous roadmap exists — re-read inputs/research_plan.md "
+                "and re-load guidance/roadmap_execution to continue the loop."
+            ),
+        }
+    except Exception:
+        return {"present": False}
+
 
 
 def _dep_inventory() -> dict:

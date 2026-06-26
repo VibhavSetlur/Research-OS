@@ -44,7 +44,7 @@ steps:
     name: Hash Key Outputs
     description: |
       For every key output file (anything under workspace/*/outputs/ and
-      workspace/*/data/output/), compute sha256 and append to
+      workspace/*/data/next_step_output/), compute sha256 and append to
       workspace/logs/output_hashes.json. This becomes the baseline that the
       reproducibility audit will compare future runs against.
 

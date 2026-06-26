@@ -177,12 +177,34 @@ def _handle_sys_protocol_get(name, arguments, root):
         data = load_protocol(
             p_name, model_profile=model_profile, format=fmt, step_id=step_id
         )
+        # Surface UNMET mechanical preconditions (precondition gate, tier 1):
+        # the prose `prerequisites` says what should be true; this tells the
+        # AI exactly which checkable ones are NOT yet satisfied, so it does
+        # the missing step instead of proceeding on a missing foundation.
+        # Pure read, fail-safe — no daemon needed; absent when all met.
+        unmet = []
+        try:
+            from research_os.server.preconditions import unmet_preconditions
+
+            # The sidecar is keyed by full protocol PATH (e.g.
+            # "guidance/analysis_plan"); the loaded data's `id` is often the
+            # bare leaf ("analysis_plan"). Prefer the requested path, and try
+            # both so a bare or qualified name resolves.
+            unmet = unmet_preconditions(str(p_name), root)
+            if not unmet:
+                alt = (data.get("id") if isinstance(data, dict) else None)
+                if alt and str(alt) != str(p_name):
+                    unmet = unmet_preconditions(str(alt), root)
+        except Exception:  # noqa: BLE001 - surfacing must never break the load
+            unmet = []
         if fmt in {"summary", "step"}:
             # Lean structured payload (no yaml dump bulk).
             response = dict(data)
             response.setdefault(
                 "_loaded_as", fmt
             )
+            if unmet:
+                response["unmet_preconditions"] = unmet
         else:
             # format=full: AI explicitly opted into the bulk payload —
             # don't tack on another paragraph telling it to prefer
@@ -190,6 +212,8 @@ def _handle_sys_protocol_get(name, arguments, root):
             response = {"content": _yaml.dump(data, sort_keys=False)}
             if model_profile == "small":
                 response["note"] = "Loaded in light mode (small model profile)."
+            if unmet:
+                response["unmet_preconditions"] = unmet
         return _text(_success(response))
     except Exception as e:
         return _text(_error(str(e)))
@@ -248,7 +272,7 @@ def _handle_tool_semantic_route(name, arguments, root):
         env = _success({
             "reason": (
                 "Semantic routing requires the `semantic` extra. "
-                "Install with: pip install 'research-os[semantic]' "
+                "Reinstall to restore it: pip install --upgrade research-os "
                 "and confirm protocols/_embeddings.npz is present "
                 "(run scripts/build_embeddings.py)."
             ),
@@ -289,7 +313,7 @@ def _handle_sys_semantic_tool_search(name, arguments, root):
         env = _success({
             "reason": (
                 "Semantic tool search requires the `semantic` extra. "
-                "Install with: pip install 'research-os[semantic]'."
+                "Reinstall to restore it: pip install --upgrade research-os."
             ),
             "fastembed_installed": semantic.fastembed_available(),
             "embeddings_on_disk": semantic.embeddings_on_disk(),
@@ -408,7 +432,12 @@ def _handle_sys_protocol_log(name, arguments, root):
         arguments["protocol_name"],
         arguments["status"],
         arguments.get("details", ""),
+        override_completeness_gate=bool(arguments.get("override_completeness_gate", False)),
     )
+    # Surface a blocked completion as an error so the AI sees it must act, not a
+    # silent success it can ignore.
+    if isinstance(res, dict) and res.get("status") == "blocked":
+        return _text(_error(res.get("message", "completion blocked: outputs missing")))
     return _text(_success(res))
 
 

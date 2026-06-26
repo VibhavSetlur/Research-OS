@@ -26,6 +26,60 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "category": "routing",
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
     },
+    "sys_daemon": {
+        "short": "Is a daemon running for this project? Return its live telemetry (jobs, freshness, next action).",
+        "compare_to": "sys_where (state-file orientation, no daemon). sys_daemon adds awareness of a RUNNING daemon's live jobs + freshness.",
+        "description": "Bridge between the MCP session and a running Research-OS daemon. The daemon is a separate, optional persistent process that runs long jobs, tracks run provenance/freshness, and serves an HTTP surface. This tool discovers it WITHOUT coupling: it reads the daemon's self-advertised descriptor at .os_state/daemon.json, confirms the process is alive, then GETs the daemon's read-only /v1/orient (narrative + ONE recommended next action) and /v1/jobs (running/queued/done counts). Returns {running: bool, ...}. When no daemon is running it returns running=false with a one-line hint on how to start one ('research-os daemon start'). Read-only and fast; never mutates. Use it at session start or mid-session to answer 'is anything running in the background, and what should I do next?' — the same continuity an HTTP agent gets from /v1/orient, now inside MCP.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "timeout": {
+                    "type": "number",
+                    "description": "Per-request HTTP timeout in seconds when probing the daemon (default 2.0). Kept small so a hung daemon never stalls the session.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    "sys_consent": {
+        "short": "Request/check researcher consent for a daemon-gated action (when a floor gate returned consent_required).",
+        "compare_to": "Plain confirmed=true works only when NO daemon is enforcing. sys_consent is the in-band path when a daemon IS present and a floor gate demands a real, human-authorized, one-shot token.",
+        "description": "Bridge to a running daemon's consent authority. When a floor gate returns what='consent_required', the agent's own confirmed=true is not honored — a daemon-minted, one-shot, argument-bound token is required, and only an authorized human can mint it. This tool is the agent's in-band path through that loop, WITHOUT importing the daemon (it POSTs/GETs the daemon's /v1/consent endpoints over localhost). Actions: action='request' (gate_key, arg_fingerprint, tool, reason) queues a consent request for the researcher and returns its request_id — requesting is harmless, it cannot self-grant; action='status' lists pending requests + granted tokens so the agent can see whether the researcher has approved; action='token' (gate_key, arg_fingerprint) returns a minted, unspent token matching that exact action if one exists, else null. Typical loop: hit a gate → sys_consent(request) → tell the researcher what needs approval → they approve (CLI: 'research-os daemon consent approve <id>') → sys_consent(token) → retry the tool with consent_token=<minted>. Returns {available: bool, ...}; when no daemon is running, available=false (the gate degrades to confirmed=true anyway). NEVER request consent the researcher did not actually authorize.",
+        "category": "routing",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["request", "status", "token"],
+                    "description": "request: queue a consent request. status: list pending + granted. token: fetch a minted unspent token for a (gate_key, arg_fingerprint).",
+                },
+                "gate_key": {
+                    "type": "string",
+                    "description": "The gate key from the consent_required error (e.g. 'tool_typst_compile'). Required for request + token.",
+                },
+                "arg_fingerprint": {
+                    "type": "string",
+                    "description": "The arg_fingerprint from the consent_required error — binds consent to this EXACT action. Required for request + token.",
+                },
+                "tool": {
+                    "type": "string",
+                    "description": "The tool name the gate blocked (for request; helps the researcher see what they're approving).",
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Short human-readable reason shown to the researcher when they review the request.",
+                },
+                "timeout": {
+                    "type": "number",
+                    "description": "Per-request HTTP timeout in seconds (default 2.0).",
+                },
+            },
+            "required": ["action"],
+            "additionalProperties": False,
+        },
+    },
     "tool_route": {
         "short": "Prompt → protocol + decomposition + recommended_action. Call after every researcher message.",
         "then": "sys_protocol_get(protocol_name=<resolved>, format=<lean|summary|full per model_profile>)",
@@ -44,7 +98,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     "tool_semantic_route": {
         "short": "Direct semantic search over protocol embeddings. Returns top-k candidates with scores.",
         "compare_to": "tool_route (hybrid semantic + trigger picker that returns a single primary protocol) and tool_quick_route (quick/throwaway short-circuit).",
-        "description": "Embed the prompt with BAAI/bge-small-en-v1.5 (local ONNX, no network) and return the top-k protocols by cosine similarity, with the length-weighted trigger-phrase boost applied. Use this when you want to SEE the ranked candidates yourself — tool_route picks a primary; tool_semantic_route surfaces the alternatives so you can route deliberately. Requires the `semantic` extra (`pip install 'research-os[semantic]'`); falls back to status='unavailable' otherwise.",
+        "description": "Embed the prompt with BAAI/bge-small-en-v1.5 (local ONNX, no network) and return the top-k protocols by cosine similarity, with the length-weighted trigger-phrase boost applied. Use this when you want to SEE the ranked candidates yourself — tool_route picks a primary; tool_semantic_route surfaces the alternatives so you can route deliberately. Ships in the base install; falls back to status='unavailable' only if the local embedder is somehow missing.",
         "category": "routing",
         "inputSchema": {
             "type": "object",
@@ -219,7 +273,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_protocol_log": {
         "short": "Record protocol execution status. Use when starting/completing/failing/skipping a protocol.",
-        "description": "Record a protocol execution (started|completed|failed|skipped) to the pipeline log.",
+        "description": "Record a protocol execution (started|completed|failed|skipped) to the pipeline log. COMPLETENESS GATE: logging 'completed' for a protocol that declares expected_outputs is REFUSED (status='blocked') if any declared output is missing on disk — produce the outputs first, then log completed. For the rare legitimate case (e.g. an intentionally-external output) pass override_completeness_gate=true; the override is recorded in the log + override_log.md.",
         "category": "protocol",
         "inputSchema": {
             "type": "object",
@@ -227,6 +281,10 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "protocol_name": {"type": "string"},
                 "status": {"type": "string"},
                 "details": {"type": "string"},
+                "override_completeness_gate": {
+                    "type": "boolean",
+                    "description": "Log 'completed' even when declared outputs are missing (rare; recorded as an override).",
+                },
             },
             "required": ["protocol_name", "status"],
         },
@@ -251,6 +309,20 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "full | minimal | markdown — controls verbosity (default: full).",
                 }
+            },
+        },
+    },
+    "sys_workspace_mode": {
+        "short": "Report or transition the workspace mode (analysis/tool_build/exploration/notebook/multi_study/hybrid).",
+        "description": "First-class workspace-mode lifecycle. operation='status' returns the current mode (config + state), a drift flag, and the supported transitions from here. operation='transition' with `to=<mode>` moves the project to another mode — PLANS by default (shows what scaffold surface the target mode needs that's missing), and APPLIES when confirm=true: it ADDITIVELY creates the missing surface (never deletes prior work), syncs config + state (fixing any drift), records the move to .os_state/mode_history.jsonl, and points you at the promotion/handoff protocol for the crossing (e.g. exploration→analysis promotes probes into steps; analysis→hybrid adds an inner tool repo; analysis→multi_study reframes as study 01). Use this instead of sys_config(workspace.mode=…), which only flips the string and leaves the scaffold missing.",
+        "category": "workspace",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "operation": {"type": "string", "enum": ["status", "transition"], "default": "status"},
+                "to": {"type": "string", "description": "Target mode (for operation='transition')."},
+                "confirm": {"type": "boolean", "description": "Apply the transition (default false = plan only)."},
+                "rationale": {"type": "string", "description": "Why the mode is changing (recorded in mode_history)."},
             },
         },
     },
@@ -489,15 +561,15 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
         "inputSchema": {"type": "object", "properties": {}},
     },
     "sys_config": {
-        "short": "Unified researcher-config tool. operation=get|set|validate.",
-        "description": "Unified researcher-config dispatcher for inputs/researcher_config.yaml. operation='get' reads the full config (autonomy level, expertise, model profile, research goal, API keys masked). operation='set' writes a single value via dot notation (e.g. key='researcher.expertise_level', value='advanced'). operation='validate' checks the schema and reports which API keys are present. Every legacy sys_config_get / sys_config_set / sys_config_validate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
+        "short": "Unified researcher-config tool. operation=get|set|validate|note.",
+        "description": "Unified researcher-config dispatcher for inputs/researcher_config.yaml. operation='get' reads the full config (autonomy level, expertise, model profile, research goal, API keys masked). operation='set' writes a single value via dot notation (e.g. key='researcher.expertise_level', value='advanced'). operation='validate' checks the schema and reports which API keys are present. operation='note' APPENDS a learned, durable researcher preference or correction to interaction.agent_notes (e.g. note='always segregate transport reactions', 'prefer DRFP over structural fingerprints', 'never touch the prod DB') — this is the learn-the-user loop: record it when the researcher corrects you or states a standing preference, and the next session inherits it (agent_notes is surfaced at every boot). Appends rather than clobbers, and is idempotent (re-recording the same preference is a no-op). Use 'note' for free-form standing preferences; use 'set' for the structured knobs (autonomy_level, output_types, citation_style, compute_environment). Every legacy sys_config_get / sys_config_set / sys_config_validate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "config",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["get", "set", "validate"],
+                    "enum": ["get", "set", "validate", "note"],
                     "description": "Which config sub-operation to invoke.",
                 },
                 # operation='set' kwargs
@@ -508,6 +580,11 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                 "value": {
                     "type": "string",
                     "description": "operation='set' — REQUIRED. New value as a string.",
+                },
+                # operation='note' kwargs
+                "note": {
+                    "type": "string",
+                    "description": "operation='note' — REQUIRED. A learned researcher preference / correction to append to interaction.agent_notes, in plain language.",
                 },
             },
             "required": ["operation"],

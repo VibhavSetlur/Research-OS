@@ -71,6 +71,10 @@ get_config, set_config, init_config, validate_config = _lazy_import(
     "research_os.tools.actions.state",
     ["get_config", "set_config", "init_config", "validate_config"],
 )
+(append_agent_note,) = _lazy_import(
+    "research_os.tools.actions.state",
+    ["append_agent_note"],
+)
 notify_researcher, session_handoff = _lazy_import(
     "research_os.tools.actions.state",
     ["notify_researcher", "session_handoff"],
@@ -159,6 +163,7 @@ __all__ = [
     "create_path", "abandon_path", "list_paths",
     "download_literature",
     "get_config", "set_config", "init_config", "validate_config",
+    "append_agent_note",
     "notify_researcher", "session_handoff",
     "search_semantic_scholar", "search_pubmed", "search_crossref", "search_arxiv",
     "load_protocol", "list_protocols", "validate_protocol", "get_next_protocol",

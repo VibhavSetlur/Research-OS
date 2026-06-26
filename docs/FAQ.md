@@ -200,7 +200,7 @@ default. Some packs and protocols expect additional subfolders:
   here instead of `raw_data/` makes it editable so you can iterate on
   the implementation.
 
-The full table is in [START.md § Drop your files](START.md#drop-your-files-1-min)
+The full table is in [START.md § Bring in your project](START.md#bring-in-your-project--chat-or-files-1-min)
 and [AI_GUIDE.md § inputs/ directory conventions](AI_GUIDE.md#inputs-directory-conventions-read-on-cold-start).
 Just `mkdir` whichever subfolder you need; the immutability guarantee
 only applies to `inputs/raw_data/` and `inputs/literature/`.
@@ -361,9 +361,12 @@ doesn't become dead code. See
 
 ### Can I run Research OS without the synthesis features?
 
-Yes. Skip `pip install 'research-os[viz,literature]'`. Synthesis tools
-that need an absent dependency will return a clear error explaining what
-to install. The core pipeline works without any optional extras.
+Yes. The whole analysis pipeline — data, figures, stats, literature search —
+ships in the base install and works on its own. The only synthesis step with
+an external dependency is PDF compilation: `tool_typst_compile` needs the
+`typst` CLI on your PATH. If it's absent, the AI still authors the `.typ`
+source and tells you exactly how to install `typst` to render it — nothing
+silently fails.
 
 ### My research has multiple papers / projects sharing data. Tips?
 

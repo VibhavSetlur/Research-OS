@@ -24,6 +24,17 @@ prerequisites:
   - literature/systematic_review or literature/evidence_synthesis has been run
   - data_extraction.csv exists with effect sizes + SEs (or sufficient stats to compute them)
 
+# Machine-checkable subset (precondition gate): the extraction table must
+# exist. The systematic-review-OR-evidence-synthesis prereq stays prose
+# (the verifier's checks are AND-only; an OR would false-block when only
+# one ran). "sufficient stats" judgement also stays prose.
+requires:
+  checks:
+    - kind: glob_min
+      pattern: "**/data_extraction.csv"
+      min: 1
+      because: a meta-analysis pools effect sizes from the extraction table
+
 editorial_voice:
   mode: guidance
   rules:
