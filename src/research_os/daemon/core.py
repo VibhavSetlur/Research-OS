@@ -346,7 +346,7 @@ class Daemon:
                 self.runstore.mark_interrupted(rid)
                 interrupted_ids.append(rid)
         except Exception:  # noqa: BLE001 - rehydration must not block startup
-            logger.debug("run journal rehydration failed", exc_info=True)
+            logger.warning("run journal rehydration failed", exc_info=True)
         if interrupted_ids and self.root is not None:
             try:
                 from . import notifications as _ntfy

@@ -149,3 +149,12 @@ def test_judge_loop_signal_ship_vs_iterate(tmp_path):
         improvements=["fix it"], verdict="iterate",
     )
     assert "keep iterating" in it["loop_signal"]
+
+
+def test_continuation_max_hops_zero_disables(tmp_path):
+    """F3: continue_max_hops=0 must DISABLE the loop, not fall back to 25."""
+    cfg = DaemonConfig(continue_command="true", continue_max_hops=0)
+    continuation.start_goal_loop(tmp_path, "g")
+    res = continuation.maybe_continue(tmp_path, config=cfg, finished_run={"id": "x"})
+    assert res["ran"] is False
+    assert res["reason"] == "autonomy_disabled"

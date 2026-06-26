@@ -85,6 +85,10 @@ class DaemonConfig:
     # Max autonomous continuation hops for ONE goal before the daemon stops
     # and waits for a human — a hard ceiling so a goal-loop can't run forever.
     continue_max_hops: int = 25
+    # Seconds to wait for the continue_command (the researcher's agent) per hop.
+    # A real continuing agent needs longer than the old hardcoded 30s; the hop
+    # is fire-and-forget past this (the agent keeps running detached).
+    continue_timeout: float = 900.0
 
     _VALID_SANDBOX_MODES = ("auto", "native", "off")
 
@@ -171,6 +175,7 @@ def _from_env() -> dict:
         "notify_command": os.environ.get("RESEARCH_OS_DAEMON_NOTIFY_COMMAND"),
         "continue_command": os.environ.get("RESEARCH_OS_DAEMON_CONTINUE_COMMAND"),
         "continue_max_hops": os.environ.get("RESEARCH_OS_DAEMON_CONTINUE_MAX_HOPS"),
+        "continue_timeout": os.environ.get("RESEARCH_OS_DAEMON_CONTINUE_TIMEOUT"),
     }
     return _coerce({k: v for k, v in env.items() if v is not None})
 
@@ -218,6 +223,11 @@ def _coerce(block: dict) -> dict:
     if "continue_max_hops" in block and block["continue_max_hops"] is not None:
         try:
             out["continue_max_hops"] = int(block["continue_max_hops"])
+        except (TypeError, ValueError):
+            pass
+    if "continue_timeout" in block and block["continue_timeout"] is not None:
+        try:
+            out["continue_timeout"] = float(block["continue_timeout"])
         except (TypeError, ValueError):
             pass
     if "gateway_timeout" in block and block["gateway_timeout"] is not None:

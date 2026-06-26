@@ -148,7 +148,16 @@ def maybe_continue(
     if not state.get("active"):
         return {"ran": False, "reason": "no_active_goal"}
 
-    max_hops = int(getattr(config, "continue_max_hops", 25) or 25)
+    # F3 fix: distinguish "unset" (use default 25) from an explicit 0/negative
+    # (the researcher disabled autonomous hops — honour it, do NOT fall back to
+    # 25). Only None/missing falls back to the default.
+    raw_hops = getattr(config, "continue_max_hops", None)
+    try:
+        max_hops = int(raw_hops) if raw_hops is not None else 25
+    except (TypeError, ValueError):
+        max_hops = 25
+    if max_hops <= 0:
+        return {"ran": False, "reason": "autonomy_disabled", "max_hops": max_hops}
     hops = int(state.get("hops", 0))
     if hops >= max_hops:
         stop_goal_loop(root, reason="max_hops_reached")
@@ -189,13 +198,14 @@ def maybe_continue(
 
     # Run the researcher's continuation command with the payload on stdin.
     # Best-effort + bounded: a hung agent command must not wedge the daemon.
+    timeout_s = float(getattr(config, "continue_timeout", 900.0) or 900.0)
     try:
         subprocess.run(
             cmd,
             shell=True,
             input=json.dumps(payload),
             text=True,
-            timeout=30,
+            timeout=timeout_s,
             capture_output=True,
             check=False,
         )

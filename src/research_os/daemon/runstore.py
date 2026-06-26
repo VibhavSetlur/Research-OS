@@ -115,22 +115,35 @@ class RunStore:
         for child in self.runs_dir.iterdir():
             if not child.is_dir():
                 continue
-            manifest = self.read_manifest(child.name)
-            if manifest is None:
+            # Per-record fault isolation: a single malformed manifest must NOT
+            # sink the whole list (which would silently abandon every orphan in
+            # detect_orphans). Skip the bad one, keep the rest.
+            try:
+                manifest = self.read_manifest(child.name)
+                if manifest is None:
+                    continue
+                sort_key = manifest.get("submitted_at")
+                if not isinstance(sort_key, (int, float)):
+                    try:
+                        sort_key = child.stat().st_mtime
+                    except OSError:
+                        sort_key = 0.0
+                entries.append((float(sort_key), self._summarize(manifest)))
+            except Exception:  # noqa: BLE001 - one bad record can't break recovery
+                logger.warning("skipping unreadable run manifest %s", child.name, exc_info=True)
                 continue
-            sort_key = manifest.get("submitted_at")
-            if not isinstance(sort_key, (int, float)):
-                try:
-                    sort_key = child.stat().st_mtime
-                except OSError:
-                    sort_key = 0.0
-            entries.append((float(sort_key), self._summarize(manifest)))
         entries.sort(key=lambda e: e[0], reverse=True)
         return [summary for _key, summary in entries[:limit]]
 
     @staticmethod
     def _summarize(manifest: dict) -> dict:
-        """Lightweight view for list endpoints."""
+        """Lightweight view for list endpoints. Type-defensive: a manifest whose
+        `result` isn't a dict or `artifacts` isn't a list must not raise (a bad
+        record would otherwise sink list_runs → detect_orphans → all recovery)."""
+        result = manifest.get("result")
+        result = result if isinstance(result, dict) else {}
+        artifacts = manifest.get("artifacts")
+        artifacts = artifacts if isinstance(artifacts, list) else []
         return {
             "id": manifest.get("id"),
             "name": manifest.get("name"),
@@ -141,8 +154,8 @@ class RunStore:
             "finished_at": manifest.get("finished_at"),
             "duration_s": manifest.get("duration_s"),
             "root": manifest.get("root"),
-            "returncode": (manifest.get("result") or {}).get("returncode"),
-            "artifact_count": len(manifest.get("artifacts") or []),
+            "returncode": result.get("returncode"),
+            "artifact_count": len(artifacts),
         }
 
     # ── rehydration ────────────────────────────────────────────────────

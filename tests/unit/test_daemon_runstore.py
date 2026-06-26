@@ -202,3 +202,29 @@ def test_terminal_run_auto_writes_staleness_verdict(tmp_path):
     verdict = tmp_path / ".os_state" / "staleness" / "verdict.json"
     assert verdict.exists(), "terminal run did not persist a staleness verdict"
 
+
+
+def test_list_runs_survives_a_malformed_manifest(tmp_path):
+    """BLOCK-1: one bad manifest (non-dict result) must not sink list_runs /
+    detect_orphans — recovery for good orphans alongside it must still work."""
+    import json
+    store = RunStore(tmp_path)
+    runs = tmp_path / ".os_state" / "runs"
+    runs.mkdir(parents=True, exist_ok=True)
+    # a GOOD orphan (non-terminal status)
+    good = runs / "good1"
+    good.mkdir()
+    (good / "run.json").write_text(json.dumps(
+        {"id": "good1", "status": "running", "submitted_at": 1.0}))
+    # a MALFORMED manifest: result is a string, artifacts is an int
+    bad = runs / "bad1"
+    bad.mkdir()
+    (bad / "run.json").write_text(json.dumps(
+        {"id": "bad1", "status": "running", "result": "oops", "artifacts": 5}))
+    # list_runs must not raise, and must include the good one
+    listed = store.list_runs(limit=50)
+    ids = {r.get("id") for r in listed}
+    assert "good1" in ids
+    # detect_orphans must still find the good orphan
+    orphans = store.detect_orphans()
+    assert "good1" in orphans
