@@ -35,7 +35,9 @@ class DaemonConfig:
 
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
-    # Enable the OpenAI-compatible gateway (Phase 2). Off until built.
+    # Enable the OpenAI-compatible gateway. Off by default (opt-in security
+    # surface); when enabled + a bearer token is set, serves POST
+    # /v1/chat/completions.
     enable_gateway: bool = False
     # Gateway upstream LLM (OpenAI-compatible). The daemon forwards
     # chat completions here after injecting Research-OS context. base_url

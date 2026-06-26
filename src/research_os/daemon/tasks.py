@@ -1,25 +1,25 @@
 """Background task queue — the daemon's "master loop owns execution" primitive.
 
-The v4 thesis is that Research OS should be able to own long-running work
-(batch-fetching papers, multi-hour simulations, pipeline DAGs) independently
-of whichever chat client happens to be connected. This module is the
-foundation of that: an in-process queue that runs submitted jobs on a pool
-of worker threads, off the request thread, and exposes their status as a
-read-only snapshot.
+Research OS owns long-running work (batch-fetching papers, multi-hour
+simulations, pipeline DAGs) independently of whichever chat client happens to be
+connected. This module is the foundation of that: an in-process queue that runs
+submitted jobs on a pool of worker threads, off the request thread, and exposes
+their status as a read-only snapshot.
 
-Phase 1 scope (deliberately small + correct):
+The queue contract:
   - submit(fn, *args, name=, root=, **kwargs) -> job_id
   - jobs run on a bounded worker pool, FIFO
   - each job carries status (queued -> running -> succeeded/failed/cancelled),
     timing, result/error, and the resolving project root
   - snapshot() returns a JSON-serializable view for /v1/jobs and the CLI
-  - graceful shutdown drains/stops workers
+  - graceful drain/stop of workers on shutdown
 
-Design decisions (see docs/ROADMAP.md §6):
-  - In-memory for Phase 1. Persistence across daemon restarts is an OPEN
-    decision flagged for a judge phase — the JobStore boundary here is
-    deliberately narrow so a persistent backend can slot in later without
-    touching callers.
+Design decisions (see docs/ARCHITECTURE.md):
+  - The queue itself is in-memory (it's the live scheduler); DURABILITY and
+    cross-restart recovery are the run journal's job (runstore.py) — every run
+    is journaled, and rehydration marks non-terminal runs interrupted so they
+    can be resumed. The JobStore boundary here stays narrow so a persistent
+    queue backend could slot in later without touching callers.
   - stdlib only (threading, queue, uuid, dataclasses). No new deps; this
     must import in core installs without the [daemon] extra.
   - Jobs call EXISTING engine functions (strangler-fig). The queue knows
