@@ -277,7 +277,7 @@ def test_check_gitignore_covers_state_warn_when_missing(tmp_path):
 def test_check_gitignore_covers_state_pass_when_complete(tmp_path):
     ws = _make_workspace(tmp_path)
     (ws / ".gitignore").write_text(
-        ".os_state/\nworkspace/cache/\n", encoding="utf-8")
+        ".os_state/\nworkspace/cache/\nworkspace/logs/\n", encoding="utf-8")
     status, _, _ = cli_doctor.check_gitignore_covers_state(workspace=ws)
     assert status == "pass"
 
