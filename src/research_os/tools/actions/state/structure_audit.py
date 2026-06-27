@@ -244,6 +244,25 @@ def audit_structure(root: str | Path) -> dict[str, Any]:
     except Exception:
         pass  # provenance check is best-effort; never break the structure audit
 
+    # 8. Mode-aware project health: the daemon stays involved in EVERY workspace
+    #    mode, not just analysis. tool_build needs its eval/spec/decisions,
+    #    notebook outputs shouldn't be stale vs data, multi_study needs its
+    #    shared commons, exploration shouldn't strand promote-worthy probes,
+    #    hybrid's tool half needs tests. Same engine feeds the daemon self-check,
+    #    sys_boot, and tool_structure_audit, so all three agree.
+    try:
+        from research_os.tools.actions.state.mode_health import mode_health_findings
+
+        for f in mode_health_findings(root):
+            sev = f.get("severity", "info")
+            findings.append(_finding(
+                sev if sev in ("block", "warn", "info") else "info",
+                f.get("code", "mode_health"),
+                f.get("message", "mode-specific health issue"),
+            ))
+    except Exception:
+        pass  # mode-health check is best-effort; never break the structure audit
+
     counts: dict[str, int] = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1

@@ -67,6 +67,45 @@ the things the AI must not be able to forge.
 
 ---
 
+## One daemon per project
+
+The daemon is **per-project**, not a global service. Each
+`research-os daemon start` runs a separate process bound to one project root,
+advertises itself in that project's `.os_state/daemon.json` (host, port, pid),
+and writes that project's notes/journal/runs under its own `.os_state/`. Two
+projects run two independent daemons — start and stop each without touching the
+other (`research-os daemon stop` reads the per-project descriptor). On a shared
+node the default port may be taken; the daemon auto-selects a free one and
+records it, so per-project daemons coexist. Nothing leaks between projects.
+
+---
+
+## What the daemon watches — in every workspace mode
+
+The daemon's self-check (at startup and on a periodic tick) and the shared
+structure audit don't just check generic structure — they're **mode-aware**, so
+the daemon stays involved whatever kind of project this is:
+
+- **all modes:** structure integrity, interrupted runs, unframed intake,
+  agent-compliance (repeated protocol failures / abandoned protocols),
+  provenance integrity (stale results whose inputs changed), script naming.
+- **analysis / hybrid:** the above, plus (hybrid) the `tool/` half needs its
+  own tests before the analysis relies on it.
+- **tool_build:** `eval/` must define "done", `spec/` must say what's being
+  built, decisions/ should record ADRs, and the inner `project/` repo needs
+  tests once it has code.
+- **notebook:** flags notebooks that are stale versus the data they read, or a
+  project with no notebooks yet.
+- **multi_study:** flags an empty `studies/` or a missing `shared/` commons
+  (codebook / preregistration / governing protocol).
+- **exploration:** flags promote-worthy scratch probes that were never promoted
+  to a numbered, provenanced step.
+
+These surface as `daemon_notes` (read at `sys_boot`) and in the per-turn audit
+findings, so the AI course-corrects early instead of a reviewer finding the gap.
+
+---
+
 ## The approval loop (hard gates)
 
 With a daemon running, a floor gate doesn't accept the AI's own
