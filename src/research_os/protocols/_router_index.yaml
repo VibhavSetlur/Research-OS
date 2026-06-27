@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 50
+version: 51
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -750,6 +750,27 @@ protocols:
         purpose: "Write spec/requirements.md, spec/design.md, decisions/NNNN-*.md."
       - tool: mem_log
         purpose: "Log each load-bearing design decision with its rationale + grounding."
+
+  build/pipeline_construction:
+    intent_class: execute
+    sub_intent: build_pipeline
+    summary: "Design + organize a multi-stage PIPELINE tool (a DAG of stages with I/O contracts) — the unit is the stage, not a numbered step; running it is a tracked/containerised run."
+    triggers:
+      - "build a pipeline"
+      - "build the pipeline"
+      - "snakemake workflow"
+      - "nextflow workflow"
+      - "etl pipeline"
+      - "data pipeline"
+      - "processing pipeline"
+      - "multi-stage pipeline"
+      - "train then evaluate then export"
+      - "the output of one stage feeds the next"
+      - "chain of stages"
+    token_estimate: 1800
+    decomposition:
+      - protocol: build/pipeline_construction
+        purpose: "Name the stages + DAG, define stage I/O contracts, build+prove each stage, run the pipeline as a tracked run, diagram it, record the shaping decisions."
 
   build/implement_iteration:
     intent_class: execute
