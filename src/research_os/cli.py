@@ -700,6 +700,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  research-os daemon start    run the daemon (localhost, read-only API)")
         print("  research-os daemon stop     stop this project's daemon (per-project)")
         print("  research-os daemon run      run a command as a tracked job")
+        print("  research-os daemon docker   run a command in a container image (tracked, reproducible)")
         print("  research-os daemon runs     list recorded runs (durable history)")
         print("  research-os daemon logs ID  show a run's details + output")
         print("  research-os daemon reproduce ID  re-run + verify outputs match")
@@ -814,6 +815,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "run":
         return _daemon_run(daemon, args)
+
+    if sub == "docker":
+        return _daemon_docker(daemon, args)
 
     if sub == "runs":
         return _daemon_runs(daemon, args)
@@ -937,6 +941,70 @@ def _daemon_run(daemon, args) -> int:
             print(f"    {a.get('change','?'):8} {a.get('path')}  {a.get('size')}b  {h}")
         if len(arts) > 20:
             print(f"    … and {len(arts) - 20} more")
+    print(f"  record: {daemon.runstore._run_dir(jid)}")
+    return 0 if status == "succeeded" else 1
+
+
+def _daemon_docker(daemon, args) -> int:
+    """Run a command inside a container image as a tracked job, streaming output."""
+    import time as _time
+
+    from research_os.daemon.runners import docker_available
+
+    cmd = list(getattr(args, "cmd", []) or [])
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+    if not cmd:
+        print(f"  {_warn_glyph()}  no command given. "
+              "Usage: research-os daemon docker IMAGE -- <command>")
+        return 2
+    if not docker_available():
+        print(f"  {_warn_glyph()}  no container CLI (docker/podman) found on PATH. "
+              "Run natively with `research-os daemon run` instead.")
+        return 1
+    try:
+        jid = daemon.run_container(
+            args.image,
+            cmd,
+            name=getattr(args, "name", None),
+            cwd=getattr(args, "cwd", None),
+            gpus=getattr(args, "gpus", None),
+            network=getattr(args, "network", False),
+            inputs=getattr(args, "inputs", None) or None,
+        )
+    except RuntimeError as exc:
+        print(f"  {_warn_glyph()}  {exc}")
+        return 1
+
+    if not getattr(args, "as_json", False):
+        print(f"  container run {jid} started: {args.image}  {' '.join(cmd)}")
+    last = 0
+    while True:
+        job = daemon.tasks.get(jid)
+        if not getattr(args, "as_json", False):
+            lines = daemon.runstore.read_log(jid)
+            for ln in lines[last:]:
+                print(f"    {ln}")
+            last = len(lines)
+        if job and job.status.value in ("succeeded", "failed", "cancelled"):
+            break
+        _time.sleep(0.15)
+
+    _time.sleep(0.3)
+    manifest = daemon.runstore.read_manifest(jid) or {}
+    daemon.tasks.shutdown(wait=False)
+    if getattr(args, "as_json", False):
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0 if manifest.get("status") == "succeeded" else 1
+    status = manifest.get("status", "?")
+    result = manifest.get("result") or {}
+    rc = result.get("returncode")
+    container = result.get("container") or {}
+    glyph = "✓" if status == "succeeded" else "✗"
+    print(f"  {glyph} container run {jid}: {status}"
+          + (f" (exit {rc})" if rc is not None else ""))
+    if container.get("image_digest"):
+        print(f"  image: {container.get('image')} @ {container['image_digest']}")
     print(f"  record: {daemon.runstore._run_dir(jid)}")
     return 0 if status == "succeeded" else 1
 
@@ -3052,6 +3120,42 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Emit the run manifest as JSON on completion.")
     pd_run.add_argument("cmd", nargs=argparse.REMAINDER,
                         help="The command to run (use -- to separate it from flags).")
+
+    # docker: run a command inside a container image as a tracked job.
+    pd_docker = daemon_sub.add_parser(
+        "docker",
+        help="Run a command inside a container image as a tracked, "
+             "reproducible job (records the image digest in provenance).",
+        description=(
+            "Run a long, reproducible job inside a Docker/Podman image through\n"
+            "the daemon. Same durable-run machinery as `daemon run` (provenance,\n"
+            "artifacts, journal, stall watch) plus the exact image + digest are\n"
+            "recorded so the run is recreatable bit-for-bit. The project root is\n"
+            "mounted into the container so outputs land back in the workspace.\n\n"
+            "Examples:\n"
+            "  research-os daemon docker myimg:1.0 -- python run.py --in data.csv\n"
+            "  research-os daemon docker --gpus all torch:2 -- python train.py\n"
+            "  research-os daemon docker --network biotools:latest -- nextflow run ."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_docker.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_docker.add_argument("--name", default=None, help="Human label for the run.")
+    pd_docker.add_argument("--cwd", default=None,
+                           help="Working dir inside the container (default: workspace root).")
+    pd_docker.add_argument("--gpus", default=None,
+                           help="GPUs to expose (e.g. 'all', '0,1') — passed to --gpus.")
+    pd_docker.add_argument("--network", action="store_true",
+                           help="Allow host networking (default: isolated, no network).")
+    pd_docker.add_argument("--input", dest="inputs", action="append", default=[],
+                           metavar="PATH",
+                           help="Declare an input file (hashed for provenance). Repeatable.")
+    pd_docker.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit the run manifest as JSON on completion.")
+    pd_docker.add_argument("image", help="Container image (tag or digest).")
+    pd_docker.add_argument("cmd", nargs=argparse.REMAINDER,
+                           help="The command to run in the container (use -- to separate).")
 
     # runs: list the durable run history.
     pd_runs = daemon_sub.add_parser(

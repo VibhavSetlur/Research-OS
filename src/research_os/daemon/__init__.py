@@ -43,7 +43,7 @@ from .events import Event, EventBus
 from .lineage import ancestors, build_lineage, descendants, topo_order
 from .registry import Workspace, WorkspaceRegistry
 from .reproduce import compare_artifacts
-from .runners import RunResult, SubprocessRunner
+from .runners import DockerRunner, RunResult, SubprocessRunner, docker_available
 from .runstore import RunJournal, RunStore, build_manifest
 from .schedulers import SchedulerResult, SchedulerRunner, SlurmAdapter, get_adapter
 from .staleness import assess as assess_staleness
@@ -62,6 +62,8 @@ __all__ = [
     "EventBus",
     "Event",
     "SubprocessRunner",
+    "DockerRunner",
+    "docker_available",
     "RunResult",
     "RunStore",
     "RunJournal",

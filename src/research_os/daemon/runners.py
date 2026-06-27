@@ -367,3 +367,119 @@ class SubprocessRunner:
                 proc.kill()
         except (ProcessLookupError, PermissionError):
             pass
+
+
+def docker_available() -> bool:
+    """True if a usable container CLI (docker or podman) is on PATH."""
+    import shutil
+    return bool(shutil.which("docker") or shutil.which("podman"))
+
+
+def _container_cli() -> str | None:
+    import shutil
+    return shutil.which("docker") or shutil.which("podman")
+
+
+class DockerRunner:
+    """Run a command INSIDE a container image, as a tracked daemon job.
+
+    Many labs ship reproducible work as a Docker/Podman image (or run on
+    Kubernetes). This runner lets the AI send a long, reproducible job through
+    the daemon pinned to an exact image — the image digest becomes part of the
+    run's provenance, so the run is recreatable bit-for-bit, not just
+    "ran in conda env X".
+
+    It composes a ``docker run`` (or ``podman run``) invocation:
+      - mounts the project root read-write at the same path inside the container
+        so outputs land back in the workspace (auto-provenanced like any run);
+      - sets the working directory to ``cwd`` (defaults to the project root);
+      - passes through declared env vars;
+      - is removed on exit (``--rm``) so it leaves no container cruft on a
+        shared node.
+    Execution + cancellation + output capture are delegated to SubprocessRunner,
+    so a containerised job behaves exactly like any other tracked run (same
+    lifecycle, same bounded log tail, same cancel semantics). On Kubernetes,
+    point ``binary`` at a thin ``kubectl run``-style wrapper, or submit via the
+    scheduler runner — the daemon contract is identical.
+    """
+
+    def __init__(
+        self,
+        image: str,
+        command: str | Sequence[str],
+        *,
+        cwd: str | None = None,
+        mount_root: str | None = None,
+        env: dict | None = None,
+        gpus: str | None = None,
+        network: bool = False,
+        extra_args: Sequence[str] | None = None,
+        tail_lines: int = 200,
+        track_artifacts: bool = True,
+        binary: str | None = None,
+    ) -> None:
+        cli = binary or _container_cli()
+        if not cli:
+            raise RuntimeError(
+                "no container CLI found (docker/podman). Install one, or run the "
+                "job natively via run_command."
+            )
+        self.image = image
+        self.cli = cli
+        if isinstance(command, str):
+            inner = shlex.split(command)
+        else:
+            inner = list(command)
+        mount = mount_root or cwd or os.getcwd()
+        workdir = cwd or mount
+        argv: list[str] = [cli, "run", "--rm"]
+        # Reproducible + isolated by default: no host network unless asked.
+        if not network:
+            argv += ["--network", "none"]
+        argv += ["-v", f"{mount}:{mount}", "-w", workdir]
+        for k in sorted((env or {}).keys()):
+            argv += ["-e", k]
+        if gpus:
+            argv += ["--gpus", gpus]
+        if extra_args:
+            argv += list(extra_args)
+        argv += [image, *inner]
+        # Delegate the actual run to SubprocessRunner — same lifecycle as any
+        # tracked job. Pass env through so -e names resolve in the child shell.
+        self._inner = SubprocessRunner(
+            argv, cwd=mount, env=env, tail_lines=tail_lines,
+            track_artifacts=track_artifacts,
+        )
+        self.image_digest: str | None = None
+
+    def __call__(
+        self,
+        *,
+        cancel_event: "threading.Event | None" = None,
+        emit: "EmitFn | None" = None,
+    ) -> dict:
+        result = self._inner(cancel_event=cancel_event, emit=emit)
+        # Stamp the resolved image reference onto the result so the run journal
+        # records WHAT image produced the outputs (provenance).
+        result["container"] = {
+            "cli": os.path.basename(self.cli),
+            "image": self.image,
+            "image_digest": self._resolve_digest(),
+        }
+        return result
+
+    def _resolve_digest(self) -> str | None:
+        """Best-effort: the image's content digest, so the run pins the exact
+        image, not just a mutable tag. Never raises."""
+        if self.image_digest is not None:
+            return self.image_digest
+        try:
+            out = subprocess.run(
+                [self.cli, "inspect", "--format", "{{index .RepoDigests 0}}", self.image],
+                capture_output=True, text=True, timeout=10,
+            )
+            digest = (out.stdout or "").strip()
+            self.image_digest = digest or None
+        except Exception:  # noqa: BLE001 - digest is best-effort provenance
+            self.image_digest = None
+        return self.image_digest
