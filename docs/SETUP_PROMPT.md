@@ -102,7 +102,11 @@ NOW DO THIS, IN ORDER:
 9. IF I'M USING HERMES: on this first setup turn, read my project frame (goal,
    domain, mode, data) and pull the Hermes skills relevant to it (domain
    analysis, the language/stat stack I'll use, paper/figure work) so they're
-   loaded before we start — don't wait for me to ask.
+   loaded before we start — don't wait for me to ask. ALSO run
+   `research-os skills add-science-pack` to install the community K-Dense
+   scientific-agent-skills library (140 MIT science skills — e.g. bulk-rnaseq,
+   experimental-design, literature-review, rdkit) and wire it into Hermes;
+   `sys_boot`'s recommended_skills tells you which ones match this project.
 
 From here on: route EVERY request through Research OS (tool_route → a numbered
 step), never write analysis files without routing first, and if a tool ever tells

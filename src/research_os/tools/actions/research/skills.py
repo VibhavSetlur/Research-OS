@@ -411,11 +411,23 @@ def recommend_skills(
     for tag in _MODE_SKILL_TAGS.get(mode, []):
         _add(tag, f"useful in {mode} mode", "mode_map")
 
+    # 4. Concrete K-Dense science skills for this domain/mode (the capability
+    # layer that pairs with RO's guidance). These are real installable skills
+    # in the open Agent-Skills standard; the generic tags above are advisory.
+    try:
+        from research_os.tools.actions.research.science_pack import (
+            science_skills_for,
+        )
+        for s in science_skills_for(dom, mode):
+            _add(s["name"], s["reason"], s["source"])
+    except Exception:
+        pass
+
     return {
         "status": "success",
         "domain": dom or None,
         "workspace_mode": mode,
-        "recommended_skills": recs[:8],
+        "recommended_skills": recs[:12],
         "note": (
             "Load these capabilities (Hermes skills or your own) before starting "
             "— they match this project's domain + mode. Not prescriptive."

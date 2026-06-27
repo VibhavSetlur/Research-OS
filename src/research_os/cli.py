@@ -1886,6 +1886,52 @@ def cmd_hermes(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 
+def cmd_skills(args: argparse.Namespace) -> int:
+    """Manage science-skill libraries (the K-Dense scientific-agent-skills pack)."""
+    from research_os import wizard  # local import to avoid cycle
+    from research_os.tools.actions.research import science_pack
+
+    action = getattr(args, "action", None)
+    if action == "list-science":
+        print(f"  Science pack: {science_pack.SCIENCE_PACK_REPO}")
+        print(f"  License: {science_pack.SCIENCE_PACK_LICENSE} · "
+              "140 skills in the open Agent-Skills standard.")
+        print("  Domains mapped to skills:")
+        for dom, names in sorted(science_pack.SCIENCE_PACK_BY_DOMAIN.items()):
+            print(f"    {dom:16s} {', '.join(names)}")
+        print("\n  Install with: research-os skills add-science-pack")
+        return 0
+
+    if action == "add-science-pack":
+        ref = getattr(args, "skills_ref", None) or science_pack.SCIENCE_PACK_DEFAULT_REF
+        dest = getattr(args, "skills_dest", None)
+        wire = not getattr(args, "skills_no_hermes", False)
+        print(f"  Fetching {science_pack.SCIENCE_PACK_NAME} ({ref}) — this may take a moment...")
+        res = science_pack.install_science_pack(dest=dest, ref=ref, wire_hermes=wire)
+        if res.get("status") != "success":
+            wizard.warn("Science pack not installed", res.get("message", "unknown error"))
+            return 1
+        wizard.ok(
+            f"Science pack {res['action']}",
+            f"{res['n_skills']} skills at {res['skills_dir']} (commit {res['commit'][:8]})",
+        )
+        herm = res.get("hermes") or {}
+        if herm.get("added"):
+            print(f"  Wired into Hermes: {herm['external_dir']}")
+            print("  Restart Hermes so it loads the new skills.")
+        elif herm.get("status") == "skipped":
+            print(f"  Hermes wiring skipped: {herm.get('reason')}")
+        else:
+            print("  (Already registered in Hermes.)")
+        print("  IDEs on the Agent-Skills standard: point them at "
+              f"{res['skills_dir']}")
+        print(f"  License: {res['license']} · source: {res['repo']}")
+        return 0
+
+    wizard.warn("Unknown skills action", str(action))
+    return 1
+
+
 def cmd_route(args: argparse.Namespace) -> int:
     """Run the runtime protocol router on a prompt and print the decision.
 
@@ -2333,8 +2379,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 # the fish completion script and the argparse subparser registry stay in
 # sync (the test suite cross-checks these).
 SUBCOMMANDS_FOR_COMPLETION = (
-    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "daemon",
-    "doctor", "refresh", "completion",
+    "init", "ide", "mcp", "hermes", "skills", "route", "api-key", "start",
+    "daemon", "doctor", "refresh", "completion",
 )
 
 
@@ -2729,6 +2775,36 @@ def build_parser() -> argparse.ArgumentParser:
                                "$HERMES_CONFIG or ~/.hermes/config.yaml).")
     p_hermes.add_argument("--no-color", action="store_true",
                           help="Disable ANSI styling.")
+
+    # ── skills ──────────────────────────────────────────────────────────
+    p_skills = sub.add_parser(
+        "skills",
+        help="Manage science-skill libraries (K-Dense scientific-agent-skills).",
+        description=(
+            "Bring case-specific scientific capability into Research-OS.\n"
+            "`add-science-pack` clones the community K-Dense scientific-agent-\n"
+            "skills library (140 MIT skills in the open Agent-Skills standard)\n"
+            "and wires it into Hermes so the AI loads the right domain skill\n"
+            "(bulk-rnaseq, experimental-design, literature-review, rdkit, ...)\n"
+            "alongside RO's guidance. IDEs on the Agent-Skills standard can\n"
+            "point at the same skills/ dir.\n\n"
+            "Examples:\n"
+            "  research-os skills add-science-pack\n"
+            "  research-os skills add-science-pack --ref v1.2.3 --dest ~/sci-skills\n"
+            "  research-os skills list-science"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_skills.add_argument("action",
+                          choices=["add-science-pack", "list-science"],
+                          help="What to do.")
+    p_skills.add_argument("--ref", dest="skills_ref", default=None,
+                          help="Git ref (tag/branch/commit) to pin. Default: main.")
+    p_skills.add_argument("--dest", dest="skills_dest", default=None,
+                          help="Where to clone (default: a shared data dir).")
+    p_skills.add_argument("--no-hermes", dest="skills_no_hermes",
+                          action="store_true",
+                          help="Clone only; don't wire into Hermes.")
 
     # ── route ───────────────────────────────────────────────────────────
     p_route = sub.add_parser(
@@ -3253,6 +3329,8 @@ def main() -> None:
         sys.exit(cmd_mcp(args))
     elif args.command == "hermes":
         sys.exit(cmd_hermes(args))
+    elif args.command == "skills":
+        sys.exit(cmd_skills(args))
     elif args.command == "route":
         sys.exit(cmd_route(args))
     elif args.command == "api-key":

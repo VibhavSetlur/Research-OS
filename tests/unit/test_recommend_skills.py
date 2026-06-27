@@ -32,10 +32,10 @@ def test_recommend_unknown_domain_still_gives_mode_skills():
     assert "software-testing" in names  # mode map still applies
 
 
-def test_recommend_capped_at_eight():
+def test_recommend_capped():
     root = _proj()
     r = recommend_skills(root, domain="clinical", workspace_mode="analysis")
-    assert len(r["recommended_skills"]) <= 8
+    assert len(r["recommended_skills"]) <= 12
 
 
 def test_sys_boot_surfaces_recommended_skills_on_fresh_project():
