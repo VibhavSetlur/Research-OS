@@ -26,10 +26,15 @@ def root(tmp_path):
 
 @pytest.fixture
 def profile_home(tmp_path, monkeypatch):
-    """Isolate the cross-project profile under a temp XDG dir."""
+    """Isolate the cross-project profile + Hermes home under temp dirs."""
     cfg = tmp_path / "xdg"
     cfg.mkdir()
     monkeypatch.setenv("XDG_CONFIG_HOME", str(cfg))
+    # Isolate the Hermes home so promote's loadable-card write never touches
+    # the real ~/.hermes/skills during tests.
+    hh = tmp_path / "hermes_home"
+    (hh / "skills").mkdir(parents=True)
+    monkeypatch.setenv("HERMES_HOME", str(hh))
     return cfg
 
 
@@ -147,3 +152,33 @@ class TestList:
         assert res["n_project"] >= 1
         assert res["n_cross_project"] >= 1
         assert any(s["tag"] == "alpha" for s in res["cross_project_skills"])
+
+
+def test_promote_writes_loadable_hermes_card(root, profile_home, monkeypatch):
+    """Promoted lessons become real SKILL.md cards in the (isolated) Hermes home."""
+    import os
+    from pathlib import Path
+    # enough project-scoped lessons on one tag to clear the threshold
+    for _ in range(3):
+        _record(root, "rnaseq", outcome="failure", scope="project",
+                rec="always check library size normalization")
+    res = promote_skills(root)
+    assert res["promoted"] >= 1
+    hh = Path(os.environ["HERMES_HOME"])
+    cards = list((hh / "skills" / "research-os-learned").glob("*/SKILL.md"))
+    assert cards, "no loadable Hermes card written"
+    text = cards[0].read_text()
+    assert text.startswith("---")
+    assert "ro-learned-" in text
+    assert res["hermes_cards_written"]
+
+
+def test_promote_no_cards_when_disabled(root, profile_home):
+    import os
+    from pathlib import Path
+    for _ in range(3):
+        _record(root, "viz", outcome="failure", scope="project", rec="use okabe-ito")
+    res = promote_skills(root, write_hermes_cards=False)
+    hh = Path(os.environ["HERMES_HOME"])
+    assert not list((hh / "skills" / "research-os-learned").glob("*/SKILL.md"))
+    assert res["hermes_cards_written"] == []
