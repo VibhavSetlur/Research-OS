@@ -1,7 +1,7 @@
 id: agent_setup
 tier: 'intake'
 name: Agent Setup (architect the AI layer above Research-OS for THIS project)
-version: '4.0.0'
+version: '4.1.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -115,6 +115,14 @@ steps:
           `research-os init` (default `--ide auto`) detect the single IDE. Then
           set up the daemon only if they want durable long runs
           (`research-os daemon start`).
+        - SCIENCE SKILLS (recommended): run `research-os skills add-science-pack`
+          to bring in the community K-Dense scientific-agent-skills library
+          (140 MIT skills in the open Agent-Skills standard — bulk-rnaseq,
+          experimental-design, literature-review, rdkit, ...). It wires the
+          library into Hermes so the AI loads the right DOMAIN capability
+          alongside RO's guidance; sys_boot's recommended_skills names the ones
+          that match this project. RO provides the rigorous workflow; these
+          provide the field-specific how-to. Suggest it once the domain is known.
         - A NON-MCP / chat-only setup: the researcher drives RO via the
           `research-os` CLI; RO's guidance still applies, the agent just can't
           call RO tools directly. Recommend moving to an MCP-capable layer

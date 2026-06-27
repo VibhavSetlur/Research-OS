@@ -296,6 +296,18 @@ def cmd_init(args: argparse.Namespace) -> None:
         slug = slugify(args.name)
         target_dir = (Path.cwd() / slug).resolve()
         created_new_folder = not target_dir.exists()
+        # `--name X` with no directory creates a NESTED slugified subdir, which
+        # surprises users who already `mkdir`'d + `cd`'d into their project
+        # folder (the docs' own pattern). Say so loudly so the AI/user doesn't
+        # `cd` to the wrong place. To scaffold the CURRENT folder instead, pass
+        # an explicit `.` (e.g. `research-os init . --name "X"`).
+        print(
+            f"  {_warn_glyph()} Creating the project in a new subfolder: "
+            f"{target_dir}\n"
+            f"    (--name without a directory nests under the current folder.) "
+            f"To scaffold THIS folder instead, re-run as "
+            f"`research-os init . --name \"{args.name}\"`."
+        )
     elif args.directory:
         target_dir = Path(os.path.expanduser(args.directory)).resolve()
         created_new_folder = not target_dir.exists()
@@ -618,6 +630,57 @@ def cmd_start(args: argparse.Namespace) -> None:
     server_main()
 
 
+def _daemon_setup(daemon, args: argparse.Namespace) -> int:
+    """Shared-server-friendly daemon setup: free port + conda/PATH check +
+    background-launch command (optionally start it). For no-Docker conda HPC
+    nodes where two users/projects must coexist and there's no systemd."""
+    from research_os.daemon.shared_setup import (
+        background_launch_command,
+        conda_env_name,
+        find_free_port,
+        launch_background,
+        research_os_executable,
+    )
+
+    root = daemon.root
+    if root is None:
+        print(f"  {_warn_glyph()}  no workspace resolved — run from a project "
+              "dir or pass --workspace.")
+        return 1
+    host = daemon.config.host or "127.0.0.1"
+    preferred = getattr(args, "port", None) or daemon.config.port
+    port = find_free_port(host, preferred)
+
+    print("  Research OS daemon — shared-server setup")
+    print(f"  root:      {root}")
+    print(f"  conda env: {conda_env_name() or '(none active — activate one first)'}")
+    print(f"  executable:{research_os_executable()}")
+    if port != preferred:
+        print(f"  port:      {port}  (port {preferred} was busy — picked a free one)")
+    else:
+        print(f"  port:      {port}")
+    print()
+
+    if getattr(args, "start", False):
+        try:
+            info = launch_background(root, port, host)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {_warn_glyph()}  background launch failed: {exc}")
+            return 1
+        print(f"  Started in background (pid {info['pid']}).")
+        print(f"  url: http://{host}:{port}   log: {info['log']}")
+        print("  stop: research-os daemon stop")
+        return 0
+
+    print("  To run it detached (no systemd needed), copy-paste:")
+    print()
+    print(f"    {background_launch_command(root, port, host)}")
+    print()
+    print("  Or let RO do it:  research-os daemon setup --start")
+    print("  Stop anytime:     research-os daemon stop")
+    return 0
+
+
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Run / inspect the v4 multi-protocol gateway daemon.
 
@@ -633,9 +696,11 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  Research OS daemon (v4 multi-protocol gateway)")
         print()
         print("  research-os daemon status   show daemon + project state")
+        print("  research-os daemon setup    free port + conda check + bg launch (HPC-friendly)")
         print("  research-os daemon start    run the daemon (localhost, read-only API)")
         print("  research-os daemon stop     stop this project's daemon (per-project)")
         print("  research-os daemon run      run a command as a tracked job")
+        print("  research-os daemon docker   run a command in a container image (tracked, reproducible)")
         print("  research-os daemon runs     list recorded runs (durable history)")
         print("  research-os daemon logs ID  show a run's details + output")
         print("  research-os daemon reproduce ID  re-run + verify outputs match")
@@ -672,6 +737,25 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     if sub == "start":
+        # Shared/HPC convenience: detached launch with no systemd/Docker.
+        if getattr(args, "background", False):
+            from research_os.daemon.shared_setup import launch_background
+            if daemon.root is None:
+                print(f"  {_warn_glyph()}  no workspace resolved — run from a "
+                      "project dir or pass --workspace.")
+                return 1
+            host = daemon.config.host
+            port = daemon.config.port
+            try:
+                info = launch_background(daemon.root, port, host)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  {_warn_glyph()}  background launch failed: {exc}")
+                return 1
+            print(f"  Research OS daemon launched in background (pid {info['pid']})")
+            print(f"  root: {daemon.root}")
+            print(f"  url:  http://{host}:{port}   log: {info['log']}")
+            print("  stop: research-os daemon stop")
+            return 0
         print(f"  Research OS daemon starting on {daemon.config.base_url}")
         print(f"  root: {daemon.root or '(none resolved)'}")
         print("  endpoints: GET /healthz  /v1/state  /v1/jobs   (read-only)")
@@ -686,6 +770,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             print("\n  daemon stopped.")
             return 0
         return 0
+
+    if sub == "setup":
+        return _daemon_setup(daemon, args)
 
     if sub == "stop":
         # Per-project graceful stop: read THIS project's descriptor
@@ -728,6 +815,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
 
     if sub == "run":
         return _daemon_run(daemon, args)
+
+    if sub == "docker":
+        return _daemon_docker(daemon, args)
 
     if sub == "runs":
         return _daemon_runs(daemon, args)
@@ -851,6 +941,70 @@ def _daemon_run(daemon, args) -> int:
             print(f"    {a.get('change','?'):8} {a.get('path')}  {a.get('size')}b  {h}")
         if len(arts) > 20:
             print(f"    … and {len(arts) - 20} more")
+    print(f"  record: {daemon.runstore._run_dir(jid)}")
+    return 0 if status == "succeeded" else 1
+
+
+def _daemon_docker(daemon, args) -> int:
+    """Run a command inside a container image as a tracked job, streaming output."""
+    import time as _time
+
+    from research_os.daemon.runners import docker_available
+
+    cmd = list(getattr(args, "cmd", []) or [])
+    if cmd and cmd[0] == "--":
+        cmd = cmd[1:]
+    if not cmd:
+        print(f"  {_warn_glyph()}  no command given. "
+              "Usage: research-os daemon docker IMAGE -- <command>")
+        return 2
+    if not docker_available():
+        print(f"  {_warn_glyph()}  no container CLI (docker/podman) found on PATH. "
+              "Run natively with `research-os daemon run` instead.")
+        return 1
+    try:
+        jid = daemon.run_container(
+            args.image,
+            cmd,
+            name=getattr(args, "name", None),
+            cwd=getattr(args, "cwd", None),
+            gpus=getattr(args, "gpus", None),
+            network=getattr(args, "network", False),
+            inputs=getattr(args, "inputs", None) or None,
+        )
+    except RuntimeError as exc:
+        print(f"  {_warn_glyph()}  {exc}")
+        return 1
+
+    if not getattr(args, "as_json", False):
+        print(f"  container run {jid} started: {args.image}  {' '.join(cmd)}")
+    last = 0
+    while True:
+        job = daemon.tasks.get(jid)
+        if not getattr(args, "as_json", False):
+            lines = daemon.runstore.read_log(jid)
+            for ln in lines[last:]:
+                print(f"    {ln}")
+            last = len(lines)
+        if job and job.status.value in ("succeeded", "failed", "cancelled"):
+            break
+        _time.sleep(0.15)
+
+    _time.sleep(0.3)
+    manifest = daemon.runstore.read_manifest(jid) or {}
+    daemon.tasks.shutdown(wait=False)
+    if getattr(args, "as_json", False):
+        print(json.dumps(manifest, indent=2, default=str))
+        return 0 if manifest.get("status") == "succeeded" else 1
+    status = manifest.get("status", "?")
+    result = manifest.get("result") or {}
+    rc = result.get("returncode")
+    container = result.get("container") or {}
+    glyph = "✓" if status == "succeeded" else "✗"
+    print(f"  {glyph} container run {jid}: {status}"
+          + (f" (exit {rc})" if rc is not None else ""))
+    if container.get("image_digest"):
+        print(f"  image: {container.get('image')} @ {container['image_digest']}")
     print(f"  record: {daemon.runstore._run_dir(jid)}")
     return 0 if status == "succeeded" else 1
 
@@ -1637,12 +1791,14 @@ def cmd_ide(args: argparse.Namespace) -> None:
             sys.exit(1)
 
         author = collab.whoami(root)
+        added_any = False
         for ide in names:
             if action == "add":
                 created = collab.add_ide(root, ide)
                 if created:
                     wizard.ok(f"Wired {ide}", f"{', '.join(created)}")
                     collab.log_action(root, author, f"Added IDE config: {ide}")
+                    added_any = True
                 else:
                     wizard.warn(f"{ide} already wired", "no changes made")
             else:  # remove
@@ -1652,6 +1808,14 @@ def cmd_ide(args: argparse.Namespace) -> None:
                     collab.log_action(root, author, f"Removed IDE config: {ide}")
                 else:
                     wizard.warn(f"{ide} was not wired", "no changes made")
+        # Wiring an MCP server only takes effect on a FRESH session — the #1
+        # naive miss is to wire and report success while the already-open IDE
+        # never reloads. Surface the same restart notice init prints.
+        if added_any:
+            from research_os.project_ops import mcp_restart_notice
+            print()
+            for line in mcp_restart_notice().splitlines():
+                print(f"  {line}")
 
 
 # ---------------------------------------------------------------------------
@@ -1862,6 +2026,52 @@ def cmd_hermes(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 # route subcommand — preview the protocol router from the terminal
 # ---------------------------------------------------------------------------
+
+
+def cmd_skills(args: argparse.Namespace) -> int:
+    """Manage science-skill libraries (the K-Dense scientific-agent-skills pack)."""
+    from research_os import wizard  # local import to avoid cycle
+    from research_os.tools.actions.research import science_pack
+
+    action = getattr(args, "action", None)
+    if action == "list-science":
+        print(f"  Science pack: {science_pack.SCIENCE_PACK_REPO}")
+        print(f"  License: {science_pack.SCIENCE_PACK_LICENSE} · "
+              "140 skills in the open Agent-Skills standard.")
+        print("  Domains mapped to skills:")
+        for dom, names in sorted(science_pack.SCIENCE_PACK_BY_DOMAIN.items()):
+            print(f"    {dom:16s} {', '.join(names)}")
+        print("\n  Install with: research-os skills add-science-pack")
+        return 0
+
+    if action == "add-science-pack":
+        ref = getattr(args, "skills_ref", None) or science_pack.SCIENCE_PACK_DEFAULT_REF
+        dest = getattr(args, "skills_dest", None)
+        wire = not getattr(args, "skills_no_hermes", False)
+        print(f"  Fetching {science_pack.SCIENCE_PACK_NAME} ({ref}) — this may take a moment...")
+        res = science_pack.install_science_pack(dest=dest, ref=ref, wire_hermes=wire)
+        if res.get("status") != "success":
+            wizard.warn("Science pack not installed", res.get("message", "unknown error"))
+            return 1
+        wizard.ok(
+            f"Science pack {res['action']}",
+            f"{res['n_skills']} skills at {res['skills_dir']} (commit {res['commit'][:8]})",
+        )
+        herm = res.get("hermes") or {}
+        if herm.get("added"):
+            print(f"  Wired into Hermes: {herm['external_dir']}")
+            print("  Restart Hermes so it loads the new skills.")
+        elif herm.get("status") == "skipped":
+            print(f"  Hermes wiring skipped: {herm.get('reason')}")
+        else:
+            print("  (Already registered in Hermes.)")
+        print("  IDEs on the Agent-Skills standard: point them at "
+              f"{res['skills_dir']}")
+        print(f"  License: {res['license']} · source: {res['repo']}")
+        return 0
+
+    wizard.warn("Unknown skills action", str(action))
+    return 1
 
 
 def cmd_route(args: argparse.Namespace) -> int:
@@ -2311,8 +2521,8 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 # the fish completion script and the argparse subparser registry stay in
 # sync (the test suite cross-checks these).
 SUBCOMMANDS_FOR_COMPLETION = (
-    "init", "ide", "mcp", "hermes", "route", "api-key", "start", "daemon",
-    "doctor", "refresh", "completion",
+    "init", "ide", "mcp", "hermes", "skills", "route", "api-key", "start",
+    "daemon", "doctor", "refresh", "completion",
 )
 
 
@@ -2708,6 +2918,36 @@ def build_parser() -> argparse.ArgumentParser:
     p_hermes.add_argument("--no-color", action="store_true",
                           help="Disable ANSI styling.")
 
+    # ── skills ──────────────────────────────────────────────────────────
+    p_skills = sub.add_parser(
+        "skills",
+        help="Manage science-skill libraries (K-Dense scientific-agent-skills).",
+        description=(
+            "Bring case-specific scientific capability into Research-OS.\n"
+            "`add-science-pack` clones the community K-Dense scientific-agent-\n"
+            "skills library (140 MIT skills in the open Agent-Skills standard)\n"
+            "and wires it into Hermes so the AI loads the right domain skill\n"
+            "(bulk-rnaseq, experimental-design, literature-review, rdkit, ...)\n"
+            "alongside RO's guidance. IDEs on the Agent-Skills standard can\n"
+            "point at the same skills/ dir.\n\n"
+            "Examples:\n"
+            "  research-os skills add-science-pack\n"
+            "  research-os skills add-science-pack --ref v1.2.3 --dest ~/sci-skills\n"
+            "  research-os skills list-science"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p_skills.add_argument("action",
+                          choices=["add-science-pack", "list-science"],
+                          help="What to do.")
+    p_skills.add_argument("--ref", dest="skills_ref", default=None,
+                          help="Git ref (tag/branch/commit) to pin. Default: main.")
+    p_skills.add_argument("--dest", dest="skills_dest", default=None,
+                          help="Where to clone (default: a shared data dir).")
+    p_skills.add_argument("--no-hermes", dest="skills_no_hermes",
+                          action="store_true",
+                          help="Clone only; don't wire into Hermes.")
+
     # ── route ───────────────────────────────────────────────────────────
     p_route = sub.add_parser(
         "route",
@@ -2816,6 +3056,25 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Explicit workspace path (else auto-resolved).")
     pd_start.add_argument("--host", default=None, help="Bind host (default 127.0.0.1).")
     pd_start.add_argument("--port", default=None, type=int, help="Bind port (default 8787).")
+    pd_start.add_argument(
+        "--background", action="store_true",
+        help="Launch detached (nohup) and return — for shared/HPC nodes with no "
+             "systemd/Docker. Logs to .os_state/daemon.log; stop with "
+             "`research-os daemon stop`.")
+
+    # setup: one-shot shared-server-friendly setup — pick a free port, check the
+    # conda/PATH wiring, and print the exact background-launch command.
+    pd_setup = daemon_sub.add_parser(
+        "setup",
+        help="Prepare the daemon for THIS machine (free port, conda/PATH check, "
+             "background-launch command). Ideal for no-Docker conda HPC nodes.",
+    )
+    pd_setup.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_setup.add_argument("--port", default=None, type=int,
+                          help="Preferred port (else auto-pick a free one).")
+    pd_setup.add_argument("--start", action="store_true",
+                          help="Also start the daemon in the background now.")
 
     # stop: gracefully terminate THIS project's running daemon (per-project).
     pd_stop = daemon_sub.add_parser(
@@ -2861,6 +3120,42 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Emit the run manifest as JSON on completion.")
     pd_run.add_argument("cmd", nargs=argparse.REMAINDER,
                         help="The command to run (use -- to separate it from flags).")
+
+    # docker: run a command inside a container image as a tracked job.
+    pd_docker = daemon_sub.add_parser(
+        "docker",
+        help="Run a command inside a container image as a tracked, "
+             "reproducible job (records the image digest in provenance).",
+        description=(
+            "Run a long, reproducible job inside a Docker/Podman image through\n"
+            "the daemon. Same durable-run machinery as `daemon run` (provenance,\n"
+            "artifacts, journal, stall watch) plus the exact image + digest are\n"
+            "recorded so the run is recreatable bit-for-bit. The project root is\n"
+            "mounted into the container so outputs land back in the workspace.\n\n"
+            "Examples:\n"
+            "  research-os daemon docker myimg:1.0 -- python run.py --in data.csv\n"
+            "  research-os daemon docker --gpus all torch:2 -- python train.py\n"
+            "  research-os daemon docker --network biotools:latest -- nextflow run ."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pd_docker.add_argument("--workspace", default=None,
+                           help="Explicit workspace path (else auto-resolved).")
+    pd_docker.add_argument("--name", default=None, help="Human label for the run.")
+    pd_docker.add_argument("--cwd", default=None,
+                           help="Working dir inside the container (default: workspace root).")
+    pd_docker.add_argument("--gpus", default=None,
+                           help="GPUs to expose (e.g. 'all', '0,1') — passed to --gpus.")
+    pd_docker.add_argument("--network", action="store_true",
+                           help="Allow host networking (default: isolated, no network).")
+    pd_docker.add_argument("--input", dest="inputs", action="append", default=[],
+                           metavar="PATH",
+                           help="Declare an input file (hashed for provenance). Repeatable.")
+    pd_docker.add_argument("--json", dest="as_json", action="store_true",
+                           help="Emit the run manifest as JSON on completion.")
+    pd_docker.add_argument("image", help="Container image (tag or digest).")
+    pd_docker.add_argument("cmd", nargs=argparse.REMAINDER,
+                           help="The command to run in the container (use -- to separate).")
 
     # runs: list the durable run history.
     pd_runs = daemon_sub.add_parser(
@@ -3231,6 +3526,8 @@ def main() -> None:
         sys.exit(cmd_mcp(args))
     elif args.command == "hermes":
         sys.exit(cmd_hermes(args))
+    elif args.command == "skills":
+        sys.exit(cmd_skills(args))
     elif args.command == "route":
         sys.exit(cmd_route(args))
     elif args.command == "api-key":

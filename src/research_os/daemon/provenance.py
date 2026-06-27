@@ -62,8 +62,16 @@ def git_provenance(root: str | Path) -> dict:
     return prov
 
 
-def env_provenance(packages: list[str] | None = None) -> dict:
-    """Capture the runtime environment: python, platform, conda env, pkgs."""
+def env_provenance(packages: list[str] | None = None,
+                   snapshot_env: bool = False) -> dict:
+    """Capture the runtime environment: python, platform, conda env, pkgs.
+
+    When ``snapshot_env`` is True, also records the COMPLETE installed-package
+    set (name→version, via importlib.metadata — no network, no pip subprocess)
+    so a reviewer can recreate the exact environment, not just read its name.
+    This is the difference between "ran in conda env 'research-os'" and a
+    reproducible manifest.
+    """
     prov: dict = {
         "python_version": platform.python_version(),
         "python_executable": sys.executable,
@@ -91,6 +99,25 @@ def env_provenance(packages: list[str] | None = None) -> dict:
             pass
         if versions:
             prov["packages"] = versions
+    # Full environment snapshot for reproducibility (opt-in; the complete
+    # installed set, not just tracked packages).
+    if snapshot_env:
+        try:
+            from importlib.metadata import distributions
+
+            full: dict = {}
+            for dist in distributions():
+                try:
+                    nm = dist.metadata["Name"]
+                    if nm:
+                        full[nm] = dist.version
+                except Exception:  # noqa: BLE001
+                    continue
+            if full:
+                prov["env_snapshot"] = dict(sorted(full.items()))
+                prov["env_snapshot_count"] = len(full)
+        except Exception:  # noqa: BLE001 - snapshot must never break capture
+            pass
     return prov
 
 
@@ -152,6 +179,7 @@ def capture(
     *,
     inputs: Sequence[str | Path] | None = None,
     packages: list[str] | None = None,
+    snapshot_env: bool = False,
 ) -> dict:
     """Capture a full provenance record for a run. Never raises.
 
@@ -159,6 +187,8 @@ def capture(
         root: project root (for git state).
         inputs: input files whose content hashes pin the run's inputs.
         packages: package names whose versions matter for reproducibility.
+        snapshot_env: also record the complete installed-package set so the
+            exact environment is reproducible (recommended for long/HPC runs).
     """
     prov: dict = {}
     try:
@@ -168,7 +198,7 @@ def capture(
     except Exception:  # noqa: BLE001 - best effort
         pass
     try:
-        prov["env"] = env_provenance(packages)
+        prov["env"] = env_provenance(packages, snapshot_env=snapshot_env)
     except Exception:  # noqa: BLE001
         pass
     try:

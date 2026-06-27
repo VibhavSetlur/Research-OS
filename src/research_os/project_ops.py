@@ -1719,7 +1719,12 @@ def scaffold_minimal_workspace(
     every prior release.
     """
     config_overrides = config_overrides or {}
-    ide_flags = ide_flags or list(("cursor", "claude", "antigravity", "opencode", "vscode"))
+    # Distinguish "caller didn't specify" (None → sensible default set) from
+    # "caller explicitly asked for no IDE wiring" ([] from --ide none). Using
+    # `or` here treated the empty list as falsy and wired 5 IDEs anyway — the
+    # --ide none footgun. An empty list now correctly wires nothing.
+    if ide_flags is None:
+        ide_flags = ["cursor", "claude", "antigravity", "opencode", "vscode"]
 
     # Resolve the workspace mode + its scaffold profile. The wizard threads
     # the chosen mode through config_overrides['workspace']['mode']; an

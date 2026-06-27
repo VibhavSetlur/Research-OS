@@ -157,6 +157,15 @@ back-to-back before doing anything else:
      **before** building on the project — this is how nothing gets lost
      across sessions. Also act on `sys_boot.freshness` (stale inputs) and
      any `resume_interrupted` recommendation.
+   - **Act on `sys_boot.recommended_skills` on a fresh project.** It names
+     the domain/mode skills worth loading up front (e.g. genomics →
+     biopython, gget, bulk-rnaseq). PULL them via `skills_list()` +
+     `skill_view(name)` rather than re-deriving the method from memory.
+     They come from three agentskills.io sources sharing one index — your
+     own Nous skills, the K-Dense science pack (install with
+     `research-os skills add-science-pack` if `skills_list()` doesn't show
+     them), and any external Agent Skills. RO says WHICH + WHAT-to-ground;
+     the skill says HOW. If no skill fits, do the work then `distill` it.
 2. **`tool_route(prompt=<their verbatim message>)`** — your SECOND
    MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns:
    - `primary_protocol` — name of the best-matching protocol
@@ -492,6 +501,7 @@ before a large copy on a shared disk.
 | Re-route after the researcher already picked one | Use `tool_plan(operation='clear')` if they pivoted |
 | Submit without `audit/pre_submission_checklist` | The pre-submission gate catches what reviewers will catch |
 | Ignore an `off_protocol_freelancing` finding in `audit_findings` | It means you wrote step content WITHOUT routing — stop, run `tool_route` on the current ask, open a numbered step, then redo the work inside it. The write succeeded but it's outside Research-OS; keep going off-protocol and the work won't be governed, logged, or audited |
+| Ignore a `daemon_flagged_issue` finding in `audit_findings` | The daemon's background watch just caught a problem (stale result, abandoned protocol, mode-health gap, structure drift) since your last check. Call `sys_daemon(operation='notes')` for detail and fix BLOCK items before building further — if you keep ignoring it, the daemon escalates to the researcher. This is your constant "did I fail at something?" signal; it rides every tool envelope |
 
 ### Self-correction: when the tools tell you you've drifted
 

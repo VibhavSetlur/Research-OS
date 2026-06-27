@@ -8,6 +8,8 @@ we raise a clear, actionable error telling the user to install it.
 Read-only endpoints (no auth beyond the 127.0.0.1 bind):
   GET  /healthz            liveness + version
   GET  /v1/state           multi-root state snapshot (all registered roots)
+  GET  /v1/supervision     PI roll-up: health across ALL registered projects
+                           (counts + worst findings + needs_attention list)
   GET  /v1/domain          detected research field + field-aware defaults
   GET  /v1/capabilities    agent front door: identity + field + tool/protocol
                            inventory + work-state freshness + gateway readiness
@@ -23,6 +25,7 @@ Read-only endpoints (no auth beyond the 127.0.0.1 bind):
                            so a caller knows the bounding before submitting
                            untrusted work (?refresh=true re-probes)
   GET  /v1/lineage         content-addressed run dependency graph (?run_id=)
+  GET  /v1/lineage.mermaid  the run-lineage DAG as a mermaid provenance diagram
   GET  /v1/staleness       freshness verdict over the lineage DAG
   GET  /v1/rebuild/plan    what a rebuild WOULD re-run, in order (dry-run)
   GET  /v1/jobs            background task queue snapshot
@@ -154,7 +157,7 @@ def build_app(daemon: "Daemon"):
     """
     _require_web_stack()
     from starlette.applications import Starlette
-    from starlette.responses import JSONResponse, StreamingResponse
+    from starlette.responses import JSONResponse, PlainTextResponse, StreamingResponse
     from starlette.routing import Route
 
     from research_os import __version__
@@ -177,6 +180,16 @@ def build_app(daemon: "Daemon"):
             ws = daemon.registry.get(root) or daemon.registry.register(root)
             return JSONResponse({"root": ws.state()})
         return JSONResponse(daemon.registry.snapshot())
+
+    async def get_supervision(request):
+        # Supervisor (PI) roll-up: health across ALL registered projects in one
+        # call — "are all my students' projects healthy / on-protocol / not
+        # stuck?" Read-only.
+        from . import health_notes as _h
+        roots = list(daemon.registry.roots())
+        if daemon.root is not None and str(daemon.root) not in roots:
+            roots.append(str(daemon.root))
+        return JSONResponse(_h.run_self_check_all(roots))
 
     async def get_jobs(request):
         root = request.query_params.get("root")
@@ -625,6 +638,20 @@ def build_app(daemon: "Daemon"):
         graph["available"] = True
         return JSONResponse(graph)
 
+    async def get_lineage_mermaid(request):
+        # The run-lineage DAG rendered as a mermaid flowchart string — a
+        # provenance diagram a README/conclusions/audit can embed.
+        from .lineage import build_lineage, lineage_to_mermaid
+
+        store = _runstore_or_none(request)
+        if store is None:
+            return PlainTextResponse("flowchart LR\n  empty[\"(no run journal)\"]")
+        limit, err = _limit_param(request)
+        if err is not None:
+            return err
+        manifests = store.recent_manifests(limit=limit or 200)
+        return PlainTextResponse(lineage_to_mermaid(build_lineage(manifests)))
+
     async def get_staleness(request):
         # Freshness verdict over the lineage DAG — which results were built
         # from inputs that have since changed on disk.
@@ -980,12 +1007,14 @@ def build_app(daemon: "Daemon"):
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
+        Route("/v1/supervision", get_supervision, methods=["GET"]),
         Route("/v1/domain", get_domain, methods=["GET"]),
         Route("/v1/capabilities", get_capabilities, methods=["GET"]),
         Route("/v1/orient", get_orient, methods=["GET"]),
         Route("/v1/workflows", get_workflows, methods=["GET"]),
         Route("/v1/sandbox", get_sandbox, methods=["GET"]),
         Route("/v1/lineage", get_lineage, methods=["GET"]),
+        Route("/v1/lineage.mermaid", get_lineage_mermaid, methods=["GET"]),
         Route("/v1/staleness", get_staleness, methods=["GET"]),
         Route("/v1/staleness/verdict", post_staleness_verdict, methods=["POST"]),
         Route("/v1/rebuild/plan", get_rebuild_plan, methods=["GET"]),
@@ -1027,9 +1056,47 @@ def serve(daemon: "Daemon") -> None:
     interrupted. Used by `research-os daemon start`.
     """
     _require_web_stack()
+    import socket as _socket
+
     import uvicorn
 
     app = build_app(daemon)
     cfg = daemon.config
+
+    # Per-project on a shared node: the default port (8787) is frequently held
+    # by ANOTHER project's daemon. Rather than fail the bind (and previously
+    # exit 0 as if it had started), probe the configured port and fall forward
+    # to the next free one so each project's daemon actually comes up. The real
+    # bound port is written into the discovery descriptor by the caller, so
+    # `daemon status` / `daemon stop` find it.
+    def _port_free(host: str, port: int) -> bool:
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as s:
+            s.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
+            try:
+                s.bind((host, port))
+                return True
+            except OSError:
+                return False
+
+    if not _port_free(cfg.host, cfg.port):
+        original = cfg.port
+        chosen = None
+        for candidate in range(cfg.port + 1, cfg.port + 50):
+            if _port_free(cfg.host, candidate):
+                chosen = candidate
+                break
+        if chosen is None:
+            raise RuntimeError(
+                f"daemon port {original} is in use and no free port was found in "
+                f"{original + 1}..{original + 49}. Free one or pass --port."
+            )
+        logger.warning(
+            "daemon port %s busy (another project's daemon?) — using %s instead",
+            original, chosen,
+        )
+        # cfg is a frozen dataclass; update in place so the discovery descriptor
+        # (written from daemon.config.port) records the REAL bound port.
+        object.__setattr__(cfg, "port", chosen)
+
     logger.info("Research OS daemon serving on %s", cfg.base_url)
     uvicorn.run(app, host=cfg.host, port=cfg.port, log_level="warning")

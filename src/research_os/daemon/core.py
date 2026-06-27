@@ -13,6 +13,8 @@ protocol logic is re-implemented (strangler-fig; see docs/ARCHITECTURE.md).
 from __future__ import annotations
 
 import logging
+import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -253,6 +255,76 @@ class Daemon:
             provenance=prov,
         )
 
+    def run_container(
+        self,
+        image: str,
+        command: "str | list[str]",
+        *,
+        name: str | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+        root: str | None = None,
+        gpus: str | None = None,
+        network: bool = False,
+        inputs: "list[str] | None" = None,
+        track_packages: "list[str] | None" = None,
+        track_artifacts: bool = True,
+    ) -> str:
+        """Run a command inside a container image as a tracked background job.
+
+        For reproducible long runs shipped as a Docker/Podman image (or a step
+        of a containerised pipeline). Same tracking + provenance contract as
+        run_command — journaled, artifact-captured, cancellable — plus the run
+        records the exact image (and its content digest) so it is recreatable
+        bit-for-bit. The project root is mounted into the container so outputs
+        land back in the workspace and get auto-provenanced.
+
+        Returns the daemon job id immediately. Raises if no container CLI is
+        available (caller can fall back to run_command for a native run).
+        """
+        from . import provenance as _prov
+        from .runners import DockerRunner
+
+        effective_cwd = cwd or (str(self.root) if self.root else None)
+        effective_root = root or (str(self.root) if self.root else None)
+        mount = effective_root or effective_cwd or os.getcwd()
+        runner = DockerRunner(
+            image,
+            command,
+            cwd=effective_cwd,
+            mount_root=mount,
+            env=env,
+            gpus=gpus,
+            network=network,
+            track_artifacts=track_artifacts,
+        )
+        prov = _prov.capture(
+            effective_root or effective_cwd or ".",
+            inputs=inputs,
+            packages=track_packages,
+            snapshot_env=True,  # long/containerised jobs: pin the env for repro
+        )
+        prov["container_image"] = image
+        spec = {
+            "image": image,
+            "command": command,
+            "cwd": effective_cwd,
+            "gpus": gpus,
+            "network": network,
+            "env_overrides": sorted(env.keys()) if env else [],
+        }
+        self._start_journal()
+        self.tasks.start()
+        job_name = name or f"docker:{image}"
+        return self.tasks.submit(
+            runner,
+            name=job_name[:120],
+            root=effective_root,
+            kind="container",
+            spec=spec,
+            provenance=prov,
+        )
+
     def submit_job(
         self,
         script: str,
@@ -299,6 +371,7 @@ class Daemon:
             effective_root or effective_cwd or ".",
             inputs=inputs,
             packages=track_packages,
+            snapshot_env=True,  # HPC jobs: pin the exact env for reproducibility
         )
         spec = {
             "cmd": [script],
@@ -787,10 +860,45 @@ class Daemon:
         # treating the daemon as running, and reports a stale descriptor
         # otherwise. A leftover file is therefore harmless.
         self._write_discovery()
+        # Periodic self-check tick (B1): keep daemon_notes fresh DURING the
+        # session, not just at startup, so a condition the daemon detects an
+        # hour into a long run actually reaches the AI on its next turn (the
+        # reasoning side reads the refreshed sidecar by-shape). Background daemon
+        # thread; stopped in the finally block. interval<=0 disables it.
+        self._stop_self_check = threading.Event()
+        self._self_check_thread: threading.Thread | None = None
+        interval = getattr(self.config, "self_check_interval", 0) or 0
+        if self.root is not None and interval > 0:
+            def _self_check_loop() -> None:
+                from . import health_notes as _h
+                while not self._stop_self_check.wait(interval):
+                    # Iterate EVERY registered project, not just self.root, so a
+                    # daemon fronting several projects (e.g. a PI supervising
+                    # multiple students) refreshes notes + escalation for all of
+                    # them — supervision is multi-root.
+                    roots: list = []
+                    try:
+                        roots = list(self.registry.roots())
+                    except Exception:  # noqa: BLE001
+                        roots = []
+                    if self.root is not None and str(self.root) not in roots:
+                        roots.append(str(self.root))
+                    for r in roots:
+                        try:
+                            _h.write_notes(r)
+                        except Exception:  # noqa: BLE001 - never kill the daemon
+                            logger.debug("periodic self-check failed for %s", r,
+                                         exc_info=True)
+            self._self_check_thread = threading.Thread(
+                target=_self_check_loop, name="ro-self-check", daemon=True,
+            )
+            self._self_check_thread.start()
         try:
             _server.serve(self)
         finally:
             self._serving = False
+            if getattr(self, "_stop_self_check", None) is not None:
+                self._stop_self_check.set()
             self._clear_discovery()
             self.tasks.shutdown(wait=False)
 

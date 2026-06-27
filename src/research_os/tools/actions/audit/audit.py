@@ -2221,6 +2221,24 @@ def _step_completeness(step_dir: Path, root: Path) -> dict[str, Any]:
                 "<NN>[a-z]_<snake_name>_v<k>.<ext>)"
             )
 
+        # Provenance integrity: don't let a step finish with STALE outputs (an
+        # output whose recorded input has since changed). Surface it as a
+        # completeness warning so the AI re-runs before calling the step done.
+        try:
+            from research_os.tools.actions.state.provenance import (
+                verify_provenance_integrity,
+            )
+            prov = verify_provenance_integrity(root, step_id=step_dir.name)
+            info["provenance_integrity"] = {
+                "ok": prov.get("ok"),
+                "stale_outputs": prov.get("stale_outputs", 0),
+            }
+            for f in prov.get("findings", []):
+                if f.get("severity") == "block":
+                    warnings.append(f"Provenance: {f.get('message', 'stale output')}")
+        except Exception:
+            pass
+
     # Missing scratch/stack_plan.md is a BLOCKER.
     # `methodology/pick_tool_stack` asks the AI to persist its
     # language/library choice + the field-practice rationale before

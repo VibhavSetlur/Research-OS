@@ -1,7 +1,7 @@
 id: spec_and_design
 tier: 'plan'
 name: Spec & Design (what the tool must do, and how "done" is judged)
-version: '3.9.0'
+version: '3.10.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -108,6 +108,31 @@ steps:
           internal and free to change. This is what lets the build move
           fast inside without breaking consumers outside.
 
+  - id: architecture_map
+    name: Map the architecture (make the tool's shape legible)
+    description: |
+      A tool nobody can see the shape of is a tool nobody can safely change.
+      Capture an architecture overview in spec/architecture.md that makes the
+      tool understandable at a glance, with a diagram whose JOB is to answer
+      whichever of these are load-bearing for THIS tool:
+        - the control / data FLOW — what comes in, what transforms it, what
+          comes out (the pipeline / request path);
+        - the MODULE decomposition — the components and the single
+          responsibility each one owns;
+        - the DEPENDENCY edges — between modules, and to external libraries.
+      Name the three questions; demand the diagram answer the ones that matter
+      here. This is a SCAFFOLD: do NOT prescribe boxes, colours, or layout.
+
+      Quality bar: it's legible at a glance, every box has a named
+      responsibility (the diagram + its key ARE the module map), every edge is a
+      real dependency, and the whole thing travels as one file with the repo.
+
+      Render tool is your choice — pick whatever travels with the repo and the
+      audience can read. A text-based diagram fenced in markdown is the
+      low-friction default (e.g. mermaid in the README, or graphviz/dot); if you
+      emit mermaid, Research OS already has a mermaid→PNG render path you can
+      reuse rather than inventing one. The point is the picture, not the tool.
+
   - id: design_decisions_adrs
     name: Record the load-bearing design decisions as ADRs
     description: |
@@ -204,6 +229,7 @@ steps:
 expected_outputs:
   - spec/requirements.md
   - spec/design.md
+  - spec/architecture.md (the architecture overview + diagram)
   - decisions/NNNN-*.md
   - milestones.md (first milestone with an acceptance bar)
 

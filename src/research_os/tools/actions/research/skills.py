@@ -224,6 +224,7 @@ def promote_skills(
     root: Path,
     *,
     min_occurrences: int = _DEFAULT_MIN_OCCURRENCES,
+    write_hermes_cards: bool = True,
 ) -> dict[str, Any]:
     """Promote project-wide / methodology skills into the cross-project profile.
 
@@ -232,6 +233,13 @@ def promote_skills(
     local). Their distilled cards are stored under ``learned_skills`` in
     ``~/.config/research-os/profile.yaml`` keyed by slug, so
     ``research-os init`` can surface them in the next project.
+
+    Self-improvement loop: when ``write_hermes_cards`` is true and a Hermes
+    skills dir exists (``~/.hermes/skills/``), each promoted lesson is ALSO
+    written as a real SKILL.md card there (under ``research-os-learned/``) so
+    Hermes can actually LOAD it as a skill on the next project — not just read
+    it from RO's profile. This is how the researcher's accumulated know-how
+    becomes part of the agent's pullable skill set over time.
     """
     from research_os.tools.actions.state.config import (
         load_profile,
@@ -283,14 +291,61 @@ def promote_skills(
         promoted.append({"slug": slug, "tag": tag, "lessons_count": len(cluster)})
     profile["learned_skills"] = learned
     save_res = save_profile(profile)
+
+    # Self-improvement loop: write promoted lessons as loadable Hermes SKILL.md
+    # cards so the agent can actually pull them next project (best-effort).
+    hermes_cards: list[str] = []
+    if write_hermes_cards and promoted:
+        try:
+            import os
+            # Honor an explicit Hermes home override (tests + named profiles)
+            # so we never write into the wrong/real profile unexpectedly.
+            home_override = os.environ.get("HERMES_HOME")
+            hermes_skills = (
+                Path(home_override) / "skills" if home_override
+                else Path.home() / ".hermes" / "skills"
+            )
+            if hermes_skills.is_dir():
+                base = hermes_skills / "research-os-learned"
+                base.mkdir(parents=True, exist_ok=True)
+                for p in promoted:
+                    slug = p["slug"]
+                    entry = learned.get(slug, {})
+                    recs = entry.get("recommendations") or []
+                    card_dir = base / slug
+                    card_dir.mkdir(parents=True, exist_ok=True)
+                    body = (
+                        "---\n"
+                        f"name: ro-learned-{slug}\n"
+                        f"description: Research-OS learned practice for "
+                        f"{p['tag']} (distilled across this user's projects).\n"
+                        "metadata:\n  hermes:\n    tags: [research-os, learned]\n"
+                        f"    category: research\n---\n\n"
+                        f"# Learned: {p['tag']}\n\n"
+                        "## When to use\n"
+                        f"When working on {p['tag']} in a research project.\n\n"
+                        "## Practice (distilled from past projects)\n"
+                        + "\n".join(f"- {r}" for r in recs)
+                        + "\n\n## Source\n"
+                        "Distilled + promoted by Research-OS from "
+                        f"{entry.get('lessons_count', 0)} recurring lesson(s).\n"
+                    )
+                    (card_dir / "SKILL.md").write_text(body, encoding="utf-8")
+                    hermes_cards.append(str(card_dir / "SKILL.md"))
+        except Exception:
+            hermes_cards = []  # best-effort; never fail promotion on card write
+
     return {
         "status": "success",
         "promoted": len(promoted),
         "skills": promoted,
         "profile_path": save_res.get("profile_path"),
+        "hermes_cards_written": hermes_cards,
         "advice": (
-            f"Promoted {len(promoted)} skill(s) to your cross-project profile. "
-            "New projects (research-os init) now inherit them."
+            f"Promoted {len(promoted)} skill(s) to your cross-project profile"
+            + (f" + {len(hermes_cards)} loadable Hermes card(s)" if hermes_cards else "")
+            + ". New projects (research-os init) now inherit them"
+            + ("; Hermes can load them as skills." if hermes_cards else ".")
             if promoted
             else "No project/methodology cluster reached the threshold yet."
         ),
@@ -326,4 +381,113 @@ def list_skills(root: Path) -> dict[str, Any]:
     }
 
 
-__all__ = ["distill_skills", "promote_skills", "list_skills"]
+# Curated domain → skill-tag recommendations so a FRESH project with no history
+# still gets sensible "load these capabilities" suggestions on the first turn.
+# Tags are advisory labels the AI/Hermes can match against available skills.
+_DOMAIN_SKILL_TAGS: dict[str, list[str]] = {
+    "clinical": ["survival-analysis", "rct-design", "regression", "paper-writing"],
+    "genomics": ["bioinformatics", "sequence-analysis", "stats", "viz"],
+    "finance": ["time-series", "econometrics", "risk-modeling", "viz"],
+    "nlp": ["text-processing", "embeddings", "eval-harness", "viz"],
+    "ml": ["model-eval", "experiment-tracking", "reproducibility", "viz"],
+    "psychology": ["experimental-design", "mixed-models", "power-analysis"],
+    "ecology": ["spatial-stats", "mixed-models", "viz"],
+    "physics": ["simulation", "numerical-methods", "viz"],
+    "economics": ["causal-inference", "panel-data", "econometrics"],
+    "social_science": ["survey-analysis", "causal-inference", "mixed-models"],
+}
+# Mode → capability tags every project in that mode benefits from.
+_MODE_SKILL_TAGS: dict[str, list[str]] = {
+    "analysis": ["stats", "viz", "paper-writing"],
+    "tool_build": ["software-testing", "api-design", "benchmarking"],
+    "exploration": ["data-profiling", "rapid-prototyping"],
+    "notebook": ["jupyter", "viz"],
+    "multi_study": ["meta-analysis", "evidence-synthesis"],
+    "hybrid": ["software-testing", "stats", "viz"],
+}
+
+
+def recommend_skills(
+    root: Path, domain: str | None = None, workspace_mode: str | None = None,
+) -> dict[str, Any]:
+    """Forward-looking, intake-driven skill recommendations for THIS project.
+
+    Unlike ``distill_skills`` (backward-looking — crystallizing past lessons),
+    this answers "given what this project IS (domain + mode + question), which
+    capabilities should the AI / Hermes load NOW?" Surfaced on the first setup
+    turn so the agent starts with the right skills instead of discovering them
+    late. Sources, in priority order: the researcher's own cross-project
+    ``learned_skills`` relevant to this domain/tag, project-local distilled
+    skills already present, and a curated domain/mode → tag map for fresh
+    projects with no history. By-shape + fail-open.
+    """
+    from research_os.tools.actions.state.config import load_profile
+
+    recs: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def _add(name: str, reason: str, source: str) -> None:
+        key = name.lower()
+        if key in seen:
+            return
+        seen.add(key)
+        recs.append({"name": name, "reason": reason, "source": source})
+
+    dom = (domain or "").strip().lower()
+    mode = (workspace_mode or "analysis").strip().lower()
+
+    # 1. The researcher's OWN distilled skills whose tag matches this domain/mode.
+    try:
+        learned = load_profile().get("learned_skills")
+        if isinstance(learned, dict):
+            for slug, meta in learned.items():
+                if not isinstance(meta, dict):
+                    continue
+                tag = str(meta.get("tag") or "").lower()
+                if dom and (dom in tag or tag in dom):
+                    _add(slug, f"your distilled skill for {tag or dom}",
+                         "learned_profile")
+    except Exception:
+        pass
+
+    # 2. Project-local distilled skills already present.
+    try:
+        sdir = root / "workspace" / ".skills"
+        if sdir.exists():
+            for f in sorted(sdir.glob("*.SKILL.md")):
+                _add(f.stem.replace(".SKILL", ""),
+                     "already distilled in this project", "project_local")
+    except Exception:
+        pass
+
+    # 3. Curated domain + mode tags (the fresh-project fallback).
+    for tag in _DOMAIN_SKILL_TAGS.get(dom, []):
+        _add(tag, f"common for {dom} research", "domain_map")
+    for tag in _MODE_SKILL_TAGS.get(mode, []):
+        _add(tag, f"useful in {mode} mode", "mode_map")
+
+    # 4. Concrete K-Dense science skills for this domain/mode (the capability
+    # layer that pairs with RO's guidance). These are real installable skills
+    # in the open Agent-Skills standard; the generic tags above are advisory.
+    try:
+        from research_os.tools.actions.research.science_pack import (
+            science_skills_for,
+        )
+        for s in science_skills_for(dom, mode):
+            _add(s["name"], s["reason"], s["source"])
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "domain": dom or None,
+        "workspace_mode": mode,
+        "recommended_skills": recs[:12],
+        "note": (
+            "Load these capabilities (Hermes skills or your own) before starting "
+            "— they match this project's domain + mode. Not prescriptive."
+        ),
+    }
+
+
+__all__ = ["distill_skills", "promote_skills", "list_skills", "recommend_skills"]

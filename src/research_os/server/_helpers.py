@@ -107,6 +107,7 @@ _AUDIT_DISPATCH: dict[tuple[str, str], str] = {
     ("step", "power"):                  "_handle_tool_audit_power",
     ("step", "reproducibility"):        "_handle_tool_audit_reproducibility",
     ("step", "script_naming"):          "_handle_tool_audit_script_naming",
+    ("step", "provenance_integrity"):   "_handle_tool_audit_provenance_integrity",
     # scope=project
     ("project", "citations"):           "_handle_tool_audit_citations",
     ("project", "claims"):              "_handle_tool_audit_claims",

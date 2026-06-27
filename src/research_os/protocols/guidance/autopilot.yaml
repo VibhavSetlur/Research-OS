@@ -1,7 +1,7 @@
 id: autopilot
 tier: 'plan'
 name: Autopilot Mode
-version: '3.0.0'
+version: '3.1.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -165,6 +165,28 @@ steps:
       If the autopilot run will exceed 30 minutes wall-clock, sys_notify
       level="info" every ~60 min with: completed steps, open tasks, any
       hypothesis status changes. Researcher can quietly observe or jump in.
+
+  - id: lean_on_the_daemon_watch
+    name: Let the Daemon Watch You (unattended supervision)
+    description: |
+      When a daemon is running, you are not unsupervised — it re-checks the
+      project in the background and the things you most need to not lose are
+      surfaced back to you. Treat its findings as a standing question every turn:
+        - A `daemon_flagged_issue` finding on a tool envelope means the daemon
+          caught something since your last turn (a stale result, an abandoned
+          protocol, a stalled background job, a mode-health gap). Address the
+          BLOCK items before continuing — do not build on top of a flagged
+          problem during an unattended run.
+        - The daemon escalates to the researcher when the SAME problem persists
+          across its checks. That is the safety net, not a reason to ignore the
+          finding — fix it so it never escalates.
+        - For long background/compute, prefer the daemon's tracked runs: they
+          are journaled, the environment is snapshotted for reproducibility, and
+          a stalled job is detected for you. A run you launch outside that has
+          none of those protections.
+      The point of the scaffold here is not a command sequence; it is the habit:
+      during unattended work, the daemon is your second pair of eyes — keep
+      checking whether it flagged you, and resolve what it found.
 
   - id: failure_handling
     name: Failure Handling Without a Human in the Loop

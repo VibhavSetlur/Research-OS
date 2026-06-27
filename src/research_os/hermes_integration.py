@@ -208,6 +208,35 @@ def add(
     }
 
 
+def register_external_skill_dir(
+    skill_dir: Path | str, config_path: Path | None = None
+) -> dict:
+    """Register an arbitrary external skills directory in the Hermes config.
+
+    Used to wire third-party Agent-Skills libraries (e.g. the K-Dense science
+    pack) into Hermes so it loads them alongside its own + RO's skill. The dir
+    should contain ``*/SKILL.md`` subfolders (the Agent-Skills layout). Hermes
+    scans each external_dir for ``*/SKILL.md``. Idempotent.
+    """
+    path = config_path or hermes_config_path()
+    data = _load(path)
+    skills_block = data.setdefault("skills", {})
+    if not hasattr(skills_block, "setdefault"):
+        skills_block = {}
+        data["skills"] = skills_block
+    ext = skills_block.get("external_dirs")
+    if not isinstance(ext, list):
+        ext = []
+        skills_block["external_dirs"] = ext
+    target = str(Path(skill_dir).expanduser().resolve())
+    added = False
+    if target not in ext:
+        ext.append(target)
+        added = True
+    _dump(path, data)
+    return {"config_path": str(path), "external_dir": target, "added": added}
+
+
 def remove(config_path: Path | None = None) -> dict:
     """Unregister the RO server + external_dir from the Hermes config.
 

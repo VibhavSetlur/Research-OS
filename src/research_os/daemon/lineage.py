@@ -209,3 +209,57 @@ def topo_order(lineage: dict, subset: "set[str] | None" = None) -> list[str]:
     if len(out) < len(ids):  # cycle fallback — never expected
         out.extend(sorted(ids - set(out)))
     return out
+
+
+def lineage_to_mermaid(graph: dict) -> str:
+    """Render a computed run-lineage DAG as a mermaid flowchart string.
+
+    Pure/stdlib (no render dependency). Surfaces the content-addressed run
+    provenance — "how was this output produced, from what, through which runs?"
+    — as a diagram a README/conclusions/audit can embed. Nodes are runs (id +
+    name + status); edges carry the matched output→input hash as a short label.
+    Roots (sources) and leaves (terminal results) get distinct classes so the
+    flow reads at a glance. ``graph`` is the dict from :func:`build_lineage`.
+    """
+    nodes = graph.get("nodes", []) or []
+    edges = graph.get("edges", []) or []
+    roots = set(graph.get("roots", []) or [])
+    leaves = set(graph.get("leaves", []) or [])
+
+    def _nid(rid: str) -> str:
+        # mermaid-safe node id
+        return "n_" + "".join(c if c.isalnum() else "_" for c in str(rid))
+
+    def _label(text: str, limit: int = 40) -> str:
+        t = str(text).replace('"', "'").replace("\n", " ").strip()
+        return (t[: limit - 1] + "…") if len(t) > limit else t
+
+    lines: list[str] = ["flowchart LR"]
+    if not nodes:
+        lines.append('  empty["(no tracked runs yet)"]')
+        return "\n".join(lines)
+
+    for n in nodes:
+        rid = n.get("id", "?")
+        name = _label(n.get("name") or rid)
+        status = n.get("status", "?")
+        lines.append(f'  {_nid(rid)}["{name}<br/>({status})"]')
+    for e in edges:
+        frm, to = e.get("from"), e.get("to")
+        if not frm or not to:
+            continue
+        via = e.get("via") or []
+        sha = (via[0].get("sha256") if via else "") or ""
+        lbl = _label(sha[:12], 14)
+        if lbl:
+            lines.append(f"  {_nid(frm)} -- {lbl} --> {_nid(to)}")
+        else:
+            lines.append(f"  {_nid(frm)} --> {_nid(to)}")
+    # Distinct classes for sources + terminal results.
+    lines.append("  classDef root fill:#1b4332,stroke:#2d6a4f,color:#fff;")
+    lines.append("  classDef leaf fill:#3a0ca3,stroke:#7209b7,color:#fff;")
+    for rid in roots:
+        lines.append(f"  class {_nid(rid)} root;")
+    for rid in leaves:
+        lines.append(f"  class {_nid(rid)} leaf;")
+    return "\n".join(lines)

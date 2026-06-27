@@ -1,7 +1,7 @@
 id: release_and_changelog
 tier: 'finalize'
 name: Release & Changelog (cut a versioned, reproducible release)
-version: '3.9.0'
+version: '3.10.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -116,9 +116,20 @@ steps:
         - the breaking-change migration notes, in the docs as well as the
           changelog.
 
-      The bar: a new consumer can install and use the tool from the docs
-      alone, and an existing consumer can upgrade from the migration notes
-      alone.
+      The README is the deliverable a consumer reads first — make it carry the
+      tool's SHAPE, not just its commands. The load-bearing sections for a tool
+      (adapt to what THIS tool needs): what it does · install · usage (the
+      interface contract) · architecture (embed the diagram from
+      spec/architecture.md so the reader sees the modules + data flow at a
+      glance) · how "done" is defined (link eval/) · key decisions (link
+      decisions/) · how to reproduce. A diagram that describes an OLDER
+      architecture is a bug the same way stale API docs are — reconcile it with
+      the shipped surface here. (tool_build has no conclusions.md, so derive the
+      README from spec/ + decisions/ + CHANGELOG, not from tool_path_finalize.)
+
+      The bar: a new consumer can install, use, AND understand the shape of the
+      tool from the README + its architecture diagram alone, and an existing
+      consumer can upgrade from the migration notes alone.
 
   - id: reproducibility
     name: Pin dependencies + record the build environment
