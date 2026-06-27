@@ -90,6 +90,7 @@ def _maybe_attach_drift_hint(tool, arguments, root, result):
     touches status, so a successful write stays successful.
     """
     try:
+        from research_os.server.daemon_alert import daemon_alert
         from research_os.server.drift_detect import drift_hint
         from research_os.server.quality_watch import next_action_hint, quality_hints
 
@@ -100,6 +101,13 @@ def _maybe_attach_drift_hint(tool, arguments, root, result):
         # Quality watchers (incomplete/unverified work INSIDE Research OS) —
         # conclusions-without-audit, ungrounded synthesis, stuck loop.
         hints.extend(quality_hints(tool, arguments, Path(root)))
+        # The daemon's WATCH backstop: surface NEW daemon findings the AI hasn't
+        # seen since the last self-check tick, on EVERY tool call. This is the
+        # AI's constant "did the daemon catch me failing at something?" check —
+        # it no longer has to wait for the next sys_boot to learn.
+        da = daemon_alert(Path(root))
+        if da:
+            hints.append(da)
         # Proactive next action for high-traffic tools (better user↔AI flow).
         derived_next = next_action_hint(tool, Path(root))
         if not hints and not derived_next:

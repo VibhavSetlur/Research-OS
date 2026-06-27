@@ -121,13 +121,13 @@ degrades to the stdio behaviour and you act exactly as today.
   own `confirmed=true` is NOT enough for a floor gate — only a human-authorised,
   one-shot token clears it (error carries `gate_key` + `arg_fingerprint`). Tell
   the researcher what needs approval → `sys_consent(action='request', …)` → they
-  approve (`research-os daemon consent approve <id>`) →
-  `sys_consent(action='token', …)` → retry with `consent_token=…`. NEVER request
-  consent they didn't authorise.
-* **Read `sys_boot.daemon_notes` (watchdog).** A running daemon watches the
-  project and surfaces findings at boot: interrupted runs to resume, unframed
-  intake, mode drift, and repeated protocol failure/abandonment. Address them
-  before building further.
+  approve (`research-os daemon consent approve <id>`) → `sys_consent(action='token',
+  …)` → retry with `consent_token=…`. NEVER request consent they didn't authorise.
+* **Read `sys_boot.daemon_notes` AND act on `daemon_flagged_issue`
+  (watchdog).** A running daemon re-checks the project in the background. Read
+  `daemon_notes` at boot; every turn, a `daemon_flagged_issue` in an envelope's
+  `audit_findings` means it just caught a problem — fix BLOCK items before
+  building further (persistent ones get escalated to the researcher).
 
 ## Hard rules (NEVER violate)
 

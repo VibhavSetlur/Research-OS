@@ -231,7 +231,71 @@ def write_notes(root: str | Path, payload: dict[str, Any] | None = None) -> dict
         )
     except OSError:
         pass
+    # Escalation: if a BLOCK-level finding persists across consecutive
+    # self-checks (the AI keeps not addressing it), page the researcher once —
+    # RO's promise is "nothing is lost". Best-effort, never raises.
+    try:
+        _escalate_persistent_blocks(root, payload)
+    except Exception:  # noqa: BLE001
+        pass
     return payload
+
+
+_STREAK_FILE = ".daemon_finding_streak.json"
+_ESCALATE_AFTER = 3  # consecutive self-checks a block must persist before paging
+
+
+def _escalate_persistent_blocks(root: Path, payload: dict[str, Any]) -> None:
+    """Track per-code block streaks; page the researcher when one sticks.
+
+    A block finding the AI fixes disappears next check (streak resets). One that
+    persists ``_ESCALATE_AFTER`` checks means the AI isn't resolving it — emit a
+    single notification so a human can step in, then mark it escalated so we
+    don't page again until it clears + recurs.
+    """
+    streak_path = root / ".os_state" / _STREAK_FILE
+    try:
+        prev = json.loads(streak_path.read_text(encoding="utf-8")) if streak_path.exists() else {}
+    except Exception:
+        prev = {}
+    if not isinstance(prev, dict):
+        prev = {}
+
+    current_blocks = {
+        f.get("code") or f.get("source") or "issue": f
+        for f in payload.get("findings", [])
+        if isinstance(f, dict) and f.get("severity") == "block"
+    }
+    new_state: dict[str, Any] = {}
+    for code, finding in current_blocks.items():
+        prior = prev.get(code) or {}
+        count = int(prior.get("count", 0) or 0) + 1
+        escalated = bool(prior.get("escalated", False))
+        if count >= _ESCALATE_AFTER and not escalated:
+            try:
+                from .notifications import emit
+                emit(
+                    root,
+                    kind="persistent_block",
+                    level="warning",
+                    title="Research OS: a problem isn't getting fixed",
+                    body=(
+                        f"The daemon has flagged '{code}' for {count} checks "
+                        f"and it's still unresolved: {finding.get('message', '')} "
+                        "The AI may be stuck — you might want to step in."
+                    ),
+                    context={"code": code, "count": count},
+                )
+                escalated = True
+            except Exception:  # noqa: BLE001
+                pass
+        new_state[code] = {"count": count, "escalated": escalated}
+    # Codes that cleared this check drop out (streak resets implicitly).
+    try:
+        streak_path.parent.mkdir(parents=True, exist_ok=True)
+        streak_path.write_text(json.dumps(new_state), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def read_notes(root: str | Path) -> dict[str, Any] | None:

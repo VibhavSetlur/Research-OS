@@ -501,6 +501,7 @@ before a large copy on a shared disk.
 | Re-route after the researcher already picked one | Use `tool_plan(operation='clear')` if they pivoted |
 | Submit without `audit/pre_submission_checklist` | The pre-submission gate catches what reviewers will catch |
 | Ignore an `off_protocol_freelancing` finding in `audit_findings` | It means you wrote step content WITHOUT routing — stop, run `tool_route` on the current ask, open a numbered step, then redo the work inside it. The write succeeded but it's outside Research-OS; keep going off-protocol and the work won't be governed, logged, or audited |
+| Ignore a `daemon_flagged_issue` finding in `audit_findings` | The daemon's background watch just caught a problem (stale result, abandoned protocol, mode-health gap, structure drift) since your last check. Call `sys_daemon(operation='notes')` for detail and fix BLOCK items before building further — if you keep ignoring it, the daemon escalates to the researcher. This is your constant "did I fail at something?" signal; it rides every tool envelope |
 
 ### Self-correction: when the tools tell you you've drifted
 
