@@ -245,6 +245,7 @@ research-os daemon stop           # graceful per-project stop
 
 # long jobs + provenance
 research-os daemon run "<cmd>"    # run a command as a tracked job
+research-os daemon docker IMG -- CMD  # run in a Docker/Podman image (records image+digest)
 research-os daemon runs           # list recorded runs
 research-os daemon logs <run_id>  # a run's details + captured output
 research-os daemon submit "<cmd>" # submit to SLURM with provenance

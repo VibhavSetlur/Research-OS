@@ -143,10 +143,23 @@ paper.typ" can't be reused to compile something else.
 
 ```bash
 research-os daemon run "<command>"   # run as a tracked job (provenance + artifacts)
+research-os daemon docker IMG -- CMD  # run in a container image (records image+digest)
 research-os daemon runs              # list recorded runs
 research-os daemon logs <run_id>     # a run's details + captured output
 research-os daemon submit "<cmd>"    # submit to SLURM with full provenance
 ```
+
+Three ways to run a long, reproducible job — all journaled, provenanced, and
+stall-watched the same way:
+- **native** (`daemon run`) — runs in your conda env; records git sha + env.
+- **container** (`daemon docker myimg:tag -- python run.py`) — runs inside a
+  Docker/Podman image, mounts the project so outputs land back in the workspace,
+  and records the **image + content digest** so the run is recreatable
+  bit-for-bit. Add `--gpus all` for GPU work; `--network` to allow networking
+  (isolated by default). Works for Docker, Podman, and — via a kubectl wrapper
+  or the SLURM submit path — Kubernetes/HPC schedulers.
+- **scheduler** (`daemon submit`) — hands the job to SLURM; the daemon polls it
+  to terminal, survives a login-node reboot, and resumes in flight.
 
 The AI can launch a background run the same way, without blocking the chat:
 when the gateway is enabled it `POST`s to **`/v1/jobs`** (the single
