@@ -1,7 +1,7 @@
 id: reproducibility
 tier: 'finalize'
 name: Reproducibility
-version: '3.5.0'
+version: '3.6.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -22,6 +22,11 @@ steps:
       workspace/<step>/environment/requirements.txt exists. If missing, switch
       to that step (or just call) sys_env(operation='snapshot'). R packages → renv.lock,
       Julia → Project.toml + Manifest.toml.
+
+      Note: work run as a daemon-tracked job (e.g. an HPC/SLURM submission)
+      already carries a full environment snapshot in its run record, so its
+      environment is pinned without a separate step snapshot. This step covers
+      the interactive/local work the daemon didn't execute.
 
   - id: verify_seeds
     name: Verify Random Seeds Are Set
