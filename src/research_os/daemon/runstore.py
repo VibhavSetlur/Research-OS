@@ -195,6 +195,47 @@ class RunStore:
                     orphans.append(rid)
         return orphans
 
+    def detect_stalled_runs(self, stall_seconds: float = 1800.0) -> list[dict]:
+        """Running runs whose log hasn't advanced in ``stall_seconds``.
+
+        A long job wedged mid-run (deadlock, silent hang, lost scheduler) looks
+        identical to a healthy one until it goes terminal. By comparing each
+        RUNNING run's ``log.txt`` mtime to now, the daemon can flag "this job
+        hasn't produced output in N minutes — it may be stuck" so the researcher
+        isn't waiting on a dead job. Read-only, best-effort.
+
+        Returns [{id, name, idle_seconds}] for each stalled run.
+        """
+        stalled: list[dict] = []
+        now = time.time()
+        terminal = {"succeeded", "failed", "cancelled", "interrupted", "paused"}
+        for s in self.list_runs(limit=10_000):
+            status = (s.get("status") or "").lower()
+            if not status or status in terminal:
+                continue
+            rid = s.get("id")
+            if not rid:
+                continue
+            try:
+                log_path = self._run_dir(rid) / "log.txt"
+                # Use the log mtime if present, else the manifest's; a run that
+                # has produced no output yet falls back to its start time.
+                if log_path.exists():
+                    last = log_path.stat().st_mtime
+                else:
+                    last = float(s.get("started_at") or s.get("submitted_at") or 0)
+                if last <= 0:
+                    continue
+                idle = now - last
+                if idle >= stall_seconds:
+                    stalled.append({
+                        "id": rid, "name": s.get("name"),
+                        "idle_seconds": round(idle),
+                    })
+            except Exception:  # noqa: BLE001 - a stall probe must never raise
+                continue
+        return stalled
+
     def mark_interrupted(self, run_id: str) -> None:
         """Rewrite an orphaned run's manifest as INTERRUPTED. Best-effort."""
         manifest = self.read_manifest(run_id)

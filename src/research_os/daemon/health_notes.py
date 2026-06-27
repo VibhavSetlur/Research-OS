@@ -89,6 +89,28 @@ def run_self_check(root: str | Path) -> dict[str, Any]:
                 ),
                 "code": "interrupted_runs",
             })
+        # Stalled runs: a RUNNING job whose log hasn't advanced in ~30 min is
+        # likely wedged (deadlock / lost scheduler) — flag it so the researcher
+        # isn't waiting on a dead job indefinitely.
+        try:
+            stalled = store.detect_stalled_runs()
+            if stalled:
+                names = ", ".join(
+                    f"{s.get('name') or s['id']} (idle {int(s['idle_seconds'] // 60)}m)"
+                    for s in stalled[:3]
+                )
+                findings.append({
+                    "severity": "warn",
+                    "source": "runs",
+                    "message": (
+                        f"{len(stalled)} running job(s) have produced no output "
+                        f"for a while and may be stuck: {names}. Check on them / "
+                        "consider cancelling + resuming."
+                    ),
+                    "code": "stalled_runs",
+                })
+        except Exception:  # noqa: BLE001
+            pass
     except Exception:  # noqa: BLE001
         pass
 
