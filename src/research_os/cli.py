@@ -630,6 +630,57 @@ def cmd_start(args: argparse.Namespace) -> None:
     server_main()
 
 
+def _daemon_setup(daemon, args: argparse.Namespace) -> int:
+    """Shared-server-friendly daemon setup: free port + conda/PATH check +
+    background-launch command (optionally start it). For no-Docker conda HPC
+    nodes where two users/projects must coexist and there's no systemd."""
+    from research_os.daemon.shared_setup import (
+        background_launch_command,
+        conda_env_name,
+        find_free_port,
+        launch_background,
+        research_os_executable,
+    )
+
+    root = daemon.root
+    if root is None:
+        print(f"  {_warn_glyph()}  no workspace resolved — run from a project "
+              "dir or pass --workspace.")
+        return 1
+    host = daemon.config.host or "127.0.0.1"
+    preferred = getattr(args, "port", None) or daemon.config.port
+    port = find_free_port(host, preferred)
+
+    print("  Research OS daemon — shared-server setup")
+    print(f"  root:      {root}")
+    print(f"  conda env: {conda_env_name() or '(none active — activate one first)'}")
+    print(f"  executable:{research_os_executable()}")
+    if port != preferred:
+        print(f"  port:      {port}  (port {preferred} was busy — picked a free one)")
+    else:
+        print(f"  port:      {port}")
+    print()
+
+    if getattr(args, "start", False):
+        try:
+            info = launch_background(root, port, host)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  {_warn_glyph()}  background launch failed: {exc}")
+            return 1
+        print(f"  Started in background (pid {info['pid']}).")
+        print(f"  url: http://{host}:{port}   log: {info['log']}")
+        print("  stop: research-os daemon stop")
+        return 0
+
+    print("  To run it detached (no systemd needed), copy-paste:")
+    print()
+    print(f"    {background_launch_command(root, port, host)}")
+    print()
+    print("  Or let RO do it:  research-os daemon setup --start")
+    print("  Stop anytime:     research-os daemon stop")
+    return 0
+
+
 def cmd_daemon(args: argparse.Namespace) -> int:
     """Run / inspect the v4 multi-protocol gateway daemon.
 
@@ -645,6 +696,7 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         print("  Research OS daemon (v4 multi-protocol gateway)")
         print()
         print("  research-os daemon status   show daemon + project state")
+        print("  research-os daemon setup    free port + conda check + bg launch (HPC-friendly)")
         print("  research-os daemon start    run the daemon (localhost, read-only API)")
         print("  research-os daemon stop     stop this project's daemon (per-project)")
         print("  research-os daemon run      run a command as a tracked job")
@@ -684,6 +736,25 @@ def cmd_daemon(args: argparse.Namespace) -> int:
         return 0
 
     if sub == "start":
+        # Shared/HPC convenience: detached launch with no systemd/Docker.
+        if getattr(args, "background", False):
+            from research_os.daemon.shared_setup import launch_background
+            if daemon.root is None:
+                print(f"  {_warn_glyph()}  no workspace resolved — run from a "
+                      "project dir or pass --workspace.")
+                return 1
+            host = daemon.config.host
+            port = daemon.config.port
+            try:
+                info = launch_background(daemon.root, port, host)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  {_warn_glyph()}  background launch failed: {exc}")
+                return 1
+            print(f"  Research OS daemon launched in background (pid {info['pid']})")
+            print(f"  root: {daemon.root}")
+            print(f"  url:  http://{host}:{port}   log: {info['log']}")
+            print("  stop: research-os daemon stop")
+            return 0
         print(f"  Research OS daemon starting on {daemon.config.base_url}")
         print(f"  root: {daemon.root or '(none resolved)'}")
         print("  endpoints: GET /healthz  /v1/state  /v1/jobs   (read-only)")
@@ -698,6 +769,9 @@ def cmd_daemon(args: argparse.Namespace) -> int:
             print("\n  daemon stopped.")
             return 0
         return 0
+
+    if sub == "setup":
+        return _daemon_setup(daemon, args)
 
     if sub == "stop":
         # Per-project graceful stop: read THIS project's descriptor
@@ -2914,6 +2988,25 @@ def build_parser() -> argparse.ArgumentParser:
                           help="Explicit workspace path (else auto-resolved).")
     pd_start.add_argument("--host", default=None, help="Bind host (default 127.0.0.1).")
     pd_start.add_argument("--port", default=None, type=int, help="Bind port (default 8787).")
+    pd_start.add_argument(
+        "--background", action="store_true",
+        help="Launch detached (nohup) and return — for shared/HPC nodes with no "
+             "systemd/Docker. Logs to .os_state/daemon.log; stop with "
+             "`research-os daemon stop`.")
+
+    # setup: one-shot shared-server-friendly setup — pick a free port, check the
+    # conda/PATH wiring, and print the exact background-launch command.
+    pd_setup = daemon_sub.add_parser(
+        "setup",
+        help="Prepare the daemon for THIS machine (free port, conda/PATH check, "
+             "background-launch command). Ideal for no-Docker conda HPC nodes.",
+    )
+    pd_setup.add_argument("--workspace", default=None,
+                          help="Explicit workspace path (else auto-resolved).")
+    pd_setup.add_argument("--port", default=None, type=int,
+                          help="Preferred port (else auto-pick a free one).")
+    pd_setup.add_argument("--start", action="store_true",
+                          help="Also start the daemon in the background now.")
 
     # stop: gracefully terminate THIS project's running daemon (per-project).
     pd_stop = daemon_sub.add_parser(

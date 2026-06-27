@@ -273,6 +273,26 @@ laptop: no Docker, a conda environment, other people's jobs on the same box,
 and a scheduler in front of the real compute. Everything above is built to
 behave well there.
 
+**Stand it up in one command.** On a no-Docker conda node with no systemd,
+`research-os daemon setup` does the awkward parts for you — it picks a FREE
+port (so your daemon doesn't collide with another user's or another project's
+on the same box), resolves the absolute `research-os` path inside your conda
+env (the bare command isn't on PATH once a process detaches from the env), and
+prints the exact `nohup` line to launch it detached:
+
+```bash
+conda activate research-os
+research-os daemon setup            # report: free port + conda + the launch line
+research-os daemon setup --start    # ...or just start it in the background now
+# later:
+research-os daemon stop             # graceful, per-project
+```
+
+`research-os daemon start --background` is the same detached launch if you
+already know your port. Both log to `.os_state/daemon.log`, record the pid in
+the per-project descriptor, and survive logout. Two users (or two projects) on
+one node each get their own daemon on their own port — nothing is shared.
+
 **Tell Research OS it's shared.** Set this once and the whole system shifts
 to shared-node behaviour — long work gets backgrounded instead of blocking,
 and the AI is told to respect the resource budget before launching anything

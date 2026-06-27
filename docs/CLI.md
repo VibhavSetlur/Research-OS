@@ -236,8 +236,12 @@ budget, and completion notifications. Full guide: [DAEMON.md](DAEMON.md).
 Research OS works fully without it — start it for big / long-lived projects.
 
 ```bash
-research-os daemon start          # serve the localhost API + job queue
+research-os daemon setup          # HPC-friendly: free port + conda check + bg launch line
+research-os daemon setup --start  # ...and start it detached now (no Docker/systemd)
+research-os daemon start          # serve the localhost API + job queue (foreground)
+research-os daemon start --background  # detached launch (logs to .os_state/daemon.log)
 research-os daemon status         # is it running? which project is active?
+research-os daemon stop           # graceful per-project stop
 
 # long jobs + provenance
 research-os daemon run "<cmd>"    # run a command as a tracked job
