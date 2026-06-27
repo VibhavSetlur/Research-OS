@@ -1,7 +1,7 @@
 id: tool_evaluation_loop
 tier: 'execute'
 name: Tool Evaluation Loop (probe the tool, find where it fails, feed fixes back)
-version: '3.13.0'
+version: '3.14.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -127,6 +127,15 @@ steps:
       evaluate the tool for you. Capture the result with its uncertainty, not
       a single point, and persist the raw measurements + the script so the
       run is reproducible.
+
+      Make the conditions a RECORDED artefact, not just prose: alongside each
+      persisted eval result, write a small machine-readable sidecar capturing
+      what would let someone reproduce the number — the tool's commit SHA, the
+      input-set identity/hash, the environment/runtime versions, the seed, and
+      the raw measurements. This is the eval analog of an analysis figure's
+      provenance sidecar: a benchmark number with no recorded conditions is a
+      claim, not a result. (Running the eval as a daemon-tracked job gives you
+      most of this automatically — git sha, env snapshot, input hashes.)
 
       For any claim that is comparative ("better/faster than X", "improved
       over the last version"), run it through build/benchmark_vs_baseline so
