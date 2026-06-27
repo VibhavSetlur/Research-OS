@@ -135,18 +135,48 @@ def _check_notebook(root: Path) -> list[dict]:
 def _check_multi_study(root: Path) -> list[dict]:
     out: list[dict] = []
     studies = root / "studies"
+    sub_dirs: list[Path] = []
     if studies.is_dir():
-        subs = [d for d in studies.iterdir() if d.is_dir()]
-        if not subs:
+        sub_dirs = [d for d in studies.iterdir() if d.is_dir()]
+        if not sub_dirs:
             out.append(_f("info", "multi_study_no_studies",
                           "multi_study: studies/ has no sub-studies yet — create "
                           "the first study to start the program."))
     shared = root / "shared"
-    if shared.is_dir() and not _has_any(shared, "*"):
-        out.append(_f("warn", "multi_study_no_shared",
-                      "multi_study: shared/ is empty — define the program-wide "
-                      "commons (codebook, preregistration, governing protocol) "
-                      "so sub-studies stay comparable."))
+    if shared.is_dir():
+        if not _has_any(shared, "*"):
+            out.append(_f("warn", "multi_study_no_shared",
+                          "multi_study: shared/ is empty — define the program-wide "
+                          "commons (codebook, preregistration, governing protocol) "
+                          "so sub-studies stay comparable."))
+        else:
+            # The shared codebook is the thing that keeps sub-studies comparable —
+            # verify it exists and isn't just a placeholder, not merely that
+            # shared/ has *some* file.
+            has_codebook = _has_any(shared, "codebook*") or _has_any(shared, "**/codebook*")
+            if not has_codebook:
+                out.append(_f("warn", "multi_study_no_codebook",
+                              "multi_study: shared/ has no codebook — add a shared "
+                              "codebook so every sub-study measures the same things "
+                              "the same way."))
+    # Roll-up staleness: if any sub-study has newer work than the newest file in
+    # roll_up/, the cross-study synthesis has fallen behind.
+    roll_up = root / "roll_up"
+    if roll_up.is_dir() and sub_dirs:
+        try:
+            newest_study = max(
+                (p.stat().st_mtime for d in sub_dirs for p in d.rglob("*")
+                 if p.is_file()), default=0.0)
+            newest_rollup = max(
+                (p.stat().st_mtime for p in roll_up.rglob("*") if p.is_file()),
+                default=0.0)
+            if newest_study > 0 and newest_study > newest_rollup:
+                out.append(_f("info", "multi_study_rollup_stale",
+                              "multi_study: a sub-study has newer work than roll_up/ "
+                              "— refresh the cross-study synthesis so it reflects the "
+                              "latest results."))
+        except Exception:
+            pass
     return out
 
 

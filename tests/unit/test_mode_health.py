@@ -71,3 +71,24 @@ def test_fail_open_on_missing_workspace():
     root = Path(tempfile.mkdtemp()) / "empty"
     root.mkdir()
     assert mode_health_findings(root, "tool_build") == []
+
+
+def test_multi_study_flags_stale_rollup():
+    import time
+    root = _proj("multi_study")
+    (root / "studies" / "s1").mkdir(parents=True, exist_ok=True)
+    (root / "roll_up").mkdir(exist_ok=True)
+    (root / "roll_up" / "meta.md").write_text("old")
+    time.sleep(0.02)
+    (root / "studies" / "s1" / "result.csv").write_text("new data")  # newer than rollup
+    assert "multi_study_rollup_stale" in _codes(mode_health_findings(root))
+
+
+def test_multi_study_flags_missing_codebook():
+    root = _proj("multi_study")
+    # Remove the seeded codebook but keep shared/ non-empty.
+    import os
+    for f in (root / "shared").glob("codebook*"):
+        os.remove(f)
+    (root / "shared" / "notes.md").write_text("x")
+    assert "multi_study_no_codebook" in _codes(mode_health_findings(root))
