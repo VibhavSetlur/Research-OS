@@ -209,6 +209,29 @@ The AI calls `tool_intake_autofill`, reads everything, proposes a
 research question + domain + hypotheses, and shows you what it
 inferred. You approve or refine.
 
+### 4.1a Iterate on the plan before any analysis (often a whole session)
+
+> **You:** Don't run anything yet. Let's work through the whole approach
+> first — here's what I'm worried about confounding.
+
+The AI drafts an analysis plan with the decision points and branch
+points called out, written to `workspace/scratch/` (the sandbox) — not a
+committed step. You revise it over the session, or across several
+sessions and re-reads of the literature, until it stops moving. *Then*
+you open step `01`. Producing nothing on day one is normal; the firmed-up
+reasoning is on disk before any analysis locks in.
+
+### 4.1b Circle the literature until it solidifies
+
+> **You:** Pull recent work on this estimator and show me where the field
+> disagrees.
+
+The AI searches and verifies every hit against real providers (no
+hallucinated refs), groups the debate, flags the papers that threaten
+your approach. You read, drop more PDFs in `inputs/literature/`
+(immutable), and repeat across sessions until the framing settles. Only
+then commit to a question and hypotheses.
+
 ### 4.2 Start analysing
 
 > **You:** OK, run a baseline EDA on the data.
@@ -216,7 +239,9 @@ inferred. You approve or refine.
 The AI loads `guidance/analysis_plan`, creates
 `workspace/01_baseline_eda/`, writes an atomic Python (or R / Julia)
 script, runs it, drops outputs + figures + reports into the step, and
-writes `conclusions.md`.
+writes `conclusions.md`. (Real steps rarely land first try — expect
+`_v1 → _v2 → _v3` as diagnostics fail and you refine; the ledger keeps
+every version. See [HOW_IT_WORKS.md](HOW_IT_WORKS.md).)
 
 ### 4.3 Course-correct mid-flow
 
