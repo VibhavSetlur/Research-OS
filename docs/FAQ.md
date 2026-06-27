@@ -141,6 +141,19 @@ breakdown into atomic versioned sub-tasks BEFORE any code is written.
 If the AI ignores it, set `interaction.autonomy_level: manual` for a few
 turns — you'll see exactly when it tries to mega-shot and can redirect.
 
+### How does the AI know my field's specific methods?
+
+Through **skills** — on-demand know-how documents in the open agentskills.io
+standard that the AI loads when it needs them. It pulls from three sources via
+one index: its own (Nous) skills, the **K-Dense science pack** (140 deep
+science skills — install with `research-os skills add-science-pack`), and any
+external Agent Skills library. On a fresh project, `sys_boot` names the skills
+that match your domain + mode (e.g. genomics → biopython, gget, bulk-rnaseq)
+and the AI loads them before starting, so it uses *your field's* methods with
+validated parameters instead of guessing. Run `research-os skills list-science`
+to see the domain → skill map. The system also learns: it distills lessons from
+your projects into new skills and carries the durable ones forward.
+
 ### The AI keeps hallucinating citations. Help.
 
 By construction, **citations in final synthesis outputs cannot be

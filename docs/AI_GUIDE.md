@@ -157,6 +157,15 @@ back-to-back before doing anything else:
      **before** building on the project — this is how nothing gets lost
      across sessions. Also act on `sys_boot.freshness` (stale inputs) and
      any `resume_interrupted` recommendation.
+   - **Act on `sys_boot.recommended_skills` on a fresh project.** It names
+     the domain/mode skills worth loading up front (e.g. genomics →
+     biopython, gget, bulk-rnaseq). PULL them via `skills_list()` +
+     `skill_view(name)` rather than re-deriving the method from memory.
+     They come from three agentskills.io sources sharing one index — your
+     own Nous skills, the K-Dense science pack (install with
+     `research-os skills add-science-pack` if `skills_list()` doesn't show
+     them), and any external Agent Skills. RO says WHICH + WHAT-to-ground;
+     the skill says HOW. If no skill fits, do the work then `distill` it.
 2. **`tool_route(prompt=<their verbatim message>)`** — your SECOND
    MCP call. Hierarchical L1 → L2 → L3 protocol picker. Returns:
    - `primary_protocol` — name of the best-matching protocol

@@ -10,6 +10,7 @@ keep project templates fresh, and emit shell completions.
 | `research-os ide`  | Add / remove / list AI IDE MCP configs.              |
 | `research-os mcp`  | Compose third-party MCP servers into IDE configs.    |
 | `research-os hermes` | Wire Research-OS into Hermes Agent (`~/.hermes/config.yaml`). |
+| `research-os skills` | Install / list science-skill libraries (K-Dense scientific-agent-skills). |
 | `research-os route` | Preview the protocol router for a prompt (no IDE needed). |
 | `research-os api-key` | Manage api_keys in `inputs/researcher_config.yaml`. |
 | `research-os start`| Run the MCP server (your IDE auto-launches it).      |
@@ -130,6 +131,35 @@ Respects `$HERMES_CONFIG` and `$HERMES_HOME`. When the skill lands in the
 built-in `~/.hermes/skills` tree (which Hermes already scans), no
 `skills.external_dirs` entry is added. Restart Hermes after `add` to pick
 up the new server and skill.
+
+---
+
+## `research-os skills add-science-pack | list-science`
+
+Bring case-specific scientific capability into the AI's skill layer. Research
+OS supplies the rigorous workflow; **skills** supply the field-specific how-to.
+
+```bash
+# Clone the K-Dense scientific-agent-skills library (140 MIT skills in the open
+# Agent-Skills standard) and wire it into Hermes skills.external_dirs.
+research-os skills add-science-pack
+
+# Pin a specific release / choose where it clones.
+research-os skills add-science-pack --ref v1.2.3 --dest ~/sci-skills
+
+# Clone only, don't touch the Hermes config.
+research-os skills add-science-pack --no-hermes
+
+# Show the domain → skill map RO uses for recommendations.
+research-os skills list-science
+```
+
+The library is REFERENCED (shallow clone, pinned ref, recorded commit), not
+vendored. After install, restart Hermes so it loads the new skills; IDEs on the
+Agent-Skills standard can point at the printed `skills/` dir. RO's
+`sys_boot.recommended_skills` then names the specific skills that match each
+project's domain + mode. License: MIT (source:
+github.com/K-Dense-AI/scientific-agent-skills).
 
 ---
 

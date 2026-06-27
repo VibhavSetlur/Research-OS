@@ -200,6 +200,28 @@ next one (`data/next_step_output/`) and what it received
 
 ---
 
+## Part 2b — Where the field-specific know-how comes from (skills)
+
+Research OS makes sure your research is *done right*. It doesn't, by itself,
+know how to run every field's methods — that capability comes from **skills**,
+on-demand know-how documents the AI loads when it needs them (the open
+agentskills.io standard). Your AI can pull from three sources, all through one
+index:
+
+- its **own skills** (the agent's bundled + learned library);
+- the **K-Dense science pack** — 140 deep science skills (bulk-RNA-seq,
+  experimental design, literature review, cheminformatics, ...); install once
+  with `research-os skills add-science-pack`;
+- any other **Agent Skills** library you point it at.
+
+On a fresh project, `sys_boot` tells the AI which skills match your domain and
+mode, and it loads them before starting — so it runs *your field's* methods
+with validated parameters instead of guessing. And it gets better over time:
+RO distills the lessons from your projects into new skills and promotes the
+durable ones into the agent's library, so it learns *your* way of working. The
+division never changes: **skills = how to do this field's methods; Research OS =
+how to do research right.** See [BEST_SETUP.md](BEST_SETUP.md) for setup.
+
 ## Part 3 — How the daemon watches over the work (optional but powerful)
 
 For long or high-stakes projects, the optional daemon adds a layer that
