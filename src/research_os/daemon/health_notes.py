@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 _NOTES_MD = "daemon_notes.md"
@@ -311,3 +312,47 @@ def read_notes(root: str | Path) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def run_self_check_all(roots: "Sequence[str | Path]") -> dict[str, Any]:
+    """Aggregate self-check across many projects — the supervisor (PI) roll-up.
+
+    Returns {projects: {root: {counts, ok, worst}}, totals: {block,warn,info},
+    needs_attention: [roots with any block/warn]} so one call answers "are ALL
+    my students' projects healthy?" without opening each. Read-only, fail-open.
+    """
+    projects: dict[str, Any] = {}
+    totals = {"block": 0, "warn": 0, "info": 0}
+    needs_attention: list[str] = []
+    for root in roots:
+        try:
+            payload = run_self_check(root)
+        except Exception:  # noqa: BLE001
+            continue
+        counts = payload.get("counts", {}) or {}
+        for k in totals:
+            totals[k] += int(counts.get(k, 0) or 0)
+        findings = payload.get("findings", []) or []
+        worst = sorted(
+            (f for f in findings if f.get("severity") in ("block", "warn")),
+            key=lambda f: {"block": 0, "warn": 1}.get(f.get("severity"), 2),
+        )[:3]
+        projects[str(root)] = {
+            "ok": bool(payload.get("ok", True)),
+            "counts": counts,
+            "worst": [
+                {"severity": f.get("severity"), "code": f.get("code"),
+                 "message": f.get("message")}
+                for f in worst
+            ],
+        }
+        if counts.get("block") or counts.get("warn"):
+            needs_attention.append(str(root))
+    return {
+        "schema": 1,
+        "checked_at": time.time(),
+        "projects": projects,
+        "totals": totals,
+        "needs_attention": needs_attention,
+    }
+

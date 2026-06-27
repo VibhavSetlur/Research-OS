@@ -8,6 +8,8 @@ we raise a clear, actionable error telling the user to install it.
 Read-only endpoints (no auth beyond the 127.0.0.1 bind):
   GET  /healthz            liveness + version
   GET  /v1/state           multi-root state snapshot (all registered roots)
+  GET  /v1/supervision     PI roll-up: health across ALL registered projects
+                           (counts + worst findings + needs_attention list)
   GET  /v1/domain          detected research field + field-aware defaults
   GET  /v1/capabilities    agent front door: identity + field + tool/protocol
                            inventory + work-state freshness + gateway readiness
@@ -177,6 +179,16 @@ def build_app(daemon: "Daemon"):
             ws = daemon.registry.get(root) or daemon.registry.register(root)
             return JSONResponse({"root": ws.state()})
         return JSONResponse(daemon.registry.snapshot())
+
+    async def get_supervision(request):
+        # Supervisor (PI) roll-up: health across ALL registered projects in one
+        # call — "are all my students' projects healthy / on-protocol / not
+        # stuck?" Read-only.
+        from . import health_notes as _h
+        roots = list(daemon.registry.roots())
+        if daemon.root is not None and str(daemon.root) not in roots:
+            roots.append(str(daemon.root))
+        return JSONResponse(_h.run_self_check_all(roots))
 
     async def get_jobs(request):
         root = request.query_params.get("root")
@@ -980,6 +992,7 @@ def build_app(daemon: "Daemon"):
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         Route("/v1/state", get_state, methods=["GET"]),
+        Route("/v1/supervision", get_supervision, methods=["GET"]),
         Route("/v1/domain", get_domain, methods=["GET"]),
         Route("/v1/capabilities", get_capabilities, methods=["GET"]),
         Route("/v1/orient", get_orient, methods=["GET"]),

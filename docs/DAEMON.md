@@ -62,6 +62,13 @@ over the local API, and only ever **reads** unless you authorise a change:
   *request* approval and *check* for a minted token, but it can never
   grant its own.
 
+**Supervising several projects at once.** A daemon fronting more than one
+project re-checks **all** of them on its periodic tick (not just the one it was
+started in), and `GET /v1/supervision` returns a roll-up — each project's
+health counts, its worst findings, and a `needs_attention` list — so a PI can
+answer "are all my students' projects healthy and on-protocol?" in one call
+without opening each. Persistent BLOCKs still escalate per project.
+
 This is the deliberate split: the AI plans and reasons; the daemon holds
 the things the AI must not be able to forge.
 

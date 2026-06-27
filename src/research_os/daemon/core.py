@@ -800,10 +800,23 @@ class Daemon:
             def _self_check_loop() -> None:
                 from . import health_notes as _h
                 while not self._stop_self_check.wait(interval):
+                    # Iterate EVERY registered project, not just self.root, so a
+                    # daemon fronting several projects (e.g. a PI supervising
+                    # multiple students) refreshes notes + escalation for all of
+                    # them — supervision is multi-root.
+                    roots: list = []
                     try:
-                        _h.write_notes(self.root)
-                    except Exception:  # noqa: BLE001 - never kill the daemon
-                        logger.debug("periodic self-check failed", exc_info=True)
+                        roots = list(self.registry.roots())
+                    except Exception:  # noqa: BLE001
+                        roots = []
+                    if self.root is not None and str(self.root) not in roots:
+                        roots.append(str(self.root))
+                    for r in roots:
+                        try:
+                            _h.write_notes(r)
+                        except Exception:  # noqa: BLE001 - never kill the daemon
+                            logger.debug("periodic self-check failed for %s", r,
+                                         exc_info=True)
             self._self_check_thread = threading.Thread(
                 target=_self_check_loop, name="ro-self-check", daemon=True,
             )
