@@ -157,7 +157,13 @@ is `GET /v1/runs`. Submitting a journaled job is gated — it needs the
 gateway flag plus a per-session bearer token — so the AI can never spawn
 unbounded background work on its own.
 
-A tracked job records its inputs, command, and outputs. When it finishes,
+A tracked job records its inputs, command, and outputs — plus, for scheduler
+(SLURM) jobs, a **full environment snapshot** (the complete installed-package
+manifest, not just the conda env name) so a 12-hour run is recreatable from its
+record, not just describable. The daemon also runs a **stall watcher**: a
+RUNNING job whose output hasn't advanced in ~30 minutes is flagged as possibly
+stuck (it surfaces in `daemon_notes` and to the AI), so you're not left waiting
+on a wedged job that looks alive. When it finishes,
 the daemon emits a notification. To have notifications actually reach you,
 set a delivery command — a script that receives the notification as JSON on
 stdin and posts it wherever you want (Slack, email, a webhook):
