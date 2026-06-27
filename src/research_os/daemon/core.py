@@ -300,6 +300,7 @@ class Daemon:
             effective_root or effective_cwd or ".",
             inputs=inputs,
             packages=track_packages,
+            snapshot_env=True,  # HPC jobs: pin the exact env for reproducibility
         )
         spec = {
             "cmd": [script],
