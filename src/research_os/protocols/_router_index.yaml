@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 49
+version: 50
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1429,6 +1429,28 @@ protocols:
         purpose: "Check commensurability, choose pool vs narrative, treat heterogeneity as signal, qualify the claim."
       - tool: mem_log
         purpose: "Record the program-level synthesis (method + heterogeneity + claim strength)."
+
+  program/pipeline_stage_handoff:
+    intent_class: synthesize
+    sub_intent: pipeline_stage_handoff
+    summary: "Hand off one pipeline stage's OUTPUT (with provenance + a consumer contract) so a different actor can do the next stage."
+    triggers:
+      - "next step in the pipeline"
+      - "hand off the output"
+      - "send the output to"
+      - "take it from here"
+      - "next stage"
+      - "next team"
+      - "someone else continues"
+      - "pass this folder"
+      - "package this for the next step"
+      - "share these results for the next step"
+    token_estimate: 1400
+    decomposition:
+      - protocol: program/pipeline_stage_handoff
+        purpose: "Scope the stage boundary, pin output provenance, write the output contract, package safely, confirm the return loop."
+      - tool: mem_log
+        purpose: "Record the handoff boundary + the consumer's expected deliverable."
 
   program/codebook_governance:
     intent_class: plan
