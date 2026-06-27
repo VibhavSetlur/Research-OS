@@ -268,6 +268,47 @@ answer is the saturation curve produced by
 
 ---
 
+## Trust & provenance
+
+### How do I know the numbers in my writeup are real, not made up?
+
+When you write up results, **claim grounding** extracts every quantitative
+claim in the prose and checks each one traces to a real artifact on disk — a
+table cell, a figure's underlying data, a recorded statistic. A number that
+can't be traced is flagged before a reviewer (or your PI) sees it. The rule
+that makes this work: write the prose *from* your artifacts, then run
+grounding — don't paste numbers from memory. Ask *"ground every claim in the
+results section."*
+
+### How do I know a result is still valid after I changed the input?
+
+Every output the AI produces through a step gets a `.prov.json` sidecar
+recording its exact inputs (by content hash), the script, the parameters, the
+seed, the software versions, and the git commit. The **provenance-integrity
+check** re-hashes those recorded inputs and flags any output whose input has
+changed since it was built — a *stale* result. Run it before any milestone:
+*"check provenance integrity across the project."* The optional daemon also
+watches for this automatically, and a step won't quietly "complete" over a
+stale output without telling you.
+
+### What's the single best habit for trustworthy results?
+
+Let the AI do real computation **through steps and scripts**, not as one-off
+calculations in chat. Only work that runs through a step leaves a provenance
+sidecar, gets claim-grounded, and shows up in the audit trail. Improvised
+chat math is invisible to all three guards. See
+[HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the full picture of how provenance,
+accuracy, and organization compound into a result you can defend.
+
+### Can I show a reviewer exactly how a figure was made?
+
+Yes — that's what the sidecar is for. Open the figure's `.prov.json`: it names
+the script, the inputs (with hashes), the seed, and the environment. Combined
+with the versioned scripts (`_v1 → _v2 → _v3`) and `conclusions.md`, the whole
+path from data to figure is on disk, not in your memory.
+
+---
+
 ## Outputs
 
 ### Are dashboards / posters / papers actually publication-quality?
