@@ -198,7 +198,11 @@ def render_notes_md(payload: dict[str, Any]) -> str:
         lines.append("✅ No problems found — the project looks structurally sound.")
         lines.append("")
         return "\n".join(lines)
-    for f in findings:
+    # Prioritize: BLOCK first, then WARN, then INFO — the AI/researcher should
+    # see the must-fix items at the top, not buried under info notes.
+    _order = {"block": 0, "warn": 1, "info": 2}
+    ordered = sorted(findings, key=lambda f: _order.get(f.get("severity", "info"), 3))
+    for f in ordered:
         icon = _SEVERITY_ICON.get(f.get("severity", "info"), "•")
         lines.append(f"- {icon} **{f.get('source', '?')}** — {f.get('message', '')}")
     lines.append("")
