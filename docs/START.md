@@ -821,6 +821,10 @@ ChatGPT / Cursor / OpenCode / Aider / anywhere:
 
 ## What to read next
 
+* [HOW_IT_WORKS.md](HOW_IT_WORKS.md) — how a real project actually unfolds
+  (iterating on the plan, circling the literature, new papers mid-step, not
+  finishing too early) and why your results hold up: provenance, accuracy,
+  organization. The "full picture" behind the quickstart.
 * [SETUP_PROMPT.md](SETUP_PROMPT.md) — the single copy-paste, fill-in-the-gap
   prompt that drives your AI through install → wire one IDE → daemon → self-test
   → onboarding. Start here if you'd rather not run the wizard by hand.

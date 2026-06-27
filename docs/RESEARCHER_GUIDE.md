@@ -191,10 +191,14 @@ above stay editable.
 ## 4. A typical session (narrative)
 
 > This section sketches the *shape* of a session with placeholder data.
-> For seven fully concrete, named-researcher walkthroughs — a messy
-> ecology CSV to a paper, reproducing a published bioinformatics result,
-> an R01 between meetings, benchmarking a Rust tool, 18 interview
-> transcripts to publication — see [SCENARIOS.md](SCENARIOS.md).
+> It's deliberately compressed — one line per turn — to show the range of
+> moves. **Real projects are not this linear:** you'll spend whole sessions
+> on the plan before any analysis, circle the literature until it solidifies,
+> bring new papers into a step mid-stream, and iterate a single step `_v1 →
+> _v2 → _v3` over days. For that realistic picture — and how it all feeds
+> provenance, accuracy, and organization — read
+> [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For seven fully concrete,
+> named-researcher walkthroughs see [SCENARIOS.md](SCENARIOS.md).
 
 ### 4.1 First time — set up the project
 
@@ -234,10 +238,21 @@ have < 3 active paths), runs `sys_path(operation='create')`, sets up
 > **You:** My PI sent me a new paper. *(drag-drop into the project)*
 > Integrate it.
 
-`tool_context_intake also_autofill=true` auto-routes the file to
-`inputs/literature/`, updates the bibliography, revisits the research
-question / hypotheses if the new paper warrants it, and annotates
-`analysis.md`.
+Where it lands depends on scope, and the distinction matters:
+- **whole-project relevance** (reframes the question, a citation you'll use in
+  the writeup) → `inputs/literature/` (immutable; joins the verified
+  bibliography, available to every step);
+- **this-step-only relevance** (justifies a specific method choice you're
+  making right now) → the step's own `workspace/NN_slug/literature/` so the
+  reason for the change lives next to the change.
+
+`tool_context_intake also_autofill=true` auto-routes the file, updates the
+bibliography (verifying it's a real reference), revisits the research question
+/ hypotheses if warranted, and annotates `analysis.md`. If the new evidence
+makes you revise a step, the script bumps a version (old version stays on
+disk), the new output gets a fresh provenance sidecar, and `conclusions.md`
+records *why* the revision happened — see
+[HOW_IT_WORKS.md](HOW_IT_WORKS.md) for the full walkthrough.
 
 ### 4.6 Decide what's next
 

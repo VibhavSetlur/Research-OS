@@ -259,7 +259,7 @@ research-os hermes add     # wire Research OS into Hermes, then ask:
 
 | If you're… | Read this |
 |---|---|
-| **New here** | [docs/START.md](docs/START.md) — install + first project in ~15 min |
+| **New here** | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — how real projects unfold + why your results hold up (provenance, accuracy, organization) · then [docs/START.md](docs/START.md) — install + first project |
 | **Setting up with your AI** | [docs/SETUP_PROMPT.md](docs/SETUP_PROMPT.md) — one copy-paste, fill-in-the-gap prompt that drives your AI through the whole setup + onboarding |
 | **Looking for an example** | [docs/SCENARIOS.md](docs/SCENARIOS.md) — seven complete worked projects · [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
 | **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
