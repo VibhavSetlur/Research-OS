@@ -1,7 +1,7 @@
 id: tool_discovery
 tier: 'plan'
 name: Tool / Library Discovery
-version: '3.0.0'
+version: '4.1.0'
 schema_version: '2.0'
 last_reviewed: '2026-06-16'
 scope_tags:
@@ -19,19 +19,30 @@ steps:
   - id: consult_skill_layer
     name: Consult the agent's skill layer before a generic search
     description: |
-      If the project runs under an agent layer with a domain skill ecosystem
-      (e.g. Hermes — see guidance/agent_setup), check it FIRST. Domain skills
-      (a bioinformatics / drug-discovery / field-specific skill library) often
-      already name the canonical library for a task with validated, correct
-      parameters and flags — that is faster and more reliable than rediscovering
-      it from a web search. When a skill answers "which library for <task>",
-      take its recommendation as the strong default and SKIP straight to
-      test_install + log_decision, recording that the choice came from the
-      skill layer. Only fall through to the search steps below when no skill
+      If the project runs under an agent layer with a skill ecosystem (e.g.
+      Hermes — see guidance/agent_setup), check it FIRST, before any web search.
+      Look across ALL skill sources the agent can load (they share one
+      agentskills.io index, so skills_list() shows them together):
+        - the agent's own bundled + optional skills (Nous Hermes catalogs);
+        - the K-Dense science pack (140 deep science skills — bulk-rnaseq,
+          rdkit, scanpy, deepchem, ...). If skills_list() doesn't show them,
+          they aren't installed — `research-os skills add-science-pack` wires
+          them in (then the agent restarts to load them);
+        - any other native/external Agent Skills in skills.external_dirs.
+      Use progressive disclosure: skills_list() to find a match, then
+      skill_view(name) to load the how-to. sys_boot's recommended_skills
+      already names the skills that fit this project's domain + mode — start
+      there. A domain skill often names the canonical library with validated,
+      correct parameters — faster + more reliable than rediscovering it from a
+      search. When a skill answers "which library for <task>", take its
+      recommendation as the strong default and SKIP straight to test_install +
+      log_decision, recording that the choice came from the skill layer (and
+      which source). Only fall through to the search steps below when NO skill
       covers the task, or when the skill's recommendation needs confirming
       against the project's specific constraints (license, language, footprint).
       The skill says HOW; the steps below are the reasoning that confirms it
-      FITS and records WHY.
+      FITS and records WHY. If you end up doing novel work no skill covered,
+      `/learn` it or `distill` it afterward so next time the skill exists.
 
   - id: formulate_query
     name: Formulate the Search Query
