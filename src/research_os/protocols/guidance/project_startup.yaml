@@ -1,7 +1,7 @@
 id: project_startup
 tier: 'intake'
 name: Project Startup
-version: '3.0.0'
+version: '3.1.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -192,9 +192,9 @@ steps:
           → fetch every entry.
 
       Save successful hits to inputs/literature/. Record the search
-      itself in workspace/logs/search_log.md (tool_search_* logs
-      automatically). Note the empty searches too — "no hits" is a
-      meaningful finding.
+      itself in workspace/logs/search_log.md (write it with sys_file_write —
+      the query, window, providers, and which hits you kept). Note the
+      empty searches too — "no hits" is a meaningful finding.
 
       Why this is mandatory: the AI must NOT silently pretend its
       pre-training memory is current literature. A reviewer will ask

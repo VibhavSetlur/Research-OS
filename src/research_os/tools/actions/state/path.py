@@ -1047,8 +1047,8 @@ def finalize_path(
             "needed — analysis ran with the same package versions as every "
             "other step. Reproduce by recreating the global env.\n\n"
             "If you later add a step-specific requirement, run "
-            "`sys_env_snapshot` and re-run `tool_path_finalize` to refresh "
-            "this note.\n",
+            "`sys_env(operation='snapshot', step_id='" + path_name + "')` and "
+            "re-run `tool_path_finalize` to refresh this note.\n",
             encoding="utf-8",
         )
         changes.append("environment/README.md → global-env note")
