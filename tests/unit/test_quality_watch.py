@@ -27,7 +27,7 @@ def test_ungrounded_synthesis_is_flagged():
     hints = quality_hints("sys_file_write", {"filepath": "synthesis/paper.md"}, root)
     assert "ungrounded_synthesis_unverified" in _codes(hints)
     h = next(x for x in hints if x["code"] == "ungrounded_synthesis_unverified")
-    assert "claim_grounding" in h["next_recommended_call"]
+    assert "tool_ground" in h["next_recommended_call"]
 
 
 def test_synthesis_with_no_numbers_is_not_flagged():
@@ -79,7 +79,7 @@ def test_next_action_hint_for_high_traffic_tools():
     from research_os.server.quality_watch import next_action_hint
     root = _proj()
     assert "completeness" in next_action_hint("tool_step_complete", root)
-    assert "claim_grounding" in next_action_hint("tool_synthesis_scaffold", root)
+    assert "tool_ground" in next_action_hint("tool_synthesis_scaffold", root)
     assert next_action_hint("sys_help", root) is None  # not high-traffic
 
 

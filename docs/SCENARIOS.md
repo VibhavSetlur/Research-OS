@@ -68,9 +68,10 @@ Onboarding (`project_startup`) is where the project gets framed — the AI does
 ### One analysis step → a grounded result
 
 `tool_route` → `guidance/analysis_plan`. The AI opens the first numbered step
-with `tool_step`, writes a script under `workspace/01_did_readmission/`, runs it
-with `tool_python_exec`, and produces a figure. Because the computation ran
-**through a step script**, an output `.prov.json` sidecar is written
+with `sys_path(operation='create')`, plans it into sub-tasks with
+`tool_plan_step`, writes a script under `workspace/01_did_readmission/scripts/`,
+runs it with `tool_python_exec`, and produces a figure. Because the computation
+ran **through a step script**, an output `.prov.json` sidecar is written
 automatically (inputs by hash, script, seed, package versions, git sha).
 
 It writes `conclusions.md` from the artifacts, then **grounds** the prose:

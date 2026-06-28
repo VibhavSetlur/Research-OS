@@ -263,6 +263,27 @@ def audit_structure(root: str | Path) -> dict[str, Any]:
     except Exception:
         pass  # mode-health check is best-effort; never break the structure audit
 
+    # 9. Whole-project hygiene: the daemon watches the governance, comms, docs,
+    #    literature, context, and per-step-environment surfaces — not just the
+    #    numbered-step spine. These are the parts a reviewer reads to TRUST the
+    #    work and the parts that keep each step independently reproducible.
+    #    All by-shape, fail-open, mostly info/warn (RO is a guidance system —
+    #    these nudge the AI to self-correct mid-prompt, they don't block).
+    try:
+        from research_os.tools.actions.state.project_hygiene import (
+            project_hygiene_findings,
+        )
+
+        for f in project_hygiene_findings(root):
+            sev = f.get("severity", "info")
+            findings.append(_finding(
+                sev if sev in ("block", "warn", "info") else "info",
+                f.get("code", "project_hygiene"),
+                f.get("message", "project hygiene issue"),
+            ))
+    except Exception:
+        pass  # hygiene check is best-effort; never break the structure audit
+
     counts: dict[str, int] = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1

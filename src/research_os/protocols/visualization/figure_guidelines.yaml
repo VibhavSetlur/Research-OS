@@ -1,7 +1,7 @@
 id: figure_guidelines
 tier: 'synthesize'
 name: Figure Guidelines
-version: '3.0.0'
+version: '4.3.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -126,6 +126,31 @@ research_the_right_library_first:
     researcher's lab / target journal / deliverable has a different
     house style, follow that. Record the choice + reason in
     workspace/methods.md so a reviewer can replicate.
+
+pull_visualization_skills:
+  rule: |
+    Before hand-coding a figure, PULL relevant visualization SKILLS
+    from your skill layer (Hermes skills, external science skill packs,
+    the project's own distilled cards) rather than relying only on your
+    own memory or these built-in pitfalls. Research-OS supplies the
+    STRUCTURE — what each figure is FOR, what the audience needs — while
+    the DESIGN craft (palette, composition, rendering technique) is best
+    sourced from current best-practice skills + literature, tailored to
+    THIS audience and venue. The built-in pitfalls catalog below is a
+    safety net, not the ceiling.
+  how: |
+    1. Check the `recommended_skills` field that sys_boot returns and
+       load any visualization / plotting skill that matches the chart
+       kind + domain you are about to render.
+    2. If none fits, search for a best-practice skill / reference for
+       this specific chart type in this field —
+       tool_research_tool topic="<chart kind> best practice in <field>"
+       or tool_search query="<chart_kind> skill <domain>".
+    3. Prefer the field's canonical idioms the skill encodes over a
+       generic default — the skill captures what reviewers in this venue
+       expect, which your memory may not.
+    4. Record the chosen approach + its source in workspace/methods.md
+       so the figure is reproducible and auditable.
 
 common_pitfalls_to_avoid:
   label_overlap_on_scatter_or_volcano:

@@ -198,8 +198,20 @@ back-to-back before doing anything else:
      ambiguous.
    - `shortcut_tool` — when a single tool handles the intent (e.g.
      `tool_intake_autofill`), skip the protocol load entirely.
+   - `recommended_skills` — **per-task** capability skills to PULL for
+     THIS exact task (keyed off the resolved task + the project's domain
+     + mode): a `visualize` task → `scientific-visualization`; a `paper`
+     task → `scientific-writing`; a `literature` task → `literature-review`
+     + `citation-management`. This is the universal skill-pull reflex on
+     EVERY route, not just at boot.
 
    Rules:
+   - **Pull the `recommended_skills` for this task, every time.** Figure
+     out what THIS task needs → `skills_list()` / `skill_view(name)` to
+     load the matching skills (your own Nous skills, the K-Dense science
+     pack, or external Agent Skills) → USE them to do the work → keep
+     working inside Research-OS. Don't fall back to memory when a skill is
+     named, and don't wait to be asked.
    - If `ask_user` is non-null, ask THAT one-sentence question and
      re-route. Never guess.
    - If `complexity == "high"`, the router persisted an `active_plan`
@@ -514,6 +526,33 @@ of `tool_route(...)`. That's not an error — it's a mid-turn course-correct.
 numbered step it implies, and move the freelanced content into that step. Don't
 suppress it or push past it. A running daemon escalates to the researcher if you
 keep ignoring it.
+
+### Whole-project hygiene the daemon watches (beyond the step spine)
+
+The daemon doesn't only watch numbered steps. Its background self-check (and
+`tool_structure_audit`, and `sys_boot.daemon_notes`) also watches the surfaces
+that make the work TRUSTABLE and REPRODUCIBLE. These ride the same envelope as
+`daemon_flagged_issue`; act on them the same turn, then tell the researcher what
+you fixed. None of them block — Research-OS is a guidance system — but ignoring
+them leaves the project un-reproducible or hard to trust.
+
+| Finding code | What it means | What to do |
+|---|---|---|
+| `step_no_env_snapshot` | A step ran scripts + produced outputs but has no per-step environment capture | `sys_env(operation='snapshot', step_id='<NN_slug>')` so THAT step is independently reproducible / containerizable, not just covered by the global env |
+| `literature_corpus_behind` | The root `literature/` corpus is missing papers that exist in a step's `literature/` or in `inputs/literature/` | Run `tool_path_finalize` for the step (mirrors its papers) and mirror `inputs/literature` so the single corpus-of-record stays complete |
+| `step_ungrounded_no_literature` | A step has real conclusions but pulled no literature of its own and there's no inputs corpus | Pull supporting papers DURING the step (`research/literature_per_step`) to ground the claims; or set `literature_required: false` for pure-engineering steps |
+| `step_context_dir_missing` | A step has no `context/` drop-zone though the project uses context material | Create the step's `context/` so step-local briefing has a home |
+| `decisions_not_logged` | Several steps have real conclusions but `DECISIONS.md` has only the seed ADR | Log the key design choices (metric pick, branch/dead-end calls) as ADRs so a reviewer can reconstruct WHY |
+| `state_md_stale` | `STATE.md` is older than the latest step work | Refresh it (`sys_state_refresh` / `sys_status`) so the status a collaborator reads first is current |
+| `getting_started_unfilled` | `GETTING_STARTED.md` is still the seed after real work exists | Update it so a new collaborator can get oriented |
+| `communication_log_empty` | `communication/` is just the seed after several steps | If the project has collaborators / PI threads / handoffs, keep the human record current |
+| `glossary_unfilled` | `docs/glossary.md` has no terms yet | Add the domain terms the project uses so a cross-field reader can follow |
+
+The throughline: pull literature mid-step (don't only lean on `inputs/literature`),
+snapshot each step's environment, keep the root `literature/` corpus and the
+governance docs (DECISIONS / STATE / communication) current as you go — so the
+soft, trusted prose of the project always has the hard, verified structure under
+it.
 
 ---
 

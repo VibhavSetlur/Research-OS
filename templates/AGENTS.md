@@ -26,17 +26,17 @@ topics on demand). Full human guide:
    One call, replaces 4-5.
 2. **`tool_route(prompt=<verbatim message>)`** → semantic+trigger router.
    Returns `primary_protocol`, `shortcut_tool`, `decomposition`,
-   `complexity`, `ask_user`. If `ask_user` is non-null, ASK it then
-   re-route — never guess.
+   `complexity`, `ask_user`, `recommended_skills`. If `ask_user` is non-null,
+   ASK it then re-route — never guess. PULL the `recommended_skills` for THIS
+   task (`skill_view` → load → use), then keep working inside RO.
    - `complexity="high"` → `tool_plan(operation="turn")` (batches by
-     `model_profile`: small=1 / medium=3 / large=6 step(s)/turn), execute in
-     order, `tool_plan(operation="advance")` after each; if
+     `model_profile`: small=1/medium=3/large=6 step/turn), then
+     `tool_plan(operation="advance")` after each; if
      `chat_split_recommended`, run `sys_session_handoff`.
    - `complexity="low"` → call `shortcut_tool` directly, OR
      `sys_protocol_get format='summary'` then `format='step' step_id=<id>`.
 
-Subsequent turns: skip `sys_boot` (still in context); go straight to
-`tool_route` or continue the `active_plan`.
+Subsequent turns: skip `sys_boot` (still in context); go straight to `tool_route` or continue the `active_plan`.
 
 ## Token economy (read once, apply always)
 

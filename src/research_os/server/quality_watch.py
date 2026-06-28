@@ -122,7 +122,7 @@ def next_action_hint(tool: str, root: Path) -> str | None:
         if tool == "tool_step_complete":
             return "tool_audit(scope='step', dimension='completeness')"
         if tool in ("tool_synthesis_scaffold",):
-            return "tool_claim_grounding()"
+            return "tool_ground(mode='from_context', claim='<each numeric claim>')"
         if tool == "tool_route":
             # If routing persisted a plan, advance it; else load the protocol.
             try:
@@ -188,7 +188,7 @@ def quality_hints(tool: str, arguments: dict, root: Path) -> list[dict]:
                                 "wrote it. Verify every number traces to a real "
                                 "artifact before anyone reads it."
                             ),
-                            "next_recommended_call": "tool_claim_grounding()",
+                            "next_recommended_call": "tool_ground(mode='from_context', claim='<each numeric claim>')",
                         })
 
         # A4 — stuck in a run of failed protocol steps (it's looping NOW).

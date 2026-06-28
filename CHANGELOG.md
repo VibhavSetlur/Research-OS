@@ -6,6 +6,53 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.3.0] — the daemon watches everything + universal per-task skill-pull (2026-06-28)
+
+A MINOR release. Two themes: the daemon now watches the WHOLE project surface
+(not just the numbered-step spine), and skill-pulling became a universal
+per-task reflex (not visualization-only). Research-OS stays a guidance system —
+the new watches are non-blocking signals the AI self-corrects on mid-prompt.
+
+### Added
+- **Whole-project hygiene watch** (`tools/actions/state/project_hygiene.py`),
+  wired into `structure_audit` so it reaches the daemon self-check, `sys_boot`,
+  and `tool_structure_audit` at once. New by-shape, fail-open findings:
+  `step_no_env_snapshot` (a step ran scripts + produced outputs but has no
+  per-step environment capture — not independently reproducible/containerizable),
+  `step_ungrounded_no_literature` + `literature_corpus_behind` (pull literature
+  mid-step; keep the root `literature/` corpus-of-record current),
+  `step_context_dir_missing`, `decisions_not_logged`, `state_md_stale`,
+  `getting_started_unfilled`, `communication_log_empty`, `glossary_unfilled`.
+- **Universal per-task skill-pull.** `recommend_skills()` now takes
+  `task_intent` + `protocol` and leads with the capability THIS task needs
+  (`viz_build` → scientific-visualization, `paper` → scientific-writing,
+  `per_step_grounding` → literature-review + citation-management). `tool_route`
+  attaches `recommended_skills` to EVERY successful route (keyed off the
+  resolved sub-intent + protocol + project domain + mode), not just a
+  fresh-project boot. `science_pack.science_skills_for()` gains a protocol arg;
+  `SCIENCE_PACK_BY_PROTOCOL` expanded; new `SUB_INTENT_SKILL_TAGS` keyed to real
+  router sub-intents.
+
+### Improved
+- **`literature/literature_per_step`** protocol teaches mid-step pulling +
+  the root corpus-of-record (references the new daemon codes).
+- **`visualization/figure_guidelines`** protocol gains a
+  `pull_visualization_skills` block (pull viz skills/best-practice;
+  structure-not-design).
+- **AGENTS.md / AI_GUIDE / templates/hermes SKILL.md** teach the universal
+  reflex (route → read `recommended_skills` → `skill_view` + load → use → keep
+  working inside RO) and the whole-project hygiene codes.
+- **.gitignore** generator: `scratch/` `logs/` `cache/` are now UNANCHORED so
+  the per-step copies (`workspace/<NN>/scratch|logs/`) are ignored too, not just
+  the top-level dirs; the doctor's `.gitignore` check accepts both forms.
+
+### Fixed
+- De-deprecated `sys_env_snapshot` → `sys_env(operation='snapshot', ...)` across
+  user-facing warnings and the env seed READMEs; added per-step
+  reproducibility/containerization framing to the environment seed.
+
+---
+
 ## [4.2.1] — documentation overhaul (2026-06-27)
 
 A PATCH release: documentation only, no code or behavior changes. The docs were
