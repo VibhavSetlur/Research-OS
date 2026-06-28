@@ -114,31 +114,104 @@ SCIENCE_PACK_BY_MODE: dict[str, list[str]] = {
 }
 
 # Research-OS protocol / stage → the science skill that supercharges it. Lets
-# guidance point the AI at the right capability at the right step.
+# guidance point the AI at the right capability at the right step. This is the
+# TASK-KIND layer: whatever the AI is about to do, it can pull the matching
+# capability skill first, then keep working inside Research-OS.
 SCIENCE_PACK_BY_PROTOCOL: dict[str, list[str]] = {
     "guidance/analysis_plan": ["experimental-design", "statistical-power"],
+    "guidance/deep_planning": ["experimental-design", "scientific-brainstorming"],
     "guidance/iterative_planning": ["scientific-brainstorming",
                                     "hypothesis-generation"],
+    "methodology/deep_planning": ["experimental-design",
+                                  "scientific-brainstorming"],
     "research/literature_review": ["literature-review", "citation-management"],
+    "literature/literature_per_step": ["literature-review",
+                                       "citation-management"],
     "research/intake": ["hypothesis-generation", "literature-review"],
+    "methodology/data_quality_audit": ["exploratory-data-analysis",
+                                       "statistical-analysis"],
+    "execute/new_experiment": ["statistical-analysis", "experimental-design"],
+    "execute/run_analysis": ["statistical-analysis",
+                             "exploratory-data-analysis"],
+    "visualization/figure_guidelines": ["scientific-visualization"],
+    "visualization/visualization_workflow": ["scientific-visualization"],
     "synthesis/synthesis_paper": ["scientific-writing"],
     "synthesis/synthesis_poster": ["latex-posters", "pptx-posters"],
     "synthesis/synthesis_slides": ["scientific-slides"],
     "audit/pre_submission_checklist": ["peer-review",
                                        "scientific-critical-thinking"],
+    "audit/audit_and_validation": ["scientific-critical-thinking",
+                                   "statistical-analysis"],
+    "reproducibility/reproducibility": ["optimize-for-gpu"],
+    "build/spec_and_design": ["scikit-learn"],
+}
+
+# Sub-intent (the L2 routing key) → capability tags. Coarser than the protocol
+# map but covers task kinds that route to many protocols. Keys are REAL router
+# sub_intents (see protocols/_route_meta.json). Advisory tags the AI matches
+# against whatever skills are available (Hermes / science-pack / its own).
+SUB_INTENT_SKILL_TAGS: dict[str, list[str]] = {
+    # planning
+    "deep_plan": ["experimental-design", "scientific-brainstorming"],
+    "roadmap": ["experimental-design", "scientific-brainstorming"],
+    "hypothesis": ["hypothesis-generation", "scientific-brainstorming"],
+    # data + analysis
+    "new_experiment": ["statistical-analysis", "experimental-design"],
+    "eda": ["exploratory-data-analysis", "statistical-analysis"],
+    "data_audit": ["exploratory-data-analysis", "statistical-analysis"],
+    "data_prep": ["exploratory-data-analysis"],
+    "causal": ["causal-inference", "statistical-analysis"],
+    "bayesian": ["pymc", "statistical-analysis"],
+    "timeseries": ["timesfm-forecasting", "statistical-analysis"],
+    "ml": ["scikit-learn", "model-eval"],
+    "power": ["statistical-power", "experimental-design"],
+    # literature
+    "intake": ["literature-review", "hypothesis-generation"],
+    "per_step_grounding": ["literature-review", "citation-management"],
+    "systematic": ["literature-review", "citation-management"],
+    # visualization
+    "viz_build": ["scientific-visualization"],
+    "figure": ["scientific-visualization"],
+    "figures": ["scientific-visualization"],
+    "dashboard": ["scientific-visualization"],
+    "poster": ["latex-posters", "pptx-posters"],
+    "slides": ["scientific-slides"],
+    # synthesis / writing
+    "paper": ["scientific-writing"],
+    "writing": ["scientific-writing"],
+    "abstract": ["scientific-writing"],
+    "grant": ["scientific-writing"],
+    # audit
+    "audit": ["scientific-critical-thinking", "peer-review"],
+    "reviewer_sim": ["peer-review", "scientific-critical-thinking"],
+    "submission": ["peer-review", "scientific-writing"],
+    # tool_build / hybrid
+    "build_implement": ["software-testing", "scikit-learn"],
+    "build_evaluate": ["benchmarking", "model-eval"],
+    "build_test": ["software-testing"],
+    "build_benchmark": ["benchmarking", "model-eval"],
+    # reproducibility
+    "repro": ["optimize-for-gpu"],
+    "reproduce": ["optimize-for-gpu"],
 }
 
 
-def science_skills_for(domain: str | None, mode: str | None) -> list[dict]:
-    """Return curated K-Dense skill recommendations for a domain + mode.
+def science_skills_for(
+    domain: str | None, mode: str | None, protocol: str | None = None,
+) -> list[dict]:
+    """Return curated K-Dense skill recommendations for a domain + mode +
+    (optionally) the specific protocol/stage the AI is about to run.
 
     Each item: {name, reason, source='science_pack', repo}. Deduped, capped
-    by the caller. Pure data lookup; safe with unknown domain/mode.
+    by the caller. Pure data lookup; safe with unknown domain/mode/protocol.
+    The protocol mapping is listed FIRST so the task-specific capability the
+    AI needs for THIS step leads the recommendations.
     """
     out: list[dict] = []
     seen: set[str] = set()
     dom = (domain or "").strip().lower()
     mode_k = (mode or "analysis").strip().lower()
+    proto = (protocol or "").strip()
 
     def _add(name: str, reason: str) -> None:
         if name in seen:
@@ -149,6 +222,9 @@ def science_skills_for(domain: str | None, mode: str | None) -> list[dict]:
             "repo": SCIENCE_PACK_REPO,
         })
 
+    # Task-specific first: the skill that supercharges THIS protocol/stage.
+    for name in SCIENCE_PACK_BY_PROTOCOL.get(proto, []):
+        _add(name, f"K-Dense science skill for {proto}")
     for name in SCIENCE_PACK_BY_DOMAIN.get(dom, []):
         _add(name, f"K-Dense science skill for {dom}")
     for name in SCIENCE_PACK_BY_MODE.get(mode_k, []):

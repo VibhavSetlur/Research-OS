@@ -45,10 +45,15 @@ disclosure:
 
 **How to use them, every task:**
 
-- **Let RO tell you WHICH.** `sys_boot` returns `recommended_skills` for THIS
-  project's domain + mode (e.g. genomics → biopython, gget, bulk-rnaseq). On
-  the first turn of a fresh project, load those before starting — don't wait to
-  be asked.
+- **Let RO tell you WHICH — every task, not just at boot.** `sys_boot` returns
+  `recommended_skills` for the project's domain + mode on a fresh project, AND
+  **`tool_route` returns `recommended_skills` for THIS specific task** every
+  time you route (keyed off the resolved task + domain + mode: a `visualize`
+  task → `scientific-visualization`; a `paper` task → `scientific-writing`; a
+  `literature` task → `literature-review` + `citation-management`). The reflex
+  for EVERY task: route the ask → read `recommended_skills` → `skill_view` and
+  load the matching ones → USE them to do the work → keep working inside RO.
+  Don't wait to be asked, and don't fall back to memory when a skill is named.
 - **Check before you derive.** Before running a tool/pipeline/method from
   memory, `skills_list()` and load the matching skill with `skill_view`. A
   validated skill beats re-derivation or a generic web search.

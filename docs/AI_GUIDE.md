@@ -198,8 +198,20 @@ back-to-back before doing anything else:
      ambiguous.
    - `shortcut_tool` — when a single tool handles the intent (e.g.
      `tool_intake_autofill`), skip the protocol load entirely.
+   - `recommended_skills` — **per-task** capability skills to PULL for
+     THIS exact task (keyed off the resolved task + the project's domain
+     + mode): a `visualize` task → `scientific-visualization`; a `paper`
+     task → `scientific-writing`; a `literature` task → `literature-review`
+     + `citation-management`. This is the universal skill-pull reflex on
+     EVERY route, not just at boot.
 
    Rules:
+   - **Pull the `recommended_skills` for this task, every time.** Figure
+     out what THIS task needs → `skills_list()` / `skill_view(name)` to
+     load the matching skills (your own Nous skills, the K-Dense science
+     pack, or external Agent Skills) → USE them to do the work → keep
+     working inside Research-OS. Don't fall back to memory when a skill is
+     named, and don't wait to be asked.
    - If `ask_user` is non-null, ask THAT one-sentence question and
      re-route. Never guess.
    - If `complexity == "high"`, the router persisted an `active_plan`
