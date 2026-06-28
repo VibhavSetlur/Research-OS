@@ -1,292 +1,265 @@
-# Use Cases — which protocol for which researcher, which moment
+# Use Cases — "I want to X" → what to say → what fires
 
-Research OS is designed for the **full** research life-cycle, not just the
-linear data → publication path. This document is a role × goal map: pick
-your role, find your situation, see the protocol the AI will route to.
+You don't memorize protocols. You say what you want in plain English;
+`tool_route` maps your message to the right protocol, and your
+**workspace mode** shapes how it runs. This page exists so you can see
+what's possible and confirm the AI's choice.
 
-You don't need to memorise this. Just talk in plain English; `tool_route`
-picks the protocol. This page exists so you know what's possible.
-
-> **Want to see it on a real project instead of a lookup table?**
-> [SCENARIOS.md](SCENARIOS.md) walks seven complete projects end-to-end —
+> **Want a real project instead of a lookup table?**
+> [SCENARIOS.md](SCENARIOS.md) walks seven complete projects end to end —
 > a messy CSV to a paper, reproducing a published result, prepping an
 > R01, benchmarking your own tool, interview transcripts to publication —
-> with the exact prompts and what lands on disk. Read the one closest to
-> your situation, then come back here for the full map.
+> with the exact prompts and what lands on disk.
 
 ---
 
-## Common first prompts (start here)
+## Real research goals (start here)
 
-These are the highest-leverage first-turn prompts, validated against
-end-to-end scenarios. Each one routes cleanly; pick the row that matches
-what you actually have on disk, paste a one-line variant into the chat,
-and let the AI work.
+These are the goals researchers actually arrive with. Find yours, say the
+prompt, and let the AI work. Each routes cleanly.
 
-> **First, the mode.** If you're *building software* rather than
-> *analysing data*, init in **tool_build** mode and see the tool_build
-> rows below + [TOOL_BUILDER.md](TOOL_BUILDER.md). If you're just poking
-> around, **exploration** mode keeps gates light. Everything else assumes
-> the default **analysis** mode. See [By workspace mode](#by-workspace-mode).
+### "I want to write a paper from my data."
 
-| What you arrived with | Try this first prompt | Routes to |
+**Say:** *"My data's in `inputs/raw_data/` and I want to test whether
+\<hypothesis\>. Onboard me, then take it through to a journal paper."*
+
+**What fires:** onboarding (`session_boot` → `project_startup`) →
+`guidance/analysis_plan` per experiment step → `audit/audit_and_validation`
+→ `synthesis/synthesis_paper`. **Mode:** analysis.
+**You get:** numbered steps under `workspace/NN_*` with grounded figures
+and conclusions, then a content-grounded paper **structure** assembled
+from *your* results — an outline tailored to your audience and venue that
+you render, not a fixed template filled in. Every number traces back to a
+step; every citation is verified.
+
+### "I want to build a dashboard."
+
+**Say:** *"build a dashboard for executives from my results."*
+
+**What fires:** `synthesis/synthesis_dashboard`. **Mode:** analysis.
+**You get:** a dashboard **structure** — sections, the figures and tables
+to feature, the narrative order — grounded in your computed results and
+tuned to the audience (`audience: academic | executive | technical |
+teaching`). Research OS assembles the structure for you to render; it
+doesn't hand you a fixed HTML palette.
+
+### "I want to reproduce a published result."
+
+**Say:** *"reproduce this paper"* (drop the PDF in `inputs/literature/`).
+
+**What fires:** `methodology/reproduction_attempt`. **Mode:** analysis
+(or exploration if you're just probing). **You get:** a reproduction
+report — what matched, what didn't, and where the discrepancy lives —
+with every comparison grounded in re-run computation, not eyeballing.
+
+### "I want to run a long Docker job and walk away."
+
+**Say (in the terminal):**
+
+```bash
+research-os daemon setup            # once
+research-os daemon start
+research-os daemon docker myimg:1.0 --gpus all -- python train.py
+research-os daemon runs             # check history later
+research-os daemon logs <run_id>    # manifest + output
+```
+
+**What fires:** the **per-project daemon**, not an inline tool. The run
+is journaled and provenanced; the exact image digest is recorded so it
+reproduces bit-for-bit; the project root is mounted so outputs land back
+in the workspace. It survives the IDE closing and rehydrates after a
+reboot. On a shared box set `runtime.shared_server: true` so the AI asks
+before allocating heavy resources. (For SLURM: `research-os daemon submit
+job.sbatch`.)
+
+### "I want to hand this off to a collaborator."
+
+**Say:** *"package this project for handoff to a collaborator."*
+
+**What fires:** `guidance/collaboration_handoff`. **Mode:** any.
+**You get:** a self-contained package — data provenance, the decision
+trail, what's done and what's pending — so a new person (or a fresh chat)
+can pick it up. To wrap a working session instead, say *"hand off the
+session"* (`guidance/chat_handoff`); to resume, *"pick up where we left
+off"* (`guidance/session_resume`).
+
+### "I want to build a pipeline tool, not analyze data."
+
+**Say (init in the right mode first):**
+
+```bash
+research-os init . --workspace-mode tool_build
+```
+
+then *"spec out a fast FASTQ deduplicator — it must handle paired-end
+reads and beat `seqkit rmdup` on 10 GB inputs"*, then *"implement the
+parser"*, then *"benchmark it against seqkit."*
+
+**What fires:** `build/spec_and_design` → `build/implement_iteration`
+(loop) → `build/test_strategy` → `build/benchmark_vs_baseline` →
+`build/release_and_changelog`. **Mode:** tool_build. **You get:** a
+tested, benchmarked tool in its own inner git repo with a governance
+surface (`spec/`, `decisions/`, `eval/`). "Done" is a passing eval +
+green tests + a clean build, not a figure. Full walkthrough:
+[TOOL_BUILDER.md](TOOL_BUILDER.md).
+
+---
+
+## Common first prompts
+
+The highest-leverage first-turn prompts, validated against end-to-end
+scenarios. Pick the row matching what you have on disk.
+
+| What you arrived with | First prompt | Routes to |
 |---|---|---|
-| Data + a specific hypothesis | "I dropped my <dataset> in inputs/ — I want to test whether <hypothesis>." | `guidance/project_startup` → `tool_intake_autofill` |
-| Data, no hypothesis yet | "I have <dataset> in inputs/ — explore it and help me find a hypothesis." | `methodology/exploratory_data_analysis` |
-| Brand-new, just want to look | "i have a csv, what do i do?" / "look at my data" / "make a chart" / "is my result significant?" | the router coaches from plain phrasing (EDA / a figure / a significance check) |
-| Building a tool / library / CLI (tool_build mode) | "spec out <the tool>, here's what it must do." / "implement the next feature." | `build/spec_and_design` → `build/implement_iteration` |
-| Quick scratch exploration (exploration mode) | "just poke at this data, nothing formal." | `guidance/casual_exploration` (scratch-first) |
-| A text corpus (humanities / lit) | "I have <N> texts in inputs/raw_data/ — test whether <stylistic claim>." (e.g. James's late-style vocabulary shift) | `humanities/method/digital_humanities_workflow` (auto-loads the humanities pack); see also `humanities/textual/distant_reading` + `humanities/method/close_reading` |
-| Interview transcripts | "I have <N> interview transcripts in inputs/raw_data/ — walk this through to a paper + dashboard." | `methodology/qualitative_research` → `methodology/coding_scheme_development` → `methodology/qualitative_quality_audit` |
-| Benchmark / engineering measurements | "Benchmark <variant A> vs <variant B> vs <variant C> across <input sizes>; quantify when A wins." | `methodology/method_comparison` (engineering pack auto-detects) |
-| A theorem to prove | "I have a conjecture: <statement>. Help me prove it and write it up as a theory paper." | `theory_math/proof/proof_verification_workflow` (theory_math pack); see also `theory_math/conjecture/conjecture_tracking` |
-| Mixed: "I have a draft and some data" | "I'm bringing this project into Research-OS; we've been working on it for months." | `guidance/mid_pipeline_entry` |
-| You're not sure yet | "I have some data and some ideas — help me figure out where to start." | `guidance/scope_clarification` |
+| Data + a specific hypothesis | "I dropped \<dataset\> in inputs/ — test whether \<hypothesis\>." | `guidance/project_startup` → `tool_intake_autofill` |
+| Data, no hypothesis yet | "I have \<dataset\> in inputs/ — explore it and help me find a hypothesis." | `methodology/exploratory_data_analysis` |
+| Brand-new, just want to look | "i have a csv, what do i do?" / "look at my data" / "make a chart" | the router coaches from plain phrasing |
+| Building a tool (tool_build mode) | "spec out \<the tool\>, here's what it must do." / "implement the next feature." | `build/spec_and_design` → `build/implement_iteration` |
+| Quick scratch poke (exploration mode) | "just poke at this data, nothing formal." | `guidance/casual_exploration` |
+| A text corpus (humanities) | "I have \<N\> texts in inputs/raw_data/ — test whether \<stylistic claim\>." | `humanities/method/digital_humanities_workflow` |
+| Interview transcripts | "I have \<N\> transcripts in inputs/raw_data/ — walk this to a paper + dashboard." | `methodology/qualitative_research` → `coding_scheme_development` → `qualitative_quality_audit` |
+| Benchmark / engineering measurements | "Benchmark A vs B vs C across input sizes; quantify when A wins." | `methodology/method_comparison` |
+| A theorem to prove | "I have a conjecture: \<statement\>. Help me prove it and write it up." | `theory_math/proof/proof_verification_workflow` |
+| A draft + some data already going | "I'm bringing this into Research-OS; we've worked on it for months." | `guidance/mid_pipeline_entry` |
+| Not sure yet | "I have some data and ideas — help me figure out where to start." | `guidance/scope_clarification` |
 
-A couple of fresh-agent tips that the validation surfaced:
+A few routing facts the validation surfaced:
 
-* **You don't have to phrase it as one of the above.** `tool_route` does
+- **You don't have to phrase it like the table.** `tool_route` does
   semantic matching first, then a hierarchical L1 → L2 → L3 trigger
   picker. "head-to-head", "bake-off", "horse race" all hit
-  `method_comparison`; "prove this", "I have a claim I need to prove",
-  "proof verification" all hit the theory_math pack.
-* **If the router picks the wrong protocol, say "actually I meant X".**
-  The AI re-routes without re-loading the workspace.
-* **If you don't have data yet, just say so.** "Teach me about <method>
-  before I use it" loads `methodology/methodological_consultation` and
-  doesn't commit you to a project.
+  `method_comparison`; "prove this", "proof verification" hit theory_math.
+- **Wrong protocol? Say "actually I meant X."** It re-routes without
+  reloading the workspace.
+- **No data yet? Say so.** *"Teach me about \<method\> before I use it"*
+  loads `methodology/methodological_consultation` and commits you to
+  nothing.
 
 ---
 
 ## By workspace mode
 
-The first fork is *what kind of project this is*, set at
-`research-os init` (`--workspace-mode`, or the wizard's "What are you
-building?" step) and stored as `workspace.mode` in
-`inputs/researcher_config.yaml`.
+The first fork is *what kind of project this is*, set at `research-os
+init .` (`--workspace-mode`, or the wizard) and stored as
+`workspace.mode` in `inputs/researcher_config.yaml`.
 
 | You're… | Mode | Say something like… | Routes to |
 |---|---|---|---|
-| Analysing data toward a finding / paper | **analysis** *(default)* | "fill the intake", "run an EDA", "draft the paper" | the analysis protocols below |
-| Building software you iterate on | **tool_build** | "spec out a fast FASTQ deduplicator", "implement the next feature", "write a benchmark vs the baseline", "cut a release" | `build/spec_and_design` · `build/implement_iteration` · `build/test_strategy` · `build/benchmark_vs_baseline` · `build/release_and_changelog` |
-| Poking around, no committed direction | **exploration** | "just poke at this", "smoke-test an idea in scratch" | `guidance/casual_exploration` (scratch-first; promote a probe to a numbered step only when it earns it) |
-| Working notebook-first (Jupyter is the unit of work) | **notebook** | "open a notebook and explore X", "turn this notebook into a step" | `notebook/notebook_workflow` (+ run / reproduce / promote / synthesize) |
-| Building a tool AND using it on data in one project | **hybrid** | "build the parser, then run it on my data and improve it" | `hybrid/hybrid_workflow` (the analysis↔build pivot) · `hybrid/tool_to_analysis_handoff` · `build/tool_evaluation_loop` |
-| Running a research program (several sub-studies) | **multi_study** | "set up a program with three studies sharing a codebook" | `program/program_setup` · `program/study_register` · `program/cross_study_synthesis` |
-
-**tool_build example.** You're writing a CLI that deduplicates FASTQ
-reads. `research-os init --workspace-mode tool_build` seeds the
-governance surface (`spec/`, `decisions/`, `eval/`, `milestones.md`) and
-an inner git repo. *"Spec it out — it must handle paired-end reads and
-beat `seqkit rmdup` on 10 GB inputs"* → `build/spec_and_design` records
-the acceptance criteria + interface contract + ADRs. *"Implement the
-parser"* → `build/implement_iteration` writes code in the inner repo,
-proves it with a test, runs the checks, commits. *"Benchmark it against
-seqkit"* → `build/benchmark_vs_baseline`. "Done" is a passing eval +
-green tests + a clean build, not a figure. Full walkthrough:
-[TOOL_BUILDER.md](TOOL_BUILDER.md).
-
-**exploration example.** You inherited a messy dataset and have no idea
-what's in it. `research-os init --workspace-mode exploration` makes
-`workspace/scratch/` the home base. *"Just poke at this — distributions,
-missingness, anything weird"* runs a quick look with light gates; nothing
-is promoted to a formal numbered step until you say *"okay, this one's
-worth doing properly"*. Good for the hour before you know whether there's
-a project here at all.
+| Analyzing data toward a finding / paper | **analysis** *(default)* | "fill the intake", "run an EDA", "draft the paper" | the analysis protocols below |
+| Building software you iterate on | **tool_build** | "spec out a fast deduplicator", "implement the next feature", "benchmark vs baseline", "cut a release" | `build/spec_and_design` · `build/implement_iteration` · `build/test_strategy` · `build/benchmark_vs_baseline` · `build/release_and_changelog` |
+| Poking around, no committed direction | **exploration** | "just poke at this", "smoke-test an idea in scratch" | `guidance/casual_exploration` (promote a probe to a numbered step only when it earns it) |
+| Working notebook-first | **notebook** | "open a notebook and explore X", "turn this notebook into a step" | `notebook/notebook_workflow` |
+| Building a tool AND using it on data | **hybrid** | "build the parser, then run it on my data and improve it" | `hybrid/hybrid_workflow` · `hybrid/tool_to_analysis_handoff` |
+| Running a program (several sub-studies) | **multi_study** | "set up a program with three studies sharing a codebook" | `program/program_setup` · `program/study_register` · `program/cross_study_synthesis` |
 
 ---
 
 ## By role
 
-### The graduate student / postdoc running their own analyses
+### Graduate student / postdoc running their own analyses
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Set up a new project from data + papers | "fill the intake" | `guidance/project_startup` |
+| Set up from data + papers | "fill the intake" | `guidance/project_startup` |
 | Run the next experiment | "run an EDA", "fit a logistic regression" | `guidance/analysis_plan` |
-| Decide what to do next | "what should I do next" | `guidance/iterative_planning` |
-| Sandbox-explore without paperwork | "just poke at this", "sanity check" | `guidance/casual_exploration` |
+| Decide what's next | "what should I do next" | `guidance/iterative_planning` |
 | Generate hypotheses from data | "do real EDA — no hypothesis yet" | `methodology/exploratory_data_analysis` |
-| Compare two methods head-to-head | "benchmark RF vs XGB on this" | `methodology/method_comparison` |
+| Compare two methods head-to-head | "benchmark RF vs XGB" | `methodology/method_comparison` |
 | Design the eval (split + CV + metrics) | "design the evaluation strategy" | `methodology/evaluation_design` |
-| Design a hyperparameter sweep | "design the sweep, equal budgets" | `methodology/hyperparameter_search_design` |
-| Workshop my paper title | "give me title alternatives" | `synthesis/synthesis_title_workshop` |
-| Write the Discussion | "draft the discussion" | `writing/writing_discussion` |
-| Write the Limitations | "tighten the limitations" | `writing/writing_limitations` |
 | Write the paper | "draft the manuscript for a journal" | `synthesis/synthesis_paper` |
-| Cover letter for submission | "draft a cover letter" | `synthesis/synthesis_cover_letter` |
-| End-matter (data avail / CRediT / etc.) | "draft the end matter" | `writing/writing_data_availability` |
 | Pre-submission final check | "is this ready to submit" | `audit/pre_submission_checklist` |
-| Make a poster | "make me a conference poster" | `synthesis/synthesis_poster` |
-| Make a one-pager / handout | "make a one-pager for the poster session" | `synthesis/synthesis_handout` |
-| Make a dashboard | "build a dashboard" | `synthesis/synthesis_dashboard` |
-| Wrap up a working session | "wrap up", "going to lunch" | `guidance/chat_handoff` |
-| Come back next day | "pick up where we left off" | `guidance/session_resume` |
+| Make a poster / dashboard | "make a conference poster" / "build a dashboard" | `synthesis/synthesis_poster` · `synthesis/synthesis_dashboard` |
+| Wrap up / resume | "wrap up" / "pick up where we left off" | `guidance/chat_handoff` · `guidance/session_resume` |
 
-### The principal investigator / lab leader
+### Principal investigator / lab leader
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Read a draft paper for a journal club | "review this paper" | `guidance/quick_paper_review` |
-| Compare 3-5 papers on a related-work search | "compare these papers", "journal club on these" | `literature/comparative_paper_review` |
-| Get a weekly update for a meeting | "weekly update", "milestone update" | `synthesis/synthesis_progress_update` |
+| Review a draft for journal club | "review this paper" | `guidance/quick_paper_review` |
+| Compare 3–5 related papers | "journal club on these" | `literature/comparative_paper_review` |
+| Weekly meeting update | "weekly update" | `synthesis/synthesis_progress_update` |
 | Draft an NIH R01 | "draft an R01 grant" | `synthesis/synthesis_grant` |
-| Draft the funder lay-summary section | "lay summary for the grant" | `synthesis/synthesis_lay_summary` |
-| Vet a collaborator's analysis script | "review this code" | `guidance/code_review` |
-| Respond to peer review on your paper | "draft a rebuttal" | `guidance/peer_review_response` |
-| Package a finished project for a new lab | "send to a collaborator", "package for handoff" | `guidance/collaboration_handoff` |
+| Vet a collaborator's script | "review this code" | `guidance/code_review` |
+| Respond to peer review | "draft a rebuttal" | `guidance/peer_review_response` |
+| Package a project for a new lab | "package for handoff" | `guidance/collaboration_handoff` |
 
-### The methodologist / statistical consultant
+### Methodologist / statistical consultant
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Teach a method to a consult-er | "explain mixed-effects models" | `methodology/methodological_consultation` |
-| Justify a power calc for an upcoming RCT | "power analysis", "sample size" | `methodology/power_analysis` |
-| Audit a dataset before recommending methods | "data quality audit" | `methodology/data_quality_audit` |
-| Walk through methodology pick for a project | "which method should I use" | `methodology/methodology_selection` |
-| Design split / CV / metric / paired test | "design the evaluation strategy" | `methodology/evaluation_design` |
-| Design a hyperparameter sweep | "design the sweep" | `methodology/hyperparameter_search_design` |
-| Walk an ethics review | "data ethics review" | `methodology/data_ethics_review` |
-| Push back when the chosen direction is weak | "tell me if I'm wrong" | `guidance/constructive_disagreement` |
+| Teach a method | "explain mixed-effects models" | `methodology/methodological_consultation` |
+| Justify a power calc | "power analysis", "sample size" | `methodology/power_analysis` |
+| Audit a dataset | "data quality audit" | `methodology/data_quality_audit` |
+| Pick a method | "which method should I use" | `methodology/methodology_selection` |
 | Build the canonical pipeline for a subfield | "best-practice pipeline for snRNA-seq" | `methodology/deep_domain_research` |
-| Pre-register the SAP | "freeze the analysis plan" | `methodology/preregistration` |
-| Set up a simulation study (ADEMP) | "run a simulation study" | `methodology/simulation_studies` |
+| Pre-register the analysis plan | "freeze the analysis plan" | `methodology/preregistration` |
+| Run a simulation study (ADEMP) | "run a simulation study" | `methodology/simulation_studies` |
 
-### The reviewer / journal-club host / reading-group leader
+### Reviewer / journal-club host
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Quick 30-min critique of a paper | "tear apart this paper" | `guidance/quick_paper_review` |
-| Compare-and-contrast 3-5 papers | "journal club on these" | `literature/comparative_paper_review` |
-| Critique a single figure from a paper | "critique Figure 2 of this paper" | `visualization/figure_critique` |
-| Attempt to reproduce a published analysis | "reproduce this paper" | `methodology/reproduction_attempt` |
-| Run a full systematic review (PRISMA) | "systematic review of X" | `literature/systematic_review` |
+| Quick critique of a paper | "tear apart this paper" | `guidance/quick_paper_review` |
+| Compare 3–5 papers | "journal club on these" | `literature/comparative_paper_review` |
+| Critique a single figure | "critique Figure 2" | `visualization/figure_critique` |
+| Reproduce a published analysis | "reproduce this paper" | `methodology/reproduction_attempt` |
+| Full systematic review (PRISMA) | "systematic review of X" | `literature/systematic_review` |
 | Grade a body of evidence (GRADE) | "grade the evidence on X" | `literature/evidence_synthesis` |
 
-### The communicator / outreach lead / press office
+### Communicator / outreach
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Press release on a finding | "press release" | `synthesis/synthesis_lay_summary` (audience: press_release) |
-| Patient-facing newsletter blurb | "patient newsletter explainer" | `synthesis/synthesis_lay_summary` (audience: patient_or_participant) |
-| Twitter / Mastodon / Bluesky thread | "twitter thread on this paper" | `synthesis/synthesis_lay_summary` (audience: social_thread) |
-| Lab blog post | "blog post about the project" | `synthesis/synthesis_lay_summary` (audience: blog_post) |
-| Lay-summary box for an NIH grant | "funder lay-summary section" | `synthesis/synthesis_lay_summary` (audience: funder_lay_section) |
+| Press release on a finding | "press release" | `synthesis/synthesis_lay_summary` (press_release) |
+| Patient-facing blurb | "patient newsletter explainer" | `synthesis/synthesis_lay_summary` (patient_or_participant) |
+| Social thread | "twitter thread on this paper" | `synthesis/synthesis_lay_summary` (social_thread) |
+| Lab blog post | "blog post about the project" | `synthesis/synthesis_lay_summary` (blog_post) |
 
-### The teacher / course instructor
+### Presenter / talk-giver
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Build a lecture slide deck on a project | "build a teaching deck" | `synthesis/synthesis_slides` (audience: teaching) |
-| Build a dashboard for a class | "teaching dashboard" | `synthesis/synthesis_dashboard` (audience: teaching) |
-| Walk students through a method | "explain ANCOVA to me" | `methodology/methodological_consultation` |
-| Have students reproduce a paper as an exercise | "reproduce this paper as a class exercise" | `methodology/reproduction_attempt` (audience: course_or_teaching) |
-
-### The presenter / talk-giver
-
-| You want to… | Say something like… | Protocol |
-|---|---|---|
-| Lab meeting slides | "lab meeting deck" | `synthesis/synthesis_slides` (audience: lab_meeting) |
-| 12-minute conference talk | "conference slides, 12 min" | `synthesis/synthesis_slides` (audience: conference_talk_short) |
-| Defense talk | "defense slides" | `synthesis/synthesis_slides` (audience: defense) |
-| Invited seminar / job talk | "invited seminar deck" | `synthesis/synthesis_slides` (audience: invited_seminar) |
+| Lab meeting slides | "lab meeting deck" | `synthesis/synthesis_slides` (lab_meeting) |
+| 12-min conference talk | "conference slides, 12 min" | `synthesis/synthesis_slides` (conference_talk_short) |
+| Defense talk | "defense slides" | `synthesis/synthesis_slides` (defense) |
 | Conference poster | "make a poster" | `synthesis/synthesis_poster` |
 
-### The theorist / mathematician (theory_math pack)
+### Theorist / mathematician (theory_math pack)
 
-The theory_math pack ships eight protocols for conjecture → proof
-→ formal-check workflows. Activate by saying "prove this", "I have a
-conjecture", "draft a proof", or by dropping a `.lean` / `.v` /
-`.tex` proof draft into `inputs/raw_data/`. The pack also detects
-`inputs/preliminaries.md` (definitions / lemmas the proofs assume).
+Activate by saying "prove this", "I have a conjecture", "draft a proof",
+or by dropping a `.lean` / `.v` / `.tex` draft into `inputs/raw_data/`.
+The pack also reads `inputs/preliminaries.md` (definitions + lemmas your
+proofs assume — a hard prerequisite for strategy selection).
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Register an open problem you might tackle later | "log this conjecture for now" | `theory_math/conjecture/conjecture_tracking` |
-| Choose between direct / contradiction / induction / contrapositive / construction | "which proof strategy fits this claim" | `theory_math/method/proof_strategy_selection` |
-| Walk a claim from statement to verified proof | "prove this claim end-to-end" | `theory_math/proof/proof_verification_workflow` |
-| Maintain a reusable lemma library across proofs | "register this as a lemma" | `theory_math/proof/lemma_library` |
-| Render the dependency DAG across lemmas + theorems | "show me the theorem dependency graph" | `theory_math/proof/theorem_dependency_graph` |
-| Formalise a proof in Lean 4 + Mathlib | "formalise this in Lean" | `theory_math/formal/lean_integration` |
-| Formalise a proof in Coq | "formalise this in Coq" | `theory_math/formal/coq_integration` |
-| Compile the theory paper (Theorem / Proof / Refs, NOT IMRAD) | "compile the theory paper" | `theory_math/output/theory_paper_structure` |
+| Register an open problem | "log this conjecture" | `theory_math/conjecture/conjecture_tracking` |
+| Choose a proof strategy | "which proof strategy fits this claim" | `theory_math/method/proof_strategy_selection` |
+| Statement → verified proof | "prove this claim end-to-end" | `theory_math/proof/proof_verification_workflow` |
+| Formalize in Lean 4 / Coq | "formalise this in Lean" / "…in Coq" | `theory_math/formal/lean_integration` · `coq_integration` |
+| Compile the theory paper | "compile the theory paper" | `theory_math/output/theory_paper_structure` |
 
-Three theory-only tools come with the pack:
+### Starting in the middle / just want a viz
 
-* `tool_theory_math_lean_check` — runs `lean --make` on a `.lean` file
-  with structured error parsing. Writes an install hint when Lean is
-  absent.
-* `tool_theory_math_coq_check` — `coqc` equivalent for Coq sources.
-* `tool_theory_math_dep_graph` — parses every `.lean` / `.v` under a
-  source directory, extracts named theorems / lemmas / definitions +
-  module imports, writes a Mermaid + JSON dependency graph.
-
-When the formal-check trigger fires
-(`proof_verification_workflow.quality_bar.formal_check_required_when`),
-the workflow flags the candidate proof and routes through
-`lean_integration` or `coq_integration`. Bourbaki-style careful
-informal proofs remain valid — formal check is required only when the
-result is foundational, contradicts a widely-believed conjecture, or
-uses an unusual axiom.
-
-### The "I'm starting in the middle" researcher
-
-You already have data + analyses + figures from before RO was set up. You
-don't want to redo the intake.
-
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
 | Plug an in-progress project into RO | "bringing this into Research-OS" | `guidance/mid_pipeline_entry` |
-| Synthesize from results you computed elsewhere | "we already analysed this, just write it up" | `synthesis/synthesis_from_inputs` |
-| Polish figures you already have | "polish my figures" | `visualization/visualization_workflow` |
-| Critique a figure you already drafted | "critique this figure" | `visualization/figure_critique` |
-| Resume a paused RO project | "pick up where we left off" | `guidance/session_resume` |
-
-### The "I just want a viz" researcher
-
-| You want to… | Say something like… | Protocol |
-|---|---|---|
+| Synthesize from results computed elsewhere | "we already analysed this, just write it up" | `synthesis/synthesis_from_inputs` |
 | Build a figure deck from a results table | "build me figures from this CSV" | `visualization/visualization_workflow` |
-| Polish a single figure | "polish my figure" | `visualization/visualization_workflow` |
+| Multi-panel figure (A/B/C/D) | "make figure 2 with panels" | `visualization/multi_panel_composition` |
 | Critique a figure | "critique this figure" | `visualization/figure_critique` |
-| Compose Figure 2 = panels A / B / C / D | "make figure 2 with panels" | `visualization/multi_panel_composition` |
-| Order figures across a paper / talk / poster | "order my figures" | `visualization/figure_narrative_arc` |
-| Color-blind + WCAG accessibility check | "check colour accessibility" | `visualization/color_accessibility_audit` |
-| Just learn the figure conventions | "what's the figure style guide" | `visualization/figure_guidelines` |
+| Color-blind / WCAG check | "check colour accessibility" | `visualization/color_accessibility_audit` |
 
-### The "no project yet, just thinking" researcher
+### No project yet, just thinking
 
-| You want to… | Say something like… | Protocol |
+| You want to… | Say… | Protocol |
 |---|---|---|
-| Learn / compare methods before committing | "teach me about propensity scores" | `methodology/methodological_consultation` |
-| Compare candidate papers in your area | "compare these foundational papers" | `literature/comparative_paper_review` |
+| Learn / compare methods | "teach me about propensity scores" | `methodology/methodological_consultation` |
 | Power-justify an upcoming study | "how many subjects do I need" | `methodology/power_analysis` |
 | Pre-register before data lands | "freeze the analysis plan" | `methodology/preregistration` |
 | Choose a study design | "design the study" | `domain/research_design` |
-| You don't know yet what to ask | "help me figure out where to start" | `guidance/scope_clarification` |
-
-### The "this spans more than one field" researcher
-
-| You want to… | Say something like… | Protocol |
-|---|---|---|
-| Pick which subfield drives the analysis | "this spans two fields — which goes first" | `guidance/scope_clarification` |
-| Build the canonical pipeline for each subfield | "best-practice pipeline for X" | `methodology/deep_domain_research` |
-| Pick a method that works across the subfield boundary | "which method fits both subfields" | `methodology/methodology_selection` (after `deep_domain_research` per side) |
-
----
-
-## By depth of analysis
-
-| Depth | When | Protocol |
-|---|---|---|
-| 5-minute napkin | "just poke at this", "sanity check" | `guidance/casual_exploration` |
-| 30-minute appraisal | "review this paper" | `guidance/quick_paper_review` |
-| Real EDA, hypothesis generation | "explore the data, find a hypothesis" | `methodology/exploratory_data_analysis` |
-| Full per-step pipeline | "run the next experiment" | `guidance/analysis_plan` |
-| Multi-method benchmark | "head-to-head comparison" | `methodology/method_comparison` |
-| Subfield-grounded pipeline | "best-practice pipeline for X" | `methodology/deep_domain_research` |
-| Full systematic synthesis | "systematic review on Y" | `literature/systematic_review` |
-| Publication-grade synthesis | "draft the paper" | `synthesis/synthesis_paper` |
+| Don't know what to ask | "help me figure out where to start" | `guidance/scope_clarification` |
 
 ---
 
@@ -294,177 +267,118 @@ don't want to redo the intake.
 
 | Want this output | Protocol |
 |---|---|
-| Polished single figure | `visualization/visualization_workflow` |
-| Figure deck | `visualization/visualization_workflow` |
-| Multi-panel figure (A / B / C / D) | `visualization/multi_panel_composition` |
-| Figure ordering brief (across paper / talk) | `visualization/figure_narrative_arc` |
-| Color accessibility audit report | `visualization/color_accessibility_audit` |
+| Polished figure / figure deck | `visualization/visualization_workflow` |
+| Multi-panel figure (A/B/C/D) | `visualization/multi_panel_composition` |
 | Paper (IMRAD) | `synthesis/synthesis_paper` |
-| Title (workshopped) | `synthesis/synthesis_title_workshop` |
-| Discussion section | `writing/writing_discussion` |
-| Results section | `writing/writing_results` |
-| Limitations section | `writing/writing_limitations` |
-| End matter (data / code / CRediT / etc.) | `writing/writing_data_availability` |
+| Discussion / Results / Limitations section | `writing/writing_discussion` · `writing/writing_results` · `writing/writing_limitations` |
 | Cover letter | `synthesis/synthesis_cover_letter` |
 | Pre-submission checklist + verdict | `audit/pre_submission_checklist` |
 | Abstract | `synthesis/synthesis_abstract` |
 | Poster | `synthesis/synthesis_poster` |
-| Dashboard (offline HTML) | `synthesis/synthesis_dashboard` |
-| Slides (lab / conference / defense / etc.) | `synthesis/synthesis_slides` |
+| Dashboard | `synthesis/synthesis_dashboard` |
+| Slides (lab / conference / defense) | `synthesis/synthesis_slides` |
 | Internal / technical report | `synthesis/synthesis_report` |
 | Grant narrative | `synthesis/synthesis_grant` |
 | Lay summary / press release / blog | `synthesis/synthesis_lay_summary` |
-| PI / advisor / weekly update | `synthesis/synthesis_progress_update` |
-| Printable one-pager / handout (with QR) | `synthesis/synthesis_handout` |
-| Null-findings companion | `synthesis/synthesis_null_findings` |
-| Critique brief (single paper) | `guidance/quick_paper_review` |
-| Critique brief (single figure) | `visualization/figure_critique` |
-| Comparative review brief (N papers) | `literature/comparative_paper_review` |
+| PI / weekly update | `synthesis/synthesis_progress_update` |
+| One-pager / handout (with QR) | `synthesis/synthesis_handout` |
 | Reproduction report | `methodology/reproduction_attempt` |
 | Power justification paragraph | `methodology/power_analysis` |
 | Evaluation protocol document | `methodology/evaluation_design` |
-| Sweep design document | `methodology/hyperparameter_search_design` |
-| Data ethics review document | `methodology/data_ethics_review` |
 | Data-quality audit report | `methodology/data_quality_audit` |
-| Methodological consultation notes (optional) | `methodology/methodological_consultation` |
-| Per-step literature grounding (`findings_vs_literature.md`) | `literature/literature_per_step` *(v1.4.0)* |
-| Language / tool-stack decision (R vs Python per sub-task) | `methodology/pick_tool_stack` *(v1.4.0)* |
-| Mixed-language step (Python ↔ R ↔ Bash composition) | `methodology/mixed_language_orchestration` *(v1.4.0)* |
 
----
-
-## Deep scenarios (the whole machine, including the daemon)
-
-The recipes above are protocol stacks. The scenarios below are *narratives* of
-real, messy research with the daemon running — long jobs, walking away,
-resources, autonomy, mode changes — so you can see how the pieces fit when the
-work isn't tidy. The daemon is OPTIONAL: with none running, everything still
-works over stdio; the daemon adds durable execution, recovery, enforcement, and
-notifications. Start one with `research-os daemon start` in the project.
-
-### Scenario 1 — overnight HPC run on a shared cluster, then walk away
-
-A postdoc on a shared SLURM box has a 9-hour training sweep.
-
-1. *"my data's at /scratch/me/cohort.parquet — set up an analysis project and
-   plan a hyperparameter sweep"* → the AI inits, brings the data into
-   `inputs/raw_data/` (symlink — it's 80 GB on shared storage, so it records the
-   path + hash and flags the project not-self-contained rather than copying),
-   fills the intake, and plans step `01_sweep`.
-2. Because `runtime.shared_server: true`, before launching the AI **asks**: the
-   sweep needs ~40 GB and 9 h — over a casual ceiling. The researcher approves.
-3. The job runs through the **daemon** (`tool_task run` / `POST /v1/jobs`), not
-   inline — so it survives the IDE closing. The daemon journals the run, applies
-   the resource budget as real rlimits, and the researcher goes home.
-4. The login node reboots overnight. On restart the daemon **rehydrates**: the
-   run is marked `interrupted`, and `sys_boot` next morning leads with
-   *"1 run was interrupted — resume it"* pointing at `POST /v1/runs/<id>/resume`,
-   which re-launches from the checkpoint (a malformed sibling manifest can't sink
-   this — recovery is per-record fault-isolated).
-5. When the sweep finishes, the daemon's **notification spine** posts the result;
-   if `daemon.continue_command` is set, it re-prompts the AI to score the result
-   and plan `02_analysis` automatically.
-
-### Scenario 2 — exploration that earns its way into a real analysis
-
-A grad student isn't sure there's anything there yet.
-
-1. *"set up an exploration project — I want to poke at whether dosage tracks
-   outcome before I commit"* → inits in **exploration** mode (scratch-first,
-   light gates).
-2. Three quick probes later, one holds up. The AI notes the probe earned it and
-   reminds them: *"this looks real — we can promote to analysis mode."*
-3. *"yes, switch to analysis"* → `sys_workspace_mode(transition, to=analysis)`:
-   it **plans** (shows the numbered-step surface it'll add), then on confirm
-   **applies additively** — the scratch probes are preserved, the analysis spine
-   is created, config + state are synced, and the move is recorded to
-   `mode_history.jsonl`. The earned probe is promoted into step `01`.
-4. The daemon's structure audit would have flagged it if they'd flipped the mode
-   by hand and left the surface missing — it watches for that drift.
-
-### Scenario 3 — plan deeply, then let the AI run toward the goal
-
-A PI wants a full study built mostly hands-off.
-
-1. *"plan this deeply, then run it toward the goal on your own; don't do anything
-   destructive autonomously, cap any run at 16 GB"* → the AI walks
-   `methodology/deep_planning` to write a **branchable roadmap** in
-   `inputs/research_plan.md` (milestones, decision points, falsifiable
-   assumptions — no method pinned for a milestone not yet reached).
-2. The researcher approves the roadmap. The AI hands off to
-   `guidance/roadmap_execution` — the **verified** autonomous loop: pick the next
-   milestone → execute → **score it** (`tool_judge_score`: ship / iterate / redo)
-   → record as evidence → re-plan from the result → continue. Quality is enforced
-   by the per-milestone judge + audit gates, not assumed.
-3. If the agent is **Hermes Agent**, it orchestrates the loop end-to-end, learns
-   from each result, pulls relevant skills, and **notifies** the researcher at
-   decision points, on a floor-gate pause, or if a run would exceed the 16 GB
-   they set. The daemon's continuation hook re-invokes the agent each cycle so it
-   runs hands-off within the hop ceiling.
-4. The daemon **watches compliance**: if the AI starts failing or abandoning
-   protocols repeatedly, that surfaces in `daemon_notes` → `sys_boot` and a
-   notification, so a stuck loop self-corrects or the researcher steps in — work
-   is never silently lost.
-
-### Scenario 4 — recurring lab-meeting artifacts without chaos
-
-A student presents an update every week and a poster at a conference.
-
-1. *"make me a deck for Thursday's lab meeting"* → the AI scaffolds it with a
-   label: `synthesis/deliverables/2026-06-19-lab-meeting/slides.typ`, plus a
-   README documenting what it's for. Next week's deck gets its own dated folder —
-   they never overwrite each other.
-2. *"make the NeurIPS poster"* →
-   `synthesis/deliverables/neurips-poster/poster.typ`. The canonical paper stays
-   at `synthesis/paper.typ`.
-3. Every throwaway-but-documented artifact lives in one browsable place, so months
-   later anyone can see which file was for which event — order in the chaos.
+> **What "output" means here.** Research OS provides **structure**, not a
+> fixed template. A synthesis protocol assembles a content-grounded
+> *outline* — the right sections, the figures and numbers to feature, the
+> narrative order — tailored to your audience and venue, for you to
+> render. It does not hand you a canned `.typ`/`.html` palette to fill in.
 
 ---
 
 ## End-to-end recipes (the protocol stack for a complete deliverable)
 
-`tool_route` picks ONE protocol per researcher message. A full project
-is many protocols composed in a pipeline. The recipes below show the
-canonical compositions — the AI walks them automatically when each
-protocol's `next_protocol` advances forward.
+`tool_route` picks ONE protocol per message. A full project is many
+protocols composed — the AI walks them automatically as each protocol's
+`next_protocol` advances.
 
 | If your project is… | The pipeline | Final deliverable |
 |---|---|---|
-| **Qualitative interview / focus-group study** | `guidance/project_startup` → `methodology/qualitative_research` → `methodology/coding_scheme_development` → `methodology/qualitative_quality_audit` → `audit/audit_and_validation` → `synthesis/synthesis_paper` → `synthesis/synthesis_dashboard` *(optional)* | `synthesis/paper.typ` (+ `synthesis/dashboard.html`) |
-| **Quantitative ML benchmark** | `guidance/project_startup` → `methodology/methodology_selection` → `methodology/evaluation_design` → `methodology/method_comparison` → `audit/audit_and_validation` → `synthesis/synthesis_paper` | `synthesis/paper.typ` |
-| **Theory / math proof** | `guidance/project_startup` → `theory_math/method/proof_strategy_selection` → `theory_math/proof/proof_verification_workflow` → `theory_math/output/theory_paper_structure` → `synthesis/synthesis_paper` (citation_style: amsplain) | `synthesis/paper.typ` (Theorem / Proof / References) |
-| **Close-reading humanities essay** | `guidance/project_startup` → `humanities/method/close_reading` → `synthesis/synthesis_paper` (citation_style: mla or chicago_author_date) | `synthesis/paper.typ` |
-| **Visualization-only deliverable** | `visualization/visualization_workflow` *(no full project pipeline)* | One figure or figure deck |
-| **Building a tool (tool_build mode)** | `build/spec_and_design` → `build/implement_iteration` *(loop)* → `build/test_strategy` → `build/benchmark_vs_baseline` → `build/release_and_changelog` | A tested, benchmarked tool in its own git repo (see [TOOL_BUILDER.md](TOOL_BUILDER.md)) |
+| **Qualitative interview study** | `project_startup` → `qualitative_research` → `coding_scheme_development` → `qualitative_quality_audit` → `audit_and_validation` → `synthesis_paper` (+ `synthesis_dashboard`) | Paper structure (+ dashboard structure) |
+| **Quantitative ML benchmark** | `project_startup` → `methodology_selection` → `evaluation_design` → `method_comparison` → `audit_and_validation` → `synthesis_paper` | Paper structure |
+| **Theory / math proof** | `project_startup` → `proof_strategy_selection` → `proof_verification_workflow` → `theory_paper_structure` → `synthesis_paper` | Theory paper structure (Theorem / Proof / References) |
+| **Building a tool (tool_build)** | `spec_and_design` → `implement_iteration` (loop) → `test_strategy` → `benchmark_vs_baseline` → `release_and_changelog` | A tested, benchmarked tool in its own git repo |
 
-When the wrong recipe gets picked, say *"actually I meant <X>"* and the
+When the wrong recipe gets picked, say *"actually I meant \<X\>"* and the
 AI re-routes without losing the workspace.
 
 ---
 
-For release-by-release feature history, see
-[CHANGELOG.md](../CHANGELOG.md).
+## Deep scenarios (the whole machine, including the daemon)
+
+The recipes above are protocol stacks. The scenarios below are
+*narratives* of messy, real research with the daemon running — long jobs,
+walking away, autonomy, mode changes. The daemon is OPTIONAL: with none
+running, everything still works over stdio; the daemon adds durable
+execution, recovery, enforcement, and notifications. Start one with
+`research-os daemon start`.
+
+### Scenario 1 — overnight run on a shared cluster, then walk away
+
+A postdoc on a shared box has a 9-hour sweep.
+
+1. *"my data's at /scratch/me/cohort.parquet — set up an analysis project
+   and plan a hyperparameter sweep"* → the AI inits, symlinks the 80 GB
+   data into `inputs/raw_data/` (recording path + hash and flagging the
+   project not-self-contained rather than copying), onboards, and plans
+   step `01_sweep`.
+2. Because `runtime.shared_server: true`, the AI **asks** before
+   launching — the sweep wants ~40 GB and 9 h. The researcher approves.
+3. The job runs through the **daemon** (`research-os daemon run` /
+   `daemon docker`), not inline, so it survives the IDE closing. The
+   daemon journals it, applies the resource budget, and the researcher
+   goes home.
+4. The login node reboots overnight. The daemon **rehydrates**: the run
+   is marked `interrupted`, and `sys_boot` next morning leads with
+   *"1 run was interrupted — resume it."*
+5. When the sweep finishes, the daemon **notifies** and (if configured)
+   re-prompts the AI to score the result and plan `02_analysis`.
+
+### Scenario 2 — exploration that earns its way into a real analysis
+
+1. *"set up an exploration project — poke at whether dosage tracks
+   outcome before I commit"* → inits in **exploration** mode.
+2. Three probes later, one holds up. The AI: *"this looks real — we can
+   promote to analysis mode."*
+3. *"yes, switch to analysis"* → the AI **plans** the numbered-step
+   surface, then on confirm **applies it additively** — scratch probes
+   preserved, the earned probe promoted into step `01`.
+
+### Scenario 3 — plan deeply, then let the AI run toward the goal
+
+1. *"plan this deeply, then run it toward the goal on your own; nothing
+   destructive autonomously, cap any run at 16 GB"* → the AI walks
+   `methodology/deep_planning` to write a branchable roadmap in
+   `inputs/research_plan.md`.
+2. On approval, it hands off to `guidance/roadmap_execution`: pick the
+   next milestone → execute → score it → record evidence → re-plan →
+   continue. Quality is enforced by per-milestone judging + audit gates.
+3. If the agent is **Hermes Agent**, it orchestrates the loop, pulls
+   relevant skills each cycle, and notifies the researcher at decision
+   points or if a run would exceed the 16 GB cap.
 
 ---
 
 ## You don't have to choose
 
-`tool_route` picks the right protocol from a plain-English prompt. The
-table above exists so you can see what's available and confirm the AI's
-choice. If the wrong protocol gets picked, just say "actually I meant
-X" — the AI re-routes without re-loading the workspace.
+`tool_route` picks the right protocol from a plain-English prompt. When
+you genuinely don't know what you want, say so:
 
-When you genuinely don't know what you want, say so:
 > "I have some data and some ideas — help me figure out where to start."
 
-The AI loads `guidance/scope_clarification`, classifies the ambiguity
-(unclear intent / unformed intent / cross-disciplinary / wrong
-entrypoint / too broad), asks ONE narrowing question, and re-routes on
-your answer. The router treats ambiguity as a 1-sentence follow-up
-cost, not as a wrong guess.
+The AI loads `guidance/scope_clarification`, classifies the ambiguity,
+asks ONE narrowing question, and re-routes on your answer. When a project
+spans two subfields, the AI runs `methodology/deep_domain_research` once
+per subfield and holds both pipelines side-by-side rather than
+force-fitting one.
 
-When the project genuinely spans two subfields (e.g. imaging + RNA-seq,
-surveys + behavioural logs), the AI runs `methodology/deep_domain_research`
-once per subfield and holds both pipelines side-by-side rather than
-force-fitting into one.
+For the full feature history, see [CHANGELOG.md](../CHANGELOG.md).
