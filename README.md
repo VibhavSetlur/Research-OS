@@ -18,6 +18,7 @@
 
 <p align="center">
   <a href="docs/START.md">Quick start</a> ·
+  <a href="docs/PROMPTING.md">How to ask</a> ·
   <a href="docs/USE_CASES.md">What you can ask for</a> ·
   <a href="docs/SCENARIOS.md">Worked examples</a> ·
   <a href="docs/RESEARCHER_GUIDE.md">Full guide</a> ·
@@ -117,11 +118,15 @@ The AI assembles the poster's **structure** — which results to feature, the na
 
 A GREEN / YELLOW / RED verdict with a punch list — every check a journal will run, before they run it.
 
+> "dockerize this step so it runs on the cluster"
+
+The AI pins that step's exact packages and writes a step-scoped Dockerfile *in the step's own folder* — the scripts, data, and pinned environment travel together, so the one step rebuilds and runs anywhere, not just the whole project.
+
 > "going to lunch, pick up tomorrow"
 
 State, plan, hypotheses, dead-ends, and drafts all persist. Tomorrow's session opens exactly where you left off.
 
-→ Full catalogue of what to say: **[USE_CASES.md](docs/USE_CASES.md)** · Two worked projects end to end — a basic one and a deep PI-level program touching every capability: **[SCENARIOS.md](docs/SCENARIOS.md)**
+→ Full catalogue of what to say: **[USE_CASES.md](docs/USE_CASES.md)** · How to word a request for a specific outcome (and what happens behind the scenes): **[PROMPTING.md](docs/PROMPTING.md)** · Two worked projects end to end — a basic one and a deep PI-level program touching every capability: **[SCENARIOS.md](docs/SCENARIOS.md)**
 
 ---
 
@@ -215,7 +220,7 @@ Why the restart matters: an IDE/agent loads its MCP servers when the session sta
 
 ## Two layers, and why they matter
 
-**1. The reasoning core (always on).** The MCP server every command above talks to. Three tool namespaces — `sys_*` (workspace / files / state), `tool_*` (research work), `mem_*` (append-only memory) — plus ~146 protocols the AI routes to via `tool_route`. The core is *reactive*: it runs in your IDE, responds to each prompt, and never blocks. Most projects need nothing more.
+**1. The reasoning core (always on).** The MCP server every command above talks to. Three tool namespaces — `sys_*` (workspace / files / state), `tool_*` (research work), `mem_*` (append-only memory) — plus a deep library of protocols the AI routes to via `tool_route`. The core is *reactive*: it runs in your IDE, responds to each prompt, and never blocks. Most projects need nothing more.
 
 **2. The enforcement daemon (optional).** For big or long-lived projects, a local daemon adds what a reactive server can't:
 
@@ -287,6 +292,7 @@ long research program needs.
 | **New here** | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — how real projects unfold + why your results hold up (provenance, accuracy, organization) · then [docs/START.md](docs/START.md) — install + first project |
 | **Setting up with your AI** | [docs/SETUP_PROMPT.md](docs/SETUP_PROMPT.md) — one copy-paste, fill-in-the-gap prompt that drives your AI through the whole setup + onboarding |
 | **Looking for an example** | [docs/SCENARIOS.md](docs/SCENARIOS.md) — two worked projects (basic + deep PI-level) · [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
+| **Wording a request** | [docs/PROMPTING.md](docs/PROMPTING.md) — how to phrase prompts to get a specific outcome (dockerize a step, pull papers, sample data, a no-leak dashboard) + what happens behind the scenes |
 | **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
 | **Wiring an IDE** | [docs/SETUP.md](docs/SETUP.md) — Claude Code, Cursor, VS Code, etc. |
 | **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |

@@ -270,6 +270,27 @@ against the old to tell you what actually changed.
 
 ---
 
+## Testing the tool on data (and generating sample data)
+
+Before a tool earns an eval number, it has to run on real input. In
+tool_build or hybrid mode you can say *"test this on some data"* or *"I
+don't have data yet, generate realistic sample data and run it"*, and the
+router lands you in `build/sample_data_and_validation`.
+
+The protocol first pins the tool's **input contract** (shape, schema, the
+cases that matter). Then it either sources a small representative real
+sample or **generates seeded, re-runnable synthetic data** that matches
+the schema and includes the hard cases (edge values, nulls, malformed
+rows). It runs the tool end to end and validates the output on two axes:
+**correctness** against ground truth (which synthetic data gives you for
+free, since you made it) and **sensibility** (ranges, invariants). Any
+failure feeds straight into the `build/tool_evaluation_loop` evaluate →
+improve heartbeat. The data, its generator, and the validation check are
+saved as a reusable fixture, and synthetic data is always labelled as
+synthetic so it is never mistaken for a real result.
+
+---
+
 ## 5. Running builds, tests, and evals
 
 The governance gate that makes *"done = tests + build + eval pass"*

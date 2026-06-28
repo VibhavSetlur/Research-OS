@@ -41,7 +41,7 @@
 # When you add a new protocol, add an entry here too — preflight will
 # complain if you don't.
 
-version: 51
+version: 52
 generated_at: '2026-06-25'
 
 # ─────────────────────────────────────────────────────────────────────
@@ -896,6 +896,37 @@ protocols:
         purpose: "Run the evaluation experiments (tool_task for long sweeps); write scripts + results into the eval reports."
       - tool: mem_log
         purpose: "Log each evaluation round + the chosen next increment so the tool's development history is auditable."
+
+  build/sample_data_and_validation:
+    intent_class: execute
+    sub_intent: build_sample_data
+    summary: "Get data to run the tool on (a real sample, or seeded synthetic/sample data when none exists), run the tool end-to-end on it, and validate the output is correct + sensible — feeding failures into the evaluation loop."
+    triggers:
+      - "test this on some data"
+      - "test it on data"
+      - "run it on sample data"
+      - "run the tool on data"
+      - "make me sample data"
+      - "make sample data"
+      - "create sample data"
+      - "create test data"
+      - "generate sample data"
+      - "generate synthetic data"
+      - "synthetic data"
+      - "mock data"
+      - "i don't have data yet"
+      - "i have no data"
+      - "does it work on real data"
+      - "validate it on a dataset"
+      - "try it on a dataset"
+    token_estimate: 1500
+    decomposition:
+      - protocol: build/sample_data_and_validation
+        purpose: "Pin the input contract, source real or seeded-synthetic representative data (incl. edge cases), run the tool end-to-end, validate correctness + sensibility."
+      - tool: tool_bash_exec
+        purpose: "Write + run the seeded data generator and the validation check; run the tool over the sample."
+      - tool: mem_log
+        purpose: "Record real-vs-synthetic choice, what the sample covers, and the validation outcome."
 
   build/release_and_changelog:
     intent_class: execute

@@ -189,6 +189,29 @@ Yes — dedicated packs for each:
   analysis — so a qualitative step is audited for saturation, not a
   power calculation.
 
+### How do I get the AI to do exactly what I want?
+
+Describe the goal in plain language. You don't call tools or memorize
+protocol names; `tool_route` matches your **intent**, not keywords, so
+"head-to-head", "bake-off", and "horse race" all land on the same place.
+For reliable phrasings, what each request does behind the scenes, and the
+verification steps that confirm it actually happened, see
+[PROMPTING.md](PROMPTING.md), the prompt phrasebook. The short version:
+name the audience and the one takeaway for any deliverable, say "just
+this step" vs "the whole project" for scope, and ask for verification
+("ground every number", "check the citations resolve") to trigger the
+real gates.
+
+### Can I containerize just one step instead of the whole project?
+
+Yes. Say *"dockerize this step."* The AI pins that step's exact packages
+and writes a step-scoped `workspace/<step>/environment/Dockerfile` built
+from that step's own requirements, so the single step is independently
+reproducible. Its scripts, data, and pinned environment travel together,
+and `docker build` from the step folder reproduces just that step, not
+the whole project. Say "for the whole project" to get a project-level
+image at `environment/Dockerfile` instead.
+
 ---
 
 ## Skills & the Hermes layer
