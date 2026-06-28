@@ -6,6 +6,35 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.2.1] — documentation overhaul (2026-06-27)
+
+A PATCH release: documentation only, no code or behavior changes. The docs were
+rewritten with fresh context to be user-first, realistic, and accurate to the
+real tools, protocols, and CLI.
+
+### Improved
+- **SETUP_PROMPT.md** rewritten as a fill-in template (`[project name]`,
+  `[goal]`, `[context]`, `[hypotheses]`, `[mode]`, `[autonomy]`, `[editor]`, …)
+  whose ordered steps drive the real onboarding process (install → scaffold →
+  MCP path fix → daemon → restart → self-test → onboard with literature
+  grounding → Hermes skill pull) before any analysis.
+- **SCENARIOS.md** rewritten as two end-to-end worked projects: a basic one and
+  a deep PI-level program that exercises nearly every capability — onboarding,
+  literature grounding, iterative phased planning, branching + deleting steps,
+  synthesis meetings, a live public dashboard, Docker/SLURM runs, provenance,
+  image + folder sharing, and a cross-actor handoff (no premature paper).
+- **README.md** restructured to lead with the Hermes/skills layer and autonomous
+  3-source skill retrieval; fixed `init .` (non-nesting) and structure-not-design
+  framing for deliverables.
+- **HOW_IT_WORKS.md** gained a section on long/Docker/SLURM runs and sharing.
+- **START, USE_CASES, FAQ, TOOL_BUILDER, DAEMON, SHARING** rewritten with fresh
+  context — clearer, realistic, and verified against the live tool/protocol/CLI
+  registry. FAQ gains a Trust & provenance section; TOOL_BUILDER brought to
+  analysis-mode depth (architecture diagram, implement loop, pipelines, eval
+  provenance); DAEMON and SHARING document container runs and stage handoff.
+
+---
+
 ## [4.2.0] — containerized jobs, pipelines, supervision & mode parity (2026-06-27)
 
 A MINOR release driven by user reports from Argonne-style HPC researchers:
