@@ -44,12 +44,21 @@ From there: `run the baseline EDA` → `fit the model` → `draft the results se
 
 That's the whole idea. The rest of this page explains why it matters.
 
-> **The fastest path is not the most robust one.** A few minutes of proper
-> onboarding — letting the AI scan your inputs, frame the question, ground in
-> real literature, and wire exactly one IDE — pays off across the whole project.
-> The **[setup prompt](docs/SETUP_PROMPT.md)** walks your AI through that in
-> order. And for memory across projects, reusable skills, and autonomous long
-> runs, pair Research OS with the **[Hermes agent layer](#the-strongest-pairing-research-os--a-self-improving-agent)**.
+### Three things to do next
+
+1. **See a real project, start to finish.** [**SCENARIOS.md**](docs/SCENARIOS.md)
+   walks two complete projects — a quick one, and a deep PI-level program that
+   shows how you actually interact with Research OS turn by turn (what the
+   researcher types, what they see in their folder, and what the AI does at each
+   step). **This is the fastest way to understand how to work with it.**
+2. **Set it up the robust way, not just the fast way.** A few minutes of proper
+   onboarding — the AI scans your inputs, frames the question, grounds in real
+   literature, and wires exactly one IDE — pays off across the whole project.
+   The [**setup prompt**](docs/SETUP_PROMPT.md) is one copy-paste block that
+   walks your AI through it in order.
+3. **Make it self-improving.** Pair Research OS with the
+   [**Hermes agent layer**](#the-strongest-pairing-research-os--a-self-improving-agent)
+   for memory across projects, reusable skills, and autonomous long runs.
 
 ---
 
