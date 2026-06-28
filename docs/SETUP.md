@@ -122,16 +122,21 @@ mkdir my-project && cd my-project
 research-os init
 ```
 
-The CLI surface — two commands by design:
+The CLI surface (the commands you'll actually use — `init`, `ide`, `start`):
 
 ```
 research-os init [DIRECTORY] [OPTIONS]
   --name NAME           Project name (default: directory name)
   --domain DOMAIN       Optional hint: clinical|finance|nlp|genomics|...
   --question STRING     Initial research question (AI refines later)
-  --ide IDE             Comma-separated, default "all":
+  --ide IDE             Comma-separated. Default "auto" (detects your
+                        ONE IDE; wires nothing if unsure). Or name one/
+                        more, or "all"/"none":
                         cursor|claude|antigravity|opencode|vscode|
                         windsurf|continue|aider
+                        Prefer naming your ONE IDE — "all" wires every
+                        editor's config (clutter), "auto" can mis-detect
+                        in an ambiguous shell.
   --force               Re-scaffold an existing workspace (preserves data)
 
 research-os start [OPTIONS]

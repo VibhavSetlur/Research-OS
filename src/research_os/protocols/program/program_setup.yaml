@@ -1,7 +1,7 @@
 id: program_setup
 tier: 'plan'
 name: Program Setup (shared codebook, prereg, how studies roll up)
-version: '3.12.0'
+version: '3.13.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -123,6 +123,13 @@ steps:
       The roll-up reads ACROSS studies/ only; no study reaches into
       another. Keeping that boundary is what lets studies proceed
       independently while the program stays coherent.
+
+      The system helps hold this together: in a multi_study workspace the
+      daemon's health check watches that a shared codebook exists and flags the
+      roll-up as stale when a sub-study has newer work than the roll-up. Treat a
+      `multi_study_no_codebook` or `multi_study_rollup_stale` finding as a prompt
+      to refresh — the structural safety net frees you to reason about the
+      synthesis, not to police the bookkeeping.
 
   - id: scaffold_first_study
     name: Register the first study (and confirm the model)

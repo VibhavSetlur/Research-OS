@@ -16,6 +16,7 @@ __all__ = [
     "_handle_tool_audit_citations",
     "_handle_tool_audit_reproducibility",
     "_handle_tool_audit_script_naming",
+    "_handle_tool_audit_provenance_integrity",
     "_handle_tool_audit_figure_interactivity",
     "_handle_tool_audit_dashboard_content",
     "_handle_tool_audit_cliches",
@@ -221,6 +222,22 @@ def _handle_tool_audit_script_naming(name, arguments, root):
 
     step_id = arguments.get("step_id")
     res = audit_script_naming(root, step_id=step_id)
+    return _text(_success(res))
+
+
+def _handle_tool_audit_provenance_integrity(name, arguments, root):
+    """Re-hash recorded inputs/outputs and flag stale results (provenance drift).
+
+    scope='step', dimension='provenance_integrity'. Optional step_id audits one
+    step; omitted audits every numbered step. An output built from an input that
+    has since changed is STALE. The daemon also watches this via structure_audit.
+    """
+    from research_os.tools.actions.state.provenance import (
+        verify_provenance_integrity,
+    )
+
+    step_id = arguments.get("step_id")
+    res = verify_provenance_integrity(Path(root), step_id=step_id)
     return _text(_success(res))
 
 

@@ -1,7 +1,7 @@
 id: session_boot
 tier: 'intake'
 name: Session Boot
-version: '3.0.0'
+version: '3.1.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -48,6 +48,13 @@ steps:
         - freshness (is_stale + signals + prompt_for_ai from
                      tool_state_freshness_check; surface to researcher
                      when freshness.is_stale is true)
+        - daemon_notes (if a daemon is running: its background self-check —
+                     structure/provenance/mode-health/stalled-job/abandoned-
+                     protocol findings; address BLOCK items before building,
+                     and keep watching for a daemon_flagged_issue mid-session)
+        - recommended_skills (on a fresh project: the domain/mode skills worth
+                     loading up front — pull them via skills_list/skill_view
+                     rather than re-deriving the method from memory)
         - advice — one-line guidance for what to do next
 
       Do NOT call sys_state_get / sys_config(operation='get') / sys_protocol_history /

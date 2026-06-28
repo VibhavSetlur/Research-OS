@@ -893,6 +893,9 @@ def _next_steps(r: WizardResult) -> None:
         print(f"        {_C.DIM}{line}{_C.RESET}")
     print()
     print(f"  {_C.GREY}Read first:{_C.RESET}  {r.target_dir / 'GETTING_STARTED.md'}")
+    print(f"  {_C.GREY}Setup prompt:{_C.RESET} one copy-paste prompt to point your "
+          f"AI through setup + onboarding → docs/SETUP_PROMPT.md "
+          f"(hermes-agent.nousresearch.com/docs or the repo)")
     print(f"  {_C.GREY}AI rules :{_C.RESET}   {r.target_dir / 'AGENTS.md'}")
     print(f"  {_C.GREY}Config   :{_C.RESET}   {r.target_dir / 'inputs' / 'researcher_config.yaml'}")
     print(f"  {_C.GREY}Add an IDE:{_C.RESET} research-os ide add <claude|cursor|vscode|…>")

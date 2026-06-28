@@ -490,9 +490,124 @@ def step_provenance_inventory(step_dir: Path, root: Path) -> dict[str, Any]:
     }
 
 
+def verify_provenance_integrity(
+    root: Path, step_id: str | None = None
+) -> dict[str, Any]:
+    """Re-hash every recorded input + output and flag silent drift.
+
+    A ``.prov.json`` records the sha256 of each input an output was built from
+    and of the output itself. Over a project's life inputs get re-cleaned,
+    upstream steps re-run, and files get hand-edited — silently invalidating
+    downstream results. Nothing re-checks this until a reviewer (or a failed
+    reproduction) finds it. This walks the provenance sidecars and re-derives:
+
+      * ``input_drift``  — a recorded input's CURRENT sha256 differs from what
+        was recorded ⇒ the output is STALE (built from a now-different input).
+      * ``output_drift`` — the output's current sha256 differs from what was
+        recorded ⇒ it was edited after the fact ⇒ not reproducible from its
+        script.
+      * ``missing``      — a recorded input or the output no longer exists.
+
+    Read-only + stdlib-only. Returns a per-sidecar verdict + a project roll-up
+    so a step-complete gate or the daemon watch can surface stale results early.
+    """
+    root = Path(root)
+    workspace = root / "workspace"
+    if not workspace.is_dir():
+        return {"status": "success", "sidecars_checked": 0, "findings": [],
+                "ok": True, "message": "no workspace/ to verify"}
+    if step_id:
+        step_dirs = [workspace / step_id] if (workspace / step_id).is_dir() else []
+    else:
+        import re as _re
+        step_dirs = [
+            d for d in sorted(workspace.iterdir())
+            if d.is_dir() and _re.match(r"^\d{1,3}_", d.name)
+        ]
+
+    findings: list[dict[str, Any]] = []
+    checked = 0
+    for sd in step_dirs:
+        for sidecar in sorted(sd.rglob("*.prov.json")):
+            checked += 1
+            try:
+                rec = json.loads(sidecar.read_text())
+            except Exception:
+                findings.append({
+                    "severity": "warn", "code": "prov_unreadable",
+                    "sidecar": _relative(sidecar, root),
+                    "message": "provenance sidecar is unreadable/corrupt",
+                })
+                continue
+            # Re-hash recorded inputs.
+            for rel, recorded in (rec.get("inputs") or {}).items():
+                p = root / rel
+                if not p.exists():
+                    findings.append({
+                        "severity": "block", "code": "input_missing",
+                        "sidecar": _relative(sidecar, root), "input": rel,
+                        "message": f"recorded input '{rel}' no longer exists",
+                    })
+                    continue
+                current = _file_sha256(p)
+                if current != recorded and "unavailable" not in current:
+                    findings.append({
+                        "severity": "block", "code": "input_drift",
+                        "sidecar": _relative(sidecar, root), "input": rel,
+                        "recorded": recorded, "current": current,
+                        "message": (
+                            f"input '{rel}' changed since this output was built "
+                            "— the output is STALE; re-run the step (bump _v<k>)."
+                        ),
+                    })
+            # Re-hash the output itself.
+            out = rec.get("output") or {}
+            out_id = rec.get("@id") or rec.get("output_path")
+            recorded_out = out.get("sha256")
+            if out_id and recorded_out:
+                op = root / out_id
+                if not op.exists():
+                    findings.append({
+                        "severity": "block", "code": "output_missing",
+                        "sidecar": _relative(sidecar, root), "output": out_id,
+                        "message": f"recorded output '{out_id}' no longer exists",
+                    })
+                else:
+                    cur_out = _file_sha256(op)
+                    norm = recorded_out if str(recorded_out).startswith("sha256:") \
+                        else f"sha256:{recorded_out}"
+                    if cur_out != norm and "unavailable" not in cur_out:
+                        findings.append({
+                            "severity": "warn", "code": "output_drift",
+                            "sidecar": _relative(sidecar, root), "output": out_id,
+                            "recorded": norm, "current": cur_out,
+                            "message": (
+                                f"output '{out_id}' was edited after it was "
+                                "recorded — it no longer matches its script's "
+                                "result (not reproducible)."
+                            ),
+                        })
+    blocks = [f for f in findings if f["severity"] == "block"]
+    return {
+        "status": "success",
+        "sidecars_checked": checked,
+        "findings": findings,
+        "ok": not blocks,
+        "stale_outputs": len(blocks),
+        "message": (
+            "All recorded inputs + outputs still match — provenance intact."
+            if not findings else
+            f"{len(blocks)} stale/missing (BLOCK), "
+            f"{len(findings) - len(blocks)} drift/other (WARN). Stale outputs "
+            "were built from inputs that have since changed — re-run them."
+        ),
+    }
+
+
 __all__ = [
     "load_provenance",
     "step_provenance_inventory",
     "track_runtime",
+    "verify_provenance_integrity",
     "write_output_provenance",
 ]

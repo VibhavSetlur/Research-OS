@@ -29,6 +29,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 _NOTES_MD = "daemon_notes.md"
@@ -88,6 +89,28 @@ def run_self_check(root: str | Path) -> dict[str, Any]:
                 ),
                 "code": "interrupted_runs",
             })
+        # Stalled runs: a RUNNING job whose log hasn't advanced in ~30 min is
+        # likely wedged (deadlock / lost scheduler) — flag it so the researcher
+        # isn't waiting on a dead job indefinitely.
+        try:
+            stalled = store.detect_stalled_runs()
+            if stalled:
+                names = ", ".join(
+                    f"{s.get('name') or s['id']} (idle {int(s['idle_seconds'] // 60)}m)"
+                    for s in stalled[:3]
+                )
+                findings.append({
+                    "severity": "warn",
+                    "source": "runs",
+                    "message": (
+                        f"{len(stalled)} running job(s) have produced no output "
+                        f"for a while and may be stuck: {names}. Check on them / "
+                        "consider cancelling + resuming."
+                    ),
+                    "code": "stalled_runs",
+                })
+        except Exception:  # noqa: BLE001
+            pass
     except Exception:  # noqa: BLE001
         pass
 
@@ -198,7 +221,11 @@ def render_notes_md(payload: dict[str, Any]) -> str:
         lines.append("✅ No problems found — the project looks structurally sound.")
         lines.append("")
         return "\n".join(lines)
-    for f in findings:
+    # Prioritize: BLOCK first, then WARN, then INFO — the AI/researcher should
+    # see the must-fix items at the top, not buried under info notes.
+    _order = {"block": 0, "warn": 1, "info": 2}
+    ordered = sorted(findings, key=lambda f: _order.get(f.get("severity", "info"), 3))
+    for f in ordered:
         icon = _SEVERITY_ICON.get(f.get("severity", "info"), "•")
         lines.append(f"- {icon} **{f.get('source', '?')}** — {f.get('message', '')}")
     lines.append("")
@@ -231,7 +258,71 @@ def write_notes(root: str | Path, payload: dict[str, Any] | None = None) -> dict
         )
     except OSError:
         pass
+    # Escalation: if a BLOCK-level finding persists across consecutive
+    # self-checks (the AI keeps not addressing it), page the researcher once —
+    # RO's promise is "nothing is lost". Best-effort, never raises.
+    try:
+        _escalate_persistent_blocks(root, payload)
+    except Exception:  # noqa: BLE001
+        pass
     return payload
+
+
+_STREAK_FILE = ".daemon_finding_streak.json"
+_ESCALATE_AFTER = 3  # consecutive self-checks a block must persist before paging
+
+
+def _escalate_persistent_blocks(root: Path, payload: dict[str, Any]) -> None:
+    """Track per-code block streaks; page the researcher when one sticks.
+
+    A block finding the AI fixes disappears next check (streak resets). One that
+    persists ``_ESCALATE_AFTER`` checks means the AI isn't resolving it — emit a
+    single notification so a human can step in, then mark it escalated so we
+    don't page again until it clears + recurs.
+    """
+    streak_path = root / ".os_state" / _STREAK_FILE
+    try:
+        prev = json.loads(streak_path.read_text(encoding="utf-8")) if streak_path.exists() else {}
+    except Exception:
+        prev = {}
+    if not isinstance(prev, dict):
+        prev = {}
+
+    current_blocks = {
+        f.get("code") or f.get("source") or "issue": f
+        for f in payload.get("findings", [])
+        if isinstance(f, dict) and f.get("severity") == "block"
+    }
+    new_state: dict[str, Any] = {}
+    for code, finding in current_blocks.items():
+        prior = prev.get(code) or {}
+        count = int(prior.get("count", 0) or 0) + 1
+        escalated = bool(prior.get("escalated", False))
+        if count >= _ESCALATE_AFTER and not escalated:
+            try:
+                from .notifications import emit
+                emit(
+                    root,
+                    kind="persistent_block",
+                    level="warning",
+                    title="Research OS: a problem isn't getting fixed",
+                    body=(
+                        f"The daemon has flagged '{code}' for {count} checks "
+                        f"and it's still unresolved: {finding.get('message', '')} "
+                        "The AI may be stuck — you might want to step in."
+                    ),
+                    context={"code": code, "count": count},
+                )
+                escalated = True
+            except Exception:  # noqa: BLE001
+                pass
+        new_state[code] = {"count": count, "escalated": escalated}
+    # Codes that cleared this check drop out (streak resets implicitly).
+    try:
+        streak_path.parent.mkdir(parents=True, exist_ok=True)
+        streak_path.write_text(json.dumps(new_state), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def read_notes(root: str | Path) -> dict[str, Any] | None:
@@ -243,3 +334,47 @@ def read_notes(root: str | Path) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def run_self_check_all(roots: "Sequence[str | Path]") -> dict[str, Any]:
+    """Aggregate self-check across many projects — the supervisor (PI) roll-up.
+
+    Returns {projects: {root: {counts, ok, worst}}, totals: {block,warn,info},
+    needs_attention: [roots with any block/warn]} so one call answers "are ALL
+    my students' projects healthy?" without opening each. Read-only, fail-open.
+    """
+    projects: dict[str, Any] = {}
+    totals = {"block": 0, "warn": 0, "info": 0}
+    needs_attention: list[str] = []
+    for root in roots:
+        try:
+            payload = run_self_check(root)
+        except Exception:  # noqa: BLE001
+            continue
+        counts = payload.get("counts", {}) or {}
+        for k in totals:
+            totals[k] += int(counts.get(k, 0) or 0)
+        findings = payload.get("findings", []) or []
+        worst = sorted(
+            (f for f in findings if f.get("severity") in ("block", "warn")),
+            key=lambda f: {"block": 0, "warn": 1}.get(f.get("severity"), 2),
+        )[:3]
+        projects[str(root)] = {
+            "ok": bool(payload.get("ok", True)),
+            "counts": counts,
+            "worst": [
+                {"severity": f.get("severity"), "code": f.get("code"),
+                 "message": f.get("message")}
+                for f in worst
+            ],
+        }
+        if counts.get("block") or counts.get("warn"):
+            needs_attention.append(str(root))
+    return {
+        "schema": 1,
+        "checked_at": time.time(),
+        "projects": projects,
+        "totals": totals,
+        "needs_attention": needs_attention,
+    }
+

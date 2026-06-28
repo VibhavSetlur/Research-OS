@@ -1054,6 +1054,26 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
         _daemon_notes = _boot_daemon_notes(root)
         _roadmap = _boot_roadmap(root, entries)
 
+        # Active skill-pulling (first-turn): on a FRESH project, recommend the
+        # capabilities (Hermes skills / the researcher's distilled ones) that
+        # match this project's domain + mode, so the AI/Hermes loads them up
+        # front instead of discovering them late. Only on a fresh project to
+        # avoid noise once work is underway. By-shape, fail-open.
+        recommended_skills: list = []
+        try:
+            if n_finalized == 0:
+                from research_os.tools.actions.research.skills import (
+                    recommend_skills as _rec_skills,
+                )
+                _rs = _rec_skills(
+                    root,
+                    domain=state.get("domain") or cfg.get("domain", ""),
+                    workspace_mode=_read_workspace_mode(root),
+                )
+                recommended_skills = _rs.get("recommended_skills", [])
+        except Exception:
+            recommended_skills = []
+
         return {
             "status": "success",
             "project_name": state.get("project_name", "(unnamed)"),
@@ -1088,6 +1108,7 @@ def sys_boot(root: Path, *, lean: bool = False) -> dict[str, Any]:
             "active_packs": active_packs,
             "pack_capabilities": pack_capabilities,
             "pack_nudge": pack_nudge,
+            "recommended_skills": recommended_skills,
             "field_signals": field_signals,
             "adapters_detected": adapters_detected,
             "current_tier": current_tier,

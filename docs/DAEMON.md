@@ -62,8 +62,54 @@ over the local API, and only ever **reads** unless you authorise a change:
   *request* approval and *check* for a minted token, but it can never
   grant its own.
 
+**Supervising several projects at once.** A daemon fronting more than one
+project re-checks **all** of them on its periodic tick (not just the one it was
+started in), and `GET /v1/supervision` returns a roll-up — each project's
+health counts, its worst findings, and a `needs_attention` list — so a PI can
+answer "are all my students' projects healthy and on-protocol?" in one call
+without opening each. Persistent BLOCKs still escalate per project.
+
 This is the deliberate split: the AI plans and reasons; the daemon holds
 the things the AI must not be able to forge.
+
+---
+
+## One daemon per project
+
+The daemon is **per-project**, not a global service. Each
+`research-os daemon start` runs a separate process bound to one project root,
+advertises itself in that project's `.os_state/daemon.json` (host, port, pid),
+and writes that project's notes/journal/runs under its own `.os_state/`. Two
+projects run two independent daemons — start and stop each without touching the
+other (`research-os daemon stop` reads the per-project descriptor). On a shared
+node the default port may be taken; the daemon auto-selects a free one and
+records it, so per-project daemons coexist. Nothing leaks between projects.
+
+---
+
+## What the daemon watches — in every workspace mode
+
+The daemon's self-check (at startup and on a periodic tick) and the shared
+structure audit don't just check generic structure — they're **mode-aware**, so
+the daemon stays involved whatever kind of project this is:
+
+- **all modes:** structure integrity, interrupted runs, unframed intake,
+  agent-compliance (repeated protocol failures / abandoned protocols),
+  provenance integrity (stale results whose inputs changed), script naming.
+- **analysis / hybrid:** the above, plus (hybrid) the `tool/` half needs its
+  own tests before the analysis relies on it.
+- **tool_build:** `eval/` must define "done", `spec/` must say what's being
+  built, decisions/ should record ADRs, and the inner `project/` repo needs
+  tests once it has code.
+- **notebook:** flags notebooks that are stale versus the data they read, or a
+  project with no notebooks yet.
+- **multi_study:** flags an empty `studies/` or a missing `shared/` commons
+  (codebook / preregistration / governing protocol).
+- **exploration:** flags promote-worthy scratch probes that were never promoted
+  to a numbered, provenanced step.
+
+These surface as `daemon_notes` (read at `sys_boot`) and in the per-turn audit
+findings, so the AI course-corrects early instead of a reviewer finding the gap.
 
 ---
 
@@ -97,10 +143,23 @@ paper.typ" can't be reused to compile something else.
 
 ```bash
 research-os daemon run "<command>"   # run as a tracked job (provenance + artifacts)
+research-os daemon docker IMG -- CMD  # run in a container image (records image+digest)
 research-os daemon runs              # list recorded runs
 research-os daemon logs <run_id>     # a run's details + captured output
 research-os daemon submit "<cmd>"    # submit to SLURM with full provenance
 ```
+
+Three ways to run a long, reproducible job — all journaled, provenanced, and
+stall-watched the same way:
+- **native** (`daemon run`) — runs in your conda env; records git sha + env.
+- **container** (`daemon docker myimg:tag -- python run.py`) — runs inside a
+  Docker/Podman image, mounts the project so outputs land back in the workspace,
+  and records the **image + content digest** so the run is recreatable
+  bit-for-bit. Add `--gpus all` for GPU work; `--network` to allow networking
+  (isolated by default). Works for Docker, Podman, and — via a kubectl wrapper
+  or the SLURM submit path — Kubernetes/HPC schedulers.
+- **scheduler** (`daemon submit`) — hands the job to SLURM; the daemon polls it
+  to terminal, survives a login-node reboot, and resumes in flight.
 
 The AI can launch a background run the same way, without blocking the chat:
 when the gateway is enabled it `POST`s to **`/v1/jobs`** (the single
@@ -111,7 +170,13 @@ is `GET /v1/runs`. Submitting a journaled job is gated — it needs the
 gateway flag plus a per-session bearer token — so the AI can never spawn
 unbounded background work on its own.
 
-A tracked job records its inputs, command, and outputs. When it finishes,
+A tracked job records its inputs, command, and outputs — plus, for scheduler
+(SLURM) jobs, a **full environment snapshot** (the complete installed-package
+manifest, not just the conda env name) so a 12-hour run is recreatable from its
+record, not just describable. The daemon also runs a **stall watcher**: a
+RUNNING job whose output hasn't advanced in ~30 minutes is flagged as possibly
+stuck (it surfaces in `daemon_notes` and to the AI), so you're not left waiting
+on a wedged job that looks alive. When it finishes,
 the daemon emits a notification. To have notifications actually reach you,
 set a delivery command — a script that receives the notification as JSON on
 stdin and posts it wherever you want (Slack, email, a webhook):
@@ -233,6 +298,26 @@ The daemon's design assumptions are a shared login node, not a personal
 laptop: no Docker, a conda environment, other people's jobs on the same box,
 and a scheduler in front of the real compute. Everything above is built to
 behave well there.
+
+**Stand it up in one command.** On a no-Docker conda node with no systemd,
+`research-os daemon setup` does the awkward parts for you — it picks a FREE
+port (so your daemon doesn't collide with another user's or another project's
+on the same box), resolves the absolute `research-os` path inside your conda
+env (the bare command isn't on PATH once a process detaches from the env), and
+prints the exact `nohup` line to launch it detached:
+
+```bash
+conda activate research-os
+research-os daemon setup            # report: free port + conda + the launch line
+research-os daemon setup --start    # ...or just start it in the background now
+# later:
+research-os daemon stop             # graceful, per-project
+```
+
+`research-os daemon start --background` is the same detached launch if you
+already know your port. Both log to `.os_state/daemon.log`, record the pid in
+the per-project descriptor, and survive logout. Two users (or two projects) on
+one node each get their own daemon on their own port — nothing is shared.
 
 **Tell Research OS it's shared.** Set this once and the whole system shifts
 to shared-node behaviour — long work gets backgrounded instead of blocking,

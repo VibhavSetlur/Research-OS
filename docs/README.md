@@ -6,24 +6,49 @@ This page routes by audience. CHANGELOG.md at the repo root has the full release
 
 ## For researchers
 
-You're using Research OS on your own research project.
+You're using Research OS on your own research project. Read in this order —
+it's a path, not a pile:
 
-Start at [**START.md**](START.md) — install, first project, cheatsheet (~15 minutes). Then keep [**RESEARCHER_GUIDE.md**](RESEARCHER_GUIDE.md) open as you work — the full workflow guide.
+**1. Understand it (5 min).** [**HOW_IT_WORKS.md**](HOW_IT_WORKS.md) — how a
+real project actually unfolds (iterating on the plan, circling the literature,
+bringing a new paper into a step mid-analysis, not calling things done too
+early) and the three things that make your results hold up: provenance,
+accuracy, organization. Start here even before installing.
 
-New here and want to see what a real project looks like? Read [**SCENARIOS.md**](SCENARIOS.md) — seven complete worked examples (messy CSV → paper, reproducing a paper, prepping an R01, benchmarking your own tool, interview transcripts → publication), with the exact prompts and what lands on disk.
+**2. Set it up (15 min).** [**START.md**](START.md) — install, wire your IDE,
+first project, cheatsheet. Or hand your AI the one
+[**SETUP_PROMPT.md**](SETUP_PROMPT.md) (copy, fill the blanks, paste) and let
+it do the whole setup + onboarding for you.
 
-Supporting:
+**3. See it for real.** [**SCENARIOS.md**](SCENARIOS.md) — seven complete
+worked projects (messy CSV → paper, reproducing a result, prepping an R01,
+benchmarking a tool, interviews → publication): a named researcher, real data,
+the exact words they typed, what landed on disk.
 
-- [SCENARIOS.md](SCENARIOS.md) — seven end-to-end worked examples: a named researcher, real data, the words they typed, what Research OS produced.
-- [GLOSSARY.md](GLOSSARY.md) — the vocabulary: step, path, PATH container, plan.md, conclusions.md, the data folders, the literature corpus, audit.md, and more.
-- [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) — the canonical directory layout: the safety backbone (`.os_state`, `inputs/`, `workspace/`, …) and what each workspace mode adds. The single source of truth for what lives where.
-- [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster / reproduce a result" → which protocol fires.
-- [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software, not analysing data? The **tool_build** workspace mode: spec → implement → test → ship.
+**4. Work with it (keep open).** [**RESEARCHER_GUIDE.md**](RESEARCHER_GUIDE.md)
+— the full reference: the mental model, every protocol, the config, power-user
+patterns, troubleshooting.
+
+Reference, as you need it:
+
+- [GLOSSARY.md](GLOSSARY.md) — the vocabulary: step, path, plan.md,
+  conclusions.md, the data folders, the literature corpus, audit, and more.
+- [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) — the canonical directory layout: the
+  safety backbone (`.os_state`, `inputs/`, `workspace/`, …) and what each
+  workspace mode adds. The single source of truth for what lives where.
+- [USE_CASES.md](USE_CASES.md) — "I want to write a paper / build a poster /
+  reproduce a result" → which protocol fires.
+- [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software, not analysing data?
+  The **tool_build** workspace mode: spec → implement → test → ship.
 - [SETUP.md](SETUP.md) — per-IDE MCP wiring, troubleshooting installs.
-- [BEST_SETUP.md](BEST_SETUP.md) — the best agent layer + MCP stack + daemon setup for your project type (Hermes, context7, dynamic resources, autonomous loops).
+- [BEST_SETUP.md](BEST_SETUP.md) — the best agent layer + MCP stack + daemon
+  setup for your project type (Hermes, context7, autonomous loops).
 - [FAQ.md](FAQ.md) — common questions.
 - [CLI.md](CLI.md) — every `research-os` CLI sub-command.
-- [DAEMON.md](DAEMON.md) — the optional daemon: long jobs without blocking the chat, run provenance + freshness, hard human-approved gates, a resource budget the machine enforces, and completion notifications. Skip it for quick work; start it for big / long-lived projects.
+- [DAEMON.md](DAEMON.md) — the optional daemon: long jobs without blocking the
+  chat, run provenance + freshness, hard human-approved gates, a resource
+  budget the machine enforces, and completion notifications. Skip it for quick
+  work; start it for big / long-lived projects.
 - [SHARING.md](SHARING.md) — how to hand off a workspace to a collaborator.
 
 ---

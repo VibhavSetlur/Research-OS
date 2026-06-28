@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.9.0'
+version: '3.10.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -172,11 +172,18 @@ steps:
   - id: pick_tools
     name: Pick Tools / Libraries (validated, not guessed)
     description: |
-      If you're uncertain which library to use:
+      Consult your SKILL LAYER first. sys_boot's recommended_skills already
+      names the domain skills that fit this project (e.g. experimental-design,
+      statistical-power, bulk-rnaseq, rdkit); skills_list() + skill_view() load
+      the validated how-to. A matching skill — from your own Nous catalog, the
+      K-Dense science pack, or any external Agent Skills library — usually names
+      the right library with correct parameters, faster + safer than guessing.
+      If no skill covers it:
         tool_research_tool task="<concrete task>" language="<python|r|julia|any>"
       For external/paid/GUI tools that you cannot run:
         tool_external_tool_instructions tool_name=<X> purpose=<Y> url=<Z>
-      Then commit the tool decision via mem_log.
+      Then commit the tool decision via mem_log, recording whether it came from
+      a skill (and which) or from discovery.
 
       Reproducibility check: every tool used must be installable
       (tool_package_install if Python) and snapshotted later.

@@ -89,6 +89,41 @@ the live facts.**
 
 ---
 
+## 2b. Bring in domain science skills (the capability layer)
+
+Research OS gives the AI the rigorous **workflow** — framing, provenance,
+grounding, audits. It does not, by itself, know how to run a bulk-RNA-seq
+pipeline, design a fractional-factorial experiment, or dock a ligand. That
+**domain capability** comes from skills.
+
+Install the community **K-Dense scientific-agent-skills** library — 140
+MIT-licensed science skills in the open Agent-Skills standard (the same
+standard Hermes and the per-IDE rules already use):
+
+```bash
+research-os skills add-science-pack        # clone + wire into Hermes
+research-os skills list-science            # see the domain → skill map
+```
+
+This clones the library to a shared dir and registers it into Hermes
+`skills.external_dirs`, so Hermes loads the right skill on demand alongside its
+own + RO's. IDEs on the Agent-Skills standard can point at the same `skills/`
+dir. RO's **`recommended_skills`** (surfaced by `sys_boot` on a fresh project)
+names the specific skills that match your domain + mode — e.g.:
+
+| Your project | Skills RO pulls |
+|---|---|
+| clinical | literature-review · experimental-design · statistical-power · scikit-survival |
+| genomics | biopython · gget · bulk-rnaseq · pydeseq2 · scanpy |
+| chemistry / drug discovery | rdkit · deepchem · diffdock · medchem |
+| ML / NLP | scikit-learn · pytorch-lightning · transformers · shap |
+
+**The split to remember:** Research OS = *how to do research right*
+(provenance, accuracy, organization); science skills = *how to do this
+field's methods*. Together the AI has both — which is the whole point.
+
+---
+
 ## 3. Tailor RO to THIS project
 
 A generic agent is worse than a tailored one. Set these in

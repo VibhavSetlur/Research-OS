@@ -24,26 +24,53 @@ the ledger that records provenance. The best results come from using BOTH:
 your skills carry the domain how-to, RO's protocols govern whether it's the
 right method and demand the evidence.
 
-## Use your Nous skill ecosystem — RO tells you WHEN, your skills carry HOW
+## Pull skills, don't rely on your brain — from ALL THREE sources
 
-When a request needs domain or tool know-how, pull the matching Nous skill
-from your skill ecosystem (the bioinformatics / drug-discovery /
-domain-intel / OSINT and other libraries Nous has built, plus any you've
-learned) and apply it WITHIN the RO protocol the router returns:
+Your value multiplies when you load validated know-how instead of re-deriving
+it. For any task needing domain or tool expertise, PULL the matching skill
+first. You have three skill sources, all in the agentskills.io standard, all
+visible through the same `skills_list()` → `skill_view(name)` progressive
+disclosure:
 
-- The RO protocol says WHAT to think about, WHAT to ground, and WHAT to
-  record. Your skill says HOW to actually run the tool / library / pipeline.
-- Concretely: `tool_route` returns the method-level protocol (e.g. an
-  RNA-seq differential-expression workflow); you then pull your
-  bioinformatics skill for the exact DESeq2 invocation + flags, run it, and
-  let the RO protocol enforce the grounding, the figure provenance, and the
-  reproducibility audit around it.
-- Prefer a relevant Nous skill over re-deriving tool usage from scratch or a
-  generic web search — the skill is validated know-how. RO's
-  `methodology/tool_discovery` protocol explicitly says: consult your skill
-  layer FIRST, then apply RO's reasoning to confirm fit and record why.
-- If no skill covers the task, do the work, then run RO's self-improving
-  registry (`distill`) so the lesson becomes a reusable skill next time.
+1. **Your own Nous skills** — the bundled + optional Hermes catalogs
+   (bioinformatics, domain-intel, OSINT, devops, planning, ...) plus anything
+   you've `/learn`ed. Always available.
+2. **The K-Dense science pack** — 140 deep science skills (bulk-rnaseq,
+   experimental-design, literature-review, rdkit, deepchem, scanpy, ...). If
+   `skills_list()` doesn't show them, they aren't installed yet: tell the user
+   to run `research-os skills add-science-pack` (clones + wires them into your
+   `skills.external_dirs`), then restart so you can load them.
+3. **Native / external Agent Skills** — any other agentskills.io library wired
+   into `skills.external_dirs`. Same standard, same loading path.
+
+**How to use them, every task:**
+
+- **Let RO tell you WHICH.** `sys_boot` returns `recommended_skills` for THIS
+  project's domain + mode (e.g. genomics → biopython, gget, bulk-rnaseq). On
+  the first turn of a fresh project, load those before starting — don't wait to
+  be asked.
+- **Check before you derive.** Before running a tool/pipeline/method from
+  memory, `skills_list()` and load the matching skill with `skill_view`. A
+  validated skill beats re-derivation or a generic web search.
+- **RO says WHEN + WHAT-to-ground; the skill says HOW.** `tool_route` returns
+  the method-level protocol (e.g. a differential-expression workflow); you pull
+  the `bulk-rnaseq`/`pydeseq2` skill for the exact invocation + flags, run it,
+  and let the RO protocol enforce grounding, figure provenance, and the
+  reproducibility audit around it. RO's `methodology/tool_discovery` protocol
+  says the same: consult your skill layer FIRST, then apply RO's reasoning to
+  confirm fit and record why.
+- **Don't have the right skill? `/learn` it or distill it.** If no skill covers
+  the task, either `/learn` it from a doc/SDK/described workflow, OR do the work
+  and run RO's `distill` so the lesson becomes a reusable skill next time.
+
+**Organize skills project by project.** Skill sets are scoped to the work:
+- RO distills per-project lessons to `workspace/.skills/` (this project only).
+- Durable, cross-project lessons get `promote`d into your `~/.hermes/skills/`
+  so they follow the researcher to their next project.
+- A project's recommended science skills come from its `domain`/`mode` — a
+  genomics project and a chemistry project pull different sets, automatically.
+- If a project always needs the same set, group them into a Hermes **skill
+  bundle** so one slash command loads them together for that project.
 
 ## When to use
 

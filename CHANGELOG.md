@@ -6,6 +6,65 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.2.0] — containerized jobs, pipelines, supervision & mode parity (2026-06-27)
+
+A MINOR release driven by user reports from Argonne-style HPC researchers:
+run long reproducible jobs (including Docker) through the daemon, organize
+pipeline-shaped tools properly, supervise many projects at once, and bring
+tool_build / hybrid modes up toward analysis-mode depth — all while keeping
+the protocol layer a reasoning scaffold (STRUCTURE, not design or content).
+
+### Added
+- **Docker/Podman jobs through the daemon.** `DockerRunner` + `Daemon.run_container()`
+  + `research-os daemon docker IMAGE -- CMD` (`--gpus`/`--network`/`--input`): run a
+  long, reproducible job inside a container image as a tracked job — journaled,
+  artifact-captured, stall-watched, and pinned to the image's content digest so it
+  is recreatable bit-for-bit. Works for Docker, Podman, and (via wrapper/SLURM)
+  Kubernetes/HPC. Native conda runs and SLURM submit are unchanged.
+- **Shared-server daemon setup.** `research-os daemon setup [--start]` + `daemon start
+  --background`: auto-pick a free port, detect the conda env + absolute executable,
+  print/launch a no-Docker/systemd-free detached run — for multi-user HPC login nodes.
+- **Multi-root PI supervision.** The periodic self-check tick now refreshes every
+  registered project; `run_self_check_all()` + `GET /v1/supervision` give a roll-up of
+  health across all of a PI's projects.
+- **Background-job reproducibility.** Tracked SLURM/container jobs capture a full
+  environment snapshot (complete installed-package manifest, not just the env name);
+  a stall watcher flags a RUNNING job whose log stopped advancing.
+- **Constant daemon→AI feedback loop.** `server/daemon_alert.py` surfaces a
+  `daemon_flagged_issue` on every tool call when the daemon's self-check finds a new
+  problem; persistent BLOCK findings escalate to the researcher.
+- **Mode-aware daemon watch.** `mode_health.py` adds per-mode health signals (tool_build
+  eval/spec/decisions, notebook freshness, multi_study codebook + roll-up staleness,
+  exploration unpromoted probes, hybrid tool tests) wired into the shared structure-audit
+  engine so daemon self-check, sys_boot, and tool_structure_audit agree.
+- **New protocols (reasoning scaffolds):** `build/pipeline_construction` (organize a
+  multi-stage pipeline tool by stages + I/O contracts; running it is a tracked run, not
+  a numbered step), `program/pipeline_stage_handoff` (hand a stage's output + a consumer
+  contract to the next actor).
+- **Tool architecture diagrams + provenance diagrams.** `spec_and_design` gains an
+  `architecture_map` step + `spec/architecture.md`; the run-lineage DAG renders as a
+  mermaid provenance diagram (`lineage_to_mermaid()` + `GET /v1/lineage.mermaid`).
+- **3-source skill layer + self-improvement loop.** Active skill-pulling from Nous Hermes
+  + K-Dense scientific-agent-skills + native Agent Skills; `research-os skills
+  add-science-pack | list-science`; `promote_skills` writes loadable Hermes skill cards.
+- **Universal setup prompt** (`docs/SETUP_PROMPT.md`) and `docs/HOW_IT_WORKS.md`.
+
+### Improved
+- Provenance integrity verifier (re-hash recorded inputs/outputs) wired into the daemon
+  watch, `tool_audit`, and step-complete; eval results now require a recorded conditions
+  sidecar; the tool README must carry the architecture diagram and is reconciled on release.
+- Protocols point the AI at the new daemon/skill/supervision surfaces (autopilot,
+  session_boot, program_setup, reproducibility) without becoming prescriptive.
+- Per-turn quality watchers (ungrounded synthesis, conclusions-without-audit, stuck loop)
+  and a proactive next-action hint at the dispatch backstop.
+
+### Fixed
+- Setup UX: `--ide none` no longer wires IDEs; `ide add` prints a restart notice; a second
+  project's daemon auto-probes a free port instead of failing silently; `init --name`
+  warns on silent nesting; several stale doc counts.
+
+---
+
 ## [4.1.0] — self-correction, easier setup, per-project daemon control (2026-06-26)
 
 A MINOR release driven by user reports: make the AI follow Research OS reliably

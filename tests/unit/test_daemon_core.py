@@ -227,3 +227,39 @@ def test_resume_run_refuses_when_original_pid_alive(tmp_path):
     })
     res = daemon.resume_run("dead1")
     assert res["new_run_id"]
+
+
+def test_self_check_interval_config_default():
+    """B1: daemon has a periodic self-check interval (default 5 min, 0 disables)."""
+    from research_os.daemon.config import DaemonConfig
+    c = DaemonConfig.resolve()
+    assert c.self_check_interval == 300.0
+
+
+def test_serve_starts_periodic_self_check_thread(tmp_path, monkeypatch):
+    """B1: serve() launches a background thread that re-runs write_notes."""
+    import threading as _t
+    from research_os.daemon import core as _core
+    from research_os.daemon.config import DaemonConfig
+
+    calls = {"n": 0}
+
+    # Fast interval; stub the web serve so it returns immediately after we let
+    # the tick fire once.
+    cfg = DaemonConfig.resolve(root=tmp_path)
+    object.__setattr__(cfg, "self_check_interval", 0.05)
+    d = _core.Daemon(tmp_path, cfg)
+
+    import research_os.daemon.health_notes as _h
+    monkeypatch.setattr(_h, "write_notes", lambda root: calls.__setitem__("n", calls["n"] + 1))
+
+    # Make the blocking serve return after a short sleep so the tick runs.
+    import research_os.daemon.server as _srv
+    def _fake_serve(daemon):
+        import time as _time
+        _time.sleep(0.2)
+    monkeypatch.setattr(_srv, "serve", _fake_serve)
+    monkeypatch.setattr(_srv, "_require_web_stack", lambda: None)
+
+    d.serve()
+    assert calls["n"] >= 1  # the periodic tick fired at least once

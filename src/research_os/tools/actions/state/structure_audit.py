@@ -225,6 +225,44 @@ def audit_structure(root: str | Path) -> dict[str, Any]:
     except Exception:
         pass  # naming check is best-effort; never break the structure audit
 
+    # 7. Provenance integrity (4.1.x): the daemon WATCHES whether recorded
+    #    inputs/outputs still match on disk. An output built from an input that
+    #    has since changed is STALE — a silent reproducibility break the AI
+    #    won't notice. Surfacing it here means the daemon's self-check + sys_boot
+    #    flag stale results early instead of a reviewer finding them.
+    try:
+        from research_os.tools.actions.state.provenance import (
+            verify_provenance_integrity,
+        )
+        prov = verify_provenance_integrity(root)
+        for f in prov.get("findings", []):
+            sev = "block" if f.get("severity") == "block" else "warn"
+            findings.append(_finding(
+                sev, f.get("code", "provenance_drift"),
+                f.get("message", "provenance integrity issue"),
+            ))
+    except Exception:
+        pass  # provenance check is best-effort; never break the structure audit
+
+    # 8. Mode-aware project health: the daemon stays involved in EVERY workspace
+    #    mode, not just analysis. tool_build needs its eval/spec/decisions,
+    #    notebook outputs shouldn't be stale vs data, multi_study needs its
+    #    shared commons, exploration shouldn't strand promote-worthy probes,
+    #    hybrid's tool half needs tests. Same engine feeds the daemon self-check,
+    #    sys_boot, and tool_structure_audit, so all three agree.
+    try:
+        from research_os.tools.actions.state.mode_health import mode_health_findings
+
+        for f in mode_health_findings(root):
+            sev = f.get("severity", "info")
+            findings.append(_finding(
+                sev if sev in ("block", "warn", "info") else "info",
+                f.get("code", "mode_health"),
+                f.get("message", "mode-specific health issue"),
+            ))
+    except Exception:
+        pass  # mode-health check is best-effort; never break the structure audit
+
     counts: dict[str, int] = {"block": 0, "warn": 0, "info": 0}
     for f in findings:
         counts[f["severity"]] = counts.get(f["severity"], 0) + 1

@@ -87,6 +87,11 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "type": "string",
                     "description": "For a RECURRING / event-specific deliverable (a lab-meeting update, conference poster, committee deck), pass a short label like '2026-06-lab-meeting' or 'neurips-poster'. The artefact is written to synthesis/deliverables/<label-slug>/<kind> with a README documenting what it's for, so many such artefacts don't overwrite each other and the project stays ordered. Omit for the project's single canonical paper.",
                 },
+                "audience": {
+                    "type": "string",
+                    "enum": ["technical", "public"],
+                    "description": "For kind='slides' only. Emits a presentation STRUCTURE (outline + per-section intent), not a designed deck — tailored to the audience for the researcher to design + present in their own tool. 'technical' = design + methods + rigor (peers / methods or dev review). 'public' = hook + big theme + the one takeaway, minimal jargon (general / lay / cross-disciplinary). The same findings make two genuinely different talks; scaffold both when the researcher needs each. Writes synthesis/presentation_<audience>.md.",
+                },
             },
         },
     },
