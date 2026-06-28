@@ -209,9 +209,9 @@ agentskills.io standard). Your AI can pull from three sources, all through one
 index:
 
 - its **own skills** (the agent's bundled + learned library);
-- the **K-Dense science pack** — 140 deep science skills (bulk-RNA-seq,
-  experimental design, literature review, cheminformatics, ...); install once
-  with `research-os skills add-science-pack`;
+- the **K-Dense science pack** — a large library of deep science skills
+  (bulk-RNA-seq, experimental design, literature review, cheminformatics, ...);
+  install once with `research-os skills add-science-pack`;
 - any other **Agent Skills** library you point it at.
 
 On a fresh project, `sys_boot` tells the AI which skills match your domain and
@@ -241,11 +241,40 @@ Start it with `research-os daemon start`; see [DAEMON.md](DAEMON.md).
 
 ---
 
+## Part 4 — Long, reproducible, shareable work
+
+Real research isn't only quick scripts. When the work is heavy or has to be
+*exactly* reproducible, the daemon runs it as a tracked job and keeps the proof.
+
+- **Long runs that don't freeze your chat.** `research-os daemon run "<cmd>"`
+  runs a command as a tracked job — journaled, with its inputs, environment, and
+  git commit recorded. `research-os daemon submit "<cmd>"` hands a job to SLURM
+  and polls it to completion, surviving a login-node reboot.
+- **Bit-for-bit reproducibility with containers.** If your pipeline ships as a
+  Docker (or Podman) image, run it through the daemon:
+  `research-os daemon docker myimage:1.0 -- python run.py`. The run records the
+  **image and its content digest**, so "which exact image produced this output?"
+  always has an answer. Add `--gpus all` for GPU work. (Kubernetes works via a
+  thin wrapper — same contract.)
+- **Sharing what you made.** Hand a finished workspace to a collaborator with a
+  share archive, hand one *stage's* output to the next person with a contract
+  (`program/pipeline_stage_handoff` writes a `HANDOFF.md` describing exactly what
+  they get and owe back), or share the Docker image by digest so they run the
+  identical pipeline. See [SHARING.md](SHARING.md).
+
+The throughline of Parts 1–4 is one idea: **soft, trusted prose becomes hard,
+verified structure** — a plan becomes numbered steps, a number becomes a grounded
+claim, a run becomes a provenance record, a folder becomes a contracted handoff.
+That's what lets the work hold up.
+
+---
+
 ## Where to go next
 
 - [START.md](START.md) — install + your first project.
 - [SETUP_PROMPT.md](SETUP_PROMPT.md) — the one prompt that sets everything up.
 - [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — the full reference: every
   protocol, config knob, and power-user pattern.
-- [SCENARIOS.md](SCENARIOS.md) — seven complete worked projects, end to end.
+- [SCENARIOS.md](SCENARIOS.md) — two worked projects end to end (a basic one and
+  a deep PI-level program touching every capability).
 - [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) — exactly what lives where.
