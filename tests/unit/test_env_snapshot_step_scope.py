@@ -50,3 +50,48 @@ def test_requirements_unscoped_is_superset():
     root = _proj_two_steps()
     req_all = _project_python_requirements(root)
     assert "pandas" in req_all and "numpy" in req_all
+
+
+# ── Step-scoped Dockerfile generation ────────────────────────────────────
+
+
+def test_docker_generate_step_scoped_writes_into_step_env():
+    from research_os.tools.actions.exec.environment import env_docker_generate
+
+    root = _proj_two_steps()
+    step_env = root / "workspace" / "01_a" / "environment"
+    step_env.mkdir(parents=True, exist_ok=True)
+    (step_env / "requirements.txt").write_text("pandas==2.0\n")
+    res = env_docker_generate(root, step_id="01_a")
+    assert res["status"] == "success"
+    assert res["scope"] == "step"
+    df = step_env / "Dockerfile"
+    assert df.exists()
+    text = df.read_text()
+    # Builds from the STEP's own requirements, context = the step dir.
+    assert "environment/requirements.txt" in text
+    assert "01_a" in text  # the header references the step
+    assert res["build_context"] == "workspace/01_a"
+    # A .dockerignore is written alongside so machine-state never bakes in.
+    assert (root / "workspace" / "01_a" / ".dockerignore").exists()
+
+
+def test_docker_generate_unknown_step_errors():
+    from research_os.tools.actions.exec.environment import env_docker_generate
+
+    root = _proj_two_steps()
+    res = env_docker_generate(root, step_id="99_nope")
+    assert res["status"] == "error"
+    assert "not found" in res["message"]
+
+
+def test_docker_generate_project_scope_unchanged():
+    from research_os.tools.actions.exec.environment import env_docker_generate
+
+    root = _proj_two_steps()
+    (root / "environment").mkdir(parents=True, exist_ok=True)
+    (root / "environment" / "requirements.txt").write_text("pandas==2.0\n")
+    res = env_docker_generate(root)  # no step_id → project image
+    assert res["status"] == "success"
+    assert res["scope"] == "project"
+    assert (root / "environment" / "Dockerfile").exists()

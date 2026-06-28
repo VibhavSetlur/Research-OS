@@ -32,6 +32,12 @@ they typed, what landed on disk.
 — the full reference: the mental model, every protocol, the config, power-user
 patterns, troubleshooting.
 
+**Ask for what you want.** [**PROMPTING.md**](PROMPTING.md) — the phrasebook:
+how to word a request to get a specific outcome (dockerize a step, pull papers
+into inputs, build a shareable dashboard that doesn't leak step numbers, make
+sample data to test a tool) and what Research OS does behind the scenes when you
+do. Plus how to verify each result actually happened.
+
 Reference, as you need it:
 
 - [GLOSSARY.md](GLOSSARY.md) — the vocabulary: step, path, plan.md,

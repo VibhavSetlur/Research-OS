@@ -611,7 +611,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_env": {
         "short": "Unified environment tool. operation=snapshot|docker_generate.",
-        "description": "Unified environment dispatcher. operation='snapshot' captures the current Python (and optionally R/Julia) environment — target by step_id='NN_slug' for a per-step snapshot, scope='project' for the eager-scaffolded project-global environment/ folder, or omit both for the legacy default (most-recent numbered step, or project-global when none exist). operation='docker_generate' generates a Dockerfile from the environment snapshot for full reproducibility (run snapshot first). Every legacy sys_env_snapshot / sys_env_docker_generate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
+        "description": "Unified environment dispatcher. operation='snapshot' captures the current Python (and optionally R/Julia) environment — target by step_id='NN_slug' for a per-step snapshot, scope='project' for the eager-scaffolded project-global environment/ folder, or omit both for the legacy default (most-recent numbered step, or project-global when none exist). operation='docker_generate' generates a Dockerfile (+ .dockerignore) from the environment snapshot for full reproducibility (run snapshot first) — pass step_id='NN_slug' to dockerize ONE analysis step (writes workspace/<step>/environment/Dockerfile with the step's own pinned requirements, build context = the step dir), or omit step_id for a whole-project image. Every legacy sys_env_snapshot / sys_env_docker_generate name aliases to this entry point with operation injected via _ALIAS_PARAM_INJECTION so callers using the older per-operation names keep working unchanged.",
         "category": "environment",
         "inputSchema": {
             "type": "object",
@@ -621,10 +621,10 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "enum": ["snapshot", "docker_generate"],
                     "description": "Which environment sub-operation to invoke.",
                 },
-                # operation='snapshot' kwargs
+                # operation='snapshot' + 'docker_generate' kwargs
                 "step_id": {
                     "type": "string",
-                    "description": "operation='snapshot' — optional. NN_slug of the numbered step to snapshot into. Mutually exclusive with scope.",
+                    "description": "Optional NN_slug of the numbered step to target. For operation='snapshot' it snapshots into that step's environment/ (mutually exclusive with scope); for operation='docker_generate' it writes a step-scoped Dockerfile (workspace/<step>/environment/Dockerfile) so ONE step is independently containerizable.",
                 },
                 "scope": {
                     "type": "string",

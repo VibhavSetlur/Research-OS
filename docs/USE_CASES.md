@@ -12,6 +12,11 @@ what's possible and confirm the AI's choice.
 > meetings, a live dashboard, Docker runs, provenance, sharing/handoff) — with
 > the exact prompts and what lands on disk.
 
+> **How do I word the request?** This page maps an outcome to a prompt and the
+> protocol it fires. For the exact phrasing plus what Research OS does behind the
+> scenes for each kind of request (and how to verify it happened), see
+> [PROMPTING.md](PROMPTING.md), the prompt phrasebook.
+
 ---
 
 ## Real research goals (start here)
@@ -117,6 +122,7 @@ scenarios. Pick the row matching what you have on disk.
 | Data, no hypothesis yet | "I have \<dataset\> in inputs/ — explore it and help me find a hypothesis." | `methodology/exploratory_data_analysis` |
 | Brand-new, just want to look | "i have a csv, what do i do?" / "look at my data" / "make a chart" | the router coaches from plain phrasing |
 | Building a tool (tool_build mode) | "spec out \<the tool\>, here's what it must do." / "implement the next feature." | `build/spec_and_design` → `build/implement_iteration` |
+| Test a tool on data, or have none and need it | "make me sample data to test this" / "test it on some data" | `build/sample_data_and_validation` (tool_build / hybrid mode) |
 | Quick scratch poke (exploration mode) | "just poke at this data, nothing formal." | `guidance/casual_exploration` |
 | A text corpus (humanities) | "I have \<N\> texts in inputs/raw_data/ — test whether \<stylistic claim\>." | `humanities/method/digital_humanities_workflow` |
 | Interview transcripts | "I have \<N\> transcripts in inputs/raw_data/ — walk this to a paper + dashboard." | `methodology/qualitative_research` → `coding_scheme_development` → `qualitative_quality_audit` |
@@ -171,6 +177,7 @@ init .` (`--workspace-mode`, or the wizard) and stored as
 | Write the paper | "draft the manuscript for a journal" | `synthesis/synthesis_paper` |
 | Pre-submission final check | "is this ready to submit" | `audit/pre_submission_checklist` |
 | Make a poster / dashboard | "make a conference poster" / "build a dashboard" | `synthesis/synthesis_poster` · `synthesis/synthesis_dashboard` |
+| Containerize one step so it runs elsewhere | "dockerize this step" | `sys_env(operation='docker_generate')` (pins the step's env + writes `workspace/<step>/environment/Dockerfile` from that step's own requirements) |
 | Wrap up / resume | "wrap up" / "pick up where we left off" | `guidance/chat_handoff` · `guidance/session_resume` |
 
 ### Principal investigator / lab leader

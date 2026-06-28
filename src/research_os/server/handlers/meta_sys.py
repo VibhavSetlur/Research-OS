@@ -89,7 +89,8 @@ def _handle_sys_env_snapshot(name, arguments, root):
 
 
 def _handle_sys_env_docker_generate(name, arguments, root):
-    res = env_docker_generate(root)
+    step_id = arguments.get("step_id") if arguments else None
+    res = env_docker_generate(root, step_id=step_id)
     if res.get("status") == "success":
         return _text(_success(res))
     return _text(_error(res.get("message", "docker generate failed")))
