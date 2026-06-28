@@ -409,17 +409,25 @@ _MODE_SKILL_TAGS: dict[str, list[str]] = {
 
 def recommend_skills(
     root: Path, domain: str | None = None, workspace_mode: str | None = None,
+    *, task_intent: str | None = None, protocol: str | None = None,
 ) -> dict[str, Any]:
-    """Forward-looking, intake-driven skill recommendations for THIS project.
+    """Forward-looking, intake-driven skill recommendations for THIS project
+    AND (when given) THIS task.
 
     Unlike ``distill_skills`` (backward-looking — crystallizing past lessons),
-    this answers "given what this project IS (domain + mode + question), which
-    capabilities should the AI / Hermes load NOW?" Surfaced on the first setup
-    turn so the agent starts with the right skills instead of discovering them
-    late. Sources, in priority order: the researcher's own cross-project
+    this answers "given what this project IS (domain + mode + question) and
+    what the AI is ABOUT TO DO (task_intent / protocol), which capabilities
+    should the AI / Hermes load NOW?" It is the universal skill-pull reflex:
+    every task, the agent figures out what it needs, pulls the matching
+    skills, loads + uses them, then keeps working inside Research-OS.
+
+    Surfaced on the first setup turn (project-level) AND on every route
+    (task-level), so the agent starts each task with the right skills instead
+    of discovering them late. Sources, in priority order: the TASK-SPECIFIC
+    capability for this protocol/sub-intent, the researcher's own cross-project
     ``learned_skills`` relevant to this domain/tag, project-local distilled
-    skills already present, and a curated domain/mode → tag map for fresh
-    projects with no history. By-shape + fail-open.
+    skills already present, and a curated domain/mode → tag map. By-shape +
+    fail-open.
     """
     from research_os.tools.actions.state.config import load_profile
 
@@ -435,6 +443,27 @@ def recommend_skills(
 
     dom = (domain or "").strip().lower()
     mode = (workspace_mode or "analysis").strip().lower()
+    intent = (task_intent or "").strip().lower()
+    proto = (protocol or "").strip()
+
+    # 0. TASK-SPECIFIC first — the capability the AI needs for THIS exact task
+    #    leads, so the recommendation answers "what do I need to do THIS" before
+    #    the general domain/mode picks. Concrete science-pack protocol skills +
+    #    the coarser sub-intent tag layer.
+    try:
+        from research_os.tools.actions.research.science_pack import (
+            SUB_INTENT_SKILL_TAGS,
+            science_skills_for,
+        )
+        if proto:
+            for s in science_skills_for(dom, mode, protocol=proto):
+                # Only the protocol-specific picks here (domain/mode added below).
+                if proto in s.get("reason", ""):
+                    _add(s["name"], s["reason"], s["source"])
+        for tag in SUB_INTENT_SKILL_TAGS.get(intent, []):
+            _add(tag, f"capability for a '{intent}' task", "task_intent")
+    except Exception:
+        pass
 
     # 1. The researcher's OWN distilled skills whose tag matches this domain/mode.
     try:
@@ -466,14 +495,14 @@ def recommend_skills(
     for tag in _MODE_SKILL_TAGS.get(mode, []):
         _add(tag, f"useful in {mode} mode", "mode_map")
 
-    # 4. Concrete K-Dense science skills for this domain/mode (the capability
-    # layer that pairs with RO's guidance). These are real installable skills
-    # in the open Agent-Skills standard; the generic tags above are advisory.
+    # 4. Concrete K-Dense science skills for this domain/mode/protocol (the
+    # capability layer that pairs with RO's guidance). These are real
+    # installable skills in the open Agent-Skills standard.
     try:
         from research_os.tools.actions.research.science_pack import (
             science_skills_for,
         )
-        for s in science_skills_for(dom, mode):
+        for s in science_skills_for(dom, mode, protocol=proto or None):
             _add(s["name"], s["reason"], s["source"])
     except Exception:
         pass
@@ -482,10 +511,14 @@ def recommend_skills(
         "status": "success",
         "domain": dom or None,
         "workspace_mode": mode,
+        "task_intent": intent or None,
+        "protocol": proto or None,
         "recommended_skills": recs[:12],
         "note": (
-            "Load these capabilities (Hermes skills or your own) before starting "
-            "— they match this project's domain + mode. Not prescriptive."
+            "This is the universal skill-pull reflex: figure out what THIS task "
+            "needs, load these capabilities (Hermes skills, the science pack, or "
+            "your own distilled ones), USE them, then keep working inside "
+            "Research-OS. Task-specific picks lead. Not prescriptive."
         ),
     }
 

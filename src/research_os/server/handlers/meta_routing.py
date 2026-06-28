@@ -241,6 +241,38 @@ def _handle_tool_route(name, arguments, root):
         # Phase-9 cross-cutting: name the next tool to call so the AI
         # doesn't burn a turn deciding.
         res.setdefault("recommended_action", _recommended_action_for_route(res))
+        # Universal skill-pull reflex: for THIS task, recommend the
+        # capability skills the AI should pull + load + use before doing the
+        # work (then keep working inside Research-OS). Keyed off the resolved
+        # task (sub_intent / primary_protocol) + the project's domain + mode,
+        # so the recommendation is task-specific, not just project-generic.
+        # By-shape, fail-open — never blocks a route.
+        try:
+            from research_os.tools.actions.research.skills import (
+                recommend_skills as _rec_skills,
+            )
+            from research_os.tools.actions.state.config import (
+                get_research_config,
+                get_workspace_mode,
+            )
+
+            _cfg = get_research_config(root) or {}
+            _domain = (_cfg.get("domain")
+                       or _cfg.get("research_goal", {}).get("domain")
+                       or "")
+            _rs = _rec_skills(
+                root,
+                domain=_domain,
+                workspace_mode=get_workspace_mode(root),
+                task_intent=res.get("sub_intent"),
+                protocol=res.get("primary_protocol"),
+            )
+            skills = _rs.get("recommended_skills") or []
+            if skills:
+                res["recommended_skills"] = skills
+                res["skills_advice"] = _rs.get("note", "")
+        except Exception:
+            pass
         # Live drop-zone: surface (and consume) any context the researcher
         # dropped since the last prompt. Fires on the turn after the drop —
         # "I put a paper in context/" → the AI is told to read it.
