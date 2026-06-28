@@ -20,10 +20,13 @@ first project, cheatsheet. Or hand your AI the one
 [**SETUP_PROMPT.md**](SETUP_PROMPT.md) (copy, fill the blanks, paste) and let
 it do the whole setup + onboarding for you.
 
-**3. See it for real.** [**SCENARIOS.md**](SCENARIOS.md) — seven complete
-worked projects (messy CSV → paper, reproducing a result, prepping an R01,
-benchmarking a tool, interviews → publication): a named researcher, real data,
-the exact words they typed, what landed on disk.
+**3. See it for real.** [**SCENARIOS.md**](SCENARIOS.md) — two worked projects
+end to end: a **basic** one (one dataset → a grounded result) and a **deep
+PI-level program** that touches nearly every capability (onboarding, literature
+grounding, iterative phased planning, branching + deleting steps, synthesis
+meetings, a live public dashboard, Docker runs, provenance, image + folder
+sharing, cross-actor handoff). A named researcher, real data, the exact words
+they typed, what landed on disk.
 
 **4. Work with it (keep open).** [**RESEARCHER_GUIDE.md**](RESEARCHER_GUIDE.md)
 — the full reference: the mental model, every protocol, the config, power-user
