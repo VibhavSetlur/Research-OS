@@ -163,12 +163,15 @@ def _norm_dist(name: str) -> str:
     return re.sub(r"[-_.]+", "-", (name or "").strip().lower())
 
 
-def _scan_python_imports(root: Path) -> set[str]:
+def _scan_python_imports(root: Path, step_id: str | None = None) -> set[str]:
     """Top-level module names imported by the project's OWN Python sources.
 
     Regex-based (never executes code), so it survives half-written
-    scripts. Scans ``workspace/**/*.py``, root ``scripts/**/*.py``, and the
-    code cells of any ``*.ipynb`` under those trees.
+    scripts. By default scans ``workspace/**/*.py``, root ``scripts/**/*.py``,
+    and the code cells of any ``*.ipynb`` under those trees. When ``step_id``
+    is given, scans ONLY that step's own sources (``workspace/<step_id>/**``)
+    so a per-step environment captures what THAT step actually imports — the
+    set a per-step Docker/daemon run needs, not the whole project's.
     """
     import json as _json
     import re
@@ -187,7 +190,11 @@ def _scan_python_imports(root: Path) -> set[str]:
             if top:
                 mods.add(top)
 
-    for base in (root / "workspace", root / "scripts"):
+    if step_id:
+        bases = (root / "workspace" / step_id,)
+    else:
+        bases = (root / "workspace", root / "scripts")
+    for base in bases:
         if not base.exists():
             continue
         for p in base.rglob("*.py"):
@@ -208,14 +215,15 @@ def _scan_python_imports(root: Path) -> set[str]:
     return mods
 
 
-def _project_python_requirements(root: Path) -> str:
+def _project_python_requirements(root: Path, step_id: str | None = None) -> str:
     """requirements.txt built from the project's OWN imports.
 
     Each distribution the project's scripts import is pinned to the
     version installed when the snapshot ran. The Research-OS server stack
     is excluded (it ships with the MCP server, not the project). Local
     modules and as-yet-uninstalled imports are skipped — you can't pin
-    what isn't on disk.
+    what isn't on disk. When ``step_id`` is given, only that step's own
+    imports are pinned (the set a per-step Docker/daemon run needs).
     """
     from importlib import metadata as im
 
@@ -234,7 +242,7 @@ def _project_python_requirements(root: Path) -> str:
         mod_to_dists = {}
 
     project_dists: set[str] = set()
-    for mod in _scan_python_imports(root):
+    for mod in _scan_python_imports(root, step_id):
         if mod in _STDLIB_MODULES or mod in _RESEARCH_OS_IMPORT_NAMES:
             continue
         for d in mod_to_dists.get(mod, []):
@@ -489,7 +497,7 @@ def env_snapshot(
         if "python" in in_use:
             try:
                 (env_dir / "requirements.txt").write_text(
-                    _project_python_requirements(root)
+                    _project_python_requirements(root, step_id)
                 )
                 session["languages"].append({
                     "name": "python",
