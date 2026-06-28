@@ -31,29 +31,25 @@
 ```bash
 pip install research-os
 mkdir thesis-chapter-3 && cd thesis-chapter-3
-research-os init                  # arrow-key wizard, ~20 seconds
+research-os init .                # scaffold THIS folder, ~20 seconds
 ```
 
 Open the folder in Claude Code (or Cursor, or any MCP-capable AI IDE) and talk:
 
 > **You:** I have a CSV of 2,400 patients at `~/data/cohort.csv`. I want to know whether the new drug lowers 30-day readmission, controlling for age and comorbidity. Hypothesis: it does, and the effect is bigger for older patients.
 
-> **AI:** *Captures your question, domain, and both hypotheses; profiles the CSV; proposes a baseline EDA + a logistic regression with an age interaction; asks you to confirm before running anything.*
+> **AI:** *Captures your question, domain, and both hypotheses; profiles the CSV; surfaces current literature; proposes a baseline EDA + a logistic regression with an age interaction; asks you to confirm before running anything.*
 
 From there: `run the baseline EDA` → `fit the model` → `draft the results section` → `is this ready to submit?`. Every figure lands with a caption and the script that made it; every citation is verified; every number in the draft traces back to a real file on disk.
 
 That's the whole idea. The rest of this page explains why it matters.
 
-> **Want the most robust setup, not just the fastest one?** The 30-second path
-> works, but a few minutes of proper onboarding pays off: let the AI scan your
-> inputs, help you frame the question, pick the right mode, and wire exactly one
-> IDE before you start producing work. The README's
-> [setup prompt](#prefer-to-let-your-ai-set-it-up-paste-this-fill-in-the-blanks)
-> walks the AI through that in order, and [docs/START.md](docs/START.md) is the
-> guided onboarding. For a self-improving layer on top — memory across projects,
-> reusable skills, autonomous long runs — pair it with
-> [Hermes](https://hermes-agent.nousresearch.com) (see
-> [Pair it with a self-improving agent layer](#pair-it-with-a-self-improving-agent-layer)).
+> **The fastest path is not the most robust one.** A few minutes of proper
+> onboarding — letting the AI scan your inputs, frame the question, ground in
+> real literature, and wire exactly one IDE — pays off across the whole project.
+> The **[setup prompt](docs/SETUP_PROMPT.md)** walks your AI through that in
+> order. And for memory across projects, reusable skills, and autonomous long
+> runs, pair Research OS with the **[Hermes agent layer](#the-strongest-pairing-research-os--a-self-improving-agent)**.
 
 ---
 
@@ -104,7 +100,7 @@ A discussion that cites *your* results. Every citation verified, every figure an
 
 > "make me a poster for the lab meeting Thursday"
 
-The AI authors `synthesis/poster.typ` directly and compiles it to PDF — no rigid template, custom-designed for your content, validated before it ships.
+The AI assembles the poster's **structure** — which results to feature, the narrative arc, what each panel is for — grounded in your real findings, for you to render. Research OS gives you structure tailored to your audience, not a fixed template.
 
 **Shipping it:**
 
@@ -116,7 +112,7 @@ A GREEN / YELLOW / RED verdict with a punch list — every check a journal will 
 
 State, plan, hypotheses, dead-ends, and drafts all persist. Tomorrow's session opens exactly where you left off.
 
-→ Full catalogue of what to say: **[USE_CASES.md](docs/USE_CASES.md)** · Seven complete worked projects (messy CSV → published paper, with the exact prompts): **[SCENARIOS.md](docs/SCENARIOS.md)**
+→ Full catalogue of what to say: **[USE_CASES.md](docs/USE_CASES.md)** · Two worked projects end to end — a basic one and a deep PI-level program touching every capability: **[SCENARIOS.md](docs/SCENARIOS.md)**
 
 ---
 
@@ -156,14 +152,12 @@ thesis-chapter-3/
 │   └── logs/                 every audit pass + every gate override
 │
 └── synthesis/              ← deliverables land here (only when you ask)
-    ├── paper.typ → paper.pdf       AI-authored, compiled for you
-    ├── poster.typ → poster.pdf
-    ├── slides.typ → slides.pdf
-    ├── dashboard.html              single-file, offline, accessible
+    ├── deliverables/               structured outlines for paper / poster / slides
+    ├── dashboard/                  a public-facing dashboard's structure
     └── figures/                    curated focal figures + captions
 ```
 
-One principle holds it together: **you own `inputs/`, the AI owns the rest, and nothing exists until you ask for it.** A fresh project isn't pre-cluttered with empty folders — `workspace/01_*` appears the first time you run a step.
+One principle holds it together: **you own `inputs/`, the AI owns the rest, and nothing exists until you ask for it.** A fresh project isn't pre-cluttered with empty folders — `workspace/01_*` appears the first time you run a step. And Research OS gives you **structure, not design**: deliverables are content-grounded outlines tailored to your audience, for you and your AI to render — not a fixed template.
 
 → Deeper tour: **[RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md)** · Exact layout per mode: **[PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md)**
 
@@ -225,16 +219,38 @@ The core behaves *identically* with or without the daemon — it only ever *adds
 
 ---
 
-## Pair it with a self-improving agent layer
+## The strongest pairing: Research OS + a self-improving agent
 
-Research OS is the rigor substrate. The AI on top is the brain. If that AI layer can **learn your project and carry skills across sessions** — like [Hermes Agent](https://hermes-agent.nousresearch.com) — the pairing compounds: protocols govern *how to reason* and *what to verify*, while the agent's skills carry the domain how-to and improve over time. It works with any AI; Hermes is just the closest fit.
+Research OS is the **rigor substrate** — it governs *how to reason* and *what to
+verify*. The AI on top is the **brain**. The pairing is strongest when that AI
+layer can **learn your work and carry skills across sessions**, like
+[Hermes Agent](https://hermes-agent.nousresearch.com). Then three layers compose:
+
+- **Research OS** — research done right: protocols, gates, provenance, the
+  numbered-step structure.
+- **Skills** — your field's *how-to*. Research OS actively **pulls the skills a
+  project needs** from three sources and loads them before you start, instead of
+  relying on the model's memory:
+  1. **Hermes skills** you've built or installed (`~/.hermes/skills/`),
+  2. the **K-Dense scientific-agent-skills** library (community MIT science
+     skills — install with `research-os skills add-science-pack`),
+  3. any **native Agent Skills** in the open SKILL.md standard.
+  `sys_boot.recommended_skills` tells the AI which ones match this project on the
+  first turn.
+- **Self-improvement** — Hermes learns *your* way over time. Lessons distilled in
+  one project are promoted into loadable skill cards that surface in the next.
 
 ```bash
-research-os hermes add     # wire Research OS into Hermes, then ask:
-                           # "set up my AI for this project"
+research-os hermes add          # wire Research OS into Hermes
+research-os skills add-science-pack   # install the K-Dense science skill library
+research-os skills list-science       # see what's available
 ```
 
-→ The `guidance/agent_setup` protocol walks the whole setup. Works with Claude Code, Cursor, a bare API, or Hermes.
+The `guidance/agent_setup` protocol walks the whole setup, and the
+[setup prompt](docs/SETUP_PROMPT.md)'s step 9 has the AI pull the right skills up
+front. It works with any AI — Claude Code, Cursor, a bare API — but Hermes is the
+closest fit because the skill + memory + autonomous-run layer is exactly what a
+long research program needs.
 
 ---
 
@@ -261,7 +277,7 @@ research-os hermes add     # wire Research OS into Hermes, then ask:
 |---|---|
 | **New here** | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) — how real projects unfold + why your results hold up (provenance, accuracy, organization) · then [docs/START.md](docs/START.md) — install + first project |
 | **Setting up with your AI** | [docs/SETUP_PROMPT.md](docs/SETUP_PROMPT.md) — one copy-paste, fill-in-the-gap prompt that drives your AI through the whole setup + onboarding |
-| **Looking for an example** | [docs/SCENARIOS.md](docs/SCENARIOS.md) — seven complete worked projects · [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
+| **Looking for an example** | [docs/SCENARIOS.md](docs/SCENARIOS.md) — two worked projects (basic + deep PI-level) · [docs/USE_CASES.md](docs/USE_CASES.md) — what to say for what you want |
 | **Going deep** | [docs/RESEARCHER_GUIDE.md](docs/RESEARCHER_GUIDE.md) — the full workflow guide |
 | **Wiring an IDE** | [docs/SETUP.md](docs/SETUP.md) — Claude Code, Cursor, VS Code, etc. |
 | **Stuck** | [docs/FAQ.md](docs/FAQ.md) — common questions |
