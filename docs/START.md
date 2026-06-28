@@ -1,98 +1,59 @@
 # Start here
 
-Everything you need to be productive with Research OS — installation,
-first project, copy-paste prompts. Read top to bottom (~15 minutes), or
-skip to the section you need.
+Everything you need to be productive with Research OS — install, your
+first project, and the copy-paste prompts you'll actually use. Read top
+to bottom (~15 minutes), or jump to the section you need.
 
-If you'd rather watch the AI handle install + IDE wiring for you, paste
-the [Setup Prompt](#setup-prompt-paste-into-any-ai) into any AI chat.
+Research OS is for **researchers**, not developers. You don't write
+config or memorize commands — you scaffold one folder, open it in your AI
+IDE, and talk in plain English. The system gives your project
+**structure**: it onboards you, routes your words to the right protocol,
+runs real computation through versioned steps, and grounds every number
+and citation it produces.
 
 ---
 
-## Quickstart — 4 steps
+## Quickstart — five steps that matter
 
 ```bash
-# 1. Install (once, globally — one server serves every project)
+# 1. Install once, globally — one server serves every project
 pip install research-os
 
-# 2. Scaffold a project
-mkdir my-project && cd my-project
-research-os init                 # arrow-key wizard
+# 2. Make the project folder and scaffold IT (the dot = "here")
+mkdir aspirin-rct && cd aspirin-rct
+research-os init .
 
-# 3. Confirm it's healthy (optional but recommended)
-research-os doctor               # python + conda env + IDE wiring + pack health
-research-os ide list             # which IDEs are wired in this workspace
+# 3. RESTART your AI IDE (or reload the window) so it loads the new tools
 
-# 4. Open the folder in your AI IDE and talk
-#    > here's my project: I want to know if X affects Y; my data's at <path>
-#    > what should I do next?
+# 4. Confirm it's healthy
+research-os doctor
+
+# 5. Open the folder in your AI IDE and talk — onboard BEFORE analysis
+#    > here's my project: I want to know if X affects Y; data's at <path>
+#    > onboard me, then tell me the first step
 ```
 
-That's everything. The rest of this guide unpacks each step and shows
-you the full prompt catalogue.
+Five details carry the whole experience. Get these right and the rest is
+just talking:
 
----
+1. **`research-os init .`** — the dot scaffolds the folder you're
+   *already in*. `research-os init my-project` creates a *nested*
+   `my-project/` inside the current folder, which is rarely what you
+   want. When in doubt, `cd` into the folder first and run `init .`.
+2. **Restart the IDE before you expect tools.** The MCP server only
+   loads on a fresh IDE session. If you had the IDE open during `init`,
+   the Research OS tools won't appear until you fully restart it or
+   reload the window.
+3. **Run the self-test.** `research-os doctor` confirms install +
+   workspace health before you sink time into a session.
+4. **Onboard before you analyze.** Don't jump straight to "fit a model."
+   Let the AI scan your inputs, capture the question + hypotheses, do a
+   literature pass, and ground the framing first (see
+   [Onboard before you analyze](#onboard-before-you-analyze)).
+5. **Talk, don't command.** The AI translates plain English into the
+   right protocol via `tool_route`. You never call MCP tools by hand.
 
-## Your first ten minutes (a real walkthrough)
-
-Say you've got a CSV of clinical-trial outcomes and a question. Here's the
-whole arc, start to finish — the words you type are in **bold**.
-
-1. **Scaffold and open.**
-
-   ```bash
-   mkdir aspirin-rct && cd aspirin-rct
-   research-os init          # pick "analysis" mode, your IDE, defaults for the rest
-   ```
-
-   Open `aspirin-rct/` in Claude Code (or Cursor / VS Code / …). The MCP
-   panel shows **`research-os` connected**.
-
-2. **Tell it what you're doing** — no files required yet:
-
-   > **"My trial data is at `~/data/aspirin.csv`. I want to know if
-   > low-dose aspirin reduces 30-day cardiac events versus placebo,
-   > adjusting for age and prior MI. Hypothesis: it does."**
-
-   The AI records the question + hypothesis, profiles the CSV (rows,
-   columns, types, missingness), flags anything odd, and asks you to
-   confirm the framing. Nothing has run yet — it checks with you first.
-
-3. **Run the baseline.**
-
-   > **"run a baseline EDA"**
-
-   You get `workspace/01_baseline_eda/` — a script you can read, figures
-   with captions, a summary table, and `conclusions.md` tying what it
-   found back to your hypothesis.
-
-4. **Do the real analysis.**
-
-   > **"fit the adjusted model"**
-
-   The AI picks the method (logistic regression here), justifies it,
-   writes `workspace/02_*/`, reports the effect with a CI and the
-   adjusted covariates, and records the decision in `analysis.md`.
-
-5. **Write it up.**
-
-   > **"draft the results and discussion"**
-
-   Prose that cites *your* numbers — every value traceable to step 02,
-   every reference verified. If you ask for a citation it can't verify,
-   it tells you, rather than inventing a DOI.
-
-6. **Check before you ship.**
-
-   > **"is this ready to submit?"**
-
-   A GREEN / YELLOW / RED verdict and a punch list: ungrounded claims,
-   missing limitations, unverified cites — every gate a reviewer applies,
-   run early.
-
-You never wrote a config file, memorized a command, or trusted a number on
-faith. That's the loop. → Seven fuller examples across domains:
-[SCENARIOS.md](SCENARIOS.md).
+The rest of this guide unpacks each step.
 
 ---
 
@@ -106,21 +67,23 @@ Extras: `all` (everything Python — recommended), `ci` (lean, used by
 CI), or a subset of `web` / `literature` / `viz` / `audit` / `ml` /
 `notebook`.
 
-**Research OS is global.** Install once; the same `research-os`
-binary serves every project you scaffold.
+**Research OS is global.** Install once; the same `research-os` binary
+serves every project you scaffold.
 
 Verify:
 
 ```bash
 research-os --help
-# Eleven commands: init / ide / mcp / hermes / route / api-key / start / daemon / doctor / refresh / completion
+# Subcommands: init · ide · mcp · hermes · skills · route · api-key
+#              start · daemon · doctor · refresh · completion
 ```
 
-If `research-os: command not found`, add `~/.local/bin` (or your
-virtualenv's `bin/`) to your `PATH`.
+If you see `research-os: command not found`, add `~/.local/bin` (or your
+virtualenv's `bin/`) to your `PATH`. Need help with Python / pip /
+virtualenvs / conda? See [SETUP.md](SETUP.md).
 
-Need help with Python / pip / virtualenvs / conda? See
-[SETUP.md](SETUP.md).
+You do **not** need an LLM API key. Your AI IDE owns model access;
+Research OS sits behind it as an MCP server.
 
 ---
 
@@ -128,121 +91,64 @@ Need help with Python / pip / virtualenvs / conda? See
 
 ```bash
 mkdir my-project && cd my-project
-research-os init                 # interactive arrow-key wizard (default)
-# research-os init --yes         # non-interactive (CI / scripts)
+research-os init .                 # scaffold the folder you're in
+# research-os init . --yes         # non-interactive (CI / scripts)
 ```
 
-`init` is the only per-project command. The wizard's first question —
-**"What are you building?"** — sets the *workspace mode* (see
-[Pick a workspace mode](#pick-a-workspace-mode) below). It then collects:
-location, project name, optional domain + research question, which AI
-IDEs to wire up, and whether to run a post-scaffold smoke check. Pass any
-of `--workspace-mode / --name / --domain / --question / --ide` to
-pre-fill an answer and the wizard will skip that step. It drops:
+> **Use the dot.** `research-os init .` scaffolds the current folder.
+> `research-os init my-project` *nests* a new folder inside it — a
+> common first-time surprise. `cd` in first, then `init .`.
+
+`init` is the only per-project command. Its first question — **"What are
+you building?"** — sets the *workspace mode* (next section). It then
+collects: project name, optional domain + research question, which AI
+IDEs to wire, and whether to run a smoke check. Pass any of
+`--workspace-mode / --name / --domain / --question / --ide` to pre-fill
+an answer and skip that step.
+
+It drops:
 
 - `AGENTS.md` — the AI's operating manual (every supported IDE reads it)
-- `inputs/{raw_data, literature, context}/` — where YOU drop files
+- `inputs/{raw_data, literature, context}/` — where **you** drop files
 - `workspace/`, `synthesis/`, `docs/`, `.os_state/` — AI workspace + outputs
 - Pre-wired MCP configs for **Claude Code, OpenCode, Antigravity, Cursor,
   Claude Desktop, VS Code, Windsurf, Continue, Aider**
 
-You typically need to **restart your IDE** so it picks up the new MCP config.
+### Then RESTART your IDE
+
+The MCP server only loads on a fresh IDE session. **If your IDE was open
+during `init`, fully restart it (or reload the window) now** — otherwise
+the Research OS tools simply won't appear in the chat and the AI will act
+like it's never heard of them. This one step trips up most first-timers.
 
 ---
 
 ## Pick a workspace mode
 
-The very first wizard question — *"What are you building?"* — sets a
-**workspace mode** that shapes the scaffold and how the AI works. Most
-people want the default. The three options:
+The first wizard question — *"What are you building?"* — sets a
+**workspace mode** that shapes the scaffold and how the AI works. Six
+modes exist; most people want **analysis**.
 
 | Pick this if you're… | Mode | What changes |
 |---|---|---|
 | Turning data into results + a write-up | **analysis** *(default)* | Numbered experiment steps under `workspace/NN_*`; "done" = grounded figures + conclusions. |
-| Building / iterating on software (a CLI, library, service) | **tool_build** | Governance layer (`spec/`, `decisions/`, `eval/`) above an inner git repo; "done" = tests + build + eval pass. → [TOOL_BUILDER.md](TOOL_BUILDER.md) |
-| Just poking around with no committed direction | **exploration** | Scratch-first (`workspace/scratch/`), light gates; promote a probe to a real step only when it earns it. |
+| Building software (CLI, library, service) | **tool_build** | Governance layer (`spec/`, `decisions/`, `eval/`) above an inner git repo; "done" = tests + build + eval pass. → [TOOL_BUILDER.md](TOOL_BUILDER.md) |
+| Poking around with no committed direction | **exploration** | Scratch-first (`workspace/scratch/`), light gates; promote a probe to a real step only when it earns it. |
+| Working notebook-first (Jupyter is the unit of work) | **notebook** | Notebooks are first-class; run / reproduce / promote / synthesize from them. |
+| Building a tool *and* using it on data in one project | **hybrid** | The analysis ↔ build pivot in one workspace. |
+| Running several related sub-studies under one umbrella | **multi_study** | A shared commons plus per-study registration. |
 
-Set it without the wizard via `research-os init --workspace-mode <mode>`,
-or change it later in `inputs/researcher_config.yaml`
-(`workspace.mode`). Not sure? Pick **analysis** — you can switch.
-
----
-
-## New here? The 3-minute on-ramp
-
-Never used a research workflow tool before? You don't need to learn any
-of the vocabulary on this page yet. Here's the whole thing:
-
-1. **Drop a file in `inputs/`.** A CSV, a spreadsheet, a PDF — whatever
-   you've got. (No data yet? Skip to step 2 and just ask a question.)
-
-   ```bash
-   mv ~/Downloads/my_data.csv inputs/raw_data/
-   ```
-
-2. **Open the folder in your AI IDE and say what you want — in plain
-   English.** You don't call any commands. Try literally any of these:
-
-   ```
-   i have a csv, what do i do?
-   look at my data
-   make a chart from this
-   is my result significant?
-   ```
-
-3. **Read what the AI says back, and answer its one question if it asks
-   one.** It will tell you what it found, propose a next step, and wait
-   for your OK before doing anything heavy.
-
-That's it. The AI figures out which of the built-in workflows fits your
-words and walks you through it. You'll pick up the rest by doing.
-
-**What to expect — the coaching posture.** Research OS is built to be a
-careful collaborator, not an eager autocomplete:
-
-* It **looks before it leaps.** On a fresh project it reads your files
-  and proposes a plan; it asks before creating experiments or writing
-  final outputs.
-* It **won't make things up.** Every citation in a write-up is checked
-  against real databases; every number has to trace back to a real file
-  it produced. If it can't, it says so instead of guessing.
-* It **explains, if you want.** Ask *"explain that to me"* or *"why did
-  you pick that test?"* and it will. Ask *"teach me about ANCOVA before I
-  use it"* and it'll teach you with no commitment to a project.
-* It **remembers.** Close the chat, come back tomorrow, say *"pick up
-  where we left off"* — your data, decisions, and progress are still
-  there.
-
-When you're ready for more, the [1-hour walkthrough](#the-1-hour-walkthrough-optional)
-below shows the full arc; [USE_CASES.md](USE_CASES.md) maps "what I want"
-to "what to say"; and [SCENARIOS.md](SCENARIOS.md) walks seven complete
-real projects from first prompt to finished `synthesis/` output.
+Set it without the wizard via `research-os init . --workspace-mode <mode>`,
+or change it later in `inputs/researcher_config.yaml` (`workspace.mode`).
+Not sure? Pick **analysis** — you can switch (the AI plans the
+transition, then applies it additively, preserving your work).
 
 ---
 
-## Inspect + manage IDE wiring
+## Confirm install + workspace health (the self-test)
 
-The `ide` subcommand lets you add, remove, or list IDE MCP configs
-without re-running `research-os init`:
-
-```bash
-research-os ide list                       # show every supported IDE
-                                           # marks which are already wired
-
-research-os ide add cursor                 # wire Cursor only
-research-os ide add windsurf aider         # wire several at once
-research-os ide remove opencode            # un-wire OpenCode
-
-research-os ide config-path cursor         # print where Cursor's MCP config lands
-                                           # (useful for `cat` / `jq` / debugging)
-```
-
-`research-os ide` walks up from CWD for `.os_state/`, so it works from
-any subdirectory of the project — no need to `cd` to the root first.
-
----
-
-## Confirm install + workspace health
+Before you start a real session, run the doctor. It's your one-command
+"is everything wired right?" self-test.
 
 ```bash
 research-os doctor                # full report (install + workspace)
@@ -251,24 +157,192 @@ research-os doctor --json         # machine-readable
 research-os doctor --workspace-only   # skip install checks (CI use)
 ```
 
-The doctor checks: python version, conda env, version consistency
-across `pyproject.toml` / `__init__.py` / `CITATION.cff`, pack
-registration, embeddings freshness, typst / chromium on PATH, IDE MCP
-wiring, orphan figures, unresolved BLOCK
-gates, disk usage, git cleanliness, and `.gitignore` coverage. Exits
-`0` (all pass), `1` (warnings only), or `2` (failures present).
+The doctor checks python version, conda env, version consistency, pack
+registration, embeddings freshness, typst / chromium on PATH, **IDE MCP
+wiring**, orphan figures, unresolved gates, disk usage, and git
+cleanliness. It exits `0` (all pass), `1` (warnings only), or `2`
+(failures). If `doctor` says the IDE is wired but the tools still don't
+show up in chat — that's the restart step you skipped above.
 
 ---
 
-## Bring in your project — chat or files (1 min)
+## Open your AI IDE on the project and talk
 
-Fastest path: just tell the AI what you're studying — no files required.
-Open the chat (next section) and say something like *"I want to know if X
-affects Y; my data's a CSV at `~/data.csv`; hypotheses: …"*. The AI captures
-your question, domain, and hypotheses into the intake and shows you to
-approve.
+The MCP server auto-launches per IDE-project. After your restart, the
+status bar / MCP panel should show **`research-os` connected**.
 
-Prefer to stage files first? Drop them in:
+Open the chat and say what you want, in plain English:
+
+```
+here's my project: I want to know if X affects Y; data's at <path>
+onboard me, then tell me the first step
+fill out the intake
+run a baseline EDA on my data
+draft the paper for a journal submission
+make me a dashboard for executives
+explain ANCOVA to me
+```
+
+You never call MCP tools directly. The AI routes your words to a protocol
+via `tool_route`. If it picks the wrong one, say *"actually I meant X"*
+and it re-routes without reloading the workspace.
+
+---
+
+## Onboard before you analyze
+
+The single biggest difference between a robust project and a messy one is
+**onboarding first**. When you open a fresh project, the AI runs
+`session_boot` then `project_startup` — and it should do this *before*
+opening any numbered analysis step. Onboarding walks through, in order:
+
+1. **Scan `inputs/`** — `raw_data/`, `literature/`, `context/`.
+2. **Fill the intake** — `tool_intake_autofill` reads your files *or*
+   pulls the question + hypotheses straight from what you typed in chat;
+   `tool_intake_freshness` flags anything stale.
+3. **Bring external data in with provenance** — copy or symlink (it
+   reasons about which for large/shared data) and records the source path
+   + hash.
+4. **Profile the data** — `tool_data` reports rows, columns, types,
+   missingness, and anything odd.
+5. **Snapshot the environment** — `sys_env` captures your toolchain so
+   results are reproducible.
+6. **Do a literature pass — mandatory.** Via `tool_search` /
+   `tool_literature_search_and_save`, so your framing is grounded in the
+   field, not invented.
+7. **Ground the framing** — `tool_ground` ties the question + hypotheses
+   to what's actually on disk before any experiment runs.
+
+You don't recite this list — you say *"onboard me"* or *"fill out the
+intake"* and the AI walks it. The payoff: by the time you run your first
+real step, the question is captured, the data is profiled and
+provenanced, and the literature is in hand.
+
+**The coaching posture.** Research OS is a careful collaborator, not an
+eager autocomplete:
+
+- It **looks before it leaps** — reads your files and proposes a plan,
+  and asks before creating experiments or final outputs.
+- It **won't make things up** — every citation is verified against real
+  databases; every number must trace to a real file it produced. If it
+  can't, it says so.
+- It **explains on request** — *"why that test?"*, *"teach me ANCOVA
+  before I use it."*
+- It **remembers** — come back tomorrow and say *"pick up where we left
+  off."*
+
+---
+
+## The Hermes layer
+
+Research OS gives the AI **structure and tools**. The optional **Hermes
+layer** gives it **know-how and stamina** — reusable skills, memory
+across projects, and the ability to drive long autonomous runs. You don't
+need Hermes to use Research OS, but it makes the AI noticeably sharper in
+your field.
+
+**Skills** are on-demand know-how documents in the open Agent Skills
+standard — your field's actual methods and validated parameters, loaded
+only when relevant. Research OS draws skills from three sources through
+one index:
+
+| Source | What it is | How to get it |
+|---|---|---|
+| **Hermes skills** | The agent's own skill library at `~/.hermes/skills` | Ships with Hermes |
+| **K-Dense science pack** | 140 MIT-licensed deep-science skills (bulk-rnaseq, rdkit, experimental-design, literature-review, …) | `research-os skills add-science-pack` |
+| **Native Agent Skills** | Any external Agent-Skills library your IDE points at | Point your IDE at the `skills/` dir |
+
+```bash
+research-os skills add-science-pack       # clone + wire the K-Dense pack
+research-os skills list-science           # see the domain → skill map
+```
+
+**Autonomous skill retrieval.** You don't pick skills by hand. On a fresh
+project, `sys_boot.recommended_skills` matches your domain + workspace
+mode and surfaces the skills that fit (e.g. genomics → biopython, gget,
+bulk-rnaseq). The AI loads them *before* starting, so it works with your
+field's methods instead of guessing. The system also learns — it distills
+lessons from your projects into new skills and carries the durable ones
+forward.
+
+If you're running Hermes, it can also orchestrate the long-haul loops:
+plan deeply, execute toward a goal mostly hands-off, pull relevant skills
+each cycle, and notify you at decision points. Docs:
+<https://hermes-agent.nousresearch.com>. Wire it with `research-os hermes add`.
+
+---
+
+## Your first ten minutes (a real walkthrough)
+
+You've got a CSV of clinical-trial outcomes and a question. Here's the
+whole arc — the words you type are in **bold**. Real research backtracks;
+this shows the clean spine, but expect to circle back.
+
+1. **Scaffold and open.**
+
+   ```bash
+   mkdir aspirin-rct && cd aspirin-rct
+   research-os init .        # pick "analysis" mode, your IDE, defaults
+   ```
+
+   Restart the IDE, then open `aspirin-rct/`. The MCP panel shows
+   **`research-os` connected**.
+
+2. **Onboard — tell it what you're doing.** No files required yet:
+
+   > **"My trial data is at `~/data/aspirin.csv`. I want to know if
+   > low-dose aspirin reduces 30-day cardiac events versus placebo,
+   > adjusting for age and prior MI. Hypothesis: it does. Onboard me."**
+
+   The AI records the question + hypothesis, profiles the CSV, snapshots
+   the environment, does a literature pass, and asks you to confirm the
+   framing. Nothing heavy has run — it checks with you first.
+
+3. **Run the baseline.**
+
+   > **"run a baseline EDA"**
+
+   You get `workspace/01_baseline_eda/` — a script you can read, figures
+   with captions, a summary table, and `conclusions.md` tying findings
+   back to your hypothesis.
+
+4. **Do the real analysis.**
+
+   > **"fit the adjusted model"**
+
+   The AI picks the method (logistic regression here), justifies it,
+   writes `workspace/02_*/`, reports the effect with a CI and the
+   adjusted covariates, and records the decision.
+
+5. **Write it up.**
+
+   > **"draft the results and discussion"**
+
+   Prose that cites *your* numbers — every value traceable to step 02,
+   every reference verified. Ask for a citation it can't verify and it
+   tells you, rather than inventing a DOI.
+
+6. **Check before you ship.**
+
+   > **"is this ready to submit?"**
+
+   A GREEN / YELLOW / RED verdict and a punch list: ungrounded claims,
+   missing limitations, unverified cites — every gate a reviewer applies,
+   run early.
+
+You never wrote a config file or trusted a number on faith. That's the
+loop. → Seven fuller examples across domains: [SCENARIOS.md](SCENARIOS.md).
+
+---
+
+## Bring in your project — chat or files
+
+**Fastest path:** just tell the AI what you're studying — no files
+required. Say *"I want to know if X affects Y; data's a CSV at
+`~/data.csv`; hypotheses: …"* and the AI captures it into the intake for
+your approval.
+
+**Prefer to stage files first?** Drop them in:
 
 ```bash
 mv path/to/data.csv      inputs/raw_data/
@@ -276,571 +350,155 @@ mv path/to/paper.pdf     inputs/literature/
 mv my_notes.md           inputs/context/
 ```
 
-The AI reads all of it. No data? That's fine — describe the project in
-chat, or talk to the AI in pure consult mode ("teach me about propensity
-scores before I use them").
-
 `inputs/raw_data/` and `inputs/literature/` are **source-of-truth** —
-Research OS soft-guards them, so the AI overwrites them only with
-`force=true` plus your OK. The rest of `inputs/` (`context/`, `intake.md`,
-`researcher_config.yaml`) is AI-maintained: whether you drop files in or
-just describe the project in chat, the AI fills in the intake for you.
-Only `.os_state/` is ever hard-locked.
+soft-guarded, so the AI overwrites them only with `force=true` plus your
+OK. The rest of `inputs/` is AI-maintained. Only `.os_state/` is ever
+hard-locked.
+
+No data at all? That's fine — describe the project in chat, or stay in
+pure consult mode (*"teach me about propensity scores before I use
+them"*).
 
 ### When your project needs extra `inputs/` subfolders
 
-The wizard always creates `raw_data/`, `literature/`, and `context/`.
-Some packs and protocols expect additional subfolders that the
-protocol itself will create the first time you use it — but if you
-want to pre-stage files, drop them in the right place from the start:
+The wizard creates `raw_data/`, `literature/`, `context/`. Some packs
+expect more — pre-stage if you want, or just `mkdir` mid-session:
 
 | You have… | Drop it here | Used by |
 |---|---|---|
-| A text corpus (novels, transcripts, primary sources) | `inputs/corpus/` (humanities) OR `inputs/raw_data/<slug>/` | `humanities/textual/distant_reading`, `humanities/method/digital_humanities_workflow` |
-| Hand-picked passages for close reading | `inputs/textual/passages/` | `humanities/method/close_reading` |
-| Definitions / preliminaries for a theorem | `inputs/preliminaries.md` (free-text Markdown — define every object in your claim, plus key prior results) | `theory_math/method/proof_strategy_selection` (hard prerequisite — the protocol blocks without it) |
-| Source code under benchmark (the C / Rust / Python you're measuring, not analysis scripts) | `inputs/context/code/` | `methodology/method_comparison` (engineering pack) |
-| Interview / survey instruments, IRB protocols, consent forms | `inputs/context/` | `methodology/qualitative_research`, audit gates |
-| Reference / lookup tables that aren't raw observations | `inputs/context/` | analysis steps that need them |
+| A text corpus (novels, transcripts, sources) | `inputs/corpus/` OR `inputs/raw_data/<slug>/` | humanities distant/close reading |
+| Hand-picked close-reading passages | `inputs/textual/passages/` | humanities close reading |
+| Definitions / preliminaries for a theorem | `inputs/preliminaries.md` | theory_math proof strategy (hard prerequisite — blocks without it) |
+| Source code under benchmark | `inputs/context/code/` | engineering `method_comparison` |
+| Interview / survey instruments, IRB | `inputs/context/` | qualitative protocols, audit gates |
 
-If you only realise mid-session, just `mkdir inputs/<subfolder>` and
-drop the files in — the immutability guarantee only applies to
-`raw_data/` and `literature/`.
+The immutability guarantee only applies to `raw_data/` and `literature/`.
 
 ---
 
-## Open your AI IDE on the project and talk
-
-The MCP server auto-launches per-IDE-project. The status bar / MCP panel
-should show **`research-os` connected**.
-
-Open the chat and try one of:
-
-```
-here's my project: I want to know if X affects Y; data's at <path>
-fill out the intake
-what should I do next?
-run a baseline EDA on my data
-do real EDA — i don't have a hypothesis yet
-write the paper for a journal submission
-make me a dashboard for executives
-make me a figure from this CSV
-explain ANCOVA to me
-```
-
-The AI translates your plain-English prompt into the right protocol via
-`tool_route`. You don't call MCP tools directly; you just talk.
-
-For longer, scenario-flavoured first-turn prompts (text corpus,
-interview transcripts, benchmark study, theorem-to-prove, mixed data +
-hypothesis), see the **Common first prompts** table at the top of
-[USE_CASES.md](USE_CASES.md) — those are the variants validated
-against end-to-end fresh-agent walkthroughs.
-
----
-
-## Two ways to start a project — CLI or just prompt your AI
-
-You don't have to memorise CLI flags. Pick whichever fits:
-
-**(a) CLI wizard** — `research-os init` (arrow-key Q&A), then open the
-folder and talk. Best when you want to set model_profile / mode / identity
-up front.
-
-**(b) Just prompt your AI** — open any folder in your AI IDE and paste a
-**scaffold prompt** below. The AI interviews you (or reads your filled-in
-blanks), runs init with the right mode, brings your data in, and fills the
-intake. No CLI needed.
-
-### Scaffold prompts (fill in the blanks, paste into your AI)
-
-Each prompt has fill-in lines (`>>> …`) and a free-text **CONTEXT** block
-where you can dump anything — paste a paper abstract, a Slack message, your
-PI's email, rough notes — the AI parses it. Leave any line blank and the AI
-will ask. Pick the one matching the work:
-
-**Analysis** (the default — data → numbered steps → paper):
-```
-Set up a new Research OS analysis project here, then get me started.
-Project name:  >>>
-My question:   >>> (what do you want to find out?)
-My data is at: >>> (a path, a URL, or "I'll describe it below" / "none yet")
-Output I want: >>> (paper / report / dashboard / poster / not sure)
-Autonomy:      >>> (ask me each step / supervised / run adaptively)
-Shared server? >>> (yes = HPC/shared box, be careful with resources / no)
-
-CONTEXT (paste anything — abstract, notes, prior results, constraints):
->>>
-
-
-Steps: interview me on anything blank, run `research-os init` (analysis
-mode), bring my data into inputs/raw_data (copy or symlink — reason about
-which), fill the intake, then tell me the first step.
-```
-
-**Tool-build** (you're building software, RO governs the build):
-```
-Set up a new Research OS tool_build project here.
-Tool name:        >>>
-What it must do:  >>>
-Done = ?          >>> (what test/eval proves it works)
-
-CONTEXT (paste a spec, an issue, example inputs/outputs):
->>>
-
-
-Steps: interview me on anything blank, init in tool_build mode, draft
-spec/requirements.md from the context, then propose the build approach.
-```
-
-**Exploration** (scratch-first, "I'm not sure yet"):
-```
-Set up a Research OS exploration project here — I want to poke at
-something before committing to a plan.
-Rough question / hunch: >>>
-What I have:            >>> (data path / nothing / "see context")
-
-CONTEXT (dump anything):
->>>
-
-
-Steps: init in exploration mode, then help me frame the first cheap probe.
-When a probe earns it, remind me we can promote to analysis mode.
-```
-
-**Notebook** (Jupyter-first data analysis):
-```
-Set up a Research OS notebook project here for interactive data analysis.
-What I'm exploring: >>>
-Data is at:         >>>
-
-CONTEXT:
->>>
-
-
-Steps: init in notebook mode, bring the data in, scaffold a first notebook
-I can run top-to-bottom.
-```
-
-**Multi-study / program** (several studies under one umbrella):
-```
-Set up a Research OS multi_study program here — this is several related
-studies, not one.
-Program goal:        >>>
-The studies (rough): >>>
-
-CONTEXT (shared codebook, prereg notes, the studies):
->>>
-
-
-Steps: init in multi_study mode, seed the shared commons, then register
-the first study.
-```
-
-**Deep iterative planning, then let the AI run** (plan → autonomous build):
-```
-I want to plan this deeply before building, then have you execute toward
-the goal mostly on your own.
-The goal:        >>>
-Constraints:     >>> (compute, deadline, what must NOT happen autonomously)
-Data is at:      >>>
-
-CONTEXT (everything relevant — the more the better):
->>>
-
-
-Steps: init the right mode, then walk me through deep_planning to build a
-branchable roadmap in inputs/research_plan.md. Once I approve it, run the
-roadmap_execution loop toward the goal at the autonomy I set — score each
-milestone, re-plan from results, and notify me at decision points or if
-anything exceeds the resources I allowed. (If you're Hermes Agent, you can
-orchestrate this loop and improve from each result.)
-```
-
-Already have a messy folder of data + scripts? Don't init blind — paste:
-`organize my existing project into research-os` (it audits → plans →
-copies safely, never touching your originals).
-
----
-
-### Using a small or medium AI? Set `model_profile` first
+## Using a small or medium AI? Set `model_profile` first
 
 **The single most important knob if you're not on a frontier model.**
-Open `inputs/researcher_config.yaml` (auto-created) and change:
+Open `inputs/researcher_config.yaml` and set:
 
 ```yaml
-model_profile: "small"    # for Claude Haiku 4.5, GPT-4o-mini,
-                          # Gemini 2.5 Flash, Llama 3.3, local models
+model_profile: "small"    # Claude Haiku 4.5, GPT-4o-mini, Gemini Flash, local
 model_profile: "medium"   # default — Claude Sonnet, GPT-4o, Gemini Pro
-model_profile: "large"    # for Claude Opus, GPT-5/o-series, Gemini 3 Pro
+model_profile: "large"    # Claude Opus, GPT-5/o-series, Gemini 3 Pro
 ```
 
 Small models get 1 step/turn, summary-only protocol loads, and prefer
-shortcut tools — designed to keep context lean. If your AI runs out of
-context mid-plan, drop a tier; if it hands off after every step, bump
-up. Full table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your-ai).
+shortcut tools to keep context lean. If your AI runs out of context
+mid-plan, drop a tier; if it hands off after every step, bump up. Full
+table in [SETUP.md § 6](SETUP.md#pick-the-right-model_profile-for-your-ai).
 
 ---
 
-## What you get out of the box
+## Long jobs and shared servers (the daemon, optional)
 
-* **Real, verified citations.** Synthesis tools pull every citation from
-  Crossref / Semantic Scholar / PubMed / arXiv and refuse hallucinations.
-* **Per-step provenance.** Every figure / table / model emits a
-  `<name>.prov.json` sidecar with script + parameters + RNG seed +
-  library versions + wall-time.
-* **Quality gates that block bad synthesis.** Missing focal figure →
-  the paper won't assemble. Ungrounded number → audit flags it.
-  Hallucinated citation → synthesis refuses.
-* **Sub-task pipelines, not mega-scripts.** Steps with >2 scripts must
-  declare a `pipeline.yaml` of atomic nodes (ingest → validate → clean
-  → fit → diagnose → visualize → report). Content-hash cached.
-* **A broad protocol catalogue** the AI picks from via `tool_route`. Each
-  protocol carries `scope_tags: {domain, audience, workflow_shape}` and a
-  `tier` so the router filters intelligently. Covers the canonical data
-  → publication pipeline plus partial / off-axis workflows
-  (visualization-only, talks, lay summaries, EDA + hypothesis
-  generation, method comparison, reproduction, methodological
-  consultation, multi-paper review, mid-pipeline entry, plus pre-data
-  qualitative + survey design, IRR, fairness, calibrated UQ,
-  manuscript outline, venue selection, defense prep, Data
-  Management Plans, and the `build/*` arc for tool_build mode).
-* **Live MCP tools** across three namespaces — `sys_*` (system /
-  workspace / files / state), `tool_*` (research work), `mem_*`
-  (append-only memory). Consolidated families
-  (`tool_audit`, `tool_search`, `tool_step`, `tool_lessons`, etc.)
-  dispatch by `scope` / `operation` / `dimension`. Legacy v1 tool names
-  still resolve via backward-compat aliases — see
-  `CHANGELOG.md [2.0.0]` for the surface map.
-
----
-
-## The 1-hour walkthrough (optional)
-
-### Minutes 0-15 — set up + introduce
-
-After install + scaffold, your first prompt should be one of:
-
-| If you have… | Say… |
-|---|---|
-| Data + papers in `inputs/` | "fill out the intake" |
-| A draft / partial work | "i'm bringing this into research-os" |
-| A question, no data | "teach me about <method> before i use it" |
-| A pilot already done elsewhere | "we already analysed this, just write it up" |
-| A conjecture you want to prove | "I have a conjecture — set up a theory_math project, pick a strategy, draft a verified proof" |
-| Interview transcripts | "qualitative project — assume thematic analysis unless transcripts suggest grounded theory" |
-| A text corpus for close reading | "humanities project — close reading on the corpus in inputs/raw_data/" |
-
-### Minutes 15-30 — run your first real step
-
-| You want… | Say… |
-|---|---|
-| Exploratory analysis | "do real EDA — i don't have a hypothesis yet" |
-| Quick poke (no paperwork) | "just sanity-check the data" |
-| Specific model | "fit a logistic regression and check assumptions" |
-| Method comparison | "benchmark random forest vs xgboost head-to-head" |
-| Data quality | "data quality audit on this csv" |
-| Power justification | "power analysis for the IRB" |
-| What's next? | "what should I do next" |
-
-### Minutes 30-45 — iterate
-
-| Phrase | What happens |
-|---|---|
-| "actually, group by quarter instead of month" | AI bumps the script to `_v2`, re-runs |
-| "try a tree-based model in parallel" | AI creates a parallel `workspace/NN_/` path |
-| "this is a dead end" | AI marks the folder `__DEAD_END` and captures the lesson |
-| "find papers on X" | Multi-database literature search |
-| "critique this figure" | Reviewer-style critique |
-| "explain X to me" | Methodological consultation (no project commit) |
-
-### Minutes 45-60 — produce something
-
-| Output | Say… |
-|---|---|
-| Single figure for a talk | "make me a figure from this CSV" |
-| Lab meeting slides | "build a lab meeting deck" |
-| Conference poster + QR | "make me a conference poster" |
-| Paper draft for a journal | "draft the paper for a journal submission" |
-| Dashboard for stakeholders | "build a dashboard for executives" |
-| One-page handout | "make a one-pager for the poster session" |
-| Weekly PI update | "weekly update for my PI" |
-| Lay summary / press release | "press release on this finding" |
-
----
-
-## Cheatsheet — every command worth knowing
-
-### CLI (eleven commands)
+For overnight sweeps, big training runs, or anything that must survive
+your IDE closing, start the **per-project daemon**:
 
 ```bash
-research-os init                          # scaffold THIS folder
-research-os init my-project --name "X"    # scaffold ./my-project
+research-os daemon setup            # one-time, in the project
+research-os daemon start            # start it for this project
+research-os daemon status           # is it running?
+
+research-os daemon run -- python train.py --in data.csv   # durable run
+research-os daemon docker myimg:1.0 -- python run.py       # in a container
+research-os daemon submit job.sbatch --scheduler slurm     # to SLURM
+
+research-os daemon runs             # durable run history
+research-os daemon logs <run_id>    # one run's manifest + output
+```
+
+Every run is **journaled and provenanced** — recreatable, recoverable
+after a reboot, and notifiable on completion. `daemon docker IMAGE -- CMD`
+records the exact image digest so the run reproduces bit-for-bit. Without
+a daemon everything still works over stdio; the daemon just adds durable
+execution, recovery, and notifications. On a shared box, set
+`runtime.shared_server: true` so the AI asks before allocating heavy
+resources.
+
+---
+
+## Manage IDE wiring
+
+```bash
+research-os ide list                  # every supported IDE; marks what's wired
+research-os ide add cursor            # wire Cursor only
+research-os ide add windsurf aider    # wire several at once
+research-os ide remove opencode       # un-wire OpenCode
+research-os ide config-path cursor    # print where Cursor's MCP config lands
+```
+
+`research-os ide` walks up from CWD for `.os_state/`, so it works from
+any subdirectory — no need to `cd` to the root.
+
+---
+
+## Cheatsheet
+
+### CLI (twelve subcommands)
+
+```bash
+research-os init .                        # scaffold THIS folder (use the dot)
 research-os init . --force                # re-scaffold (preserves data + config)
-research-os init --ide cursor,claude      # only those two IDEs
+research-os init . --ide cursor,claude    # only those IDEs
 
-research-os ide list                      # what IDEs are wired here?
-research-os ide add cursor                # wire Cursor (without re-init)
-research-os ide remove opencode           # un-wire OpenCode
-research-os ide config-path cursor        # print where Cursor's MCP config lives
+research-os ide list / add / remove / config-path <ide>
 
-research-os doctor                        # diagnose install + workspace health
-research-os doctor --json                 # machine-readable
-research-os doctor --workspace-only       # skip install-side checks
+research-os skills add-science-pack       # K-Dense 140-skill science pack
+research-os skills list-science           # domain → skill map
 
-research-os start                         # run the MCP server (global)
-                                          # you rarely run this by hand —
-                                          # your IDE auto-launches it
-
-research-os hermes add                    # wire the Hermes agent (optional)
+research-os doctor                        # self-test: install + workspace health
 research-os route "fit a survival model"  # preview which protocol the router picks
-research-os refresh                       # re-sync this project's template files
-                                          #   (AGENTS.md / CLAUDE.md / IDE rules)
-                                          #   after upgrading research-os
-research-os completion bash               # emit a shell-completion script
+research-os refresh                       # re-sync template files after upgrading
+research-os hermes add                    # wire the Hermes agent layer (optional)
+research-os daemon start|stop|status|setup|run|docker|submit|runs|logs
+research-os start                         # MCP server (IDE auto-launches it)
+research-os completion bash               # shell-completion script
 ```
 
 ### Where files go
 
 ```
-inputs/raw_data/      ← your data (source-of-truth; soft-guarded, force=true to overwrite)
-inputs/literature/    ← your PDFs (source-of-truth; soft-guarded, force=true to overwrite)
+inputs/raw_data/      ← your data (source-of-truth; soft-guarded)
+inputs/literature/    ← your PDFs (source-of-truth; soft-guarded)
 inputs/context/       ← your notes / drafts / past reports
 docs/                 ← research question, domain, glossary
 workspace/            ← AI lives here; numbered experiment folders
 workspace/scratch/    ← AI sandbox (gitignored)
-synthesis/            ← final outputs (only created when you ask)
+synthesis/            ← final outputs (created only when you ask)
 .os_state/            ← internal — do NOT edit by hand
 ```
-
-### Autonomy slider (`inputs/researcher_config.yaml`)
-
-| Mode | What the AI does without asking | Best for |
-|---|---|---|
-| `adaptive` *(default)* | per-action risk gating: flows on cheap/reversible work, pauses before irreversible/expensive actions (deleting data, paid API calls, long jobs) | most people — you rarely need to change it |
-| `manual` | nothing — asks before every tool call | learning / debugging |
-| `supervised` | reads + searches autonomously; asks before creating experiments, writing to `synthesis/`, long jobs | when you want a tighter leash than adaptive |
-| `autopilot` | runs end-to-end; asks only before the final ship gate | well-scoped projects you trust it to drive |
-| `coaching` | like supervised, plus pedagogical preludes that explain the *why* before each move | learning the method as you go |
-
-Switch mid-session: *"switch to autopilot"* / *"switch to manual"*.
-
-### Prompts by phase
-
-**Starting a project**
-```
-fill out the intake
-look at my data
-i'm bringing this into research-os, we've been working on it for months
-we already analysed this, just write it up
-```
-
-**Mid-flow analysis**
-```
-run a baseline EDA
-fit a logistic regression and check assumptions
-do real EDA — i don't have a hypothesis yet
-benchmark random forest vs xgboost head-to-head
-data quality audit on this csv
-power analysis for the IRB
-design the evaluation strategy
-design the hyperparameter sweep
-freeze the analysis plan
-what should i do next?
-this isn't working — abandon it and try X
-```
-
-**Reading + understanding**
-```
-review this paper
-tear apart this paper as a tough reviewer
-journal club on these three papers
-explain mixed-effects models to me
-teach me propensity scores before i use them
-reproduce this paper
-find me papers about X
-do a systematic review of X
-data ethics review on this dataset
-```
-
-**Visualization**
-```
-make me a figure from this CSV
-polish my figures for the talk
-build a figure deck for the paper
-critique this figure
-make figure 2 with panels A B C D
-order my figures for the paper
-check colour accessibility on my figures
-```
-
-**Writing + synthesis**
-```
-workshop the title
-draft the methods
-draft the results
-draft the discussion
-tighten the limitations
-draft the end matter (data avail / CRediT / etc.)
-draft the cover letter
-
-draft the paper for a journal submission
-draft an NIH R01 narrative
-make a dashboard for executives
-build a poster for the conference
-build a slide deck for my defense
-make a one-pager for the poster session
-write a lay summary for the public
-press release on this finding
-weekly update for my PI
-```
-
-**Audit + ship**
-```
-check reproducibility
-audit my workspace for issues
-is this ready to submit
-fix my workspace
-```
-
-**Session control**
-```
-wrap up the session
-pick up where we left off
-hand off to a collaborator
-switch to autopilot mode
-push back if you disagree with my plan
-```
-
-### Routing primitives (the AI calls these — you don't)
-
-* `sys_boot` — one-call session start (state + config + history + dep
-  inventory + next protocol + freshness + pause classification +
-  active plan)
-* `tool_route(prompt)` — picks the right protocol from your message;
-  returns `recommended_action` (literal next-call string), `tier`,
-  and `why_matched` for the AI to rank options
-* `sys_protocol_get` — defaults to `format='summary'` (~3K chars);
-  pass `format='full' | 'step' | 'lean' | 'dryrun'` only when needed
-* `sys_active_tools(protocol)` — a scoped tool shortlist per
-  protocol, instead of the full catalogue
-* `sys_help` — AI orientation (which protocol does what)
-* `sys_active_project` — which project did the global server resolve
 
 ### When something is wrong
 
 | Symptom | Fix |
 |---|---|
-| AI seems lost / confused | *"show me sys_help"* — AI re-orients |
-| Wrong protocol picked | *"actually I meant X"* — AI re-routes |
+| Tools don't appear in chat | You skipped the **IDE restart** after `init` — restart / reload the window |
+| AI seems lost | *"show me sys_help"* — it re-orients |
+| Wrong protocol picked | *"actually I meant X"* — it re-routes |
 | AI making bad calls | *"switch to manual mode"* |
 | Workspace looks broken | *"fix the workspace"* — `tool_workspace_repair`, never deletes |
-| Chat is too long | *"hand off the session"* — open fresh chat, *"pick up where we left off"* |
+| Chat too long | *"hand off the session"* → fresh chat → *"pick up where we left off"* |
 | Deleted by mistake | *"list checkpoints"* → *"rollback to <id>"* |
-| Install / wiring uncertain | `research-os doctor` — full health check |
-
----
-
-## Setup Prompt (paste into any AI)
-
-Want an AI to handle install + IDE wiring? Paste this into Claude /
-ChatGPT / Cursor / OpenCode / Aider / anywhere:
-
-> I want to install and configure **Research OS** on this machine.
-> Research OS is an MCP-native research operating system hosted at
-> <https://github.com/VibhavSetlur/Research-OS>. Please walk me through
-> all of this, asking me ONE question at a time when you need input:
->
-> 1. **Check Python ≥ 3.10.** If missing, suggest how to install for my
->    OS (macOS / Linux / Windows / WSL — ask which I'm on).
-> 2. **Install with all optional extras**:
->    ```
->    pip install research-os
->    ```
->    Use a virtualenv if I tell you to; otherwise install with
->    `--user`.
-> 3. **Verify**: run `research-os --help` and show me the output. The
->    subcommands are `init`, `ide`, `mcp`, `hermes`, `route`, `api-key`,
->    `start`, `daemon`, `doctor`, `refresh`, `completion`.
-> 4. **Detect my AI IDE.** Ask which I'm using (Claude Code / OpenCode /
->    Antigravity / Cursor / Claude Desktop / VS Code with MCP / Windsurf
->    / Continue / Aider / other). For the chosen IDE, tell me what file
->    Research OS will drop on `init`. You can preview the path with
->    `research-os ide config-path <ide>`. If it needs a global config
->    snippet, show it to me — DO NOT modify global configs without my
->    approval.
-> 5. **Show me the workflow**:
->    ```
->    mkdir my-project && cd my-project
->    research-os init     # scaffolds + drops IDE config
->    research-os doctor   # confirm install + workspace are healthy
->    research-os ide list # confirm the right IDE was wired
->    ```
->    Then open the IDE on the folder and chat. Mention that
->    `research-os start` is auto-launched by the IDE; I rarely run it
->    manually. **CRITICAL: if my IDE / AI session was already open, I
->    must fully RESTART it (or reload the window) after `init` — the MCP
->    server only loads on a fresh session, so the Research OS tools won't
->    appear until I do. Tell me to restart and wait for me to confirm
->    before going further.**
-> 5b. **Onboard before producing work — don't start analysis immediately.**
->    Once the tools are live (post-restart), guide me through proper
->    onboarding in order: scan what's in `inputs/`, help me state the
->    research question + hypotheses, pick the workspace mode (analysis /
->    tool_build / exploration / notebook / hybrid / multi_study), and
->    confirm `inputs/researcher_config.yaml`. Only THEN open the first
->    numbered step. A few minutes here is the difference between a robust
->    project and a messy one.
-> 6. **Show me 5 essential prompts** I'll use most often:
->    - "fill out the intake"
->    - "what should I do next?"
->    - "run a baseline EDA"
->    - "draft the paper for a journal submission"
->    - "make me a dashboard"
-> 7. **Optional credentials**: Research OS does NOT manage LLM provider
->    keys — my IDE owns model access. Optional literature / web search
->    keys live in `inputs/researcher_config.yaml api_keys.*`. Don't ask
->    me for them now.
-> 8. **Point me at the docs**:
->    - `docs/START.md` — this file
->    - `docs/RESEARCHER_GUIDE.md` — full workflow walkthrough
->    - `docs/USE_CASES.md` — role × goal × output map
->    - `docs/FAQ.md` — common questions
->    - `CHANGELOG.md [2.0.0]` — if upgrading from v1.x
-> 9. **For the most robust setup, recommend the Hermes layer.** If I want
->    memory across projects, reusable skills, and autonomous long runs,
->    Research OS pairs with Hermes (an MCP-capable agent layer) — docs at
->    <https://hermes-agent.nousresearch.com>. If I'm already running
->    Hermes, on this FIRST setup turn you should: read my project intake
->    (question, domain, data, mode) to understand what I'm doing, then
->    pull the Hermes skills relevant to it (e.g. domain analysis, the
->    relevant language/stat stack, paper-writing) so they're loaded before
->    we start — don't wait for me to ask.
+| Install / wiring uncertain | `research-os doctor` |
 
 ---
 
 ## What to read next
 
-* [HOW_IT_WORKS.md](HOW_IT_WORKS.md) — how a real project actually unfolds
-  (iterating on the plan, circling the literature, new papers mid-step, not
-  finishing too early) and why your results hold up: provenance, accuracy,
-  organization. The "full picture" behind the quickstart.
-* [SETUP_PROMPT.md](SETUP_PROMPT.md) — the single copy-paste, fill-in-the-gap
-  prompt that drives your AI through install → wire one IDE → daemon → self-test
-  → onboarding. Start here if you'd rather not run the wizard by hand.
-* [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — the full workflow guide
-  (mental model, every protocol, real session transcripts, power-user
-  patterns, troubleshooting).
-* [USE_CASES.md](USE_CASES.md) — pick the right protocol by role × goal
-  × output.
-* [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software instead of
-  analysing data? The **tool_build** workspace mode.
-* [SETUP.md](SETUP.md) — detailed install + per-IDE wiring +
-  troubleshooting.
-* [FAQ.md](FAQ.md) — common questions.
-* [PROTOCOLS.md](PROTOCOLS.md) — catalogue of every protocol.
-* [TOOLS.md](TOOLS.md) — catalogue of every MCP tool.
-* `CHANGELOG.md [2.0.0]` — if you're coming
-  from v1.x: the consolidated tool surface + alias map.
-* [AI_GUIDE.md](AI_GUIDE.md) — operating manual for the AI driving
-  Research OS (useful for debugging "why did the AI do that?").
+- [HOW_IT_WORKS.md](HOW_IT_WORKS.md) — how a real project unfolds and why
+  results hold up (provenance, accuracy, organization).
+- [USE_CASES.md](USE_CASES.md) — "I want to X" → what to say → which
+  protocol / mode fires.
+- [SCENARIOS.md](SCENARIOS.md) — two worked projects end to end (a basic one and a deep PI-level program).
+- [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — the full workflow guide.
+- [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software (tool_build mode).
+- [SETUP.md](SETUP.md) — detailed install + per-IDE wiring.
+- [FAQ.md](FAQ.md) — common questions.
+- [PROTOCOLS.md](PROTOCOLS.md) · [TOOLS.md](TOOLS.md) — full catalogues.
+- [AI_GUIDE.md](AI_GUIDE.md) — the operating manual for the AI driving
+  Research OS.
