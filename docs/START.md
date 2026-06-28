@@ -494,7 +494,7 @@ synthesis/            ← final outputs (created only when you ask)
   results hold up (provenance, accuracy, organization).
 - [USE_CASES.md](USE_CASES.md) — "I want to X" → what to say → which
   protocol / mode fires.
-- [SCENARIOS.md](SCENARIOS.md) — seven complete projects, end to end.
+- [SCENARIOS.md](SCENARIOS.md) — two worked projects end to end (a basic one and a deep PI-level program).
 - [RESEARCHER_GUIDE.md](RESEARCHER_GUIDE.md) — the full workflow guide.
 - [TOOL_BUILDER.md](TOOL_BUILDER.md) — building software (tool_build mode).
 - [SETUP.md](SETUP.md) — detailed install + per-IDE wiring.

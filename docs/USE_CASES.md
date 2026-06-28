@@ -6,10 +6,11 @@ You don't memorize protocols. You say what you want in plain English;
 what's possible and confirm the AI's choice.
 
 > **Want a real project instead of a lookup table?**
-> [SCENARIOS.md](SCENARIOS.md) walks seven complete projects end to end —
-> a messy CSV to a paper, reproducing a published result, prepping an
-> R01, benchmarking your own tool, interview transcripts to publication —
-> with the exact prompts and what lands on disk.
+> [SCENARIOS.md](SCENARIOS.md) walks two worked projects end to end — a basic
+> one (one dataset → a grounded result) and a deep PI-level program touching
+> every capability (onboarding, iterative planning, branching, synthesis
+> meetings, a live dashboard, Docker runs, provenance, sharing/handoff) — with
+> the exact prompts and what lands on disk.
 
 ---
 
