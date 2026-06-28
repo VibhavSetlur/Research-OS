@@ -1,7 +1,7 @@
 id: tool_evaluation_loop
 tier: 'execute'
 name: Tool Evaluation Loop (probe the tool, find where it fails, feed fixes back)
-version: '3.14.0'
+version: '4.4.0'
 schema_version: '2.0'
 scope_tags:
   domain: [engineering, any]
@@ -12,6 +12,7 @@ see_also:
   - build/benchmark_vs_baseline   # the one-shot fair comparison this loop runs repeatedly + acts on
   - build/implement_iteration     # where a prioritised improvement is built as the next increment
   - build/test_strategy           # correctness checks; this is the empirical PERFORMANCE/behaviour probe
+  - build/sample_data_and_validation # gets the DATA (real or synthetic) this loop probes the tool with
   - build/versioning_and_rollback # a version is "good" because THIS loop's verdict said so — bless it, roll back if a fix regresses
   - build/tool_from_description    # the describe→build→improve outer loop that re-enters this each pass to decide done
   - hybrid/hybrid_workflow         # the hybrid home loop that enters this to evaluate the tool half

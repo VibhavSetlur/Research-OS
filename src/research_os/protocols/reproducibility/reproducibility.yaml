@@ -1,7 +1,7 @@
 id: reproducibility
 tier: 'finalize'
 name: Reproducibility
-version: '3.6.0'
+version: '4.4.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -54,11 +54,24 @@ steps:
       reproducibility audit will compare future runs against.
 
   - id: dockerise
-    name: Generate Dockerfile
+    name: Generate Dockerfile(s)
     description: |
-      sys_env(operation='docker_generate') — produces environment/Dockerfile from the
-      session snapshot. Verify it would build (read it, sanity check the
-      package list).
+      sys_env(operation='docker_generate') — produces environment/Dockerfile
+      from the session snapshot. Verify it would build (read it, sanity check
+      the package list).
+
+      Per-step containers (on demand or for full reproducibility): when the
+      researcher asks to "dockerize this step" / "give me a container for the
+      analysis" / "make this step runnable on another machine", generate a
+      STEP-SCOPED image instead of (or in addition to) the project one:
+        sys_env(operation='snapshot', step_id='<NN_slug>')      # pin the step's deps
+        sys_env(operation='docker_generate', step_id='<NN_slug>')# write its Dockerfile
+      This writes workspace/<NN_slug>/environment/Dockerfile (+ .dockerignore)
+      built from THAT step's own requirements, with the build context = the
+      step directory, so the step's scripts + data + pinned env travel together
+      and `docker build` from the step dir reproduces it in isolation. A step
+      that ran scripts but has no per-step env is flagged by the daemon
+      (step_no_env_snapshot) — snapshot first, then dockerize.
 
   - id: emit_open_science_manifests
     name: Emit RO-Crate + CodeMeta Manifests

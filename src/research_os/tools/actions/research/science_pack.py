@@ -144,6 +144,8 @@ SCIENCE_PACK_BY_PROTOCOL: dict[str, list[str]] = {
                                    "statistical-analysis"],
     "reproducibility/reproducibility": ["optimize-for-gpu"],
     "build/spec_and_design": ["scikit-learn"],
+    "build/sample_data_and_validation": ["statistical-analysis",
+                                         "exploratory-data-analysis"],
 }
 
 # Sub-intent (the L2 routing key) → capability tags. Coarser than the protocol
@@ -190,6 +192,7 @@ SUB_INTENT_SKILL_TAGS: dict[str, list[str]] = {
     "build_evaluate": ["benchmarking", "model-eval"],
     "build_test": ["software-testing"],
     "build_benchmark": ["benchmarking", "model-eval"],
+    "build_sample_data": ["exploratory-data-analysis", "statistical-analysis"],
     # reproducibility
     "repro": ["optimize-for-gpu"],
     "reproduce": ["optimize-for-gpu"],

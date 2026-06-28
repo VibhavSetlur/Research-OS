@@ -6,6 +6,45 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.4.0] — prompt cookbook + step-scoped Docker + sample-data protocol (2026-06-28)
+
+A MINOR release (bug-fix-flavored, but it adds a new protocol + a new tool
+capability, so it is correctly a MINOR). Focus: make it obvious how to ask
+Research OS for what you want, and close the gaps behind a few common asks.
+
+### Added
+- **docs/PROMPTING.md** — the prompt phrasebook: how to word a request to get a
+  specific outcome (dockerize a step, pull papers into inputs, build a
+  no-leak shareable dashboard, make sample data to test a tool, run long jobs in
+  the background) and what Research OS does behind the scenes, with a verify
+  step for each. Linked from the README + docs index + USE_CASES + FAQ.
+- **Step-scoped Docker.** `sys_env(operation='docker_generate', step_id='NN_slug')`
+  now writes `workspace/<step>/environment/Dockerfile` (+ `.dockerignore`) built
+  from THAT step's own pinned requirements, with the build context set to the
+  step directory — so one analysis step is independently containerizable and
+  reproducible, not just the whole project. "Dockerize this step" now actually
+  creates the step's Docker artifacts and uses the step's own environment.
+- **build/sample_data_and_validation** protocol (tool_build + hybrid) — get data
+  to run a tool on: pull a representative real sample OR generate seeded
+  synthetic/sample data (with edge cases) when none exists, run the tool
+  end-to-end, and validate the output is correct + sensible, feeding failures
+  into the evaluate→improve loop. Wired into the router (`build_sample_data`
+  sub-intent), boosted in tool_build + hybrid modes, mapped into the per-task
+  skill recommendations.
+
+### Improved
+- **reproducibility** protocol teaches per-step container generation (snapshot
+  then docker_generate with step_id) alongside the project image.
+- **deliverable_design** Principle 6 now explicitly covers DIAGRAMS / workflow
+  visuals: an audience-facing diagram shows the scientific/conceptual flow, never
+  the workspace folder structure (`01_canon → 02_eda`) or filenames. The
+  auto-generated workspace DAG is an internal aid, not an audience artefact.
+- **USE_CASES / FAQ / TOOL_BUILDER** gained prompt-framing entries + cross-links
+  to PROMPTING.md (dockerize a step, test a tool on data / generate sample data,
+  "how do I get the AI to do exactly what I want").
+
+---
+
 ## [4.3.0] — the daemon watches everything + universal per-task skill-pull (2026-06-28)
 
 A MINOR release. Two themes: the daemon now watches the WHOLE project surface

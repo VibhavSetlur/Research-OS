@@ -1,7 +1,7 @@
 id: deliverable_design
 tier: 'synthesize'
 name: Deliverable Design (the visual-design skill — dashboards / posters / slides)
-version: '3.2.8'
+version: '4.4.0'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -53,8 +53,14 @@ design_principles: |
      MOVE the argument; caption each with what-to-see + what-it-means, finding-led.
      Uncaptioned / label-only / orphan figures are defects.
   6. BUILT FOR AN EXTERNAL READER WITH NO WORKSPACE. No step numbers, paths,
-     tool names, or raw column names ever surface. Self-contained + portable
-     (offline; prints clean). Define jargon on first use.
+     tool names, or raw column names ever surface — in prose, captions, OR
+     diagrams. A workflow / architecture / process diagram for an external
+     viewer shows the SCIENTIFIC or CONCEPTUAL flow (data → method → finding,
+     or the real-world process being modelled), NEVER the workspace folder
+     structure (`01_canon → 02_eda`) or filenames. The auto-generated
+     workspace DAG (docs/workflow_dag.mermaid) is an INTERNAL navigation aid,
+     not an audience artefact — author a custom conceptual diagram instead.
+     Self-contained + portable (offline; prints clean). Define jargon on first use.
   7. ACCESSIBILITY + HONESTY ARE CORRECTNESS, NOT POLISH. WCAG AA contrast,
      CVD-safe palette, descriptive alt text, semantic heading order. Load-bearing
      numbers carry uncertainty (CI / n); limitations get their own block.
