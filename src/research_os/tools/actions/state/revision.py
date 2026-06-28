@@ -145,7 +145,7 @@ def step_revision_options(
         suggested_revisions.append(
             f"Step has scripts but per-step env is empty. If the step "
             f"uses different packages than the project default, call "
-            f"`sys_env_snapshot step_id='{step_id}'` for a per-step capture."
+            f"`sys_env(operation='snapshot', step_id='{step_id}')` for a per-step capture."
         )
 
     # Audit warnings for THIS step in workspace/logs/audit_report.md?

@@ -1659,12 +1659,12 @@ def finalize_path(
                 warnings.append(
                     "Auto-env-snapshot at finalize failed: "
                     + snap.get("message", "unknown error")
-                    + ". Call `sys_env_snapshot` manually."
+                    + ". Call `sys_env(operation='snapshot')` manually."
                 )
         except Exception as e:
             warnings.append(
                 f"Auto-env-snapshot at finalize raised {type(e).__name__}: {e}. "
-                "Call `sys_env_snapshot` manually."
+                "Call `sys_env(operation='snapshot')` manually."
             )
     # 7d-ii. Flip this step's state-ledger status to "completed" +
     #        regenerate STATE.md so the project front page shows ✓
@@ -1692,7 +1692,7 @@ def finalize_path(
         warnings.append(
             f"`workspace/{path_name}/environment/` is empty. If this step "
             f"uses a different package stack than the project default, "
-            f"call `sys_env_snapshot step_id='{path_name}'` for a "
+            f"call `sys_env(operation='snapshot', step_id='{path_name}')` for a "
             f"per-step capture."
         )
 

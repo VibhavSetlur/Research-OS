@@ -28,6 +28,19 @@ description: |
   metadata validated. An undownloadable paper is a DEFERRED grounding,
   not a silently-accepted one.
 
+  Pull literature WHILE the step runs, not only at its start. The
+  papers the researcher pre-loaded into `inputs/literature/` are the
+  STARTING point, never the ceiling. Each numeric or empirical claim
+  the step makes is a fresh prompt to search: the moment a step states
+  an effect size, a count, a threshold, or any quantity a reader would
+  challenge, search for and SAVE the papers that ground OR challenge
+  that exact claim, into this step's own
+  `workspace/<step>/literature/` folder. A step that leans only on the
+  pre-loaded corpus and pulls nothing of its own is under-grounded:
+  the pre-loaded set was assembled before this step's specific numbers
+  existed, so it cannot already cover them. Mid-step pulls are the
+  normal case, not the exception.
+
   Five outcomes per finding:
     1. AGREES — literature confirms the result. Strengthens the claim;
        cite to anchor the paragraph.
@@ -175,6 +188,16 @@ steps:
       adjudicate the claim. A claim is grounded only against papers
       whose PDFs are on disk and validated — an abstract is a lead.
 
+      Do this DURING the step, the moment a claim's numbers exist, not
+      as a single batch bolted on at the end. If the pre-loaded
+      `inputs/literature/` corpus does not already contain a paper that
+      speaks to THIS claim's exact effect or quantity, that is the
+      signal to pull a new one now, into this step's
+      `workspace/<step>/literature/`. Saving a paper that CHALLENGES
+      the claim is as valuable as one that confirms it: a
+      disagreement you surfaced yourself is stronger grounding than
+      silence.
+
       For each survivor:
         tool_literature_download url="<pdf_url>" filename="<key>.pdf"
             step_id="<NN_slug>"
@@ -293,6 +316,23 @@ steps:
       literature_index.yaml — manual edits here will be overwritten.
       If a citation needs to live ONLY in narrative (no PDF on disk),
       add it to `inputs/literature_index.yaml` directly.
+
+      Corpus of record. When the step finalizes, `tool_path_finalize`
+      MIRRORS this step's PDFs into the project-root `literature/`
+      folder (under `literature/steps/<NN_slug>/`) alongside the
+      mirrored `inputs/literature/` set (under `literature/inputs/`).
+      That root `literature/` folder is the single complete
+      corpus-of-record for the project: everything the project leans
+      on, pre-loaded and pulled mid-step, lands there. This is why
+      mid-step pulls matter beyond the step itself: each paper you
+      save here becomes part of the project's permanent corpus, not a
+      throwaway lookup. The daemon watches whether the root corpus has
+      fallen behind its sources: if a step's `literature/` or
+      `inputs/literature/` holds papers the root `literature/` has not
+      absorbed, it flags `literature_corpus_behind`, and a step that
+      makes claims yet saved no literature of its own is flagged
+      `step_ungrounded_no_literature`. Finalizing the step is what
+      keeps the root corpus current.
 
   - id: update_step_summary
     name: Update step_summary.yaml with literature fields
