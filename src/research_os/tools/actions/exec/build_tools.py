@@ -67,6 +67,32 @@ def _inner_repo_path(root: Path) -> Path:
     return (Path(root) / get_inner_repo_dir(Path(root))).resolve()
 
 
+def _resolve_git_scope(root: Path, scope: str | None) -> Path:
+    """Resolve which repo a git op targets.
+
+    'project' → the project root (the research workspace itself); 'tool' → the
+    tool_build inner repo. When unset, auto-pick: tool_build mode defaults to
+    the inner repo (its build is the unit of work), every other mode defaults
+    to the project root (the analysis workspace is what gets committed each
+    step for provenance).
+    """
+    root = Path(root)
+    s = (scope or "").strip().lower()
+    if s == "project":
+        return root.resolve()
+    if s == "tool":
+        return _inner_repo_path(root)
+    # auto
+    try:
+        from research_os.tools.actions.state.config import get_workspace_mode
+        mode = (get_workspace_mode(root) or "").strip().lower()
+    except Exception:
+        mode = ""
+    if mode == "tool_build":
+        return _inner_repo_path(root)
+    return root.resolve()
+
+
 def _is_contained(child: Path, parent: Path) -> bool:
     """True iff ``child`` is ``parent`` or lives beneath it (path-containment)."""
     try:
@@ -154,17 +180,24 @@ def git_op(
     all_changes: bool = True,
     max_count: int = 20,
     annotated: bool = True,
+    scope: str | None = None,
 ) -> dict[str, Any]:
-    """Run a path-contained git operation in the tool_build inner repo.
+    """Run a path-contained git operation.
 
-    operation ∈ {init, status, commit, branch, tag, log, diff}. Every
-    operation is scoped to ``<root>/<inner_repo>``; this function NEVER runs
-    git outside that directory. Returns a machine-readable envelope:
+    ``scope`` selects the repo:
+      * ``'project'`` → the project ROOT itself (the research workspace). This
+        is how an analysis project commits its work each step for provenance.
+      * ``'tool'`` → the tool_build inner repo (``workspace.inner_repo``).
+      * unset → auto: ``'tool'`` in tool_build mode, else ``'project'``.
+
+    operation ∈ {init, status, commit, branch, tag, log, diff, restore}. Every
+    operation is scoped to the resolved repo and NEVER runs git outside the
+    project root. Returns a machine-readable envelope:
     ``{status, operation, repo, branch?, sha?, changed_files?, ...}``.
 
-    Graceful on: git binary absent, inner dir missing, not-a-repo (every
-    non-init op), and bad args — all map to ``status='error'`` with a
-    message, never an exception.
+    Graceful on: git binary absent, dir missing, not-a-repo (every non-init
+    op), and bad args — all map to ``status='error'`` with a message, never an
+    exception.
     """
     root = Path(root)
     operation = (operation or "").strip()
@@ -184,11 +217,11 @@ def git_op(
             "message": "git binary not found on PATH. Install git to use tool_git.",
         }
 
-    repo = _inner_repo_path(root)
-    # Path-containment: the resolved repo MUST live under the project root.
+    repo = _resolve_git_scope(root, scope)
+    # Path-containment: the resolved repo MUST live under the project root
+    # (project scope resolves TO the root, which is trivially contained).
     # A configured inner_repo that escapes (via symlink / traversal) is
-    # refused outright. get_inner_repo_dir already collapses to a single safe
-    # segment, but resolve()+contains is the belt-and-braces guard.
+    # refused outright.
     root_resolved = root.resolve()
     if not _is_contained(repo, root_resolved):
         return {
@@ -196,7 +229,7 @@ def git_op(
             "operation": operation,
             "message": (
                 f"tool_git refuses to operate outside the project root. "
-                f"Resolved inner repo {repo} is not under {root_resolved}."
+                f"Resolved repo {repo} is not under {root_resolved}."
             ),
         }
 

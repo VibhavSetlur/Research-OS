@@ -10,8 +10,8 @@ authors:
 license: MIT
 repository-code: "https://github.com/VibhavSetlur/Research-OS"
 url: "https://github.com/VibhavSetlur/Research-OS"
-version: 4.4.0
-date-released: 2026-06-28
+version: 4.4.1
+date-released: 2026-06-29
 keywords:
   - research-data-management
   - reproducibility

@@ -6,6 +6,39 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.4.1] — planning-doc fix + per-step env auto-lock + git provenance (2026-06-28)
+
+A PATCH release: bug fixes, no new tools or protocols. Three reported bugs.
+
+### Fixed
+- **Planning docs were inconsistent with the protocol.** HOW_IT_WORKS.md and
+  SCENARIOS.md described deep/iterative planning as writing
+  `workspace/scratch/plan_v1.md` / `plan_v2.md`, but the actual protocol writes
+  the durable, branchable `inputs/research_plan.md` with an append-only
+  iteration log. The docs now match the protocol. Added a HOW_IT_WORKS section
+  explaining the THREE distinct plan artifacts and how they relate:
+  `inputs/research_plan.md` (project arc) → `workspace/<NN>/plan.md` (per-step
+  iterative plan you go back and forth on before a step runs, e.g. on step 06)
+  → finalize record.
+- **Per-step environment + run recipe is now created automatically.** Every
+  step that ran scripts now gets its own pinned environment AND a clean rerun
+  recipe at `tool_path_finalize` — `workspace/<NN>/environment/` with
+  requirements.txt + python_version + session.yaml + conda.yaml + Dockerfile +
+  entrypoint.sh (the single command that reproduces every output). Previously
+  the per-step lock only ran when explicitly requested, so steps were left
+  un-shareable / un-rerunnable. Also fixed `step_env_lock` over-broadening the
+  step's requirements with the whole project's imports (now step-scoped).
+- **The AI could not commit analysis work to git.** `tool_git` was hard-scoped
+  to the tool_build inner repo, so in an analysis project it had no way to
+  commit the workspace — work piled up as untracked changes with no provenance
+  trail. Added `scope='project'` (the research workspace root) vs `scope='tool'`
+  (the inner repo), auto-picked by workspace mode. The analysis protocol now
+  has a `commit_step` after finalize, AGENTS.md mandates committing each
+  finalized step, and the daemon flags `steps_uncommitted` when finalized work
+  sits outside git.
+
+---
+
 ## [4.4.0] — prompt cookbook + step-scoped Docker + sample-data protocol (2026-06-28)
 
 A MINOR release (bug-fix-flavored, but it adds a new protocol + a new tool

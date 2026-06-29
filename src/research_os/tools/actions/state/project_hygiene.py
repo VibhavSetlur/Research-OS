@@ -405,13 +405,56 @@ def _check_step_environment(root: Path, steps: list[Path]) -> list[dict]:
         out.append(_f(
             "warn", "step_no_env_snapshot",
             f"{len(no_env)} step(s) ran scripts + produced outputs but carry no "
-            f"per-step environment snapshot ({', '.join(no_env[:5])}"
+            f"per-step environment + run recipe ({', '.join(no_env[:5])}"
             f"{'…' if len(no_env) > 5 else ''}). A global env isn't enough to "
-            "re-run ONE step in isolation (or build a per-step container). "
-            "Snapshot the exact packages THIS step used: "
-            "sys_env(operation='snapshot', step_id='<NN_slug>'). Each step "
-            "should be independently reproducible / containerizable.",
+            "re-run ONE step in isolation. Lock the step's exact packages + a "
+            "clean rerun recipe (conda.yaml + Dockerfile + entrypoint.sh): "
+            "tool_step(operation='env_lock', step_id='<NN_slug>'). This runs "
+            "automatically at tool_path_finalize, so a flagged step usually "
+            "just needs finalizing. Each step should be independently "
+            "reproducible / shareable / containerizable.",
         ))
+    return out
+
+
+def _check_git_provenance(root: Path, steps: list[Path]) -> list[dict]:
+    """Flag completed step work that was never committed to git.
+
+    Provenance lives in commits, not untracked files. If the project root is a
+    git repo and there are tracked-or-untracked changes under workspace/ while
+    steps have been finalized, the AI has been leaving work uncommitted.
+    Read-only, fail-open: never runs git if it isn't there or the dir isn't a
+    repo.
+    """
+    out: list[dict] = []
+    try:
+        if not (root / ".git").is_dir():
+            return out  # not a git project — nothing to enforce
+        if not steps:
+            return out
+        import shutil
+        import subprocess
+        if not shutil.which("git"):
+            return out
+        res = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--", "workspace/"],
+            capture_output=True, text=True, timeout=20,
+        )
+        if res.returncode != 0:
+            return out
+        changed = [ln for ln in res.stdout.splitlines() if ln.strip()]
+        if changed:
+            out.append(_f(
+                "warn", "steps_uncommitted",
+                f"{len(changed)} uncommitted change(s) under workspace/ — finalized "
+                "step work is sitting outside git history, so it has no provenance "
+                "trail. Commit each completed step: tool_git(operation='commit', "
+                "scope='project', message='<NN_slug>: <summary>', step_id='<NN_slug>'). "
+                "A reader / collaborator / future-you reconstructs WHAT happened "
+                "WHEN from commits, not from untracked files.",
+            ))
+    except Exception:
+        return out
     return out
 
 
@@ -422,7 +465,8 @@ def _check_step_environment(root: Path, steps: list[Path]) -> list[dict]:
 
 def project_hygiene_findings(root: Path) -> list[dict]:
     """Return whole-project hygiene findings (governance, communication, docs,
-    literature, context, per-step environment). Read-only, fail-open."""
+    literature, context, per-step environment, git provenance). Read-only,
+    fail-open."""
     try:
         root = Path(root)
         if not root.is_dir():
@@ -436,6 +480,7 @@ def project_hygiene_findings(root: Path) -> list[dict]:
             _check_literature,
             _check_step_context,
             _check_step_environment,
+            _check_git_provenance,
         ):
             try:
                 findings.extend(check(root, steps))
