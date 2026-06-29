@@ -1237,6 +1237,8 @@ def synthesis_scaffold(
     step: str | None = None,
     label: str | None = None,
     audience: str | None = None,
+    scratch: bool = False,
+    meeting: str | None = None,
 ) -> dict[str, Any]:
     """Write a tiny skeleton synthesis file.
 
@@ -1244,18 +1246,29 @@ def synthesis_scaffold(
     and overwrite=False. The AI is expected to author the content; this
     tool only seeds section headers and protocol-pointing comments.
 
-    Recurring deliverables (``label``): a researcher makes MANY posters /
-    slide decks / handouts / dashboards over a project's life — a lab-meeting
-    update every week, a conference poster, a committee slide deck. Writing them
-    all to the flat ``synthesis/poster.typ`` would overwrite each other and lose
-    track of which file was for which event. Pass ``label`` (e.g.
-    "2026-06-lab-meeting", "neurips-poster", "committee-update") for any such
-    RECURRING / event-specific deliverable: the scaffold routes it to
-    ``synthesis/deliverables/<label-slug>/<kind>.<ext>`` and drops a README
-    stamping the event + date + purpose, so the chain of meeting artefacts lives
-    in one browsable, documented folder (order in the chaos). OMIT ``label`` only
-    for the project's single canonical deliverable (the paper). ``label`` does
-    not apply to ``step_report`` (it already routes to synthesis/updates/).
+    WHERE a deliverable lands (precedence: scratch > meeting > label > flat):
+
+    * ``scratch=True`` → ``synthesis/scratch/<kind>.<ext>``. The DRAFT area to
+      ITERATE a dashboard / slide deck / poster in until it's done. It is
+      gitignored (``scratch/`` is an unanchored ignore pattern), so messy
+      work-in-progress never pollutes git history. A dashboard or slide deck
+      should be built here first, NOT in a numbered workspace step, then moved
+      to its final synthesis home once finished.
+    * ``meeting='<date-or-slug>'`` → ``synthesis/meetings/<date>/<kind>.<ext>``
+      + a README. Use for ALL meeting content (a lab-meeting dashboard, a
+      committee slide deck, a PI sync handout): everything a single meeting
+      needs lives together under one dated folder, with its outputs. Pass an
+      ISO date (``2026-06-29``) or an event slug; a bare date is normalized.
+    * ``label='<event>'`` → ``synthesis/deliverables/<label-slug>/<kind>.<ext>``
+      for other recurring / event-specific deliverables (conference poster,
+      etc.) — a documented chain so they don't overwrite each other.
+    * none of the above → the project's single canonical deliverable at the
+      flat ``synthesis/<kind>.<ext>`` (the paper / report).
+
+    Dashboards + slide decks NEVER consume a numbered workspace step. Iterate
+    them in ``synthesis/scratch/`` and land the finished file in the proper
+    synthesis location (flat for the project deliverable, ``meetings/<date>/``
+    for meeting content).
 
     Output-types intent gate: if ``kind`` is NOT in the researcher's
     declared ``research_goal.output_types`` (and they HAVE declared
@@ -1364,10 +1377,40 @@ def synthesis_scaffold(
     # synthesis/deliverables/<slug>/ folder (keeps a chain of meeting/conf
     # artefacts from overwriting the flat synthesis/<kind> file).
     deliverable_dir: Path | None = None
-    if label and kind not in ("paper", "step_report"):
-        import re as _re
-        from datetime import datetime, timezone
+    import re as _re
+    from datetime import datetime, timezone
 
+    routed = False
+    # 1. scratch — the draft area to iterate a deliverable in (gitignored).
+    if scratch and kind not in ("paper", "step_report"):
+        ext = rel_path.rsplit(".", 1)[-1]
+        rel_path = f"synthesis/scratch/{kind}.{ext}"
+        routed = True
+    # 2. meeting — all content for ONE meeting under synthesis/meetings/<date>/.
+    if not routed and meeting and kind not in ("paper", "step_report"):
+        mslug = _re.sub(r"[^a-z0-9]+", "-", str(meeting).strip().lower()).strip("-")
+        if not mslug:
+            mslug = datetime.now(timezone.utc).date().isoformat()
+        ext = rel_path.rsplit(".", 1)[-1]
+        rel_path = f"synthesis/meetings/{mslug}/{kind}.{ext}"
+        deliverable_dir = root / "synthesis" / "meetings" / mslug
+        readme = deliverable_dir / "README.md"
+        if not readme.exists():
+            deliverable_dir.mkdir(parents=True, exist_ok=True)
+            readme.write_text(
+                f"# Meeting — {meeting}\n\n"
+                f"*Created: {datetime.now(timezone.utc).date().isoformat()}*\n\n"
+                "All synthesis content for this meeting lives here: the deck / "
+                "dashboard / handout plus any figures or tables it needs, so the "
+                "meeting is self-contained and shareable.\n\n"
+                "- Occasion + audience: _(who, when, why)_\n"
+                "- Status: _draft | presented | superseded_\n"
+                "- Source findings: _(which steps / paper sections it draws on)_\n"
+                "- Outputs needed: _(figures / tables to drop in this folder)_\n",
+                encoding="utf-8",
+            )
+        routed = True
+    if not routed and label and kind not in ("paper", "step_report"):
         lslug = _re.sub(r"[^a-z0-9]+", "-", label.strip().lower()).strip("-")
         if not lslug:
             # The label was all non-ASCII / punctuation / emoji (e.g. "研究",
