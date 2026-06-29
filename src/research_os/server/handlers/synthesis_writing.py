@@ -50,6 +50,8 @@ def _handle_tool_synthesis_scaffold(name, arguments, root):
         step=arguments.get("step"),
         label=arguments.get("label"),
         audience=arguments.get("audience"),
+        scratch=bool(arguments.get("scratch", False)),
+        meeting=arguments.get("meeting"),
     )
     if res.get("status") == "error":
         return _text(_error(res.get("message", "scaffold failed")))

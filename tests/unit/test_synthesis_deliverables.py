@@ -34,3 +34,42 @@ def test_canonical_paper_stays_flat(tmp_path):
     r = synthesis_scaffold(tmp_path, kind="paper", confirmed=True)
     assert r["path"].endswith("synthesis/paper.typ")
     assert "deliverables" not in r["path"]
+
+
+def test_scratch_routes_to_synthesis_scratch(tmp_path):
+    """Dashboards/slides iterate in synthesis/scratch/ (gitignored), not a step."""
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    r = synthesis_scaffold(tmp_path, kind="dashboard", scratch=True, confirmed=True)
+    assert r["status"] == "success"
+    assert r["path"].endswith("synthesis/scratch/dashboard.html")
+    # never a numbered workspace step
+    assert "workspace/0" not in r["path"]
+
+
+def test_meeting_routes_to_dated_folder_with_readme(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    r = synthesis_scaffold(tmp_path, kind="slides", meeting="2026-06-29", confirmed=True)
+    assert r["status"] == "success"
+    assert r["path"].endswith("synthesis/meetings/2026-06-29/slides.typ")
+    assert (tmp_path / "synthesis" / "meetings" / "2026-06-29" / "README.md").exists()
+
+
+def test_meeting_label_is_slugified(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    r = synthesis_scaffold(tmp_path, kind="dashboard", meeting="Lab Meeting!! June 29", confirmed=True)
+    assert r["path"].endswith("synthesis/meetings/lab-meeting-june-29/dashboard.html")
+
+
+def test_scratch_takes_precedence_over_meeting(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    r = synthesis_scaffold(
+        tmp_path, kind="poster", scratch=True, meeting="2026-06-29", confirmed=True
+    )
+    assert r["path"].endswith("synthesis/scratch/poster.typ")
+
+
+def test_paper_ignores_scratch_and_meeting(tmp_path):
+    scaffold_minimal_workspace(tmp_path, "T", mode="analysis")
+    r = synthesis_scaffold(tmp_path, kind="paper", scratch=True, meeting="2026-06-29", confirmed=True)
+    assert r["path"].endswith("synthesis/paper.typ")
+
