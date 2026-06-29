@@ -28,26 +28,59 @@ That's normal and correct. You don't have to "produce" anything the first day.
 > what I'm worried about confounding, here's the population, here's what the
 > reviewers at this venue always push back on.
 >
-> **AI:** *(loads the planning protocol)* Here's a draft analysis plan with the
+> **AI:** *(loads the planning protocol)* Here's a draft research plan with the
 > decision points called out — what we'll test, where the branch points are,
 > what would make us change course. I've written it to
-> `workspace/scratch/plan_v1.md` so it's not committed as a step yet.
+> `inputs/research_plan.md` — the durable, branchable roadmap. No numbered step
+> exists yet; this is the plan we iterate on first.
 >
 > **You:** The matching strategy is wrong for this design. And add a
 > sensitivity analysis for the dropout assumption.
 >
-> **AI:** Updated to `plan_v2.md`. Want me to keep iterating, or are we ready
-> to open the first step?
+> **AI:** Updated `inputs/research_plan.md` and appended the change to its
+> iteration log. Want me to keep iterating, or are we ready to open the first
+> step?
 
 Nothing here creates a numbered step or a result. The plan lives in
-`workspace/scratch/` (the AI sandbox) until *you* decide it's solid. You might
-do this over **three sessions across a week**, re-reading literature between
-them. That is a feature: the plan firms up before any analysis locks in, and
-when you finally open step `01`, the reasoning behind it is already on disk.
+`inputs/research_plan.md` — the single living roadmap, reshaped as you go, with
+an append-only iteration log that preserves its history — until *you* decide
+it's solid. You might do this over **three sessions across a week**, re-reading
+literature between them. That is a feature: the plan firms up before any
+analysis locks in, and when you finally open step `01`, the reasoning behind it
+is already on disk. (Each numbered step then gets its OWN `plan.md` — see below
+— for the planning that step needs before it runs.)
 
 **Why this matters for trust:** a plan that was argued over and revised — with
 the alternatives you rejected written down — is far more defensible than one
 that was implied by whatever the AI did first.
+
+### Planning doesn't only happen at the start — each step plans itself first
+
+The whole-project roadmap (`inputs/research_plan.md`) is the arc. But planning
+also happens *inside* the work. Say you've finished steps `01`–`05` and step
+`06` is a real fork in the road — a modelling choice you want to think through
+before any code runs. Each numbered step gets its **own** `workspace/<NN>/plan.md`,
+and it is a living draft you iterate on the same way:
+
+> **You:** *(on step 06)* Before we run anything, let's plan this step. I'm torn
+> between a mixed-effects model and a GEE here.
+>
+> **AI:** I've drafted `workspace/06_*/plan.md` — where we are coming out of
+> step 05, what this step will do, the two candidate approaches, and the open
+> questions. Read it and push back.
+>
+> **You:** Go with mixed-effects, but add the GEE as a sensitivity check. And
+> note we're assuming the random-slope structure converges.
+>
+> **AI:** Updated `plan.md`, and synced the change back to
+> `inputs/research_plan.md`'s iteration log so the roadmap stays current.
+
+You can go back and forth on `plan.md` for as long as you want — nothing runs
+until you're ready. When the step finishes, `plan.md` ends as a true record of
+what the step actually did vs. what was planned, so a reader sees the reasoning,
+not just the result. The two plans stay in sync: `inputs/research_plan.md` is
+the project arc; `workspace/<NN>/plan.md` is how one step on that arc was
+thought through.
 
 ### You do literature work until something solidifies — not in one shot
 
