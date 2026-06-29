@@ -6,6 +6,30 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.4.2] — synthesis scratch + meetings; dashboards/slides never use a step (2026-06-29)
+
+A PATCH release: organization + git-hygiene fixes, no new tools or protocols.
+
+### Fixed / Improved
+- **Dashboards + slide decks never consume a numbered workspace step.** They
+  are synthesis deliverables — `tool_synthesis_scaffold` gained `scratch=true`
+  to iterate a deliverable in `synthesis/scratch/` (a **gitignored** draft
+  area) until it's done, then land the finished file in its proper home. The
+  `synthesis_dashboard` + `synthesis_slides` protocols now say this explicitly.
+- **Meeting content is organized under `synthesis/meetings/<date>/`.**
+  `tool_synthesis_scaffold(meeting='<date-or-slug>')` routes a deck / dashboard
+  / handout into one dated folder with a README, so everything a single meeting
+  needs (plus its figures + tables) lives together and is committed.
+- **`synthesis/scratch/` is gitignored; finished synthesis is committed.** The
+  unanchored `scratch/` ignore pattern already covers it; the gitignore comment
+  now documents the synthesis draft area, and the daemon's `steps_uncommitted`
+  watch now also covers `synthesis/` (excluding the gitignored scratch) so
+  finished deliverables sitting outside git get flagged.
+- **PROJECT_LAYOUT.md** documents the `synthesis/` structure: flat canonical
+  deliverable, `scratch/` draft area, `meetings/<date>/`, `deliverables/<event>/`.
+
+---
+
 ## [4.4.1] — planning-doc fix + per-step env auto-lock + git provenance (2026-06-28)
 
 A PATCH release: bug fixes, no new tools or protocols. Three reported bugs.

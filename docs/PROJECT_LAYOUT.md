@@ -141,6 +141,26 @@ backbone (`.os_state`, `docs`, `inputs/*`, `workspace`, `workspace/logs`,
 
 ---
 
+## What's inside `synthesis/`
+
+`synthesis/` is where shareable deliverables live — and they are **never**
+built as numbered `workspace/` steps. It has three homes, by purpose:
+
+| Path | What it holds |
+|---|---|
+| `synthesis/<kind>` | The project's single canonical deliverable — `paper.typ`, `report.md`, `dashboard.html`. |
+| `synthesis/scratch/` | The **draft area** to iterate a dashboard / slide deck / poster in until it's done. **Gitignored** — messy work-in-progress never pollutes git history. Build here first, then move the finished file to its final home. |
+| `synthesis/meetings/<date>/` | **All content for one meeting** (lab meeting, committee, PI sync) together: the deck / dashboard / handout plus the figures + tables it needs, with a README. Committed. |
+| `synthesis/deliverables/<event-slug>/` | Other recurring / event-specific deliverables (e.g. a conference poster) — a documented chain so they don't overwrite each other. |
+
+The flow for a dashboard or slide deck: scaffold with `scratch=true`, iterate
+in `synthesis/scratch/`, then move the finished file to the flat
+`synthesis/<kind>` (project deliverable) or `synthesis/meetings/<date>/`
+(meeting content). Use `tool_synthesis_scaffold(meeting='<date>')` to scaffold
+meeting content straight into the dated folder.
+
+---
+
 ## For maintainers
 
 This document is generated from one definition. To change the layout:

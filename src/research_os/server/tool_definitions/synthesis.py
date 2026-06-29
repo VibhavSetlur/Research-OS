@@ -92,6 +92,14 @@ SYNTHESIS_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
                     "enum": ["technical", "public"],
                     "description": "For kind='slides' only. Emits a presentation STRUCTURE (outline + per-section intent), not a designed deck — tailored to the audience for the researcher to design + present in their own tool. 'technical' = design + methods + rigor (peers / methods or dev review). 'public' = hook + big theme + the one takeaway, minimal jargon (general / lay / cross-disciplinary). The same findings make two genuinely different talks; scaffold both when the researcher needs each. Writes synthesis/presentation_<audience>.md.",
                 },
+                "scratch": {
+                    "type": "boolean",
+                    "description": "Write the deliverable to synthesis/scratch/<kind> — the gitignored DRAFT area to ITERATE a dashboard / slide deck / poster in until it's done. Dashboards + slide decks should be built here first (NOT in a numbered workspace step), then moved to their final synthesis home. Default false.",
+                },
+                "meeting": {
+                    "type": "string",
+                    "description": "For meeting content: a date ('2026-06-29') or event slug. Routes the artefact to synthesis/meetings/<date>/<kind> with a README, so everything ONE meeting needs (deck / dashboard / handout + its figures) lives together in one dated folder. Use instead of 'label' for meeting deliverables.",
+                },
             },
         },
     },

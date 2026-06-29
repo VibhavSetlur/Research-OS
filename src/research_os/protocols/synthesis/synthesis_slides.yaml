@@ -1,7 +1,7 @@
 id: synthesis_slides
 tier: 'synthesize'
 name: Synthesis — Slides / Talk Deck (AI-authored Touying)
-version: '4.1.0'
+version: '4.4.2'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -120,11 +120,27 @@ steps:
       figures the deck can draw on.
 
   - id: scaffold
-    name: Scaffold slides.typ
+    name: Scaffold slides.typ (in synthesis/scratch — never a numbered step)
     description: |
-      tool_synthesis_scaffold(kind='slides') writes a <=60-line
-      synthesis/slides.typ (Touying) with section headers and
-      `// AI: ...` markers. Refuses to overwrite an existing file.
+      A slide deck is a SYNTHESIS deliverable, not an analysis step — do
+      NOT create a numbered workspace step for it. Iterate in the synthesis
+      draft area, then land the finished deck in its proper home:
+
+        tool_synthesis_scaffold(kind='slides', scratch=true)
+          → synthesis/scratch/slides.typ  (gitignored draft; iterate here)
+
+      Build + refine here until it's done. For a MEETING deck (lab meeting,
+      committee, defense practice), scaffold straight into that meeting's
+      folder so the deck + its figures travel together:
+
+        tool_synthesis_scaffold(kind='slides', meeting='<YYYY-MM-DD>')
+          → synthesis/meetings/<date>/slides.typ
+
+      For the project's single canonical deck, omit both → the flat
+      synthesis/slides.typ. The skeleton is a <=60-line Touying deck with
+      section headers and `// AI: ...` markers. Refuses to overwrite an
+      existing file. Move a finished scratch draft to its final synthesis
+      location when done.
 
   - id: author
     name: Author the slides

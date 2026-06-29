@@ -1,7 +1,7 @@
 id: synthesis_dashboard
 tier: 'synthesize'
 name: Synthesis — Dashboard (custom, story-driven, self-contained HTML)
-version: '3.0.0'
+version: '4.4.2'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -234,7 +234,7 @@ steps:
         - whether a comparison / scorecard view is warranted
       In plan-mode, present this outline as a numbered list and ask
       for revisions. In autopilot, write the outline to
-      workspace/scratch/dashboard_outline.md and proceed.
+      synthesis/scratch/dashboard_outline.md and proceed.
 
   - id: pick_audience
     name: Pick the audience profile
@@ -244,12 +244,29 @@ steps:
       paper, executive otherwise.
 
   - id: scaffold
-    name: Scaffold dashboard.html
+    name: Scaffold dashboard.html (in synthesis/scratch — never a numbered step)
     description: |
-      tool_synthesis_scaffold(kind='dashboard') writes a minimal
-      story-arc skeleton (hero / findings / comparison / methods /
-      limitations / references) with `<!-- AI: ... -->` markers.
-      Idempotent — refuses overwrite without `overwrite=true`.
+      A dashboard is a SYNTHESIS deliverable, not an analysis step — do
+      NOT create a numbered workspace step for it. Iterate it in the
+      synthesis draft area, then land the finished file in its proper home:
+
+        tool_synthesis_scaffold(kind='dashboard', scratch=true)
+          → synthesis/scratch/dashboard.html  (gitignored draft; iterate here)
+
+      Build + refine here until it's done. When the dashboard is for a
+      MEETING (lab meeting, committee, PI sync), scaffold it straight into
+      that meeting's folder instead so everything the meeting needs lives
+      together:
+
+        tool_synthesis_scaffold(kind='dashboard', meeting='<YYYY-MM-DD>')
+          → synthesis/meetings/<date>/dashboard.html  (+ its figures/tables)
+
+      For the project's single canonical dashboard, omit both → the flat
+      synthesis/dashboard.html. The skeleton is a minimal story-arc (hero /
+      findings / comparison / methods / limitations / references) with
+      `<!-- AI: ... -->` markers. Idempotent — refuses overwrite without
+      `overwrite=true`. When a scratch draft is finished, move it to the
+      final synthesis location (flat or meetings/<date>/).
 
   - id: author
     name: Author the content (story before structure)

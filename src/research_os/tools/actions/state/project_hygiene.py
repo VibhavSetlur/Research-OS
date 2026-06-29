@@ -437,21 +437,27 @@ def _check_git_provenance(root: Path, steps: list[Path]) -> list[dict]:
         if not shutil.which("git"):
             return out
         res = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain", "--", "workspace/"],
+            ["git", "-C", str(root), "status", "--porcelain", "--",
+             "workspace/", "synthesis/"],
             capture_output=True, text=True, timeout=20,
         )
         if res.returncode != 0:
             return out
+        # synthesis/scratch/ is gitignored, so finished synthesis deliverables
+        # (synthesis/<kind>, synthesis/meetings/<date>/) show up here when
+        # they're not yet committed — drafts never do.
         changed = [ln for ln in res.stdout.splitlines() if ln.strip()]
         if changed:
             out.append(_f(
                 "warn", "steps_uncommitted",
-                f"{len(changed)} uncommitted change(s) under workspace/ — finalized "
-                "step work is sitting outside git history, so it has no provenance "
-                "trail. Commit each completed step: tool_git(operation='commit', "
-                "scope='project', message='<NN_slug>: <summary>', step_id='<NN_slug>'). "
-                "A reader / collaborator / future-you reconstructs WHAT happened "
-                "WHEN from commits, not from untracked files.",
+                f"{len(changed)} uncommitted change(s) under workspace/ or "
+                "synthesis/ — finalized work is sitting outside git history, so "
+                "it has no provenance trail. Commit completed work: "
+                "tool_git(operation='commit', scope='project', "
+                "message='<NN_slug>: <summary>', step_id='<NN_slug>'). A reader / "
+                "collaborator / future-you reconstructs WHAT happened WHEN from "
+                "commits, not from untracked files. (synthesis/scratch/ is "
+                "gitignored, so drafts are never flagged.)",
             ))
     except Exception:
         return out
