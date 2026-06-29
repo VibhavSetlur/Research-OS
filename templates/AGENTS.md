@@ -36,7 +36,7 @@ topics on demand). Full human guide:
    - `complexity="low"` → call `shortcut_tool` directly, OR
      `sys_protocol_get format='summary'` then `format='step' step_id=<id>`.
 
-Subsequent turns: skip `sys_boot` (still in context); go straight to `tool_route` or continue the `active_plan`.
+Subsequent turns: skip `sys_boot` (still in context); go straight to `tool_route` or continue the `active_plan`. **Commit every finalized step** for provenance: `tool_git(operation='commit', scope='project', message='<NN_slug>: …', step_id='<NN_slug>')` (scope='tool' in tool_build) — never leave finalized work untracked; daemon flags `steps_uncommitted`.
 
 ## Token economy (read once, apply always)
 

@@ -725,8 +725,11 @@ def step_env_lock(
         # Import-driven requirements (same rationale as env_snapshot: the
         # MCP server shares this interpreter, so a raw `pip freeze` would
         # archive research_os + its server stack into the step lock).
+        # Scope to THIS step's imports so the lock isn't over-broadened with
+        # the whole project's deps (the per-step env must be what the step
+        # actually uses, for a clean isolated rerun / container).
         (env_dir / "requirements.txt").write_text(
-            _project_python_requirements(root)
+            _project_python_requirements(root, step_dir.name)
         )
         artifacts.append("requirements.txt")
 

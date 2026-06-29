@@ -36,6 +36,7 @@ def _handle_tool_git(name, arguments, root):
         all_changes=bool(arguments.get("all_changes", True)),
         max_count=int(arguments.get("max_count", 20)),
         annotated=bool(arguments.get("annotated", True)),
+        scope=arguments.get("scope"),
     )
     # status='noop' (nothing to commit) is informational, not a hard error.
     if res.get("status") in {"success", "noop"}:

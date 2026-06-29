@@ -1630,6 +1630,57 @@ def finalize_path(
     #     more appropriate (different lang stack than the project
     #     default).
     work_happened = bool(inv["figures"] or inv["tables"] or inv["reports"])
+    # Did this step actually run code? If so it MUST carry its own pinned
+    # environment + a clean rerun recipe (entrypoint + conda.yaml + Dockerfile)
+    # so the single step can be shared / re-run / containerized in isolation —
+    # the global env may not cover every step, and even when it does we want a
+    # per-step record of exactly what THIS step used. This runs on EVERY
+    # finalize, not only when the researcher asks.
+    step_dir_fp = root / "workspace" / path_name
+    step_ran_scripts = False
+    try:
+        sdir = step_dir_fp / "scripts"
+        step_ran_scripts = sdir.is_dir() and any(
+            f.is_file() and f.suffix.lower() in
+            {".py", ".r", ".jl", ".sh", ".ipynb", ".rmd", ".qmd"}
+            for f in sdir.iterdir()
+        )
+    except OSError:
+        step_ran_scripts = False
+    if work_happened and step_ran_scripts:
+        try:
+            from research_os.tools.actions.exec.environment import step_env_lock
+
+            lock = step_env_lock(
+                root,
+                step_id=path_name,
+                write_conda_yaml=True,
+                write_dockerfile=True,
+                write_entrypoint=True,
+            )
+            if lock.get("status") == "success":
+                project_updates.append(
+                    f"workspace/{path_name}/environment/ ← per-step lock "
+                    "(requirements + conda.yaml + Dockerfile + entrypoint.sh) "
+                    "auto-generated at finalize — the step is now independently "
+                    "rerunnable / shareable / containerizable"
+                )
+            else:
+                warnings.append(
+                    "Auto per-step env lock at finalize failed: "
+                    + lock.get("message", "unknown error")
+                    + f". Call `tool_step(operation='env_lock', step_id='{path_name}')` manually."
+                )
+        except Exception as e:
+            warnings.append(
+                f"Auto per-step env lock at finalize raised {type(e).__name__}: {e}. "
+                f"Call `tool_step(operation='env_lock', step_id='{path_name}')` manually."
+            )
+
+    # Project-global env: also keep the project-global requirements.txt fresh
+    # when it's still the empty template (so a project-level reader/Docker has
+    # something), but the per-step lock above is the authoritative per-step
+    # record.
     project_req = root / "environment" / "requirements.txt"
     is_template_empty = (
         project_req.exists()

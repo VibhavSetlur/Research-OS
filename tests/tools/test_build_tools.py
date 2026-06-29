@@ -117,6 +117,34 @@ def test_git_commit_with_step_provenance(tmp_path):
 
 
 @requires_git
+def test_git_scope_project_commits_the_workspace_root(tmp_path):
+    """scope='project' targets the project ROOT, so an analysis project can
+    commit its workspace each step for provenance (not the inner repo)."""
+    (tmp_path / ".os_state").mkdir()
+    (tmp_path / "workspace" / "01_eda").mkdir(parents=True)
+    (tmp_path / "workspace" / "01_eda" / "conclusions.md").write_text("# findings\n")
+    init = git_op(tmp_path, "init", scope="project")
+    assert init["status"] == "success"
+    assert (tmp_path / ".git").is_dir()  # the ROOT is the repo, not project/
+    _git_identity(tmp_path)
+    res = git_op(
+        tmp_path, "commit", scope="project",
+        message="01_eda: baseline EDA", step_id="01_eda",
+    )
+    assert res["status"] == "success"
+    body = subprocess.run(
+        ["git", "log", "-1", "--pretty=%B"],
+        cwd=str(tmp_path), capture_output=True, text=True,
+    ).stdout
+    assert "Research-OS-Step: 01_eda" in body
+    # The committed tree includes the workspace step, proving it's the root repo.
+    tracked = subprocess.run(
+        ["git", "ls-files"], cwd=str(tmp_path), capture_output=True, text=True,
+    ).stdout
+    assert "workspace/01_eda/conclusions.md" in tracked
+
+
+@requires_git
 def test_git_commit_nothing_to_commit_is_noop(tmp_path):
     _tool_build_project(tmp_path)
     # No staged changes after init.

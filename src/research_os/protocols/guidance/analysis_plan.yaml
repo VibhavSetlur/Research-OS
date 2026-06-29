@@ -1,7 +1,7 @@
 id: analysis_plan
 tier: 'execute'
 name: Analysis Plan (Core Loop)
-version: '3.10.0'
+version: '4.4.1'
 schema_version: '2.0'
 scope_tags:
   domain: [any]
@@ -680,29 +680,30 @@ steps:
       literature.claims_grounded == 0 without `literature_required: false`.
 
   - id: snapshot_step_environment
-    name: Snapshot the Environment (every step that actually ran code)
+    name: Snapshot the Environment + Run Recipe (every step that ran code)
     description: |
-      Default: call sys_env(operation='snapshot') EVERY step that ran code.
-      It's cheap, idempotent, and the cost of skipping is a published
-      result you can't rerun.
+      Every step that ran code must end up with its OWN pinned environment AND
+      a clean rerun recipe so the step can be shared / re-run / containerized in
+      isolation — a global env may not cover every step, and even when it does
+      you want a per-step record of exactly what THIS step used.
 
-        sys_env(operation='snapshot')                                    # legacy default
-        sys_env(operation='snapshot', step_id='<NN_slug>')               # explicit per-step
-        sys_env(operation='snapshot', scope='project')                   # project-global
+      `tool_path_finalize` (the finalize_step below) now does this automatically:
+      for any step that ran scripts it calls the per-step env lock, writing
+      `workspace/<NN_slug>/environment/` with requirements.txt + python_version
+      + session.yaml + conda.yaml + Dockerfile + entrypoint.sh (the single
+      command that reproduces every output). So usually you do nothing here —
+      finalize handles it.
 
-      Variants:
-        - The step uses identical packages to every prior step →
-          `sys_env(operation='snapshot', scope='project')` once is enough; per-step
-          snapshots add noise without information.
-        - The step needs a different version of even one package →
-          `sys_env(operation='snapshot', step_id='<NN_slug>')` so the per-step
-          requirements.txt captures the variance.
-        - Pure-data step (no scripts ran) → skip. finalize_step will
-          surface a warning, which is fine.
+      Do it explicitly when you want the recipe BEFORE finalize, or to add
+      Apptainer/Podman for an HPC target:
+        tool_step(operation='env_lock', step_id='<NN_slug>')                 # full recipe
+        sys_env(operation='snapshot', step_id='<NN_slug>')                   # requirements only
+        sys_env(operation='docker_generate', step_id='<NN_slug>')            # (re)build the step Dockerfile
 
-      Reproducibility is the deal you make with future-you. If the
-      audit warns "no environment snapshotted", treat it as a real
-      gap to close, not noise.
+      Pure-data step (no scripts ran) → nothing to lock; finalize skips it.
+
+      Reproducibility is the deal you make with future-you. If the daemon warns
+      `step_no_env_snapshot`, finalizing the step usually clears it.
 
   - id: finalize_step
     name: Finalize the Step (mandatory before decide_next)
@@ -747,6 +748,34 @@ steps:
       sidecars in one call.
 
       Idempotent — safe to re-run after edits.
+
+  - id: commit_step
+    name: Commit the Step for Provenance (do NOT leave work uncommitted)
+    description: |
+      A finalized step is a unit of provenance — it MUST land in git, not sit
+      as untracked changes. After finalize_step, commit the step's work to the
+      project's git history:
+
+        tool_git(operation='status', scope='project')        # see what changed
+        tool_git(operation='commit', scope='project',
+                 message='<NN_slug>: <one-line what this step did>',
+                 step_id='<NN_slug>')                          # stamps a
+                 # 'Research-OS-Step:' trailer linking the commit to the step
+
+      scope='project' targets the research workspace root (in tool_build mode
+      the inner-repo commits use scope='tool' instead; omit scope to auto-pick).
+      If the project isn't a git repo yet, `tool_git(operation='init',
+      scope='project')` once, then commit. This is how a reader / collaborator /
+      future-you reconstructs WHAT was done WHEN — uncommitted work has no
+      provenance trail. The daemon flags completed steps that were never
+      committed (`steps_uncommitted`).
+
+      AUTONOMY GATE:
+        Risk: low — a commit is additive + reversible (history is never
+        rewritten here).
+        - adaptive (default) / autopilot → commit automatically after finalize.
+        - manual / supervised → commit too, unless the researcher has said they
+          manage git themselves (then skip + note it).
 
   - id: lightweight_step_audit
     name: Lightweight In-Step Audit

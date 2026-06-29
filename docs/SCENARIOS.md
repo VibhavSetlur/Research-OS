@@ -149,12 +149,13 @@ she restarts, and the self-test passes.
 ### Phase 1 — Iterative planning *before* any analysis
 
 She doesn't want the AI to dictate steps. `tool_route("iterate on a plan with
-me")` → `guidance/iterative_planning`. Over **two sessions**, the AI drafts a
-plan in `workspace/scratch/plan_v1.md` (the sandbox — nothing is committed yet),
-they argue about cohort batch correction, she points at a method from one of the
-papers, the AI revises to `plan_v2.md`, then `plan_v3.md`. Producing no analysis
-on day one is correct. Only when the plan stops moving does she say "lock it in,"
-and it becomes the roadmap of numbered phases, each ending in a **decision gate**.
+me")` → `guidance/iterative_planning`. Over **two sessions**, the AI drafts the
+roadmap in `inputs/research_plan.md` (the durable, branchable plan — no numbered
+step is committed yet), they argue about cohort batch correction, she points at
+a method from one of the papers, the AI revises `inputs/research_plan.md` and
+appends each change to its iteration log. Producing no analysis on day one is
+correct. Only when the plan stops moving does she say "lock it in," and the
+roadmap's milestones become numbered phases, each ending in a **decision gate**.
 
 `guidance/iterative_planning`, `methodology/deep_planning`, and
 `guidance/roadmap_execution` structure the phases:
