@@ -7,6 +7,11 @@ from __future__ import annotations
 from .._handlers_runtime import *  # noqa: F401,F403
 # mem_log dispatcher delegates to a methodology handler — pull it into scope.
 from research_os.errors import WriteProtectedError, check_write_permitted
+from research_os.tools.actions.audit.script_naming import (
+    is_versioned_name,
+    next_version_name,
+    suggest_version_bump,
+)
 
 
 def _resolve_inside_root(root, filepath):
@@ -199,6 +204,30 @@ def _handle_sys_file_write(name, arguments, root):
         )
     if rel.startswith("synthesis/") and p.exists() and not force:
         return _text(_error("synthesis/ files exist: pass force=true to overwrite."))
+
+    # Versioned-artifact immutability gate. A file named `*_v<N>.<ext>`
+    # carries an explicit version suffix BECAUSE edits are supposed to land
+    # in a NEW version, not overwrite the existing one (which destroys the
+    # prior version's provenance). When the AI tries to overwrite an existing
+    # `_v<N>` artifact under workspace/ or synthesis/, refuse and point it at
+    # the bumped name. force=true is the deliberate escape hatch (e.g. fixing
+    # a typo in the SAME version before it's been used downstream).
+    if (
+        rel.startswith(("workspace/", "synthesis/"))
+        and p.exists()
+        and not force
+        and is_versioned_name(p.name)
+    ):
+        bumped = suggest_version_bump(p) or next_version_name(p.name)
+        return _text(_error(
+            f"`{rel}` is a versioned artifact ({p.name}) that already exists. "
+            "Editing a produced version in place overwrites its provenance — "
+            f"write your changes as a NEW version instead: `{bumped}` "
+            "(same directory). The _v<k> suffix exists so each revision is a "
+            "distinct, traceable file. If you truly need to overwrite this "
+            "exact version (e.g. a typo fix before it was used), pass "
+            "force=true."
+        ))
 
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(arguments["content"], encoding="utf-8")

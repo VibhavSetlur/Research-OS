@@ -366,7 +366,7 @@ META_TOOL_DEFINITIONS: dict[str, dict[str, Any]] = {
     },
     "sys_file_write": {
         "short": "Write a workspace file (immutable inputs blocked). Use when producing project content.",
-        "description": "Write a file. Refuses to write into inputs/raw_data/ or inputs/literature/ (immutable). Use force=true to overwrite a file in synthesis/. In autopilot mode, writes to synthesis/ with force=true require confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
+        "description": "Write a file. Refuses to write into inputs/raw_data/ or inputs/literature/ (immutable). Use force=true to overwrite a file in synthesis/. Versioned artifacts (`*_v<n>.<ext>`) under workspace/ or synthesis/ are immutable: an edit must be written as a NEW version (`_v<n+1>`) — overwriting an existing version is refused (the error names the bumped filename); pass force=true only for a genuine same-version fix. In autopilot mode, writes to synthesis/ with force=true require confirmed=true (server-enforced autopilot floor gate — see guidance/autopilot.yaml).",
         "category": "file",
         "inputSchema": {
             "type": "object",
