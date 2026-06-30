@@ -654,12 +654,21 @@ publication_aesthetics:
 caption_rules:
   technical_caption:
     file: <name>.caption.md (mandatory — BLOCKER if missing)
-    length: 3 sentences max, ~250 chars
-    voice:
+    structure: |
+      Start with a `## Caption` section: the PAPER-READY caption — the exact
+      continuous-prose text a reader pastes under the figure in a manuscript.
+      Finding-led, journal language, units named, NO internal paths/step ids.
+      Below it, keep your supporting material under further headings
+      (`## Panels / details` with per-panel breakdowns + exact statistics;
+      `## Scope / caveats` with observational-vs-causal framing + open asks +
+      verification status). The audit warns if the `## Caption` prose is
+      missing or is only bullets/metadata.
+    caption_voice:
       - Lead with the substantive finding ("STATIC scores cluster at
         the high end" — not "Histogram of STATIC scores").
       - Name the unit on each axis if not self-evident.
-      - Call out one specific feature ("note the second mode near 3.5").
+      - "Write it as the caption a journal would print: full sentences a
+        reader can copy verbatim, not a list of stats."
   plain_english_summary:
     file: <name>.summary.md (mandatory for synthesis-bound figures)
     length: 2-3 short paragraphs
@@ -755,10 +764,16 @@ steps:
   - id: write_caption
     name: Write the Technical Caption
     description: |
-      Mandatory sibling <name>.caption.md. 3 sentences max:
+      Mandatory sibling <name>.caption.md. Lead with a `## Caption` section
+      holding the PAPER-READY caption — the continuous-prose text a reader
+      pastes under the figure in a manuscript:
         1. Lead with the substantive finding.
         2. Name the unit on each axis if not self-evident.
-        3. Call out one specific feature.
+        3. Write full sentences a journal would print (copy-pasteable), not
+           a bullet list of stats.
+      Below `## Caption`, keep `## Panels / details` (per-panel breakdown +
+      exact statistics) and `## Scope / caveats` (observational-vs-causal,
+      open asks, verification status) as supporting material.
 
   - id: write_plain_english_summary
     name: Write the Plain-English Summary (mandatory for synthesis figures)

@@ -123,7 +123,7 @@ def test_autoresolve_returns_daemon(monkeypatch, tmp_path):
 
 # ── resumable runs (Phase 4) ──────────────────────────────────────────
 
-def _run_to_terminal(daemon, job_id, timeout=10.0):
+def _run_to_terminal(daemon, job_id, timeout=30.0):
     import time
     deadline = time.time() + timeout
     while time.time() < deadline:

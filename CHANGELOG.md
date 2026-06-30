@@ -6,6 +6,39 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.4.5] — large-data symlinks · canonical scratch · paper-ready captions (2026-06-30)
+
+A PATCH release bundling three researcher-reported bugs.
+
+### Fixed
+- **Large raw data is symlinked, not copied.** `tool_context_intake` copied
+  every ingested file into `inputs/raw_data/` regardless of size — wasteful
+  when researchers work with tens-to-hundreds of GB. Files ≥ 1 GB are now
+  SYMLINKED to the source's absolute path (same `inputs/raw_data/<name>`
+  access path; bytes stay put), small files still copied so the project stays
+  self-contained. Symlink failure (unsupported FS) falls back to copy; the
+  staging method is recorded in the intake log.
+- **One canonical throwaway dir: `workspace/scratch/`.** The doctor check +
+  generated `.gitignore` + docs previously also legitimised `workspace/cache/`,
+  which is why the AI sometimes used `cache`, sometimes `scratch`. `cache/` is
+  dropped from the generated gitignore (legacy projects still accepted);
+  `scratch/` is the single home. `scratch` now supports organized subfolders
+  (`probes/`, `plans/`, `context/`, `data/`) with a provenance `NOTES.md`
+  convention, and `scratch_write`/`scratch_run`/`scratch_list` handle nested
+  paths (traversal still blocked).
+- **Figure captions carry a paper-ready prose block.** The caption sidecar
+  was finding-rich but had no single copy-pasteable caption. `caption.md` now
+  must lead with a `## Caption` section of continuous journal-language prose
+  (the text a reader pastes under the figure in a manuscript); the figure
+  audit warns when it's missing or is only bullets/metadata. Panel breakdowns
+  + scope/caveats stay below as supporting material.
+
+### Added
+- `caption_template()` helper (paper-ready `## Caption` + supporting sections).
+- Symlink threshold constant `_SYMLINK_THRESHOLD_BYTES` (1 GB).
+
+---
+
 ## [4.4.4] — versioned-artifact immutability (bump, don't overwrite) (2026-06-30)
 
 A PATCH release: fixes the bug where the AI ignored the `_v<k>` versioning

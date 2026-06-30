@@ -841,8 +841,8 @@ def check_git_clean(*, workspace: Path | None = None) -> CheckResult:
 
 
 def check_gitignore_covers_state(*, workspace: Path | None = None) -> CheckResult:
-    """`.gitignore` must mention `.os_state/` and `workspace/cache/` (or
-    `workspace/scratch/`) so per-run state never pollutes the repo."""
+    """`.gitignore` must mention `.os_state/` and `workspace/scratch/` so
+    per-run state never pollutes the repo."""
     if workspace is None:
         return ("pass", "No workspace; skipping .gitignore check", None)
     gi = workspace / ".gitignore"
@@ -861,16 +861,19 @@ def check_gitignore_covers_state(*, workspace: Path | None = None) -> CheckResul
     # generator that only ignored subdirs and still committed run history).
     lines = {ln.strip() for ln in text.splitlines()}
     state_ok = ".os_state/" in lines or ".os_state" in lines
-    # Accept either the anchored top-level form (workspace/scratch/) or the
+    # Accept the anchored top-level form (workspace/scratch/) or the
     # UNANCHORED form (scratch/ — which also covers the per-step copies under
     # workspace/<NN_step>/scratch/). The unanchored form is what the current
     # generator emits; the anchored form is accepted for older projects.
-    cache_ok = (
-        "cache/" in lines or "cache" in lines
-        or "workspace/cache" in text or "workspace/scratch" in text
+    # NOTE: `workspace/scratch/` is the ONE canonical throwaway dir — there is
+    # no `workspace/cache/`. Older projects that ignored `cache/` are still
+    # accepted here (back-compat), but new ones use scratch only.
+    scratch_ok = (
+        "scratch/" in lines or "scratch" in lines
+        or "workspace/scratch" in text
+        # back-compat: legacy projects may still ignore a cache/ dir.
+        or "cache/" in lines or "workspace/cache" in text
     )
-    scratch_ok = "scratch/" in lines or "scratch" in lines or "workspace/scratch" in text
-    cache_ok = cache_ok or scratch_ok
     logs_ok = (
         "logs/" in lines or "logs" in lines
         or "workspace/logs/" in lines or "workspace/logs" in lines
@@ -878,8 +881,8 @@ def check_gitignore_covers_state(*, workspace: Path | None = None) -> CheckResul
     missing = []
     if not state_ok:
         missing.append(".os_state/ (the whole tree, not just a subdir)")
-    if not cache_ok:
-        missing.append("scratch/ or cache/ (unanchored, or workspace/scratch/)")
+    if not scratch_ok:
+        missing.append("scratch/ (unanchored, or workspace/scratch/)")
     if not logs_ok:
         missing.append("logs/ (unanchored, or workspace/logs/)")
     if missing:
@@ -888,7 +891,7 @@ def check_gitignore_covers_state(*, workspace: Path | None = None) -> CheckResul
             f".gitignore missing entries: {', '.join(missing)}",
             "Append the missing lines to .gitignore.",
         )
-    return ("pass", ".gitignore covers .os_state/ and workspace cache", None)
+    return ("pass", ".gitignore covers .os_state/ and workspace/scratch/", None)
 
 
 # ── Orchestration ─────────────────────────────────────────────────────
