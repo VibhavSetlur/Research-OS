@@ -327,7 +327,7 @@ inside a workspace) the workspace itself. Modelled on `brew doctor` /
 | `workspace_integrity`       | No orphan figures, no unresolved BLOCK gates in the audit ledger. |
 | `disk_space`                | Workspace size under 5 GB (warns above).                                               |
 | `git_clean`                 | Working tree clean (skipped when the workspace isn't a git repo).                      |
-| `gitignore_covers_state`    | `.gitignore` mentions `.os_state/` and either `workspace/cache/` or `workspace/scratch/`. |
+| `gitignore_covers_state`    | `.gitignore` mentions `.os_state/` and `workspace/scratch/`. |
 
 ### Examples
 

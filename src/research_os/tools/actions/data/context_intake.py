@@ -28,6 +28,42 @@ from typing import Any
 logger = logging.getLogger("research_os.tools.data.context_intake")
 
 
+# Files at or above this size are SYMLINKED into inputs/raw_data/ instead of
+# copied. Researchers routinely work with tens-to-hundreds of GB of raw data
+# (sequencing reads, imaging stacks, simulation dumps); copying that wastes
+# disk and time on shared/quota'd filesystems. A symlink preserves the same
+# inputs/raw_data/<name> access path the rest of the system expects while the
+# bytes stay where they are. Small files are still copied so the project is
+# self-contained and the original can move/change without breaking intake.
+_SYMLINK_THRESHOLD_BYTES = 1 * 1024 * 1024 * 1024  # 1 GB
+
+
+def _stage_input_file(src: Path, dest: Path) -> str:
+    """Materialise ``src`` at ``dest``; symlink when large, else copy.
+
+    Returns the staging method actually used: ``"symlink"`` or ``"copy"``.
+    Large files (>= _SYMLINK_THRESHOLD_BYTES) are symlinked to the source's
+    ABSOLUTE path so the link survives a cwd change; if the symlink can't be
+    created (unsupported filesystem, permission) we fall back to a copy so
+    intake never silently fails to stage the data.
+    """
+    try:
+        size = src.stat().st_size
+    except OSError:
+        size = 0
+    if size >= _SYMLINK_THRESHOLD_BYTES:
+        try:
+            dest.symlink_to(src.resolve())
+            return "symlink"
+        except OSError as e:
+            logger.warning(
+                "symlink of large input %s failed (%s); copying instead",
+                src, e,
+            )
+    shutil.copy2(src, dest)
+    return "copy"
+
+
 _ROUTING = {
     "literature": {".pdf", ".epub", ".djvu", ".ps"},
     "raw_data": {
@@ -236,7 +272,8 @@ def context_intake(
             }
             if not dry_run:
                 try:
-                    shutil.copy2(src, dest)
+                    method = _stage_input_file(src, dest)
+                    entry["staged_via"] = method
                     log_entries.append(entry)
                     imported.append(entry)
                 except Exception as e:

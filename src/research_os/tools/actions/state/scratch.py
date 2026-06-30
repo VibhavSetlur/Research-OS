@@ -38,25 +38,54 @@ def _scratch_dir(root: Path) -> Path:
     readme = d / "README.md"
     if not readme.exists():
         readme.write_text(
-            "# Scratch\n\n"
-            "AI sandbox for quick tests. Contents are gitignored.\n"
-            "Anything important MUST be moved to a proper experiment folder "
-            "(`sys_path(operation='create')`) before it counts as research.\n"
+            "# Scratch — the AI's organized working sandbox\n\n"
+            "This is the ONE throwaway area (there is no `workspace/cache/`). "
+            "Anything the AI needs that is NOT yet research output lives here: "
+            "quick probes, temp scripts to test an approach before a step, "
+            "pre-step plans, model-context notes, scratch data pulls.\n\n"
+            "Keep it ORGANIZED — use subfolders by purpose, not a flat pile:\n"
+            "  - `probes/`   one-off scripts/tests run before committing to a step\n"
+            "  - `plans/`    pre-step plans, ideas, scratch reasoning\n"
+            "  - `context/`  temp pulls / notes the AI gathered to do a better job\n"
+            "  - `data/`     temp/intermediate data the AI fetched to explore\n\n"
+            "Provenance: when a scratch artifact informs a decision, note WHAT it "
+            "was and WHY in `scratch/NOTES.md` (date · purpose · outcome) so the "
+            "trail survives even though the files are gitignored.\n\n"
+            "Contents are gitignored. Anything that becomes real research MUST "
+            "move OUT into a proper experiment folder "
+            "(`sys_path(operation='create')`) before it counts.\n"
         )
     return d
 
 
+def _safe_scratch_target(d: Path, filename: str) -> Path | None:
+    """Resolve ``filename`` under scratch dir ``d``, allowing subfolders but
+    blocking path traversal. Returns the target Path, or None if unsafe."""
+    if ".." in Path(filename).parts or filename.startswith(("/", "~")):
+        return None
+    target = (d / filename).resolve()
+    try:
+        target.relative_to(d.resolve())
+    except ValueError:
+        return None
+    return target
+
+
 def scratch_write(filename: str, content: str, root: Path) -> dict[str, Any]:
-    """Write a file into workspace/scratch/ (no provenance, no immutability)."""
+    """Write a file into workspace/scratch/ (no provenance, no immutability).
+
+    Subfolders are allowed (e.g. ``probes/test.py``) so the AI can keep
+    scratch organized by purpose; path traversal is rejected.
+    """
     try:
         d = _scratch_dir(root)
-        # Reject path-traversal attempts.
-        if "/" in filename or ".." in filename:
+        target = _safe_scratch_target(d, filename)
+        if target is None:
             return {
                 "status": "error",
-                "message": "Scratch filenames may not contain '/' or '..'.",
+                "message": "Scratch filenames may not escape scratch/ (no '..' or absolute paths).",
             }
-        target = d / filename
+        target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content)
         return {
             "status": "success",
@@ -72,8 +101,8 @@ def scratch_run(filename: str, root: Path, *, timeout: int = 60) -> dict[str, An
     """Execute a script in workspace/scratch/. Language inferred from extension."""
     try:
         d = _scratch_dir(root)
-        target = d / filename
-        if not target.exists() or not target.is_file():
+        target = _safe_scratch_target(d, filename)
+        if target is None or not target.exists() or not target.is_file():
             return {"status": "error", "message": f"scratch/{filename} not found"}
         ext = target.suffix.lower()
         runner = _LANG_RUNNERS.get(ext)
@@ -112,18 +141,18 @@ _PRESERVED = {".gitignore", ".gitkeep", "README.md"}
 
 
 def scratch_list(root: Path) -> dict[str, Any]:
-    """List files currently in scratch (excludes scaffold/preserved files)."""
+    """List files currently in scratch (recursive; excludes preserved files)."""
     try:
         d = _scratch_dir(root)
         entries = [
             {
-                "name": f.name,
+                "name": str(f.relative_to(d)),
                 "size_bytes": f.stat().st_size,
                 "modified": datetime.fromtimestamp(
                     f.stat().st_mtime, tz=timezone.utc
                 ).isoformat(),
             }
-            for f in d.iterdir()
+            for f in d.rglob("*")
             if f.is_file() and f.name not in _PRESERVED
         ]
         files = sorted(entries, key=lambda x: x["modified"])
