@@ -160,6 +160,41 @@ per-call:
 
 You rarely run `research-os start` manually — the IDE auto-launches it.
 
+### Tool surface — keeping the context lean
+
+Research OS ships ~160 tools. Advertising every one of them to your AI
+client at connection time would flood its context before it does any work.
+So by default the server exposes only a small **CORE bootstrap surface**
+(~25 tools: the boot ritual + the routing/discovery tools + file/state
+plumbing). The AI uses those to route (`tool_route`), scope its working set
+(`sys_active_tools`), or search the catalog (`tool_tools_list`,
+`sys_semantic_tool_search`, `sys_tool_describe`) — then calls whatever tool
+it needs **by name**. Hidden tools are NOT removed: they stay fully callable;
+their descriptions are just deferred until the AI actually needs them.
+
+Control it with the `RESEARCH_OS_TOOL_SURFACE` env var in your MCP config:
+
+| Value | What's advertised |
+|---|---|
+| `core` (default) | the ~25-tool bootstrap surface — leanest handshake |
+| `mode` | CORE + the active workspace mode's working tools (analysis / tool_build / exploration) |
+| `full` | every tool (the old behaviour) — only if your client has the context budget and you want the whole catalog up front |
+
+```json
+{
+  "mcpServers": {
+    "research-os": {
+      "command": "research-os",
+      "args": ["start"],
+      "env": {
+        "RESEARCH_OS_WORKSPACE": "/abs/path/to/your-project",
+        "RESEARCH_OS_TOOL_SURFACE": "core"
+      }
+    }
+  }
+}
+```
+
 ---
 
 ## 4. Wire up your IDE
