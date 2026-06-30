@@ -46,9 +46,9 @@ Spend context on reasoning, not re-reading.
   `'lean'` is the small-model default).
 * **Don't re-read** `sys_boot`/`tool_route` payloads, files you just wrote,
   or protocols already in context.
-* **Search, don't dump:** `tool_route` / `tool_semantic_route` for
-  protocols, `sys_semantic_tool_search` for tools — never load
-  `_router_index.yaml` or the whole tool catalog to look around.
+* **Search to find:** `tool_route` / `tool_semantic_route` for protocols,
+  `sys_semantic_tool_search` for tools. The handshake shows a lean ~25-tool
+  core; any other tool is still callable by name once a search surfaces it.
 * **Read the slice you need** of big files, not the whole thing.
 
 ## Your operating contract — keep `researcher_config.yaml` in sync

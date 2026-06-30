@@ -107,6 +107,11 @@ from ._handlers_runtime import (  # noqa: F401
 )
 
 # ── MCP entry point (triggers pack discovery + metadata annotation) ──
+from .tool_surface import (  # noqa: F401
+    _CORE_SURFACE,
+    resolve_surface_mode,
+    select_visible_tools,
+)
 from .entry import (  # noqa: F401
     _MCP_INSTRUCTIONS,
     _annotate_core_tool_metadata,
