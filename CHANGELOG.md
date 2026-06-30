@@ -6,6 +6,33 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.4.3] — lean MCP tool surface (progressive disclosure) (2026-06-30)
+
+A PATCH release: fixes the context-bloat bug where the MCP `list_tools()`
+handshake advertised the full ~160-tool catalog every session, flooding the
+client's context before any work began.
+
+### Fixed
+- **MCP handshake now advertises a lean CORE surface (~25 tools) by default**,
+  not all ~160. The boot ritual + routing/discovery tools + file/state
+  plumbing are exposed; every other tool stays fully callable by name. This
+  is safe because `call_tool` dispatches against the full handler registry,
+  not the advertised list — hiding a tool defers its description, it does not
+  remove the tool. Cuts the per-session tool-list context cost dramatically.
+
+### Added
+- **`RESEARCH_OS_TOOL_SURFACE` env var** (`server/tool_surface.py`) to control
+  the handshake surface: `core` (default, lean bootstrap), `mode` (CORE + the
+  active workspace mode's working tools), or `full` (the old all-tools
+  behaviour). Set it in your MCP config `env` block. Unknown/empty ⇒ `core`;
+  any error resolving a narrowed surface degrades open to `full`.
+- Updated MCP `instructions` + `templates/AGENTS.md` + `docs/SETUP.md` to teach
+  progressive disclosure: find a tool via `sys_active_tools` /
+  `tool_tools_list` / `sys_semantic_tool_search` / `sys_tool_describe`, then
+  call it directly even though it was not in the handshake list.
+
+---
+
 ## [4.4.2] — synthesis scratch + meetings; dashboards/slides never use a step (2026-06-29)
 
 A PATCH release: organization + git-hygiene fixes, no new tools or protocols.

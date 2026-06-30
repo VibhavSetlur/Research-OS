@@ -25,6 +25,7 @@ from .dispatch import _handle_tool_call
 from .envelopes import HAS_MCP, TextContent
 from .pack_loader import _discover_adapters_once, _discover_packs_once
 from .registry import TOOL_DEFINITIONS
+from .tool_surface import select_visible_tools
 
 
 logger = logging.getLogger("research-os.server")
@@ -105,7 +106,15 @@ _MCP_INSTRUCTIONS = (
     '(2) call tool_route(prompt="<user_message>") to identify the right protocol, '
     '(3) load returned protocol with sys_protocol_get(protocol_name="<resolved>", format="summary"), '
     '(4) call sys_active_tools(protocol_name="<resolved>") to scope your working tool set. '
-    'Pack tools are loaded on-demand via tool_route routing. '
+    'PROGRESSIVE DISCLOSURE: the tool list advertised at handshake is a LEAN '
+    'bootstrap surface (~25 core tools), NOT the full catalog (~160 tools). '
+    'Every other tool is still fully callable by name — just call it. To '
+    'find a tool you need, use sys_active_tools(protocol_name) (the shortlist '
+    'for a protocol), tool_tools_list(mode="auto") (the catalog scoped to '
+    'your workspace mode), sys_semantic_tool_search(query) (find a tool by '
+    'what it does), or sys_tool_describe(tool_name) (one tool\'s full schema). '
+    'Then dispatch the tool directly — it works even though it was not in the '
+    'handshake list. Pack tools are loaded on-demand via tool_route routing. '
     'Each envelope ships next_recommended_call (string hint) and '
     'next_recommended_call_structured ({tool, arguments}) — strict tool-loop '
     'clients can dispatch the structured form directly.'
@@ -189,8 +198,15 @@ if HAS_MCP:
     async def list_tools() -> list[Tool]:
         root = _resolve_project_root()
         profile = _read_profile(root)
+        # Progressive disclosure: advertise only the configured surface
+        # (default: the ~25-tool CORE bootstrap set). Every other tool is
+        # still callable by name via call_tool — the AI reaches it through
+        # tool_route / sys_active_tools / tool_tools_list / sys_tool_describe.
+        visible = set(select_visible_tools(TOOL_DEFINITIONS, root))
         tools: list[Tool] = []
         for name, schema in TOOL_DEFINITIONS.items():
+            if name not in visible:
+                continue
             desc = _short_for_list(schema)
             if profile.get("model_profile") == "small":
                 desc = desc[:120]
