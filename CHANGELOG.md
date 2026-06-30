@@ -6,6 +6,32 @@ Versioning: [SemVer](https://semver.org).
 
 ---
 
+## [4.4.4] — versioned-artifact immutability (bump, don't overwrite) (2026-06-30)
+
+A PATCH release: fixes the bug where the AI ignored the `_v<k>` versioning
+convention and overwrote an existing version of a produced artifact in place,
+destroying that version's provenance.
+
+### Fixed
+- **`sys_file_write` now refuses to overwrite an existing versioned artifact**
+  (`*_v<n>.<ext>`) under `workspace/` or `synthesis/`. The error names the
+  bumped filename (`_v<n+1>`, computed above the highest existing sibling
+  version) so the AI writes the edit as a NEW version instead of clobbering
+  the old one. `force=true` remains the deliberate escape hatch for a genuine
+  same-version fix (e.g. a typo before the file was used downstream).
+- The rule is enforced at WRITE time (live, mid-prompt), so a model that
+  forgets the convention is corrected immediately rather than caught later.
+
+### Added
+- Versioned-name helpers in `audit/script_naming.py` (the single source of
+  truth for the `_v<k>` convention): `parse_versioned_name`,
+  `is_versioned_name`, `next_version_name`, `highest_existing_version`,
+  `suggest_version_bump`.
+- Guidance: `sys_file_write` description + `templates/AGENTS.md` rule 12
+  ("edit = new version, never overwrite") teach the rule.
+
+---
+
 ## [4.4.3] — lean MCP tool surface (progressive disclosure) (2026-06-30)
 
 A PATCH release: fixes the context-bloat bug where the MCP `list_tools()`

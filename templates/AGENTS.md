@@ -157,9 +157,9 @@ degrades to the stdio behaviour and you act exactly as today.
 11. **Multi-script steps need a `pipeline.yaml`** (`tool_step_pipeline`); a
     monolith spanning figures+tables+reports is BLOCKED by the step
     completeness audit — split into atomic sub-tasks.
-12. **Iterate vs fix** — a bug fix bumps `_v<n>`; a deliberate iteration
-    (recolour, retune, swap model) calls `tool_step(operation="iterate", …)`
-    FIRST so scripts + outputs + caption + conclusion snapshot together.
+12. **Edit = new version, never overwrite** a produced `*_v<n>` artifact —
+    write `_v<n+1>` (the write gate refuses in-place); a deliberate iteration
+    calls `tool_step(operation="iterate", …)` so the step snapshots together.
 
 When the researcher EXPLICITLY authorises a bypass in their current message,
 pass the per-audit override flag + an `override_rationale` (logged to

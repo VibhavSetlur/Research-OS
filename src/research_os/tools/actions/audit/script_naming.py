@@ -192,3 +192,88 @@ def audit_script_naming(root: Path, step_id: str | None = None) -> dict[str, Any
         "per_step": per_step,
         "blockers": blockers,
     }
+
+
+# ---------------------------------------------------------------------------
+# Versioned-file immutability (4.4.4)
+# ---------------------------------------------------------------------------
+#
+# The _v<k> suffix exists so that an EDIT to an already-produced artifact is a
+# NEW version, not a silent in-place overwrite of v1. The AI repeatedly ignores
+# this — it edits 01_fit_baseline_v1.py and saves it back over v1, destroying
+# the prior version's provenance. This module is the single source of truth for
+# the "bump, don't overwrite" rule, used by the sys_file_write guard AND the
+# project-hygiene daemon watch so both enforce the SAME convention.
+
+# Any filename ending in _v<N> before the extension is a VERSIONED artifact.
+_VERSIONED_RE = re.compile(
+    r"^(?P<base>.+)_v(?P<ver>\d+)(?P<ext>\.[A-Za-z0-9]+)?$"
+)
+
+
+def parse_versioned_name(name: str) -> tuple[str, int, str] | None:
+    """Split a versioned filename into (base, version, ext).
+
+    ``01_fit_baseline_v2.py`` -> ``("01_fit_baseline", 2, ".py")``.
+    Returns None when ``name`` carries no ``_v<N>`` suffix.
+    """
+    m = _VERSIONED_RE.match(name)
+    if not m:
+        return None
+    return (m.group("base"), int(m.group("ver")), m.group("ext") or "")
+
+
+def is_versioned_name(name: str) -> bool:
+    """True if ``name`` carries a ``_v<N>`` version suffix."""
+    return parse_versioned_name(name) is not None
+
+
+def next_version_name(name: str) -> str | None:
+    """Return the next-version filename for a versioned name, else None.
+
+    ``01_fit_baseline_v2.py`` -> ``01_fit_baseline_v3.py``.
+    """
+    parsed = parse_versioned_name(name)
+    if parsed is None:
+        return None
+    base, ver, ext = parsed
+    return f"{base}_v{ver + 1}{ext}"
+
+
+def highest_existing_version(directory: Path, base: str, ext: str) -> int:
+    """Return the highest existing ``_v<N>`` for (base, ext) in ``directory``.
+
+    0 when none exist. Used so a bump lands ABOVE every sibling version, not
+    just one past the file the AI happened to open.
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        return 0
+    highest = 0
+    want_ext = ext.lower()
+    for f in directory.iterdir():
+        if not f.is_file():
+            continue
+        parsed = parse_versioned_name(f.name)
+        if parsed is None:
+            continue
+        f_base, f_ver, f_ext = parsed
+        if f_base == base and f_ext.lower() == want_ext:
+            highest = max(highest, f_ver)
+    return highest
+
+
+def suggest_version_bump(path: Path) -> str | None:
+    """Given an existing versioned file path, suggest the next-version filename.
+
+    Picks one above the HIGHEST existing sibling version so a bump never
+    collides with an already-written _v<k>. Returns the bare filename (not a
+    full path), or None when ``path`` isn't a versioned artifact.
+    """
+    path = Path(path)
+    parsed = parse_versioned_name(path.name)
+    if parsed is None:
+        return None
+    base, _ver, ext = parsed
+    highest = highest_existing_version(path.parent, base, ext)
+    return f"{base}_v{highest + 1}{ext}"
