@@ -3123,7 +3123,6 @@ def _setup_gitignore(root: Path) -> None:
         "# slide decks are iterated before they land in their final synthesis home\n"
         "# (synthesis/<kind> or synthesis/meetings/<date>/, which ARE committed).\n"
         ".os_state/\n"
-        "cache/\n"
         "scratch/\n"
         "logs/\n\n"
         "# Secrets / machine-specific\n"

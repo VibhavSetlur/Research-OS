@@ -35,6 +35,7 @@ CHANGELOG → migration.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -204,6 +205,85 @@ def _svg_text_diagnostics(svg_text: str) -> dict[str, Any]:
     return {"collisions": collisions, "dejavu": dejavu, "n_text": len(texts)}
 
 
+def _paper_caption_issue(cap_path: Path) -> str | None:
+    """Return a one-line issue if the caption.md lacks a paper-ready prose
+    caption, else None.
+
+    A paper-ready caption is the continuous-prose text a researcher pastes
+    under the figure in a manuscript. We look for an explicit ``## Caption``
+    (or ``# Caption``) section whose body is a real sentence or two of prose
+    — not a bullet list, not a key:value metadata block. The rest of the
+    file (panel breakdowns, scope/caveats, provenance) is welcome supporting
+    material; this only checks the copy-pasteable caption exists.
+    """
+    try:
+        text = cap_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None  # unreadable — not this check's job to error
+    lines = text.splitlines()
+    # Find a heading whose title is exactly/starts with "Caption".
+    cap_start = None
+    for i, ln in enumerate(lines):
+        m = re.match(r"^\s*#{1,6}\s+(.*)$", ln)
+        if m and m.group(1).strip().lower().startswith("caption"):
+            cap_start = i + 1
+            break
+    if cap_start is None:
+        return (
+            f"`{cap_path.name}` has no `## Caption` section — add the "
+            "paper-ready caption (the continuous-prose text a reader pastes "
+            "under the figure in a manuscript), then keep your panel/scope "
+            "notes below it."
+        )
+    # Collect the section body up to the next heading.
+    body: list[str] = []
+    for ln in lines[cap_start:]:
+        if re.match(r"^\s*#{1,6}\s+", ln):
+            break
+        body.append(ln)
+    prose = " ".join(
+        ln.strip() for ln in body
+        if ln.strip() and not ln.lstrip().startswith(("-", "*", "|", ">"))
+        and not re.match(r"^\s*\*\*[^*]+:\*\*", ln)  # **Key:** metadata rows
+    ).strip()
+    # A usable caption is a real sentence (has a period, enough words) and is
+    # NOT just the bracketed template placeholder or a bullet/metadata dump.
+    is_placeholder = prose.startswith("[") and prose.rstrip().endswith("]")
+    too_thin = len(prose) < 15 or len(prose.split()) < 3
+    if too_thin or "." not in prose or is_placeholder:
+        return (
+            f"`{cap_path.name}` has a Caption heading but no real prose caption "
+            "beneath it — write the actual sentence(s) a reader copies into a "
+            "paper (finding-led, journal language), not just bullets/metadata."
+        )
+    return None
+
+
+def caption_template(figure_name: str, finding: str = "") -> str:
+    """A starter caption.md skeleton with a paper-ready Caption block on top.
+
+    ``finding`` (optional) seeds the prose caption's first sentence.
+    """
+    lead = finding.strip() or (
+        "[One–two sentences of finding-led prose in journal language — the "
+        "exact text a reader pastes under this figure in a manuscript. Lead "
+        "with the substantive result, name the units, no internal paths/step "
+        "ids.]"
+    )
+    return (
+        f"# Figure: {figure_name}\n\n"
+        "## Caption\n\n"
+        f"{lead}\n\n"
+        "## Panels / details\n\n"
+        "[Per-panel breakdown, exact statistics, and methodological notes "
+        "that support the caption above. This is working material, not the "
+        "paper caption.]\n\n"
+        "## Scope / caveats\n\n"
+        "[What the figure does NOT show; observational vs causal framing; "
+        "open data asks; verification status.]\n"
+    )
+
+
 def audit_figure_quality(
     figure_path: str, root: Path,
 ) -> dict[str, Any]:
@@ -317,6 +397,15 @@ def audit_figure_quality(
         blockers.append(
             f"Missing technical caption — write `{cap.name}` next to the figure."
         )
+    else:
+        # The caption.md must contain a PAPER-READY prose caption — the exact
+        # text a researcher copy-pastes under the figure in a manuscript —
+        # not only structured panel/scope notes. Surface it as a warning so
+        # the AI adds the prose block while keeping the useful supporting info.
+        cap_issue = _paper_caption_issue(cap)
+        if cap_issue:
+            warnings.append(cap_issue)
+        report["paper_caption_present"] = cap_issue is None
     # The plain-English interpretation lives inline in conclusions.md next
     # to the embed (the old <name>.summary.md sidecar was retired in 3.2).
     cfg_figures = _load_figures_config(root)
